@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
-  Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Plus, Redo2,
-  RotateCcw, Rows3, Save, Search, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
+  Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
+  RotateCcw, Rows3, Save, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, Shapes, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
@@ -27,6 +27,10 @@ import { RowActionsFields } from "./page-designer/RowActionsFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
+import LeftPanel from "./page-designer/LeftPanel";
+import DockPanel, { useDocks } from "./page-designer/DockPanel";
+import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
+import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { parseGridColumns } from "./page-designer/gridColumns";
 import { conditionProblem } from "./page-designer/conditions";
 import { ConditionFields } from "./page-designer/ConditionFields";
@@ -726,11 +730,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [device, setDevice] = useState<Device>("desktop");
-  const [leftTab, setLeftTab] = useState<"components" | "layers" | "queries" | "templates">("components");
+  const [newPageDialog, setNewPageDialog] = useState<"create" | "template" | null>(null);
+  const [queryEditorOpen, setQueryEditorOpen] = useState(false);
+  const docks = useDocks();
   const [rightMode, setRightMode] = useState<"inspector" | "history">("inspector");
   // Tam ekran: Studio menüsü ve üst çubuğu gizlenir, tasarımcı tüm pencereyi kullanır. Tercih tarayıcıda hatırlanır.
   const [fullscreen, setFullscreen] = useState(() => { try { return localStorage.getItem(FULLSCREEN_STORAGE_KEY) === "1"; } catch { return false; } });
-  const [paletteSearch, setPaletteSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ rowActions: true, style: false });
   const [, setUndoTick] = useState(0);
   const [queryPreviews, setQueryPreviews] = useState<Record<string, QueryPreview>>({});
@@ -1002,8 +1007,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const startNew = () => {
     setCurrent(null); setCreating(true); setHistory([]); setError(""); setSelectedComponentId(null); setRightMode("inspector");
     loadEditor("", "", "", emptyDefinition);
-    setLeftTab("templates");
-    setNotice("Yeni sayfa taslağı hazırlayın; yayımlanana kadar kullanıcılar görmez. Bir şablonla başlayabilirsiniz.");
+    setNewPageDialog("create");
+  };
+  // "Yeni özel sayfa" penceresi: ad, kod ve şablon birlikte seçilir; taslak kaydedilene kadar yalnız tasarımcıdadır.
+  const createFromDialog = (result: NewPageResult) => {
+    const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
+    const built = template.build();
+    setName(result.name); setCode(result.code);
+    if (built.description) setDescription(built.description);
+    if (built.components.length > 0) commit((value) => ({ ...value, components: built.components }));
+    setNewPageDialog(null); setSelectedComponentId(null); setError("");
+    setNotice("Yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Bileşenleri düzenleyip taslağı kaydedin.");
+  };
+  const cancelNewPage = () => {
+    setNewPageDialog(null);
+    if (creating && !current && definition.components.length === 0 && onBack) onBack();
   };
   const applyTemplate = (template: Template) => {
     if (!canEdit) { setError(current?.isPublished ? "Yayımlanmış sayfaya şablon uygulamak için önce yeni taslak oluşturun." : "Bu sayfayı düzenleme yetkiniz yok."); return; }
@@ -1019,7 +1037,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         setCode(nextCode);
       }
     }
-    setSelectedComponentId(null); setLeftTab("components"); setError("");
+    setSelectedComponentId(null); setError("");
     setNotice(`“${template.label}” şablonu uygulandı. Bileşenleri seçerek düzenleyin, ardından taslağı kaydedin.`);
   };
   const createFromPublished = async (page: PageSummary) => {
@@ -1079,7 +1097,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setError("");
     const addedId = ids[item.key] ?? standardItemId(item);
     if (item.kind === "component") { setSelectedComponentId(addedId); setRightMode("inspector"); }
-    else { setLeftTab("queries"); setSelectedQueryId(addedId); }
+    else { setQueryEditorOpen(true); setSelectedQueryId(addedId); }
     setNotice(`“${item.label}” eklendi. Değişikliği kaydedip yayımlayana kadar ERP'deki ekran değişmez.`);
   };
   /** "Tümünü yok say": taslak (kaydedilmemiş değişiklikleriyle birlikte) tabanı güncel standart sürüme çekilerek kaydedilir. */
@@ -1515,7 +1533,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const op = findOperation(erpCatalog, query.operation);
       const problem = !query.operation ? `“${query.name}” sorgusu için bir ERP işlemi seçin.`
         : op ? (() => { const missing = unboundRequiredParameter(op, query.parameters); return missing ? `Zorunlu parametre bağlanmadı: ${missing}` : bodyMapBlockProblem(query, op, definition); })() : null;
-      if (problem) { setError(problem); setLeftTab("queries"); setSelectedQueryId(query.id); return null; }
+      if (problem) { setError(problem); setQueryEditorOpen(true); setSelectedQueryId(query.id); return null; }
     }
     setSaving(true); setError(""); setNotice("");
     const sentSnapshot = snapshotOf(name, description, definition);
@@ -1672,7 +1690,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const mod = event.ctrlKey || event.metaKey;
     const keyName = event.key.toLowerCase();
     if (mod && keyName === "s") { event.preventDefault(); if (canEdit && !saving) void saveDraft(); return; }
-    if (typing) return;
+    if (typing || newPageDialog || queryEditorOpen) return;
     if (mod && keyName === "z" && !event.shiftKey) { event.preventDefault(); undo(); }
     else if (mod && (keyName === "y" || (keyName === "z" && event.shiftKey))) { event.preventDefault(); redo(); }
     else if (mod && keyName === "d" && selectedComponentId) { event.preventDefault(); duplicateComponent(selectedComponentId); }
@@ -1978,8 +1996,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
-  const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
-  const visiblePalette = palette.filter((item) => !searchText || item.label.toLocaleLowerCase("tr-TR").includes(searchText) || item.group.toLocaleLowerCase("tr-TR").includes(searchText));
   const toggleSection = (key: string) => setCollapsed((value) => ({ ...value, [key]: !value[key] }));
   const section = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
     <button type="button" className="pd-inspector-section-toggle" aria-expanded={!collapsed[key]} onClick={() => toggleSection(key)}>{collapsed[key] ? <ChevronRight size={14}/> : <ChevronDown size={14}/>}<span>{title}</span></button>
@@ -2325,59 +2341,25 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     </div>}
     {systemMode && current && <SystemPageNewItems items={pendingNewItems} disabled={!canEdit} busy={saving} onAdd={addNewItem} onIgnoreAll={() => void ignoreAllNewItems()}/>}
 
-    <div className={`pd-workspace${leftTab === "queries" ? " pd-query-wide" : ""}`}>
-      <aside className="pd-left" aria-label="Bileşenler ve katmanlar">
-        <div className="pd-tabs pd-query-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={leftTab === "components"} className={leftTab === "components" ? "active" : ""} onClick={() => setLeftTab("components")}><Plus size={14}/>Bileşenler</button>
-          <button type="button" role="tab" aria-selected={leftTab === "layers"} className={leftTab === "layers" ? "active" : ""} onClick={() => setLeftTab("layers")}><Layers size={14}/>Katmanlar<span className="pd-count">{definition.components.length}</span></button>
-          <button type="button" role="tab" aria-selected={leftTab === "queries"} className={leftTab === "queries" ? "active" : ""} onClick={() => setLeftTab("queries")}><Database size={14}/>Sorgular<span className="pd-count">{definition.queries.length}</span></button>
-          <button type="button" role="tab" aria-selected={leftTab === "templates"} className={leftTab === "templates" ? "active" : ""} onClick={() => setLeftTab("templates")}><LayoutTemplate size={14}/>Şablon</button>
-        </div>
-        {leftTab === "components" && <div className="pd-left-body">
-          <label className="pd-search"><Search size={14}/><input value={paletteSearch} onChange={(event) => setPaletteSearch(event.target.value)} placeholder="Bileşen ara" aria-label="Bileşen ara"/></label>
-          <p className="pd-hint">Tuvale sürükleyin ya da tıklayarak seçili bileşenin altına ekleyin.</p>
-          {paletteGroups.map((group) => {
-            const items = visiblePalette.filter((item) => item.group === group);
-            if (items.length === 0) return null;
-            return <div className="pd-palette-group" key={group}><h4>{group}</h4>{items.map((item) => {
-              const Icon = item.icon;
-              const taken = item.type === "actionBar" && !!actionBarOf(definition.components);
-              return <button type="button" key={item.type} className="pd-palette-item" draggable={canEdit && !taken} disabled={!canEdit || taken} title={taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined}
-                onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-component", item.type); event.dataTransfer.effectAllowed = "copy"; setDragging(item.type); }}
-                onDragEnd={clearDrag}
-                onClick={() => addComponent(item, insertIndex())}><span className="pd-palette-icon"><Icon size={15}/></span><span>{item.label}</span></button>;
-            })}</div>;
-          })}
-          {visiblePalette.length === 0 && <p className="pd-empty-note">“{paletteSearch}” ile eşleşen bileşen yok.</p>}
-        </div>}
-        {leftTab === "layers" && <div className="pd-left-body">
-          {definition.components.length === 0 ? <p className="pd-empty-note">Sayfada henüz bileşen yok.</p> : <ol className="pd-layers">{definition.components.map((component, index) => {
-            const Icon = iconFor(component.type);
-            return <li key={component.id} className={`${selectedComponentId === component.id ? "is-selected" : ""} ${dropTarget?.index === index ? `drop-${dropTarget.edge}-v` : ""}`}
-              draggable={canEdit}
-              onDragStart={(event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
-              onDragEnd={clearDrag}
-              onDragOver={(event) => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); const edge = event.clientY < rect.top + rect.height / 2 ? "before" : "after"; if (dropTarget?.index !== index || dropTarget.edge !== edge) setDropTarget({ index, edge }); }}
-              onDrop={(event) => dropAt(dropTarget?.index === index && dropTarget.edge === "after" ? index + 1 : index, event)}>
-              <button type="button" className="pd-layer-open" onClick={() => setSelectedComponentId(component.id)}><Icon size={14}/><span><b>{summaryOf(component)}</b><small>{titleFor(component.type)} · {spanOf(component)}/12</small></span></button>
-              <span className="pd-layer-actions">
-                <button type="button" title="Yukarı taşı" aria-label="Yukarı taşı" disabled={!canEdit || index === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
-                <button type="button" title="Aşağı taşı" aria-label="Aşağı taşı" disabled={!canEdit || index === definition.components.length - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
-              </span>
-            </li>;
-          })}</ol>}
-        </div>}
-        {leftTab === "queries" && <QueriesPanel queries={definition.queries} selectedId={selectedQueryId} onSelect={setSelectedQueryId}
-          editable={queryEditable} readOnlyReason={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir; bu sekmeyi salt okunur görüyorsunuz." : null}
-          schema={sqlSchema} suggestions={sequenceSuggestions.length > 0 ? [...bindingSuggestions, ...sequenceSuggestions] : bindingSuggestions} previews={queryPreviews} components={definition.components}
-          previewBlockedReason={current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null}
-          takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}
-          catalog={erpCatalog} onAddSourceQuery={addSourceQuery}/>}
-        {leftTab === "templates" && <div className="pd-left-body">
-          <p className="pd-hint">Şablon, sayfadaki bileşenlerin yerine geçer; Geri al ile dönebilirsiniz.</p>
-          {templates.map((template) => <button type="button" key={template.id} className="pd-template" disabled={!canEdit} onClick={() => applyTemplate(template)}><b>{template.label}</b><small>{template.description}</small></button>)}
-        </div>}
-      </aside>
+    <div className={`pd-workspace${docks.workspaceClass}`}>
+      <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
+      <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+        palette={palette.map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; setDragging(type); }}
+        onPaletteDragEnd={() => { setDragging(null); setDropTarget(null); }}
+        onPaletteAdd={(type) => { const item = palette.find((entry) => entry.type === type); if (item) addComponent(item, insertIndex()); }}
+        layers={definition.components.map((component) => ({ id: component.id, name: component.name, label: summaryOf(component), typeLabel: titleFor(component.type), span: spanOf(component), icon: iconFor(component.type),
+          children: component.type === "tabs" ? parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids })) : component.type === "dialog" ? [{ label: component.props.presentation === "drawer" ? "çekmece" : "pencere", ids: idList(component.props.contains, MAX_DIALOG_IDS) }] : [] }))}
+        selectedComponentId={selectedComponentId} onSelectComponent={setSelectedComponentId} dropTarget={dropTarget}
+        onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(id); }}
+        onLayerDragEnd={() => { setDragging(null); setDropTarget(null); }}
+        onLayerDragOver={(index, edge) => { if (dropTarget?.index !== index || dropTarget.edge !== edge) setDropTarget({ index, edge }); }}
+        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={moveComponent} componentCount={definition.components.length}
+        queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${isOperationQuery(query) ? "ERP işlemi" : "SQL"}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
+        selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
+        addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
+        onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>
+      </DockPanel>
 
       <section className="pd-center" aria-label="Sayfa tuvali">
         <div className="pd-canvas-toolbar">
@@ -2396,7 +2378,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onDragLeave={(event) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { cancelCanvasHit(); setCanvasDrop(null); } }}
               onDrop={(event) => dropAt(canvasDrop ?? definition.components.length, event, true)}>
               {showGrid && <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>}
-              {definition.components.length === 0 && pagePlaceholderAt === null && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setLeftTab("templates"); }}><LayoutTemplate size={14}/>Şablonları göster</button>}</div>}
+              {definition.components.length === 0 && pagePlaceholderAt === null && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>}
               {definition.components.flatMap((component, index) => {
                 const isSelected = selectedComponentId === component.id;
                 const block = <div key={component.id} data-flip={component.id} data-page-index={index}
@@ -2425,6 +2407,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         </div>
       </section>
 
+      <DockPanel side="right" pinned={docks.pinned.right} onTogglePin={() => docks.toggle("right")} rail={[{ label: rightMode === "history" ? "Geçmiş" : "Özellikler", icon: rightMode === "history" ? History : Settings2 }]} attentionKey={selectedComponentId}>
       <aside className="pd-right" aria-label={rightMode === "history" ? "Sürüm geçmişi" : "Özellikler"}>
         {rightMode === "history" ? <div className="pd-right-body">
           <div className="pd-right-head"><History size={16}/><div><b>Sürüm geçmişi</b><small>Geri yükleme yayımlanmış sayfada yeni taslak, açık taslakta yeni revizyon oluşturur.</small></div><button type="button" className="pd-icon-button" aria-label="Kapat" onClick={() => setRightMode("inspector")}><X size={15}/></button></div>
@@ -2822,7 +2805,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             : current && capabilities?.canDelete && !queryPageLocked && <button type="button" className="pd-button small danger pd-delete-page" onClick={() => void deleteCurrent()} disabled={saving}><Trash2 size={13}/>Sayfayı sil</button>}
         </div>}
       </aside>
+      </DockPanel>
     </div>
+    {newPageDialog && <NewPageDialog mode={newPageDialog} templates={templates} takenCodes={pages.map((page) => page.code)} onCancel={cancelNewPage}
+      onConfirm={(result) => { if (newPageDialog === "create") createFromDialog(result); else { setNewPageDialog(null); const template = templates.find((item) => item.id === result.templateId); if (template) applyTemplate(template); } }}/>}
+    {queryEditorOpen && <QueryEditorModal title="Sorgular" onClose={() => setQueryEditorOpen(false)}>
+      <QueriesPanel queries={definition.queries} selectedId={selectedQueryId} onSelect={setSelectedQueryId}
+        editable={queryEditable} readOnlyReason={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir; bu pencereyi salt okunur görüyorsunuz." : null}
+        schema={sqlSchema} suggestions={sequenceSuggestions.length > 0 ? [...bindingSuggestions, ...sequenceSuggestions] : bindingSuggestions} previews={queryPreviews} components={definition.components}
+        previewBlockedReason={current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null}
+        takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}
+        catalog={erpCatalog} onAddSourceQuery={addSourceQuery}/>
+    </QueryEditorModal>}
     {formEditorOpen && <div className="custom-pages-form-popup" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setFormEditorOpen(false); void refreshForms(); } }}><section role="dialog" aria-modal="true" aria-label="Form tasarımcısı"><header><div><b>Form tasarımcısı</b><small>Formu oluşturun, alanları düzenleyin ve yayımlayın.</small></div><button type="button" onClick={() => { setFormEditorOpen(false); void refreshForms(); }}>Kapat</button></header><CustomFormsPage token={token} role={role}/></section></div>}
   </main>;
 }
