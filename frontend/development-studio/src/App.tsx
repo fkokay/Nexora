@@ -1264,24 +1264,6 @@ export default function App() {
       )}
     </>
   );
-  const adaptationTabs = (current: "adaptation" | "marketplace" | null) => (
-    <nav className="st-tabs" aria-label="Platform uyarlama bölümleri">
-      <a
-        href="#adaptation"
-        aria-current={current === "adaptation" ? "page" : undefined}
-      >
-        <Boxes size={15} aria-hidden="true" />
-        Uyarlama araçları
-      </a>
-      <a
-        href="#marketplace"
-        aria-current={current === "marketplace" ? "page" : undefined}
-      >
-        <Package size={15} aria-hidden="true" />
-        Modül pazaryeri
-      </a>
-    </nav>
-  );
   const recentRequestsTable = (items: DevelopmentRequest[]) => (
     <div className="st-table-wrap">
       <table className="st-table">
@@ -1749,7 +1731,6 @@ export default function App() {
         <main className="st-content studio-dashboard-main" id="overview">
           {activeSection === "marketplace" ? (
             <>
-              {adaptationTabs("marketplace")}
               <header className="ns-page-head st-page-head">
                 <div>
                   <h1>Modül pazaryeri</h1>
@@ -2081,7 +2062,6 @@ export default function App() {
             </>
           ) : activeSection === "adaptation" ? (
             <>
-              {adaptationTabs("adaptation")}
               <header className="ns-page-head st-page-head">
                 <div>
                   <h1>Platform uyarlama</h1>
@@ -2237,7 +2217,6 @@ export default function App() {
               ];
               return (
                 <>
-                  {adaptationTabs(null)}
                   {nativeToolIds.includes(tool.id) ? (
                     <div className="studio-native-tool">
                       <Suspense
