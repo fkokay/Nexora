@@ -220,7 +220,7 @@ Studio (Task 3) adds `formDialog` to `managedKeys`, an actionBar inspector selec
 | `depolar` | `depo.listele` | read | — | 4 |
 | `kart` | `stok.kart.getir` | read | `id={{liste.seciliSatir.stockItem.id}}` | 4 |
 | `kartDepolari` | `stok.kart.depoBakiyeleri` | read | `id={{liste.seciliSatir.stockItem.id}}` | 4 |
-| `sonHareketler` | `stok.kart.hareketleri` | read | `stockItemId={{liste.seciliSatir.stockItem.id}}`, `page=1`, `pageSize=5` | 4 |
+| `sonHareketler` | `stok.kart.hareketleri` | read | `stockItemId={{liste.seciliSatir.stockItem.id}}` (bindings must be a single `{{path}}`, so literals such as `pageSize=5` are not allowed; the endpoint's default page is used and the table draws 5 rows with `limit: 5`) | 4 |
 | `kartSil` | `stok.kart.sil` | delete | `id={{liste.seciliSatir.stockItem.id}}` | 4 |
 | `pasifeAl` | `stok.kart.pasifeAl` | update | `id={{kart.rows[0].id}}` (rowVersion from the `kart` source) | 4 |
 | `aktifEt` | `stok.kart.aktifEt` | update | `id={{kart.rows[0].id}}` | 4 |
@@ -273,7 +273,9 @@ Studio (Task 3) adds `formDialog` to `managedKeys`, an actionBar inspector selec
 | `gorselKarti` "Görsel ve pazaryeri" (2) | `gorsel` | `productImageUrl` | text, maxLength 1000, placeholder "https://…", "Ürün görseli bağlantısı" |
 | | `pazaryeriKimligi` | `marketplaceProductId` | text, maxLength 120, "Pazaryeri ürün kimliği" |
 
-Every formCard has `recordKey: "{{kart.rows[0].id}}"` and `trackChanges: true`.
+The seven card formCards above, and only those, have `recordKey: "{{kart.rows[0].id}}"` and `trackChanges: true`. `suzgecKarti` and `hareketFormu` have neither, because a `recordKey` there would reset the filters or the movement entry on every row change.
+
+**Conditions use scalar paths only.** The Faz A grammar normalizes objects and arrays to `null`, so `liste.seciliSatir != null` is always false. Test for a selection with `liste.seciliSatir.stockItem.id != null`.
 
 Rules that stay server-only (inventory section 4):
 - unique code and barcode;
@@ -300,7 +302,7 @@ Their errors appear under the bound input through the field-error mapping.
 | 4 | `minimumAltiGostergesi` | metric | title "Minimum altı", `value: "{{bakiye.meta.belowMinimumCount}}"`, `format: number`, description "Seçili kapsam (arama hariç)", variant `danger`, icon `alert`, `filterInput: minimumAlti`, `filterValue: "true"` |
 | 4 | `maliyetsizGostergesi` | metric | title "Maliyetsiz", `value: "{{bakiye.meta.pageUnvaluedCount}}"`, `format: number`, description "Bu sayfa", variant `warning`, icon `alert` |
 | 4 | `liste` | dataTable | see "List table" below |
-| 4 | `detaySekmeleri` | tabs | `tabs: ["Özet=ozetPaneli", "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu"]`, `visibleWhen: "liste.seciliSatir != null"` |
+| 4 | `detaySekmeleri` | tabs | `tabs: ["Özet=ozetPaneli", "Depolar=kartDepoTablosu", "Hareketler=sonHareketTablosu"]`, `visibleWhen: "liste.seciliSatir.stockItem.id != null"` |
 | 4 | `ozetPaneli` | contextPanel (`detaySekmeleri`) | `table: liste`, title "{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", fields (10) listed in "Detail" below |
 | 4 | `kartDepoTablosu` | dataTable (`detaySekmeleri`) | `query: kartDepolari`, `columns: [warehouseCode, warehouseName, quantityOnHand, reservedQuantity, availableQuantity, valuationAmountBase, unvaluedQuantity]`, emptyText "Bu kartın depo bakiyesi yok." |
 | 4 | `sonHareketTablosu` | dataTable (`detaySekmeleri`) | `query: sonHareketler`, `limit: 5`, `columns: [entryDate, warehouseCode, direction, quantity, description]`, emptyText "Hareket yok." |
@@ -316,13 +318,13 @@ Their errors appear under the bound input through the field-error mapping.
 | 5 | `varyantMatrisi` | editableGrid matrix | `matrixCode: "{{kod.value}}"`, `matrixName: "{{ad.value}}"`, title "Varyant boyutları", `visibleWhen: "kart.rows[0].id == null"` |
 | 5 | `varyantListesi` | dataTable | `query: varyantlar`, `columns: [code, name, barcode, isActive]`, emptyText "Bu kartın varyantı yok.", `visibleWhen: "kart.rows[0].id != null"` |
 | 5 | `receteListesi` | dataTable | `query: receteler`, `columns: [code, name, outputQuantity, isActive, orderCount]`, emptyText "Bu stok kartını üreten reçete yok.", `visibleWhen: "kart.rows[0].id != null"` |
-| 6 | `hareketlerDugmesi` | button (`komutlar` menu) | text "Hareketler / ekle", `actionType: openDialog`, `dialogId: hareketPenceresi`, `visibleWhen: "liste.seciliSatir != null"`, `disabledWhen: "depoSecimi.value == null"`, disabledReason "Hareket için önce bir depo seçin." |
-| 6 | `hareketPenceresi` | dialog | `presentation: dialog`, title "Stok hareketleri · {{liste.seciliSatir.balance.code}} · {{depoSecimi.seciliSatir.name}}", `contains: [hareketFormu, izlemeSatirlari, hareketTablosu]`, `saveQuery: hareketEkle`, saveLabel "Hareketi kaydet", closeOnSave, resetOnOpen, `refreshQueries: [hareketler, bakiye, kartDepolari, sonHareketler]` |
+| 6 | `hareketlerDugmesi` | button (`komutlar` menu) | text "Hareketler / ekle", `actionType: openDialog`, `dialogId: hareketPenceresi`, `visibleWhen: "liste.seciliSatir.stockItem.id != null"`, `disabledWhen: "depoSecimi.value == null"`, disabledReason "Hareket için önce bir depo seçin." |
+| 6 | `hareketPenceresi` | dialog | `presentation: dialog`, title "Stok hareketleri · {{liste.seciliSatir.balance.code}} · {{depoSecimi.seciliSatir.name}}", `contains: [hareketFormu, izlemeSatirlari, hareketTablosu]`, `saveQuery: hareketEkle`, saveLabel "Hareketi kaydet", closeOnSave, resetOnOpen, `refreshQueries: [hareketler, kartDepolari, sonHareketler, bakiye]` (the dialog closes on success, so refreshing `bakiye`, which clears the list selection, is acceptable here) |
 | 6 | `hareketFormu` | formCard "Yeni hareket" (2) | `inputs: [hareketYonu, hareketTarihi, hareketBirimi, hareketMiktari, hareketAciklamasi, hareketKonumu, birimMaliyet]` |
 | 6 | 7 movement inputs | input | see "Movement inputs" below |
 | 6 | `izlemeSatirlari` | editableGrid list | `gridColumns: ["trackingCode\|Lot / seri kodu\|text\|required,unique,maxLength:80", "quantity\|Miktar\|number\|required,min:0.0001", "expiryDate\|Son kullanma tarihi\|date"]`, maxRows 200, title "Lot / seri satırları", description "Seri numaralarında miktar 1 olmalı ve son kullanma tarihi boş kalmalıdır; lotlarda son kullanma tarihi zorunludur.", `visibleWhen: "liste.seciliSatir.stockItem.trackingMode != 'None'"` |
 | 6 | `hareketTablosu` | dataTable | `query: hareketler`, `paging: server`, pageSize 50, `columns: [entryDate, direction, quantity, enteredQuantity, enteredUnitCode, unitCostBase, storageLocationCode, description, isReversal, hasReversal]`, `rowActions: [tersKayitDugmesi]`, emptyText "Bu depoda hareket yok." |
-| 6 | `tersKayitDugmesi` | button (row action of `hareketTablosu`) | text "Ters kayıt", `actionType: query`, `queryId: tersKayit`, promptLabel "Ters kayıt gerekçesi", promptRequired, `disabledWhen: "hareketTablosu.seciliSatir.hasReversal \|\| hareketTablosu.seciliSatir.isReversal"`, disabledReason "Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.", successMessage "Ters kayıt oluşturuldu.", `refreshQueries: [hareketler, bakiye, kartDepolari, sonHareketler]` |
+| 6 | `tersKayitDugmesi` | button (row action of `hareketTablosu`) | text "Ters kayıt", `actionType: query`, `queryId: tersKayit`, promptLabel "Ters kayıt gerekçesi", promptRequired, `disabledWhen: "hareketTablosu.seciliSatir.hasReversal \|\| hareketTablosu.seciliSatir.isReversal"`, disabledReason "Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.", successMessage "Ters kayıt oluşturuldu.", `refreshQueries: [hareketler, kartDepolari, sonHareketler]`. It **must not** contain `bakiye`. A single write reruns only its `refreshQueries` (`runQueryWrite`), and a `bakiye` rerun returns new row objects, so `QueryTable` drops the `liste` selection (`state.rows.includes(selected)`) while the dialog is still open. That would empty `hareketler` and break the next reversal. |
 
 **List table `liste`:**
 - `query: bakiye`, `paging: "server"`, pageSize 25, `searchInput: aramaKutusu`, title "Stok kartları".
@@ -433,6 +435,7 @@ Their errors appear under the bound input through the field-error mapping.
 
 **Files:**
 - Modify: `src/Hosts/AIERP.Api/SystemPageEndpoints.cs`. Add `RuntimeRights` (Wire contract) and use it in both branches of `GET /{screenKey}/published`. The standard branch passes `new CustomPageRights(true, false, false, false)` into the helper, so a standard (never SQL) yields full page rights for members.
+- Modify: `docs/superpowers/specs/2026-11-18-sistem-sayfalari-design.md`. Section 7 "Çalışma zamanında görme hakkı" and section 3 "Hakları yalnız görmedir" are rewritten to the new rule: "SQL sorgusu olmayan sistem sayfasında sayfa yazma hakları görme hakkına eşittir; yetkiyi ERP uç noktaları verir." This reverses a written Proje 3 decision, which that plan explicitly deferred to Proje 4.
 - Modify: `src/Hosts/AIERP.Api/TenantCustomPageSchema.cs`:
   - add `formDialog` to `SafePropsV2` and `ActionBarProps`;
   - validate it after the loop against `ComponentTypesById`, with the errors from the Wire contract.
@@ -443,6 +446,7 @@ Their errors appear under the bound input through the field-error mapping.
 **Interfaces:** Consumes nothing. Produces the rights rule that Tasks 7–8 rely on, and the `formDialog` prop that Tasks 3 and 5 rely on.
 
 - [ ] **Step 1: Write failing tests:**
+  - **Update, not only extend.** Every existing `SystemPageEndpointsIntegrationTests` assertion that pins standard-mode rights as view-only (`CustomPageRightsView(true, false, false, false)`) is changed to the new rule.
   - `Standard_mode_gives_members_write_rights`: a TenantUser on an enabled standard gets `rights = { view, insert, update, delete }`, all `true`.
   - `Operation_only_override_gives_tenant_user_write_rights`: a published firm row without SQL and without an access row.
   - `Override_with_sql_keeps_access_rules`: a published firm row with one SQL query and no access row. The TenantUser gets 403 from `/published`, which is today's behavior.
@@ -527,7 +531,7 @@ Their errors appear under the bound input through the field-error mapping.
   - `Status_column_has_tone_map_and_format`.
   - `Warehouse_lookup_offers_all_warehouses`: `staticOptions` `"=Tüm depolar"`, `optionsQuery: depolar`.
   - `Metrics_bind_page_meta`: the five metrics, their values, formats and `visibleWhen`; `minimumAltiGostergesi` has `filterInput: minimumAlti`, `filterValue: "true"`.
-  - `Detail_tabs_show_summary_warehouses_and_last_movements`: tab ids, the `sonHareketler` binding `pageSize=5`, and `limit: 5`.
+  - `Detail_tabs_show_summary_warehouses_and_last_movements`: tab ids, `sonHareketler` binds only `stockItemId`, and the table has `limit: 5`.
   - `State_commands_are_menu_buttons`: `moreButtons` contains `devreDisiBirak` and `etkinlestir`, and their `visibleWhen` strings are as pinned. `pasifeAl`/`aktifEt` bind `{{kart.rows[0].id}}`, and the `kart` query binds the list selection.
   - `Action_bar_part_1`: `deleteQuery: kartSil`, `exportTable: liste`, `focusInput: aramaKutusu`.
   - `Screen_view_import_hides_mapped_columns`. `SystemPageMerge.ImportScreenViews` with `status` and `category` hidden removes `status` and `stockItem.category` from `columns` and from `columnFormats`, and adds no note for `actions`.
@@ -628,6 +632,8 @@ Their errors appear under the bound input through the field-error mapping.
     - "Ters kayıt" asks "Ters kayıt gerekçesi" and posts `{ reason }`;
     - "Ters kayıt" is disabled on a row with `hasReversal`.
   - `deactivate confirms and shows server conflict text`. A 409 body `{ error: "…" }` is shown.
+  - `reversal keeps the movement list usable`. After one successful reversal the `liste` selection is kept and `hareketler` still has rows. A second reversal on another row posts with that row's `entryId`.
+  - `clearing an optional field on edit`. Empty the barcode and `maksimumStok` on an existing card and save, then record what the `PUT` body carries: `null`/absent or the source value. If the source value is kept, the field cannot be cleared from the page. This becomes the checklist row "İsteğe bağlı alanı boşaltma", with status `fark`, and is reported to the controller; it is not fixed in this plan.
 - [ ] **Step 2: Run** `npx vitest run src/system-pages/inventoryStockStandard` in `frontend/erp-web`. Expected: PASS.
 - [ ] **Step 3: Write the parity checklist.** It is the live QA script; Turkish, in the style of the inventory. Its sections mirror inventory sections 1–4 and 6. Each row has these columns:
 
@@ -655,7 +661,9 @@ Their errors appear under the bound input through the field-error mapping.
   | Enter on a focused row | `fark`: Aç acts on the selected row |
   | Create defaults (TRY, KDV 20) | `fark`: applied by the server, shown as placeholders |
   | Serial quantity 1 and lot expiry | `sunucu kuralı`: shown under the tracking grid |
-  | The movement dialog closes after save | `fark` |
+  | The movement dialog closes after save, and the list selection is cleared by the balance refresh | `fark` |
+  | After a reversal the list balance updates on dialog close or Yenile | `fark` |
+  | Clearing an optional field (barcode, maximum stock) on edit | outcome of the Task 7 test |
   | A user without manufacturing read | `fark`: the recipes tab shows the authorization error instead of an empty list |
   | `inventory-stock-create` | `kapsam dışı`: stays legacy |
   | Category manager | `kapsam dışı` |
