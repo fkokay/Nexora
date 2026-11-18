@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Sayfa tasarımcısı giriş</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e8f0;--mut:#667085;--tx:#14213d;--ok:#13804b;--ok-bg:#e5f5ec;--warn:#b54708;--warn-bg:#fef0c7}
+*{box-sizing:border-box}body{margin:0;background:#f4f6fa;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);font-size:13px}
+.wrap{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.side{background:#fff;border-right:1px solid var(--line);padding:16px 12px}
+.side b.logo{display:block;font-size:16px;margin-bottom:16px;color:var(--st)}
+.side .it{padding:8px 10px;border-radius:8px;color:#344054}.side .it.on{background:var(--st-soft);color:var(--st);font-weight:600}
+.side .g{font-size:10.5px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:14px 10px 6px}
+.main{padding:12px 16px}
+.top{display:flex;align-items:center;gap:14px;padding:4px 0 12px}
+.top h1{margin:0;font-size:19px}
+.top .crumb{color:var(--mut);font-size:12px}
+.top .grow{flex:1}
+.btn{border:1px solid #d8d0fb;background:#fff;color:var(--st);border-radius:8px;padding:7px 12px;font-weight:600}
+.btn.pri{background:var(--st);color:#fff;border-color:var(--st)}
+.tools{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.tools span{padding:8px 14px;color:var(--mut);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tools span.on{color:var(--st);border-color:var(--st)}
+.tools span em{font-style:normal;background:#eef1f7;color:#55647c;border-radius:999px;padding:0 6px;font-size:11px;margin-left:5px}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:34px;border:1px solid var(--line);border-radius:8px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}.seg span{padding:6px 11px;border-right:1px solid var(--line);color:#344054}.seg span:last-child{border:0}.seg span.on{background:var(--st-soft);color:var(--st);font-weight:700}
+.sel{height:34px;border:1px solid var(--line);border-radius:8px;background:#fff;display:inline-flex;align-items:center;padding:0 10px;gap:8px;color:#344054}
+.right{margin-left:auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:9px 12px;background:#f8fafc;border-bottom:1px solid var(--line)}
+td{padding:10px 12px;border-bottom:1px solid #eef1f6;vertical-align:middle}
+tr:hover td{background:#fbfaff}
+.nm{display:flex;align-items:center;gap:10px}.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--st-soft);color:var(--st)}
+.ic.sys{background:#e8f0fd;color:#1f5fd1}
+.nm b{display:block}.nm small{color:var(--mut);font-family:Consolas,monospace;font-size:11.5px}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-sys{background:#e8f0fd;color:#1f5fd1}.p-mut{background:#eef1f7;color:#55647c}
+.act{display:flex;gap:6px;justify-content:flex-end}.act span{border:1px solid var(--line);border-radius:7px;padding:4px 9px;color:#344054;background:#fff}.act span.o{border-color:#d8d0fb;color:var(--st);font-weight:600}
+.mut{color:var(--mut)}
+.foot{display:flex;justify-content:space-between;padding:9px 12px;color:var(--mut);font-size:12px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1000px}
+</style></head><body>
+<div class="wrap">
+<aside class="side"><b class="logo">✦ Nexora Studio</b><div class="g">GELİŞTİRME</div><div class="it">Genel bakış</div><div class="it">Projeler</div><div class="it">Geliştirme talepleri</div><div class="g">PLATFORM UYARLAMA</div><div class="it on">Uyarlama araçları</div><div class="it">Modül pazaryeri</div></aside>
+<div class="main">
+  <div class="top"><div><div class="crumb">Uyarlama araçları ›</div><h1>Sayfa tasarımcısı</h1></div><span class="grow"></span><span class="mut">● Taslaklar güvenle kaydedilir</span><span class="btn pri">＋ Yeni sayfa</span></div>
+  <div class="tools"><span class="on">Sayfalar <em>103</em></span><span>Raporlar</span><span>İş akışları</span><span>İş kuralları</span><span>Menüler</span><span>Veri modelleri</span></div>
+  <div class="bar">
+    <span class="srch">⌕ Sayfa adı veya kodu</span>
+    <span class="seg"><span class="on">Tümü 103</span><span>Özel 8</span><span>Sistem 95</span></span>
+    <span class="sel">Durum: Tümü ⌄</span><span class="sel">Modül: Tümü ⌄</span>
+    <span class="right seg"><span class="on">☰ Liste</span><span>▦ Kart</span></span>
+  </div>
+  <div class="card"><table>
+    <tr><th>Sayfa</th><th>Tür</th><th>Durum</th><th>Modül</th><th>Sürüm</th><th>Son değişiklik</th><th></th></tr>
+    <tr><td><div class="nm"><span class="ic sys">▦</span><span><b>Stok kartları</b><small>@inventory-stock</small></span></div></td><td><span class="pill p-sys">Sistem</span></td><td><span class="pill p-warn">Taslak var</span> <span class="pill p-mut">Önizleme</span></td><td>Stok &amp; Depo</td><td>v9</td><td class="mut">bugün 00:41 · Platform Admin</td><td><div class="act"><span class="o">Tasarımcıda aç</span><span>⋯</span></div></td></tr>
+    <tr><td><div class="nm"><span class="ic sys">▦</span><span><b>Yeni stok kartı</b><small>@inventory-stock-create</small></span></div></td><td><span class="pill p-sys">Sistem</span></td><td><span class="pill p-mut">Standart</span></td><td>Stok &amp; Depo</td><td>—</td><td class="mut">—</td><td><div class="act"><span class="o">Tasarımcıda aç</span><span>⋯</span></div></td></tr>
+    <tr><td><div class="nm"><span class="ic">▤</span><span><b>Cari hesaplar</b><small>/cari-listesi</small></span></div></td><td><span class="pill p-mut">Özel</span></td><td><span class="pill p-warn">Taslak</span></td><td>Cari</td><td>v4</td><td class="mut">18.11.2026</td><td><div class="act"><span class="o">Tasarımcıda aç</span><span>⋯</span></div></td></tr>
+    <tr><td><div class="nm"><span class="ic">▤</span><span><b>QA sayılar testi</b><small>/qa-sayilar-testi</small></span></div></td><td><span class="pill p-mut">Özel</span></td><td><span class="pill p-ok">Yayında</span></td><td>—</td><td>v2</td><td class="mut">17.11.2026</td><td><div class="act"><span class="o">Tasarımcıda aç</span><span>⋯</span></div></td></tr>
+    <tr><td><div class="nm"><span class="ic sys">▦</span><span><b>Stok hareket geçmişi</b><small>inventory-stock-movements</small></span></div></td><td><span class="pill p-mut">Yerleşik</span></td><td><span class="mut">Görünüm ayarı · 6 alan</span></td><td>Stok &amp; Depo</td><td>—</td><td class="mut">—</td><td><div class="act"><span>Görünümü düzenle</span><span>⋯</span></div></td></tr>
+  </table><div class="foot"><span>1–25 / 103</span><span>‹ Önceki · Sayfa 1 / 5 · Sonraki ›</span></div></div>
+  <p class="note">• Büyük tanıtım kartı ve kaydırma çubuklu araç şeridi kalkar: başlık tek satır, araçlar sade sekme (sayılarıyla). • Sayfalar varsayılan olarak <b>liste</b>: ad + kod, tür (Sistem / Özel / Yerleşik), durum, modül, sürüm, son değişiklik; satıra tıklamak tasarımcıyı açar, ⋯ menüsünde Önizle / Kopyala / Sil / Geçmiş. Kart görünümü isteyen için düğmeyle seçilir ve hatırlanır. • Durum ve modül süzgeçleri; arama ad ve kodda. • Sil gibi eylemler ⋯ menüsüne taşınır, satırda yalnız birincil eylem kalır.</p>
+</div></div>
+</body></html>
