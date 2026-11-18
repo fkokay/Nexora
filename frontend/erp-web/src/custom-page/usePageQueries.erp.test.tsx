@@ -254,6 +254,25 @@ describe('usePageQueries Faz A işlem alanları', () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  it('stale manual source for another card refuses the write', async () => {
+    apiMock.mockResolvedValue({ items: [{ code: 'RENK', value: 'Mavi' }] });
+    const other = '3f2504e0-4f89-11d3-9a0c-0305e82c3302';
+    const valuesQuery: PageQueryDefinition = { id: 'v1', name: 'degerler', kind: 'read', runOn: 'manual', operation: 'stok.kart.ozelAlanDegerleri',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };
+    const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
+      parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }, { name: 'RENK', binding: '{{ad.value}}', type: 'text' }] };
+    const { result, rerender } = renderHook((props: { selected: string }) => usePageQueries({ queries: [valuesQuery, saveQuery], token: 't', pageCode: 'sayfa',
+      operations: faz, buildScope: (states) => ({ ...states, secim: { value: props.selected }, ad: { value: 'Kırmızı' } }) }), { initialProps: { selected: guid } });
+    await act(async () => { await result.current.runRead('v1'); });
+    expect(result.current.states.degerler.ranWith).toEqual({ id: guid });
+    rerender({ selected: other });
+    await expect(result.current.runWrite(saveQuery, { id: other, RENK: 'Kırmızı' })).rejects.toThrow('Kaynak kayıt seçili kayıtla eşleşmiyor.');
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    // Same card in another case is accepted.
+    await act(async () => { await result.current.runWrite(saveQuery, { id: guid.toUpperCase(), RENK: 'Kırmızı' }); });
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
   it('body map write without a source query sends nothing', async () => {
     const saveQuery: PageQueryDefinition = { id: 'v2', name: 'kaydet', kind: 'update', runOn: 'manual', operation: 'stok.kart.ozelAlanKaydet',
       parameters: [{ name: 'id', binding: '{{secim.value}}', type: 'guid' }] };

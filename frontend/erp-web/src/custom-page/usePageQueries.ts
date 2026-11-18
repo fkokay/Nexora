@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
-import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, type ErpOperation, type OperationRequest } from "./erpOperations";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
@@ -20,12 +20,16 @@ export type QueryState = {
   fieldErrors?: Record<string, string>;
   /** ERP okuma işleminin üst bilgileri (`metaPaths`); `{{sorgu.meta.totalCount}}` ile bağlanabilir. */
   meta?: Record<string, unknown>;
+  /** Okumanın en son çalıştığı çözülmüş parametre değerleri; yazma öncesi eskimiş kaynak denetimi için. */
+  ranWith?: Record<string, unknown>;
 };
 /** ERP yazma işleminde `sonuc` sunucunun JSON yanıtıdır (SQL yazmalarında yoktur). */
 export type WriteResult = { affectedRows: number; sonuc?: unknown };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
 
 export const QUERY_DEBOUNCE_MS = 300;
+/** Özel alan (bodyMap) kaynağı hiç çalışmadı ya da hata verdi: kayıt tüm değerleri değiştireceği için yazılmaz. */
+export const MAP_SOURCE_FAILED = "Özel alan değerleri yüklenemedi; kayıt yapılmadı.";
 const emptyState = (loading: boolean): QueryState => ({ rows: [], rowCount: 0, columns: [], truncated: false, loading, error: "", ran: false });
 
 /** v2 sayfa tanımındaki `queries` dizisini savunmacı biçimde okur; okunamayan girdiler atlanır. */
@@ -167,7 +171,7 @@ export function usePageQueries(options: {
       const json = await api<unknown>(request.url, token, operationInit(request));
       if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const mapped = mapOperationResult(op, json);
-      const next: QueryState = { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true };
+      const next: QueryState = { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true, ranWith: values };
       setStates((current) => ({ ...current, [query.name]: next }));
       return next;
     } catch (cause) {
@@ -190,7 +194,12 @@ export function usePageQueries(options: {
     }
     // Özel alan kaydı tüm değerleri değiştirir: kaynak okuması hiç çalışmadıysa ya da hata verdiyse boş/eksik eşlem yazılmaz.
     const mapState = mapSource ? latestStates.current[mapSource.name] : undefined;
-    if (mapSource && (!mapState || !mapState.ran || mapState.error)) throw new Error("Özel alan değerleri yüklenemedi; kayıt yapılmadı.");
+    if (mapSource && (!mapState || !mapState.ran || mapState.error)) throw new Error(MAP_SOURCE_FAILED);
+    // Elle çalışan kaynak başka bir kayıt için yüklenmiş olabilir: yazmanın yol değerleri kaynağın çalıştığı değerlerle eşleşmeli.
+    for (const sourceQuery of [source, mapSource]) {
+      const stale = sourceQuery ? staleSourceError(op, values, latestStates.current[sourceQuery.name]?.ranWith) : null;
+      if (stale) throw new Error(stale);
+    }
     const row = sourceRow(op);
     const mismatch = sourceRecordError(op, values, row);
     if (mismatch) throw new Error(mismatch);

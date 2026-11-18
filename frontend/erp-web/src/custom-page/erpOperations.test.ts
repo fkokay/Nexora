@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildOperationRequest, chooseRoute, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, type ErpOperation } from './erpOperations';
+import { buildOperationRequest, chooseRoute, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation } from './erpOperations';
 
 const guid = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
 const columns = [{ code: 'id', label: 'Kimlik', dataType: 'guid' }];
@@ -220,5 +220,26 @@ describe('body map', () => {
   it('undeclared values are ignored without a bodyMap', () => {
     const request = buildOperationRequest(update, { name: 'B', RENK: 'x' }, { Id: guid });
     expect(JSON.parse(request.body!)).toEqual({ Id: guid, name: 'B' });
+  });
+});
+
+describe('Faz A inceleme düzeltmeleri', () => {
+  it('staleSourceError compares bound route values with the source run values', () => {
+    const other = '3f2504e0-4f89-11d3-9a0c-0305e82c3302';
+    expect(staleSourceError(saveFields, { id: other }, { id: guid })).toBe('Kaynak kayıt seçili kayıtla eşleşmiyor.');
+    expect(staleSourceError(saveFields, { id: guid.toUpperCase() }, { ID: guid })).toBeNull();
+    expect(staleSourceError(saveFields, { id: other }, undefined)).toBeNull();
+    expect(staleSourceError(saveFields, { id: other }, { q: 'x' })).toBeNull();
+  });
+
+  it('never writes prototype keys into the body', () => {
+    const source = JSON.parse('{"__proto__":{"polluted":true},"constructor":"x","Id":"' + guid + '","name":"A"}');
+    const request = buildOperationRequest(update, { name: 'B' }, source);
+    const body = JSON.parse(request.body!);
+    expect(Object.keys(body).sort()).toEqual(['Id', 'name']);
+    const rows = JSON.parse('[{"code":"__proto__","value":"x"},{"code":"prototype","value":"y"},{"code":"RENK","value":"Mavi"}]');
+    const mapped = JSON.parse(buildOperationRequest(saveFields, { id: guid }, null, rows).body!);
+    expect(mapped).toEqual({ values: { RENK: 'Mavi' } });
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });

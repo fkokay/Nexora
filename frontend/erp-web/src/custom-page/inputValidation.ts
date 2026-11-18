@@ -6,8 +6,12 @@ export type InputRules = { required: boolean; min?: number | string; max?: numbe
 
 export const VALIDATION_BLOCKED = "Formda düzeltilmesi gereken alanlar var.";
 
+const NUMBER_TEXT = /^-?\d+(\.\d+)?$/;
+const DATE_TEXT = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_PATTERN = 200;
+/** Sınır sayı (sayı girişi) ya da YYYY-MM-DD metni (tarih girişi) olabilir; başka her şey yok sayılır. */
 const isLimit = (value: unknown): value is number | string =>
-  (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && value !== "");
+  (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && DATE_TEXT.test(value));
 
 /** Giriş bileşeninin özelliklerinden doğrulama kurallarını okur; geçersiz değerler yok sayılır. */
 export function inputRules(props: Record<string, unknown>): InputRules {
@@ -16,13 +20,20 @@ export function inputRules(props: Record<string, unknown>): InputRules {
   if (isLimit(props.max)) rules.max = props.max;
   if (typeof props.step === "number" && Number.isFinite(props.step) && props.step > 0) rules.step = props.step;
   if (typeof props.maxLength === "number" && Number.isInteger(props.maxLength) && props.maxLength > 0) rules.maxLength = props.maxLength;
-  if (typeof props.pattern === "string" && props.pattern !== "") rules.pattern = props.pattern;
+  if (typeof props.pattern === "string" && props.pattern !== "") {
+    if (props.pattern.length <= MAX_PATTERN) rules.pattern = props.pattern;
+    else console.warn(`Giriş deseni ${MAX_PATTERN} karakteri aşıyor; yok sayıldı.`);
+  }
   if (typeof props.patternMessage === "string" && props.patternMessage !== "") rules.patternMessage = props.patternMessage;
   return rules;
 }
 
 function compilePattern(pattern: string): RegExp | null {
-  try { return new RegExp("^(?:" + pattern + ")$", "u"); } catch { return null; }
+  if (pattern.length > MAX_PATTERN) return null;
+  try { return new RegExp("^(?:" + pattern + ")$", "u"); } catch {
+    console.warn("Giriş deseni geçerli bir düzenli ifade değil; yok sayıldı.");
+    return null;
+  }
 }
 
 /** İlk başarısız denetimin Türkçe iletisini, hepsi geçerse null döner. Boş ve zorunlu olmayan değer her denetimi geçer. */
@@ -34,18 +45,20 @@ export function validateInputValue(inputType: string, rules: InputRules, raw: st
   if (text.trim() === "") return rules.required ? "Bu alan zorunludur." : null;
 
   if (inputType === "number") {
-    const value = Number(text.trim());
-    if (!Number.isFinite(value)) return "Geçerli bir sayı girin.";
-    if (rules.min !== undefined && value < Number(rules.min)) return `En az ${String(rules.min)} olmalıdır.`;
-    if (rules.max !== undefined && value > Number(rules.max)) return `En fazla ${String(rules.max)} olmalıdır.`;
+    // Sayı girişi tarayıcıdan noktalı ondalıkla gelir (sunucuya da öyle gider); "1e3", "0x10", "1,5" geçersizdir.
+    const trimmed = text.trim();
+    if (!NUMBER_TEXT.test(trimmed)) return "Geçerli bir sayı girin.";
+    const value = Number(trimmed);
+    if (typeof rules.min === "number" && value < rules.min) return `En az ${String(rules.min)} olmalıdır.`;
+    if (typeof rules.max === "number" && value > rules.max) return `En fazla ${String(rules.max)} olmalıdır.`;
     if (rules.step !== undefined) {
       const ratio = value / rules.step;
       if (Math.abs(ratio - Math.round(ratio)) >= 1e-9) return `Değer ${String(rules.step)} adımlarına uymalıdır.`;
     }
   } else if (inputType === "date") {
     const value = text.slice(0, 10);
-    if (rules.min !== undefined && value < String(rules.min)) return `En erken ${String(rules.min)} olabilir.`;
-    if (rules.max !== undefined && value > String(rules.max)) return `En geç ${String(rules.max)} olabilir.`;
+    if (typeof rules.min === "string" && DATE_TEXT.test(rules.min) && value < rules.min) return `En erken ${rules.min} olabilir.`;
+    if (typeof rules.max === "string" && DATE_TEXT.test(rules.max) && value > rules.max) return `En geç ${rules.max} olabilir.`;
   }
 
   if (rules.maxLength !== undefined && text.length > rules.maxLength) return `En fazla ${String(rules.maxLength)} karakter girilebilir.`;

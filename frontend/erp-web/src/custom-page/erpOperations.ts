@@ -29,6 +29,16 @@ const INTEGER = /^-?\d+$/;
 const MAP_KEY = /^[A-Z][A-Z0-9_]{0,39}$/;
 export const MAP_SOURCE_MISSING = "Kaynak kayıt yüklenmedi; önce bir kayıt seçin.";
 
+export const SOURCE_MISMATCH = "Kaynak kayıt seçili kayıtla eşleşmiyor.";
+/** Nesne prototipini değiştirebilecek anahtarlar gövdeye hiçbir zaman yazılmaz. */
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+const safeKey = (key: string) => !UNSAFE_KEYS.has(key);
+function safeCopy(source: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const copy: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source ?? {})) if (safeKey(key)) copy[key] = value;
+  return copy;
+}
+
 const isEmpty = (value: unknown) => value === null || value === undefined || value === "";
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -86,12 +96,12 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   const request: OperationRequest = { url: search ? `${url}?${search}` : url, method };
   if (method === "GET" || method === "DELETE") return request;
 
-  const body: Record<string, unknown> = { ...(source ?? {}), ...(op.fixedBody ?? {}) };
+  const body: Record<string, unknown> = { ...safeCopy(source), ...safeCopy(op.fixedBody) };
   if (op.bodyMap && mapSourceRows) {
     const map: Record<string, unknown> = {};
     for (const row of mapSourceRows) {
       const key = row[op.bodyMap.keyColumn];
-      if (typeof key === "string" && key !== "") map[key] = row[op.bodyMap.valueColumn];
+      if (typeof key === "string" && key !== "" && safeKey(key)) map[key] = row[op.bodyMap.valueColumn];
     }
     // Bildirilmemiş, özel alan kodu biçimindeki değerler eşleme yazılır; null/undefined kaynak değeri korur, "" temizler.
     for (const [name, value] of Object.entries(values)) {
@@ -101,7 +111,7 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     body[op.bodyMap.property] = map;
   }
   for (const parameter of op.parameters) {
-    if (parameter.in !== "body" || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
+    if (parameter.in !== "body" || !safeKey(parameter.name) || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
     const lower = parameter.name.toLowerCase();
     const value = values[parameter.name];
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
@@ -137,7 +147,25 @@ export function sourceRecordError(op: ErpOperation, values: Record<string, unkno
     const bound = values[name];
     if (isEmpty(bound)) continue;
     const own = propertyCaseInsensitive(source, name);
-    if (isEmpty(own) || String(bound).toLowerCase() !== String(own).toLowerCase()) return "Kaynak kayıt seçili kayıtla eşleşmiyor.";
+    if (isEmpty(own) || String(bound).toLowerCase() !== String(own).toLowerCase()) return SOURCE_MISMATCH;
+  }
+  return null;
+}
+
+/**
+ * Kaynak sorgunun en son hangi parametrelerle çalıştığını (`ranWith`) yazma işleminin bağlı yol değerleriyle karşılaştırır.
+ * Elle çalışan kaynak A kaydı için yüklüyken seçim B'ye geçtiyse (büyük/küçük harf duyarsız) uyuşmazlık metni döner.
+ * Kaynakta karşılığı olmayan ya da boş değerler karşılaştırılmaz.
+ */
+export function staleSourceError(op: ErpOperation, values: Record<string, unknown>, ranWith: Record<string, unknown> | null | undefined): string | null {
+  if (!ranWith) return null;
+  const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
+  for (const match of chooseRoute(op, values).matchAll(ROUTE_PLACEHOLDER)) {
+    const name = byName.get(match[1].toLowerCase()) ?? match[1];
+    const bound = values[name];
+    const ran = propertyCaseInsensitive(ranWith, name);
+    if (isEmpty(bound) || isEmpty(ran)) continue;
+    if (String(bound).toLowerCase() !== String(ran).toLowerCase()) return SOURCE_MISMATCH;
   }
   return null;
 }
