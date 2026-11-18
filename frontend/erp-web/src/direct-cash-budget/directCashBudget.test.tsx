@@ -26,9 +26,10 @@ function respond(url: string, method: string): unknown {
   const one = path.match(/^\/api\/finance\/cash-budgets\/([^/]+)(\/approve)?$/);
   if (one) return view(one[1]);
   if (path === '/api/finance/cash-flow/forecast') return forecast;
-  if (path.startsWith('/api/screen-views/')) return { fields: [] };
+  if (path.startsWith('/api/screen-views/')) return screenView;
   return {};
 }
+let screenView: unknown = { fields: [] };
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
   authenticatedFetch: vi.fn(async (url: string, _token: string, init?: RequestInit) => {
@@ -50,6 +51,7 @@ afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
   fetchCalls.length = 0;
+  screenView = { fields: [] };
   sessionStorage.clear();
   localStorage.clear();
 });
@@ -97,6 +99,8 @@ async function submitDraft() {
   fireEvent.submit(screen.getByLabelText(/Plan adı/).closest('form')!);
   await settle();
 }
+const forecastCalls = () => fetchCalls.filter((call) => call.url.startsWith('/api/finance/cash-flow/forecast')).length;
+const editorOpen = () => !!screen.queryByLabelText(/Plan adı/);
 const approveVisible = () => !!screen.queryByRole('button', { name: 'Onayla' });
 const createVisible = () => !!screen.queryByRole('button', { name: 'Yeni nakit bütçesi' });
 // ---
@@ -119,8 +123,9 @@ describe('Doğrudan nakit bütçesi (characterization)', () => {
     await openPlan('Nakit planı 2026');
     await approve();
     expect(calls('/api/finance/cash-budgets/c1/approve')).toEqual([{ method: 'POST', body: { revision: 4 } }]);
-    // After approval the list and the plan reload.
-    expect(calls('/api/finance/cash-budgets/').length).toBeGreaterThanOrEqual(2);
+    // After approval the list, the open plan and the forecast reload.
+    expect(calls('/api/finance/cash-budgets/').length).toBe(2);
+    expect(forecastCalls()).toBe(2);
     await openPlan('Onaylı nakit planı');
     expect(approveVisible()).toBe(false);
   });
@@ -130,7 +135,11 @@ describe('Doğrudan nakit bütçesi (characterization)', () => {
     await settle(900);
     await startNew();
     fillNewDraft();
+    const forecastBefore = forecastCalls();
     await submitDraft();
+    // Saving closes the editor (the saved plan is shown) and reloads the list and the forecast.
+    expect(editorOpen()).toBe(false);
+    expect(forecastCalls()).toBe(forecastBefore + 1);
     expect(calls('/api/finance/cash-budgets/').filter((call) => call.method === 'POST')).toEqual([
       { method: 'POST', body: { name: 'Yeni nakit planı', fiscalYear: now.getFullYear(), currencyCode: 'TRY', revision: 0, lines: [{ periodStart: `${thisMonth}-01`, direction: 'Inflow', category: 'Sales', description: 'Peşin satış tahsilatı', amount: 5000 }] } },
     ]);
@@ -149,5 +158,16 @@ describe('Doğrudan nakit bütçesi (characterization)', () => {
     expect(calls('/api/finance/cash-budgets/c1').at(-1)).toEqual({ method: 'GET', body: undefined });
     expect(approveVisible()).toBe(false);
     expect(createVisible()).toBe(false);
+  });
+
+  it('the tenant screen view relabels the open action and hides a column', async () => {
+    screenView = { fields: [
+      { key: 'revision', label: 'Sürüm', visible: false, position: 5 },
+      { key: 'actions', label: 'Göster', visible: true, position: 6 },
+    ] };
+    renderScreen(<DirectCashBudgetPage token="t" role="TenantAdmin" />);
+    await settle(900);
+    expect(screen.getByRole('button', { name: 'Göster: Nakit planı 2026' })).toBeTruthy();
+    expect(screen.queryAllByText(/^Sürüm/)).toEqual([]);
   });
 });
