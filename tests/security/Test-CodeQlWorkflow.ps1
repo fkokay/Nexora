@@ -26,6 +26,15 @@ foreach ($language in @('csharp', 'javascript-typescript')) {
 }
 $assertions.Add('C# and JavaScript/TypeScript are in the analysis matrix')
 
+$configPath = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $resolved) '..\codeql\codeql-config.yml'))
+if ($workflow -notmatch '(?m)^\s+config-file:\s*\./\.github/codeql/codeql-config\.yml\s*$') { throw 'CodeQL init must use .github/codeql/codeql-config.yml.' }
+if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) { throw 'CodeQL config file was not found.' }
+$ignored = [regex]::Matches((Get-Content -LiteralPath $configPath -Raw), '(?m)^\s+-\s*"([^"]+)"\s*$') | ForEach-Object { $_.Groups[1].Value }
+if (@($ignored | Where-Object { $_ -notmatch '/Migrations/\*\*/\*(\.Designer|ModelSnapshot)\.cs$' }).Count -gt 0) {
+    throw 'CodeQL may only skip generated EF migration designer and model snapshot files.'
+}
+$assertions.Add('CodeQL skips only generated EF designer and model snapshot files')
+
 $extensionRoot = Join-Path (Split-Path -Parent $resolved) '..\codeql\extensions'
 $extensionRoot = [IO.Path]::GetFullPath($extensionRoot)
 $deployerModels = @(
