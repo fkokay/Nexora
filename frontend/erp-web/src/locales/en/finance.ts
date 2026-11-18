@@ -1085,6 +1085,18 @@ export const english: Record<string, string> = {
   'Defterde olup ekstreden henüz eşleşmeyen hareketler. Eşleştirme, ekstre satırları sekmesinden yapılır.': 'Book movements not yet matched to the statement. Matching is done on the statement lines tab.',
   'Finans hareketi': 'Finance movement',
   'CSV dosyası oluşturulamadı.': 'The CSV file could not be created.',
+  // Aktarılabilir Kaynaklar (list type A)
+  'kaynak yok': 'no sources',
+  'tüm kaynaklar': 'all sources',
+  'Aktarıma hazır kaynakları işaretleyin': 'Tick the sources that are ready to post',
+  'Kaynaklar satış, satınalma, tahsilat ve stok belgelerinden gelir': 'Sources come from sales, purchasing, collection and stock documents',
+  'Kaynak belge kendi ekranında açılır; önizleme sağdaki panelde': 'The source document opens on its own screen; the preview is in the right panel',
+  'Aktarılmayı bekleyen kaynak buradan silinemez': 'A source waiting to be posted cannot be deleted here',
+  'Önce bir kaynak seçin': 'Select a source first',
+  'Bu kaynak aktarılamaz': 'This source cannot be posted',
+  'Satır önizler · Boşluk işaretle · İşlemler › Bu kaynağı aktar / Seçilenleri aktar': 'Row previews · Space tick · Actions › Post this source / Post selected',
+  'aktarıma hazır': 'ready to post',
+  'İşlemler › Bu kaynağı aktar. Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.': 'Actions › Post this source. A posted entry cannot be changed; corrections are made with a reversal.',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

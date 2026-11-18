@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { GridExportActions } from "./AdvancedDataGrid";
+import { csvExportCommand } from "./commands/gridCommands";
 import { api, localDateString } from "./erpApi";
 import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  CircleDollarSign,
   FileText,
   Landmark,
   ListTree,
@@ -42,6 +45,10 @@ import "./finance-record-forms.css";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { StatusTag } from "./list-page/StatusTag";
+import { ListSummaryCards, type SummaryCard } from "./list-page/ListSummaryCards";
+import { ListFooter } from "./list-page/ListFooter";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { PageCommands } from "./commands/types";
 import "./general-ledger/general-ledger-list-v2.css";
 import "./general-ledger/transfer-sources.css";
 
@@ -190,7 +197,7 @@ export default function GeneralLedgerPage({
     () => new Set(),
   );
   const handleTransferSelection = useCallback(
-    (keys: string[]) => setSelectedTransferKeys(new Set(keys)),
+    (keys: string[]) => setSelectedTransferKeys(new Set(keys.map((key) => key.slice(key.lastIndexOf("$") + 1)))),
     [],
   );
   // Transfer sources: the row shown in the preview panel (independent of the checkboxes),
@@ -795,9 +802,6 @@ export default function GeneralLedgerPage({
       label: transferSourceTypeTitles[type],
       count: searchedTransferSourceRows.filter((row) => row.sourceType === type).length,
     }));
-  const transferMissingCount = searchedTransferSourceRows.filter(({ source }) =>
-    isTransferMappingMissing(source),
-  ).length;
   const visibleTransferSourceRows = transferStatus === "missing"
     ? searchedTransferSourceRows.filter(({ source }) => isTransferMappingMissing(source))
     : transferStatus
@@ -859,6 +863,56 @@ export default function GeneralLedgerPage({
     if (index < 0) return "";
     return (visibleTransferSourceRows[index + 1] || visibleTransferSourceRows[index - 1])?.key || "";
   };
+  const transferExportRef = useRef<GridExportActions | null>(null);
+  const previewData = previewRow && transferPreview?.key === previewRow.key ? transferPreview.data : null;
+  const transferBusyReason = busy ? "İşlem sürüyor…" : undefined;
+  const transferCommands: PageCommands = {
+    new: { disabledReason: "Kaynaklar satış, satınalma, tahsilat ve stok belgelerinden gelir" },
+    open: { disabledReason: "Kaynak belge kendi ekranında açılır; önizleme sağdaki panelde" },
+    delete: { disabledReason: "Aktarılmayı bekleyen kaynak buradan silinemez" },
+    more: [
+      {
+        id: "transfer-one",
+        label: "Bu kaynağı aktar",
+        disabledReason: !previewRow
+          ? "Önce bir kaynak seçin"
+          : !previewData
+            ? "Önizleme hazırlanıyor…"
+            : !previewData.canTransfer
+              ? previewData.blockingReason || "Bu kaynak aktarılamaz"
+              : transferBusyReason,
+        run: () => setConfirmingTransfer(true),
+      },
+      {
+        id: "transfer-selected",
+        label: `Seçilenleri aktar (${readyTransferRows.length})`,
+        disabledReason: readyTransferRows.length === 0 ? "Aktarıma hazır kaynakları işaretleyin" : transferBusyReason,
+        run: () => void transferSelectedSources(readyTransferRows),
+      },
+      { id: "transfer-mappings", label: "Hesap eşleştirmeleri", run: () => onNavigate?.("finance-ledger-mappings") },
+      csvExportCommand(transferExportRef),
+    ],
+  };
+  const allMissingCount = transferSourceRows.filter(({ source }) => isTransferMappingMissing(source)).length;
+  const transferCards: SummaryCard[] = [
+    {
+      id: "waiting",
+      label: "Aktarılmayı bekleyen",
+      value: transferSourceRows.length.toLocaleString("tr-TR"),
+      icon: CircleDollarSign,
+      hint: <span>{transferTotalsLabel || "kaynak yok"}</span>,
+    },
+    {
+      id: "missing",
+      label: "Eşleştirme eksik",
+      value: allMissingCount.toLocaleString("tr-TR"),
+      icon: AlertTriangle,
+      tone: allMissingCount > 0 ? "warn" : "primary",
+      hint: <span>tüm kaynaklar</span>,
+      filterActive: transferStatus === "missing",
+      onFilter: () => setTransferStatus(transferStatus === "missing" ? "" : "missing"),
+    },
+  ];
   const accountFormOpen = accountCreateOpen && view === "accounts";
   // The record lists follow the list-v2 structure (see list-page/README.md); the account
   // card form keeps the classic heading because it hides everything else on the page.
@@ -884,7 +938,7 @@ export default function GeneralLedgerPage({
             ? transferSourceRows.length
             : null;
   return (
-    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" || view === "mappings" || isReportView ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
+    <section className={`${view === "journal-ledger" || view === "voucher" || view === "accounts" || view === "mappings" || view === "transfer-sources" || isReportView ? "" : "panel "}general-ledger-panel finance-workbench general-ledger-view-${view}${showListHeader || isReportView ? " list-v2" : ""}`}>
       {showListHeader && !ownsHeader ? (
         <ListPageHeader
           title={viewTitles[view]}
@@ -892,16 +946,6 @@ export default function GeneralLedgerPage({
           count={listCount}
           countLabel={view === "transfer-sources" ? `kaynak bekliyor${transferTotalsLabel ? ` · ${transferTotalsLabel}` : ""}` : undefined}
         >
-          {view === "transfer-sources" && isTenantAdmin && (
-            <button
-              type="button"
-              className="primary"
-              disabled={busy || readyTransferRows.length === 0}
-              onClick={() => void transferSelectedSources(readyTransferRows)}
-            >
-              {busy ? "Aktarılıyor…" : `Seçilenleri aktar (${readyTransferRows.length})`}
-            </button>
-          )}
         </ListPageHeader>
       ) : accountFormOpen || view === "voucher" || isReportView || ownsHeader ? null : (
         <div className="panel-heading">
@@ -1118,6 +1162,8 @@ export default function GeneralLedgerPage({
       {view === "balance-sheet" && <BalanceSheetView token={token} />}
       {view === "transfer-sources" && role === "TenantAdmin" && (
         <section className="ledger-subpanel ledger-transfer-sources" aria-label="Muhasebeye aktarım">
+          <PageCommandsSlot commands={transferCommands} />
+          <ListSummaryCards cards={transferCards} />
           <ListToolbar
             search={transferSourceSearch}
             onSearchChange={setTransferSourceSearch}
@@ -1135,18 +1181,6 @@ export default function GeneralLedgerPage({
                 ...transferTypeChips,
               ]}
             />
-            {(transferMissingCount > 0 || transferStatus === "missing") && (
-              <button
-                type="button"
-                className={`list-v2-chip ledger-transfer-missing-chip${transferStatus === "missing" ? " is-active" : ""}`}
-                aria-pressed={transferStatus === "missing"}
-                onClick={() => setTransferStatus(transferStatus === "missing" ? "" : "missing")}
-              >
-                <AlertTriangle size={13} aria-hidden="true" />
-                <span>Eşleştirme eksik</span>
-                <span className="list-v2-chip-count">{transferMissingCount.toLocaleString("tr-TR")}</span>
-              </button>
-            )}
           </ListToolbar>
           <div className="ledger-transfer-layout">
             <div className="ledger-list list-v2-list">
@@ -1156,6 +1190,8 @@ export default function GeneralLedgerPage({
                 defaults={financeGridDefaults["finance-transfer-sources"]}
                 onSelectionChange={handleTransferSelection}
                 hideSearch
+                hideExport
+                exportActionsRef={transferExportRef}
                 toolbarContainer={listToolsSlot}
               >
                 <table className="customer-table">
@@ -1206,7 +1242,7 @@ export default function GeneralLedgerPage({
                           </td>
                           <td>
                             {x.amount <= 0 ? (
-                              <span className="ledger-transfer-status is-muted">Sıfır tutar · aktarılamaz</span>
+                              <StatusTag tone="off">Sıfır tutar · aktarılamaz</StatusTag>
                             ) : missing.length > 0 ? (
                               <button
                                 type="button"
@@ -1218,10 +1254,7 @@ export default function GeneralLedgerPage({
                                 Hesap eşleştir
                               </button>
                             ) : (
-                              <span className="ledger-transfer-status is-ready">
-                                <CheckCircle2 size={13} aria-hidden="true" />
-                                Hazır
-                              </span>
+                              <StatusTag tone="ok">Hazır</StatusTag>
                             )}
                           </td>
                         </tr>
@@ -1244,6 +1277,20 @@ export default function GeneralLedgerPage({
                   </tbody>
                 </table>
               </FinanceStudioGrid>
+              <ListFooter hints="Satır önizler · Boşluk işaretle · İşlemler › Bu kaynağı aktar / Seçilenleri aktar">
+                {selectedTransferRows.length > 0 && (
+                  <span>
+                    <span>{selectedTransferRows.length}</span> <span>seçili</span> ·{" "}
+                    <span>{readyTransferRows.length}</span> <span>aktarıma hazır</span>
+                  </span>
+                )}
+                <span>
+                  <span>Gösterilen</span>{" "}
+                  <span>
+                    {visibleTransferSourceRows.length.toLocaleString("tr-TR")} / {transferSourceRows.length.toLocaleString("tr-TR")}
+                  </span>
+                </span>
+              </ListFooter>
             </div>
             <aside className="ledger-transfer-preview" aria-label="Oluşacak yevmiye fişi" aria-live="polite">
               {previewRow ? (
@@ -1302,15 +1349,6 @@ export default function GeneralLedgerPage({
                           <span>{transferPreview.data.blockingReason}</span>
                         </p>
                       )}
-                      {!transferPreview.data.canTransfer && missingFor(previewRow.source).length > 0 && (
-                        <button
-                          type="button"
-                          className="secondary ledger-transfer-preview-action"
-                          onClick={() => onNavigate?.("finance-ledger-mappings")}
-                        >
-                          Hesap eşleştirmelerine git
-                        </button>
-                      )}
                       {confirmingTransfer ? (
                         <div className="ledger-transfer-confirm" role="group" aria-label="Aktarımı onayla">
                           <p>{previewRow.source.code} değiştirilemez yevmiye fişi olarak aktarılsın mı?</p>
@@ -1328,17 +1366,8 @@ export default function GeneralLedgerPage({
                             </button>
                           </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          className="primary ledger-transfer-preview-action"
-                          disabled={busy || !transferPreview.data.canTransfer}
-                          onClick={() => setConfirmingTransfer(true)}
-                        >
-                          Bu kaynağı aktar
-                        </button>
-                      )}
-                      <p className="ledger-transfer-preview-note">Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p>
+                      ) : null}
+                      <p className="ledger-transfer-preview-note">İşlemler › Bu kaynağı aktar. Aktarılan fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p>
                     </>
                   ) : transferPreview?.key === previewRow.key && transferPreview.error ? (
                     <p className="ledger-transfer-preview-balance is-blocked" role="alert">

@@ -96,7 +96,17 @@ async function previewRow(code: string) {
   fireEvent.click(screen.getAllByText(code)[0].closest('tr')!);
   await settle();
 }
-const transferOneButton = () => screen.getByRole('button', { name: 'Bu kaynağı aktar' }) as HTMLButtonElement;
+// The commands are in İşlemler; a disabled menu item is reported through `disabled` like the former button.
+function menuItem(id: string) {
+  if (!document.querySelector('[role="menu"]')) {
+    const bar = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+    fireEvent.click(bar.querySelector<HTMLElement>('[data-command="more"]')!);
+  }
+  const item = document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${id}"]`)!;
+  Object.defineProperty(item, 'disabled', { configurable: true, get: () => item.getAttribute('aria-disabled') === 'true' });
+  return item as HTMLElement & { disabled: boolean };
+}
+const transferOneButton = () => menuItem('transfer-one');
 async function transferPreviewed() {
   fireEvent.click(transferOneButton());
   await settle(50);
@@ -107,9 +117,8 @@ async function tickRows(numbers: number[]) {
   for (const number of numbers) fireEvent.click(screen.getByLabelText(`Satırı seç ${number}`));
   await settle(50);
 }
-const bulkButton = () => screen.getByRole('button', { name: /Seçilenleri aktar/ }) as HTMLButtonElement;
 async function transferTicked() {
-  fireEvent.click(bulkButton());
+  fireEvent.click(menuItem('transfer-selected'));
   await settle(50);
   const confirm = screen.queryByRole('button', { name: 'Aktar' });
   if (confirm) fireEvent.click(confirm);
@@ -154,15 +163,19 @@ describe('Aktarılabilir Kaynaklar (characterization)', () => {
     expect(calls(TRANSFER)).toEqual([]);
   });
 
-  // Today's behaviour, pinned as found: the grid reports ticked rows by its internal React keys (".0:$SalesInvoice-s1"),
-  // which never equal the page's row keys, so "Seçilenleri aktar" stays at (0) and nothing is posted.
-  it('bulk transfer today: ticked rows are not recognised, so no POST is sent', async () => {
+  // Deliberate change (the only request assertion that differs from the characterization commit): the grid reports
+  // ticked rows by its internal React keys (".0:$SalesInvoice-s1"), which never matched the page's row keys, so the bulk
+  // transfer was dead. The keys are now compared by the page's key; the request is today's (one POST per ready source).
+  it('bulk transfer sends one POST per ticked ready source (a source with a missing mapping is skipped)', async () => {
     renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="transfer-sources" />);
     await settle(1200);
     await settle();
     await tickRows([1, 2, 3]);
     await transferTicked();
-    expect(calls(TRANSFER)).toEqual([]);
+    expect(calls(TRANSFER)).toEqual([
+      { method: 'POST', body: { sourceType: 'SalesInvoice', sourceId: 's1' } },
+      { method: 'POST', body: { sourceType: 'SalesInvoice', sourceId: 's2' } },
+    ]);
   });
 
   it('a company user sees no transfer list and sends no preview', async () => {
