@@ -118,7 +118,7 @@ const type = (id: string, value: string) => fireEvent.change(input(id), { target
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(`^${name}`) });
 const ctrlS = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 's', ctrlKey: true });
-const title = () => document.querySelector('.tenant-custom-page-header h1')?.textContent;
+const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const renk = () => screen.getByLabelText('Renk') as HTMLInputElement;
 /** Yeni kart: sayfa yüklenir, Kaydet hazır olur. */
 const openNew = async () => {

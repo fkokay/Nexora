@@ -170,7 +170,7 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("detayPaneli.value == true && liste.seciliSatir.stockItem.id != null", (string)card["visibleWhen"]!);
         Assert.Equal(new[] { "detayAc", "detayDurum", "detayLot", "detaySeri", "detaySekmeleri", "detayDevreDisi" },
             Component("detayKarti")["children"]!.AsArray().Select(x => (string)x!["id"]!));
-        Assert.Equal(("openDialog", "kartPenceresi", "open"), ((string)Props("detayAc")["actionType"]!, (string)Props("detayAc")["dialogId"]!, (string)Props("detayAc")["icon"]!));
+        Assert.Equal(("page", "@inventory-stock-create", "open"), ((string)Props("detayAc")["actionType"]!, (string)Props("detayAc")["pageCode"]!, (string)Props("detayAc")["icon"]!));
         Assert.Equal(("pasifeAl", "Devre dışı bırak"), ((string)Props("detayDevreDisi")["queryId"]!, (string)Props("detayDevreDisi")["text"]!));
         var tabs = Props("detaySekmeleri");
         Assert.Equal(new[]
@@ -299,7 +299,7 @@ public sealed class InventoryStockStandardTests
         Assert.True(components.Length <= 100, $"Bileşen sayısı {components.Length} > 100");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
         // The card form moved to inventory-stock-create (51 components, 11 queries); Yeni and Aç are two navigation buttons.
-        Assert.Equal(41, components.Length);
+        Assert.Equal(47, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
         Assert.Equal(14, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");

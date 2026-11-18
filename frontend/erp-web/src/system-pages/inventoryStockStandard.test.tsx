@@ -323,7 +323,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
   it('aç opens the selected card on the card screen; Enter and double click too', async () => {
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
-    await waitFor(() => expect(command('open').getAttribute('title')).toBe('Önce bir kayıt seçin'), T);
+    await waitFor(() => expect(commandReason(command('open'))).toBe('Önce bir kayıt seçin'), T);
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
     await selectCard();
     fireEvent.click(command('open'));
