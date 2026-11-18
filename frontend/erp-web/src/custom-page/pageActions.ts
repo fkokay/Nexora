@@ -41,6 +41,8 @@ export type PageActionDeps = {
   run: {
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
+    /** İşlem Çubuğu `saveSequence` kayıt dizisini çalıştırır. */
+    saveSequence(): void;
     refresh(): void;
     focus(inputId: string): void;
     print(): void;
@@ -56,7 +58,11 @@ const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 export function buildPageCommands(props: Record<string, unknown>, deps: PageActionDeps): PageCommands {
   const saveId = str(props.saveQuery);
   const saveKind = saveId ? deps.queryKind(saveId) : undefined;
-  const saveBound = saveKind === "insert" || saveKind === "update";
+  // Kayıt dizisi: her adım bir yazma sorgusu olmalı; komut her farklı adım türünün sayfa hakkını ister.
+  const sequenceIds = idList(props.saveSequence, 8);
+  const sequenceKinds = sequenceIds.map((id) => deps.queryKind(id));
+  const sequenceBound = sequenceIds.length > 0 && sequenceKinds.every((kind) => kind === "insert" || kind === "update" || kind === "delete");
+  const saveBound = sequenceBound || saveKind === "insert" || saveKind === "update";
   const deleteId = str(props.deleteQuery);
   const deleteBound = !!deleteId && deps.queryKind(deleteId) === "delete";
   const newIds = idList(props.newInputs).filter((id) => deps.inputIds.has(id));
@@ -64,8 +70,9 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const exportId = str(props.exportTable);
   const exportState = exportId ? deps.tableState(exportId) : undefined;
 
-  const gated = (right: string, run: () => void) =>
-    !deps.rights[right] ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
+  const gatedAll = (rights: string[], run: () => void) =>
+    rights.some((right) => !deps.rights[right]) ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
+  const gated = (right: string, run: () => void) => gatedAll([right], run);
 
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
@@ -81,7 +88,8 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
       : unbound,
     open: unbound,
-    save: saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
+    save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
+      : saveBound ? { ...gated(saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
     delete: !deleteBound ? unbound
       : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }
       : gated("delete", () => deps.run.write(deleteId, "delete")),

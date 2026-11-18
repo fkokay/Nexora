@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idList, ownedInputIds, parseFieldList, parseTabs, tabOwnedIds } from './layoutRefs';
+import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tabOwnedIds } from './layoutRefs';
 
 describe('idList', () => {
   it('tekil, boş olmayan metinleri sırayla verir', () => {
@@ -62,5 +62,22 @@ describe('parseTabs / tabOwnedIds', () => {
       { id: 'f', type: 'formCard', props: { tabs: ['Y=z'], inputs: ['kod'] } },
     ]);
     expect([...owned].sort()).toEqual(['fc', 'kod', 'liste', 'not']);
+  });
+});
+
+describe('dialogOwnedIds / rowActionIds', () => {
+  it('dialogOwnedIds and rowActionIds', () => {
+    const components = [
+      { id: 'd', type: 'dialog', props: { contains: ['a', ' b ', 'a', ...Array.from({ length: 25 }, (_, i) => `x${i}`)] } },
+      { id: 'd2', type: 'dialog', props: { contains: 'a' } },
+      { id: 'f', type: 'formCard', props: { contains: ['z'], rowActions: ['z'] } },
+      { id: 't', type: 'dataTable', props: { rowActions: ['r1', 'r2', 'r1', 'r3', 'r4', 'r5'] } },
+      { id: 't2', type: 'dataTable' },
+    ];
+    const dialogOwned = dialogOwnedIds(components);
+    expect(dialogOwned.size).toBe(20);
+    expect(dialogOwned.has('a') && dialogOwned.has('b')).toBe(true);
+    expect(dialogOwned.has('z')).toBe(false);
+    expect([...rowActionIds(components)]).toEqual(['r1', 'r2', 'r3', 'r4']);
   });
 });
