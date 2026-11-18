@@ -1,0 +1,72 @@
+/*
+ * Detay paneli (kart `variant: "panel"`): eski Stok Kartları sağ paneli (inventory-list-v2.css `.inventory-stock-detail`)
+ * ile aynı ölçüler. İç bileşenler (sekmeler, göstergeler, bağlam alanları, düğmeler, sıkı listeler) panel içinde eski
+ * görünümü alır. Sınıf adları kabuğun "-panel"/"-card"/"-badge" alt dize kurallarına takılmaz; takılanlar #root ile aşılır.
+ */
+.tenant-page-detail { display: flex; flex-direction: column; min-width: 0; box-sizing: border-box; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); color: var(--nx-text); font-size: 12.5px; }
+.tenant-page-detail-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--nx-line-soft); }
+.tenant-page-detail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--nx-muted); }
+.tenant-page-detail-top .nx-code { color: var(--nx-muted); font-size: 12px; }
+.tenant-page-detail-actions { display: inline-flex; align-items: center; gap: 2px; }
+.tenant-page-detail-actions :is(.tenant-page-action, .tenant-page-query-action) { display: contents; }
+.tenant-page-detail-actions :is(.tenant-page-disabled-reason, .tenant-page-action-feedback) { display: none; }
+#root .app-shell .tenant-page-detail-actions button:is(.tenant-page-button, .tenant-page-detail-close) {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; min-height: 26px; margin: 0; padding: 0 7px; border: 0; border-radius: var(--nx-radius-control);
+  background: transparent; box-shadow: none; color: var(--nx-muted); font: 500 12px/1 var(--nx-font); cursor: pointer;
+}
+#root .app-shell .tenant-page-detail-actions button:is(.tenant-page-button, .tenant-page-detail-close):hover:not(:disabled) { background: var(--nx-canvas); color: var(--nx-text); }
+#root .app-shell .tenant-page-detail-actions button.tenant-page-detail-close { justify-content: center; width: 26px; padding: 0; }
+.tenant-page-detail h3 { margin: 4px 0 6px; color: var(--nx-text); font-size: 15px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.tenant-page-detail-labels { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Etiketler: eski `.nx-status-tag` (tam hap, 11px/600). */
+#root .tenant-page-detail-labels .tenant-page-badge { display: inline-block; padding: 1px 8px; border: 0; border-radius: 999px !important; background: var(--nx-line-soft); color: var(--nx-muted); font-size: 11px; font-weight: 600; line-height: 1.45; white-space: nowrap; }
+#root .tenant-page-detail-labels .tenant-page-badge.tone-success { background: var(--nx-ok-bg); color: var(--nx-ok); }
+#root .tenant-page-detail-labels .tenant-page-badge.tone-warning { background: var(--nx-warn-bg); color: var(--nx-warn); }
+#root .tenant-page-detail-labels .tenant-page-badge.tone-danger { background: var(--nx-bad-bg); color: var(--nx-bad); }
+#root .tenant-page-detail-labels .tenant-page-badge.tone-info { background: var(--nx-line-soft); color: var(--nx-muted); }
+/* Sekmeler: alt çizgili, 14px aralıklı (eski `.inventory-stock-detail-tabs`); gövde 12px 14px. */
+#root .app-shell .tenant-page-detail-body > .tenant-page-tabs { margin: 0; padding: 0; border: 0; border-radius: 0 !important; background: transparent !important; box-shadow: none; }
+.tenant-page-detail-body .tenant-page-tablist { flex-wrap: nowrap; gap: 14px; padding: 0 14px; border-bottom: 1px solid var(--nx-line); }
+#root .app-shell .tenant-page-detail-body .tenant-page-tab { height: auto; min-height: 0; margin: 0; padding: 8px 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none; color: var(--nx-muted); font: 400 12.5px/1.3 var(--nx-font); }
+#root .app-shell .tenant-page-detail-body .tenant-page-tab:hover { color: var(--nx-text); }
+#root .app-shell .tenant-page-detail-body .tenant-page-tab.is-active { box-shadow: inset 0 -2px 0 var(--nx-primary); color: var(--nx-primary-strong); font-weight: 600; }
+.tenant-page-detail-body .tenant-page-tabpanel { gap: 8px; padding: 12px 14px; }
+/* Göstergeler: eski özet kutuları (etiket + değer, simgesiz, tablo başı zemini). */
+#root .app-shell .tenant-page-detail-body .tenant-page-metric { display: block; min-height: 0; margin: 0; padding: 7px 9px; border: 0; border-radius: var(--nx-radius-card) !important; background: var(--nx-table-head) !important; box-shadow: none; }
+#root .tenant-page-detail-body .tenant-page-metric :is(.tenant-metric-icon, .tenant-metric-trend, small) { display: none; }
+#root .tenant-page-detail-body .tenant-page-metric .tenant-metric-label { display: block; color: var(--nx-muted); font-size: 11px; }
+#root .tenant-page-detail-body .tenant-page-metric strong { font-size: 14px; font-weight: 650; }
+/* Bağlam alanları: eski `.inventory-stock-detail-facts` (sol etiket, sağ değer, ince çizgi). */
+#root .app-shell .tenant-page-detail-body .tenant-page-context { margin: 4px 0 0; padding: 0; border: 0; border-radius: 0 !important; background: transparent !important; box-shadow: none; }
+#root .tenant-page-detail-body .tenant-page-context > h3 { display: none; }
+#root .tenant-page-detail-body .tenant-page-context-fields { display: block; }
+#root .tenant-page-detail-body .tenant-page-context-field { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border: 0; border-bottom: 1px solid var(--nx-line-soft); border-radius: 0 !important; background: transparent; }
+#root .tenant-page-detail-body .tenant-page-context-field dt { margin: 0; color: var(--nx-muted); font-size: 12.5px; font-weight: 400; }
+#root .tenant-page-detail-body .tenant-page-context-field dd { margin: 0; font-size: 12.5px; font-weight: 400; text-align: right; }
+/* Gövdedeki düğme: eski ikincil düğme ("Hareketler / ekle"); neden ipucu olarak kalır. */
+#root .app-shell .tenant-page-detail-body .tenant-page-tabpanel button.tenant-page-button { align-self: flex-start; height: var(--nx-control-h); min-height: var(--nx-control-h); padding: 0 12px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); color: var(--nx-text); font: 500 12.5px var(--nx-font); }
+#root .app-shell .tenant-page-detail-body .tenant-page-tabpanel button.tenant-page-button:disabled { opacity: .55; cursor: not-allowed; }
+.tenant-page-detail-body .tenant-page-tabpanel .tenant-page-disabled-reason { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Altlık: eski "Devre dışı bırak" (kırmızı düz düğme). */
+.tenant-page-detail-foot { margin-top: auto; padding: 8px 14px 10px; border-top: 1px solid var(--nx-line-soft); }
+#root .app-shell .tenant-page-detail-foot button.tenant-page-button { min-height: 30px; margin: 0 -8px; padding: 0 8px; border: 0; border-radius: var(--nx-radius-control); background: transparent; box-shadow: none; color: var(--nx-bad); font: 600 12.5px/1 var(--nx-font); }
+#root .app-shell .tenant-page-detail-foot button.tenant-page-button:hover:not(:disabled) { background: var(--nx-bad-bg); }
+
+/* Sıkı liste görünümleri (veri listesi `variant: "bars"` / `"list"`). */
+.tenant-page-compact { min-width: 0; }
+.tenant-page-compact-title { margin-bottom: 6px; color: var(--nx-muted); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+.tenant-page-compact-note { margin: 0; color: var(--nx-muted); }
+.tenant-page-compact-note.is-error { color: var(--nx-bad); }
+.tenant-page-compact-bar-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 56px; gap: 8px; align-items: center; padding: 3px 0; font-size: 12px; }
+.tenant-page-compact-bar-row > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-page-compact-bar-row > b { font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+.tenant-page-compact-bar { height: 7px; overflow: hidden; border-radius: 4px; background: var(--nx-line-soft); }
+.tenant-page-compact-bar > i { display: block; height: 100%; background: var(--nx-primary); }
+.tenant-page-compact-items { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.tenant-page-compact-items li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--nx-line-soft); }
+.tenant-page-compact-main { display: flex; flex-direction: column; min-width: 0; }
+.tenant-page-compact-main > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-page-compact-main small { color: var(--nx-muted); font-size: 11px; }
+.tenant-page-compact-items b { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tenant-page-compact-items b.tone-success { color: var(--nx-ok); }
+.tenant-page-compact-items b.tone-danger { color: var(--nx-bad); }

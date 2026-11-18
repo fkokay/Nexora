@@ -455,8 +455,11 @@ public sealed class TenantCustomPageSchemaV2Tests
             new { id = "m1", type = "metric", props = new { query = "q1", variant = "danger", icon = "alert", trendQuery = "q1", filterInput = "in1", filterValue = "kritik" } },
             new { id = "in1", type = "input", name = "durum" },
             new { id = "b1", type = "badge", props = new { toneMap = new[] { "Aktif=success" } } },
+            new { id = "a1", type = "alert", props = new { title = "Koruma açık", variant = "success", icon = "shield", value = "Etkin" } },
             new { id = "t1", type = "dataTable", props = new { query = "q1", density = "dense", columnFormats = new[] { "Tutar=money", "Durum=status" }, toneMap = new[] { "Pasif=danger" }, totals = new[] { "Tutar" } } });
         Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+        // Alert icon/value were never constrained: pages saved before the status strip keep validating.
+        Assert.True(TenantCustomPageSchema.Validate(Page(new { id = "a2", type = "alert", props = new { icon = "rocket", value = new string('a', 300) } }), out error), error);
     }
 
     [Fact]
@@ -582,6 +585,7 @@ public sealed class TenantCustomPageSchemaV2Tests
         Assert.True(TenantCustomPageSchema.Validate(full, out var error), error);
         Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [Bar(new { saveQuery = "w2", printEnabled = false })]), out error), error);
         Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [Bar(new { })]), out error), error);
+        Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [Bar(new { titleCount = "{{q1.meta.totalCount}}" })]), out error), error);
     }
 
     [Fact]
@@ -618,6 +622,9 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(P(Bar(new { moreButtons = Array.Empty<string>() })), "moreButtons");
         AssertRejected(P(Btn("b1"), Bar(new { moreButtons = new[] { "b1", "b1" } })), "moreButtons");
         AssertRejected(P(Bar(new { printEnabled = "evet" })), "printEnabled");
+        AssertRejected(P(Bar(new { titleCount = 5 })), "titleCount");
+        AssertRejected(P(Bar(new { titleCount = "" })), "titleCount");
+        AssertRejected(P(new { id = "h1", type = "heading", props = new { titleCount = "3" } }), "yalnızca İşlem Çubuğu");
         AssertRejected(P(new { id = "h1", type = "heading", props = new { saveQuery = "w1" } }), "yalnızca İşlem Çubuğu");
         AssertRejected(P(tbl, new { id = "t2", type = "dataTable", props = new { exportTable = "t1" } }), "yalnızca İşlem Çubuğu");
         AssertRejected(P(new { id = "ab1", type = "actionBar", props = new { }, children = new object[] { Btn("b1") } }), "alt bileşen");

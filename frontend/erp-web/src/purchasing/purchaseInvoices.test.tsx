@@ -8,6 +8,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import PurchaseInvoicesPage from '../PurchaseInvoicesPage';
 import { purchaseInvoiceListTag, purchaseInvoiceOverdueDays } from './purchaseInvoiceStatus';
+import { commandReason } from '../action-bar/commandReason';
 
 const PAST = '2020-01-10';
 const FUTURE = '2099-12-31';
@@ -90,7 +91,7 @@ function renderScreen(view: ReactNode) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 /** İşlemler items as "label" or "label (disabled: reason)". */
 function menu() {
   fireEvent.click(command('more'));

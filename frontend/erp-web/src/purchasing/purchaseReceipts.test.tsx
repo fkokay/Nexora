@@ -11,6 +11,7 @@ import { PurchaseReceiptsScreen } from '../PurchaseReceiptsScreen';
 import PurchaseDeliveryNotesPage from '../PurchaseDeliveryNotesPage';
 import SalesReturnsPage from '../SalesReturnsPage';
 import PurchaseReturnsPage from '../PurchaseReturnsPage';
+import { commandReason } from '../action-bar/commandReason';
 
 /*
  * Satınalma İrsaliyeleri ve Mal kabulleri (Faz 4 Task 4): liste tipi, sağ panel, belge ekranı, irsaliye oluşturma
@@ -112,7 +113,7 @@ const receiptsScreen = () => <PurchaseReceiptsScreen token="t" role="TenantAdmin
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? command(id).getAttribute('aria-label') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function menuItems() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

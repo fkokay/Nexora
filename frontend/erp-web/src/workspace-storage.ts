@@ -11,12 +11,32 @@ const workspacePreferencesKey=()=>`aierp.workspace-preferences.${encodeURICompon
 export function readWorkspacePreferences(){try{return JSON.parse(localStorage.getItem(workspacePreferencesKey())||'{}') as {defaultPage?:string;rememberTabs?:boolean;restoreTabs?:boolean;confirmTabClose?:boolean}}catch{return {}}}
 const persistablePages=new Set(['projects','foreign-trade','integrations','erp-assistant','screen-views','custom-lists','custom-menus','business-rules','reports','workflows','custom-forms','customers','customer-create','customer-edit','customer-ledger','crm-opportunities','fixed-assets','human-resources','modules','inventory-tracking','inventory-locations','inventory-stock','inventory-stock-create','inventory-cost','inventory-warehouses','commercial-contracts','sales-requests','sales-purchase-quotes','sales-quotes','sales-quote-create','sales-orders','sales-order-create','sales-invoices','sales-invoice-create','sales-deliveries','sales-promotions','sales-distribution','sales-purchasing','sales-purchase-order-create','sales-purchase-invoices','sales-purchase-receipts','sales-returns','sales-purchase-returns','sales-customer-requests','sales-purchase-delivery-notes','sales-purchase-invoice-entry','sales-purchase-invoice-drafts','manufacturing-order-create','finance-accounts','finance-banks','finance-statements','finance-cash-flow','finance-fx','finance-ledger','finance-ledger-chart','finance-ledger-mappings','finance-journal-vouchers','finance-trial-balance','finance-balance-sheet','finance-journal-ledger','finance-transfer-sources','finance-budget','finance-cash-budget','finance-exposure','finance-maturities','finance-instruments','finance-credit-facilities','finance-credit-facility-create','finance-credit-schedule-create','finance-credit-movement-create','finance-credit-repayment-create','finance-credit-security-create','ai-settings','audit','access','company-settings','license-settings','settings'])
 export const isPersistablePage=(page:string)=>persistablePages.has(page)||page.startsWith('manufacturing-')||page.startsWith('module:')||page.startsWith('custom-page:')||['location-definitions','address-definitions'].includes(page)
+const guidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+/**
+ * Studio's "ERP'de önizle" for a system page draft: `?page=<screenKey>&systemPreview=<draftId>`. The workspace opens the
+ * built-in screen (module menu, breadcrumb, tab title) and renders the draft in it. Null without a valid pair.
+ */
+export function readSystemPreview(search=window.location.search):{screenKey:string;previewId:string}|null{
+  const query=new URLSearchParams(search)
+  const screenKey=query.get('page'), previewId=query.get('systemPreview')
+  if(!screenKey||!previewId||!/^[a-z0-9-]{1,39}$/.test(screenKey)||!isPersistablePage(screenKey)||!guidPattern.test(previewId))return null
+  return {screenKey,previewId}
+}
+// Read once at load: the preview belongs to the page the window was opened for, not to later navigation.
+let initialSystemPreview:{screenKey:string;previewId:string}|null|undefined
+/** The draft id to preview for this built-in screen key (see readSystemPreview), or undefined. */
+export function systemPreviewFor(screenKey:string):string|undefined{
+  if(initialSystemPreview===undefined)initialSystemPreview=typeof window==='undefined'?null:readSystemPreview()
+  return initialSystemPreview?.screenKey===screenKey?initialSystemPreview.previewId:undefined
+}
+/** Tests: forget the preview captured at load. */
+export function resetSystemPreviewForTests(){initialSystemPreview=undefined}
 export function getInitialPage(standaloneStudio:boolean,embeddedStudioTool=false){
   if(!embeddedStudioTool&&localStorage.getItem(platformSessionKey)==='true')return 'platform-tenants'
   if(standaloneStudio)return 'studio'
   const query = new URLSearchParams(window.location.search)
   const previewId = query.get('customPagePreview')
-  if (previewId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(previewId)) return `custom-page-preview:${previewId}`
+  if (previewId && guidPattern.test(previewId)) return `custom-page-preview:${previewId}`
   const publishedCustomPage = query.get('customPage')
   if (publishedCustomPage && /^[a-z0-9_-]{1,40}$/i.test(publishedCustomPage)) return `custom-page:${publishedCustomPage}`
   const requestedPlatformTool=query.get('platformTool')

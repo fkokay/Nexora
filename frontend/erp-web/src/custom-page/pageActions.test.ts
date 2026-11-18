@@ -241,3 +241,45 @@ describe('işlem yetkisi ve kayıt penceresi', () => {
     expect(startNew).toHaveBeenLastCalledWith(undefined);
   });
 });
+
+describe('Yeni / Aç düğmeleri (newButton, openButton)', () => {
+  const labels = (id: string) => ({ yeni: 'Yeni kart', ac: 'Kartı aç' } as Record<string, string>)[id];
+  it('düğmeler komutun kendisidir: sayfada ayrıca çizilmez', () => {
+    const components = [
+      { id: 'bar', type: 'actionBar', props: { newButton: 'yeni', openButton: 'ac', afterSaveButton: 'geri', moreButtons: ['m1'] } },
+      { id: 'yeni', type: 'button' }, { id: 'ac', type: 'button' }, { id: 'geri', type: 'button' }, { id: 'm1', type: 'button' },
+    ];
+    expect([...movedButtonIds(components)].sort()).toEqual(['ac', 'geri', 'm1', 'yeni']);
+  });
+  it('Yeni ve Aç düğmeyi çalıştırır; Kaydet yoksa Yeni birincildir', () => {
+    const { deps, run } = makeDeps({ buttonLabel: labels });
+    const commands = buildPageCommands({ newButton: 'yeni', openButton: 'ac' }, deps);
+    expect(commands.new?.primary).toBe(true);
+    void commands.new?.run?.();
+    expect(run.button).toHaveBeenLastCalledWith('yeni');
+    void commands.open?.run?.();
+    expect(run.button).toHaveBeenLastCalledWith('ac');
+    expect(run.clearInputs).not.toHaveBeenCalled();
+  });
+  it('gizli Aç düğmesi seçim bekler, pasif düğme nedenini gösterir, meşgulken çalışmaz', () => {
+    const hidden = buildPageCommands({ newButton: 'yeni', openButton: 'ac' }, makeDeps({ buttonLabel: labels,
+      buttonGate: (id) => (id === 'ac' ? { hidden: true } : { disabled: true, disabledReason: 'Önce depo seçin' }) }).deps);
+    expect(hidden.open).toEqual({ disabledReason: 'Önce bir kayıt seçin' });
+    expect(hidden.new?.disabledReason).toBe('Önce depo seçin');
+    expect(hidden.new?.run).toBeUndefined();
+    const busy = buildPageCommands({ openButton: 'ac' }, makeDeps({ buttonLabel: labels, busy: true }).deps);
+    expect(busy.open).toEqual({ disabledReason: 'İşlem sürüyor…' });
+  });
+  it('etiketsiz (hakkı olmayan) düğme bağlanmamış sayılır; kayıt penceresi önce gelir', () => {
+    const none = buildPageCommands({ newButton: 'yok', openButton: 'yok' }, makeDeps({ buttonLabel: labels }).deps);
+    expect(none.new?.disabledReason).toBe(UNBOUND);
+    expect(none.open?.disabledReason).toBe(UNBOUND);
+    const open = vi.fn();
+    const startNew = vi.fn();
+    const both = buildPageCommands({ newButton: 'yeni', openButton: 'ac' }, makeDeps({ buttonLabel: labels, formDialog: { open, startNew, hasRecord: true } }).deps);
+    void both.new?.run?.();
+    void both.open?.run?.();
+    expect(startNew).toHaveBeenCalled();
+    expect(open).toHaveBeenCalled();
+  });
+});

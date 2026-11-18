@@ -6,6 +6,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ConfirmDialogHost } from '../confirmDialog';
 import FixedAssetsPage from '../FixedAssetsPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const asset = (id: string, code: string, name: string, status = 'Active') => ({
   id, assetCode: code, name, category: 'Makine', acquisitionDate: '2025-01-01', inServiceDate: '2025-01-01', acquisitionCostBase: 120000,
@@ -71,7 +72,7 @@ function renderScreen(view: ReactNode) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
-const reason = (id: string) => command(id).getAttribute('title') ?? '';
+const reason = (id: string) => commandReason(command(id)) ?? '';
 function openMenu() {
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());

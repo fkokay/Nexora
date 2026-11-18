@@ -5,6 +5,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
+import { commandReason } from '../action-bar/commandReason';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -153,7 +154,7 @@ describe('Kayıt penceresi (formDialog)', () => {
     await screen.findByText('Var olan');
     await ready('new');
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
-    expect(command('open').getAttribute('title')).toBe('Önce bir kayıt seçin');
+    expect(commandReason(command('open'))).toBe('Önce bir kayıt seçin');
     fireEvent.click(command('open'));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
@@ -174,13 +175,13 @@ describe('Kayıt penceresi (formDialog)', () => {
     setup();
     await selectRow();
     await ready('open');
-    const row = document.querySelector<HTMLElement>('.tenant-page-table tbody tr')!;
-    expect(row.getAttribute('aria-selected')).toBe('true');
+    const row = document.querySelector<HTMLElement>('.tenant-page-data-grid tbody tr')!;
+    expect(row.getAttribute('aria-current')).toBe('true');
     row.focus();
     fireEvent.keyDown(row, { key: 'Enter' });
     await screen.findByRole('dialog', { name: 'Stok kartı' });
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(row.getAttribute('aria-selected')).toBe('true');
+    expect(row.getAttribute('aria-current')).toBe('true');
     await waitFor(() => expect(input('in-ad').value).toBe('Var olan'));
     type('in-ad', 'Düzenlendi');
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Kaydet' }));
@@ -192,7 +193,7 @@ describe('Kayıt penceresi (formDialog)', () => {
     setup();
     fireEvent.click(await screen.findByText('Var olan'));
     // Seçim yapıldı, kart okuması gecikmede: pencere boş satırlarla (yeni kayıt sanılarak) açılmaz.
-    await waitFor(() => expect(command('open').getAttribute('title')).toBe('Kayıt yükleniyor…'));
+    await waitFor(() => expect(commandReason(command('open'))).toBe('Kayıt yükleniyor…'));
     fireEvent.click(command('open'));
     expect(screen.queryByRole('dialog')).toBeNull();
     await ready('open');
@@ -246,7 +247,7 @@ describe('Kayıt penceresi (formDialog)', () => {
   it('no form dialog: open stays unbound and yeni keeps the inline behaviour', async () => {
     setup(components({ newInputs: ['in-ad'] }));
     await ready('new');
-    expect(command('open').getAttribute('title')).toBe('Bu sayfada bağlanmadı');
+    expect(commandReason(command('open'))).toBe('Bu sayfada bağlanmadı');
     fireEvent.click(command('new'));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(screen.queryByRole('dialog')).toBeNull();
