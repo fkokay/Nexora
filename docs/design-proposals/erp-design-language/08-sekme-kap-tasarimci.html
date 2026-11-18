@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Tasarımcı · sekmeler tuvalde kap olur</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--ok:#13804b;--ok-bg:#e5f5ec}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1000px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.frame{display:grid;grid-template-columns:200px 1fr 260px;gap:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:1200px;box-shadow:0 4px 18px rgba(15,27,45,.08)}
+.pal{border-right:1px solid var(--line);padding:12px;background:#fbfbfe;font-size:12.5px}
+.pal .g{font-size:10.5px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:10px 0 6px}
+.pal .it{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;margin-bottom:3px}
+.pal .it.drag{background:var(--st-soft);color:var(--st);font-weight:600;box-shadow:0 2px 8px rgba(91,61,245,.25)}
+.cv{padding:14px;background:#f7f7fb}
+.tabs{border:2px solid var(--st);border-radius:12px;background:#fff;position:relative}
+.tabs .chip{position:absolute;top:-11px;left:12px;background:var(--st);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+.th{display:flex;align-items:center;gap:4px;padding:10px 12px 0;border-bottom:1px solid var(--line)}
+.th span{padding:7px 12px;font-size:13px;color:var(--mut);border-bottom:2px solid transparent}
+.th span.on{color:var(--pri);border-color:var(--pri);font-weight:600}
+.th .add{margin-left:6px;color:var(--st);font-weight:700;font-size:12.5px;border:1px dashed #cbbff9;border-radius:6px;padding:3px 8px}
+.th .edit{font-size:11px;color:var(--mut);margin-left:auto}
+.tb{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;padding:12px;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/12 - 1px),#f1effa calc(100%/12 - 1px) calc(100%/12))}
+.b{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12.5px;position:relative}
+.b.sel{outline:2px solid var(--st)}
+.b small{display:block;color:var(--mut);font-size:11px}
+.b b{font-size:16px}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--ok-bg);color:var(--ok)}
+.drop{grid-column:span 4;border:2px dashed var(--st);border-radius:10px;background:var(--st-soft);color:var(--st);font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;min-height:62px}
+.empty{grid-column:span 12;border:2px dashed #cbbff9;border-radius:10px;color:var(--mut);font-size:12.5px;text-align:center;padding:22px}
+.insp{border-left:1px solid var(--line);padding:12px;font-size:12.5px}
+.insp h4{margin:0 0 8px;font-size:13px}
+.insp .row{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
+.insp .row i{color:var(--mut);font-style:normal;cursor:grab}.insp .row em{margin-left:auto;color:var(--mut);font-style:normal;font-size:11px}
+.insp .hint{color:var(--mut);font-size:11.5px;margin:6px 0 10px}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+</style></head><body>
+<h1>Tasarımcı: sekmeler tuvalde gerçek kap olur</h1>
+<p class="sub">Taslak · 2026-11-18 · Bugün bir bileşeni sekmeye koymak için sağ panelde onay kutusu işaretleniyor ve sekmenin içi tuvalde ayrı ayrı düzenlenemiyor. Öneri: sekmenin içi, sayfanın kendisi gibi 12 sütunlu bir bırakma alanı olur; bileşenler soldan sürüklenip istenen sekmeye bırakılır, sekme içinde taşınır, boyutlandırılır ve seçilip düzenlenir.</p>
+
+<div class="lbl">1 · Bileşen sürüklenirken: açık sekmenin içine bırakılır</div>
+<div class="frame">
+  <div class="pal"><div class="g">TASARIM DİLİ</div><div class="it">▦ İşlem Çubuğu</div><div class="it drag">◧ Veri göstergesi ⇢</div><div class="it">☰ Izgara</div><div class="it">● Durum etiketi</div><div class="g">METİN VE DÜZEN</div><div class="it">H Başlık</div><div class="it">¶ Açıklama</div></div>
+  <div class="cv">
+    <div class="tabs"><span class="chip">Sekmeler · 12/12</span>
+      <div class="th"><span class="on">Özet</span><span>Depolar</span><span>Hareketler</span><span class="add">+ Sekme</span><span class="edit">Sekme adına çift tıklayarak değiştirin</span></div>
+      <div class="tb">
+        <div class="b" style="grid-column:span 8"><small>Başlık</small><b>STK-0001 · TEST ÜRÜN 1</b></div>
+        <div class="b" style="grid-column:span 4"><small>Durum etiketi</small><span class="tag">Yeterli</span></div>
+        <div class="b" style="grid-column:span 4"><small>Bakiye</small><b>0 EA</b></div>
+        <div class="b" style="grid-column:span 4"><small>Kullanılabilir</small><b>0 EA</b></div>
+        <div class="drop">Buraya bırakın · Özet sekmesi</div>
+      </div>
+    </div>
+  </div>
+  <div class="insp"><h4>Sekmeler</h4><div class="hint">Sekmeleri sürükleyerek sıralayın; varsayılan sekmeyi seçin.</div>
+    <div class="row"><i>⋮⋮</i>Özet<em>Varsayılan · 4 bileşen</em></div><div class="row"><i>⋮⋮</i>Depolar<em>1 bileşen</em></div><div class="row"><i>⋮⋮</i>Hareketler<em>1 bileşen</em></div>
+    <div class="hint">Bileşen eklemek için soldan sekmenin içine sürükleyin. Bir bileşeni başka sekmeye taşımak için sekme başlığının üzerine bırakın.</div></div>
+</div>
+<p class="note">Sürüklenen bileşen sekme başlığının üzerine getirilirse o sekme açılır ve içine bırakılabilir. Sağ paneldeki onay kutusu listesi kalkar; yerine sekmelerin sırası ve bileşen sayısı görünür.</p>
+
+<div class="lbl">2 · Sekme içindeki bileşen seçili: sayfa bileşeni gibi düzenlenir</div>
+<div class="frame">
+  <div class="pal"><div class="g">TASARIM DİLİ</div><div class="it">◧ Veri göstergesi</div><div class="it">☰ Izgara</div></div>
+  <div class="cv">
+    <div class="tabs"><span class="chip">Sekmeler · 12/12</span>
+      <div class="th"><span class="on">Özet</span><span>Depolar</span><span>Hareketler</span><span class="add">+ Sekme</span></div>
+      <div class="tb">
+        <div class="b" style="grid-column:span 8"><small>Başlık</small><b>STK-0001 · TEST ÜRÜN 1</b></div>
+        <div class="b" style="grid-column:span 4"><small>Durum etiketi</small><span class="tag">Yeterli</span></div>
+        <div class="b sel" style="grid-column:span 4"><small>Bakiye</small><b>0 EA</b></div>
+        <div class="b" style="grid-column:span 4"><small>Kullanılabilir</small><b>0 EA</b></div>
+        <div class="b" style="grid-column:span 4"><small>Rezerve</small><b>0 EA</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="insp"><h4>Veri göstergesi · Bakiye</h4><div class="hint">Konum: Sekmeler › Özet</div>
+    <div class="row">Başlık<em>Bakiye</em></div><div class="row">Değer<em>{{kart…balance}}</em></div><div class="row">Biçim<em>Miktar + birim</em></div><div class="row">Genişlik<em>4 / 12</em></div>
+    <div class="hint">"Sekmeden çıkar" ile bileşen sayfaya geri alınır.</div></div>
+</div>
+
+<div class="lbl">3 · Boş sekme</div>
+<div class="frame" style="grid-template-columns:1fr">
+  <div class="cv"><div class="tabs"><span class="chip">Sekmeler · 12/12</span>
+    <div class="th"><span>Özet</span><span>Depolar</span><span class="on">Yeni sekme</span><span class="add">+ Sekme</span></div>
+    <div class="tb"><div class="empty">Bu sekme boş. Soldan bir bileşeni buraya sürükleyin.</div></div></div></div>
+</div>
+<p class="note">Kaydedilen tanım değişmez: sekmeler bugünkü gibi bileşen kimliklerini listeler. Değişen yalnız tasarımcıdaki düzenleme biçimi. Bu yüzden mevcut sayfalar ve ERP çalışma zamanı etkilenmez.</p>
+</body></html>

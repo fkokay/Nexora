@@ -1,4 +1,5 @@
-import { Children, useState, type CSSProperties, type ReactNode } from "react";
+import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useFlip } from "./useFlip";
 import { AlertTriangle, BarChart3, Box, CheckCircle2, Clock, ImageIcon, Receipt, Search, Users, Wallet, type LucideIcon } from "lucide-react";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
@@ -184,10 +185,143 @@ export function TabsPreview({ tabs, defaultTab, renderOwned, spanFor, onSelect, 
         className={index === active ? "is-active" : undefined} onClick={(event) => { event.stopPropagation(); setPicked(index); }}>{tab.label}</button>)}
     </div>
     <div className="pd-tabs-preview-panel" role="tabpanel">
-      {tabs[active].ids.length === 0 ? <p className="pd-tabs-empty">Bu sekmeye bileşen seçin</p>
+      {tabs[active].ids.length === 0 ? <p className="pd-tabs-empty">Bu sekme boş.</p>
         : tabs[active].ids.map((id) => <div key={id} className="pd-tabs-preview-item" style={{ gridColumn: `span ${spanFor(id)}` }}
           title="Düzenlemek için tıklayın" onClick={(event) => { event.stopPropagation(); onSelect(id); }}>{renderOwned(id)}</div>)}
     </div>
+  </section>;
+}
+
+type DragHit = { target: Element | null; x: number; y: number };
+
+/**
+ * Sayfadaki Sekmeler bileşeninin tuvaldeki düzenlenebilir kabı (taslak 08). Açık sekmenin gövdesi sayfa gibi 12 sütunlu
+ * bir bırakma alanıdır: paletten ya da tuvalden sürüklenen bileşen yer tutucunun gösterdiği yere bırakılır, diğer bloklar
+ * canlı olarak kayar. Sekme başlığının üzerine gelince o sekme açılır; başlığa bırakmak bileşeni o sekmenin sonuna alır.
+ * Sekme adı çift tıklanarak değiştirilir; "+ Sekme" yeni sekme ekler. Kayıt biçimi değişmez (üst bileşen yazar).
+ */
+export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, draggingId, dropSpan, acceptsTab, renderChild, spanFor, labelFor, conditional,
+  toolbarFor, onActivate, onSelect, onClaimDrag, onDrop, onItemDragStart, onDragEnd, onRename, onAddTab, onResizeStart, canAddTab, style }: {
+  tabs: { label: string; ids: string[] }[]; active: number; canEdit: boolean; resizable: boolean; selectedId: string | null; draggingId: string | null;
+  dropSpan: number; acceptsTab: (tabIndex: number) => boolean; renderChild: (id: string) => ReactNode; spanFor: (id: string) => number;
+  labelFor: (id: string) => string; conditional: (id: string) => boolean; toolbarFor: (id: string) => ReactNode;
+  onActivate: (index: number) => void; onSelect: (id: string) => void; onClaimDrag: () => void; onDrop: (tabIndex: number, position: number, event: DragEvent) => void;
+  onItemDragStart: (id: string, event: DragEvent<HTMLElement>) => void; onDragEnd: () => void; onRename: (index: number, label: string) => void;
+  onAddTab: () => void; onResizeStart: (id: string, event: ReactPointerEvent<HTMLSpanElement>) => void; canAddTab: boolean; style: CSSProperties;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const pending = useRef<DragHit | null>(null);
+  const frame = useRef(0);
+  const current = active >= 0 && active < tabs.length ? active : 0;
+  const ids = tabs[current]?.ids ?? [];
+  const accepting = !!draggingId && canEdit && tabs.length > 0 && acceptsTab(current);
+  // Sürükleme bitince bekleyen konum hesabı da iptal edilir (sonraki sürüklemede hayalet yer tutucu kalmasın).
+  useEffect(() => {
+    if (draggingId) return;
+    cancelAnimationFrame(frame.current); frame.current = 0; pending.current = null;
+    setHover(null);
+  }, [draggingId]);
+  useEffect(() => { setHover(null); }, [current]);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  // Sürüklenen bileşen zaten bu sekmede ve yerinden oynamıyorsa yer tutucu gösterilmez (soluk kopyası yerini belirtir).
+  const own = draggingId ? ids.indexOf(draggingId) : -1;
+  const placeholderAt = accepting && hover !== null && !(own >= 0 && (hover === own || hover === own + 1)) ? Math.min(hover, ids.length) : null;
+  useFlip(panelRef, `${current}|${ids.join(",")}|${placeholderAt ?? "-"}`);
+
+  // Sürükleme sırasında konum hesabı kare başına bir kez yapılır (dragover saniyede onlarca kez gelir).
+  const hitTest = () => {
+    frame.current = 0;
+    const hit = pending.current;
+    pending.current = null;
+    const panel = panelRef.current;
+    if (!hit || !panel || !draggingId) return;
+    const item = hit.target instanceof Element ? hit.target.closest<HTMLElement>("[data-tab-pos], [data-tab-placeholder]") : null;
+    if (item && item.closest(".pd-tabs-canvas-panel") === panel) {
+      if (item.dataset.tabPlaceholder !== undefined) return; // yer tutucunun üstünde: konum korunur
+      const index = Number(item.dataset.tabPos);
+      const rect = item.getBoundingClientRect();
+      const horizontal = spanFor(ids[index]) < 12;
+      const before = horizontal ? hit.x < rect.left + rect.width / 2 : hit.y < rect.top + rect.height / 2;
+      setHover(before ? index : index + 1);
+    } else setHover((value) => value ?? ids.length);
+  };
+  const dragOverPanel = (event: DragEvent<HTMLDivElement>) => {
+    if (!accepting) return; // kabul edilmeyen sürükleme sayfaya (Sekmeler bloğunun kendisine) kalır
+    event.preventDefault(); event.stopPropagation();
+    onClaimDrag();
+    event.dataTransfer.dropEffect = draggingId && ids.includes(draggingId) ? "move" : event.dataTransfer.effectAllowed === "copy" ? "copy" : "move";
+    pending.current = { target: event.target as Element | null, x: event.clientX, y: event.clientY };
+    if (!frame.current) frame.current = requestAnimationFrame(hitTest);
+  };
+  const dropPanel = (event: DragEvent<HTMLDivElement>) => {
+    if (!accepting) return;
+    event.preventDefault(); event.stopPropagation();
+    const position = hover ?? ids.length;
+    setHover(null);
+    onDrop(current, position, event);
+  };
+  const leavePanel = (event: DragEvent<HTMLDivElement>) => {
+    // relatedTarget sürüklemede bazı tarayıcılarda boş gelir; imlecin kabın dışına çıkıp çıkmadığına bakılır.
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) {
+      cancelAnimationFrame(frame.current); frame.current = 0; pending.current = null;
+      setHover(null);
+    }
+  };
+  const commitRename = (index: number, value: string) => { setEditing(null); onRename(index, value); };
+  const placeholder = (tabLabel: string) => <div key="__placeholder" data-flip="__placeholder" data-tab-placeholder="" className="pd-drop-placeholder"
+    style={{ gridColumn: `span ${dropSpan}` }} onDragOver={(event) => { if (accepting) { event.preventDefault(); event.stopPropagation(); } }}>Buraya bırakın · {tabLabel} sekmesi</div>;
+
+  return <section className="pd-layout-block pd-tabs-preview pd-tabs-canvas" style={style}>
+    <div className="pd-tabs-preview-list" role="tablist" aria-label="Sekmeler">
+      {tabs.map((tab, index) => editing === index
+        ? <input key={index} className="pd-tab-rename" autoFocus defaultValue={tab.label} maxLength={40} aria-label="Sekme adı" draggable={false}
+          onClick={(event) => event.stopPropagation()} onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }}
+          onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Enter") commitRename(index, event.currentTarget.value); else if (event.key === "Escape") setEditing(null); }}
+          onBlur={(event) => commitRename(index, event.target.value)}/>
+        : <button type="button" role="tab" key={index} aria-selected={index === current} className={index === current ? "is-active" : undefined}
+          title={canEdit ? "Sekme adına çift tıklayarak değiştirin" : undefined}
+          onClick={(event) => { event.stopPropagation(); onActivate(index); }}
+          onDoubleClick={(event) => { event.stopPropagation(); if (canEdit) setEditing(index); }}
+          onDragOver={(event) => {
+            if (!draggingId || !canEdit || !acceptsTab(index)) return;
+            event.preventDefault(); event.stopPropagation();
+            onClaimDrag();
+            if (index !== current) onActivate(index);
+          }}
+          onDrop={(event) => {
+            if (!draggingId || !canEdit || !acceptsTab(index)) return;
+            event.preventDefault(); event.stopPropagation();
+            onDrop(index, Number.MAX_SAFE_INTEGER, event);
+          }}>{tab.label}</button>)}
+      {canEdit && <button type="button" className="pd-tab-add" disabled={!canAddTab} title={canAddTab ? undefined : "En fazla 8 sekme olabilir."}
+        onClick={(event) => { event.stopPropagation(); onAddTab(); }}>+ Sekme</button>}
+      {canEdit && <span className="pd-tab-rename-hint">Sekme adına çift tıklayarak değiştirin</span>}
+    </div>
+    {tabs.length === 0 ? <p className="pd-tabs-empty">Sekme ekleyin</p>
+      : <div ref={panelRef} className={`pd-tabs-canvas-panel${accepting ? " is-accepting" : ""}`} role="tabpanel" onDragOver={dragOverPanel} onDrop={dropPanel} onDragLeave={leavePanel}>
+        {ids.length === 0 && placeholderAt === null && <p className="pd-tabs-empty is-drop">Bu sekme boş. Soldan bir bileşeni buraya sürükleyin.</p>}
+        {ids.flatMap((id, index) => {
+          const selected = selectedId === id;
+          const block = <div key={id} data-flip={id} data-tab-pos={index}
+            className={`pd-block pd-tab-block${selected ? " is-selected" : ""}${draggingId === id ? " is-dragging" : ""}`}
+            style={{ gridColumn: `span ${spanFor(id)}` }} draggable={canEdit}
+            onClick={(event) => { event.stopPropagation(); onSelect(id); }}
+            onDragStart={(event) => { event.stopPropagation(); onItemDragStart(id, event); }}
+            onDragEnd={(event) => { event.stopPropagation(); onDragEnd(); }}>
+            <span className="pd-block-label">{labelFor(id)}</span>
+            {conditional(id) && <span className="pd-cond-chip">Koşullu</span>}
+            {selected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>{toolbarFor(id)}</div>}
+            <div className="pd-block-render">{renderChild(id)}</div>
+            {selected && canEdit && resizable && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin"
+              onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => onResizeStart(id, event)} onClick={(event) => event.stopPropagation()}/>}
+          </div>;
+          return placeholderAt === index ? [placeholder(tabs[current].label), block] : [block];
+        })}
+        {placeholderAt !== null && placeholderAt >= ids.length && placeholder(tabs[current].label)}
+      </div>}
   </section>;
 }
 
