@@ -1,9 +1,192 @@
 /*
- * Ticari sözleşmeler: contract list column + selected contract with underline tabs. Reuses the
- * credit page layout (#root .cf-page in credit-facilities.css, finance-hub tokens); only contract
- * specifics live here. Class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog"
- * (global-components.css restyles every class containing them).
+ * Ticari sözleşmeler: contract list column + selected contract with underline tabs. The column / detail layout was
+ * shared with the old Krediler page; Krediler moved to the list type, so the layout lives here now, scoped to
+ * .cf-page.commercial-contracts-page so it cannot reach the Krediler surface. Uses finance-hub tokens (--fh-*) and
+ * --nx-* colours. Class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog" (global-components.css
+ * restyles every class containing them).
  */
+#root .cf-page.commercial-contracts-page {
+  --cf-select: var(--nx-primary-soft);
+  --cf-select-line: var(--nx-primary);
+  --cf-bar: var(--nx-ok);
+  --cf-bar-track: var(--nx-line);
+  max-width: none;
+}
+#root .cf-page.commercial-contracts-page .cf-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cf-bar-track);
+}
+#root .cf-page.commercial-contracts-page .cf-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--cf-bar); }
+
+/* Two columns: contract list and the selected contract; stacked below 1100px. */
+#root .cf-page.commercial-contracts-page .cf-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+@media (max-width: 1099px) {
+  #root .cf-page.commercial-contracts-page .cf-layout { grid-template-columns: minmax(0, 1fr); }
+}
+#root .cf-page.commercial-contracts-page .cf-list-column { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#root .cf-page.commercial-contracts-page .cf-filters { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#root .cf-page.commercial-contracts-page .cf-search-row { display: flex; align-items: center; gap: 6px; }
+#root .cf-page.commercial-contracts-page .cf-search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  padding: 0 9px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+  color: var(--fh-muted);
+}
+#root .app-shell .cf-page.commercial-contracts-page .cf-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--fh-ink);
+  font-size: 13px;
+}
+#root .cf-page.commercial-contracts-page .cf-filters .list-v2-chips { flex-wrap: wrap; }
+#root .cf-page.commercial-contracts-page .cf-items { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+#root .app-shell .cf-page.commercial-contracts-page .cf-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--fh-line);
+  border-radius: 8px;
+  background: var(--fh-paper) !important;
+  color: var(--fh-ink) !important;
+  font: inherit !important;
+  font-weight: 400 !important;
+  text-align: left;
+  cursor: pointer;
+}
+#root .app-shell .cf-page.commercial-contracts-page .cf-item:hover { border-color: var(--cf-select-line); }
+#root .app-shell .cf-page.commercial-contracts-page .cf-item.is-selected {
+  border-color: var(--cf-select-line);
+  background: var(--cf-select) !important;
+  box-shadow: inset 3px 0 0 var(--cf-select-line);
+}
+#root .cf-page.commercial-contracts-page .cf-item-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+#root .cf-page.commercial-contracts-page .cf-item-top b { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+#root .cf-page.commercial-contracts-page .cf-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--fh-line);
+  border-radius: 999px;
+  background: var(--fh-band);
+  color: var(--fh-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+#root .cf-page.commercial-contracts-page .cf-state.is-active {
+  border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface));
+  background: var(--fh-success-bg);
+  color: var(--fh-success);
+}
+#root .cf-page.commercial-contracts-page .cf-item-meta { color: var(--fh-muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+#root .cf-page.commercial-contracts-page .cf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed var(--fh-line);
+  border-radius: 8px;
+  color: var(--fh-muted);
+  font-size: 13px;
+}
+#root .cf-page.commercial-contracts-page .cf-empty strong { color: var(--fh-ink); }
+
+/* Selected contract */
+#root .cf-page.commercial-contracts-page .cf-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  border: 1px solid var(--fh-line);
+  border-radius: 8px;
+  background: var(--fh-paper);
+}
+#root .cf-page.commercial-contracts-page .cf-detail-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 14px 16px 10px;
+}
+#root .cf-page.commercial-contracts-page .cf-detail-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+#root .app-shell .cf-page.commercial-contracts-page .cf-detail-title h2 {
+  margin: 0;
+  color: var(--fh-ink) !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  overflow-wrap: anywhere;
+}
+#root .cf-page.commercial-contracts-page .cf-detail-sub { grid-column: 1; margin: 0; color: var(--fh-muted); font-size: 13px; overflow-wrap: anywhere; }
+#root .cf-page.commercial-contracts-page .cf-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+#root .app-shell .cf-page.commercial-contracts-page .cf-detail-actions .secondary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
+#root .app-shell .cf-page.commercial-contracts-page .cf-detail-actions .sales-row-actions-trigger {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--fh-line);
+  border-radius: 6px;
+  background: var(--fh-paper);
+}
+#root .cf-page.commercial-contracts-page .cf-detail .dd-tabs { padding: 0 8px; }
+#root .cf-page.commercial-contracts-page .cf-tabbody { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px 16px; }
+#root .cf-page.commercial-contracts-page .cf-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px 24px;
+  margin: 0;
+}
+#root .cf-page.commercial-contracts-page .cf-info > div { min-width: 0; }
+#root .cf-page.commercial-contracts-page .cf-info dt { margin: 0 0 3px; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
+#root .cf-page.commercial-contracts-page .cf-info dd {
+  margin: 0;
+  color: var(--fh-ink);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+#root .cf-page.commercial-contracts-page .cf-info .is-emphasis dd { font-weight: 700; }
+
+@media (max-width: 640px) {
+  #root .cf-page.commercial-contracts-page .cf-detail-head { grid-template-columns: minmax(0, 1fr); }
+  #root .cf-page.commercial-contracts-page .cf-detail-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
+}
+
+/* Contract specifics (after the layout rules so they win at equal specificity). */
 #root .cf-page.commercial-contracts-page { gap: 14px; }
 
 /* A slightly wider list column on desktop; the shared rule stacks the layout below 1100px. */
@@ -21,10 +204,10 @@
 #root .cf-page .ctr-item .cf-item-top { justify-content: space-between; flex-wrap: nowrap; }
 #root .cf-page .ctr-item .cf-item-top b { min-width: 0; }
 #root .cf-page .ctr-item .cf-item-top .cf-state { flex: 0 0 auto; }
-#root .cf-page .ctr-party { color: var(--fh-ink); font-size: 12.5px; }
+#root .cf-page .cf-item-meta.ctr-party { color: var(--fh-ink); font-size: 12.5px; }
 #root .cf-page .ctr-soon { color: var(--fh-warn); font-weight: 600; }
 
-/* Status label: Aktif green (credit CSS), Askıda warning, the others neutral. */
+/* Status label: Aktif green (layout rules above), Askıda warning, the others neutral. */
 #root .cf-page .cf-state.is-warning {
   border-color: var(--fh-warn-line);
   background: var(--fh-warn-bg);

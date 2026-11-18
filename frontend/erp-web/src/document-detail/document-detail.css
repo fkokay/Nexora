@@ -345,6 +345,28 @@ html[data-theme="dark"] .dd-tabs { --dd-link: var(--nx-primary-strong); }
   font-weight: 600;
 }
 #root :is(.doc-surface.doc-detail, .doc-form) .dd-section-actions { display: flex; gap: 8px; }
+/* Bölüm başlığındaki düğmeler ve tablo satırındaki işlem düğmeleri kit kontrol boyundadır: eski genel kurallar
+   (.small-button, .row-action) aynı belgede 34 / 38px yükseklik ve 9px yazı veriyordu.
+   !important: global-components.css sizes every .app-shell .primary / .secondary with !important. */
+#root .app-shell :is(.doc-surface.doc-detail, .doc-form) .dd-section-actions :is(.primary, .secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--nx-control-h) !important;
+  min-height: var(--nx-control-h) !important;
+  padding: 0 12px !important;
+  border-radius: var(--nx-radius-control) !important;
+  font-size: 12.5px !important;
+  white-space: nowrap;
+}
+#root .app-shell .doc-surface.doc-detail td button.row-action {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: var(--nx-radius-control);
+  font-size: 12px;
+  white-space: nowrap;
+}
 
 #root :is(.doc-surface.doc-detail, .doc-form) .dd-form-foot {
   display: flex;

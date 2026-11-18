@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { authenticatedFetch } from "./authApi";
 import {
-  isApproved,
   type Forecast,
   type LineInput,
   type PlanScreenField,
@@ -9,7 +8,8 @@ import {
   type PlanView,
 } from "./direct-cash-budget/types";
 import { ListPageHeader } from "./list-page/ListPageHeader";
-import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
+import "./list-page/list-page-v2.css";
+import "./document-detail/document-detail.css";
 import DirectCashBudgetForecast from "./direct-cash-budget/components/DirectCashBudgetForecast";
 import DirectCashBudgetPlanList from "./direct-cash-budget/components/DirectCashBudgetPlanList";
 import DirectCashBudgetEditor from "./direct-cash-budget/components/DirectCashBudgetEditor";
@@ -300,50 +300,21 @@ export default function DirectCashBudgetPage({
     ) ?? [];
   const draft = selected?.status === "Draft";
 
+  const surfaceOpen = Boolean(selected && !editing);
+  const editorOpen = editing && admin;
+  const refresh = () => {
+    if (!loading && !busy) void load();
+  };
+
   return (
-    <div className="finance-page direct-cash-budget-page list-v2">
+    <div className="finance-page direct-cash-budget-page list-v2 fin-cash-budget-page">
       <ListPageHeader
         title="Doğrudan nakit bütçesi"
         description="Tahmini tahsilat ve ödemeleri aylara göre planlayın. Onaylı planlar nakit tahmininde görünür; gerçek kasa, banka ve muhasebe kayıtları oluşturulmaz."
         count={loading && plans.length === 0 ? null : plans.length}
-      >
-        {admin && (
-          <button
-            type="button"
-            className="primary"
-            onClick={newDraft}
-            disabled={busy}
-          >
-            Yeni nakit bütçesi
-          </button>
-        )}
-      </ListPageHeader>
-      <ListToolbar
-        onRefresh={() => {
-          if (!loading && !busy) void load();
-        }}
-      >
-        <ListChipGroup
-          label="Durum"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          hideEmpty
-          options={[
-            { value: "", label: "Tümü", count: plans.length },
-            {
-              value: "Draft",
-              label: "Taslak",
-              count: plans.filter((plan) => !isApproved(plan.status)).length,
-            },
-            {
-              value: "Approved",
-              label: "Onaylı",
-              count: plans.filter((plan) => isApproved(plan.status)).length,
-            },
-          ]}
-        />
-      </ListToolbar>
-      {error && (
+        countLabel="plan"
+      />
+      {error && !surfaceOpen && (
         <div className="alert inline-alert" role="alert">
           <span>{error}</span>
           <button
@@ -356,68 +327,88 @@ export default function DirectCashBudgetPage({
           </button>
         </div>
       )}
-      {notice && (
+      {notice && !surfaceOpen && (
         <div className="notice inline-notice" role="status">
           {notice}
         </div>
       )}
-      <DirectCashBudgetForecast rows={forecastRows} loading={loading} />
-      <div
-        className={`direct-cash-budget-layout ${editing && admin ? "has-editor" : ""}`}
-      >
-        <DirectCashBudgetPlanList
-          plans={plans}
-          statusFilter={statusFilter}
-          fields={planScreenFields}
-          loading={loading}
-          busy={busy}
-          admin={admin}
-          selectedId={selected?.id}
-          editing={editing}
-          onOpen={(plan) => void open(plan)}
-        />
-        {editing && admin && (
-          <DirectCashBudgetEditor
-            selected={selected}
-            name={name}
-            year={year}
-            currency={currency}
-            lines={lines}
+      {!editorOpen && (
+        <>
+          <DirectCashBudgetPlanList
+            active={!selected}
+            plans={plans}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            fields={planScreenFields}
+            loading={loading}
             busy={busy}
-            onSubmit={save}
-            onNameChange={setName}
-            onYearChange={(nextYear) => {
-              setYear(nextYear);
-              setLines((existing) =>
-                existing.map((line) => ({
-                  ...line,
-                  periodStart: `${nextYear}-${line.periodStart.slice(5)}`,
-                })),
-              );
-            }}
-            onCurrencyChange={setCurrency}
-            onAddLine={() =>
-              setLines((current) => [...current, initialLine(year)])
-            }
-            onUpdateLine={updateLine}
-            onRemoveLine={(index) =>
-              setLines((current) => current.filter((_, i) => i !== index))
-            }
-            onCancel={() => {
-              setEditing(false);
-              setError("");
-            }}
+            admin={admin}
+            onOpen={(plan) => void open(plan)}
+            onNew={newDraft}
+            onRefresh={refresh}
           />
-        )}
-      </div>
-      {selected && !editing && (
+          <DirectCashBudgetForecast rows={forecastRows} loading={loading} />
+        </>
+      )}
+      {editorOpen && (
+        <DirectCashBudgetEditor
+          selected={selected}
+          name={name}
+          year={year}
+          currency={currency}
+          lines={lines}
+          busy={busy}
+          onSubmit={save}
+          onNameChange={setName}
+          onYearChange={(nextYear) => {
+            setYear(nextYear);
+            setLines((existing) =>
+              existing.map((line) => ({
+                ...line,
+                periodStart: `${nextYear}-${line.periodStart.slice(5)}`,
+              })),
+            );
+          }}
+          onCurrencyChange={setCurrency}
+          onAddLine={() =>
+            setLines((current) => [...current, initialLine(year)])
+          }
+          onUpdateLine={updateLine}
+          onRemoveLine={(index) =>
+            setLines((current) => current.filter((_, i) => i !== index))
+          }
+          onCancel={() => {
+            setEditing(false);
+            setError("");
+          }}
+        />
+      )}
+      {selected && surfaceOpen && (
         <DirectCashBudgetDetail
+          key={selected.id}
           selected={selected}
           draft={draft}
           admin={admin}
           busy={busy}
           onEdit={edit}
           onApprove={() => void approve()}
+          onClose={() => setSelected(null)}
+          onNew={newDraft}
+          onRefresh={refresh}
+          messages={
+            <>
+              {error && (
+                <div className="alert inline-alert" role="alert">
+                  <span>{error}</span>
+                </div>
+              )}
+              {notice && !error && (
+                <div className="notice" role="status">
+                  {notice}
+                </div>
+              )}
+            </>
+          }
         />
       )}
     </div>

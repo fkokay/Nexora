@@ -29,6 +29,12 @@ export const english: Record<string, string> = {
   'Stok kartları yükleniyor…': 'Loading stock items…', 'Düzenlemeyi bitir': 'Finish editing', 'Grubu sil': 'Delete group',
   'Alan tanımları': 'Field definitions', '· sürüm geçmişi': '· version history', 'Hareket ekle': 'Add transaction',
   'Mal kabul bağlantısı yok': 'No linked purchase receipt', 'Siparişi aç': 'Open order',
+  // Satınalma talepleri / teklifleri / siparişleri on the list and document type (Faz 4).
+  'Satınalma talebi özeti': 'Purchase request summary', 'Satınalma teklifi özeti': 'Supplier quote summary',
+  'Satınalma siparişi özeti': 'Purchase order summary', 'Satınalma talebi kayıtları': 'Purchase request records',
+  'Satınalma siparişi kayıtları': 'Purchase order records', 'en iyi': 'best', 'aramayla eşleşen': 'matching the search',
+  'tüm talepler': 'all requests', 'Mal bekleyen': 'Awaiting goods', 'Kıyas': 'Comparison', 'Mal kabuller': 'Goods receipts',
+  'Teklif bulunamadı.': 'Quote not found.',
   'Sipariş no veya tedarikçi ara': 'Search by order number or supplier', 'Satınalma İrsaliyeleri': 'Purchase delivery notes',
   'Sipariş miktarı': 'Ordered quantity', 'Fatura işlemi': 'Invoice action', '· firma kapsamı': '· company scope',
   'Satır sayısı': 'Line count', 'Vergi mevzuatı profili': 'Tax regulation profile', 'Profil seçin': 'Select a profile',
@@ -284,6 +290,7 @@ export const english: Record<string, string> = {
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
+  [/^(.+?) kalem fiyatları$/, '$1 line prices'],
   [/^Sözleşme durumu “(.+?)” olarak güncellendi\.$/, 'Contract status updated to “$1”.'],
   [/^(.+?) kaydedildi\. Yeni cari kartı girebilirsiniz\.$/, '$1 saved. You can enter a new account card.'],
   [/^(.+?): (.+?) aşamasına taşındı\.$/, '$1: moved to the $2 stage.'],

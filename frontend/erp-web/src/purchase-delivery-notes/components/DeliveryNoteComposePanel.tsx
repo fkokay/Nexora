@@ -1,11 +1,15 @@
-import type { FormEvent } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
 import type { OrderDetail, Note, ScreenField } from "../types";
-import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
+import { RecordFormGroup, RequiredMark } from "../../record-form/RecordForm";
 import "../../purchasing-record-forms.css";
+import { DetailLinesHead } from "../../document-detail/DocumentDetailLayout";
+import { SalesLinesMeta } from "../../sales/salesDocumentDetail";
 
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineNumber", "orderedQuantity", "deliveryQuantity"]);
+
+/** Belge kimliği and the order lines of the delivery note create view (inside the note form). */
 export function DeliveryNoteComposePanel({
   detail,
   notes,
@@ -13,9 +17,7 @@ export function DeliveryNoteComposePanel({
   quantities,
   documentNumber,
   documentDate,
-  busy,
   fields,
-  onSubmit,
   onDocumentNumberChange,
   onDocumentDateChange,
   onReceiptChange,
@@ -27,36 +29,15 @@ export function DeliveryNoteComposePanel({
   quantities: Record<number, string>;
   documentNumber: string;
   documentDate: string;
-  busy: boolean;
   fields: ScreenField[];
-  onSubmit: (event: FormEvent) => void;
   onDocumentNumberChange: (value: string) => void;
   onDocumentDateChange: (value: string) => void;
   onReceiptChange: (value: string) => void;
   onQuantityChange: (lineNumber: number, value: string) => void;
 }) {
   return (
-    <section className="panel purchase-note-compose-panel">
-      <RecordFormPage
-        variant="dialog"
-        className="prf-embedded prf-no-cancel"
-        title="İrsaliye Kaydet"
-        mode="create"
-        busy={busy}
-        saveLabel="İrsaliyeyi kaydet"
-        onSubmit={onSubmit}
-        onCancel={() => undefined}
-        status={
-          <>
-            <span>
-              {detail.code} · {detail.supplierName} · miktarlar sipariş satırının
-              temel biriminde girilir.
-            </span>
-            <span className="rf-status-end">Bu kayıt stok veya muhasebe hareketi oluşturmaz.</span>
-          </>
-        }
-      >
-        <RecordFormGroup title="Belge Kimliği" bodyClassName="rf-identity prf-identity-3">
+    <>
+        <RecordFormGroup title="Belge Kimliği" bodyClassName="rf-identity doc-form-fields">
           <label>
             <span>Tedarikçi irsaliye numarası <RequiredMark /></span>
             <input
@@ -98,18 +79,20 @@ export function DeliveryNoteComposePanel({
             </select>
           </label>
         </RecordFormGroup>
-        <RecordFormGroup title="İrsaliye Satırları">
-        <div className="ledger-list">
+        <div className="dd-box">
+        <DetailLinesHead title="İrsaliye Satırları" meta={<SalesLinesMeta lines={detail.lines.length} />} />
+        <div className="dd-grid">
           <AdvancedDataGrid
             className="customer-table"
             gridId="purchase-delivery-order-lines"
             {...screenViewGridDefaults(fields)}
+            enableRowSelection={false}
           >
             <thead>
               <ScreenViewGroupHeader fields={fields} />
               <tr>
                 {fields.map((field) => (
-                  <th key={field.key}>{field.label}</th>
+                  <th key={field.key} className={NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>{field.label}</th>
                 ))}
               </tr>
             </thead>
@@ -117,7 +100,7 @@ export function DeliveryNoteComposePanel({
               {detail.lines.map((line) => (
                 <tr key={line.lineNumber}>
                   {fields.map((field) => (
-                    <td key={field.key}>
+                    <td key={field.key} className={NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>
                       {field.key === "lineNumber" ? (
                         line.lineNumber
                       ) : field.key === "product" ? (
@@ -149,13 +132,12 @@ export function DeliveryNoteComposePanel({
           </AdvancedDataGrid>
         </div>
         {receiptId && (
-          <p className="muted prf-note">
+          <p className="muted prf-note purchase-note-effect">
             Mal kabul bağlantısında tüm irsaliye satırları ile mal kabul
             satırları ve temel birim miktarları bire bir eşleşmelidir.
           </p>
         )}
-        </RecordFormGroup>
-      </RecordFormPage>
-    </section>
+        </div>
+    </>
   );
 }

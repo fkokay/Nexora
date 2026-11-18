@@ -752,49 +752,6 @@ html[data-theme="dark"] .general-ledger-panel .ledger-subpanel + .ledger-subpane
   .finance-workbench-page .finance-filter-controls { width: 100%; }
 }
 .finance-account-page { gap: 14px; }
-.finance-account-page > .finance-account-heading {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-height: 104px;
-  margin: 0 0 2px;
-  padding: 20px 24px;
-  overflow: hidden;
-  border: 1px solid #163b63;
-  border-radius: 12px;
-  background: linear-gradient(115deg, #12385f 0%, #174b78 72%, #1c5a88 100%);
-  color: #fff;
-  box-shadow: 0 8px 24px rgba(14, 45, 77, .12);
-}
-.finance-account-heading::after {
-  position: absolute;
-  top: -75px;
-  right: 7%;
-  width: 230px;
-  height: 230px;
-  border: 1px solid rgba(255, 255, 255, .09);
-  border-radius: 50%;
-  content: "";
-  box-shadow: 0 0 0 30px rgba(255,255,255,.025), 0 0 0 60px rgba(255,255,255,.02);
-  pointer-events: none;
-}
-.finance-account-heading .finance-account-heading-icon {
-  z-index: 1;
-  display: grid;
-  flex: 0 0 48px;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border: 1px solid rgba(255,255,255,.2);
-  border-radius: 12px;
-  background: rgba(255,255,255,.11);
-  color: #fff;
-}
-.finance-account-heading > div { position: relative; z-index: 1; }
-.finance-account-heading .eyebrow { margin: 0 0 5px; color: #7fc4ff; }
-.finance-account-heading h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: -.025em; }
-.finance-account-heading .muted { margin: 5px 0 0; color: #d4e4f3; }
 .finance-account-page > .finance-account-create {
   padding: 18px 20px;
   border-radius: 11px;
@@ -813,16 +770,12 @@ html[data-theme="dark"] .general-ledger-panel .ledger-subpanel + .ledger-subpane
 .finance-account-page > .finance-account-list { margin-top: -14px; border-radius: 0 0 10px 10px; }
 .finance-account-page .finance-account-list .table-empty { height: 112px; }
 html[data-theme="dark"] .finance-account-page > .finance-account-create { background: #202638; }
-html[data-theme="dark"] .finance-account-page > .finance-account-heading { background: linear-gradient(115deg, #102d4c, #173e66 72%, #1a4a70); }
 html[data-theme="dark"] .finance-account-page > .finance-summary-strip > div { background: #202638; border-color: var(--erp-border); }
 html[data-theme="dark"] .finance-account-page > .finance-filterbar { background: #202638; border-color: var(--erp-border); }
 @media (max-width: 900px) {
   .finance-account-page > .finance-account-create .collection-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {
-  .finance-account-page > .finance-account-heading { align-items: flex-start; min-height: 0; padding: 16px; }
-  .finance-account-heading .finance-account-heading-icon { flex-basis: 40px; width: 40px; height: 40px; }
-  .finance-account-heading h1 { font-size: 20px; }
   .finance-account-page > .finance-account-create .collection-form { grid-template-columns: 1fr; }
   .finance-account-page > .finance-account-create .modal-foot { align-items: stretch; flex-direction: column; }
 }
@@ -891,24 +844,6 @@ html[data-theme="dark"] .finance-form-import-note { border-color: #394e64; backg
 }
 
 /* Keep cash and bank registers on the same heading, summary, filter, and grid rhythm as other directory pages. */
-.finance-workbench-page > .page-heading:has(.finance-account-heading-main) {
-  align-items: center;
-  min-height: 82px;
-  margin: 0;
-  padding: 14px 18px;
-  border: 1px solid var(--erp-workbench-border);
-  border-left: 4px solid var(--nx-primary);
-  border-radius: 12px;
-  background: var(--erp-workbench-surface);
-  box-shadow: var(--erp-workbench-shadow, 0 3px 12px rgba(20, 39, 70, .04));
-}
-.finance-account-heading-main { display: flex; align-items: center; gap: 13px; min-width: 0; }
-.finance-account-heading-main > div { min-width: 0; }
-.finance-account-heading-main .eyebrow { margin-bottom: 4px; color: #1672ce; }
-.finance-account-heading-main h1 { margin-bottom: 2px; font-size: 23px; }
-.finance-account-heading-icon { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border-radius: 10px; background: #eef3ff; color: var(--nx-primary-strong); }
-.finance-workbench-page > .page-heading:has(.finance-account-heading-main) .heading-actions { align-items: center; }
-.finance-workbench-page > .page-heading:has(.finance-account-heading-main) .heading-actions .primary { min-height: 40px; border-radius: 9px; background: var(--nx-primary); color: #fff; box-shadow: none; }
 
 /* Cash and bank master data use the same workspace form shell as other records. */
 .finance-account-record-form-open > :not(.page-heading):not(.finance-account-record-form):not(.alert):not(.notice) { display: none !important; }
@@ -952,17 +887,7 @@ html[data-theme="dark"] .finance-account-record-note::before { border-color: #40
 .finance-filterbar.finance-filters .finance-search { flex: 1 1 300px; max-width: 560px; height: 40px; border-radius: 8px; }
 .finance-filterbar.finance-filters select { min-width: 160px; height: 40px; border-radius: 8px; }
 .finance-filterbar.finance-filters .small-button { box-sizing: border-box; flex: 0 0 auto; height: 40px; min-height: 40px; border-radius: 8px; }
-.finance-workbench-page > .finance-accounts-grid-panel { min-width: 0; margin: 0; overflow: hidden; border: 1px solid var(--erp-workbench-border); border-radius: 12px; background: var(--erp-workbench-surface); box-shadow: var(--erp-workbench-shadow, 0 3px 12px rgba(20, 39, 70, .04)); }
-.finance-accounts-grid-panel > .erp-pane-heading { display: flex; align-items: center; min-height: 62px; padding: 12px 15px; border-bottom: 1px solid var(--erp-workbench-border); }
-.finance-accounts-grid-panel > .erp-pane-heading h2 { margin: 0 0 3px; color: #14213a; font-size: 14px; }
-.finance-accounts-grid-panel > .erp-pane-heading p { margin: 0; color: #64748b; font-size: 10px; }
-.finance-accounts-grid-panel .finance-account-list-body { min-width: 0; overflow: visible; }
-.finance-accounts-grid-panel .advanced-grid { height: auto; max-height: none; overflow: visible; }
-.finance-accounts-grid-panel .advanced-grid-scroll { height: auto; min-height: 0; max-height: none; overflow-x: auto; overflow-y: hidden; }
-.finance-accounts-grid-panel .customer-table { width: 100%; min-width: 760px; }
-#root .finance-page.finance-workbench-page > .finance-accounts-grid-panel { max-height: none; margin-top: 0; overflow: hidden; }
-html[data-theme="dark"] .finance-workbench-page > .finance-accounts-grid-panel > .erp-pane-heading { border-color: var(--erp-border); }
-html[data-theme="dark"] .finance-accounts-grid-panel > .erp-pane-heading h2,
+
 html[data-theme="dark"] .finance-summary-strip b { color: #e1e9f5; }
 .finance-workbench-page > .finance-filterbar.finance-filters { display: grid; gap: 10px; min-height: 0; padding: 14px 16px; }
 .finance-accounts-filter-heading { padding-bottom: 9px; border-bottom: 1px solid var(--erp-workbench-border); }
@@ -974,16 +899,11 @@ html[data-theme="dark"] .finance-accounts-filter-heading h2 { color: var(--erp-t
 html[data-theme="dark"] .finance-accounts-filter-heading p { color: var(--erp-muted); }
 @media (max-width: 780px) {
   .finance-workbench-page > .finance-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .finance-workbench-page > .page-heading:has(.finance-account-heading-main) { align-items: flex-start; }
-  .finance-workbench-page > .page-heading:has(.finance-account-heading-main) .heading-actions { align-self: center; }
   .finance-filterbar.finance-filters .finance-filter-controls { flex-wrap: wrap; }
   .finance-filterbar.finance-filters .finance-search { flex-basis: 100%; max-width: none; }
 }
 @media (max-width: 520px) {
   .finance-workbench-page > .finance-summary-strip { grid-template-columns: 1fr; }
-  .finance-workbench-page > .page-heading:has(.finance-account-heading-main) { flex-direction: column; }
-  .finance-workbench-page > .page-heading:has(.finance-account-heading-main) .heading-actions,
-  .finance-workbench-page > .page-heading:has(.finance-account-heading-main) .heading-actions button { width: 100%; }
   .finance-filterbar.finance-filters .finance-filter-controls > * { flex: 1 1 100%; }
 }
 .fx-exposure-panel {
@@ -1047,15 +967,12 @@ html[data-theme="dark"] .fx-exposure-table .customer-table th { background: #293
 }
 
 /* Due date workbench: separate currency exposure, overdue state, and invoice detail. */
-.maturity-workbench { display: grid; gap: 14px; min-width: 0; }
 .maturity-filter-card { display: grid; grid-template-columns: minmax(210px,1fr) minmax(220px,1.25fr) minmax(160px,.65fr) auto; align-items: end; gap: 12px 16px; padding: 14px 16px; border: 1px solid #d9e3ef; border-radius: 12px; background: #fff; box-shadow: 0 3px 12px rgba(20,39,70,.04); }
 .maturity-filter-card h3 { margin: 0 0 4px; color: #172a42; font-size: 14px; }
 .maturity-filter-card p { margin: 0; color: #77869d; font-size: 11px; line-height: 1.45; }
 .maturity-filter-card label { display: grid; gap: 5px; min-width: 0; color: #66768b; font-size: 10px; font-weight: 700; }
 .maturity-filter-card input,.maturity-filter-card select { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #d3deea; border-radius: 7px; background: #fff; color: #27364b; font: inherit; font-size: 11px; }
 .maturity-filter-count { align-self: center; color: #66768b; font-size: 11px; white-space: nowrap; }
-.maturity-workbench .ledger-list { max-height: none; overflow-x: auto; overflow-y: visible; }
-.maturity-workbench .ledger-list .advanced-grid-scroll { max-height: none !important; overflow-x: auto; overflow-y: clip; }
 .maturity-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .maturity-stat { display: grid; gap: 5px; min-width: 0; padding: 15px 17px; border: 1px solid #d9e3ef; border-radius: 12px; background: linear-gradient(145deg, #fff 0%, #f5f9ff 100%); box-shadow: 0 4px 14px rgba(22, 48, 82, .04); }
 .maturity-stat > span { color: #71809a; font-size: 12px; font-weight: 600; }
@@ -1158,7 +1075,6 @@ html[data-theme="dark"] .maturity-status.upcoming { color: var(--nx-warn); backg
 }
 .general-ledger-panel.finance-workbench .ledger-accounts-panel > .ledger-list { max-height: min(62vh, 620px); }
 .general-ledger-panel.finance-workbench .ledger-subpanel[aria-label="Aktarılabilir alt defter kaynakları"] > .ledger-list { max-height: min(44vh, 460px); }
-.general-ledger-panel.finance-workbench .journal-entries-list { max-height: min(58vh, 560px); }
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form label { min-width: 0; }
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form input,
 .general-ledger-panel.finance-workbench .ledger-manual-journal-form select { box-sizing: border-box; width: 100%; min-width: 0; }
@@ -1290,7 +1206,6 @@ html[data-theme="dark"] .general-ledger-panel.finance-workbench > .ledger-manual
   .general-ledger-panel.finance-workbench .ledger-subpanel .heading-actions > label input { width: 100%; }
   .general-ledger-panel.finance-workbench .ledger-subpanel > .ledger-list { max-height: min(52vh, 440px); }
   .general-ledger-panel.finance-workbench .ledger-subpanel[aria-label="Aktarılabilir alt defter kaynakları"] > .ledger-list { max-height: min(42vh, 360px); }
-  .general-ledger-panel.finance-workbench .journal-entries-list { max-height: min(52vh, 440px); }
   .general-ledger-panel.finance-workbench .ledger-page-nav { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; }
   .general-ledger-panel.finance-workbench .ledger-page-nav button { flex: 0 0 auto; }
   .general-ledger-panel.finance-workbench .ledger-account-search { flex: 1 1 100%; min-width: 0; }
@@ -1784,29 +1699,6 @@ html[data-theme="dark"] .general-ledger-panel.finance-workbench .ledger-journal-
   }
 }
 
-.general-ledger-record-form-open > :not(.panel-heading):not(.error-banner):not(.notice):not(.ledger-account-record-form) { display: none !important; }
-.ledger-account-record-form { overflow: hidden; margin-top: 16px; border: 1px solid #d5dfeb; border-radius: 10px; background: #fff; }
-.ledger-account-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 20px; border-bottom: 1px solid #e4eaf1; }
-.ledger-account-form-heading h2 { margin: 0; color: #172b45; font-size: 18px; }
-.ledger-account-form-heading p:not(.eyebrow) { margin: 5px 0 0; color: #687b92; font-size: 11px; }
-.ledger-account-form-heading .eyebrow { margin: 0 0 5px; color: #1769aa; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
-.ledger-account-record-form .customer-create-tabs { min-height: 48px; padding: 0 14px; }
-.ledger-account-record-form .customer-create-tabs button { height: 48px; }
-.ledger-account-record-fields { margin: 0; padding: 20px; }
-.ledger-account-record-fields .erp-form-group { min-width: 0; margin: 0; padding: 0 18px 20px; border: 1px solid #d5dfeb; border-radius: 10px; background: #fff; }
-.ledger-account-record-fields .erp-form-group > legend { display: flex; align-items: center; gap: 8px; padding: 0 10px; color: #21344b; font-size: 13px; font-weight: 700; }
-.ledger-account-record-fields .erp-form-group > legend svg { color: #1768c4; }
-html[data-theme="dark"] .ledger-account-record-form,
-html[data-theme="dark"] .ledger-account-record-fields .erp-form-group { border-color: #30394d; background: #171d2b; }
-html[data-theme="dark"] .ledger-account-record-fields .erp-form-group > legend { color: #c7d1df; }
-html[data-theme="dark"] .ledger-account-form-heading { border-color: var(--erp-border); }
-html[data-theme="dark"] .ledger-account-form-heading h2 { color: var(--erp-text); }
-html[data-theme="dark"] .ledger-account-form-heading p:not(.eyebrow) { color: var(--erp-text-muted); }
-@media (max-width: 720px) {
-  .ledger-account-record-fields { padding: 14px; }
-  .ledger-account-form-heading { align-items: stretch; flex-direction: column; }
-  .ledger-account-form-heading .heading-actions { flex-wrap: wrap; }
-}
 .ledger-basis-toolbar { display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:12px 16px;border:1px solid #d8e2f0;border-radius:10px;background:#fff; }
 .ledger-basis-toolbar > div { display:flex;flex-direction:column;gap:3px; }
 .ledger-basis-toolbar > div b { font-size:13px;color:#16233b; }

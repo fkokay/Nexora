@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { Fragment, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react";
 import { isTurkishCountry, normalizeIban, validateCustomerIdentifiers } from "../identifierValidation";
 import type {
   CustomerItem,
@@ -14,6 +14,8 @@ import {
   turkeyDistrictsForProvince,
 } from "./CustomerFormControls";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
+import { StatusTag } from "../../list-page/StatusTag";
+import { customerTypeLabel, customerTypeTone } from "../customerLabels";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -21,6 +23,24 @@ import {
   RequiredMark,
   type RecordFormTab,
 } from "../../record-form/RecordForm";
+
+/** "Toptan Gıda · Vade 30 gün · TRY · Vergi no 0680512347" from the stored card (the values as last saved). */
+export function customerCardSummary(customer: CustomerItem): ReactNode {
+  // Words and values are separate text nodes so the English dictionary can translate the words.
+  const parts: ReactNode[] = [
+    customer.groupName,
+    <><span>Vade</span> <span>{customer.paymentTermDays}</span> <span>gün</span></>,
+    customer.currencyCode,
+    customer.taxNumber ? <><span>Vergi no</span> <span>{customer.taxNumber}</span></> : null,
+    customer.taxOffice,
+  ].filter(Boolean);
+  return parts.map((part, index) => (
+    <Fragment key={index}>
+      {index > 0 && " · "}
+      {part}
+    </Fragment>
+  ));
+}
 
 export type CustomerCreatePageProps = {
   busy: boolean;
@@ -87,6 +107,8 @@ export type CustomerCreatePageProps = {
   setStayAfterSave?: (value: boolean) => void;
   /** Clears every field of a new card back to its default. */
   onReset?: () => void;
+  /** Sections the card adds after its own (edit only: Adresler), each with its own content and save. */
+  extraSections?: Array<{ key: string; label: string; count?: number; content: ReactNode }>;
 };
 
 export default function CustomerCreatePage({
@@ -151,6 +173,7 @@ export default function CustomerCreatePage({
   notice,
   setStayAfterSave,
   onReset,
+  extraSections = [],
 }: CustomerCreatePageProps) {
   const parentCompany = companyOptions.find(
     (company) => company.id === parentCompanyId,
@@ -162,6 +185,7 @@ export default function CustomerCreatePage({
     { key: "other", label: "Vergi ve E-Fatura" },
   ];
   if (customerCreateFields.length > 0) tabs.push({ key: "custom", label: "Özel Alanlar" });
+  for (const section of extraSections) tabs.push({ key: section.key, label: section.label, count: section.count });
   const activeTab = tabs.some((tab) => tab.key === customerCreateTab)
     ? customerCreateTab
     : "contact";
@@ -192,7 +216,20 @@ export default function CustomerCreatePage({
 
   return (
     <RecordFormPage
-      title={isEdit ? "Cari Kartı Düzenle" : "Cari Kart Tanımlama"}
+      // Record form v3 (mockup 03 card head): the account's name as the title, code, status and type tags and a short
+      // summary under it. A new card keeps its title.
+      title={isEdit && editingCustomer ? editingCustomer.name : "Cari Kart Tanımlama"}
+      subtitle={
+        isEdit && editingCustomer ? (
+          <>
+            <span className="rf-code">{editingCustomer.code}</span>
+            <StatusTag tone={editingCustomer.isActive ? "ok" : "off"}>{editingCustomer.isActive ? "Aktif" : "Pasif"}</StatusTag>
+            <StatusTag tone={customerTypeTone(editingCustomer.type)}>{customerTypeLabel(editingCustomer.type)}</StatusTag>
+            {editingCustomer.isEInvoiceRegistered && <StatusTag tone="ok">e-Fatura</StatusTag>}
+            <span>{customerCardSummary(editingCustomer)}</span>
+          </>
+        ) : undefined
+      }
       mode={isEdit ? "edit" : "create"}
       busy={busy}
       saveLabel={isEdit ? "Değişiklikleri Kaydet" : "Cari Kartı Kaydet"}
@@ -588,6 +625,7 @@ export default function CustomerCreatePage({
                   </div>
                               </RecordFormGroup>
             )}
+            {extraSections.find((section) => section.key === activeTab)?.content}
         </RecordFormTabs>
     </RecordFormPage>
   );

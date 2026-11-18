@@ -1,12 +1,13 @@
 import { lazy, useEffect, useRef, useState } from "react";
-import { Download, Info, Landmark, X } from "lucide-react";
+import { Info, X } from "lucide-react";
 import { api, parseBankStatementCsv, localDateString } from "./erpApi";
 import { FinanceStudioGrid } from "./FinanceStudioGrid";
 import { ListPageHeader } from "./list-page/ListPageHeader";
-import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { CashFlowReportPanel } from "./finance/components/CashFlowReportPanel";
-import { FinanceAccountsToolbar } from "./finance/components/FinanceAccountsToolbar";
-import { FinanceAccountsGrid } from "./finance/components/FinanceAccountsGrid";
+import { MaturityReportView } from "./finance/components/MaturityReportView";
+import { FinanceAccountsList } from "./finance/components/FinanceAccountsList";
+import { FinanceAccountStatement } from "./finance/components/FinanceAccountStatement";
+import { DetailDrawer } from "./document-detail/DocumentDetailLayout";
 import {
   BankStatementList,
   exportBankStatements,
@@ -149,7 +150,6 @@ function FinancePage({
     },
   ]);
   // list-v2: the page toolbar hosts the list's own tools (columns, pivot, export…).
-  const [listToolsSlot, setListToolsSlot] = useState<HTMLDivElement | null>(null);
   const searchedAccounts = kindAccounts.filter((account) =>
     `${account.code} ${account.name} ${account.currencyCode}`
       .toLocaleLowerCase("tr-TR")
@@ -192,8 +192,6 @@ function FinancePage({
     statementSearch,
     statementStatus,
   );
-  // The first listed statement opens once per visit when nothing is selected yet.
-  const statementAutoSelected = useRef(false);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -251,22 +249,6 @@ function FinancePage({
       }),
     );
   }, [accountCreateOpen, editingAccount, section]);
-  useEffect(() => {
-    statementAutoSelected.current = false;
-  }, [section]);
-  useEffect(() => {
-    if (
-      section !== "finance-statements" ||
-      loading ||
-      statementDetail ||
-      statementAutoSelected.current
-    )
-      return;
-    const first = visibleStatements[0];
-    if (!first) return;
-    statementAutoSelected.current = true;
-    void loadStatement(first.id);
-  });
   useEffect(() => {
     const dialog = statementImportDialog.current;
     if (!statementImportOpen || !dialog) return;
@@ -419,20 +401,26 @@ function FinancePage({
       setBusy(false);
     }
   }
+  function startCreateAccount() {
+    setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true);
+  }
   function editAccount(account: FinancialAccount) {
     setEditingAccount(account); setCode(account.code); setName(account.name);
     setCurrencyCode(account.currencyCode); setOpeningBalance("0"); setAccountCreateOpen(true);
   }
-  async function deleteAccount(account: FinancialAccount) {
-    if (!(await confirmDialog({ title: "Hesap silinsin mi?", message: `“${account.name}” hesabı silinecek. Bu işlem geri alınamaz.`, tone: "danger", confirmLabel: "Sil" }))) return;
+  /** Resolves true once the account is deleted (false: not confirmed or refused by the server). */
+  async function deleteAccount(account: FinancialAccount): Promise<boolean> {
+    if (!(await confirmDialog({ title: "Hesap silinsin mi?", message: `“${account.name}” hesabı silinecek. Bu işlem geri alınamaz.`, tone: "danger", confirmLabel: "Sil" }))) return false;
     setBusy(true); setError("");
     try {
       await api(`/api/finance/accounts/${account.id}`, token, { method: "DELETE" });
       setNotice(`${account.name} hesabı silindi.`); await load();
-    } catch (e) { setError((e as Error).message); }
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
     finally { setBusy(false); }
   }
-  async function showDetail(account: { id: string }, page = 1) {
+  /** Loads the statement; resolves false when it could not be loaded (the error is shown). */
+  async function showDetail(account: { id: string }, page = 1): Promise<boolean> {
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -444,8 +432,10 @@ function FinancePage({
           token,
         ),
       );
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
   }
   async function toggle(account: FinancialAccount) {
@@ -804,12 +794,13 @@ function FinancePage({
     "finance-transfer-sources": "transfer-sources",
   };
   const accountFormOpen = accountCreateOpen && isAccountsPage;
-  const isListSection =
-    isAccountsPage || section === "finance-statements" || section === "finance-maturities";
+  const isListSection = isAccountsPage || section === "finance-statements";
+  // Vade Takibi is a report screen: LedgerReportFrame draws its own header.
+  const isReportSection = section === "finance-maturities";
   const showListHeader = isListSection && !(accountCreateOpen && isAccountsPage);
   return (
     <div
-      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${section === "finance-statements" ? " fh-page cf-page bank-statements-page" : ""}`}
+      className={`finance-page finance-workbench-page${section === "finance-cash-flow" ? " cash-flow-page" : ""}${accountCreateOpen && isAccountsPage ? " finance-account-record-form-open" : ""}${isListSection ? " list-v2" : ""}${isAccountsPage ? " fin-acc-page" : ""}${section === "finance-statements" ? " fin-acc-page bank-statements-page" : ""}${isReportSection ? " list-v2 fh-page ledger-report-host maturity-report-page" : ""}`}
     >
       {showListHeader && (
         <ListPageHeader
@@ -820,70 +811,19 @@ function FinancePage({
               ? loading ? null : kindAccounts.length
               : section === "finance-statements"
                 ? loading ? null : statements.length
-                : maturity ? maturity.items.length : null
+                : null
           }
         >
-          {isAccountsPage && (
-            <button
-              type="button"
-              className="primary"
-              onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true); }}
-            >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
-          )}
-          {section === "finance-statements" && (
-            <>
-              <button
-                type="button"
-                className="secondary"
-                disabled={visibleStatements.length === 0}
-                title="Listelenen ekstreleri XLSX olarak indir"
-                onClick={() =>
-                  void exportBankStatements(visibleStatements, "xlsx", localDateString()).catch(() =>
-                    setError("XLSX dosyası oluşturulamadı."),
-                  )
-                }
-              >
-                <Download size={15} aria-hidden="true" /> XLSX
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={visibleStatements.length === 0}
-                title="Listelenen ekstreleri CSV olarak indir"
-                onClick={() =>
-                  void exportBankStatements(visibleStatements, "csv", localDateString()).catch(() =>
-                    setError("CSV dosyası oluşturulamadı."),
-                  )
-                }
-              >
-                <Download size={15} aria-hidden="true" /> CSV
-              </button>
-              <button type="button" className="primary" onClick={() => setStatementImportOpen(true)}>
-                Banka ekstresi içe aktar
-              </button>
-            </>
-          )}
         </ListPageHeader>
       )}
-      {!ledgerViews[section] && !showListHeader && !accountFormOpen && (
+      {!ledgerViews[section] && !showListHeader && !accountFormOpen && !isReportSection && (
+        // Kasalar / Bankalar never reach this heading (list header, or the account form): it serves the other sections.
         <div className="page-heading">
-          <div className={isAccountsPage ? "finance-account-heading-main" : undefined}>
-            {isAccountsPage && <span className="finance-account-heading-icon"><Landmark size={22} /></span>}
-            <div>
-              <p className="eyebrow">FİNANS YÖNETİMİ</p>
-              <h1>{financePageTitles[section]}</h1>
-              <p className="muted">{financePageDescriptions[section]}</p>
-            </div>
+          <div>
+            <p className="eyebrow">FİNANS YÖNETİMİ</p>
+            <h1>{financePageTitles[section]}</h1>
+            <p className="muted">{financePageDescriptions[section]}</p>
           </div>
-          {isAccountsPage && (
-            <div className="heading-actions">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => { setEditingAccount(null); setCode(""); setName(""); setCurrencyCode("TRY"); setOpeningBalance("0"); setAccountCreateOpen(true); }}
-              >+ Yeni {accountKind === "Cash" ? "kasa" : "banka"}</button>
-            </div>
-          )}
         </div>
       )}
       {accountFormOpen && (
@@ -955,7 +895,7 @@ function FinancePage({
           </button>
         </div>
       )}
-      {notice && !accountFormOpen && (
+      {notice && !accountFormOpen && !(section === "finance-statements" && statementDetail) && (
         <div className="notice">
           {notice}
           <button onClick={() => setNotice("")}>
@@ -1160,180 +1100,34 @@ function FinancePage({
         </div>
       )}
       {section === "finance-maturities" && (
-        <div className="maturity-workbench">
-          <ListToolbar
-            search={maturityQuery}
-            onSearchChange={setMaturityQuery}
-            searchLabel="Fatura veya cari ara"
-            searchPlaceholder="Fatura no veya cari adı"
-            toolsSlotRef={setListToolsSlot}
-            onRefresh={() => void load()}
-          >
-            <ListChipGroup
-              label="Yön"
-              value={maturityDirection}
-              onChange={(value) => setMaturityDirection(value as "all" | "Receivable" | "Payable")}
-              options={[
-                { value: "all", label: "Alacak ve borç", count: maturity?.items.length },
-                { value: "Receivable", label: "Alacak", count: maturity ? receivableMaturityCount : undefined },
-                { value: "Payable", label: "Borç", count: maturity ? payableMaturityCount : undefined },
-              ]}
-            />
-          </ListToolbar>
-          <section className="maturity-overview" aria-label="Vade özeti">
-            <article className="maturity-stat maturity-stat-warning"><span>Vadesi geçmiş</span><b>{overdueMaturityCount}</b><small>Ödeme tarihi geçen</small></article>
-          </section>
-          <div className="panel">
-          <div className="panel-heading">
-            <div>
-              <h3>Vade takibi</h3>
-              <p>
-                {maturity?.asOfDate.split("-").reverse().join(".")} itibarıyla
-                açık satış ve alış faturaları. Satış vadesi cari ödeme gününden
-                hesaplanır.
-              </p>
-            </div>
-          </div>
-          <div className="ledger-list">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-maturity-aging"
-              defaults={financeGridDefaults["finance-maturity-aging"]}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Yön</th>
-                    <th>Döviz</th>
-                    <th>Fatura</th>
-                    <th>Vadesi gelmemiş</th>
-                    <th>1–30 gün</th>
-                    <th>31–60 gün</th>
-                    <th>61–90 gün</th>
-                    <th>90+ gün</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturitySummaries.map((s) => (
-                    <tr key={`${s.direction}-${s.currencyCode}`}>
-                      <td>
-                        <b>
-                          {s.direction === "Receivable" ? "Alacak" : "Borç"}
-                        </b>
-                      </td>
-                      <td>{s.currencyCode}</td>
-                      <td>
-                        {s.invoiceCount} ·{" "}
-                        {s.outstandingAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.notDue.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days1To30.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days31To60.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.days61To90.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td>
-                        {s.over90Days.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))}
-                  {maturitySummaries.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="table-empty">
-                        Açık vadeli fatura bulunmuyor.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
-          </div>
-          <div className="list-toolbar">
-            <div>
-              <h3>Açık faturalar</h3>
-            </div>
-          </div>
-          <div className="ledger-list list-v2-list">
-            <FinanceStudioGrid
-              token={token}
-              screenKey="finance-maturities"
-              defaults={financeGridDefaults["finance-maturities"]}
-              hideSearch
-              toolbarContainer={listToolsSlot}
-            >
-              <table className="customer-table">
-                <thead>
-                  <tr>
-                    <th>Fatura</th>
-                    <th>Cari</th>
-                    <th>Yön</th>
-                    <th>Fatura tarihi</th>
-                    <th>Vade tarihi</th>
-                    <th>Kalan tutar</th>
-                    <th>Gecikme</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {maturityItems.map((i) => (
-                    <tr key={`${i.direction}-${i.invoiceId}`}>
-                      <td>
-                        <span className="customer-code">{i.invoiceCode}</span>
-                      </td>
-                      <td>{i.counterpartyName}</td>
-                      <td>
-                        {i.direction === "Receivable" ? "Alacak" : "Borç"}
-                      </td>
-                      <td>{i.invoiceDate.split("-").reverse().join(".")}</td>
-                      <td>{i.dueDate.split("-").reverse().join(".")}</td>
-                      <td>
-                        <b>
-                          {i.outstandingAmount.toLocaleString("tr-TR", {
-                            minimumFractionDigits: 2,
-                          })}{" "}
-                          {i.currencyCode}
-                        </b>
-                      </td>
-                      <td>
-                        {i.daysOverdue
-                          ? `${i.daysOverdue} gün`
-                          : "Vadesi gelmedi"}
-                      </td>
-                    </tr>
-                  ))}
-                  {maturityItems.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="table-empty">
-                        {maturity?.items.length ? "Filtrelere uygun açık fatura bulunmuyor." : "Açık fatura bulunmuyor."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </FinanceStudioGrid>
-          </div>
-          </div>
-        </div>
+        <MaturityReportView
+          token={token}
+          title={financePageTitles[section]}
+          description={financePageDescriptions[section]}
+          maturity={maturity}
+          loading={loading}
+          onRun={() => void load()}
+          query={maturityQuery}
+          onQueryChange={setMaturityQuery}
+          direction={maturityDirection}
+          onDirectionChange={setMaturityDirection}
+          items={maturityItems}
+          summaries={maturitySummaries}
+          overdueCount={overdueMaturityCount}
+          receivableCount={receivableMaturityCount}
+          payableCount={payableMaturityCount}
+        />
       )}
       {isAccountsPage && !accountCreateOpen && (
-        <FinanceAccountsToolbar
+        <FinanceAccountsList
+          kind={accountKind}
+          active={!detail}
+          loading={loading}
+          busy={busy}
+          allAccounts={accounts}
+          kindAccounts={kindAccounts}
+          accounts={visibleAccounts}
+          fields={visibleAccountFields.filter((field) => field.key !== "actions")}
           query={accountQueryDraft}
           status={accountStateFilter}
           counts={{
@@ -1343,79 +1137,88 @@ function FinancePage({
           }}
           onQueryChange={setAccountQueryDraft}
           onStatusChange={setAccountStateFilter}
-          onApply={() => setAccountQuery(accountQueryDraft)}
+          onApplyQuery={() => setAccountQuery(accountQueryDraft)}
           onRefresh={() => void load()}
-          toolsSlotRef={setListToolsSlot}
+          onCreate={startCreateAccount}
+          onOpen={(account) => void showDetail(account)}
+          onEdit={editAccount}
+          onToggle={(account) => void toggle(account)}
+          onDelete={(account) => void deleteAccount(account)}
+          onNewMovement={(account) =>
+            void showDetail(account).then((loaded) => {
+              // Only over a loaded statement: a failed load must not leave the drawer to pop up on the next one.
+              if (!loaded) return;
+              setMovementDirection("Inflow");
+              setTransferOpen(false);
+              setMovementOpen(true);
+            })
+          }
+          onNewTransfer={(account) =>
+            void showDetail(account).then((loaded) => {
+              if (!loaded) return;
+              setToAccountId("");
+              setTransferRate("1");
+              setMovementOpen(false);
+              setTransferOpen(true);
+            })
+          }
         />
       )}
-      {isAccountsPage && (
-        <section className="ledger-list finance-accounts-grid-panel list-v2-list">
-          <FinanceAccountsGrid
-            token={token}
-            loading={loading}
-            busy={busy}
-            accounts={visibleAccounts}
-            fields={visibleAccountFields}
-            toolbarContainer={listToolsSlot}
-            onShowDetail={(account) => void showDetail(account)}
-            onToggle={(account) => void toggle(account)}
-            onEdit={editAccount}
-            onDelete={(account) => void deleteAccount(account)}
-          />
-        </section>
-      )}
       {section === "finance-statements" && (
-        <div className="cf-layout bst-layout">
-          <BankStatementList
-            statements={statements}
-            visibleStatements={visibleStatements}
-            selectedId={statementDetail?.id ?? null}
-            loading={loading}
-            search={statementSearch}
-            status={statementStatus}
-            onSearchChange={setStatementSearch}
-            onStatusChange={setStatementStatus}
-            onRefresh={() => void load()}
-            onSelect={(statement) => void loadStatement(statement.id)}
-            onClearFilters={() => {
-              setStatementSearch("");
-              setStatementStatus("");
-            }}
-            onImport={() => setStatementImportOpen(true)}
-          />
-          {statementDetail ? (
-            <BankStatementDetailPanel
-              key={statementDetail.id}
-              token={token}
-              statement={statementDetail}
-              unmatchedBook={unmatchedBook}
-              lineMatches={lineMatches}
-              busy={busy}
-              error={statementImportOpen ? "" : error}
-              onDismissError={() => setError("")}
-              onAutoMatch={() => void autoMatch()}
-              onReconcile={() => void reconcileStatement()}
-              onMatchLine={(line) => void matchStatementLine(line)}
-              onPostLine={(line) => void postStatementLine(line)}
-              onLineMatchChange={(lineId, transactionId) =>
-                setLineMatches((current) => ({
-                  ...current,
-                  [lineId]: transactionId,
-                }))
-              }
-            />
-          ) : (
-            <section className="cf-detail">
-              <p className="fh-empty">
-                {loading
-                  ? "Ekstreler yükleniyor…"
-                  : statements.length
-                    ? "Ayrıntıları görmek için soldan bir banka ekstresi seçin."
-                    : "İçe aktarılan banka ekstresi burada satırlarıyla açılır."}
-              </p>
-            </section>
-          )}
-        </div>
+        <BankStatementList
+          active={!statementDetail && !statementImportOpen}
+          loading={loading}
+          busy={busy}
+          statements={statements}
+          visibleStatements={visibleStatements}
+          search={statementSearch}
+          status={statementStatus}
+          onSearchChange={setStatementSearch}
+          onStatusChange={setStatementStatus}
+          onRefresh={() => void load()}
+          onOpen={(statement) => void loadStatement(statement.id)}
+          onImport={() => setStatementImportOpen(true)}
+          onExport={(format, ids) =>
+            void exportBankStatements(
+              ids ? visibleStatements.filter((statement) => ids.includes(statement.id)) : visibleStatements,
+              format,
+              localDateString(),
+            ).catch(() =>
+              setError(format === "xlsx" ? "XLSX dosyası oluşturulamadı." : "CSV dosyası oluşturulamadı."),
+            )
+          }
+        />
+      )}
+      {section === "finance-statements" && statementDetail && (
+        <BankStatementDetailPanel
+          key={statementDetail.id}
+          token={token}
+          statement={statementDetail}
+          unmatchedBook={unmatchedBook}
+          lineMatches={lineMatches}
+          busy={busy}
+          error={statementImportOpen ? "" : error}
+          onDismissError={() => setError("")}
+          notice={notice}
+          onDismissNotice={() => setNotice("")}
+          onClose={() => {
+            setStatementDetail(null);
+            setUnmatchedBook([]);
+            setLineMatches({});
+          }}
+          onRefresh={() => void loadStatement(statementDetail.id)}
+          onImport={() => setStatementImportOpen(true)}
+          onAutoMatch={() => void autoMatch()}
+          onReconcile={() => void reconcileStatement()}
+          onMatchLine={(line) => void matchStatementLine(line)}
+          onPostLine={(line) => void postStatementLine(line)}
+          onLineMatchChange={(lineId, transactionId) =>
+            setLineMatches((current) => ({
+              ...current,
+              [lineId]: transactionId,
+            }))
+          }
+        />
       )}
       <dialog
         ref={statementImportDialog}
@@ -1566,72 +1369,63 @@ function FinancePage({
         )}
       </dialog>
       {isAccountsPage && detail && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setDetail(null);
+        <FinanceAccountStatement
+          token={token}
+          detail={detail}
+          accounts={accounts}
+          role={role}
+          busy={busy}
+          error={error}
+          notice={notice}
+          onDismissError={() => setError("")}
+          onDismissNotice={() => setNotice("")}
+          onClose={() => {
+            setDetail(null);
+            setMovementOpen(false);
+            setTransferOpen(false);
           }}
-        >
-          <div
-            className="modal ledger-modal account-transactions-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="finance-account-transactions-title"
-          >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">
-                  {detail.code} · {detail.type === "Cash" ? "KASA" : "BANKA"}
-                </p>
-                <h2 id="finance-account-transactions-title">{detail.name}</h2>
-              </div>
-              <button className="icon-button" onClick={() => setDetail(null)}>
-                <X size={19} />
-              </button>
-            </div>
-            <div className="balance-banner">
-              <div>
-                <small>Hesap bakiyesi · {detail.currencyCode}</small>
-                <b>
-                  {detail.balance.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {detail.currencyCode}
-                </b>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <span>Hesap işlemleri</span>
-              <div>
-                <button
-                  className="secondary"
-                  disabled={busy || !detail.isActive}
-                  onClick={() => {
-                    setMovementDirection("Inflow");
-                    setTransferOpen(false);
-                    setMovementOpen(true);
-                  }}
-                >
-                  Manuel hareket
-                </button>
-                <button
-                  className="secondary"
-                  disabled={
-                    busy ||
-                    !detail.isActive ||
-                    !accounts.some((a) => a.id !== detail.id && a.isActive)
-                  }
-                  onClick={() => {
-                    setToAccountId("");
-                    setTransferRate("1");
-                    setMovementOpen(false);
-                    setTransferOpen(true);
-                  }}
-                >
-                  Transfer / döviz
-                </button>
-              </div>
-            </div>
+          onPage={(page) => void showDetail(detail, page)}
+          onCreateAccount={() => {
+            setDetail(null);
+            startCreateAccount();
+          }}
+          onEdit={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (!account) return;
+            setDetail(null);
+            editAccount(account);
+          }}
+          onToggle={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (account) void toggle(account).then(() => showDetail(detail, detail.transactionPage));
+          }}
+          onDelete={() => {
+            const account = accounts.find((row) => row.id === detail.id);
+            if (account) void deleteAccount(account).then((deleted) => { if (deleted) setDetail(null); });
+          }}
+          onNewMovement={() => {
+            setMovementDirection("Inflow");
+            setTransferOpen(false);
+            setMovementOpen(true);
+          }}
+          onNewTransfer={() => {
+            setToAccountId("");
+            setTransferRate("1");
+            setMovementOpen(false);
+            setTransferOpen(true);
+          }}
+          onVoidMovement={(item) => void voidMovement(item)}
+          onVoidTransfer={(item) => void voidTransfer(item)}
+          onCategoryChange={(item, category) => void updateCashFlowCategory(item, category)}
+          drawer={
+            <DetailDrawer
+              open={movementOpen || transferOpen}
+              label={movementOpen ? "Manuel hareket" : "Transfer / döviz"}
+              onClose={() => {
+                setMovementOpen(false);
+                setTransferOpen(false);
+              }}
+            >
             {movementOpen && (
               <RecordFormPage
                 variant="dialog"
@@ -1848,179 +1642,9 @@ function FinancePage({
                 </RecordFormGroup>
               </RecordFormPage>
             )}
-            <div className="ledger-list">
-              <FinanceStudioGrid
-                token={token}
-                screenKey="finance-account-transactions"
-                defaults={financeGridDefaults["finance-account-transactions"]}
-              >
-                <table className="customer-table">
-                  <thead>
-                    <tr>
-                      <th>Tarih</th>
-                      <th>Kaynak</th>
-                      <th>Açıklama</th>
-                      <th>Nakit akışı</th>
-                      <th>Referans</th>
-                      <th>Giriş</th>
-                      <th>Çıkış</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.transactions.map((t) => (
-                      <tr key={t.id}>
-                        <td>
-                          {t.transactionDate.split("-").reverse().join(".")}
-                        </td>
-                        <td>
-                          {t.sourceType
-                            ? `${t.sourceType} ${t.sourceCode || ""}`
-                            : "Manuel / ters kayıt"}
-                        </td>
-                        <td>{t.description}</td>
-                        <td>
-                          <select
-                            aria-label="Nakit akışı sınıfı"
-                            disabled={
-                              role !== "TenantAdmin" ||
-                              busy ||
-                              t.cashFlowCategory === "InternalTransfer" ||
-                              t.cashFlowCategory === "OpeningBalance"
-                            }
-                            value={t.cashFlowCategory || "Unclassified"}
-                            onChange={(e) =>
-                              void updateCashFlowCategory(
-                                t,
-                                e.target.value as NonNullable<
-                                  FinancialMovement["cashFlowCategory"]
-                                >,
-                              )
-                            }
-                          >
-                            <option value="Unclassified">
-                              Sınıflandırılmamış
-                            </option>
-                            <option value="Operating">İşletme</option>
-                            <option value="Investing">Yatırım</option>
-                            <option value="Financing">Finansman</option>
-                            {t.cashFlowCategory === "InternalTransfer" && (
-                              <option value="InternalTransfer">
-                                İç transfer
-                              </option>
-                            )}
-                            {t.cashFlowCategory === "OpeningBalance" && (
-                              <option value="OpeningBalance">Açılış</option>
-                            )}
-                          </select>
-                        </td>
-                        <td>{t.reference || "—"}</td>
-                        <td>
-                          {t.direction === "Inflow"
-                            ? t.amount.toLocaleString("tr-TR", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "—"}
-                        </td>
-                        <td>
-                          {t.direction === "Outflow"
-                            ? t.amount.toLocaleString("tr-TR", {
-                                minimumFractionDigits: 2,
-                              })
-                            : "—"}
-                        </td>
-                        <td>
-                          {t.sourceType === "Manuel hareket" &&
-                            !t.reversalOfId && (
-                              <button
-                                className="row-action danger-action"
-                                disabled={busy}
-                                onClick={() => void voidMovement(t)}
-                              >
-                                İptal
-                              </button>
-                            )}
-                          {t.sourceType === "Hesap transferi" &&
-                            !t.reversalOfId && (
-                              <button
-                                className="row-action danger-action"
-                                disabled={busy}
-                                onClick={() => void voidTransfer(t)}
-                              >
-                                Transferi iptal et
-                              </button>
-                            )}
-                        </td>
-                      </tr>
-                    ))}
-                    {detail.transactions.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="table-empty">
-                          Hesap hareketi yok.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </FinanceStudioGrid>
-            </div>
-            <div className="modal-foot transaction-pagination">
-              <span>
-                {detail.transactionTotalCount === 0
-                  ? 0
-                  : (detail.transactionPage - 1) * detail.transactionPageSize +
-                    1}
-                –
-                {Math.min(
-                  detail.transactionPage * detail.transactionPageSize,
-                  detail.transactionTotalCount,
-                )}{" "}
-                / {detail.transactionTotalCount} hareket
-              </span>
-              <div className="button-row">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={detail.transactionPage <= 1}
-                  onClick={() =>
-                    void showDetail(detail, detail.transactionPage - 1)
-                  }
-                >
-                  Önceki
-                </button>
-                <span>
-                  Sayfa {detail.transactionPage} /{" "}
-                  {Math.max(
-                    1,
-                    Math.ceil(
-                      detail.transactionTotalCount / detail.transactionPageSize,
-                    ),
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={
-                    detail.transactionPage * detail.transactionPageSize >=
-                    detail.transactionTotalCount
-                  }
-                  onClick={() =>
-                    void showDetail(detail, detail.transactionPage + 1)
-                  }
-                >
-                  Sonraki
-                </button>
-              </div>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setDetail(null)}
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
-        </div>
+            </DetailDrawer>
+          }
+        />
       )}
     </div>
   );

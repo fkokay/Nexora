@@ -26,6 +26,9 @@ type Props = {
   busy: boolean;
   formatMoney: (amount: number, currency: string) => string;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  /** The page's save error, shown on the record form. */
+  error?: string;
+  onDismissError?: () => void;
   onFacilityChange: (value: string) => void;
   onTypeChange: (value: "Drawdown" | "Repayment") => void;
   onAccountChange: (value: string) => void;
@@ -52,12 +55,8 @@ export function CreditMovementForm(props: Props) {
     ) ?? [];
 
   return (
-    <section
-      className="panel credit-operation-page fin-rf-host"
-      id="credit-movement-form"
-    >
       <RecordFormPage
-        variant="dialog"
+        formId="credit-movement-form"
         title={
           movementType === "Drawdown"
             ? "Kredi kullandırımı kaydet"
@@ -83,6 +82,9 @@ export function CreditMovementForm(props: Props) {
             "Krediler & Finansman",
           )
         }
+        confirmCancel
+        error={props.error}
+        onDismissError={props.onDismissError}
         status={
           <span>
             {movementType === "Drawdown"
@@ -243,6 +245,5 @@ export function CreditMovementForm(props: Props) {
           </label>
         </RecordFormGroup>
       </RecordFormPage>
-    </section>
   );
 }

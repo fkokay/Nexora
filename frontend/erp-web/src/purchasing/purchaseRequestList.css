@@ -1,0 +1,71 @@
+/*
+ * Satınalma talepleri, teklifleri ve siparişleri (Faz 4): Satış liste paneline (sales-list-v2.css) ve belge gövdesine
+ * (document-detail.css) eklenen küçük parçalar. Renkler yalnızca --nx-* token'larıdır.
+ */
+
+/* Liste sağ paneli */
+#root .list-v2 .pr-ld-quote { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+#root .list-v2 .pr-ld-quote > svg { flex: 0 0 auto; color: var(--nx-warn); }
+#root .list-v2 .pr-ld-quote-sum { margin: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+#root .list-v2 .pr-ld-quote-sum b { font-weight: 600; }
+#root .app-shell .list-v2 :is(.pr-ld-overdue, .po-ld-overdue) { color: var(--nx-bad) !important; }
+#root .list-v2 .pr-ld-decision { padding-top: 10px; border-top: 1px solid var(--nx-line-soft); }
+
+/* Talep / sipariş belgesi: bölümlerdeki satır içi formlar (teklif kaydet, siparişe dönüştür, özel alanlar) */
+#root .doc-surface.doc-detail .pr-detail-form { display: grid; gap: 12px; margin-top: 12px; }
+#root .doc-surface.doc-detail .dd-section .pr-detail-form:first-child { margin-top: 0; }
+#root .doc-surface.doc-detail .pr-detail-form .dd-lines-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+}
+#root .app-shell .doc-surface.doc-detail table.pr-price-lines input {
+  width: 100%;
+  min-width: 80px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#root .doc-surface.doc-detail .pr-detail-form .modal-foot { padding: 0; border: 0; background: transparent; }
+
+/* Tedarikçi teklifleri tablosu ve açılan kalem fiyatları */
+#root .doc-surface.doc-detail .dd-section > .dd-lines-wrap { margin: 0 -18px; border-top: 1px solid var(--nx-line); }
+#root .doc-surface.doc-detail .pr-quote-supplier b { display: block; font-weight: 600; }
+#root .app-shell .doc-surface.doc-detail .pr-quote-supplier small { display: block; color: var(--nx-muted) !important; font-size: 11.5px; }
+#root .app-shell .doc-surface.doc-detail table.pr-quotes td.dd-num small { display: block; color: var(--nx-muted); font-size: 11px; }
+#root .app-shell .doc-surface.doc-detail .pr-quote-lines-toggle {
+  display: inline;
+  height: auto;
+  min-height: 0;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-primary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+#root .app-shell .doc-surface.doc-detail .pr-quote-lines-toggle:hover { text-decoration: underline; }
+#root .app-shell .doc-surface.doc-detail tr.pr-quote-lines-row > td { padding: 0 12px 10px 28px !important; background: var(--nx-canvas); }
+#root .app-shell .doc-surface.doc-detail table.pr-quote-lines { width: 100%; border-collapse: collapse; font-size: 12px; }
+#root .app-shell .doc-surface.doc-detail table.pr-quote-lines :is(th, td) {
+  height: 26px;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--nx-line-soft);
+  background: transparent;
+  text-align: left;
+}
+#root .app-shell .doc-surface.doc-detail table.pr-quote-lines th { color: var(--nx-muted); font-size: 11px; font-weight: 600; }
+#root .app-shell .doc-surface.doc-detail table.pr-quote-lines .dd-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Talep özel alanlarının değer geçmişi: bölümün içinde çizgiyle ayrılır (kart içinde kart yok) */
+#root .doc-surface.doc-detail .pr-value-history { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--nx-line-soft); }
+#root .doc-surface.doc-detail .pr-value-history-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+#root .doc-surface.doc-detail .pr-value-history-head > div { display: grid; gap: 2px; }
+#root .doc-surface.doc-detail .pr-value-history-head small { color: var(--nx-muted); }

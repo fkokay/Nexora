@@ -54,7 +54,8 @@ type FrameProps<D> = SalesPanelControls<D> & {
   render: (tab: string, detail: D, showTab: (tab: string) => void) => ReactNode;
 };
 
-function PanelFrame<D>({ label, code, title, tags, tabs, render, detail, error, onOpen, openDisabled, onClose, takeFocus }: FrameProps<D>) {
+/** Panel with its tab state; the list passes the tabs and renders each tab from the loaded detail (also Satınalma). */
+export function PanelFrame<D>({ label, code, title, tags, tabs, render, detail, error, onOpen, openDisabled, onClose, takeFocus }: FrameProps<D>) {
   // Kept while the current row changes (the panel stays mounted), like the Stok Kartları panel.
   const [tab, setTab] = useState("summary");
   const active = tabs.some((item) => item.id === tab) ? tab : tabs[0].id;

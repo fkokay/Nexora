@@ -67,6 +67,12 @@ export type RecordFormPageProps = {
   saveLabel: string;
   onSubmit: (event: FormEvent) => void;
   onCancel: () => void;
+  /**
+   * The header's Vazgeç asks first, like Esc: with typed or changed values (or `dirty`) it shows "Kaydedilmemiş
+   * değişiklikler kaybolacak. Devam edilsin mi?" and calls `onCancel` only when confirmed. Default: Vazgeç calls
+   * `onCancel` at once (the container decides).
+   */
+  confirmCancel?: boolean;
   /** Why saving is not possible right now (e.g. a required choice is missing); shown on the action bar's Kaydet. */
   saveDisabledReason?: string;
   /** Set a stable id when something outside the form needs to target it. */
@@ -97,6 +103,12 @@ export type RecordFormPageProps = {
   variant?: "page" | "dialog";
   /** Document chrome (page variant): the document screen's header instead of the record header. */
   document?: RecordFormDocument;
+  /**
+   * False while the form stays mounted but is not on screen (a document opened over the list that holds it): it then
+   * registers no bar commands (Kaydet, Kaydet ve Yeni, Temizle) and its keys (Ctrl+F2, Ctrl+S without a bar, Esc) do
+   * nothing, so they cannot act on the hidden form. The form and its input are kept. Default true.
+   */
+  commandsActive?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -116,6 +128,7 @@ export function RecordFormPage({
   busy,
   onSubmit,
   onCancel,
+  confirmCancel = false,
   formId,
   saveDisabledReason,
   onSaveIntent,
@@ -130,6 +143,7 @@ export function RecordFormPage({
   aside,
   variant = "page",
   document: documentChrome,
+  commandsActive = true,
   className,
   children,
 }: RecordFormPageProps) {
@@ -166,7 +180,7 @@ export function RecordFormPage({
     more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
   // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
   const markActive = usePageCommands(
-    { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more },
+    commandsActive ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more } : {},
     "form",
     rootRef,
   );
@@ -179,7 +193,7 @@ export function RecordFormPage({
     return !!rootRef.current?.contains(document.activeElement) || !otherFormOwnsKeyboard(rootRef.current);
   };
   // Ctrl+F2 = Kaydet ve Yeni.
-  useWindowKeyDown(canSaveAndNew, (event) => {
+  useWindowKeyDown(canSaveAndNew && commandsActive, (event) => {
     if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey) return;
     if (!isSaveKeyTarget()) return;
     event.preventDefault();
@@ -190,7 +204,7 @@ export function RecordFormPage({
 
   // Without an action bar nothing else dispatches Ctrl+S: the form's own Kaydet answers it. In the shell the command
   // registry runs first (capture phase) and marks the event handled.
-  useWindowKeyDown(!barMounted, (event) => {
+  useWindowKeyDown(!barMounted && commandsActive, (event) => {
     if (event.defaultPrevented || event.altKey || event.shiftKey || !(event.ctrlKey || event.metaKey)) return;
     if (event.key !== "s" && event.key !== "S") return;
     if (!isSaveKeyTarget()) return;
@@ -248,11 +262,16 @@ export function RecordFormPage({
   // Esc on a page form = Vazgeç; with entered or changed values it asks first.
   const escapeEnabled = isPage && !inDialog;
   const confirmingRef = useRef(false);
-  useWindowKeyDown(escapeEnabled, (event) => {
+  useWindowKeyDown(escapeEnabled && commandsActive, (event) => {
     if (event.key !== "Escape" || event.defaultPrevented) return;
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
     if (isInPopup(event.target) || confirmingRef.current || !ownsKeys()) return;
     event.preventDefault();
+    cancelAfterConfirm();
+  });
+  /** Vazgeç with the unsaved-changes question (Esc on a page form; the header button with `confirmCancel`). */
+  function cancelAfterConfirm() {
+    if (confirmingRef.current) return;
     if (!touchedRef.current && !dirty) {
       onCancel();
       return;
@@ -265,7 +284,7 @@ export function RecordFormPage({
       .finally(() => {
         confirmingRef.current = false;
       });
-  });
+  }
 
   // PgUp / PgDn: previous / next record of the list; not in a text field and not in a scrollable region
   // (a line-item table scrolls with them).
@@ -396,7 +415,7 @@ export function RecordFormPage({
           )}
         </>
       )}
-      <button type="button" className="rf-btn" onClick={onCancel}>
+      <button type="button" className="rf-btn" onClick={confirmCancel ? cancelAfterConfirm : onCancel}>
         <X size={16} aria-hidden="true" />
         Vazgeç
       </button>

@@ -524,6 +524,9 @@ export const english: Record<string, string> = {
   'Kıymet formu': 'Asset form',
   'Amortismanı ayrılan ay': 'Months depreciated',
   'Girilen bilgileri kontrol edin.': 'Please check the entered information.',
+  // İK on the ERP design language (mockup 10).
+  'İzinde': 'On leave',
+  'Yükleniyor…': 'Loading…',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

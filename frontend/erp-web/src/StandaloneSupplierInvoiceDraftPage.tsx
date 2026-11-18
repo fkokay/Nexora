@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import "./standalone-supplier-invoice-draft.css";
 import type {
@@ -15,12 +16,9 @@ import type {
   SupplierPage,
 } from "./supplier-invoice-draft/types";
 import { InvoiceDraftForm } from "./supplier-invoice-draft/components/InvoiceDraftForm";
-import {
-  InvoiceDraftHeader,
-  InvoiceDraftMessages,
-} from "./supplier-invoice-draft/components/InvoiceDraftHeader";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
 import { confirmDialog } from "./confirmDialog";
+import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
 import { problemDetail } from "./erpApi";
 
 const blankLine = (): DraftLineInput => ({
@@ -108,9 +106,12 @@ function requiredNumber(value: string): number {
   return Number(value);
 }
 
+/**
+ * Bağımsız fatura taslakları: liste (Satış liste tipi) ve taslak formu (belge oluşturma ekranı). Yeni (F2) boş taslak,
+ * Aç / Enter / çift tık / İşlemler › Düzenle seçili taslağı açar; form açıkken liste ekrandan kalkar.
+ */
 export default function StandaloneSupplierInvoiceDraftPage({
   token,
-  role,
 }: StandaloneSupplierInvoiceDraftPageProps) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([]);
@@ -119,6 +120,11 @@ export default function StandaloneSupplierInvoiceDraftPage({
     null,
   );
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [draftTotal, setDraftTotal] = useState(0);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  // The draft form replaces the list while a new draft is entered or a saved one is edited.
+  const [formOpen, setFormOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [draftScreenFields, setDraftScreenFields] = useState(
     defaultDraftScreenFields,
   );
@@ -142,6 +148,7 @@ export default function StandaloneSupplierInvoiceDraftPage({
         token,
       );
       setDrafts(draftPage.items);
+      setDraftTotal(draftPage.totalCount);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -360,10 +367,9 @@ export default function StandaloneSupplierInvoiceDraftPage({
             line.standalonePurchaseReceiptLineId || "",
         })),
       });
+      setFormError("");
       setNotice(`${saved.invoiceNumber} taslağı düzenleniyor.`);
-      document
-        .querySelector(".sid-form")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setFormOpen(true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -371,19 +377,35 @@ export default function StandaloneSupplierInvoiceDraftPage({
     }
   }
 
+  /** A blank draft (a new request id): Yeni from the list, and F2 over the open form. */
+  function startNew() {
+    setEditing(null);
+    setSelectedSupplier(null);
+    setSupplierSearch("");
+    setDraft(blankDraft());
+    setError("");
+    setFormError("");
+    setNotice("");
+    setFormOpen(true);
+  }
+
+  /** Vazgeç / Esc: back to the list; the entered values are dropped (the form asked first if it was changed). */
   function cancelEdit() {
     setEditing(null);
     setSelectedSupplier(null);
     setSupplierSearch("");
     setDraft(blankDraft());
     setError("");
+    setFormError("");
     setNotice("");
+    setFormOpen(false);
   }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
+    setFormError("");
     setNotice("");
     try {
       const fields = {
@@ -445,9 +467,10 @@ export default function StandaloneSupplierInvoiceDraftPage({
       setDraft(blankDraft());
       setSelectedSupplier(null);
       setSupplierSearch("");
+      setFormOpen(false);
       await load();
     } catch (e) {
-      setError((e as Error).message);
+      setFormError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -485,42 +508,87 @@ export default function StandaloneSupplierInvoiceDraftPage({
     }
   }
 
+  if (formOpen) {
+    // Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too.
+    const blank = blankDraft();
+    const blankLineValues = blank.lines[0];
+    const dirty = Boolean(
+      editing ||
+        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
+          (field) => draft[field] !== blank[field],
+        ) ||
+        draft.lines.length !== blank.lines.length ||
+        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
+    );
+    return (
+      <>
+        <PageCommandsSlot
+          commands={{
+            new: {
+              disabledReason: busy ? "İşleniyor…" : undefined,
+              run: async () => {
+                if (!(await confirmStartNew(dirty))) return;
+                startNew();
+              },
+            },
+          }}
+        />
+        <InvoiceDraftForm
+          draft={draft}
+          editing={!!editing}
+          busy={busy}
+          notice={notice}
+          // Save errors, and the supplier search / load errors that reach the page while the form is open.
+          error={formError || error}
+          onDismissError={() => {
+            setFormError("");
+            setError("");
+          }}
+          visibleSuppliers={visibleSuppliers}
+          expenseAccounts={expenseAccounts}
+          receiptOptions={receiptOptions}
+          onSubmit={save}
+          onUpdate={update}
+          onUpdateLine={updateLine}
+          onSelectSupplier={selectSupplier}
+          onSearchSuppliers={setSupplierSearch}
+          onSelectReceiptLine={selectReceiptLine}
+          onAddLine={addLine}
+          onRemoveLine={removeLine}
+          onCancelEdit={cancelEdit}
+        />
+      </>
+    );
+  }
+
   return (
-    <main className="standalone-invoice-page">
-      <InvoiceDraftHeader role={role} />
-      <InvoiceDraftMessages
-        error={error}
-        notice={notice}
-        onClearError={() => setError("")}
-        onClearNotice={() => setNotice("")}
-      />
-      <InvoiceDraftForm
-        draft={draft}
-        editing={!!editing}
-        busy={busy}
-        visibleSuppliers={visibleSuppliers}
-        supplierCount={suppliers.length}
-        expenseAccounts={expenseAccounts}
-        receiptOptions={receiptOptions}
-        onSubmit={save}
-        onUpdate={update}
-        onUpdateLine={updateLine}
-        onSelectSupplier={selectSupplier}
-        onSearchSuppliers={setSupplierSearch}
-        onSelectReceiptLine={selectReceiptLine}
-        onAddLine={addLine}
-        onRemoveLine={removeLine}
-        onCancelEdit={cancelEdit}
-      />
+    <div className="standalone-invoice-page sales-lv2-stack list-v2">
       <InvoiceDraftList
         drafts={drafts}
+        totalCount={draftTotal}
         fields={draftScreenFields}
         loading={loading}
         busy={busy}
+        currentId={currentId}
+        onCurrentChange={setCurrentId}
         onRefresh={() => void load()}
+        onCreate={startNew}
         onEdit={(id) => void beginEdit(id)}
         onPost={(item) => void postDraft(item)}
-      />
-    </main>
+      >
+      {error && (
+        <div className="alert inline-alert" role="alert">
+          {error}
+          <button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={15} /></button>
+        </div>
+      )}
+      {notice && (
+        <div className="notice" role="status">
+          {notice}
+          <button type="button" aria-label="Kapat" onClick={() => setNotice("")}><X size={15} /></button>
+        </div>
+      )}
+      </InvoiceDraftList>
+    </div>
   );
 }

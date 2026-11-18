@@ -220,27 +220,6 @@
   font-family: var(--nx-font-mono);
   font-size: 10px;
 }
-/* Eski başlık düğmeleri: iş akışı işlemleri İşlemler menüsüne taşınana kadar nötr bir yuvada kalır. */
-.doc-surface .doc-surface-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-/* !important: global-components.css sizes every .app-shell .primary / .secondary with !important. */
-#root .app-shell .doc-surface .doc-surface-actions :is(.primary, .secondary) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--nx-control-h) !important;
-  min-height: var(--nx-control-h) !important;
-  padding: 0 12px !important;
-  border-radius: var(--nx-radius-control) !important;
-  font-size: 12.5px !important;
-  white-space: nowrap;
-}
-#root .app-shell .doc-surface .doc-surface-actions .sales-row-actions-trigger {
-  width: var(--nx-control-h);
-  height: var(--nx-control-h);
-  border: 1px solid var(--doc-border);
-  border-radius: var(--nx-radius-control);
-  background: var(--nx-surface);
-}
 #root .app-shell .doc-surface .doc-surface-cancel {
   display: inline-flex;
   align-items: center;

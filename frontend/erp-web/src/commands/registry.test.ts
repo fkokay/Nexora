@@ -228,6 +228,17 @@ describe('command registry', () => {
     expect(r.getActive()?.more?.map((item) => item.id)).toEqual(['e', 'p']);
   });
 
+  it('form source: an empty form slot (inactive form commands) never beats an older form with commands', () => {
+    const r = createCommandRegistry();
+    const save = vi.fn();
+    r.register('v', 'form', { save: { run: save, primary: true } });
+    const removeEmpty = r.register('v', 'form', {});
+    r.setActiveView('v');
+    expect(r.getActive()?.save?.run).toBe(save);
+    removeEmpty();
+    expect(r.getActive()?.save?.run).toBe(save);
+  });
+
   it('Alt+İ runs the "open more menu" global', () => {
     const r = createCommandRegistry();
     const run = vi.fn();

@@ -1,9 +1,9 @@
 import { Target } from "lucide-react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
-import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import type { MutableRefObject, ReactNode } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
+import type { BuiltInScreenLayoutField } from "../../erp-types";
+import SalesDocumentGrid, { type SalesGridSelection } from "../../sales/components/SalesDocumentGrid";
 import { stageLabels, type Opportunity, type ScreenField } from "../types";
-import type { ReactNode } from "react";
 
 type Props = {
   items: Opportunity[];
@@ -12,11 +12,12 @@ type Props = {
   error: string;
   query: string;
   filter: string;
-  selectedId: string | null;
   /** Page-level toolbar element that hosts the grid's own tools. */
   toolbarContainer?: HTMLElement | null;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
+  selection: SalesGridSelection;
+  footer: ReactNode;
   renderField: (item: Opportunity, field: ScreenField) => ReactNode;
-  onSelect: (item: Opportunity) => void;
   onRefresh: () => void;
   onCreate: () => void;
   onClearFilters: () => void;
@@ -59,6 +60,24 @@ function CrmOpportunityEmptyState({
   );
 }
 
+const COLUMN_WIDTHS: Record<string, number> = {
+  code: 100,
+  name: 210,
+  customerName: 200,
+  stage: 100,
+  estimatedValue: 130,
+  probabilityPercent: 76,
+  expectedCloseDate: 110,
+  nextActivityAt: 130,
+};
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["estimatedValue", "probabilityPercent"]);
+const CODE_FIELDS: ReadonlySet<string> = new Set(["code"]);
+
+/**
+ * CRM Fırsatları list in the approved list type (as Cari Hesaplar / Satış): checkbox column, the page-owned current
+ * row that the bar's Aç / Sil and the detail panel follow, double-click / Enter opens the opportunity form. A load
+ * error and an empty pipeline keep their explanatory states.
+ */
 export function CrmOpportunityGrid({
   items,
   fields,
@@ -66,174 +85,48 @@ export function CrmOpportunityGrid({
   error,
   query,
   filter,
-  selectedId,
   toolbarContainer,
+  exportActionsRef,
+  selection,
+  footer,
   renderField,
-  onSelect,
   onRefresh,
   onCreate,
   onClearFilters,
 }: Props) {
-  return (
-    <div className="crm-record-list">
-      {error ? (
-        <div className="crm-empty crm-error-state" role="alert">
-          <b>Fırsatlar yüklenemedi</b>
-          <span>Satış hattı şu anda alınamıyor: {error}</span>
-          <span>Bağlantınızı kontrol edin ve tekrar deneyin.</span>
-          <button
-            type="button"
-            className="secondary small-button"
-            onClick={onRefresh}
-          >
-            Yeniden dene
-          </button>
-        </div>
-      ) : loading ? (
-        <div className="crm-empty" role="status" aria-live="polite">
-          <span className="crm-spinner" aria-hidden="true" />
-          <b>Fırsatlar yükleniyor</b>
-          <span>
-            Satış hattınızdaki kayıtlar getiriliyor. Bu işlem birkaç saniye
-            sürebilir.
-          </span>
-        </div>
-      ) : (
-        <>
-          <p className="crm-scroll-hint">
-            Tablonun diğer sütunlarını görmek için yatay kaydırın.
-          </p>
-          <div
-            className="crm-table-wrap"
-            role="region"
-            aria-label="Fırsatlar tablosu; daha fazla sütun için yatay kaydırın"
-            tabIndex={0}
-          >
-            <AdvancedDataGrid
-              hideSearch
-              externalPagination
-              enableRowSelection={false}
-              toolbarContainer={toolbarContainer}
-              gridId="crm-opportunities-v2"
-              className="crm-table"
-              initialPinned={screenViewGridDefaults(fields).initialPinned}
-              initialColumnWidths={fields.map(
-                (field) =>
-                  field.width ||
-                  (({
-                    code: 100,
-                    name: 165,
-                    customerName: 150,
-                    stage: 90,
-                    estimatedValue: 120,
-                    probabilityPercent: 105,
-                    expectedCloseDate: 135,
-                    nextActivityAt: 145,
-                    actions: 68,
-                  })[field.key] ?? 120),
-              )}
-              minimumColumnWidths={fields.map(
-                (field) =>
-                  ({
-                    code: 85,
-                    name: 125,
-                    customerName: 115,
-                    stage: 78,
-                    estimatedValue: 100,
-                    probabilityPercent: 90,
-                    expectedCloseDate: 112,
-                    nextActivityAt: 122,
-                    actions: 60,
-                  })[field.key] ?? 80,
-              )}
-            >
-              <thead>
-                <ScreenViewGroupHeader fields={fields} />
-                <tr>
-                  {fields.map((field) => (
-                    <th key={field.key} scope="col" data-column={field.key}>
-                      {field.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
-                  <tr className="crm-empty-row">
-                    <td colSpan={fields.length}>
-                      <CrmOpportunityEmptyState
-                        query={query}
-                        filter={filter}
-                        onCreate={onCreate}
-                        onClearFilters={onClearFilters}
-                      />
-                    </td>
-                  </tr>
-                ) : items.map((item) => (
-                    <tr
-                      key={item.id}
-                      tabIndex={0}
-                      aria-selected={selectedId === item.id}
-                      onClick={() => onSelect(item)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onSelect(item);
-                        }
-                      }}
-                    >
-                      {fields.map((field) => (
-                        <td key={field.key} data-column={field.key}>
-                          {renderField(item, field)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-              </tbody>
-            </AdvancedDataGrid>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-type PaginationProps = {
-  loading: boolean;
-  page: number;
-  totalCount: number;
-  onPageChange: (page: number) => void;
-};
-export function CrmOpportunityPagination({
-  loading,
-  page,
-  totalCount,
-  onPageChange,
-}: PaginationProps) {
-  return (
-    <div className="table-pagination">
-      <span>
-        Sayfa {page} / {Math.max(1, Math.ceil(totalCount / 50))} · {totalCount}{" "}
-        fırsat
-      </span>
-      <div>
-        <button
-          type="button"
-          className="secondary"
-          disabled={loading || page <= 1}
-          onClick={() => onPageChange(Math.max(1, page - 1))}
-        >
-          Önceki
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          disabled={loading || page * 50 >= totalCount}
-          onClick={() => onPageChange(page + 1)}
-        >
-          Sonraki
+  if (error)
+    return (
+      <div className="crm-empty crm-error-state" role="alert">
+        <b>Fırsatlar yüklenemedi</b>
+        <span>Satış hattı şu anda alınamıyor: {error}</span>
+        <span>Bağlantınızı kontrol edin ve tekrar deneyin.</span>
+        <button type="button" className="secondary small-button" onClick={onRefresh}>
+          Yeniden dene
         </button>
       </div>
-    </div>
+    );
+  if (!loading && items.length === 0)
+    return <CrmOpportunityEmptyState query={query} filter={filter} onCreate={onCreate} onClearFilters={onClearFilters} />;
+  return (
+    <SalesDocumentGrid
+      gridId="crm-opportunities-v2"
+      ariaLabel="Fırsat kayıtları"
+      fields={fields as BuiltInScreenLayoutField[]}
+      items={items}
+      loading={loading}
+      loadingMessage="Fırsatlar yükleniyor…"
+      emptyMessage="Satış hattınız henüz boş"
+      search={query}
+      searchEmptyMessage="Bu aramayla eşleşen fırsat yok"
+      toolbarContainer={toolbarContainer}
+      hideExport
+      exportActionsRef={exportActionsRef}
+      selection={selection}
+      footer={footer}
+      renderCell={(field, item) => renderField(item, field)}
+      columnWidths={COLUMN_WIDTHS}
+      numberFields={NUMBER_FIELDS}
+      codeFields={CODE_FIELDS}
+    />
   );
 }

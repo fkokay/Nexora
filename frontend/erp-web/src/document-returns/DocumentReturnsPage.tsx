@@ -25,6 +25,7 @@ import {
   type ReturnDetail, type ReturnListItem, type ReturnSide,
 } from "./types";
 import "../sales/sales-list-v2.css";
+import "./document-returns.css";
 
 type Props = {
   token: string;
@@ -211,7 +212,10 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
   return (
     <div className="sales-lv2-stack list-v2">
       {!invoiceId && <PageCommandsSlot commands={commands} />}
-      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total} />
+      <ListPageHeader title={config.title} description={config.description} count={loading && total === 0 ? null : total}>
+        {/* Yeni (F2) opens the invoice list: a return is created from its invoice. */}
+        <span className="returns-create-hint">İade, fatura detayından oluşturulur</span>
+      </ListPageHeader>
       <ListSummaryCards
         cards={[
           {

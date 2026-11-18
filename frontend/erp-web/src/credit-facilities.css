@@ -7,44 +7,20 @@
   min-width: 0;
 }
 
-.credit-facilities-page .status-badge {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  min-height: 22px;
-  padding: 3px 8px;
-  border: 1px solid #dcefe5;
-  border-radius: 999px;
-  background: #f0faf4;
-  color: #28734c;
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.credit-facilities-page .status-badge.warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); background: var(--nx-warn-bg); color: var(--nx-warn); }
-.credit-facilities-page .status-badge.danger { border-color: #f2d4d2; background: #fff2f1; color: #a8433d; }
-.credit-facilities-page .credit-records-heading .credit-row-actions { flex-wrap: wrap; }
 .credit-facilities-page .credit-table td small { display: block; margin-top: 3px; color: var(--credit-muted); font-size: 9px; }
-.credit-facilities-page .credit-table .danger-action { color: #b54743; }
+.credit-facilities-page .credit-table .danger-action { color: var(--nx-bad); }
 
 /* Keep the two entry forms compact and aligned inside the available workbench width. */
-.credit-facilities-page .finance-two-column {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
-  align-items: start;
-  gap: 12px;
-  min-width: 0;
-}
-.credit-facilities-page .finance-two-column > .panel,
+
 .credit-facilities-page > .panel {
   min-width: 0;
   margin: 0;
   padding: 16px;
   border: 1px solid var(--credit-border);
-  border-radius: 9px;
+  border-radius: var(--nx-radius-card);
   box-shadow: 0 1px 3px rgba(16, 42, 67, .045);
 }
-.credit-facilities-page .finance-two-column .panel-heading,
+
 .credit-facilities-page > .panel .panel-heading {
   align-items: flex-start;
   gap: 10px;
@@ -52,14 +28,14 @@
   padding: 0 0 11px;
   border-bottom: 1px solid var(--credit-border);
 }
-.credit-facilities-page .finance-two-column .panel-heading h2,
+
 .credit-facilities-page > .panel .panel-heading h2 {
   margin: 0 0 4px;
   color: var(--credit-text);
   font-size: 15px;
   line-height: 1.35;
 }
-.credit-facilities-page .finance-two-column .panel-heading p,
+
 .credit-facilities-page > .panel .panel-heading p {
   margin: 0;
   color: var(--credit-muted);
@@ -114,8 +90,8 @@
 .credit-facilities-page .collection-form input:focus-visible,
 .credit-facilities-page .collection-form select:focus-visible,
 .credit-facilities-page .collection-form textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, #0f6cbd 30%, transparent);
-  border-color: #0f6cbd;
+  outline: 2px solid color-mix(in srgb, var(--nx-primary) 30%, transparent);
+  border-color: var(--nx-primary);
 }
 .credit-facilities-page .collection-form .modal-foot {
   display: flex;
@@ -135,74 +111,16 @@
   line-height: 1.45;
 }
 
-.credit-facilities-page .credit-card-heading,
-.credit-facilities-page .credit-records-heading,
-.credit-facilities-page .credit-overview-title {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-}
-
-.credit-facilities-page .credit-overview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
-  gap: 12px;
-  min-width: 0;
-}
-
-.credit-facilities-page .credit-overview-card {
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--credit-border);
-  border-radius: 12px;
-  background: var(--credit-surface);
-}
-
-.credit-facilities-page .credit-overview-title { align-items: baseline; margin-bottom: 12px; }
-.credit-facilities-page .credit-overview-title h2 { margin: 0; font-size: 14px; }
-.credit-facilities-page .credit-overview-title span { color: var(--credit-muted); font-size: 11px; }
-.credit-facilities-page .credit-overview-card dl,
-.credit-facilities-page .credit-balance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
-.credit-facilities-page .credit-overview-card dl > div,
-.credit-facilities-page .credit-balance-grid > div { display: grid; gap: 5px; min-width: 0; padding: 10px; border-radius: 8px; background: color-mix(in srgb, var(--credit-surface) 91%, var(--nx-primary)); }
-.credit-facilities-page .credit-overview-card dt,
-.credit-facilities-page .credit-balance-grid dt { color: var(--credit-muted); font-size: 11px; line-height: 1.4; }
-.credit-facilities-page .credit-overview-card dd,
-.credit-facilities-page .credit-balance-grid dd { margin: 0; color: var(--credit-text); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.credit-facilities-page .credit-overview-card .credit-overview-emphasis,
-.credit-facilities-page .credit-balance-grid .credit-balance-emphasis { border: 1px solid color-mix(in srgb, var(--nx-primary) 25%, var(--credit-border)); background: color-mix(in srgb, var(--credit-surface) 88%, var(--nx-primary)); }
-
-.credit-facilities-page .credit-records-panel { display: grid; gap: 14px; }
-.credit-facilities-page .credit-records-heading h2 { margin: 0 0 4px; font-size: 16px; }
-.credit-facilities-page .credit-records-heading p { margin: 0; color: var(--credit-muted); font-size: 11px; line-height: 1.5; }
-.credit-facilities-page .credit-filters { display: grid; grid-template-columns: minmax(210px, 1.5fr) repeat(2, minmax(145px, .65fr)) auto; align-items: end; gap: 10px; padding: 13px; border: 1px solid var(--credit-border); border-radius: 10px; background: color-mix(in srgb, var(--credit-surface) 96%, var(--nx-primary)); }
-.credit-facilities-page .credit-filters label { display: grid; gap: 5px; min-width: 0; color: var(--credit-muted); font-size: 11px; font-weight: 650; }
-.credit-facilities-page .credit-filters input,
-.credit-facilities-page .credit-filters select { box-sizing: border-box; width: 100%; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid var(--credit-border); border-radius: 8px; background: var(--credit-surface); color: var(--credit-text); font: inherit; }
-.credit-facilities-page .credit-filters input:focus-visible,
-.credit-facilities-page .credit-filters select:focus-visible,
 .credit-facilities-page button:focus-visible,
 .credit-facilities-page .credit-table-wrap:focus-visible { outline: 3px solid color-mix(in srgb, var(--nx-primary) 38%, transparent); outline-offset: 2px; }
-.credit-facilities-page .credit-clear-filters { min-height: 40px; white-space: nowrap; }
 
-.credit-facilities-page .credit-state { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 18px 14px; border: 1px dashed var(--credit-border); border-radius: 10px; color: var(--credit-muted); line-height: 1.5; }
+.credit-facilities-page .credit-state { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 18px 14px; border: 1px dashed var(--credit-border); border-radius: var(--nx-radius-card); color: var(--credit-muted); line-height: 1.5; }
 .credit-facilities-page .credit-empty { align-items: flex-start; flex-direction: column; }
 .credit-facilities-page .credit-empty strong { color: var(--credit-text); }
 .credit-facilities-page .credit-empty span { overflow-wrap: anywhere; }
-.credit-facilities-page .credit-spinner { flex: 0 0 16px; width: 16px; height: 16px; border: 2px solid var(--credit-border); border-top-color: var(--nx-primary); border-radius: 50%; animation: credit-spin .75s linear infinite; }
 @keyframes credit-spin { to { transform: rotate(360deg); } }
 
-.credit-facilities-page .credit-facility-list { display: grid; gap: 14px; min-width: 0; }
-.credit-facilities-page .credit-facility-card { display: grid; gap: 13px; min-width: 0; padding: 16px; border: 1px solid var(--credit-border); border-radius: 12px; background: var(--credit-surface); }
-.credit-facilities-page .credit-card-heading { align-items: center; }
-.credit-facilities-page .credit-card-main { min-width: 0; }
-.credit-facilities-page .credit-card-main .eyebrow { margin: 0 0 5px; }
-.credit-facilities-page .credit-card-main h3 { margin: 0 0 5px; color: var(--credit-text); font-size: 16px; overflow-wrap: anywhere; }
-.credit-facilities-page .credit-card-main p:last-child { margin: 0; color: var(--credit-muted); font-size: 11px; line-height: 1.5; }
-.credit-facilities-page .credit-balance-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.credit-facilities-page .credit-table-wrap { max-width: 100%; min-width: 0; overflow: auto; border: 1px solid var(--credit-border); border-radius: 9px; overscroll-behavior-inline: contain; }
+.credit-facilities-page .credit-table-wrap { max-width: 100%; min-width: 0; overflow: auto; border: 1px solid var(--credit-border); border-radius: var(--nx-radius-card); overscroll-behavior-inline: contain; }
 .credit-facilities-page .credit-table { width: 100%; min-width: 760px; }
 .credit-facilities-page .credit-table caption { padding: 11px 13px; border-bottom: 1px solid var(--credit-border); color: var(--credit-muted); font-size: 11px; font-weight: 650; text-align: left; }
 .credit-facilities-page .credit-table th { white-space: nowrap; }
@@ -214,34 +132,20 @@
 .credit-facilities-page .credit-movements > .muted { margin: 0; font-size: 11px; line-height: 1.5; }
 .credit-facilities-page .credit-notes { margin: 0; overflow-wrap: anywhere; }
 .credit-facilities-page .boundary-note { line-height: 1.6; overflow-wrap: anywhere; }
-.credit-facilities-page .credit-page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-width: 0; color: var(--credit-muted); font-size: 12px; }
-
-@media (max-width: 900px) {
-  .credit-facilities-page .finance-two-column { grid-template-columns: minmax(0, 1fr); }
-  .credit-facilities-page .credit-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .credit-facilities-page .credit-clear-filters { justify-self: start; }
-}
 
 @media (max-width: 640px) {
-  .credit-facilities-page .finance-two-column > .panel,
+
   .credit-facilities-page > .panel { padding: 13px; }
   .credit-facilities-page .collection-form .form-two { grid-template-columns: minmax(0, 1fr); }
   .credit-facilities-page .collection-form .modal-foot { align-items: stretch; flex-direction: column; }
   .credit-facilities-page .collection-form .modal-foot > span { flex-basis: auto; }
   .credit-facilities-page .collection-form .modal-foot > button { align-self: flex-start; }
-  .credit-facilities-page .credit-records-heading,
-  .credit-facilities-page .credit-card-heading { align-items: stretch; flex-direction: column; }
-  .credit-facilities-page .credit-card-heading > button { align-self: flex-start; }
-  .credit-facilities-page .credit-page-actions { align-items: flex-start; justify-content: space-between; }
-  .credit-facilities-page .credit-filters { grid-template-columns: minmax(0, 1fr); }
-  .credit-facilities-page .credit-overview-card dl,
-  .credit-facilities-page .credit-balance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .credit-facilities-page .credit-table-wrap { overflow: visible; border: 0; }
   .credit-facilities-page .credit-table { display: block; width: 100%; min-width: 0; }
   .credit-facilities-page .credit-table caption { display: block; border: 1px solid var(--credit-border); border-radius: 8px; margin-bottom: 8px; }
   .credit-facilities-page .credit-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .credit-facilities-page .credit-table tbody { display: grid; gap: 8px; }
-  .credit-facilities-page .credit-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 10px; padding: 11px; border: 1px solid var(--credit-border); border-radius: 9px; background: var(--credit-surface); }
+  .credit-facilities-page .credit-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 10px; padding: 11px; border: 1px solid var(--credit-border); border-radius: var(--nx-radius-card); background: var(--credit-surface); }
   .credit-facilities-page .credit-table tbody td { display: grid; align-content: start; gap: 3px; min-width: 0; height: auto; padding: 0; border: 0; color: var(--credit-text); text-align: left; white-space: normal!important; overflow-wrap: anywhere; }
   .credit-facilities-page .credit-table tbody td::before { content: attr(data-label); color: var(--credit-muted); font-size: 10px; font-weight: 650; }
   .credit-facilities-page .credit-table tbody td.table-empty { display: block; grid-column: 1 / -1; padding: 14px; text-align: center; }
@@ -249,154 +153,31 @@
   .credit-facilities-page .credit-row-actions { flex-wrap: wrap; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .credit-facilities-page .credit-spinner { animation: none; }
-}
-
-html[data-theme="dark"] .credit-facilities-page .credit-overview-card,
-html[data-theme="dark"] .credit-facilities-page .credit-facility-card,
 html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { background: var(--erp-surface); }
 
 /* Compact Fluent finance workbench */
 .credit-facilities-page { gap: 12px; }
-.credit-facilities-page .credit-overview { gap: 9px; }
-.credit-facilities-page .credit-overview-card,
-.credit-facilities-page .credit-facility-card { padding: 13px; border-radius: 8px; box-shadow: 0 1px 2px rgba(17, 46, 75, .05); }
-.credit-facilities-page .credit-overview-title { margin-bottom: 9px; }
-.credit-facilities-page .credit-overview-card dl > div,
-.credit-facilities-page .credit-balance-grid > div { padding: 8px; border-radius: 6px; background: #f1f5f9; }
-.credit-facilities-page .credit-overview-card .credit-overview-emphasis,
-.credit-facilities-page .credit-balance-grid .credit-balance-emphasis { border-color: #b8d5ec; background: #eaf4fb; }
-.credit-facilities-page .credit-overview-card dd,
-.credit-facilities-page .credit-balance-grid dd { font-size: 13px; }
-.credit-facilities-page .credit-filters { gap: 7px; padding: 9px; border-radius: 7px; background: #edf2f7; }
-.credit-facilities-page .credit-filters input,
-.credit-facilities-page .credit-filters select { height: 34px; border-radius: 5px; font-size: 12px; }
-.credit-facilities-page .credit-filters input:focus-visible,
-.credit-facilities-page .credit-filters select:focus-visible,
+
 .credit-facilities-page button:focus-visible,
-.credit-facilities-page .credit-table-wrap:focus-visible { outline-color: rgb(0 120 212 / 38%); }
-.credit-facilities-page .credit-facility-list { gap: 9px; }
-.credit-facilities-page .credit-card-main h3 { font-size: 14px; }
+.credit-facilities-page .credit-table-wrap:focus-visible { outline-color: color-mix(in srgb, var(--nx-primary) 38%, transparent); }
 .credit-facilities-page .credit-table-wrap { border-radius: 6px; }
 .credit-facilities-page .credit-table caption { padding: 8px 10px; }
-.credit-facilities-page .credit-table th { padding: 8px 10px; background: #edf2f7; color: #384d61; font-size: 10px; }
+.credit-facilities-page .credit-table th { padding: 8px 10px; background: var(--nx-table-head); color: var(--nx-muted); font-size: 10px; }
 .credit-facilities-page .credit-table td { padding: 8px 10px; font-size: 11px; }
-.credit-facilities-page .credit-row-actions .row-action { color: #075b9a; }
-.credit-facilities-page .credit-row-actions .row-action:hover { background: #e8f2fb; }
-.credit-facilities-page .credit-spinner { border-top-color: #0078d4; }
+.credit-facilities-page .credit-row-actions .row-action { color: var(--nx-primary); }
+.credit-facilities-page .credit-row-actions .row-action:hover { background: var(--nx-primary-soft); }
 
 /* Refined credit workbench: clearer hierarchy between overview, entry forms and records. */
 .credit-facilities-page {
   --credit-accent: var(--nx-primary);
-  --credit-accent-soft: #eaf4ff;
+  --credit-accent-soft: var(--nx-primary-soft);
   gap: 14px;
 }
-.credit-facilities-page .credit-page-actions {
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 7px 10px 7px 15px;
-  border: 1px solid var(--credit-border);
-  border-radius: 10px;
-  background: linear-gradient(110deg, var(--credit-surface), color-mix(in srgb, var(--credit-surface) 92%, var(--nx-primary)));
-}
-.credit-facilities-page .credit-page-actions > span {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 650;
-}
-.credit-facilities-page .credit-page-actions > span::before {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--credit-accent);
-  box-shadow: 0 0 0 4px var(--credit-accent-soft);
-  content: "";
-}
-.credit-facilities-page .credit-page-actions {
-  align-items: center;
-  min-height: 92px;
-  padding: 17px 20px;
-  gap: 20px;
-}
-.credit-facilities-page .credit-page-heading-copy { min-width: 0; }
-.credit-facilities-page .credit-page-heading-copy .eyebrow {
-  margin: 0 0 5px;
-  color: var(--nx-primary-strong);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .1em;
-}
-.credit-facilities-page .credit-page-heading-copy h1 {
-  margin: 0;
-  color: var(--credit-text);
-  font-size: clamp(22px, 2vw, 28px);
-  letter-spacing: -.035em;
-}
-.credit-facilities-page .credit-page-heading-copy .muted {
-  margin: 5px 0 0;
-  color: var(--credit-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.credit-facilities-page .credit-list-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.credit-facilities-page .credit-list-summary article {
-  display: grid;
-  gap: 4px;
-  min-height: 74px;
-  padding: 14px 17px;
-  border: 1px solid var(--credit-border);
-  border-radius: 10px;
-  background: var(--credit-surface);
-}
-.credit-facilities-page .credit-list-summary span { color: var(--credit-muted); font-size: 11px; }
-.credit-facilities-page .credit-list-summary strong { color: var(--credit-text); font-size: 22px; line-height: 1.2; }
-.credit-facilities-page .credit-overview-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: 10px;
-  box-shadow: 0 4px 14px rgba(20, 52, 84, .045);
-}
-.credit-facilities-page .credit-overview-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--credit-accent), var(--nx-primary));
-  content: "";
-}
-.credit-facilities-page .credit-overview-title h2 { color: var(--credit-text); font-size: 14px; }
-.credit-facilities-page .credit-overview-title span {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--credit-accent-soft);
-  color: var(--nx-primary-strong);
-  font-weight: 650;
-}
-.credit-facilities-page .credit-overview-card dl > div,
-.credit-facilities-page .credit-balance-grid > div {
-  min-height: 54px;
-  align-content: center;
-  padding: 10px 11px;
-  border: 1px solid color-mix(in srgb, var(--credit-border) 78%, transparent);
-  background: color-mix(in srgb, var(--credit-surface) 95%, var(--nx-primary));
-}
-.credit-facilities-page .credit-overview-card .credit-overview-emphasis,
-.credit-facilities-page .credit-balance-grid .credit-balance-emphasis {
-  border-color: color-mix(in srgb, var(--credit-accent) 32%, var(--credit-border));
-  background: var(--credit-accent-soft);
-}
-.credit-facilities-page .finance-two-column > .panel,
+
 .credit-facilities-page > .panel {
-  border-radius: 11px;
+  border-radius: var(--nx-radius-card);
   box-shadow: 0 5px 18px rgba(20, 52, 84, .045);
 }
-.credit-facilities-page .finance-two-column > .panel:first-child { border-top: 3px solid var(--nx-primary); }
-.credit-facilities-page .finance-two-column > .panel:last-child { border-top: 3px solid var(--nx-primary); }
 .credit-facilities-page .collection-form .form-two { gap: 12px 16px; }
 .credit-facilities-page .collection-form input,
 .credit-facilities-page .collection-form select,
@@ -405,302 +186,78 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 .credit-facilities-page .collection-form select:hover,
 .credit-facilities-page .collection-form textarea:hover { border-color: color-mix(in srgb, var(--credit-accent) 45%, var(--credit-border)); }
 .credit-facilities-page .collection-form .modal-foot { margin-top: 2px; }
-.credit-facilities-page .credit-records-panel { padding: 18px; }
-.credit-facilities-page .credit-filter-panel { display: grid; gap: 10px; padding: 15px 17px; }
-.credit-facilities-page .credit-filter-panel .credit-records-heading { padding-bottom: 9px; }
-.credit-facilities-page .credit-filter-panel .credit-records-heading h2 { font-size: 15px; }
-.credit-facilities-page .credit-filters { padding: 0; border: 0; background: transparent; }
-.credit-facilities-page .credit-page-action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
-.credit-facilities-page .credit-setup-grid { display: block; min-width: 0; }
-.credit-facilities-page .credit-create-dialog { position: fixed; inset: 0; width: min(720px,calc(100vw - 32px)); max-width: none; max-height: min(86vh,760px); margin: auto; padding: 0; overflow: auto; border: 1px solid var(--credit-border); border-radius: 14px; background: var(--credit-surface); color: var(--credit-text); box-shadow: 0 24px 80px #10233b40; }
-.credit-facilities-page .credit-create-dialog::backdrop { background: #0e1a2b80; backdrop-filter: blur(2px); }
-.credit-facilities-page .credit-create-dialog > .panel { margin: 0; border: 0; box-shadow: none; }
-.credit-facilities-page .credit-facility-details { margin-top: 12px; border: 1px solid var(--credit-border); border-radius: 10px; background: var(--credit-surface); }
-.credit-facilities-page .credit-facility-details > summary { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; color: var(--credit-text); cursor: pointer; font-size: 11px; font-weight: 750; list-style-position: inside; }
-.credit-facilities-page .credit-facility-details > summary span { color: var(--credit-muted); font-size: 10px; font-weight: 600; }
-.credit-facilities-page .credit-facility-details[open] { padding: 0 12px 12px; }
-.credit-facilities-page .credit-facility-details[open] > summary { margin: 0 -12px 12px; border-bottom: 1px solid var(--credit-border); }
 .credit-facilities-page .credit-exposure { display: grid; gap: 14px; }
-.credit-facilities-page .credit-records-heading {
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--credit-border);
-}
-.credit-facilities-page .credit-records-heading h2 { font-size: 17px; }
-.credit-facilities-page .credit-filters { border-radius: 9px; }
-.credit-facilities-page .credit-facility-card {
-  border-radius: 11px;
-  box-shadow: 0 4px 14px rgba(20, 52, 84, .04);
-}
-.credit-facilities-page .credit-state { border-radius: 11px; background: color-mix(in srgb, var(--credit-surface) 94%, var(--nx-primary)); }
-.credit-facilities-page .boundary-note { border-radius: 9px; }
+.credit-facilities-page .credit-state { border-radius: var(--nx-radius-card); background: color-mix(in srgb, var(--credit-surface) 94%, var(--nx-primary)); }
+.credit-facilities-page .boundary-note { border-radius: var(--nx-radius-card); }
 
-html[data-theme="dark"] .credit-facilities-page .credit-page-actions,
-html[data-theme="dark"] .credit-facilities-page .credit-overview-card dl > div,
-html[data-theme="dark"] .credit-facilities-page .credit-balance-grid > div,
 html[data-theme="dark"] .credit-facilities-page .credit-state {
   background: color-mix(in srgb, var(--credit-surface) 92%, var(--nx-primary));
 }
-html[data-theme="dark"] .credit-facilities-page .credit-overview-title span,
-html[data-theme="dark"] .credit-facilities-page .credit-overview-card .credit-overview-emphasis,
-html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-balance-emphasis {
-  background: color-mix(in srgb, var(--credit-surface) 80%, var(--nx-primary));
-}
 
-/* Credit operations use dedicated workspace pages instead of stacked forms. */
-.credit-facilities-page.credit-operation-screen { max-width: 1120px; margin-inline: auto; }
-.credit-operation-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px 20px; border: 1px solid var(--credit-border); border-left: 3px solid var(--credit-accent); border-radius: 10px; background: var(--credit-surface); }
-.credit-operation-page-heading .eyebrow { margin: 14px 0 4px; color: var(--nx-primary-strong); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
-.credit-operation-page-heading h1 { margin: 0 0 5px; color: var(--credit-text); font-size: clamp(20px, 2.2vw, 26px); }
-.credit-operation-page-heading .muted { margin: 0; color: var(--credit-muted); font-size: 12px; }
-.credit-operation-page { width: 100%; box-sizing: border-box; padding: 20px; }
-.credit-operation-page .panel-heading { padding-bottom: 14px; border-bottom: 1px solid var(--credit-border); }
-.credit-operation-page .collection-form { max-width: 860px; margin-top: 16px; }
-.credit-operation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.credit-facilities-page .credit-page-action-buttons { align-items: center; }
 /*
- * Krediler ve finansman list (Taslak 21): tiles, credit list column + selected credit with
- * underline tabs, collapsible exposure. Builds on finance-hub.css (.fh-page, .fh-tile) and
- * document-detail's .dd-tabs. Scoped under #root .cf-page because the shared .app-shell rules use
+ * Krediler ve finansman (mockup 09 map): list type A (summary card, toolbar, grid, footer), the opened credit on the
+ * document surface (tiles, .dd-tabs, one .dd-box per tab) and the collapsible exposure under the list. Scoped under #root .cf-page because the shared .app-shell rules use
  * !important; class names avoid "-panel", "-card", "-badge", "-chip" and "-dialog"
  * (global-components.css restyles every class containing them).
  */
 #root .cf-page {
-  --cf-select: #eef5fc;
-  --cf-select-line: #315f8b;
-  --cf-bar: #2f855a;
-  --cf-bar-track: #e5eaf0;
+  --cf-select: var(--nx-primary-soft);
+  --cf-select-line: var(--nx-primary);
+  --cf-bar: var(--nx-ok);
+  --cf-bar-track: var(--nx-line);
   max-width: none;
 }
-html[data-theme="dark"] #root .cf-page {
-  --cf-select: #1c2a3d;
-  --cf-select-line: #93c5fd;
-  --cf-bar: #48bb78;
-  --cf-bar-track: #2a3346;
-}
-#root .cf-page > .credit-setup-grid:empty { display: none; }
-#root .app-shell .cf-page .heading-actions :is(.primary, .secondary) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
-  white-space: nowrap;
-}
-#root .cf-page .fh-tile-value { flex-direction: column; align-items: flex-start; gap: 2px; }
-#root .cf-page .fh-tile-value.is-muted-value { color: var(--fh-muted); font-weight: 600; }
-#root .cf-page .cf-bar {
-  display: block;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--cf-bar-track);
-}
-#root .cf-page .cf-bar > i { display: block; height: 100%; border-radius: inherit; background: var(--cf-bar); }
 
-/* Two columns: credit list (240px) and the selected credit; stacked below 1100px. */
-#root .cf-page .cf-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
-@media (max-width: 1099px) {
-  #root .cf-page .cf-layout { grid-template-columns: minmax(0, 1fr); }
-}
-#root .cf-page .cf-list-column { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-#root .cf-page .cf-filters { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-#root .cf-page .cf-search-row { display: flex; align-items: center; gap: 6px; }
-#root .cf-page .cf-search {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 34px;
-  margin: 0;
-  padding: 0 9px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-  color: var(--fh-muted);
-}
-#root .app-shell .cf-page .cf-search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--fh-ink);
-  font-size: 13px;
-}
-#root .cf-page .cf-filters .list-v2-chips { flex-wrap: wrap; }
-#root .cf-page .cf-items { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
-#root .app-shell .cf-page .cf-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 5px;
-  width: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--fh-line);
-  border-radius: 8px;
-  background: var(--fh-paper) !important;
-  color: var(--fh-ink) !important;
-  font: inherit !important;
-  font-weight: 400 !important;
-  text-align: left;
-  cursor: pointer;
-}
-#root .app-shell .cf-page .cf-item:hover { border-color: var(--cf-select-line); }
-#root .app-shell .cf-page .cf-item.is-selected {
-  border-color: var(--cf-select-line);
-  background: var(--cf-select) !important;
-  box-shadow: inset 3px 0 0 var(--cf-select-line);
-}
-#root .cf-page .cf-item.is-closed .cf-item-usage { color: var(--fh-muted); }
-#root .cf-page .cf-item-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-#root .cf-page .cf-item-top b { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
-#root .cf-page .cf-type,
-#root .cf-page .cf-state {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border: 1px solid var(--fh-line);
-  border-radius: 999px;
-  background: var(--fh-band);
-  color: var(--fh-muted);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-#root .cf-page .cf-state.is-active { border-color: #bfe3cf; background: var(--fh-success-bg); color: var(--fh-success); }
-html[data-theme="dark"] #root .cf-page .cf-state.is-active { border-color: #2a5a43; }
-#root .cf-page .cf-item-meta { color: var(--fh-muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-#root .cf-page .cf-item-usage {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 8px;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-}
-#root .cf-page .cf-item-usage b { font-weight: 700; }
-#root .cf-page .cf-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 14px;
-  border: 1px dashed var(--fh-line);
-  border-radius: 8px;
-  color: var(--fh-muted);
-  font-size: 13px;
-}
-#root .cf-page .cf-empty strong { color: var(--fh-ink); }
+/* List (type A): the 30-day card lists one amount per currency; the footer carries the per-currency limit line. */
+#root .cf-page .cf-card-lines { display: flex; flex-direction: column; gap: 2px; }
+#root .cf-page .cf-overdue { color: var(--nx-bad); font-weight: 600; }
+#root .cf-page .cf-footer-currency { color: var(--nx-muted); font-variant-numeric: tabular-nums; }
+#root .cf-page .cf-footer-currency b { color: var(--nx-text); font-weight: 600; }
 
-/* Selected credit */
-#root .cf-page .cf-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-width: 0;
-  border: 1px solid var(--fh-line);
-  border-radius: 8px;
-  background: var(--fh-paper);
-}
-#root .cf-page .cf-detail-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 14px 16px 10px;
-}
-#root .cf-page .cf-detail-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
-#root .app-shell .cf-page .cf-detail-title h2 {
-  margin: 0;
-  color: var(--fh-ink) !important;
-  font-size: 18px !important;
-  font-weight: 700 !important;
-  overflow-wrap: anywhere;
-}
-#root .cf-page .cf-detail-sub { grid-column: 1; margin: 0; color: var(--fh-muted); font-size: 13px; overflow-wrap: anywhere; }
-#root .cf-page .cf-detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-#root .app-shell .cf-page .cf-detail-actions .secondary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
-#root .app-shell .cf-page .cf-detail-actions .sales-row-actions-trigger {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--fh-line);
-  border-radius: 6px;
-  background: var(--fh-paper);
-}
-#root .cf-page .cf-detail .dd-tabs { padding: 0 8px; }
-#root .cf-page .cf-tabbody { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px 16px 16px; }
-#root .cf-page .cf-info {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px 24px;
-  margin: 0;
-}
-#root .cf-page .cf-info > div { min-width: 0; }
-#root .cf-page .cf-info dt { margin: 0 0 3px; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
-#root .cf-page .cf-info dd {
-  margin: 0;
-  color: var(--fh-ink);
-  font-size: 14px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-#root .cf-page .cf-info .is-emphasis dd { font-weight: 700; }
-#root .cf-page .cf-interest { display: flex; flex-direction: column; gap: 16px; }
-#root .cf-page .cf-subsection { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-#root .cf-page .cf-subsection + .cf-subsection { padding-top: 16px; border-top: 1px solid var(--fh-line-soft); }
-#root .cf-page .cf-pane-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px 16px;
-}
-#root .cf-page .cf-pane-head > div:first-child { flex: 1 1 260px; min-width: 0; }
-#root .app-shell .cf-page .cf-pane-head h3 {
-  margin: 0 0 2px;
-  color: var(--fh-ink) !important;
-  font-size: 14px !important;
-  font-weight: 700 !important;
-}
-#root .cf-page .cf-pane-head p { margin: 0; color: var(--fh-muted); font-size: 12.5px; line-height: 1.45; }
-#root .cf-page .cf-pane-actions,
-#root .cf-page .cf-securities .credit-row-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
-#root .app-shell .cf-page .cf-pane-actions .secondary { min-height: 34px; padding: 0 12px; white-space: nowrap; }
-#root .cf-page .cf-inline-field { display: grid; gap: 4px; margin: 0; color: var(--fh-muted); font-size: 12px; font-weight: 600; }
-#root .app-shell .cf-page .cf-inline-field input {
-  width: 150px;
-  height: 34px;
+/* The opened credit (document surface): tiles, tabs and one single-layer box per tab. */
+#root .cf-surface .cf-surface-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .cf-surface .cf-tabbody { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#root .cf-surface .cf-box { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :not(.dd-grid, .dd-lines-wrap) { margin-inline: 14px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :first-child { margin-top: 12px; }
+#root .cf-surface .cf-box:has(> :is(.dd-grid, .dd-lines-wrap)) > :last-child:not(.dd-grid, .dd-lines-wrap) { margin-bottom: 12px; }
+#root .cf-surface .cf-box-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+#root .app-shell .cf-surface .cf-box-head h3 { margin: 0; color: var(--nx-text); font-size: 13px; font-weight: 650; }
+#root .cf-surface .cf-box-head > span { color: var(--nx-muted); font-size: 12px; line-height: 1.45; }
+#root .cf-surface .cf-box-tags { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+#root .cf-surface .cf-box .fh-note,
+#root .cf-surface .cf-box .fh-empty { margin: 0; }
+#root .cf-surface .cf-effective-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+#root .cf-surface .cf-inline-field { display: grid; gap: 4px; margin: 0; color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root .app-shell .cf-surface .cf-inline-field input {
+  box-sizing: border-box;
+  width: 160px;
+  min-height: 31px;
   padding: 0 8px;
-  border: 1px solid var(--fh-line);
+  border: 1px solid var(--nx-line);
   border-radius: 6px;
-  background: var(--fh-paper);
-  color: var(--fh-ink);
-  font-size: 13px;
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
-#root .cf-page .cf-securities { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-#root .cf-page .cf-securities > .cf-pane-head { align-items: center; }
-#root .cf-page .cf-tabbody .credit-table-wrap { border-color: var(--fh-line); }
+#root .app-shell .cf-surface .cf-effective-form .secondary { min-height: 31px; border-radius: 6px; }
+#root .cf-surface .cf-interest-table { max-width: 360px; }
+#root .cf-surface .cf-total-row td { font-weight: 600; }
+/* Tab grids sit on the box edge: no second frame, no fixed legacy header colours. */
+#root .cf-surface .cf-box .credit-table-wrap { border: 0; border-top: 1px solid var(--nx-line); border-radius: 0; }
+#root .cf-surface .cf-box .credit-table { min-width: 680px; }
+#root .cf-surface .cf-box .credit-table th { background: var(--nx-table-head); color: var(--nx-muted); }
+#root .cf-surface .cf-box .credit-table td { font-variant-numeric: tabular-nums; }
+#root .cf-surface .cf-box .credit-table :is(th, td).nx-num { text-align: right; white-space: nowrap; }
+#root .cf-surface .cf-box .credit-row-actions .row-action { color: var(--nx-primary); }
+#root .cf-surface .cf-box .credit-row-actions .row-action:hover { background: var(--nx-primary-soft); }
+#root .cf-surface .cf-box .credit-row-actions .danger-action { color: var(--nx-bad); }
+#root .cf-surface .cf-box .credit-table td small { display: block; color: var(--nx-muted); font-size: 11px; }
+#root .cf-surface .cf-box .credit-table caption { padding: 6px 14px; color: var(--nx-muted); font-size: 12px; text-align: left; }
+#root .cf-surface .credit-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .cf-surface .cf-box .fh-note { color: var(--nx-muted); font-size: 12px; line-height: 1.5; }
+#root .cf-surface .cf-box .fh-empty { color: var(--nx-muted); font-size: 12.5px; }
 
 /* Collapsible exposure section at the bottom (closed by default). */
 #root .cf-page .cf-exposure {
@@ -720,23 +277,8 @@ html[data-theme="dark"] #root .cf-page .cf-state.is-active { border-color: #2a5a
   cursor: pointer;
 }
 #root .cf-page .cf-exposure > summary small { color: var(--fh-muted); font-size: 12.5px; font-weight: 500; }
-#root .cf-page .cf-exposure > summary .is-danger,
-#root .cf-page .fh-tile-hint .is-danger { color: var(--fh-danger); font-weight: 600; }
+#root .cf-page .cf-exposure > summary .is-danger { color: var(--fh-danger); font-weight: 600; }
 #root .cf-page .cf-exposure[open] { padding: 0 16px 16px; }
 #root .cf-page .cf-exposure[open] > summary { margin: 0 -16px 10px; border-bottom: 1px solid var(--fh-line-soft); }
 #root .cf-page .cf-exposure .credit-exposure { display: grid; gap: 12px; margin-top: 10px; }
 
-@media (max-width: 640px) {
-  #root .cf-page .cf-detail-head { grid-template-columns: minmax(0, 1fr); }
-  #root .cf-page .cf-detail-actions { grid-column: 1; grid-row: auto; justify-content: flex-start; }
-}
-
-@media(max-width:640px) {
-  .credit-facilities-page .credit-page-actions { align-items: flex-start; flex-direction: column; }
-  .credit-facilities-page .credit-page-action-buttons { width: 100%; justify-content: flex-start; }
-  .credit-facilities-page .credit-list-summary { grid-template-columns: 1fr 1fr; }
-  .credit-operation-page-heading { padding: 14px; }
-  .credit-operation-page { padding: 14px; }
-  .credit-operation-actions { justify-content: stretch; width: 100%; }
-  .credit-operation-actions > button { flex: 1 1 auto; }
-}

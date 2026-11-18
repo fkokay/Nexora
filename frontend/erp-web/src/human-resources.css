@@ -719,3 +719,153 @@ html[data-theme="dark"] #root .hr-page .hr-status--pending { border-color: color
 html[data-theme="dark"] #root .hr-page .hr-status--approved { border-color: #275a3c; background: #15301f; color: #8fd8aa; }
 html[data-theme="dark"] #root .hr-page .hr-status--rejected { border-color: #6a2d33; background: #34171b; color: #f3a6ab; }
 html[data-theme="dark"] #root .hr-page .hr-status--muted { border-color: #34445c; background: #1a2333; color: #9aa7ba; }
+
+/* ---- ERP design language, pass 2 (mockup 10, İK) ---- */
+/* Tabs: underlined text tabs (the detail panel's tab style), no pill buttons. */
+#root .app-shell .hr-page.list-v2 .hr-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nx-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  min-height: 34px;
+  margin-bottom: -1px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-muted);
+  font: 400 13px/1 var(--nx-font);
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button:hover { color: var(--nx-text); background: transparent; }
+#root .app-shell .hr-page.list-v2 .hr-tabs > button.active {
+  border-bottom-color: var(--nx-primary);
+  color: var(--nx-text);
+  font-weight: 600;
+}
+#root .app-shell .hr-page.list-v2 .hr-tabs > button:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+#root .app-shell .hr-page.list-v2 .hr-tabs .hr-tab-count {
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nx-muted);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+/* List + right panel (Satış panel frame). */
+#root .hr-page.list-v2 .hr-list-body { min-width: 0; }
+#root .hr-page.list-v2 .hr-list-body > .hr-panel { min-width: 0; margin: 0; }
+#root .hr-page.list-v2 .hr-ld:focus { outline: none; }
+/* İzinler: the panel hides the create form; an unsaved draft is announced there. */
+#root .hr-page.list-v2 .hr-ld .hr-ld-draft { display: block; margin-bottom: 4px; color: var(--nx-warn); }
+#root .hr-page.list-v2 :is(.hr-table) td { white-space: nowrap; }
+#root .hr-page.list-v2 .hr-table th { text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 600; }
+#root .hr-page.list-v2 .hr-table td.hr-col-number,
+#root .hr-page.list-v2 .hr-table th.hr-col-number { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- Dönem özeti as a report (mockup 04 "Rapor ekranı"): parameters left, result right; single-layer cards ---- */
+#root .hr-page.list-v2 .hr-rp { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0; }
+#root .hr-page.list-v2 .hr-rp.is-params-hidden { grid-template-columns: minmax(0, 1fr); }
+#root .hr-page.list-v2 .hr-rp-params {
+  display: grid; gap: 10px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface);
+}
+#root .hr-page.list-v2 .hr-rp-params-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--nx-text); font-size: 13px; }
+#root .hr-page.list-v2 .hr-rp-params-head b { font-weight: 650; }
+#root .app-shell .hr-page.list-v2 .hr-rp-toggle {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 26px; margin: 0; padding: 0 8px;
+  border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface);
+  color: var(--nx-muted); font: 400 12px/1 var(--nx-font); box-shadow: none;
+}
+#root .app-shell .hr-page.list-v2 .hr-rp-toggle:hover { color: var(--nx-text); background: var(--nx-canvas); }
+#root .hr-page.list-v2 .hr-rp-form { display: grid; gap: 10px; margin: 0; }
+#root .hr-page.list-v2 .hr-rp-form label { display: grid; gap: 4px; color: var(--nx-muted); font-size: 11.5px; font-weight: 500; }
+#root .app-shell .hr-page.list-v2 .hr-rp-form input {
+  width: 100%; height: var(--nx-control-h); min-height: var(--nx-control-h); padding: 0 8px;
+  border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); color: var(--nx-text); font-size: 13px;
+}
+#root .app-shell .hr-page.list-v2 .hr-rp-run {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: var(--nx-control-h); margin: 0;
+  border: 1px solid var(--nx-primary); border-radius: var(--nx-radius-control); background: var(--nx-primary); color: var(--nx-on-primary);
+  font: 600 13px/1 var(--nx-font); box-shadow: none;
+}
+#root .app-shell .hr-page.list-v2 .hr-rp-run:hover:not(:disabled) { background: var(--nx-primary-hover); }
+#root .hr-page.list-v2 .hr-rp-run kbd {
+  padding: 1px 4px; border: 1px solid color-mix(in srgb, var(--nx-on-primary) 45%, transparent); border-radius: 4px;
+  font: 400 10.5px/1.2 var(--nx-font-mono); color: inherit; background: transparent;
+}
+#root .hr-page.list-v2 .hr-rp-note { margin: 0; color: var(--nx-muted); font-size: 11.5px; line-height: 1.5; }
+#root .hr-page.list-v2 .hr-rp-result { display: grid; gap: 10px; min-width: 0; }
+#root .hr-page.list-v2 .hr-rp-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 28px; color: var(--nx-muted); font-size: 12.5px; }
+#root .hr-page.list-v2 .hr-rp-summary-item { font-variant-numeric: tabular-nums; }
+#root .hr-page.list-v2 .hr-rp-summary-item.is-stale { color: var(--nx-warn); }
+#root .hr-page.list-v2 .hr-rp-empty {
+  margin: 0; padding: 28px 16px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card);
+  background: var(--nx-surface); color: var(--nx-muted); font-size: 13px; text-align: center;
+}
+#root .hr-page.list-v2 .hr-rp-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+#root .hr-page.list-v2 .hr-rp-table { min-width: 0; overflow-x: auto; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+#root .hr-page.list-v2 .hr-rp-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#root .hr-page.list-v2 .hr-rp-table caption { padding: 10px 12px 8px; color: var(--nx-text); font-size: 13px; font-weight: 650; text-align: left; }
+#root .hr-page.list-v2 .hr-rp-table th { height: 30px; padding: 0 12px; background: var(--nx-table-head); color: var(--nx-muted); font-size: 11.5px; font-weight: 600; text-align: left; }
+#root .hr-page.list-v2 .hr-rp-table td { height: 30px; padding: 0 12px; border-top: 1px solid var(--nx-line-soft); color: var(--nx-text); }
+#root .hr-page.list-v2 .hr-rp-table .nx-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 400; white-space: nowrap; }
+#root .hr-page.list-v2 .hr-rp-table tfoot th,
+#root .hr-page.list-v2 .hr-rp-table tfoot td { border-top: 1px solid var(--nx-line); background: var(--nx-table-head); color: var(--nx-text); font-weight: 600; }
+@media (max-width: 1100px) {
+  #root .hr-page.list-v2 .hr-rp { grid-template-columns: minmax(0, 1fr); }
+  #root .hr-page.list-v2 .hr-rp-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- Bordro kural setleri, İşyeri ve takvim as definition screens (mockup 04 "Tanım ekranı") ---- */
+#root .hr-page.list-v2 .hr-def { min-width: 0; }
+#root .hr-page.list-v2 .hr-def .hr-panel.list-v2-list { margin: 0; }
+#root .hr-page.list-v2 .hr-def-switch { display: flex; flex-wrap: wrap; gap: 6px; }
+#root .app-shell .hr-page.list-v2 .hr-def-switch > button {
+  min-height: 28px; margin: 0; padding: 0 12px; border: 1px solid var(--nx-line); border-radius: 999px;
+  background: var(--nx-surface); color: var(--nx-muted); font: 400 12.5px/1 var(--nx-font); box-shadow: none;
+}
+#root .app-shell .hr-page.list-v2 .hr-def-switch > button.active { border-color: var(--nx-primary); background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-weight: 600; }
+#root .hr-page.list-v2 .hr-def-record { display: grid; gap: 12px; min-width: 0; }
+#root .hr-page.list-v2 .hr-def-record:focus { outline: none; }
+#root .hr-page.list-v2 .hr-def-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+#root .hr-page.list-v2 .hr-def-head > div { display: grid; gap: 4px; min-width: 0; }
+#root .hr-page.list-v2 .hr-def-head h3 { margin: 0; color: var(--nx-text); font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+#root .app-shell .hr-page.list-v2 .hr-def-close {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 0;
+  border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control); background: var(--nx-surface); color: var(--nx-muted); box-shadow: none;
+}
+#root .hr-page.list-v2 .hr-def-group {
+  display: grid; gap: 8px; min-width: 0; padding: 12px 14px;
+  border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface);
+}
+#root .hr-page.list-v2 .hr-def-group h4 { margin: 0; color: var(--nx-text); font-size: 13px; font-weight: 650; }
+#root .hr-page.list-v2 .hr-def-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+#root .hr-page.list-v2 .hr-def-facts dt { color: var(--nx-muted); font-size: 11.5px; }
+#root .hr-page.list-v2 .hr-def-facts dd { margin: 2px 0 0; color: var(--nx-text); font-size: 13px; overflow-wrap: anywhere; }
+#root .hr-page.list-v2 .hr-def-code {
+  max-height: 260px; margin: 0; padding: 10px; overflow: auto; border-radius: var(--nx-radius-control);
+  background: var(--nx-canvas); color: var(--nx-text); font: 12px/1.5 var(--nx-font-mono); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+#root .hr-page.list-v2 .hr-def-note { margin: 0; color: var(--nx-muted); font-size: 12px; }
+/* The shell's generic table rules are heavier; the report rows stay 30px. */
+#root .app-shell .hr-page.list-v2 .hr-rp-table :is(th, td) {
+  height: 30px; padding: 0 12px; font-size: 13px; line-height: 1.3; text-transform: none; letter-spacing: 0; vertical-align: middle;
+}
+#root .app-shell .hr-page.list-v2 .hr-rp-table thead th { font-size: 11.5px; font-weight: 600; color: var(--nx-muted); background: var(--nx-table-head); }
+#root .app-shell .hr-page.list-v2 .hr-rp-table tfoot :is(th, td) { font-weight: 600; color: var(--nx-text); background: var(--nx-table-head); text-align: left; }
+#root .app-shell .hr-page.list-v2 .hr-rp-table tfoot td.nx-num { text-align: right; }

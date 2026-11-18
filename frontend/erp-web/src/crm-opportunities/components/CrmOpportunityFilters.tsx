@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ListChipGroup, ListToolbar } from "../../list-page/ListToolbar";
 import { stages, stageLabels } from "../types";
 
@@ -15,6 +16,8 @@ type Props = {
   counts?: CrmStageCounts | null;
   /** Receives the element where the grid's own tools (columns, export…) are rendered. */
   toolsSlotRef?: (element: HTMLDivElement | null) => void;
+  /** Extra toolbar controls after the chips (the detail panel toggle). */
+  children?: ReactNode;
 };
 
 export function CrmOpportunityFilters({
@@ -26,6 +29,7 @@ export function CrmOpportunityFilters({
   onRefresh,
   counts = null,
   toolsSlotRef,
+  children,
 }: Props) {
   return (
     <ListToolbar
@@ -50,6 +54,7 @@ export function CrmOpportunityFilters({
           })),
         ]}
       />
+      {children}
     </ListToolbar>
   );
 }

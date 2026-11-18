@@ -1,157 +1,143 @@
-import { useState } from "react";
-import AdvancedDataGrid from "../../AdvancedDataGrid";
-import { screenViewGridDefaults } from "../../screenViewGridLayout";
-import { ListToolbar } from "../../list-page/ListToolbar";
-import ScreenViewGroupHeader from "../../ScreenViewGroupHeader";
+import type { MutableRefObject } from "react";
+import type { GridExportActions } from "../../AdvancedDataGrid";
+import type { BuiltInScreenLayoutField } from "../../erp-types";
+import SalesDocumentGrid from "../../sales/components/SalesDocumentGrid";
+import { SalesListFooter } from "../../sales/components/SalesListFooter";
+import { formatDate } from "../../document-detail/DocumentDetailLayout";
+import { DeliveryNoteLinkTag } from "../../purchasing/purchaseDeliveryNotePanel";
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
-import { ListPagination } from "../../list-page/ListPagination";
 
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount"]);
+const CODE_FIELDS: ReadonlySet<string> = new Set(["documentNumber", "purchaseOrderCode", "purchaseReceiptCode"]);
+/** Page column (not in the tenant layout): the state derived from the receipt link. */
+const LINK_STATUS_KEY = "receiptLinkStatus";
+/** Default widths (fields without a tenant width): the list fits beside the menu at 1440 with the panel closed. */
+const COLUMN_WIDTHS: Record<string, number> = {
+  documentNumber: 150, documentDate: 100, purchaseOrderCode: 130, supplierName: 220, lineCount: 60, purchaseReceiptCode: 150,
+  [LINK_STATUS_KEY]: 140,
+};
+
+/**
+ * Delivery note list (list type, mockup 07): checkbox column, current row (click, ↑/↓) for the panel and the bar,
+ * double-click / Enter / the number link open the note. The derived tag has its own Durum column after the tenant's.
+ */
 export function DeliveryNotesListPanel({
   fields,
-  notes,
-  searchResults,
-  searchTotal,
-  searchPage,
+  rows,
+  searching,
   page,
   total,
   loading,
-  search,
-  onSearchChange,
-  onSearchApply,
-  onRefresh,
+  currentId,
+  ticked,
+  listActive,
+  exportActionsRef,
+  toolbarContainer,
+  onCurrentChange,
+  onTickedChange,
   onPageChange,
   onOpenNote,
-  onOpenOrder,
 }: {
   fields: ScreenField[];
-  notes: Note[];
-  searchResults: Note[] | null;
-  searchTotal: number;
-  searchPage: number;
+  /** The page shown: the list page or the search result page. */
+  rows: Note[];
+  searching: boolean;
   page: number;
   total: number;
   loading: boolean;
-  search: string;
-  onSearchChange: (value: string) => void;
-  /** Applies the typed search text; an empty text returns to the full list. */
-  onSearchApply: () => void;
-  onRefresh: () => void;
+  currentId: string | null;
+  ticked: number;
+  /** The list is on screen (no document or create view over it). */
+  listActive: boolean;
+  exportActionsRef: MutableRefObject<GridExportActions | null>;
+  toolbarContainer: HTMLElement | null;
+  onCurrentChange: (id: string | null) => void;
+  onTickedChange: (ids: string[]) => void;
   onPageChange: (page: number) => void;
   onOpenNote: (note: Note) => void;
-  onOpenOrder: (note: Note) => void;
 }) {
-  const isSearching = searchResults !== null;
-  const currentPage = isSearching ? searchPage : page;
-  const currentTotal = isSearching ? searchTotal : total;
-  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
-
+  const renderCell = (field: BuiltInScreenLayoutField, note: Note) => {
+    switch (field.key) {
+      case "documentNumber":
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-haspopup="dialog"
+            aria-label={`${note.documentNumber} irsaliye ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNote(note);
+            }}
+          >
+            {note.documentNumber}
+          </button>
+        );
+      case "documentDate":
+        return formatDate(note.documentDate);
+      case "purchaseOrderCode":
+        return note.purchaseOrderCode;
+      case "supplierName":
+        return note.supplierName;
+      case "lineCount":
+        return note.lineCount;
+      case "purchaseReceiptCode":
+        return note.purchaseReceiptCode ?? "—";
+      case LINK_STATUS_KEY:
+        return <DeliveryNoteLinkTag note={note} />;
+      default:
+        return null;
+    }
+  };
+  // The derived tag is its own column after the tenant's columns, so a layout that hides the receipt column keeps it.
+  const shownFields = [
+    ...(fields as BuiltInScreenLayoutField[]),
+    { key: LINK_STATUS_KEY, label: "Durum", visible: true, position: fields.length, fixed: true },
+  ];
   return (
-    <>
-    <ListToolbar
-      search={search}
-      onSearchChange={onSearchChange}
-      onSearchApply={onSearchApply}
-      searchLabel="Gelen irsaliyelerde ara"
-      searchPlaceholder="İrsaliye no, sipariş, tedarikçi veya mal kabul ara"
-      toolsSlotRef={setToolsSlot}
-      onRefresh={() => {
-        if (!loading) onRefresh();
-      }}
-    />
-    <section
-      className="panel purchase-note-list-panel list-v2-list"
-      aria-label="Gelen irsaliyeler"
-    >
-      <div className="ledger-list">
-        <AdvancedDataGrid
-          hideSearch
-          externalPagination
-          className="customer-table"
-          gridId="purchase-delivery-notes"
-          {...screenViewGridDefaults(fields)}
-          toolbarContainer={toolsSlot}
-        >
-          <thead>
-            <ScreenViewGroupHeader fields={fields} />
-            <tr>
-              {fields.map((field) => (
-                <th key={field.key}>{field.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={fields.length} className="table-empty">
-                  İrsaliyeler yükleniyor…
-                </td>
-              </tr>
-            ) : (
-              (searchResults ?? notes).map((note) => (
-                <tr key={note.id}>
-                  {fields.map((field) => (
-                    <td key={field.key}>
-                      {field.key === "documentNumber" ? (
-                        note.documentNumber
-                      ) : field.key === "documentDate" ? (
-                        note.documentDate
-                      ) : field.key === "purchaseOrderCode" ? (
-                        note.purchaseOrderCode
-                      ) : field.key === "supplierName" ? (
-                        note.supplierName
-                      ) : field.key === "lineCount" ? (
-                        note.lineCount
-                      ) : field.key === "purchaseReceiptCode" ? (
-                        note.purchaseReceiptCode ? (
-                          `Eşleşti · ${note.purchaseReceiptCode}`
-                        ) : (
-                          "Mal kabul bağlantısı yok"
-                        )
-                      ) : field.key === "actions" ? (
-                        <>
-                          <button
-                            type="button"
-                            className="row-action"
-                            onClick={() => onOpenNote(note)}
-                          >
-                            Detay
-                          </button>
-                          <button
-                            type="button"
-                            className="row-action"
-                            onClick={() => onOpenOrder(note)}
-                          >
-                            Siparişi aç
-                          </button>
-                        </>
-                      ) : null}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-            {!loading && (searchResults ?? notes).length === 0 && (
-              <tr>
-                <td colSpan={fields.length} className="table-empty">
-                  {isSearching
-                    ? "Aramanızla eşleşen irsaliye bulunamadı."
-                    : total === 0
-                      ? "Henüz gelen irsaliye yok."
-                      : "Bu sayfada kayıt yok; listeyi yenileyin."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </AdvancedDataGrid>
-      </div>
-      <ListPagination
-        page={currentPage}
-        total={currentTotal}
-        pageSize={deliveryNotePageSize}
+    <section className="list-v2-list">
+      <SalesDocumentGrid
+        gridId="purchase-delivery-notes"
+        hideExport
+        exportActionsRef={exportActionsRef}
+        fields={shownFields}
+        items={rows}
         loading={loading}
-        onPageChange={onPageChange}
+        loadingMessage="İrsaliyeler yükleniyor…"
+        emptyMessage={total === 0 ? "Henüz gelen irsaliye yok." : "Bu sayfada kayıt yok; listeyi yenileyin."}
+        search={searching ? "search" : ""}
+        searchEmptyMessage="Aramanızla eşleşen irsaliye bulunamadı."
+        toolbarContainer={toolbarContainer}
+        renderCell={renderCell}
+        ariaLabel="Gelen irsaliyeler"
+        selection={{
+          currentId,
+          onCurrentChange,
+          onTickedChange,
+          // Only while the list is on screen: a document or form over it must not show the floating bar.
+          bulkActions: listActive
+            ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void exportActionsRef.current?.exportExcel() }]
+            : undefined,
+          onOpen: (id) => {
+            const note = rows.find((item) => item.id === id);
+            if (note) onOpenNote(note);
+          },
+        }}
+        footer={
+          <SalesListFooter
+            ticked={ticked}
+            shown={rows.length}
+            total={total}
+            page={page}
+            pageSize={deliveryNotePageSize}
+            loading={loading}
+            onPageChange={onPageChange}
+          />
+        }
+        columnWidths={COLUMN_WIDTHS}
+        numberFields={NUMBER_FIELDS}
+        codeFields={CODE_FIELDS}
       />
     </section>
-    </>
   );
 }

@@ -6,7 +6,6 @@ import {
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
-import { groupBuiltInScreenFields } from "./FinanceStudioGrid";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
@@ -33,18 +32,25 @@ import { CustomerFilters } from "./customers/components/CustomerFilters";
 import { CustomerGrid } from "./customers/components/CustomerGrid";
 import { validateCustomerIdentifiers } from "./customers/identifierValidation";
 import "./list-page/list-page-v2.css";
+import "./sales/sales-list-v2.css";
+import "./customers/customers-list.css";
+import "./customers/customer-modals.css";
+import { StatusTag } from "./list-page/StatusTag";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import { useCustomerListScreen } from "./customers/useCustomerListScreen";
+import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel, customerTypeTone } from "./customers/customerLabels";
 import {
   CustomerDetailPanel,
   type CustomerDetailTab,
 } from "./customers/components/CustomerDetailPanel";
-import {
-  CustomerCountryInput,
-  CustomerLocationInput,
-  CustomerLocationMap,
-  turkeyDistrictsForProvince,
-} from "./customers/components/CustomerFormControls";
 import CustomerCreatePage from "./customers/components/CustomerCreatePage";
 import CustomerEditPage from "./customers/components/CustomerEditPage";
+import {
+  CUSTOMER_ADDRESS_FORM_ID,
+  CustomerAddressSection,
+  emptyAddressDraft,
+  type CustomerAddressDraft,
+} from "./customers/components/CustomerAddressSection";
 import type { CustomerCreatePageProps } from "./customers/components/CustomerCreatePage";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "./record-form/RecordForm";
 import "./purchasing-record-forms.css";
@@ -162,6 +168,16 @@ function customerFieldTypeLabel(dataType: string) {
 }
 
 const CUSTOMER_EDIT_REQUEST_EVENT = "nexora:customer-edit-request";
+const CUSTOMER_EDIT_SECTION_KEY = "nexora.customer-edit-section";
+const CUSTOMER_ADDRESSES_CHANGED_EVENT = "nexora:customer-addresses-changed";
+/** The panel's default address: the active default General address, else any active default (as before). */
+function defaultAddressOf(list: CustomerAddressItem[]): CustomerAddressItem | null {
+  return (
+    list.find((x) => x.isActive && x.isDefault && x.kind === "General") ??
+    list.find((x) => x.isActive && x.isDefault) ??
+    null
+  );
+}
 
 function CustomersPage({
   token,
@@ -186,6 +202,8 @@ function CustomersPage({
     role === "TenantAdmin" || role === "TenantDeveloper";
   const canManageCustomerFieldPolicy = role === "TenantAdmin";
   const [items, setItems] = useState<CustomerItem[]>([]),
+    // The search the shown `items` were loaded for (a load started before a new search may answer after it).
+    [itemsFilter, setItemsFilter] = useState<string | null>(null),
     [groups, setGroups] = useState<CustomerGroupItem[]>([]),
     [companyOptions, setCompanyOptions] = useState<CustomerCompanyOption[]>([]),
     [total, setTotal] = useState(0),
@@ -206,10 +224,6 @@ function CustomersPage({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
     null,
   );
-  const [isSmallScreen, setIsSmallScreen] = useState(
-    () => window.matchMedia("(max-width: 1280px)").matches,
-  );
-  const [hasAutoSelectedCustomer, setHasAutoSelectedCustomer] = useState(false);
   const [customerDetailTab, setCustomerDetailTab] =
     useState<CustomerDetailTab>("general");
   const [exportBusy, setExportBusy] = useState(false);
@@ -311,12 +325,27 @@ function CustomersPage({
     [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState("");
-  useEffect(() => {
-    if (!initialSearch) return;
-    setSearch(initialSearch);
-    setFilter(initialSearch);
+  // A global-search request: the text and a counter, so repeating the same search applies it (and its first-match
+  // pick) again. The prop covers the first mount; the shell's event covers a mounted (kept-alive) list.
+  const [searchRequest, setSearchRequest] = useState<{ text: string; seq: number } | null>(null);
+  const applySearchRequest = (text: string) => {
+    if (!text) return;
+    setSearch(text);
+    setFilter(text);
     setPage(1);
+    setSearchRequest((current) => ({ text, seq: (current?.seq ?? 0) + 1 }));
+  };
+  useEffect(() => {
+    applySearchRequest(initialSearch);
   }, [initialSearch]);
+  useEffect(() => {
+    const onSearch = (event: Event) => {
+      const text = (event as CustomEvent<string>).detail;
+      if (typeof text === "string") applySearchRequest(text);
+    };
+    window.addEventListener(CUSTOMER_SEARCH_REQUEST_EVENT, onSearch);
+    return () => window.removeEventListener(CUSTOMER_SEARCH_REQUEST_EVENT, onSearch);
+  }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setPage(1);
@@ -389,13 +418,11 @@ function CustomersPage({
       customerFieldValueHistoryDefinition,
       setCustomerFieldValueHistoryDefinition,
     ] = useState<CustomerCustomFieldDefinition | null>(null);
-  const [addressCustomer, setAddressCustomer] = useState<CustomerItem | null>(
-      null,
-    ),
-    [addresses, setAddresses] = useState<CustomerAddressItem[]>([]);
-  const [addressKind, setAddressKind] =
-      useState<CustomerAddressItem["kind"]>("General"),
-    [addressLabel, setAddressLabel] = useState(""),
+  // Addresses of the open card (Adresler section) and the section's new-address fields. The card's own "Adres"
+  // fields (its primary address, sent with the card) keep their separate state below.
+  const [addresses, setAddresses] = useState<CustomerAddressItem[]>([]),
+    [addressDraft, setAddressDraft] = useState<CustomerAddressDraft>(emptyAddressDraft);
+  const [addressLabel, setAddressLabel] = useState(""),
     [addressLine, setAddressLine] = useState(""),
     [addressCity, setAddressCity] = useState(""),
     [addressDistrict, setAddressDistrict] = useState(""),
@@ -478,7 +505,10 @@ function CustomersPage({
     else if (request?.kind === "prompt")
       request.resolve(typeof value === "string" ? value : null);
   }
+  // Only the latest list request may write the list: a slower, earlier one (e.g. the unfiltered first load) is dropped.
+  const loadSeq = useRef(0);
   async function load() {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError("");
     try {
@@ -493,12 +523,14 @@ function CustomersPage({
         `/api/customers/?${params.toString()}`,
         token,
       );
+      if (seq !== loadSeq.current) return;
       setItems(data.items);
+      setItemsFilter(filter);
       setTotal(data.totalCount);
     } catch (e) {
-      setError((e as Error).message);
+      if (seq === loadSeq.current) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
   async function exportCustomers(format: "csv" | "xlsx") {
@@ -529,12 +561,7 @@ function CustomersPage({
         "Cari kodu": item.code,
         Ünvan: item.name,
         "Cari grubu": item.groupName || "",
-        Tür:
-          item.type === "Customer"
-            ? "Müşteri"
-            : item.type === "Supplier"
-              ? "Tedarikçi"
-              : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel",
+        Tür: customerTypeLabel(item.type),
         Döviz: item.currencyCode,
         "Vade (gün)": item.paymentTermDays,
         "Vergi no": item.taxNumber || "",
@@ -641,25 +668,16 @@ function CustomersPage({
       setError((e as Error).message);
     }
   }
+  // Row actions live in the bar's İşlemler and the detail panel, so "actions" gets no column. Like Stok Kartları
+  // (mockup 08) the code has its own column; when the tenant hides it, the code is written under the name.
   const visibleScreenFields = useMemo(
     () =>
-    {
-      const visible = screenFields
-        .filter((field) => field.visible)
-        .sort((a, b) => a.position - b.position);
-      // The code is shown under the name, and row actions live in the detail panel,
-      // so neither gets a column of its own. The code column stays if the name is hidden.
-      const hasName = visible.some((field) => field.key === "name");
-      return visible.filter(
-        (field) => field.key !== "actions" && !(hasName && field.key === "code"),
-      );
-    },
+      screenFields
+        .filter((field) => field.visible && field.key !== "actions")
+        .sort((a, b) => a.position - b.position),
     [screenFields],
   );
-  const visibleScreenGroups = useMemo(
-    () => groupBuiltInScreenFields(visibleScreenFields),
-    [visibleScreenFields],
-  );
+  const codeColumnShown = visibleScreenFields.some((field) => field.key === "code");
   const selectedCustomer =
     items.find((item) => item.id === selectedCustomerId) ?? null;
   const openCustomerSalesAction = (page: string) => {
@@ -681,40 +699,27 @@ function CustomersPage({
       );
     }, 0);
   };
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1280px)");
-    const update = () => setIsSmallScreen(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
+  // The current row is the one the user chose (click, ↑/↓); the list never picks a first row by itself. Arriving
+  // from the global search (`initialSearch`) still shows the first match, once per search.
+  const autoSelectedRequest = useRef(0);
   useEffect(() => {
     if (loading) return;
-    if (items.length === 0) {
-      if (selectedCustomerId) setSelectedCustomerId(null);
+    if (selectedCustomerId && !items.some((item) => item.id === selectedCustomerId)) {
+      setSelectedCustomerId(null);
       return;
     }
-    if (!selectedCustomerId) {
-      if ((isSmallScreen || hasAutoSelectedCustomer) && !initialSearch) return;
-      setSelectedCustomerId(items[0].id);
-      setHasAutoSelectedCustomer(true);
-      return;
-    }
-    if (!items.some((item) => item.id === selectedCustomerId)) {
-      if (isSmallScreen) {
-        setSelectedCustomerId(null);
-        return;
-      }
+    // Only rows loaded for that search count: the list's first, unfiltered load may answer after the search was set.
+    if (
+      searchRequest &&
+      autoSelectedRequest.current !== searchRequest.seq &&
+      itemsFilter !== null &&
+      itemsFilter.trim() === searchRequest.text.trim() &&
+      items.length
+    ) {
+      autoSelectedRequest.current = searchRequest.seq;
       setSelectedCustomerId(items[0].id);
     }
-  }, [
-    items,
-    loading,
-    selectedCustomerId,
-    isSmallScreen,
-    hasAutoSelectedCustomer,
-    initialSearch,
-  ]);
+  }, [items, itemsFilter, loading, selectedCustomerId, searchRequest]);
   useEffect(() => {
     void load();
     void loadGroups();
@@ -795,6 +800,16 @@ function CustomersPage({
   useEffect(() => {
     void loadCustomerDetailLayout();
   }, [token]);
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      const { customerId, addresses: list } = (event as CustomEvent<{ customerId: string; addresses: CustomerAddressItem[] }>).detail;
+      if (customerId !== selectedCustomerId) return;
+      setCustomerDetailAddress(defaultAddressOf(list));
+      setCustomerDetailAddressLoaded(true);
+    };
+    window.addEventListener(CUSTOMER_ADDRESSES_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(CUSTOMER_ADDRESSES_CHANGED_EVENT, onChanged);
+  }, [selectedCustomerId]);
   useEffect(() => {
     let cancelled = false;
     setCustomerDetailAddress(null);
@@ -1043,9 +1058,11 @@ function CustomersPage({
       setBusy(false);
     }
   }
-  async function openEditCustomer(item: CustomerItem, openPage = true) {
+  async function openEditCustomer(item: CustomerItem, openPage = true, section?: "addresses" | "custom") {
     if (openPage) {
       sessionStorage.setItem("nexora.customer-edit-id", item.id);
+      if (section) sessionStorage.setItem(CUSTOMER_EDIT_SECTION_KEY, section);
+      else sessionStorage.removeItem(CUSTOMER_EDIT_SECTION_KEY);
       onNavigate("customer-edit");
       // An edit tab that is already open stays mounted; tell it to load the newly chosen account.
       window.dispatchEvent(new CustomEvent(CUSTOMER_EDIT_REQUEST_EVENT));
@@ -1084,6 +1101,8 @@ function CustomersPage({
         api<CustomerCustomFieldDefinition[]>("/api/customers/custom-fields", token),
         api<CustomerCustomFieldValue[]>(`/api/customers/${item.id}/custom-fields`, token),
       ]);
+      setAddresses(existing);
+      setAddressDraft(emptyAddressDraft);
       const primary = existing.find(
         (x) => x.kind === "General" && x.isDefault && x.isActive,
       );
@@ -1105,6 +1124,10 @@ function CustomersPage({
       setError((e as Error).message);
     }
     setEditingCustomer(item);
+    // Opened from the list's Adresler / Özel alanlar: start on that section of the card.
+    const startSection = sessionStorage.getItem(CUSTOMER_EDIT_SECTION_KEY);
+    sessionStorage.removeItem(CUSTOMER_EDIT_SECTION_KEY);
+    if (startSection) setCustomerCreateTab(startSection);
     setModal(true);
   }
   async function saveCustomerEdit(e: React.FormEvent) {
@@ -1551,79 +1574,51 @@ function CustomersPage({
       setBusy(false);
     }
   }
-  async function openAddresses(item: CustomerItem) {
-    setError("");
-    setAddressKind("General");
-    setAddressLabel("");
-    setAddressLine("");
-    setAddressCity("");
-    setAddressDistrict("");
-    setAddressPostalCode("");
-    setAddressCountry("TR");
-    setAddressLatitude(null);
-    setAddressLongitude(null);
-    setAddressCustomer(item);
-    try {
-      setAddresses(
-        await api<CustomerAddressItem[]>(
-          `/api/customers/${item.id}/addresses`,
-          token,
-        ),
-      );
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  /**
+   * The card (its own route) tells the list that the account's addresses changed, so the list panel's default
+   * address follows (the base window updated it in place).
+   */
+  function announceAddresses(customerId: string, list: CustomerAddressItem[]) {
+    window.dispatchEvent(new CustomEvent(CUSTOMER_ADDRESSES_CHANGED_EVENT, { detail: { customerId, addresses: list } }));
   }
-  async function createAddress(e: React.FormEvent) {
+  /** Adds an address to the open card (same request as the former Adresler window). */
+  async function createSectionAddress(e: React.FormEvent) {
     e.preventDefault();
-    if (!addressCustomer) return;
+    if (!editingCustomer) return;
+    const fields = addressDraft;
     setBusy(true);
     setError("");
     try {
       const isDefault = !addresses.some(
-        (x) => x.isActive && x.kind === addressKind && x.isDefault,
+        (x) => x.isActive && x.kind === fields.kind && x.isDefault,
       );
       const address = await api<CustomerAddressItem>(
-        `/api/customers/${addressCustomer.id}/addresses`,
+        `/api/customers/${editingCustomer.id}/addresses`,
         token,
         {
           method: "POST",
           body: JSON.stringify({
-            kind: addressKind,
-            label: addressLabel,
-            addressLine,
-            city: addressCity,
-            district: addressDistrict || null,
-            postalCode: addressPostalCode || null,
-            countryCode: addressCountry,
+            kind: fields.kind,
+            label: fields.label,
+            addressLine: fields.addressLine,
+            city: fields.city,
+            district: fields.district || null,
+            postalCode: fields.postalCode || null,
+            countryCode: fields.countryCode,
             isDefault,
-            latitude: addressLatitude,
-            longitude: addressLongitude,
+            latitude: fields.latitude,
+            longitude: fields.longitude,
           }),
         },
       );
       const nextAddresses = [
-        ...addresses.filter(
-          (x) => !(address.isDefault && x.kind === address.kind),
-        ),
+        ...addresses.filter((x) => !(address.isDefault && x.kind === address.kind)),
         address,
       ];
       setAddresses(nextAddresses);
-      setCustomerDetailAddress(
-        nextAddresses.find(
-          (x) => x.isActive && x.isDefault && x.kind === "General",
-        ) ??
-          nextAddresses.find((x) => x.isActive && x.isDefault) ??
-          null,
-      );
-      setCustomerDetailAddressLoaded(true);
-      setAddressLabel("");
-      setAddressLine("");
-      setAddressCity("");
-      setAddressDistrict("");
-      setAddressPostalCode("");
-      setAddressLatitude(null);
-      setAddressLongitude(null);
+      announceAddresses(editingCustomer.id, nextAddresses);
+      // Kind and country stay for the next address, as in the former window.
+      setAddressDraft({ ...emptyAddressDraft, kind: fields.kind, countryCode: fields.countryCode });
       setNotice("Adres kaydedildi.");
     } catch (e) {
       setError((e as Error).message);
@@ -1632,12 +1627,12 @@ function CustomersPage({
     }
   }
   async function toggleAddressActive(address: CustomerAddressItem) {
-    if (!addressCustomer) return;
+    if (!editingCustomer) return;
     setBusy(true);
     setError("");
     try {
       const updated = await api<CustomerAddressItem>(
-        `/api/customers/${addressCustomer.id}/addresses/${address.id}`,
+        `/api/customers/${editingCustomer.id}/addresses/${address.id}`,
         token,
         {
           method: "PUT",
@@ -1648,18 +1643,9 @@ function CustomersPage({
           }),
         },
       );
-      const nextAddresses = addresses.map((x) =>
-        x.id === address.id ? updated : x,
-      );
+      const nextAddresses = addresses.map((x) => (x.id === address.id ? updated : x));
       setAddresses(nextAddresses);
-      setCustomerDetailAddress(
-        nextAddresses.find(
-          (x) => x.isActive && x.isDefault && x.kind === "General",
-        ) ??
-          nextAddresses.find((x) => x.isActive && x.isDefault) ??
-          null,
-      );
-      setCustomerDetailAddressLoaded(true);
+      announceAddresses(editingCustomer.id, nextAddresses);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -1886,38 +1872,37 @@ function CustomersPage({
     if (field.key.startsWith("custom:")) return item.customFields?.[field.key] || "—";
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return item.code;
       case "name":
         return (
           <>
-            <b className="customer-name">{item.name}</b>
-            <small className="cell-subtitle list-v2-name-code">{item.code}</small>
+            <span className="customer-name-line">
+              <span className="customer-name">{item.name}</span>
+              {item.isEInvoiceRegistered && <StatusTag tone="ok">e-Fatura</StatusTag>}
+            </span>
+            {!codeColumnShown && <small className="cell-subtitle list-v2-name-code">{item.code}</small>}
           </>
         );
       case "groupName":
         return item.groupName || <span className="list-v2-unset">Grup atanmamış</span>;
       case "type":
-        return (
-          <span className={`party-pill ${item.type.toLowerCase()}`}>
-            {item.type === "Customer"
-              ? "Müşteri"
-              : item.type === "Supplier"
-                ? "Tedarikçi"
-                : item.type === "Both" ? "Müşteri & Tedarikçi" : item.type === "Dealer" ? "Bayi" : "Personel"}
-          </span>
-        );
+        return <StatusTag tone={customerTypeTone(item.type)}>{customerTypeLabel(item.type)}</StatusTag>;
       case "currencyCode":
         return item.currencyCode;
       case "paymentTermDays":
-        return `${item.paymentTermDays} gün`;
+        return (
+          <>
+            <span>{item.paymentTermDays}</span> <span>gün</span>
+          </>
+        );
       case "taxNumber":
-        return <span className="tax-cell">{item.taxNumber || "—"}</span>;
+        return item.taxNumber || <span className="list-v2-unset">—</span>;
       case "identityNumber":
         return item.identityNumber || "—";
       case "taxOffice":
         return item.taxOffice || "—";
       case "riskLimit":
-        return item.riskLimit == null ? "—" : item.riskLimit.toLocaleString("tr-TR");
+        return item.riskLimit == null ? <span className="list-v2-unset">—</span> : item.riskLimit.toLocaleString("tr-TR");
       case "parentCompanyName":
         return item.parentCompanyName || "—";
       case "subsidiaryCount":
@@ -1925,16 +1910,41 @@ function CustomersPage({
       case "createdAt":
         return new Date(item.createdAt).toLocaleDateString("tr-TR");
       case "status":
-        return (
-          <span className={`active-pill ${item.isActive ? "yes" : "no"}`}>
-            <i />
-            {item.isActive ? "Aktif" : "Pasif"}
-          </span>
-        );
+        return <StatusTag tone={item.isActive ? "ok" : "off"}>{item.isActive ? "Aktif" : "Pasif"}</StatusTag>;
       default:
         return "—";
     }
   }
+  const list = useCustomerListScreen({
+    active: !modal && !initialCreate && !initialEdit,
+    token,
+    isAdmin: role === "TenantAdmin",
+    busy,
+    exportBusy,
+    items,
+    total,
+    page,
+    pageSize: 25,
+    loading,
+    counts: directoryMetrics,
+    search: filter,
+    currentId: selectedCustomerId,
+    onCurrentChange: setSelectedCustomerId,
+    onPageChange: setPage,
+    onCreate: () => onNavigate("customer-create"),
+    onOpen: (item) => void openEditCustomer(item),
+    onExport: (format) => void exportCustomers(format),
+    onGroups: () => openGroups(),
+    onImport: () => setImportOpen(true),
+    onToggleActive: (item) => void toggleActive(item),
+    onSalesAction: (target) => openCustomerSalesAction(target),
+    onLedger: (item) => void openLedger(item),
+    onAddresses: (item) => void openEditCustomer(item, true, "addresses"),
+    onFields: (item) => void openEditCustomer(item, true, "custom"),
+    onFieldDefinitions: (item) => void openCustomerFields(item),
+    onInvoices: (item) => setSalesInvoicesCustomer(item),
+    onPurchaseInvoices: (item) => onOpenPurchaseInvoices({ id: item.id, name: item.name }),
+  });
   const customerFormProps: CustomerCreatePageProps = {
     busy,
     error,
@@ -2019,11 +2029,37 @@ function CustomersPage({
       setNotice("");
     },
   };
+  if (initialEdit && editingCustomer)
+    customerFormProps.extraSections = [
+      {
+        key: "addresses",
+        label: "Adresler",
+        count: addresses.length,
+        content: (
+          <CustomerAddressSection
+            addresses={addresses}
+            busy={busy}
+            draft={addressDraft}
+            onDraftChange={setAddressDraft}
+            onToggleActive={(address) => void toggleAddressActive(address)}
+            locationDefinitions={locationDefinitions}
+          />
+        ),
+      },
+    ];
   const customerCreatePage = <CustomerCreatePage {...customerFormProps} />;
   const customerEditPage = <CustomerEditPage {...customerFormProps} />;
   if (initialCreate || initialEdit)
     return modal ? (
-      initialEdit ? customerEditPage : customerCreatePage
+      initialEdit ? (
+        <>
+          {customerEditPage}
+          {/* The Adresler section's new-address fields submit this form (forms cannot nest in the card's form). */}
+          <form id={CUSTOMER_ADDRESS_FORM_ID} hidden onSubmit={(event) => void createSectionAddress(event)} />
+        </>
+      ) : (
+        customerCreatePage
+      )
     ) : error ? (
       <div className="customer-page-main">
         <div className="alert inline-alert" role="alert">
@@ -2039,40 +2075,37 @@ function CustomersPage({
     ) : (
       <div className="loading-state">Cari kartı formu yükleniyor…</div>
     );
+  const openGroups = () => {
+    setEditingGroup(null);
+    setGroupCode("");
+    setGroupName("");
+    setGroupError("");
+    setGroupModal(true);
+  };
   return modal ? (
     customerCreatePage
   ) : (
     <>
       <div className="customer-page-main list-v2">
+      <PageCommandsSlot commands={list.commands} />
       <CustomerDirectoryHeader
-        canImport={role === "TenantAdmin"}
-        exportBusy={exportBusy}
-        onImport={() => setImportOpen(true)}
-        onExport={(format) => void exportCustomers(format)}
-        onGroups={() => {
-          setEditingGroup(null);
-          setGroupCode("");
-          setGroupName("");
-          setGroupError("");
-          setGroupModal(true);
-        }}
-        onCreate={() => onNavigate("customer-create")}
         title={pageSettings.title}
         description={pageSettings.description}
         total={directoryMetrics?.total ?? null}
       />
+      {list.summary}
       {error && (
-        <div className="alert inline-alert">
+        <div className="alert inline-alert" role="alert">
           {error}
-          <button onClick={() => setError("")}>
+          <button type="button" aria-label="Kapat" onClick={() => setError("")}>
             <X size={15} />
           </button>
         </div>
       )}
       {notice && (
-        <div className="notice">
+        <div className="notice" role="status">
           {notice}
-          <button onClick={() => setNotice("")}>
+          <button type="button" aria-label="Kapat" onClick={() => setNotice("")}>
             <X size={15} />
           </button>
         </div>
@@ -2104,60 +2137,41 @@ function CustomersPage({
         applyLabel={pageSettings.applyLabel}
         showTypeFilter={pageSettings.showTypeFilter}
         showStatusFilter={pageSettings.showStatusFilter}
-      />
-      <div className="customer-directory-layout">
-        <div className="erp-workbench customer-workbench">
-          <CustomerGrid
-            items={items}
-            fields={visibleScreenFields}
-            groups={visibleScreenGroups}
-            total={total}
-            page={page}
-            loading={loading}
-            filter={filter}
-            selectedCustomerId={selectedCustomer?.id ?? null}
-            onPageChange={setPage}
-            onSelect={(item) => setSelectedCustomerId(item.id)}
-            renderCell={renderScreenCell}
-            toolbarContainer={gridToolsSlot}
-          />
-        </div>
-        <CustomerDetailPanel
-          customer={selectedCustomer}
-          isSmallScreen={isSmallScreen}
-          tab={customerDetailTab}
-          fields={visibleCustomerDetailFields}
-          address={customerDetailAddress}
-          addressLoaded={customerDetailAddressLoaded}
-          onTabChange={setCustomerDetailTab}
-          onClose={() => setSelectedCustomerId(null)}
-          onBackdropClose={() => setSelectedCustomerId(null)}
-          onEdit={() =>
-            selectedCustomer && void openEditCustomer(selectedCustomer)
-          }
-          onInvoices={() =>
-            selectedCustomer && setSalesInvoicesCustomer(selectedCustomer)
-          }
-          onLedger={() => selectedCustomer && void openLedger(selectedCustomer)}
-          onNewOrder={() => openCustomerSalesAction("sales-order-create")}
-          onNewQuote={() => openCustomerSalesAction("sales-quote-create")}
-          onNewDelivery={() => openCustomerSalesAction("sales-delivery-create")}
-          onNewInvoice={() => openCustomerSalesAction("sales-invoice-create")}
-          onAddresses={() =>
-            selectedCustomer && void openAddresses(selectedCustomer)
-          }
-          onFields={() =>
-            selectedCustomer && void openCustomerFields(selectedCustomer)
-          }
-          onPurchaseInvoices={() =>
-            selectedCustomer &&
-            onOpenPurchaseInvoices({ id: selectedCustomer.id, name: selectedCustomer.name })
-          }
-          onToggleActive={() =>
-            selectedCustomer && void toggleActive(selectedCustomer)
-          }
-          busy={busy}
+      >
+        {list.panelToggle}
+      </CustomerFilters>
+      <div ref={list.panelRootRef} className={`sales-list-body customer-list-body${list.panelOpen ? " has-detail" : ""}`}>
+        <CustomerGrid
+          items={items}
+          fields={visibleScreenFields}
+          loading={loading}
+          filter={filter}
+          toolbarContainer={gridToolsSlot}
+          exportActionsRef={list.exportRef}
+          selection={list.selection}
+          footer={list.footer}
+          renderCell={renderScreenCell}
         />
+        {list.renderPanel((customer) => (
+          <CustomerDetailPanel
+            customer={customer}
+            tab={customerDetailTab}
+            fields={visibleCustomerDetailFields}
+            address={customerDetailAddress}
+            addressLoaded={customerDetailAddressLoaded}
+            balance={list.balance}
+            balanceError={list.balanceError}
+            onTabChange={setCustomerDetailTab}
+            onOpen={() => void openEditCustomer(customer)}
+            onClose={list.closePanel}
+            takeFocus={list.takeFocus}
+            onInvoices={() => setSalesInvoicesCustomer(customer)}
+            onPurchaseInvoices={() => onOpenPurchaseInvoices({ id: customer.id, name: customer.name })}
+            onLedger={() => void openLedger(customer)}
+            onAddresses={() => void openEditCustomer(customer, true, "addresses")}
+            onFields={() => void openEditCustomer(customer, true, "custom")}
+          />
+        ))}
       </div>
       </div>
       {fieldCustomer && (
@@ -2167,7 +2181,7 @@ function CustomersPage({
             if (e.target === e.currentTarget && !busy) setFieldCustomer(null);
           }}
         >
-          <div className="modal customer-fields-modal">
+          <div className="modal customer-fields-modal" role="dialog" aria-modal="true" aria-label="Cari Özel Alanları">
             <RecordFormPage
               variant="dialog"
               className="prf-flush"
@@ -2643,7 +2657,7 @@ function CustomersPage({
             if (e.target === e.currentTarget) setGroupModal(false);
           }}
         >
-          <div className="modal group-modal">
+          <div className="modal group-modal" role="dialog" aria-modal="true" aria-label="Cari grupları">
             <div className="modal-head">
               <div>
                 <p className="eyebrow">CARİ YÖNETİMİ</p>
@@ -2672,14 +2686,10 @@ function CustomersPage({
             <div className="group-list">
               {groups.map((g) => (
                 <article className="group-row" key={g.id}>
-                  <div className="group-mark">
-                    {g.name.slice(0, 1).toUpperCase()}
-                  </div>
+                  <span className="nx-code group-code">{g.code}</span>
                   <div className="group-info">
-                    <b>{g.name}</b>
-                    <small>
-                      {g.code} · {g.isActive ? "Aktif" : "Pasif"}
-                    </small>
+                    <span>{g.name}</span>
+                    <StatusTag tone={g.isActive ? "ok" : "off"}>{g.isActive ? "Aktif" : "Pasif"}</StatusTag>
                   </div>
                   <div className="group-actions">
                     <button
@@ -2765,185 +2775,6 @@ function CustomersPage({
                   />
                 </label>
               </RecordFormGroup>
-            </RecordFormPage>
-          </div>
-        </div>
-      )}
-      {addressCustomer && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setAddressCustomer(null);
-          }}
-        >
-          <div
-            className="modal customer-address-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="customer-address-title"
-          >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">{addressCustomer.code}</p>
-                <h2 id="customer-address-title">
-                  {addressCustomer.name} · Adresler
-                </h2>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Kapat"
-                onClick={() => setAddressCustomer(null)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            <div className="address-list">
-              {addresses.map((a) => (
-                <div
-                  className={`address-row ${a.isActive ? "" : "inactive"}`}
-                  key={a.id}
-                >
-                  <div>
-                    <b>
-                      {a.label}
-                      {a.isDefault ? " · Varsayılan" : ""}
-                    </b>
-                    <small>
-                      {a.addressLine}, {a.district ? `${a.district}, ` : ""}
-                      {a.city} · {a.countryCode}
-                    </small>
-                  </div>
-                  <div>
-                    <span>
-                      {a.kind === "Billing"
-                        ? "Fatura"
-                        : a.kind === "Delivery"
-                          ? "Teslimat"
-                          : "Genel"}
-                    </span>
-                    <button
-                      className="row-action"
-                      disabled={busy}
-                      onClick={() => void toggleAddressActive(a)}
-                    >
-                      {a.isActive ? "Pasife al" : "Etkinleştir"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {addresses.length === 0 && (
-                <p className="muted">Bu cari için henüz adres yok.</p>
-              )}
-            </div>
-            <RecordFormPage
-              variant="dialog"
-              className="prf-embedded"
-              title="Yeni Adres"
-              mode="create"
-              busy={busy}
-              saveLabel="Adres ekle"
-              onSubmit={createAddress}
-              onCancel={() => setAddressCustomer(null)}
-              status={<span>Varsayılan adres ilk kayıtta atanır.</span>}
-            >
-              <RecordFormGroup title="Adres Kimliği" bodyClassName="rf-identity prf-identity-code-name">
-                <label>
-                  Adres türü
-                  <select
-                    value={addressKind}
-                    onChange={(e) =>
-                      setAddressKind(
-                        e.target.value as CustomerAddressItem["kind"],
-                      )
-                    }
-                  >
-                    <option value="General">Genel</option>
-                    <option value="Billing">Fatura</option>
-                    <option value="Delivery">Teslimat</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Adres etiketi <RequiredMark /></span>
-                  <input
-                    className="rf-must"
-                    value={addressLabel}
-                    onChange={(e) => setAddressLabel(e.target.value)}
-                    required
-                    maxLength={80}
-                    placeholder="Merkez ofis"
-                  />
-                </label>
-              </RecordFormGroup>
-              <RecordFormGroup title="Adres">
-              <label>
-                <span>Adres <RequiredMark /></span>
-                <input
-                  className="rf-must"
-                  value={addressLine}
-                  onChange={(e) => setAddressLine(e.target.value)}
-                  required
-                  maxLength={400}
-                />
-              </label>
-              <div className="rf-pair">
-                <CustomerLocationInput
-                  id="customer-address-province"
-                  label="İl"
-                  value={addressCity}
-                  options={
-                    addressCountry === "TR" ? locationDefinitions.provinces : []
-                  }
-                  required
-                  optional={false}
-                  onChange={(value) => {
-                    setAddressCity(value);
-                    setAddressDistrict("");
-                  }}
-                />
-                <CustomerLocationInput
-                  id="customer-address-district"
-                  label="İlçe"
-                  value={addressDistrict}
-                  options={
-                    addressCountry === "TR"
-                      ? turkeyDistrictsForProvince(
-                          addressCity,
-                          locationDefinitions.provinces,
-                          locationDefinitions.districts,
-                        )
-                      : []
-                  }
-                  onChange={setAddressDistrict}
-                />
-              </div>
-              <div className="rf-pair">
-                <label>
-                  Posta kodu
-                  <input
-                    value={addressPostalCode}
-                    onChange={(e) => setAddressPostalCode(e.target.value)}
-                    maxLength={20}
-                  />
-                </label>
-                <CustomerCountryInput
-                  value={addressCountry}
-                  onChange={(value) => {
-                    setAddressCountry(value);
-                    setAddressCity("");
-                    setAddressDistrict("");
-                  }}
-                />
-              </div>
-              </RecordFormGroup>
-              <CustomerLocationMap
-                latitude={addressLatitude}
-                longitude={addressLongitude}
-                onChange={(latitude, longitude) => {
-                  setAddressLatitude(latitude);
-                  setAddressLongitude(longitude);
-                }}
-              />
             </RecordFormPage>
           </div>
         </div>
@@ -3189,7 +3020,7 @@ function CustomersPage({
             </div>
             <div className="ledger-list">
               <AdvancedDataGrid
-                className="customer-table"
+                className="customer-table customer-ledger-modal-grid"
                 gridId="customer-detail-movements"
                 {...screenViewGridDefaults(visibleMovementFields)}
                 externalPagination
@@ -3199,7 +3030,9 @@ function CustomersPage({
                 <thead>
                   <tr>
                     {visibleMovementFields.map((field) => (
-                      <th key={field.key}>{field.label}</th>
+                      <th key={field.key} className={field.key === "amount" || field.key === "balance" ? "nx-num" : undefined}>
+                        {field.label}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -3207,15 +3040,11 @@ function CustomersPage({
                   {pagedStatementItems.map((item) => (
                     <tr key={item.id}>
                       {visibleMovementFields.map((field) => (
-                        <td key={field.key}>
+                        <td key={field.key} className={field.key === "amount" || field.key === "balance" ? "nx-num" : undefined}>
                           {field.key === "entryDate" ? (
                             item.entryDate.split("-").reverse().join(".")
                           ) : field.key === "direction" ? (
-                            <span
-                              className={`party-pill ${item.direction === "Debit" ? "" : "supplier"}`}
-                            >
-                              {item.direction === "Debit" ? "Borç" : "Alacak"}
-                            </span>
+                            item.direction === "Debit" ? "Borç" : "Alacak"
                           ) : field.key === "description" ? (
                             <>
                               {item.description}

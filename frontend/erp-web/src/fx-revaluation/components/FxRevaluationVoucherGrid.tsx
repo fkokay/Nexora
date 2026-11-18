@@ -9,6 +9,7 @@ export default function FxRevaluationVoucherGrid({
   toolbarContainer,
   money,
   onOpen,
+  compact = false,
 }: FxRevaluationVoucherGridProps) {
   return (
     <div className="ledger-list">
@@ -17,6 +18,8 @@ export default function FxRevaluationVoucherGrid({
         screenKey="finance-fx-revaluations"
         defaults={financeGridDefaults["finance-fx-revaluations"]}
         hideSearch
+        hideExport={compact}
+        externalPagination={compact}
         toolbarContainer={toolbarContainer}
       >
         <table className="customer-table">
@@ -25,8 +28,8 @@ export default function FxRevaluationVoucherGrid({
               <th>Fiş</th>
               <th>Dönem sonu</th>
               <th>Döviz kalemi</th>
-              <th>Borç</th>
-              <th>Alacak</th>
+              <th className={compact ? "nx-num" : undefined}>Borç</th>
+              <th className={compact ? "nx-num" : undefined}>Alacak</th>
               <th></th>
             </tr>
           </thead>
@@ -34,12 +37,18 @@ export default function FxRevaluationVoucherGrid({
             {vouchers.map((voucher) => (
               <tr key={voucher.id}>
                 <td>
-                  <span className="customer-code">{voucher.code}</span>
+                  {compact ? (
+                    <button type="button" className="erp-link-button customer-code" onClick={() => onOpen(voucher.id)}>
+                      {voucher.code}
+                    </button>
+                  ) : (
+                    <span className="customer-code">{voucher.code}</span>
+                  )}
                 </td>
                 <td>{voucher.asOfDate.split("-").reverse().join(".")}</td>
                 <td>{voucher.lineCount}</td>
-                <td>{money(voucher.totalDebit, voucher.baseCurrencyCode)}</td>
-                <td>{money(voucher.totalCredit, voucher.baseCurrencyCode)}</td>
+                <td className={compact ? "nx-num" : undefined}>{money(voucher.totalDebit, voucher.baseCurrencyCode)}</td>
+                <td className={compact ? "nx-num" : undefined}>{money(voucher.totalCredit, voucher.baseCurrencyCode)}</td>
                 <td>
                   <button
                     className="row-action"

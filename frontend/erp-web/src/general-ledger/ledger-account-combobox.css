@@ -1,0 +1,34 @@
+/* Ledger account type-ahead (LedgerAccountCombobox): used by the voucher lines and the account mappings. */
+#root .gl-account-combobox { position: relative; min-width: 0; }
+#root .gl-account-options {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 260px;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-radius-card);
+  background: var(--nx-surface);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 18%, transparent);
+}
+#root .gl-account-options li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--nx-radius-control);
+  color: var(--nx-text);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+#root .gl-account-options li b { flex: 0 0 auto; min-width: 48px; font-family: var(--nx-font-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
+#root .gl-account-options li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .gl-account-options li.is-active { background: var(--nx-primary-soft); }
+#root .gl-account-options li.is-selected b { color: var(--nx-primary-strong); }
+#root .gl-account-options li.gl-account-options-empty { color: var(--nx-muted); cursor: default; }

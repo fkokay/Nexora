@@ -1,125 +1,59 @@
 /*
- * Yevmiye defteri (finance-journal-ledger): entry grid | "Seçili fiş" side panel.
- * Class names avoid "-panel/-card/-badge/-chip/-dialog": global-components.css restyles those.
+ * Yevmiye Defterleri (finance-journal-ledger, mockup 09): list type A on the shared kit (list-page, sales list body,
+ * sales detail panel). Only the page rhythm and the cells the kit does not draw are set here; colours are --nx-*.
+ * Class names avoid "-panel/-card/-badge/-chip/-dialog/-tag": global-components.css restyles those.
  */
-#root .general-ledger-panel.list-v2 .gljl-layout {
+
+/* Header → bar → cards → toolbar → list: the kit's 12px rhythm on the page canvas (no outer frame). */
+#root .general-ledger-panel.general-ledger-view-journal-ledger.list-v2 {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  align-items: start;
-  gap: 14px;
-}
-#root .general-ledger-panel.list-v2 .gljl-layout > .ledger-list { min-width: 0; }
-#root .general-ledger-panel.list-v2 .gljl-code::before {
-  content: attr(data-short);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-#root .general-ledger-panel.list-v2 .gljl .gljl-amount {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-#root .general-ledger-panel.list-v2 .gljl th.gljl-amount .advanced-grid-heading { justify-content: flex-end; }
-#root .general-ledger-panel.list-v2 .gljl-source {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  gap: 12px;
   min-width: 0;
 }
-#root .general-ledger-panel.list-v2 .gljl-source small {
-  min-width: 0;
+/* The ledger root is named "*-panel": the shell's name rules give it a white 12px surface. Here it is only the page. */
+#root .app-shell .general-ledger-panel.general-ledger-view-journal-ledger.list-v2 {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#root .general-ledger-panel.general-ledger-view-journal-ledger.list-v2 > :is(.error-banner, .notice) { margin: 0; }
+
+/* Source chips filter the loaded page only: a visible "Kaynak (bu sayfa):" label stays with them. */
+#root .general-ledger-panel.list-v2 .gljl-source-filter { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+#root .general-ledger-panel.list-v2 .gljl-source-filter-label { color: var(--nx-muted); font-size: 12px; white-space: nowrap; }
+
+/* Fiş number: a link that opens the entry; long legacy codes end in an ellipsis (the title has the full code). */
+#root .general-ledger-panel.list-v2 .gljl-code {
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
-  color: var(--lv2-muted);
-  font-size: 12px;
   text-overflow: ellipsis;
+  vertical-align: bottom;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .gljl-src-tag {
-  flex: 0 0 auto;
-  padding: 1px 8px;
-  border: 1px solid #d5e1ee;
-  border-radius: 10px;
-  background: #f1f6fb;
-  color: #1f4f7f;
-  font-size: 11.5px;
-  font-weight: 600;
+#root .general-ledger-panel.list-v2 .gljl-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
   white-space: nowrap;
 }
-#root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: color-mix(in srgb, var(--nx-primary) 19%, var(--nx-surface)); background: color-mix(in srgb, var(--nx-primary) 6%, var(--nx-surface)); color: var(--nx-primary-strong); }
-#root .general-ledger-panel.list-v2 .gljl-flag {
-  flex: 0 0 auto;
-  color: var(--lv2-muted);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-#root .general-ledger-panel.list-v2 tr.gljl-row { cursor: pointer; }
-#root .general-ledger-panel.list-v2 tr.gljl-row:focus-visible { outline: 2px solid #1769aa; outline-offset: -2px; }
-#root .general-ledger-panel.list-v2 tr.gljl-row.is-selected > td,
-#root .general-ledger-panel.list-v2 tr.gljl-row.is-selected:hover > td { background: #eaf2fb; }
-#root .general-ledger-panel.list-v2 tr.gljl-row.is-selected > td:first-child { box-shadow: inset 3px 0 0 #1769aa; }
-
-#root .general-ledger-panel.list-v2 .gljl-side {
-  position: sticky;
-  top: 12px;
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 16px;
-  border: 1px solid #dfe5ee;
-  border-radius: 12px;
-  background: #fff;
-}
-#root .app-shell .general-ledger-panel.list-v2 .gljl-side h2 {
-  margin: 2px 0 0;
-  overflow-wrap: anywhere;
-  font-size: 16px !important;
-}
-#root .general-ledger-panel.list-v2 .gljl-side-meta { display: block; margin-top: 3px; color: var(--lv2-muted); font-size: 12px; }
-#root .general-ledger-panel.list-v2 .gljl-lines {
-  width: 100%;
-  margin: 12px 0 0;
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 12.5px;
-}
-#root .general-ledger-panel.list-v2 .gljl-lines :is(th, td) {
-  padding: 6px 3px;
-  border: 0;
-  border-bottom: 1px solid #edf1f6;
-  background: transparent;
-  color: #172b45;
+#root .general-ledger-panel.list-v2 .gljl-muted { color: var(--nx-muted); }
+#root .general-ledger-panel.list-v2 .gljl-foot-totals b {
+  color: var(--nx-text);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
-  text-align: right;
-  vertical-align: top;
 }
-#root .general-ledger-panel.list-v2 .gljl-lines thead th { color: #687b92; font-size: 11.5px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .gljl-lines :is(th, td):first-child { width: 46%; text-align: left; }
-#root .general-ledger-panel.list-v2 .gljl-lines td:first-child b { display: block; }
-#root .general-ledger-panel.list-v2 .gljl-lines td:first-child small { display: block; color: #687b92; font-size: 11.5px; overflow-wrap: anywhere; }
-#root .general-ledger-panel.list-v2 .gljl-lines tfoot :is(th, td) { border-bottom: 0; font-weight: 700; }
-#root .general-ledger-panel.list-v2 .gljl-facts { display: grid; gap: 8px; margin: 12px 0 0; }
-#root .general-ledger-panel.list-v2 .gljl-facts dt { color: #687b92; font-size: 11.5px; font-weight: 600; }
-#root .general-ledger-panel.list-v2 .gljl-facts dd { margin: 1px 0 0; color: #172b45; font-size: 12.5px; overflow-wrap: anywhere; }
-#root .app-shell .general-ledger-panel.list-v2 .gljl-side-action {
-  width: 100%;
-  min-height: 36px;
-  margin: 12px 0 0;
-  justify-content: center;
-}
-#root .general-ledger-panel.list-v2 .gljl-side-note { margin: 10px 0 0; color: #687b92; font-size: 11.5px; line-height: 1.45; }
-#root .general-ledger-panel.list-v2 .gljl-side-empty { margin: 0; padding: 22px 0; color: #687b92; font-size: 13px; text-align: center; }
 
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-side { border-color: var(--erp-border); background: var(--erp-surface); }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-lines :is(th, td),
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-facts dd { border-color: var(--erp-border); color: var(--erp-text); }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 :is(.gljl-lines thead th, .gljl-lines td:first-child small, .gljl-facts dt, .gljl-side-note, .gljl-side-empty) { color: var(--erp-text-muted); }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-src-tag { border-color: #2f4a69; background: #1b2b40; color: #9cc3ec; }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 .gljl-src-tag.is-manual { border-color: var(--nx-primary-soft); background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.gljl-row.is-selected > td,
-html[data-theme="dark"] #root .general-ledger-panel.list-v2 tr.gljl-row.is-selected:hover > td { background: #1f3350 !important; }
-
-@media (max-width: 1099px) {
-  #root .general-ledger-panel.list-v2 .gljl-layout { grid-template-columns: minmax(0, 1fr); }
-  #root .general-ledger-panel.list-v2 .gljl-side { position: static; }
+/* One-line toolbar at 1440 (as Satış Teklifler): tighter gaps, compact date inputs; narrower screens wrap (kit rule). */
+#root .general-ledger-view-journal-ledger .list-v2-toolbar { column-gap: 8px; }
+#root .general-ledger-view-journal-ledger .list-v2-toolbar .list-v2-chips { gap: 4px; }
+#root .general-ledger-view-journal-ledger .gljl-date-range { display: inline-flex; align-items: center; gap: 4px; }
+#root .general-ledger-view-journal-ledger .gljl-date-range input[type="date"] { width: 114px; min-width: 0; }
+/* The panel toggle is icon-only here (its name stays for assistive tech and in the tooltip "Detay paneli (Ctrl+.)"). */
+#root .general-ledger-view-journal-ledger .list-v2-toolbar .sales-ld-toggle > span {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
 }
