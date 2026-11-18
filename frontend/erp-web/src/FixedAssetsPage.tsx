@@ -747,6 +747,10 @@ export default function FixedAssetsPage({
       setBusy(false);
     }
   }
+  useEffect(() => {
+    // The card belongs to the selected asset; when a reload drops it, the card closes too.
+    if (!selected && cardOpen) setCardOpen(false);
+  }, [selected, cardOpen]);
   const assetFields = (assetListView?.fields || defaultAssetFields)
     .filter((field) => field.visible)
     .sort((a, b) => a.position - b.position);

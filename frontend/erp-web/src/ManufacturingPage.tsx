@@ -1103,6 +1103,7 @@ export default function ManufacturingPage({
     };
   }, [request, section, calendarCenterId]);
   function resetBomForm() {
+    setRecipeTab("identity");
     setEditingBomId("");
     setCode("");
     setName("");
@@ -1114,6 +1115,7 @@ export default function ManufacturingPage({
     setBomOperations([]);
   }
   function beginEditBom(bom: Bom) {
+    setRecipeTab("identity");
     setEditingBomId(bom.id);
     setCode(bom.code);
     setName(bom.name);

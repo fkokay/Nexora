@@ -11,6 +11,7 @@ import ManufacturingRecipesPage from '../ManufacturingRecipesPage';
 import ManufacturingWorkCentersPage from '../ManufacturingWorkCentersPage';
 import ManufacturingWorkCenterCreatePage from '../ManufacturingWorkCenterCreatePage';
 import ManufacturingOrderCreatePage from '../ManufacturingOrderCreatePage';
+import ManufacturingRecipeCreatePage from '../ManufacturingRecipeCreatePage';
 import ManufacturingPage from '../ManufacturingPage';
 import { useState } from 'react';
 import ManufacturingMrpPage from '../ManufacturingMrpPage';
@@ -420,6 +421,19 @@ describe('Create / edit forms: request bodies', () => {
         setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1', 'wc2'],
       },
     ]);
+  });
+
+  it('Reçete oluştur: an invalid field in a hidden section opens that section', async () => {
+    renderScreen(<ManufacturingRecipeCreatePage token="t" onNavigate={vi.fn()} />);
+    const navigator = await screen.findByRole('tablist', { name: 'Reçete bölümleri' });
+    expect(within(navigator).getByRole('tab', { selected: true }).textContent).toContain('Kimlik');
+    // The empty component picker's required input sits in the hidden Bileşenler section.
+    const components = document.querySelector<HTMLElement>('[data-rf-section="components"]')!;
+    expect(components.hidden).toBe(true);
+    const required = components.querySelector<HTMLElement>('input[required], select[required]')!;
+    fireEvent.invalid(required);
+    await waitFor(() => expect(within(navigator).getByRole('tab', { selected: true }).textContent).toContain('Bileşenler'));
+    expect(components.hidden).toBe(false);
   });
 
   it('Yeni üretim emri: the POST body', async () => {
