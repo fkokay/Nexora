@@ -109,6 +109,11 @@ export type RecordFormPageProps = {
    * nothing, so they cannot act on the hidden form. The form and its input are kept. Default true.
    */
   commandsActive?: boolean;
+  /**
+   * A sub-form inside a document (a Mal kabul under its order): it saves with its own Kaydet button next to Vazgeç
+   * and registers nothing on the action bar, so the bar's Kaydet (Ctrl+S) never saves it. Default false.
+   */
+  ownSave?: boolean;
   className?: string;
   children: ReactNode;
 };
@@ -144,6 +149,7 @@ export function RecordFormPage({
   variant = "page",
   document: documentChrome,
   commandsActive = true,
+  ownSave = false,
   className,
   children,
 }: RecordFormPageProps) {
@@ -155,8 +161,11 @@ export function RecordFormPage({
   const canReset = mode === "create" && !!onReset;
   // A form inside a modal keeps its own buttons: the modal backdrop covers the action bar.
   const [inDialog, setInDialog] = useState(false);
+  // A form in a definition screen's pane (DefinitionLayout) sits beside its list: the bar stays a list bar.
+  const [inListPane, setInListPane] = useState(false);
   useLayoutEffect(() => {
     setInDialog(Boolean(rootRef.current?.parentElement?.closest(DIALOG_SELECTOR)));
+    setInListPane(Boolean(rootRef.current?.closest(".nx-def-pane")));
   }, []);
 
   const { slotRef, breadcrumb } = useSlotBreadcrumb();
@@ -164,7 +173,9 @@ export function RecordFormPage({
   const showSlot = isPage && !inDialog;
   // Without an action bar (platform admin, launcher, outside the shell) the form keeps its own buttons as well.
   const barMounted = useActionBarMounted();
-  const ownButtons = inDialog || !barMounted;
+  const ownButtons = inDialog || !barMounted || ownSave;
+  // Bar commands only for a form that saves through the bar.
+  const barCommands = commandsActive && !ownSave;
 
   const submit = (stayForNext: boolean) => {
     // Only the form of the topmost dialog (or, without a dialog, the visible page) may save.
@@ -180,7 +191,7 @@ export function RecordFormPage({
     more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
   // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
   const markActive = usePageCommands(
-    commandsActive ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more } : {},
+    barCommands ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more, ...(inListPane ? { besideList: true } : {}) } : {},
     "form",
     rootRef,
   );
@@ -193,7 +204,7 @@ export function RecordFormPage({
     return !!rootRef.current?.contains(document.activeElement) || !otherFormOwnsKeyboard(rootRef.current);
   };
   // Ctrl+F2 = Kaydet ve Yeni.
-  useWindowKeyDown(canSaveAndNew && commandsActive, (event) => {
+  useWindowKeyDown(canSaveAndNew && barCommands, (event) => {
     if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey) return;
     if (!isSaveKeyTarget()) return;
     event.preventDefault();
@@ -391,7 +402,8 @@ export function RecordFormPage({
           >
             <Save size={16} aria-hidden="true" />
             {busy ? "Kaydediliyor…" : "Kaydet"}
-            <kbd>Ctrl+S</kbd>
+            {/* With a bar mounted, Ctrl+S is the bar's Kaydet, which does not save an own-save sub-form. */}
+            {!(ownSave && barMounted) && <kbd>Ctrl+S</kbd>}
           </button>
           {canSaveAndNew && (
             <button

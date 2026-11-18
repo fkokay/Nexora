@@ -69,7 +69,7 @@ function structureSignature(commands: PageCommands): string {
     const spec = commands[id];
     return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary)]] : [];
   });
-  return JSON.stringify([specs, moreSignature(commands.more)]);
+  return JSON.stringify([specs, moreSignature(commands.more), Boolean(commands.besideList)]);
 }
 
 // The registered `run` functions are stable wrappers that call through `ref`, so handlers may change every render.
@@ -94,6 +94,7 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
       run: item.run ? () => ref.current.more?.find((candidate) => candidate.id === item.id)?.run?.() : undefined,
     }));
   }
+  if (latest.besideList) built.besideList = true;
   return built;
 }
 

@@ -218,6 +218,8 @@ export const english: Record<string, string> = {
   'SATIN ALMA · TEDARİKÇİ TEKLİFİ': 'PURCHASING · SUPPLIER QUOTE', 'Talep ekranı': 'Request screen', 'Teklif ayrıntıları yükleniyor…': 'Loading quote details…',
   'Tedarikçi tekliflerinde ara': 'Search supplier quotes', 'Teklif no, talep no veya tedarikçi': 'Quote no., request no. or supplier', 'Tedarikçi Teklifleri': 'Supplier quotes',
   'Taleplere bağlı teklifleri tek listede bulun, durumlarını ve fiyatlarını inceleyin.': 'Find quotes linked to requests in a single list and review their statuses and prices.',
+  'Yeni tedarikçi teklifi': 'New supplier quote', 'Tedarikçi teklif no': 'Supplier quote no.', 'Geçerlilik sonu': 'Valid until', 'Teklif kaydet': 'Save quote', 'Teklif satırları': 'Quote lines',
+  'Teklif notu': 'Quote note', 'Teklif Özel Alanları': 'Quote custom fields', 'Bu teklif bir talebe bağlı değil': 'This quote is not linked to a request', 'Teklifi yalnızca firma yöneticisi kaydedebilir': 'Only the company admin can save quotes',
   'Talep üzerinden teklif gir': 'Enter quote from a request', 'tedarikçi teklifi': 'supplier quotes',
   'Teklif oluşturma ve siparişe dönüştürme, ilgili talep kaydından yürütülür.': 'Creating quotes and converting them to orders is done from the related request record.',
   'Tedarikçi teklifleri tablosu': 'Supplier quotes table', 'Bu filtrelerle teklif bulunamadı.': 'No quotes found with these filters.',

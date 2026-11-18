@@ -144,7 +144,7 @@ describe('PageCommandsSlot', () => {
     const view = renderScreen(<Screen detail={false} />);
     await settle();
     expect(enabled('new')).toBe(true);
-    expect(enabled('print')).toBe(false);
+    expect(command('print')).toBeNull();
     view.rerender(
       <CommandProvider>
         <ActionBar locale="tr" />
@@ -153,7 +153,7 @@ describe('PageCommandsSlot', () => {
     );
     await settle();
     expect(enabled('print')).toBe(true);
-    expect(enabled('new')).toBe(false);
+    expect(command('new')).toBeNull();
   });
 });
 
@@ -227,7 +227,7 @@ describe('Satış Teklifleri', () => {
   it('non-admins get no delete and no field catalog', async () => {
     renderScreen(<SalesQuotesPage token="t" role="TenantUser" onNavigate={vi.fn()} />);
     await settle();
-    expect(enabled('delete')).toBe(false);
+    expect(command('delete')).toBeNull();
     expect(openMenu()).toEqual(['CSV olarak dışa aktar']);
   });
 });
@@ -367,6 +367,11 @@ describe('Satış İrsaliyeleri', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'Faturalaştır' }));
     });
     await waitFor(() => expect(screen.getByText('Fatura bilgileri')).toBeTruthy());
+    // The invoice sub-form saves with its own Kaydet next to Vazgeç; the bar's Kaydet is not its.
+    const invoiceForm = screen.getByRole('heading', { name: 'Fatura bilgileri' }).closest<HTMLElement>('.record-form')!;
+    expect(within(invoiceForm).getByRole('button', { name: 'Kaydet' })).toBeTruthy();
+    expect(within(invoiceForm).getByRole('button', { name: 'Vazgeç' })).toBeTruthy();
+    if (bar().querySelector('[data-command="save"]')) expect(enabled('save')).toBe(false);
     expect(apiMock).not.toHaveBeenCalledWith('/api/sales/deliveries/d1/invoice', 't', expect.anything());
     // While the editor is open the item is gone, as the detail's own button is.
     expect(openMenu()).toEqual(['İptal et']);

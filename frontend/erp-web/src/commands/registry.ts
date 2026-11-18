@@ -1,5 +1,5 @@
 import { matchesShortcut, parseShortcut, STANDARD_SHORTCUTS } from './shortcuts';
-import type { StandardCommandId, CommandSource, CommandSpec, PageCommands } from './types';
+import { offersCommand, type StandardCommandId, type CommandSource, type CommandSpec, type PageCommands } from './types';
 
 export type DispatchEnv = {
   typing: boolean;
@@ -111,6 +111,9 @@ export function createCommandRegistry(): CommandRegistry {
     const formCommands = effective('form');
     const more = [...(formCommands?.more ?? []), ...(effective('page')?.more ?? [])];
     if (formCommands?.more || effective('page')?.more) merged.more = more;
+    // An open record form that owns the primary Kaydet makes this a form screen (the bar drops Aç, Filtre, Excel);
+    // a form that sits on a list screen (`besideList`) leaves it a list screen.
+    if (formCommands?.save?.primary && !formCommands.besideList) merged.screen = 'form';
     // An open form's primary command (Kaydet) is the only primary one.
     if (formCommands && STANDARD_IDS.some((id) => formCommands[id]?.primary)) {
       for (const id of STANDARD_IDS) {
@@ -249,6 +252,7 @@ export function createCommandRegistry(): CommandRegistry {
         for (const { id, chord } of STANDARD_CHORDS) {
           if (!matchesShortcut(event, chord)) continue;
           if (id === 'open' && env.onInteractive) continue;
+          if (!offersCommand(active, id)) continue;
           const spec = active[id];
           if (isEnabled(spec)) {
             runCommand(event, spec.run);

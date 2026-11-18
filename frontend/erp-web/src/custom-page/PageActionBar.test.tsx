@@ -66,10 +66,11 @@ afterEach(() => {
 });
 
 describe('Sayfa İşlem Çubuğu bağlama', () => {
-  it('actionBar olmayan sayfada çubuk tamamen soluk kalır', async () => {
+  it('actionBar olmayan sayfada çubukta standart düğme çizilmez', async () => {
     setup(baseComponents);
     await screen.findByText('Kalan');
-    for (const id of ['new', 'save', 'delete', 'refresh', 'filter', 'print', 'export']) expect(disabled(button(id))).toBe(true);
+    // Hiçbir kaynağın kaydetmediği komut gizlenir.
+    for (const id of ['new', 'open', 'save', 'delete', 'refresh', 'filter', 'print', 'export']) expect(button(id)).toBeNull();
     fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
     expect(writes).toEqual([]);
   });

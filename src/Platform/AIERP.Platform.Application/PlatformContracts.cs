@@ -394,6 +394,10 @@ public sealed record PurchaseRequestDecisionRequest(bool Approved, string? Note)
 public sealed record PurchaseSupplierQuoteLineWriteRequest(int RequestLineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseSupplierQuoteWriteRequest(string Code, Guid SupplierId, DateOnly QuoteDate, DateOnly? ValidUntil,
     string? Notes, IReadOnlyList<PurchaseSupplierQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
+/// <summary>Talep olmadan doğrudan girilen tedarikçi teklifinin satırı; miktar stok kartının temel birimindedir.</summary>
+public sealed record PurchaseSupplierQuoteStandaloneLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20);
+public sealed record PurchaseSupplierQuoteStandaloneWriteRequest(string Code, Guid SupplierId, DateOnly QuoteDate, DateOnly? ValidUntil,
+    string? Notes, IReadOnlyList<PurchaseSupplierQuoteStandaloneLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record PurchaseSupplierQuoteCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record PurchaseSupplierQuoteCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -407,10 +411,10 @@ public sealed record PurchaseSupplierQuoteCustomFieldValueRestoreRequest(bool Co
 public sealed record PurchaseSupplierQuoteLineView(int RequestLineNumber, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal);
-public sealed record PurchaseSupplierQuoteSummary(Guid Id, Guid PurchaseRequestId, string RequestCode, string Code, Guid SupplierId,
+public sealed record PurchaseSupplierQuoteSummary(Guid Id, Guid? PurchaseRequestId, string? RequestCode, string Code, Guid SupplierId,
     string SupplierName, DateOnly QuoteDate, DateOnly? ValidUntil, string CurrencyCode, PurchaseSupplierQuoteStatus Status,
     decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt);
-public sealed record PurchaseSupplierQuoteView(Guid Id, Guid PurchaseRequestId, string RequestCode, string Code, Guid SupplierId,
+public sealed record PurchaseSupplierQuoteView(Guid Id, Guid? PurchaseRequestId, string? RequestCode, string Code, Guid SupplierId,
     string SupplierName, DateOnly QuoteDate, DateOnly? ValidUntil, string CurrencyCode, PurchaseSupplierQuoteStatus Status,
     decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, string? Notes, DateTimeOffset CreatedAt,
     IReadOnlyList<PurchaseSupplierQuoteLineView> Lines, string BaseCurrencyCode = "TRY", decimal? ComparableGrandTotal = null,
@@ -1219,6 +1223,39 @@ public static class PurchaseSupplierQuoteValidation
         }
         return errors.Count == 0 ? null : errors;
     }
+
+    /// <summary>Talepsiz teklif: başlık kuralları talepli teklifle aynıdır; satırlar stok kartı, miktar ve fiyat taşır.</summary>
+    public static Dictionary<string, string[]>? Validate(PurchaseSupplierQuoteStandaloneWriteRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 64)
+            errors["code"] = ["Tedarikçi teklif numarası zorunludur ve en fazla 64 karakter olabilir."];
+        if (request.SupplierId == Guid.Empty) errors["supplierId"] = ["Tedarikçi seçilmelidir."];
+        if (request.QuoteDate == default) errors["quoteDate"] = ["Teklif tarihi zorunludur."];
+        if (request.ValidUntil is not null && request.ValidUntil < request.QuoteDate)
+            errors["validUntil"] = ["Geçerlilik tarihi teklif tarihinden önce olamaz."];
+        if (request.Notes?.Trim().Length > 1000) errors["notes"] = ["Not en fazla 1000 karakter olabilir."];
+        if (request.Lines is null || request.Lines.Count is < 1 or > 100)
+            errors["lines"] = ["Teklif 1 ile 100 arasında satır içermelidir."];
+        if (request.Lines is not null)
+        {
+            for (var i = 0; i < request.Lines.Count; i++)
+            {
+                var line = request.Lines[i];
+                if (line is null) { errors[$"lines[{i}]"] = ["Satır boş olamaz."]; continue; }
+                if (line.StockItemId == Guid.Empty) errors[$"lines[{i}].stockItemId"] = ["Stok kartı seçilmelidir."];
+                if (line.Quantity <= 0 || line.Quantity > 99999999999999.9999m || line.Quantity != decimal.Round(line.Quantity, 4))
+                    errors[$"lines[{i}].quantity"] = ["Miktar sıfırdan büyük ve en fazla 4 ondalık basamaklı olmalıdır."];
+                if (line.UnitPrice < 0 || line.UnitPrice > 99999999999999.9999m || line.UnitPrice != decimal.Round(line.UnitPrice, 4))
+                    errors[$"lines[{i}].unitPrice"] = ["Birim fiyat 0 ile 99999999999999.9999 arasında ve en fazla 4 ondalık basamaklı olmalıdır."];
+                if (line.DiscountPercent is < 0 or > 100 || line.DiscountPercent != decimal.Round(line.DiscountPercent, 2))
+                    errors[$"lines[{i}].discountPercent"] = ["İskonto oranı 0 ile 100 arasında ve en fazla 2 ondalık basamaklı olmalıdır."];
+                if (line.VatPercent is < 0 or > 100 || line.VatPercent != decimal.Round(line.VatPercent, 2))
+                    errors[$"lines[{i}].vatPercent"] = ["KDV oranı 0 ile 100 arasında ve en fazla 2 ondalık basamaklı olmalıdır."];
+            }
+        }
+        return errors.Count == 0 ? null : errors;
+    }
 }
 
 public static class PurchaseReceiptValidation
@@ -1358,7 +1395,7 @@ public sealed record SupplierReturnDetail(Guid Id, string Code, Guid PurchaseInv
     Guid PurchaseOrderId, Guid SupplierId, string SupplierName, Guid WarehouseId, string WarehouseName, DateOnly ReturnDate, SupplierReturnStatus Status,
     string CurrencyCode, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt,
     IReadOnlyList<SupplierReturnLineView> Lines);
-public sealed record PurchaseSupplierQuoteDetail(Guid Id, Guid PurchaseRequestId, string RequestCode, PurchaseRequestStatus RequestStatus, string Code,
+public sealed record PurchaseSupplierQuoteDetail(Guid Id, Guid? PurchaseRequestId, string? RequestCode, PurchaseRequestStatus? RequestStatus, string Code,
     Guid SupplierId, string SupplierName, DateOnly QuoteDate, DateOnly? ValidUntil, string CurrencyCode, PurchaseSupplierQuoteStatus Status,
     decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, string? Notes, DateTimeOffset CreatedAt,
     IReadOnlyList<PurchaseSupplierQuoteLineView> Lines, string BaseCurrencyCode, decimal? ComparableGrandTotal, decimal? AppliedExchangeRate,

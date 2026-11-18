@@ -1,7 +1,8 @@
 export type Quote = {
   id: string
-  purchaseRequestId: string
-  requestCode: string
+  /** Talepsiz (doğrudan girilen) teklifte null. */
+  purchaseRequestId: string | null
+  requestCode: string | null
   code: string
   supplierId: string
   supplierName: string
@@ -27,7 +28,7 @@ export type QuoteLine = {
 export type QuoteDetail = {
   id: string
   code: string
-  requestCode: string
+  requestCode: string | null
   supplierName: string
   quoteDate: string
   validUntil: string | null

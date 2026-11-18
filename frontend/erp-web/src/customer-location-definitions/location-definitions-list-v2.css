@@ -90,7 +90,17 @@
   font: inherit;
   font-size: 13px;
 }
-#root .app-shell .cld-v2 .cld-filters select { height: var(--nx-control-h, 34px); min-height: 0; }
+/* The shared form rule gives selects width: 100% and 8px vertical padding, which squeezed the auto column and cut
+   "Tümü" in the control-height box; size it to its options and centre the text vertically. */
+#root .app-shell .cld-v2 .cld-filters select {
+  width: auto;
+  min-width: 96px;
+  height: var(--nx-control-h, 34px);
+  min-height: 0;
+  padding: 0 28px 0 10px;
+  font-size: 13px;
+  line-height: normal;
+}
 #root .cld-v2 .cld-province-list {
   max-height: min(64vh, 620px);
   margin: 0;
@@ -134,6 +144,7 @@
 #root .cld-v2 .cld-districts > .list-v2-toolbar { margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--nx-line); }
 #root .cld-v2 .cld-districts .advanced-grid { border: 0; border-radius: 0; }
 #root .cld-v2 .cld-districts tr.cld-inactive-row > td { color: var(--nx-muted); }
+#root .cld-v2 .cld-districts td:has(> .row-action) { white-space: nowrap; }
 
 /* The Yeni / Düzenle dialog: narrow, one column of fields. */
 #root .modal.cld-modal { width: min(440px, calc(100vw - 32px)); max-width: none; }

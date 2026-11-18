@@ -1,4 +1,4 @@
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { localizedCatalogLabel, localizedText as tx } from "../../locale";
 import type { Column, Definition, Result, Source } from "../reportTypes";
@@ -14,7 +14,6 @@ type Props = {
   locale: string;
   groupValue: (value: unknown, field: string) => string;
   onReturnToGroups: () => void;
-  onExport: () => void;
   onDrillIntoGroup: (values: unknown[]) => void;
   onPageChange: (page: number) => void;
 };
@@ -30,7 +29,6 @@ export function ReportResults({
   locale,
   groupValue,
   onReturnToGroups,
-  onExport,
   onDrillIntoGroup,
   onPageChange,
 }: Props) {
@@ -74,13 +72,6 @@ export function ReportResults({
               <ArrowLeft size={14} /> {tx("Gruplara dön", "Back to groups")}
             </button>
           )}
-          <button
-            className="secondary small-button"
-            onClick={onExport}
-            disabled={busy || (!result.rows.length && !result.groups?.length)}
-          >
-            <Download size={14} /> {tx("CSV indir", "Download CSV")}
-          </button>
         </div>
       </div>
       <div
