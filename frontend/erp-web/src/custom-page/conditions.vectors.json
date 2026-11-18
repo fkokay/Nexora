@@ -1,0 +1,31 @@
+{
+  "syntax": {
+    "valid": [
+      { "text": "kullanici.rol == 'TenantAdmin'", "roots": ["kullanici"] },
+      { "text": "liste.seciliSatir.balance.belowMinimum", "roots": ["liste"] },
+      { "text": "!(ad.value == '') && kart.rows[0].trackingMode in ['Lot', 'Serial']", "roots": ["ad", "kart"] },
+      { "text": "yon.value != \"Receipt\" || miktar.value == 0", "roots": ["yon", "miktar"] },
+      { "text": "x.value == null", "roots": ["x"] }
+    ],
+    "invalid": [
+      "",
+      "ad.value ==",
+      "ad.value = 1",
+      "ad.value < 3",
+      "in == 1",
+      "'abc",
+      "ad.value in []",
+      "((((((((((a.value))))))))))",
+      "a.value && || b.value"
+    ]
+  },
+  "eval": [
+    { "text": "kullanici.rol == 'TenantAdmin'", "scope": { "kullanici": { "rol": "TenantAdmin" } }, "expected": true },
+    { "text": "kart.rows[0].trackingMode == 'Lot'", "scope": {}, "expected": false },
+    { "text": "miktar.value == 5", "scope": { "miktar": { "value": "5" } }, "expected": true },
+    { "text": "aktif.value", "scope": { "aktif": { "value": "false" } }, "expected": false },
+    { "text": "ad.value == null", "scope": { "ad": { "value": "" } }, "expected": true },
+    { "text": "!liste.seciliSatir", "scope": { "liste": { "seciliSatir": null } }, "expected": true },
+    { "text": "k.value in ['Lot','Serial']", "scope": { "k": { "value": "Serial" } }, "expected": true }
+  ]
+}
