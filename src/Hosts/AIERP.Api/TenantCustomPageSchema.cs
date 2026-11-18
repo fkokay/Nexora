@@ -18,7 +18,7 @@ internal static class TenantCustomPageSchema
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image", "filterBar" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -58,7 +58,9 @@ internal static class TenantCustomPageSchema
       // actionBar Yeni / Aç / after-save run a page button (e.g. open the record screen) instead of a record dialog.
       "newButton", "openButton", "afterSaveButton",
       // A heading that replaces the page header title while it is visible (e.g. "Stok kartı {{kart.rows[0].code}}").
-      "pageTitle" };
+      "pageTitle",
+      // Süzgeç alanı (filterBar): tabloya bağlı arama kutusu ve sütun süzgeçleri (`table` bağlam paneliyle ortaktır).
+      "search", "searchPlaceholder", "searchColumns", "searchParam", "filters" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
@@ -181,10 +183,16 @@ internal static class TenantCustomPageSchema
         public Dictionary<string, string?> CustomFieldBlocks { get; } = new(StringComparer.Ordinal);
         /// <summary>Query ids run on their own (actionBar/dialog saveQuery, deleteQuery, button queryId): never grid-iterating.</summary>
         public HashSet<string> DirectWriteQueries { get; } = new(StringComparer.Ordinal);
+        /// <summary>dataTable id → its query id (tables bound to a query).</summary>
+        public Dictionary<string, string> TableQueries { get; } = new(StringComparer.Ordinal);
+        /// <summary>filterBar components; their table and parameters resolve after the component loop.</summary>
+        public List<FilterBarInfo> PendingFilterBars { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
     private sealed record GridInfo(string Id, string Name, string Mode, IReadOnlyList<string> Columns, string? SourceQuery);
+
+    private sealed record FilterBarInfo(string Id, string Name, string TableId, List<string> Parameters);
 
     private sealed record PagedTable(string Id, string? Name, string? QueryId, string PageParam, string PageSizeParam, string? SearchInput, List<string> FooterMetaKeys);
 
@@ -537,11 +545,14 @@ internal static class TenantCustomPageSchema
             if (context.V2 && !ValidateActionBarProps(props, typeText, context, out error)) return false;
             if (context.V2 && !ValidateFazBProps(props, idText, componentName, typeText, context, out error)) return false;
             if (typeText == "dataTable" && props.TryGetProperty("query", out var anyTableQuery) && anyTableQuery.ValueKind == JsonValueKind.String)
+            {
                 context.QueryTables.Add(idText);
+                context.TableQueries[idText] = anyTableQuery.GetString()!;
+            }
             if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
                 context.NamedQueryTables.Add(idText);
         }
-        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs" or "editableGrid" or "customFieldsBlock" or "dialog")
+        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs" or "editableGrid" or "customFieldsBlock" or "dialog" or "filterBar")
         { error = $"'{typeText}' bileşeni için props gerekli."; return false; }
         if (component.TryGetProperty("children", out var children))
         {
@@ -633,7 +644,8 @@ internal static class TenantCustomPageSchema
     {
         "inputs" => typeText is "formCard" or "filterChips" or "facetPanel",
         "columns" => true,
-        "table" or "fields" or "relatedQuery" or "relatedTitle" => typeText == "contextPanel",
+        "table" => typeText is "contextPanel" or "filterBar",
+        "fields" or "relatedQuery" or "relatedTitle" => typeText == "contextPanel",
         "facetCounts" => typeText == "facetPanel",
         _ => true
     };
@@ -808,7 +820,7 @@ internal static class TenantCustomPageSchema
         foreach (var (ownerId, tableId) in context.PendingTables)
             if (!context.NamedQueryTables.Contains(tableId))
             { error = $"'{ownerId}' bağlam panelinin 'table' değeri sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {tableId}."; return false; }
-        return ResolveFazAReferences(context, owners, out error) && ResolveFazBReferences(context, owners, out error);
+        return ResolveFazAReferences(context, owners, out error) && ResolveFazBReferences(context, owners, out error) && ResolveFilterBars(context, out error);
     }
 
     private static bool ValidateMapItems(string property, JsonElement value, bool allowedOnType, int maxItems, Regex pattern, string format, out string? error)
@@ -1211,6 +1223,12 @@ internal static class TenantCustomPageSchema
         catch (ArgumentException) { return false; }
     }
 
+    private static bool MatchesText(Regex pattern, string value)
+    {
+        try { return pattern.IsMatch(value); }
+        catch (RegexMatchTimeoutException) { return false; }
+    }
+
     private static bool MatchesSafely(Regex pattern, JsonElement value)
     {
         try { return value.ValueKind == JsonValueKind.String && pattern.IsMatch(value.GetString()!); }
@@ -1304,7 +1322,8 @@ internal static class TenantCustomPageSchema
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
         ["closeInput"] = ["card"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
-        ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"]
+        ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
+        ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1362,6 +1381,7 @@ internal static class TenantCustomPageSchema
             "customFieldsBlock" => ValidateCustomFieldsBlock(props, id, name, context, out error),
             "dialog" => ValidateDialogProps(props, id, context, out error),
             "image" => ValidateImageProps(props, out error),
+            "filterBar" => ValidateFilterBar(props, id, name, context, out error),
             "card" when props.TryGetProperty("closeInput", out var closeInput) && !(closeInput.ValueKind == JsonValueKind.String && closeInput.GetString()!.Length is >= 1 and <= 64) =>
                 Fail("'closeInput' paneli kapatan onay kutusu girişinin kimliği olmalıdır.", out error),
             "heading" when props.TryGetProperty("pageTitle", out var pageTitle) && !IsBool(pageTitle) =>
@@ -1567,6 +1587,122 @@ internal static class TenantCustomPageSchema
         foreach (var key in new[] { "closeOnSave", "resetOnOpen" })
             if (props.TryGetProperty(key, out var flag) && !IsBool(flag)) { error = $"'{key}' true veya false olmalıdır."; return false; }
         context.PendingDialogContains.Add((id, ids));
+        return true;
+    }
+
+    // ---- Süzgeç alanı (filterBar) ----
+
+    private const int MaxFilterBarFilters = 20;
+    private const int MaxSearchColumns = 8;
+    private const int MaxSearchPlaceholderLength = 80;
+    private const int MaxFilterLabelLength = 40;
+    private static readonly HashSet<string> FilterKinds = new(StringComparer.Ordinal) { "auto", "text", "range", "date", "select", "toggle" };
+    private static readonly Regex FilterColumnCode = new(@"^[^|=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    /// <summary>Seçenek kaynağı: <c>sorguKimliği[:değerSütunu[:etiketSütunu]]</c>.</summary>
+    private static readonly Regex FilterOptionsSource = new(@"^([A-Za-z0-9_-]{1,64})(:[^:|=]{1,128}){0,2}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private const string FilterFormat = "'filters' öğeleri anahtar|tür|yer|parametre|Etiket|seçenekler biçiminde olmalıdır " +
+        "(tür: auto, text, range, date, select veya toggle; yer: row veya more; son üç bölüm isteğe bağlıdır).";
+
+    /// <summary>
+    /// Süzgeç alanı, bir veri listesine (<c>table</c>) bağlı arama kutusu ve süzgeçlerdir. <c>filters</c> öğeleri
+    /// <c>anahtar|tür|yer|parametre|Etiket|seçenekler</c> biçimindedir: anahtar listenin sütun kodu (ya da yalnız sunucuya giden
+    /// süzgeçte serbest bir ad), tür auto/text/range/date/select/toggle, yer row (satırda) veya more (Daha fazla süzgeç);
+    /// parametre verilirse değer listenin sorgusundaki aynı adlı parametreye <c>{{&lt;ad&gt;.&lt;parametre&gt;}}</c> bağlamasıyla
+    /// gider (sunucuda süzülür), verilmezse yüklenen satırlara uygulanır. Aralık ve tarih süzgeçleri iki uç taşıdığı için yalnız
+    /// sayfada uygulanır. Seçenekler <c>sorguKimliği[:değerSütunu[:etiketSütunu]]</c> okuma sorgusundan gelir.
+    /// </summary>
+    private static bool ValidateFilterBar(JsonElement props, string id, string? name, Context context, out string? error)
+    {
+        error = null;
+        if (name is null) return Fail($"Süzgeç alanının adı olmalıdır: {id}", out error);
+        var table = StringOf(props, "table");
+        if (string.IsNullOrEmpty(table)) return Fail("Süzgeç alanının 'table' değeri sayfadaki sorguya bağlı bir veri listesi kimliği olmalıdır.", out error);
+        var search = false;
+        if (props.TryGetProperty("search", out var searchFlag))
+        {
+            if (!IsBool(searchFlag)) return Fail("'search' true veya false olmalıdır.", out error);
+            search = searchFlag.ValueKind == JsonValueKind.True;
+        }
+        foreach (var key in new[] { "searchPlaceholder", "searchColumns", "searchParam" })
+            if (!search && props.TryGetProperty(key, out _)) return Fail($"'{key}' yalnız arama kutusu açıkken (search: true) kullanılabilir.", out error);
+        if (props.TryGetProperty("searchPlaceholder", out var placeholder) && !IsStaticTextUpTo(placeholder, MaxSearchPlaceholderLength))
+            return Fail($"'searchPlaceholder' en fazla {MaxSearchPlaceholderLength} karakterlik metin olmalıdır.", out error);
+        if (props.TryGetProperty("searchColumns", out var searchColumns)
+            && !(TryReadIds(searchColumns, MaxSearchColumns, out var columns) && columns.All(x => MatchesText(FilterColumnCode, x))))
+            return Fail($"'searchColumns' 1–{MaxSearchColumns} adet farklı sütun kodu içermelidir.", out error);
+        var parameters = new List<string>();
+        if (props.TryGetProperty("searchParam", out var searchParam))
+        {
+            if (searchParam.ValueKind != JsonValueKind.String || !TenantCustomPageQueries.IsValidName(searchParam.GetString()))
+                return Fail("'searchParam' geçerli bir sorgu parametresi adı olmalıdır.", out error);
+            parameters.Add(searchParam.GetString()!);
+        }
+        var filterCount = 0;
+        if (props.TryGetProperty("filters", out var filters))
+        {
+            if (filters.ValueKind != JsonValueKind.Array || filters.GetArrayLength() > MaxFilterBarFilters)
+                return Fail($"'filters' en fazla {MaxFilterBarFilters} öğeli bir dizi olmalıdır.", out error);
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in filters.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String) return Fail(FilterFormat, out error);
+                var parts = item.GetString()!.Split('|');
+                if (parts.Length is < 3 or > 6 || !FilterKinds.Contains(parts[1]) || parts[2] is not ("row" or "more")) return Fail(FilterFormat, out error);
+                var (key, kind) = (parts[0], parts[1]);
+                if (!MatchesText(FilterColumnCode, key)) return Fail(FilterFormat, out error);
+                if (!keys.Add(key)) return Fail($"'filters' anahtarları benzersiz olmalıdır: {key}", out error);
+                var parameter = parts.Length > 3 ? parts[3] : "";
+                if (parameter.Length > 0)
+                {
+                    if (!TenantCustomPageQueries.IsValidName(parameter)) return Fail($"'filters' öğesindeki parametre adı geçersiz: {parameter}", out error);
+                    if (kind is "range" or "date")
+                        return Fail($"Aralık ve tarih süzgeçleri yalnız bu sayfada uygulanır; parametre verilemez: {key}", out error);
+                    parameters.Add(parameter);
+                }
+                var label = parts.Length > 4 ? parts[4] : "";
+                if (label.Length > MaxFilterLabelLength || label.Length > 0 && label.Trim().Length == 0)
+                    return Fail($"'filters' etiketleri en fazla {MaxFilterLabelLength} karakter olmalıdır: {key}", out error);
+                var options = parts.Length > 5 ? parts[5] : "";
+                if (options.Length > 0)
+                {
+                    if (kind is not ("select" or "auto")) return Fail($"Seçenek kaynağı yalnız seçim süzgecinde kullanılabilir: {key}", out error);
+                    Match match;
+                    try { match = FilterOptionsSource.Match(options); }
+                    catch (RegexMatchTimeoutException) { match = Match.Empty; }
+                    if (!match.Success || !context.IsReadQuery(match.Groups[1].Value))
+                        return Fail($"Süzgecin seçenek kaynağı sayfadaki bir okuma sorgusu olmalıdır (sorgu[:değerSütunu[:etiketSütunu]]): {options}", out error);
+                }
+                filterCount++;
+            }
+        }
+        if (!search && filterCount == 0) return Fail("Süzgeç alanında arama kutusu ya da en az bir süzgeç olmalıdır.", out error);
+        if (parameters.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1) is { } duplicate)
+            return Fail($"Süzgeç alanında aynı parametre birden fazla kez kullanılamaz: {duplicate.Key}", out error);
+        context.PendingFilterBars.Add(new FilterBarInfo(id, name, table, parameters));
+        return true;
+    }
+
+    /// <summary>
+    /// Süzgeç alanının tablosu sorguya bağlı bir veri listesi olmalı; parametre kullanan her süzgecin değeri listenin sorgusunda
+    /// aynı adlı ve <c>{{&lt;ad&gt;.&lt;parametre&gt;}}</c> ile bağlı parametreye gider (Studio bağlamayı kendisi yazar).
+    /// </summary>
+    private static bool ResolveFilterBars(Context context, out string? error)
+    {
+        error = null;
+        foreach (var bar in context.PendingFilterBars)
+        {
+            if (!context.TableQueries.TryGetValue(bar.TableId, out var queryId) || !context.QueryById.TryGetValue(queryId, out var query))
+                return Fail($"'{bar.Name}' süzgeç alanının 'table' değeri sayfadaki sorguya bağlı bir veri listesi olmalıdır: {bar.TableId}", out error);
+            foreach (var parameter in bar.Parameters)
+            {
+                var declared = query.Parameters.FirstOrDefault(x => string.Equals(x.Name, parameter, StringComparison.Ordinal));
+                if (declared is null)
+                    return Fail($"'{bar.Name}' süzgeç alanının '{parameter}' parametresi '{query.Name}' sorgusunda tanımlı değil.", out error);
+                var expected = $"{bar.Name}.{parameter}";
+                if (!TenantCustomPageQueries.TryParseBinding(declared.Binding, out var path) || !string.Equals(path, expected, StringComparison.Ordinal))
+                    return Fail($"'{query.Name}' sorgusunun '{parameter}' parametresi {{{{{expected}}}}} ile bağlanmalıdır.", out error);
+            }
+        }
         return true;
     }
 
