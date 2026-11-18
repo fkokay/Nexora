@@ -320,7 +320,7 @@ export default function PaymentInstrumentsPage({
   }, [fetchJson]);
 
   const selected =
-    items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+    items.find((item) => item.id === selectedId) ?? null;
   // The open record: the list's row while it is on the page, else the last copy the API returned for it (an action can
   // move it out of the filtered page). Never another row.
   const opened = openedId

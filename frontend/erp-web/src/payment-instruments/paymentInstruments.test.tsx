@@ -185,7 +185,7 @@ const actionLabels = () => {
 // ---
 
 describe('Çek ve Senet (characterization)', () => {
-  it('on mount: the list, accounts, portfolio tiles, tab / status counts, screen view, base currency and the first row history', async () => {
+  it('on mount: the list, accounts, portfolio tiles, tab / status counts, screen view, base currency; no row is selected by itself (no history request)', async () => {
     renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
     await settle(900);
     expect(mainListUrls()).toEqual(['page=1&pageSize=25&direction=Receivable']);
@@ -206,7 +206,9 @@ describe('Çek ve Senet (characterization)', () => {
     expect(gets).toContain('/api/finance/accounts');
     expect(gets).toContain('/api/screen-views/payment-instruments/active');
     expect(gets).toContain('/api/finance/currency');
-    expect(gets).toContain('/api/finance/payment-instruments/i1/events');
+    expect(gets.some((url) => url.endsWith('/events'))).toBe(false);
+    expect(screen.getByText('Ayrıntıları görmek için listeden bir kayıt seçin.')).toBeTruthy();
+    expect(actionLabels()).toEqual([]);
   });
 
   it('status, type, search, direction and paging change the list query', async () => {
@@ -373,8 +375,10 @@ describe('Çek ve Senet kaydı', () => {
     ] };
     renderScreen(<PaymentInstrumentsPage token="t" role="TenantAdmin" />);
     await settle(900);
+    await selectRow('CK-1001');
     const before = fetchCalls.length;
-    await openWithAc('CK-1001');
+    fireEvent.click(bar().querySelector<HTMLElement>('[data-command="open"]')!);
+    await settle(100);
     const history = within(surface()!).getByRole('region', { name: 'Olay geçmişi' });
     expect(within(history).getByText('Portföye alındı')).toBeTruthy();
     expect(within(history).getByText('Yetersiz bakiye')).toBeTruthy();
