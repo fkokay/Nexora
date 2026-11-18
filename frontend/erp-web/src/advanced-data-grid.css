@@ -300,6 +300,9 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
 /* ---- Row selection (`selectable`, approved list draft): checkbox column, 14px boxes, floating bulk bar ----
    The checkbox column is sticky on the left; its opaque base yields to the hover / checked / current row tints above. */
 .advanced-grid-table :is(th, td).advanced-grid-select-cell { text-align: center; }
+/* The same legacy `.customer-table th { text-align: left }` rule (see .nx-num above) pushed the header's select-all
+   box 10px left of the row boxes; the id keeps the checkbox column centred in header and body alike. */
+#root .advanced-grid-table :is(th, td).advanced-grid-select-cell { text-align: center; }
 .advanced-grid-table td.advanced-grid-select-cell { background: var(--nx-surface); }
 #root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > thead > tr > th.advanced-grid-select-cell,
 #root .app-shell:not(.standalone-studio) .advanced-grid .advanced-grid-table > tbody > tr > td.advanced-grid-select-cell { padding-inline: 0; }
