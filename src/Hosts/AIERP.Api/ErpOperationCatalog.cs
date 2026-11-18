@@ -8,7 +8,8 @@ namespace AIERP.Api;
 
 internal sealed record ErpOperationParameter(string Name, string In, string Type, bool Required);
 internal sealed record ErpOperationColumn(string Code, string Label, string DataType);
-internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns);
+internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns)
+{ public IReadOnlyList<string> Flatten { get; init; } = []; public IReadOnlyList<string> MetaPaths { get; init; } = []; }
 internal sealed record ErpOperation(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
     IReadOnlyList<ErpOperationParameter> Parameters, ErpOperationResult Result, string? SourceOperation,
     IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated = false, bool RequiresTenantAdmin = false)
