@@ -166,12 +166,12 @@ export function mapOperationResult(op: ErpOperation, json: unknown): {
 } {
   const columns = op.result.columns ?? [];
   let rows: Record<string, unknown>[] = [];
+  const flatten = (op.result.flatten ?? []).filter((name): name is string => typeof name === "string");
   if (op.result.shape === "list") {
     const raw = op.result.rowsPath ? (isRecord(json) ? json[op.result.rowsPath] : undefined) : json;
-    const flatten = (op.result.flatten ?? []).filter((name): name is string => typeof name === "string");
     rows = Array.isArray(raw) ? raw.filter(isRecord).map((row) => flattenRow(row, flatten)) : [];
   } else if (op.result.shape === "record") {
-    rows = isRecord(json) ? [json] : [];
+    rows = isRecord(json) ? [flattenRow(json, flatten)] : [];
   }
   const meta: Record<string, unknown> = {};
   if (isRecord(json)) {

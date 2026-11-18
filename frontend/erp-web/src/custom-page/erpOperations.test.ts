@@ -176,6 +176,11 @@ describe('flatten and meta', () => {
     expect(rows[0]).not.toBe(json.items[0]);
   });
 
+  it('flattens a record row too', () => {
+    const record = op({ ...balances, result: { ...balances.result, shape: 'record', rowsPath: null } });
+    expect(mapOperationResult(record, { balance: { code: 'A' } }).rows[0]['balance.code']).toBe('A');
+  });
+
   it('copies metaPaths into meta', () => {
     const mapped = mapOperationResult(balances, { items: [], totalCount: 7, belowMinimumCount: 2, extra: 1 });
     expect(mapped.meta).toEqual({ totalCount: 7, belowMinimumCount: 2 });
