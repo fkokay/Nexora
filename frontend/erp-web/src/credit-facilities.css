@@ -289,7 +289,7 @@ html[data-theme="dark"] .credit-facilities-page .credit-table tbody tr { backgro
 /* Refined credit workbench: clearer hierarchy between overview, entry forms and records. */
 .credit-facilities-page {
   --credit-accent: var(--nx-primary);
-  --credit-accent-soft: #eaf4ff;
+  --credit-accent-soft: var(--nx-primary-soft);
   gap: 14px;
 }
 .credit-facilities-page .credit-page-actions {
@@ -465,17 +465,11 @@ html[data-theme="dark"] .credit-facilities-page .credit-balance-grid .credit-bal
  * (global-components.css restyles every class containing them).
  */
 #root .cf-page {
-  --cf-select: #eef5fc;
-  --cf-select-line: #315f8b;
-  --cf-bar: #2f855a;
-  --cf-bar-track: #e5eaf0;
+  --cf-select: var(--nx-primary-soft);
+  --cf-select-line: var(--nx-primary);
+  --cf-bar: var(--nx-ok);
+  --cf-bar-track: var(--nx-line);
   max-width: none;
-}
-html[data-theme="dark"] #root .cf-page {
-  --cf-select: #1c2a3d;
-  --cf-select-line: #93c5fd;
-  --cf-bar: #48bb78;
-  --cf-bar-track: #2a3346;
 }
 #root .cf-page > .credit-setup-grid:empty { display: none; }
 #root .app-shell .cf-page .heading-actions :is(.primary, .secondary) {
@@ -577,8 +571,7 @@ html[data-theme="dark"] #root .cf-page {
   font-weight: 700;
   white-space: nowrap;
 }
-#root .cf-page .cf-state.is-active { border-color: #bfe3cf; background: var(--fh-success-bg); color: var(--fh-success); }
-html[data-theme="dark"] #root .cf-page .cf-state.is-active { border-color: #2a5a43; }
+#root .cf-page .cf-state.is-active { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); color: var(--nx-ok); }
 #root .cf-page .cf-item-meta { color: var(--fh-muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 #root .cf-page .cf-item-usage {
   display: flex;

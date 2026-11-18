@@ -1138,6 +1138,14 @@ export const english: Record<string, string> = {
   'Satır seçer · İşlemler seçili kayda uygulanır': 'Click selects a row · Actions apply to the selected record',
   'İşlemler › Tahsil et bu hesabı kullanır.': 'Actions › Collect uses this account.',
   'İşlemler › Ödendi olarak işle bu hesabı kullanır.': 'Actions › Mark as paid uses this account.',
+  // Krediler & Finansman (İşlem Çubuğu, İşlemler)
+  'Kredi işlemlerini yalnız firma yöneticisi yapar': 'Only a company administrator processes credits',
+  'Önce bir kredi seçin': 'Select a credit first',
+  'Kapalı kredide kullanılamaz': 'Not available for a closed credit',
+  'Kredi kaydını yalnız firma yöneticisi oluşturur': 'Only a company administrator creates a credit',
+  'Kredi ayrıntısı sağdaki panelde': 'Credit details are in the right-hand panel',
+  'Kredi silinmez; İşlemler › Krediyi kapat': 'A credit is not deleted; use Actions › Close credit',
+  'Listelenecek kredi yok': 'No credits to list',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */

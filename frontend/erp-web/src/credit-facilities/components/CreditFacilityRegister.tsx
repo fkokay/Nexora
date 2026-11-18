@@ -7,7 +7,6 @@ import {
   formatAmount,
   formatDate,
 } from "../../document-detail/DocumentDetailLayout";
-import SalesRowActionsMenu from "../../sales/components/SalesRowActionsMenu";
 import { CreditFacilitiesFilters } from "./CreditFacilitiesFilters";
 import type {
   EffectiveInterestPreview,
@@ -62,13 +61,10 @@ type Props = {
   onCurrencyChange: (value: string) => void;
   onClearFilters: () => void;
   onRefresh?: () => void;
-  onRecordMovement: (facility: Facility) => void;
-  onPlanSchedule: (facility: Facility) => void;
   onPreviewInterest: (facility: Facility) => void;
   onEffectiveInterestCostChange: (facilityId: string, value: string) => void;
   onPreviewEffectiveInterest: (facility: Facility) => void;
   onPostPreviousMonthInterest: (facility: Facility) => void;
-  onCloseFacility: (facility: Facility) => void;
   onPrepareSchedulePayment: (facility: Facility, item: Schedule) => void;
   onSetScheduleStatus: (item: Schedule, status: "Cancelled") => void;
   onReverseMovement: (facility: Facility, movement: Movement) => void;
@@ -203,20 +199,16 @@ function CreditDetail({
   effectiveInterestPreviews,
   effectiveInterestCosts,
   onTabChange,
-  onRecordMovement,
-  onPlanSchedule,
   onPreviewInterest,
   onEffectiveInterestCostChange,
   onPreviewEffectiveInterest,
   onPostPreviousMonthInterest,
-  onCloseFacility,
   onPrepareSchedulePayment,
   onSetScheduleStatus,
   onReverseMovement,
   renderSecurities,
 }: Props & { facility: Facility; money: Props["formatMoney"] }) {
   const active = f.status === "Active";
-  const closeBlocked = active && (f.openScheduleCount > 0 || f.outstandingPrincipal > 0);
   const interest = interestPreviews[f.id];
   const effective = effectiveInterestPreviews[f.id];
   return (
@@ -232,42 +224,6 @@ function CreditDetail({
         <p className="cf-detail-sub">
           {f.lenderName} · {f.currencyCode}
         </p>
-        {admin && (
-          <div className="cf-detail-actions">
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || !active}
-              onClick={() => onRecordMovement(f)}
-            >
-              Hareket kaydet
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              disabled={busy || !active}
-              onClick={() => onPlanSchedule(f)}
-            >
-              Taksit planla
-            </button>
-            <SalesRowActionsMenu label={f.code}>
-              <button
-                type="button"
-                role="menuitem"
-                className={`sales-row-menu-item${active ? " danger-action" : ""}`}
-                disabled={busy || closeBlocked}
-                onClick={() => onCloseFacility(f)}
-              >
-                {active ? "Krediyi kapat" : "Krediyi etkinleştir"}
-              </button>
-              {closeBlocked && (
-                <p className="sales-row-menu-note">
-                  Açık anapara veya açık taksit varken kredi kapatılamaz.
-                </p>
-              )}
-            </SalesRowActionsMenu>
-          </div>
-        )}
       </header>
       <DetailTabs<CreditTab>
         label="Kredi ayrıntıları"

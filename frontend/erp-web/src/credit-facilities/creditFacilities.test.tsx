@@ -69,31 +69,29 @@ const writes = () => fetchCalls.filter((call) => call.method !== 'GET').map(({ u
 const gets = (path: string) => fetchCalls.filter((call) => call.method === 'GET' && call.url === path).length;
 
 // --- Interaction steps (the only part that follows the UI) ---
+// Yeni is the İşlem Çubuğu command; the selected credit's operations are in İşlemler.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 async function selectFacility(code: string) {
+  if (document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
   fireEvent.click(screen.getAllByText(code)[0].closest('button')!);
   await settle(100);
 }
-function command(label: 'Hareket kaydet' | 'Taksit planla' | 'Krediyi kapat' | 'Krediyi etkinleştir'): HTMLButtonElement | null {
-  if (label === 'Krediyi kapat' || label === 'Krediyi etkinleştir') {
-    const trigger = document.querySelector<HTMLElement>('.cf-detail [aria-label$=" işlemleri"]');
-    if (!trigger) return null;
-    if (!document.querySelector('[role="menu"]')) fireEvent.click(trigger);
-    return screen.queryByRole('menuitem', { name: label }) as HTMLButtonElement | null;
-  }
-  return (document.querySelector('.cf-detail')
-    ? [...document.querySelectorAll<HTMLButtonElement>('.cf-detail button')].find((button) => button.textContent?.trim() === label) ?? null
-    : null);
+const IDS = { 'Hareket kaydet': 'cf-movement', 'Taksit planla': 'cf-schedule', 'Krediyi kapat': 'cf-status', 'Krediyi etkinleştir': 'cf-status' } as const;
+function command(label: keyof typeof IDS): HTMLElement | null {
+  if (!document.querySelector('[role="menu"]')) fireEvent.click(bar().querySelector<HTMLElement>('[data-command="more"]')!);
+  const item = document.querySelector<HTMLElement>(`[role="menuitem"][data-item="${IDS[label]}"]`);
+  return item && item.textContent?.includes(label) ? item : null;
 }
-const enabled = (button: HTMLButtonElement | null) => !!button && !button.disabled;
-async function run(label: Parameters<typeof command>[0]) {
+const enabled = (item: HTMLElement | null) => !!item && item.getAttribute('aria-disabled') !== 'true';
+async function run(label: keyof typeof IDS) {
   fireEvent.click(command(label)!);
   await settle();
 }
 async function createFacility() {
-  fireEvent.click(screen.getByRole('button', { name: /Yeni kredi \/ limit/ }));
+  fireEvent.click(bar().querySelector<HTMLElement>('[data-command="new"]')!);
   await settle(50);
 }
-const createAvailable = () => !!screen.queryByRole('button', { name: /Yeni kredi \/ limit/ });
+const createAvailable = () => bar().querySelector<HTMLElement>('[data-command="new"]')?.getAttribute('aria-disabled') !== 'true';
 // ---
 
 describe('Krediler & Finansman (characterization)', () => {

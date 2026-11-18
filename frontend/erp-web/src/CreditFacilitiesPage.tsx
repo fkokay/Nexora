@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { PageCommandsSlot } from "./commands/PageCommandsSlot";
+import type { MenuCommand, PageCommands } from "./commands/types";
 import "./list-page/list-page-v2.css";
 import "./document-detail/document-detail.css";
 import "./finance-hub.css";
@@ -950,6 +952,68 @@ export default function CreditFacilitiesPage({
   }
   const facilitySecurities = (f: Facility) =>
     securities.filter((item) => item.creditFacilityId === f.id);
+  // İşlem Çubuğu (list type A): Yeni opens the credit form, Excel is today's XLSX; the selected credit's operations are
+  // in İşlemler with the former header buttons' conditions (firma yöneticisi, not busy, active credit; closing needs no
+  // open principal or instalment).
+  const selectedActive = selectedFacility?.status === "Active";
+  const operationReason = (needsActive: boolean): string | undefined =>
+    !admin
+      ? "Kredi işlemlerini yalnız firma yöneticisi yapar"
+      : !selectedFacility
+        ? "Önce bir kredi seçin"
+        : busy
+          ? "İşlem sürüyor…"
+          : needsActive && !selectedActive
+            ? "Kapalı kredide kullanılamaz"
+            : undefined;
+  const closeBlocked =
+    !!selectedFacility &&
+    selectedActive &&
+    (selectedFacility.openScheduleCount > 0 || selectedFacility.outstandingPrincipal > 0);
+  const creditMore: MenuCommand[] = [
+    {
+      id: "cf-movement",
+      label: "Hareket kaydet",
+      disabledReason: operationReason(true),
+      run: () => {
+        if (selectedFacility) openOperation(selectedFacility, "movement-create");
+      },
+    },
+    {
+      id: "cf-schedule",
+      label: "Taksit planla",
+      disabledReason: operationReason(true),
+      run: () => {
+        if (selectedFacility) openOperation(selectedFacility, "schedule-create");
+      },
+    },
+    {
+      id: "cf-status",
+      label: selectedFacility && !selectedActive ? "Krediyi etkinleştir" : "Krediyi kapat",
+      disabledReason:
+        operationReason(false) ??
+        (closeBlocked ? "Açık anapara veya açık taksit varken kredi kapatılamaz." : undefined),
+      run: () => {
+        if (selectedFacility) void closeFacility(selectedFacility);
+      },
+    },
+  ];
+  const listCommands: PageCommands = {
+    new: admin
+      ? {
+          primary: true,
+          run: () => onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit"),
+        }
+      : { disabledReason: "Kredi kaydını yalnız firma yöneticisi oluşturur" },
+    open: { disabledReason: "Kredi ayrıntısı sağdaki panelde" },
+    delete: { disabledReason: "Kredi silinmez; İşlemler › Krediyi kapat" },
+    refresh: { disabledReason: loading ? "Yükleniyor…" : undefined, run: () => void load() },
+    export: {
+      disabledReason: visibleFacilities.length === 0 ? "Listelenecek kredi yok" : undefined,
+      run: () => void exportCredits(),
+    },
+    more: creditMore,
+  };
   const pageTitle =
     view === "facility-create"
       ? "Yeni kredi / limit"
@@ -964,18 +1028,13 @@ export default function CreditFacilitiesPage({
     <div
       className={`finance-page credit-facilities-page${isList ? " list-v2 fh-page cf-page" : " credit-operation-screen"}`}
     >
+      {isList && <PageCommandsSlot commands={listCommands} />}
       {isList ? (
         <CreditFacilitiesPageStatus
           loading={loading}
           error={error}
           notice={notice}
-          isAdmin={admin}
           totalCount={facilities.length}
-          onCreateFacility={() =>
-            onNavigate?.("finance-credit-facility-create", "Yeni kredi / limit")
-          }
-          onExport={() => void exportCredits()}
-          exportDisabled={visibleFacilities.length === 0}
           onRefresh={() => void load()}
           onDismissNotice={() => setNotice("")}
         />
@@ -1160,8 +1219,6 @@ export default function CreditFacilitiesPage({
             onSelect={selectFacility}
             onTabChange={setCreditTab}
             securityCount={(f) => facilitySecurities(f).length}
-            onRecordMovement={(f) => openOperation(f, "movement-create")}
-            onPlanSchedule={(f) => openOperation(f, "schedule-create")}
             renderSecurities={(f) => {
               const rows = facilitySecurities(f);
               return (
@@ -1238,7 +1295,6 @@ export default function CreditFacilitiesPage({
             onPostPreviousMonthInterest={(facility) =>
               void postPreviousMonthInterest(facility)
             }
-            onCloseFacility={(facility) => void closeFacility(facility)}
             onPrepareSchedulePayment={prepareSchedulePayment}
             onSetScheduleStatus={(item, status) =>
               void setScheduleStatus(item, status)
