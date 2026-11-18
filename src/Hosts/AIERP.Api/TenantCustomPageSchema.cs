@@ -12,11 +12,11 @@ internal static class TenantCustomPageSchema
     private const int MaxBytesV1 = 64 * 1024;
     private const int MaxBytesV2 = 128 * 1024;
     private const int MaxComponents = 80;
-    private const int MaxQueries = 20;
+    private const int MaxQueries = 30;
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -28,7 +28,14 @@ internal static class TenantCustomPageSchema
       "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage",
       "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals",
       "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts",
-      "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "hidden" };
+      "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "hidden",
+      // Proje 2 Faz A: conditions, tabs, lookup, server paging and input validation.
+      "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab",
+      "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
+      "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta",
+      "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage" };
+    private const int MaxPropsV1 = 30;
+    private const int MaxPropsV2 = 40;
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons" };
     private const int MaxMoreButtons = 10;
     private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
@@ -47,13 +54,13 @@ internal static class TenantCustomPageSchema
     private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
-    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage" };
+    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
-    private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200 };
+    private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200 };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
-    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "checkbox", "select" };
+    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "checkbox", "select", "lookup" };
     private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn" };
     /// <summary>Keys of a query bound to a named ERP operation: <see cref="QueryKeys"/> with operation instead of sql.</summary>
     private static readonly HashSet<string> OperationQueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "operation", "parameters", "runOn" };
@@ -94,8 +101,24 @@ internal static class TenantCustomPageSchema
         public int ActionBarCount { get; set; }
         /// <summary>actionBar references (property, component id) resolved after every component was visited.</summary>
         public List<(string Property, string ComponentId, string ExpectedType)> PendingActionRefs { get; } = [];
+        /// <summary>Ids of components in the root <c>components</c> array (the only ones a tab may own).</summary>
+        public HashSet<string> TopLevelIds { get; } = new(StringComparer.Ordinal);
+        /// <summary>Component and query names exactly as written (condition roots are matched ordinally).</summary>
+        public HashSet<string> ExactNames { get; } = new(StringComparer.Ordinal);
+        /// <summary>v2 input id to its inputType ("text" when omitted).</summary>
+        public Dictionary<string, string> InputTypesById { get; } = new(StringComparer.Ordinal);
+        /// <summary>tabs components' owned component ids; resolved after the loop.</summary>
+        public List<(string TabsId, List<string> Ids)> PendingTabRefs { get; } = [];
+        /// <summary>Condition props and their path roots; resolved after the loop against the page names.</summary>
+        public List<(string Property, IReadOnlyList<string> Roots)> PendingConditionRoots { get; } = [];
+        /// <summary>Server-paged dataTables; resolved after the loop against their query and operation.</summary>
+        public List<PagedTable> PendingPagedTables { get; } = [];
+        /// <summary>Page queries by id, from <see cref="ValidateQueries"/>' result list.</summary>
+        public Dictionary<string, PageQuery> QueryById { get; } = new(StringComparer.Ordinal);
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
+
+    private sealed record PagedTable(string Id, string? Name, string? QueryId, string PageParam, string PageSizeParam, string? SearchInput, List<string> FooterMetaKeys);
 
     public static bool Validate(string json, out string? error) => Validate(json, out error, null, ErpOperationCatalog.TryGet);
 
@@ -125,6 +148,7 @@ internal static class TenantCustomPageSchema
             var context = new Context(version) { Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>() };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
+            foreach (var pageQuery in queries) { context.QueryById[pageQuery.Id] = pageQuery; context.ExactNames.Add(pageQuery.Name); }
             foreach (var component in components.EnumerateArray())
                 if (!ValidateComponent(component, context, 0, out error)) return false;
             if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x)) is { } missingInput)
@@ -338,15 +362,20 @@ internal static class TenantCustomPageSchema
         { error = "Bileşen kimlikleri benzersiz, kısa ve yalnızca harf/rakam/-/_ içermelidir."; return false; }
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
         context.ComponentTypesById[idText] = typeText;
+        if (depth == 0) context.TopLevelIds.Add(idText);
         if (typeText == "actionBar" && ++context.ActionBarCount > 1)
         { error = "Sayfada en fazla bir İşlem Çubuğu (actionBar) bulunabilir."; return false; }
         if (typeText == "input") context.InputIds.Add(idText);
         if (component.TryGetProperty("name", out var nameElement)
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
         { error ??= "Bileşen adı metin olmalıdır."; return false; }
+        var componentName = component.TryGetProperty("name", out var validName) ? validName.GetString() : null;
+        if (componentName is not null) context.ExactNames.Add(componentName);
         if (component.TryGetProperty("props", out var props))
         {
-            if (props.ValueKind != JsonValueKind.Object || props.EnumerateObject().Count() > 30 || !OnlyKeys(props, context.V2 ? SafePropsV2 : SafeProps))
+            if (context.V2 && props.ValueKind == JsonValueKind.Object && props.EnumerateObject().Count() > MaxPropsV2)
+            { error = $"Bileşen en fazla {MaxPropsV2} özellik içerebilir."; return false; }
+            if (props.ValueKind != JsonValueKind.Object || props.EnumerateObject().Count() > MaxPropsV1 && !context.V2 || !OnlyKeys(props, context.V2 ? SafePropsV2 : SafeProps))
             { error = "Bileşen özellikleri izin verilen statik alanlarla sınırlıdır."; return false; }
             foreach (var prop in props.EnumerateObject())
             {
@@ -402,6 +431,7 @@ internal static class TenantCustomPageSchema
             { error = "Satır işlemleri yalnızca veri listelerinde açılıp kapatılabilir."; return false; }
             if (props.TryGetProperty("rowActionLabel", out var rowActionLabel) && (typeText != "dataTable" || rowActionLabel.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(rowActionLabel.GetString()) || rowActionLabel.GetString()!.Length > 60))
             { error = "Satır işlemi düğme metni 1–60 karakter olmalıdır."; return false; }
+            if (context.V2 && !ValidateFazAProps(props, idText, componentName, typeText, context, out error)) return false;
             if (context.V2 && !ValidateV2Props(props, typeText, context, out error)) return false;
             if (context.V2 && !ValidateLayoutProps(props, idText, typeText, context, out error)) return false;
             if (typeText == "input" && props.TryGetProperty("inputType", out var selectType) && selectType.ValueKind == JsonValueKind.String && selectType.GetString() == "select"
@@ -413,7 +443,7 @@ internal static class TenantCustomPageSchema
             if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
                 context.NamedQueryTables.Add(idText);
         }
-        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel")
+        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs")
         { error = $"'{typeText}' bileşeni için props gerekli."; return false; }
         if (component.TryGetProperty("children", out var children))
         {
@@ -437,7 +467,7 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("inputType", out var inputType)
             && (typeText != "input" || inputType.ValueKind != JsonValueKind.String || !InputTypes.Contains(inputType.GetString()!)))
-        { error = "Giriş türü yalnızca giriş bileşeninde text, number, date, checkbox veya select olabilir."; return false; }
+        { error = "Giriş türü yalnızca giriş bileşeninde text, number, date, checkbox, select veya lookup olabilir."; return false; }
         if (props.TryGetProperty("optionsQuery", out var optionsQuery)
             && (typeText != "input" || optionsQuery.ValueKind != JsonValueKind.String || !context.IsReadQuery(optionsQuery.GetString())))
         { error = $"Seçenek sorgusu yalnızca giriş bileşeninde ve sayfada tanımlı bir okuma sorgusu olabilir: {(optionsQuery.ValueKind == JsonValueKind.String ? optionsQuery.GetString() : "?")}."; return false; }
@@ -636,7 +666,7 @@ internal static class TenantCustomPageSchema
         foreach (var (ownerId, tableId) in context.PendingTables)
             if (!context.NamedQueryTables.Contains(tableId))
             { error = $"'{ownerId}' bağlam panelinin 'table' değeri sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {tableId}."; return false; }
-        return true;
+        return ResolveFazAReferences(context, owners, out error);
     }
 
     private static bool ValidateMapItems(string property, JsonElement value, bool allowedOnType, int maxItems, Regex pattern, string format, out string? error)
@@ -689,6 +719,276 @@ internal static class TenantCustomPageSchema
             { error = $"refreshQueries en fazla {MaxRefreshQueries} sorgu kimliği içeren bir dizi olmalıdır."; return false; }
             var invalid = refresh.EnumerateArray().Select(x => x.GetString()).FirstOrDefault(x => !context.IsReadQuery(x));
             if (invalid is not null) { error = $"Yenilenecek sorgu sayfada tanımlı bir okuma sorgusu olmalıdır: {invalid}."; return false; }
+        }
+        return true;
+    }
+
+    // ---- Proje 2 Faz A: conditions, tabs, lookup, server paging and input validation ----
+
+    private const int MaxTabs = 8;
+    private const int MaxStaticOptions = 20;
+    private const int MaxFooterMeta = 6;
+    private const int MaxPatternLength = 200;
+    private const int MaxPatternMessageLength = 120;
+    private static readonly Regex TabItem = new(@"^[^=,]{1,40}=([A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){0,19})?\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex StaticOptionItem = new(@"^[^=]{0,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex FooterMetaItem = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex IsoDate = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly string[] LookupProps = ["optionDescriptionColumn", "minChars", "staticOptions", "allowClear"];
+    private static readonly string[] PagingProps = ["pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta"];
+    private static readonly HashSet<string> ConditionRoots = new(TenantCustomPageQueries.ReservedNames, StringComparer.Ordinal);
+
+    private static bool IsBool(JsonElement value) => value.ValueKind is JsonValueKind.True or JsonValueKind.False;
+    private static bool IsIntIn(JsonElement value, int min, int max) =>
+        value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) && number >= min && number <= max;
+
+    /// <summary>
+    /// v2 props added in Proje 2 Faz A. References (condition roots, tab-owned ids, paged-table queries and search inputs)
+    /// are collected here and resolved after every component was visited.
+    /// </summary>
+    private static bool ValidateFazAProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
+    {
+        error = null;
+        var inputType = typeText == "input" ? StringOf(props, "inputType") ?? "text" : null;
+        if (inputType is not null) context.InputTypesById[id] = inputType;
+        return ValidateConditionProps(props, typeText, context, out error)
+            && ValidateTabsProps(props, id, typeText, context, out error)
+            && ValidateLookupProps(props, typeText, inputType, out error)
+            && ValidatePagingProps(props, id, name, typeText, context, out error)
+            && ValidateInputRules(props, typeText, inputType, out error);
+    }
+
+    private static bool ValidateConditionProps(JsonElement props, string typeText, Context context, out string? error)
+    {
+        error = null;
+        foreach (var key in new[] { "visibleWhen", "disabledWhen" })
+        {
+            if (!props.TryGetProperty(key, out var condition)) continue;
+            if (key == "disabledWhen" && typeText is not ("button" or "input"))
+            { error = "'disabledWhen' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
+            if (condition.ValueKind != JsonValueKind.String)
+            { error = $"'{key}' koşulu geçersiz: ifade metin olmalı"; return false; }
+            if (!PageConditionExpression.TryParse(condition.GetString()!, out var roots, out var reason))
+            { error = $"'{key}' koşulu geçersiz: {reason}"; return false; }
+            context.PendingConditionRoots.Add((key, roots));
+        }
+        if (props.TryGetProperty("disabledReason", out _))
+        {
+            if (typeText is not ("button" or "input"))
+            { error = "'disabledReason' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
+            if (!props.TryGetProperty("disabledWhen", out _))
+            { error = "'disabledReason' için 'disabledWhen' de tanımlı olmalıdır."; return false; }
+        }
+        return true;
+    }
+
+    private static bool ValidateTabsProps(JsonElement props, string id, string typeText, Context context, out string? error)
+    {
+        error = null;
+        foreach (var key in new[] { "tabs", "defaultTab" })
+            if (typeText != "tabs" && props.TryGetProperty(key, out _))
+            { error = $"'{key}' özelliği yalnız sekme (tabs) bileşeninde kullanılabilir."; return false; }
+        if (typeText != "tabs") return true;
+        const string tabsError = "'tabs' 1–8 adet Etiket=kimlik,kimlik öğesi içermelidir.";
+        if (!props.TryGetProperty("tabs", out var tabs) || tabs.ValueKind != JsonValueKind.Array || tabs.GetArrayLength() is < 1 or > MaxTabs)
+        { error = tabsError; return false; }
+        var owned = new List<string>();
+        foreach (var item in tabs.EnumerateArray())
+        {
+            if (!MatchesSafely(TabItem, item)) { error = tabsError; return false; }
+            var ids = item.GetString()!.Split('=', 2)[1];
+            if (ids.Length > 0) owned.AddRange(ids.Split(','));
+        }
+        if (props.TryGetProperty("defaultTab", out var defaultTab) && !IsIntIn(defaultTab, 0, tabs.GetArrayLength() - 1))
+        { error = "'defaultTab' sekme sırası (0'dan başlar) olmalıdır."; return false; }
+        context.PendingTabRefs.Add((id, owned));
+        return true;
+    }
+
+    private static bool ValidateLookupProps(JsonElement props, string typeText, string? inputType, out string? error)
+    {
+        error = null;
+        var isLookup = inputType == "lookup";
+        foreach (var key in LookupProps)
+            if (!isLookup && props.TryGetProperty(key, out _))
+            { error = $"'{key}' yalnız arama kutusu (inputType: lookup) girişinde kullanılabilir."; return false; }
+        if (!isLookup) return true;
+        if (props.TryGetProperty("optionDescriptionColumn", out var description)
+            && (description.ValueKind != JsonValueKind.String || description.GetString()!.Length is < 1 or > 128))
+        { error = "'optionDescriptionColumn' 1–128 karakterlik sütun adı olmalıdır."; return false; }
+        if (props.TryGetProperty("minChars", out var minChars) && !IsIntIn(minChars, 0, 5))
+        { error = "'minChars' 0 ile 5 arasında bir tam sayı olmalıdır."; return false; }
+        if (props.TryGetProperty("allowClear", out var allowClear) && !IsBool(allowClear))
+        { error = "'allowClear' true veya false olmalıdır."; return false; }
+        var hasStatic = props.TryGetProperty("staticOptions", out var staticOptions);
+        if (hasStatic && (staticOptions.ValueKind != JsonValueKind.Array || staticOptions.GetArrayLength() > MaxStaticOptions
+            || staticOptions.EnumerateArray().Any(x => !MatchesSafely(StaticOptionItem, x))))
+        { error = "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır."; return false; }
+        if (!hasStatic && !props.TryGetProperty("optionsQuery", out _))
+        { error = "Arama kutusu için seçenek sorgusu veya sabit seçenek gerekli."; return false; }
+        return true;
+    }
+
+    private static bool ValidatePagingProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
+    {
+        error = null;
+        var paged = false;
+        if (props.TryGetProperty("paging", out var paging))
+        {
+            if (typeText != "dataTable" || paging.ValueKind != JsonValueKind.String || paging.GetString() != "server")
+            { error = "'paging' yalnız veri listesinde \"server\" olabilir."; return false; }
+            paged = true;
+        }
+        foreach (var key in PagingProps)
+            if (!paged && props.TryGetProperty(key, out _))
+            { error = $"'{key}' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir."; return false; }
+        if (!paged) return true;
+        var parameterNames = new string[2];
+        foreach (var (index, key, fallback) in new[] { (0, "pageParam", "page"), (1, "pageSizeParam", "pageSize") })
+        {
+            parameterNames[index] = fallback;
+            if (!props.TryGetProperty(key, out var parameter)) continue;
+            if (parameter.ValueKind != JsonValueKind.String || !TenantCustomPageQueries.IsValidName(parameter.GetString()))
+            { error = $"'{key}' geçerli bir parametre adı olmalıdır."; return false; }
+            parameterNames[index] = parameter.GetString()!;
+        }
+        if (props.TryGetProperty("pageSize", out var pageSize) && !IsIntIn(pageSize, 5, 100))
+        { error = "'pageSize' 5 ile 100 arasında bir tam sayı olmalıdır."; return false; }
+        string? searchInput = null;
+        if (props.TryGetProperty("searchInput", out var search))
+        {
+            if (search.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(search.GetString()))
+            { error = "'searchInput' sayfadaki bir metin girişinin kimliği olmalıdır."; return false; }
+            searchInput = search.GetString();
+        }
+        var footerKeys = new List<string>();
+        if (props.TryGetProperty("footerMeta", out var footerMeta))
+        {
+            if (!ValidateMapItems("footerMeta", footerMeta, true, MaxFooterMeta, FooterMetaItem, "anahtar=Etiket", out error)) return false;
+            footerKeys.AddRange(footerMeta.EnumerateArray().Select(x => x.GetString()!.Split('=')[0]));
+        }
+        var queryId = StringOf(props, "query");
+        context.PendingPagedTables.Add(new PagedTable(id, name, queryId, parameterNames[0], parameterNames[1], searchInput, footerKeys));
+        return true;
+    }
+
+    private static bool ValidateInputRules(JsonElement props, string typeText, string? inputType, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("upperCase", out var upperCase) && (typeText != "input" || inputType != "text" || !IsBool(upperCase)))
+        { error = "'upperCase' yalnız metin girişinde true veya false olabilir."; return false; }
+        if (typeText != "input")
+        {
+            // 'required' predates Faz A on other component types and stays unchecked there (v1 behaviour).
+            var misplaced = new[] { "min", "max", "step", "maxLength", "pattern", "patternMessage" }.FirstOrDefault(key => props.TryGetProperty(key, out _));
+            if (misplaced is not null) { error = $"'{misplaced}' özelliği yalnız giriş bileşeninde kullanılabilir."; return false; }
+            return true;
+        }
+        if (props.TryGetProperty("required", out var required) && !IsBool(required))
+        { error = "'required' true veya false olmalıdır."; return false; }
+        JsonElement? min = null, max = null;
+        foreach (var key in new[] { "min", "max" })
+        {
+            if (!props.TryGetProperty(key, out var bound)) continue;
+            var valid = inputType switch
+            {
+                "number" => bound.ValueKind == JsonValueKind.Number && bound.TryGetDouble(out var number) && double.IsFinite(number),
+                "date" => bound.ValueKind == JsonValueKind.String && MatchesSafely(IsoDate, bound)
+                    && DateOnly.TryParseExact(bound.GetString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _),
+                _ => false
+            };
+            if (!valid) { error = $"'{key}' yalnız sayı veya tarih girişinde kullanılabilir."; return false; }
+            if (key == "min") min = bound; else max = bound;
+        }
+        if (min is { } low && max is { } high && (inputType == "number"
+            ? low.GetDouble() > high.GetDouble()
+            : string.CompareOrdinal(low.GetString(), high.GetString()) > 0))
+        { error = "'min' değeri 'max' değerinden büyük olamaz."; return false; }
+        if (props.TryGetProperty("step", out var step)
+            && (inputType != "number" || step.ValueKind != JsonValueKind.Number || !step.TryGetDouble(out var stepValue) || stepValue is <= 0 or > 1_000_000))
+        { error = "'step' yalnız sayı girişinde 0'dan büyük ve en fazla 1000000 olabilir."; return false; }
+        if (props.TryGetProperty("maxLength", out var maxLength) && (inputType != "text" || !IsIntIn(maxLength, 1, 4000)))
+        { error = "'maxLength' yalnız metin girişinde 1–4000 arasında bir tam sayı olabilir."; return false; }
+        var hasPattern = props.TryGetProperty("pattern", out var pattern);
+        if (hasPattern)
+        {
+            if (inputType != "text" || pattern.ValueKind != JsonValueKind.String || pattern.GetString()!.Length > MaxPatternLength || !CompilesAsRegex(pattern.GetString()!))
+            { error = "'pattern' geçerli bir düzenli ifade değil."; return false; }
+        }
+        if (props.TryGetProperty("patternMessage", out var patternMessage)
+            && (!hasPattern || patternMessage.ValueKind != JsonValueKind.String || patternMessage.GetString()!.Length > MaxPatternMessageLength))
+        { error = $"'patternMessage' yalnız 'pattern' tanımlı girişte en fazla {MaxPatternMessageLength} karakterlik metin olabilir."; return false; }
+        return true;
+    }
+
+    private static bool CompilesAsRegex(string pattern)
+    {
+        try
+        {
+            _ = new Regex(pattern, RegexOptions.None, RegexTimeout);
+            return true;
+        }
+        catch (ArgumentException) { return false; }
+    }
+
+    private static bool MatchesSafely(Regex pattern, JsonElement value)
+    {
+        try { return value.ValueKind == JsonValueKind.String && pattern.IsMatch(value.GetString()!); }
+        catch (RegexMatchTimeoutException) { return false; }
+    }
+
+    /// <summary>
+    /// Post-loop checks of Faz A references. <paramref name="owners"/> already holds the formCard/facetPanel inputs; a
+    /// paged table's searchInput and every tab-owned id are added to it, so one component has at most one owner.
+    /// </summary>
+    private static bool ResolveFazAReferences(Context context, Dictionary<string, string> owners, out string? error)
+    {
+        error = null;
+        foreach (var (property, roots) in context.PendingConditionRoots)
+            if (roots.FirstOrDefault(root => !context.ExactNames.Contains(root) && !ConditionRoots.Contains(root)) is { } unknown)
+            { error = $"'{property}' koşulu sayfada olmayan bir ada başvuruyor: {unknown}"; return false; }
+        foreach (var table in context.PendingPagedTables)
+            if (!ResolvePagedTable(table, context, owners, out error)) return false;
+        foreach (var (tabsId, ids) in context.PendingTabRefs)
+            foreach (var ownedId in ids)
+            {
+                if (!context.ComponentTypesById.TryGetValue(ownedId, out var type))
+                { error = $"Sekmenin bileşeni sayfada yok: {ownedId}"; return false; }
+                if (!context.TopLevelIds.Contains(ownedId))
+                { error = $"Sekmeler yalnız üst düzey bileşenleri içerebilir: {ownedId}"; return false; }
+                if (type is "tabs" or "actionBar")
+                { error = $"Sekmeler sekme veya İşlem Çubuğu bileşeni içeremez: {ownedId}"; return false; }
+                if (!owners.TryAdd(ownedId, tabsId))
+                { error = $"'{ownedId}' birden fazla sekmede veya yerleşimde kullanılamaz."; return false; }
+            }
+        return true;
+    }
+
+    private static bool ResolvePagedTable(PagedTable table, Context context, Dictionary<string, string> owners, out string? error)
+    {
+        error = null;
+        ErpOperation? operation = null;
+        if (table.Name is null || table.QueryId is null || !context.QueryById.TryGetValue(table.QueryId, out var query)
+            || query.Operation is null || !context.Lookup(query.Operation, out var found))
+        { error = $"Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: {table.Id}"; return false; }
+        operation = found;
+        foreach (var (parameterName, suffix) in new[] { (table.PageParam, "sayfa"), (table.PageSizeParam, "sayfaBoyutu") })
+        {
+            if (!operation.Parameters.Any(x => x.In == "query" && x.Type == "int" && string.Equals(x.Name, parameterName, StringComparison.Ordinal)))
+            { error = $"'{table.Name}' listesinin işlemi '{parameterName}' adlı tam sayı sorgu parametresini tanımlamıyor."; return false; }
+            var expected = $"{table.Name}.{suffix}";
+            var bound = query.Parameters.FirstOrDefault(x => string.Equals(x.Name, parameterName, StringComparison.Ordinal));
+            if (bound is null || !TenantCustomPageQueries.TryParseBinding(bound.Binding, out var path) || !string.Equals(path, expected, StringComparison.Ordinal))
+            { error = $"'{table.Name}' listesinin '{parameterName}' parametresi {{{{{expected}}}}} ile bağlanmalıdır."; return false; }
+        }
+        if (table.FooterMetaKeys.FirstOrDefault(key => !operation.Result.MetaPaths.Contains(key, StringComparer.Ordinal)) is { } missingMeta)
+        { error = $"'footerMeta' anahtarı işlemin üst bilgileri arasında yok: {missingMeta}"; return false; }
+        if (table.SearchInput is { } searchInput)
+        {
+            if (!context.InputTypesById.TryGetValue(searchInput, out var inputType) || inputType != "text")
+            { error = $"'searchInput' sayfadaki bir metin girişi olmalıdır: {searchInput}"; return false; }
+            if (!owners.TryAdd(searchInput, table.Id))
+            { error = $"'{searchInput}' birden fazla sekmede veya yerleşimde kullanılamaz."; return false; }
         }
         return true;
     }
