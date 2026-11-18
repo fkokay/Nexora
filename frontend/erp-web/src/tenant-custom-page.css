@@ -98,11 +98,12 @@
 /* Durum şeridi (uyarı + `icon`): eski Stok Kartları alt notu (inventory-list-v2.css `.stock-policy-note`) ile aynı ölçüler.
    Sınıf adları "-card"/"-icon"/"-badge" içermez: kabuğun alt dize kuralları !important dolgu ve köşe verir. */
 .tenant-page-status-strip { display: flex; align-items: center; gap: 12px; box-sizing: border-box; min-width: 0; padding: 10px 14px; border: 1px solid #dfe5ee; border-radius: var(--nx-radius-card); background: #fff; color: #17263a; }
-.tenant-page-status-strip-mark { display: grid; flex: none; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #e8f6ee; color: #1c7a4a; }
+/* Köşeler: eski notun "-icon"/"-badge" sınıfları kabukta denetim köşesi (!important) alır; aynısı burada açıkça verilir. */
+.tenant-page-status-strip-mark { display: grid; flex: none; place-items: center; width: 30px; height: 30px; border-radius: var(--erp-radius-control); background: #e8f6ee; color: #1c7a4a; }
 .tenant-page-status-strip-text { display: grid; flex: 1; gap: 2px; min-width: 0; }
 .tenant-page-status-strip-text b { font-size: 13px; font-weight: 650; }
 .tenant-page-status-strip-text small { color: #5b6b80; font-size: 12px; line-height: 1.45; }
-.tenant-page-status-strip-badge { flex: none; padding: 3px 9px; border-radius: 999px; background: #e8f6ee; color: #1c7a4a; font-size: 11px; font-weight: 650; }
+.tenant-page-status-strip-badge { flex: none; padding: 3px 9px; border-radius: var(--erp-radius-control); background: #e8f6ee; color: #1c7a4a; font-size: 11px; font-weight: 650; }
 .tenant-page-status-strip.tone-info :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: #eef2f7; color: #45566d; }
 .tenant-page-status-strip:is(.tone-warning, .tone-danger) :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: color-mix(in srgb, var(--nx-primary) 13%, var(--nx-surface)); color: var(--nx-primary-strong); }
 .tenant-page-status-strip.tone-danger :is(.tenant-page-status-strip-mark, .tenant-page-status-strip-badge) { background: var(--nx-bad-bg); color: var(--nx-bad); }

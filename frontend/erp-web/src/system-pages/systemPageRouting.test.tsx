@@ -185,6 +185,8 @@ describe('system page draft preview (Studio ERP önizlemesi)', () => {
     expect(screen.getByText('Studio taslak önizlemesi')).toBeTruthy();
     expect(screen.queryByText('Eski depo ekranı')).toBeNull();
     expect(api).not.toHaveBeenCalledWith(`/api/system-pages/${KEY}/published`, 'tok', expect.anything());
+    // A draft preview has no legacy fallback link (it would not leave the preview).
+    expect(screen.queryByRole('button', { name: 'Eski ekranda aç' })).toBeNull();
   });
 
   it('applies only to the screen key it was opened for', async () => {
