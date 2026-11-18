@@ -197,7 +197,11 @@ export default function GeneralLedgerPage({
     () => new Set(),
   );
   const handleTransferSelection = useCallback(
-    (keys: string[]) => setSelectedTransferKeys(new Set(keys.map((key) => key.slice(key.lastIndexOf("$") + 1)))),
+    // Known bug, kept on purpose (controller ruling): FinanceStudioGrid reports ticked rows by its internal React keys
+    // (".0:$SalesInvoice-s1"), which never equal the page's row keys ("SalesInvoice-s1"), so "Seçilenleri aktar" stays
+    // at (0) and no bulk POST is sent. Matching the keys would enable a GL-posting path that has no closed-period
+    // preview check, so it is not fixed here. Pinned by transferSources.test.tsx.
+    (keys: string[]) => setSelectedTransferKeys(new Set(keys)),
     [],
   );
   // Transfer sources: the row shown in the preview panel (independent of the checkboxes),

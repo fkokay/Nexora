@@ -163,19 +163,16 @@ describe('Aktarılabilir Kaynaklar (characterization)', () => {
     expect(calls(TRANSFER)).toEqual([]);
   });
 
-  // Deliberate change (the only request assertion that differs from the characterization commit): the grid reports
-  // ticked rows by its internal React keys (".0:$SalesInvoice-s1"), which never matched the page's row keys, so the bulk
-  // transfer was dead. The keys are now compared by the page's key; the request is today's (one POST per ready source).
-  it('bulk transfer sends one POST per ticked ready source (a source with a missing mapping is skipped)', async () => {
+  // Today's behaviour, pinned as found (controller ruling: not fixed): the grid reports ticked rows by its internal React
+  // keys (".0:$SalesInvoice-s1"), which never equal the page's row keys, so "Seçilenleri aktar" stays at (0) and nothing is
+  // posted. Fixing it would open a GL-posting path without the closed-period preview check.
+  it('bulk transfer today: ticked rows are not recognised, so no POST is sent', async () => {
     renderScreen(<GeneralLedgerPage token="t" role="TenantAdmin" view="transfer-sources" />);
     await settle(1200);
     await settle();
     await tickRows([1, 2, 3]);
     await transferTicked();
-    expect(calls(TRANSFER)).toEqual([
-      { method: 'POST', body: { sourceType: 'SalesInvoice', sourceId: 's1' } },
-      { method: 'POST', body: { sourceType: 'SalesInvoice', sourceId: 's2' } },
-    ]);
+    expect(calls(TRANSFER)).toEqual([]);
   });
 
   it('a company user sees no transfer list and sends no preview', async () => {
