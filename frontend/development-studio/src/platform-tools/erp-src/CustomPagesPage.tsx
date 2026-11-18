@@ -164,7 +164,9 @@ const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b
  * reddedeceği tanım üretilmez: silinen/uygunsuz girişler, ikinci sahip, geçersiz tablo, silinen sorgu ve sayı sütunu temizlenir.
  * Değişiklik yoksa aynı nesneyi döndürür (geri alma yığını ve commit karşılaştırması bozulmaz).
  */
-function reconcileLayoutRefs(definition: PageDefinition, catalog?: ErpCatalog): PageDefinition {
+type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; queryEditable?: boolean };
+function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptions = {}): PageDefinition {
+  const catalog = options.catalog;
   let changed = false;
   // `disabledReason` yalnız `disabledWhen` ile geçerlidir (sunucu kuralı); koşul silinince neden de kalkar.
   const reasoned = definition.components.map((component) => {
@@ -178,7 +180,8 @@ function reconcileLayoutRefs(definition: PageDefinition, catalog?: ErpCatalog): 
   // değilken işlem denetimi ve üst bilgi süzmesi yapılmaz (erken bir düzenleme sayfalamayı silmesin). Arama girişi var olan,
   // metin türünde, form kartı / yan filtre paneline ve başka listeye ait olmayan bir giriş olmalıdır.
   const inputsById = new Map(reasoned.filter((component) => component.type === "input").map((component) => [component.id, component]));
-  const cardOwned = ownedInputIds(reasoned);
+  // Sekmedeki giriş de arama girişi olamaz (sekme önce gelir; sekme kuralı arama girişlerini zaten dışarıda bırakır).
+  const cardOwned = new Set([...ownedInputIds(reasoned), ...tabOwnedIds(reasoned)]);
   const queriesById = new Map(definition.queries.map((query) => [query.id, query]));
   const claimedSearch = new Set<string>();
   const source = reasoned.map((component) => {
@@ -307,17 +310,18 @@ function reconcileLayoutRefs(definition: PageDefinition, catalog?: ErpCatalog): 
     }
     return component;
   }).filter((component): component is PageComponent => component !== null);
-  // Sayfalaması kalkan (ya da adı değişen) listenin {{<tablo>.sayfa}} / {{<tablo>.sayfaBoyutu}} bağlamaları sorgulardan temizlenir.
-  const pagedNames = new Set(components.filter((component) => isPagedTable(component) && !!component.name).map((component) => component.name as string));
-  const pagingBinding = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\.(?:sayfa|sayfaBoyutu)\}\}$/;
-  const orphans = new Set<string>();
-  for (const query of definition.queries) for (const parameter of query.parameters) {
-    const match = pagingBinding.exec(parameter.binding.trim());
-    if (match && !pagedNames.has(match[1])) orphans.add(match[1]);
+  // Sorgu parametreleri yalnız sorgu düzenleme yetkisiyle (queryEditable) yeniden yazılır; aksi halde yalnız bileşenler uzlaştırılır.
+  if (!options.queryEditable) return changed ? { ...definition, components } : definition;
+  // Bu adımdan önce sayfalı olan (adı değişen, sayfalaması kapanan ya da silinen) listenin {{<tablo>.sayfa}} /
+  // {{<tablo>.sayfaBoyutu}} bağlamaları yalnız o listenin önceki sorgusundan temizlenir; elle yazılmış diğer bağlamalara dokunulmaz.
+  const stillPaged = (name: string, queryId: string) => components.some((component) => isPagedTable(component) && component.name === name && component.props.query === queryId);
+  let queries = definition.queries;
+  for (const before of options.previous?.components ?? []) {
+    if (!isPagedTable(before) || !before.name || typeof before.props.query !== "string" || stillPaged(before.name, before.props.query)) continue;
+    const table = before.name;
+    queries = queries.map((query) => query.id === before.props.query ? withoutPagingBindings(query, table) : query);
   }
-  let queries = orphans.size === 0 ? definition.queries
-    : definition.queries.map((query) => [...orphans].reduce((current, table) => withoutPagingBindings(current, table), query));
-  // Sayfalı listenin sorgusunda sayfa bağlamaları eksikse (ör. sorgunun işlemi yeniden seçildi) yeniden yazılır.
+  // Sayfalı listenin sorgusunda sayfa bağlamaları eksikse (ör. ad değişti, sorgunun işlemi yeniden seçildi) yeniden yazılır.
   for (const component of components) {
     if (!isPagedTable(component) || !component.name || typeof component.props.query !== "string") continue;
     const table = component.name;
@@ -443,6 +447,29 @@ const templates: Template[] = [
     }),
   },
 ];
+
+/**
+ * Arama kutusunun sabit seçenekleri: metin yerelde tutulur (yeni satır yazılabilsin); kaydedilen değer boş satırları
+ * içermez ve en çok 20 öğedir. Fazlası için uyarı gösterilir. Değer dışarıdan değişirse (geri al) metin yeniden kurulur.
+ */
+function StaticOptionsField({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
+  const [draft, setDraft] = useState(() => value.join("\n"));
+  const linesOf = (text: string) => text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const joined = value.join("\n");
+  // Yalnız dış değer değişince eşitlenir (yazarken taslaktaki boş satırlar korunur).
+  useEffect(() => {
+    if (!sameList(value, linesOf(draft).slice(0, MAX_STATIC_OPTIONS))) setDraft(joined);
+  }, [joined]);
+  const tooMany = linesOf(draft).length > MAX_STATIC_OPTIONS;
+  return <>
+    <textarea rows={3} value={draft} spellCheck={false} onChange={(event) => {
+      setDraft(event.target.value);
+      const next = linesOf(event.target.value).slice(0, MAX_STATIC_OPTIONS);
+      if (!sameList(value, next)) onChange(next);
+    }}/>
+    {tooMany && <small className="pd-query-warning">En fazla {MAX_STATIC_OPTIONS} seçenek; fazlası kaydedilmez.</small>}
+  </>;
+}
 
 type Props = { token: string; role: string; platformOrigin?: string; initialPageId?: string | null; initialCreate?: boolean; embedded?: boolean; onBack?: () => void };
 
@@ -662,7 +689,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commit = (update: (value: PageDefinition) => PageDefinition, coalesceKey?: string) => {
     if (!canEdit) return;
     const previous = definitionRef.current;
-    const next = reconcileLayoutRefs(update(previous), erpCatalog);
+    const next = reconcileLayoutRefs(update(previous), { catalog: erpCatalog, previous, queryEditable });
     if (next === previous) return;
     const now = Date.now();
     const last = lastCommit.current;
@@ -1020,7 +1047,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const saveDraft = async () => {
     if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
-    const reconciled = reconcileLayoutRefs(definitionRef.current, erpCatalog);
+    const reconciled = reconcileLayoutRefs(definitionRef.current, { catalog: erpCatalog, queryEditable });
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
@@ -1526,16 +1553,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <small>{LOOKUP_HELP.replace("<ad>", input.name || "<ad>")}</small>
         {readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
       {optionsQueryId && <>
-        {columnField("optionLabelColumn", "Etiket sütunu", "Değer sütunu")}
-        {columnField("optionValueColumn", "Değer sütunu", "İlk sütun")}
-        {columnField("optionDescriptionColumn", "Açıklama sütunu", "Yok")}
+        {columnField("optionLabelColumn", "Etiket sütunu", "(Değer sütunu kullanılır)")}
+        {columnField("optionValueColumn", "Değer sütunu", "(İlk sütun kullanılır)")}
+        {columnField("optionDescriptionColumn", "Açıklama sütunu", "(Açıklama yok)")}
       </>}
       <label className="pd-field">Sabit seçenekler<small>Her satıra bir “değer=Etiket” yazın; boş değer için “=Tüm depolar”. Sorgu sonuçlarından önce gösterilir (en fazla {MAX_STATIC_OPTIONS}).</small>
-        <textarea rows={3} value={staticOptions.join("\n")} spellCheck={false} onChange={(event) => {
-          const lines = event.target.value.split("\n").slice(0, MAX_STATIC_OPTIONS);
-          patchComponent(input.id, { staticOptions: lines.some((line) => line.trim() !== "") ? lines : undefined });
-        }} onBlur={() => { const kept = staticOptions.map((line) => line.trim()).filter(Boolean); if (!sameList(staticOptions, kept)) patchComponent(input.id, { staticOptions: kept.length > 0 ? kept : undefined }); }}/>
-        {badStatic !== undefined && badStatic.trim() !== "" && <small className="pd-query-warning">'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır.</small>}</label>
+        <StaticOptionsField key={input.id} value={staticOptions} onChange={(next) => patchComponent(input.id, { staticOptions: next.length > 0 ? next : undefined })}/>
+        {badStatic !== undefined && <small className="pd-query-warning">'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır.</small>}</label>
       {!optionsQueryId && parseStaticOptions(staticOptions).length === 0 && <small className="pd-query-warning">Arama kutusu için seçenek sorgusu veya sabit seçenek gerekli.</small>}
       <label className="pd-field">En az karakter<small>Arama bu kadar karakterden sonra başlar (0–5).</small>
         <input type="number" min={0} max={5} step={1} value={minChars} onChange={(event) => {
