@@ -847,6 +847,8 @@ export const english: Record<string, string> = {
   'İş merkezi kayıtları': 'Work center records',
   'reçete': 'recipes',
   'iş merkezi': 'work centers',
+  'Reçete bölümleri': 'Recipe sections',
+  '/ 50 operasyon · isteğe bağlı': '/ 50 operations · optional',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
@@ -925,6 +927,7 @@ export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) reçete · (.+?) iş merkezi · (.+?) depo$/, '$1 recipes · $2 work centers · $3 warehouses'],
   [/^\+ Talep ekle \((\d+)\/100\)$/, '+ Add demand ($1/100)'],
   [/^\+ Operasyon ekle \((\d+)\/50\)$/, '+ Add operation ($1/50)'],
+  [/^Operasyon ekle \((\d+)\/50\)$/, 'Add operation ($1/50)'],
   [/^Alternatif iş merkezleri · (\d+)\/19$/, 'Alternate work centers · $1/19'],
   [/^· (.+?) dk$/, '· $1 min'],
   [/^= (.+?) saat$/, '= $1 hours'],

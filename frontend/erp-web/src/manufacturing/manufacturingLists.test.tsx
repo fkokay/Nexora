@@ -483,6 +483,8 @@ describe('English locale', () => {
       'Miktar reçete çıktısı başınadır; birim maliyet baz para birimindedir.',
       'İş merkezi kaydı', 'İş merkezi oluşturuldu.', 'Bir iş merkezi seçin ya da F2 ile yeni iş merkezi ekleyin.',
       'Çekirdek alanlar kayıttan sonra değiştirilemez; çalışma takvimi ve kurulum kuralları bu ekrandan ayarlanır.',
+      'Reçete bölümleri', 'Kimlik', 'Rota / operasyonlar', '/ 50 operasyon · isteğe bağlı', 'Gelişmiş', 'Kurulum (dk)',
+      'Rota isteğe bağlıdır; henüz operasyon yok.', 'Operasyon ekle (2/50)',
     ])
       if (localizedUiText(text) === text) missing.push(text);
     expect(missing).toEqual([]);
