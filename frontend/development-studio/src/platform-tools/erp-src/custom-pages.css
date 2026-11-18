@@ -674,3 +674,8 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-card-child{flex:0 0 auto;min-width:0}
 .pd-card-child.is-tabs,.pd-card-child.is-dataTable,.pd-card-child.is-contextPanel,.pd-card-child.is-formCard{flex:1 1 100%}
 .pd-card-child .pd-tabs-preview-panel{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}
+
+/* Gösterge metinleri dar kartta (ör. detay panelindeki 6/12 göstergeler) taşmaz: uzun bağlama metni kırılır. */
+.custom-page-preview-metric{min-width:0;overflow:hidden}
+.custom-page-preview-metric>*{min-width:0}
+.custom-page-preview-metric span,.custom-page-preview-metric small,.custom-page-preview-metric b{overflow-wrap:anywhere}
