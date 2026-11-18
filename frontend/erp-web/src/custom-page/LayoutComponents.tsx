@@ -2,9 +2,12 @@ import { Children, useEffect, useRef, type CSSProperties, type ReactNode } from 
 import { formatCell } from "./cellFormat";
 
 /** Form kartı — taslak `.card` + `.fg3`: başlık ve girişlerin 1/2/3 sütunlu ızgarası. */
-export function FormCard({ title, columns, children, style }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties }) {
+export function FormCard({ title, columns, children, style, meta }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties;
+  /** Başlık yanındaki kısa bilgi (değişiklik izleme: "<n> değişiklik"). */
+  meta?: string }) {
   return <section className="tenant-page-block tenant-page-form-card" style={style}>
     {title && <h3>{title}</h3>}
+    {meta && <span className="tenant-page-form-card-meta" role="status">{meta}</span>}
     <div className={`tenant-page-form-card-grid is-cols-${columns}`}>
       {Children.map(children, (child) => child == null || child === false ? null : <div className="tenant-page-form-card-cell">{child}</div>)}
     </div>

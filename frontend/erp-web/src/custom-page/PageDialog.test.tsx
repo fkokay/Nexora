@@ -1,9 +1,12 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { cleanup, fireEvent, render as renderPlain, screen } from '@testing-library/react';
+import { type ReactElement, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CommandProvider } from '../commands/CommandProvider';
 import { PageDialog } from './PageDialog';
 
 afterEach(cleanup);
+// Açık pencere her zaman bir komut kaydı bırakır (kaydı olmayan pencere de): komut sağlayıcısı içinde çizilir.
+const render = (ui: ReactElement) => renderPlain(ui, { wrapper: CommandProvider });
 
 const owned = (id: string) => (id === 'ad' ? <label key={id}>Ad<input aria-label="Ad" /></label> : <p key={id}>{id}</p>);
 const base = { id: 'd', title: 'Hareket ekle', presentation: 'dialog' as const, renderOwned: owned, ids: ['metin', 'ad'], status: null, returnFocus: null };

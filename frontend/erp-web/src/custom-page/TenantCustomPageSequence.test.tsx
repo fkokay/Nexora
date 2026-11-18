@@ -215,6 +215,20 @@ describe('Pencere', () => {
     expect(writes()[1]).toMatchObject({ url: '/api/stock/items', method: 'POST' });
   });
 
+  it('ctrl+s with a save-less dialog open does not run page save', async () => {
+    setup([adInput, miktarInput, dialogButton, dialog({ saveQuery: undefined }), { id: 'bar', type: 'actionBar', props: { saveQuery: 'qo' } }], [olustur, hareket]);
+    await ready('save');
+    fireEvent.click(screen.getByRole('button', { name: 'Hareketler' }));
+    await screen.findByRole('dialog', { name: 'Hareket ekle' });
+    ctrlS();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(writes()).toHaveLength(0);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Kapat' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    ctrlS();
+    await waitFor(() => expect(writes()).toHaveLength(1));
+  });
+
   it('open dialog from moreButtons', async () => {
     setup([miktarInput, dialogButton, dialog(), { id: 'bar', type: 'actionBar', props: { moreButtons: ['ac'] } }], [hareket]);
     await screen.findByRole('toolbar', { name: 'İşlemler çubuğu' });

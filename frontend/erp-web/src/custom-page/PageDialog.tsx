@@ -7,9 +7,13 @@ export type DialogSave = { label: string; busy: boolean; run: () => void };
 const FIELD_SELECTOR = "input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])";
 const BUSY_TEXT = "Kaydediliyor…";
 
-/** Açık pencerenin Ctrl+S kaydı: `form` kaynağı İşlem Çubuğu'nun `page` kaydını geçer; pencere kapanınca kayıt kalkar. */
-function DialogSaveCommands({ save, root }: { save: DialogSave; root: RefObject<HTMLDivElement | null> }) {
-  usePageCommands({ save: save.busy ? { disabledReason: "İşlem sürüyor…" } : { run: save.run, primary: true } }, "form", root);
+const NO_DIALOG_SAVE = "Bu pencerede kaydedilecek bir şey yok";
+/**
+ * Açık pencerenin Ctrl+S kaydı: `form` kaynağı İşlem Çubuğu'nun `page` kaydını geçer; pencere kapanınca kayıt kalkar.
+ * Kaydı olmayan pencere de pasif bir kayıt bırakır: pencere açıkken sayfanın kaydı Ctrl+S ile çalışmaz.
+ */
+function DialogSaveCommands({ save, root }: { save?: DialogSave; root: RefObject<HTMLDivElement | null> }) {
+  usePageCommands({ save: !save ? { disabledReason: NO_DIALOG_SAVE } : save.busy ? { disabledReason: "İşlem sürüyor…" } : { run: save.run, primary: true } }, "form", root);
   return null;
 }
 
@@ -42,7 +46,7 @@ function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, 
           <button type="button" className="tenant-page-button" disabled={save.busy} onClick={save.run}>{save.busy ? BUSY_TEXT : save.label}</button>
         </> : <button type="button" className="tenant-page-button is-secondary" onClick={onClose}>Kapat</button>}
       </footer>
-      {save && <DialogSaveCommands save={save} root={ref} />}
+      <DialogSaveCommands save={save} root={ref} />
     </div>
   </div>;
 }

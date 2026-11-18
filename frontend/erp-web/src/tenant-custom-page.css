@@ -287,3 +287,17 @@
 #root .app-shell .tenant-custom-page .tenant-custom-page-content :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge) { border-radius: 999px !important; }
 #root .app-shell .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"],
 #root .app-shell .workspace-page-main .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"] { border-radius: var(--tp-radius) !important; }
+
+/* Düzenlenebilir tablo, özel alanlar bloğu ve değişiklik izleme (Faz B) */
+.tenant-page-grid-table { width: 100%; border-collapse: collapse; }
+.tenant-page-grid-table th, .tenant-page-grid-table td { padding: 4px 6px; border-bottom: 1px solid var(--nx-line-soft); text-align: left; vertical-align: top; }
+.tenant-page-grid-table td input:not([type=checkbox]) { width: 100%; min-width: 80px; }
+.tenant-page-grid-table tr.is-fixed td { color: var(--nx-muted); font-weight: 600; }
+.tenant-page-grid-table tr.is-removed td { opacity: .55; text-decoration: line-through; }
+.tenant-page-grid-table tr.is-removed td:nth-last-child(-n+2) { opacity: 1; text-decoration: none; }
+.tenant-page-grid-table td.is-invalid input { border-color: var(--nx-bad); }
+.tenant-page-grid-actions { width: 1%; white-space: nowrap; text-align: right; }
+.tenant-page-grid-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tenant-page-grid-preview { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
+.tenant-page-form-card-meta { display: inline-block; margin: 0 0 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-grid .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
