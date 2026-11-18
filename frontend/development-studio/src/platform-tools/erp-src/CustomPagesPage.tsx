@@ -1252,7 +1252,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
   };
-  return definition.components.map(renderOne);
+  // Sekmedeki bileşenler yalnız sekmenin içinde çizilir (kod bileşeni iki kez çalışmasın diye üst düzeyde hiç oluşturulmaz).
+  const inTabs = tabOwnedIds(definition.components);
+  return definition.components.map((component) => inTabs.has(component.id) ? null : renderOne(component));
   }, [definition, forms, sources, previewData, queryPreviews, counts, token, role, device]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
@@ -1391,16 +1393,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const pattern = typeof props.pattern === "string" ? props.pattern : "";
     const bound = (key: "min" | "max", label: string) => inputType === "date"
       ? <label className="pd-field">{label}<input type="date" value={typeof props[key] === "string" && ISO_DATE.test(String(props[key])) ? String(props[key]) : ""} onChange={(event) => setOptionalProp(input.id, key, ISO_DATE.test(event.target.value) ? event.target.value : undefined)}/></label>
-      : <label className="pd-field">{label}<input type="number" value={typeof props[key] === "number" ? String(props[key]) : ""} onChange={(event) => setOptionalProp(input.id, key, numberOf(event.target.value))}/></label>;
+      : <label className="pd-field">{label}<input type="number" value={typeof props[key] === "number" ? props[key] as number : ""} onChange={(event) => setOptionalProp(input.id, key, numberOf(event.target.value))}/></label>;
     return <div className="pd-validation">
       <div className="pd-field">Doğrulama<small>ERP'de kayıttan önce denetlenir; sunucudaki doğrulamanın yerini almaz.</small></div>
       <label className="pd-check"><input type="checkbox" checked={props.required === true} onChange={(event) => patchComponent(input.id, { required: event.target.checked ? true : undefined })}/>Zorunlu</label>
       {(inputType === "number" || inputType === "date") && <div className="pd-field-row">{bound("min", "En az")}{bound("max", "En fazla")}</div>}
       {rangeProblem && <small className="pd-query-warning">{rangeProblem}</small>}
-      {inputType === "number" && <label className="pd-field">Adım<small>Ör. 0.01 kuruş, 1 tam sayı.</small><input type="number" min={0} value={typeof step === "number" ? String(step) : ""} onChange={(event) => setOptionalProp(input.id, "step", numberOf(event.target.value))}/>
+      {inputType === "number" && <label className="pd-field">Adım<small>Ör. 0.01 kuruş, 1 tam sayı.</small><input type="number" min={0} value={typeof step === "number" ? step : ""} onChange={(event) => setOptionalProp(input.id, "step", numberOf(event.target.value))}/>
         {stepProblem && <small className="pd-query-warning">{stepProblem}</small>}</label>}
       {inputType === "text" && <>
-        <label className="pd-field">En fazla karakter<input type="number" min={1} max={4000} value={typeof maxLength === "number" ? String(maxLength) : ""} onChange={(event) => setOptionalProp(input.id, "maxLength", numberOf(event.target.value))}/>
+        <label className="pd-field">En fazla karakter<input type="number" min={1} max={4000} value={typeof maxLength === "number" ? maxLength : ""} onChange={(event) => setOptionalProp(input.id, "maxLength", numberOf(event.target.value))}/>
           {lengthProblem && <small className="pd-query-warning">{lengthProblem}</small>}</label>
         <label className="pd-field">Biçim (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
           <input className="pd-condition-input" value={pattern} maxLength={200} spellCheck={false} onChange={(event) => {

@@ -59,9 +59,13 @@ function tokenize(text: string): Token[] {
       const value = path[0];
       const root = value.match(/^[A-Za-z_][A-Za-z0-9_]*/)![0];
       if (KEYWORDS.includes(root)) {
-        if (value !== root) throw new ConditionError(`'${root}' ayrılmış bir sözcüktür`);
+        // Anahtar sözcük yol kökü olamaz ("true.x"); "in[1]" gibi bitişik yazımda yalnız sözcük alınır.
+        if (text[index + root.length] === ".") throw new ConditionError(`'${root}' ayrılmış bir sözcüktür`);
         tokens.push({ type: "keyword", value: root as "true" | "false" | "null" | "in" });
-      } else tokens.push({ type: "path", value });
+        index += root.length;
+        continue;
+      }
+      tokens.push({ type: "path", value });
       index += value.length;
       continue;
     }

@@ -531,7 +531,10 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-action-key{margin-left:6px;padding:0 4px;border:1px solid var(--pd-line);border-radius:3px;background:#fff;color:#667085;font:10px Consolas,monospace}
 /* Koşullu bileşen işareti: tasarımcıda koşullu bileşen gizlenmez, bu çiple gösterilir */
 .pd-cond-chip{position:absolute;top:4px;right:4px;z-index:3;padding:1px 7px;border:1px solid var(--pd-accent-line);border-radius:999px;background:var(--pd-accent-soft);color:#5132c7;font-size:10.5px;font-weight:600;pointer-events:none}
+/* Tuval önizlemeleri tıklanmaz (.pd-block-render); sekme başlıkları ve sekmedeki bileşenin kabı tıklanabilir, içerik yine tıklanmaz */
+.pd-tabs-preview-list button,.pd-tabs-preview-item{pointer-events:auto}
 .pd-tabs-preview-item{position:relative;min-width:0}
+.pd-tabs-preview-item>*{pointer-events:none}
 /* Sekmeler önizlemesi: ERP PageTabs (sekme listesi + panel) görünümü */
 .pd-frame .pd-tabs-preview{display:grid;gap:10px}
 .pd-frame .pd-tabs-preview-list{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--dl-line)}
