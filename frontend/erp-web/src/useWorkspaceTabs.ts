@@ -18,7 +18,7 @@ type Props = {
 
 const tabLimitNotice = (locale: Locale) =>
   locale === 'en' ? 'Close a workspace tab before opening another screen.' : 'Yeni ekran açmak için önce bir çalışma sekmesini kapatın.'
-const isTabLimitNotice = (text: string) => text === tabLimitNotice('en') || text === tabLimitNotice('tr')
+export const isTabLimitNotice = (text: string) => text === tabLimitNotice('en') || text === tabLimitNotice('tr')
 
 export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantId, platformSession, locale, pageResults, onSelectModule }: Props) {
   const [page, setActivePage] = useState<string>(() => getInitialPage(standaloneStudio, embeddedStudioTool))

@@ -149,7 +149,7 @@ async function settle(ms = 300) {
 }
 
 describe('Mal kabulleri list', () => {
-  it('list type: same list call, tags, page card, nothing current, Sil kapalı, siparişsiz mal kabul formu', async () => {
+  it('list type: same list call, tags, page card, nothing current, Sil kapalı, Yeni açık; form listede yok', async () => {
     renderScreen(receiptsScreen());
     await settle();
     expect(apiCalls('/api/purchasing/receipts/?page=1&pageSize=25')).toBe(1);
@@ -162,7 +162,8 @@ describe('Mal kabulleri list', () => {
     expect(enabled('open')).toBe(false);
     expect(reason('open')).toContain('Önce bir kayıt seçin');
     expect(enabled('delete')).toBe(false);
-    expect(screen.getByText('Siparişsiz satın alma mal kabulü')).toBeTruthy();
+    expect(enabled('new')).toBe(true);
+    expect(screen.queryByText('Siparişsiz satın alma mal kabulü')).toBeNull();
     expect(document.querySelector('.doc-surface')).toBeNull();
   });
 
@@ -210,30 +211,40 @@ describe('Mal kabulleri list', () => {
     await waitFor(() => expect(apiCalls('/api/purchasing/invoices/pi1')).toBeGreaterThan(0));
   });
 
-  it('while a receipt is open, the hidden order-less form gives the bar no Kaydet / Temizle and Ctrl+S sends nothing; its draft stays', async () => {
+  it('Yeni opens the order-less receipt on its own screen in place of the list; the form owns Kaydet; Vazgeç goes back', async () => {
     renderScreen(receiptsScreen());
     await settle();
-    // The order-less form owns Kaydet while the list shows.
-    await waitFor(() => expect(enabled('save')).toBe(true));
-    expect(menuItems()).toContain('Temizle');
-    fireEvent.change(screen.getByPlaceholderText('MK-2026-001'), { target: { value: 'MK-TASLAK' } });
-    fireEvent.doubleClick(row('MK-1'));
-    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    // The list has no form, so nothing on it gives the bar Kaydet / Temizle.
     expect(enabled('save')).toBe(false);
     expect(menuItems()).not.toContain('Temizle');
-    expect(menuItems()).not.toContain('Kaydet ve Yeni');
     await act(async () => {
-      fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+      fireEvent.click(command('new'));
     });
-    await settle();
-    expect(apiMock.mock.calls.some(([, , init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false);
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Listeye dön' }));
-    });
-    await waitFor(() => expect(document.querySelector('.doc-surface')).toBeNull());
-    expect((screen.getByPlaceholderText('MK-2026-001') as HTMLInputElement).value).toBe('MK-TASLAK');
+    await waitFor(() => expect(screen.getByText('Siparişsiz satın alma mal kabulü')).toBeTruthy());
+    expect(screen.queryByRole('heading', { name: /Mal kabulleri/ })).toBeNull();
+    expect(screen.queryByRole('table', { name: 'Mal kabul kayıtları' })).toBeNull();
     await waitFor(() => expect(enabled('save')).toBe(true));
     expect(menuItems()).toContain('Temizle');
+    const listCalls = apiCalls('/api/purchasing/receipts/?page=1&pageSize=25');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
+    });
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Mal kabulleri/ })).toBeTruthy());
+    expect(screen.queryByText('Siparişsiz satın alma mal kabulü')).toBeNull();
+    // Back on the list it is reloaded, so a receipt saved on the create screen shows.
+    await waitFor(() => expect(apiCalls('/api/purchasing/receipts/?page=1&pageSize=25')).toBeGreaterThan(listCalls));
+  });
+
+  it('Yeni from an open receipt closes it and shows the create screen', async () => {
+    renderScreen(receiptsScreen());
+    await settle();
+    fireEvent.doubleClick(row('MK-1'));
+    await waitFor(() => expect(document.querySelector('.doc-surface')).not.toBeNull());
+    await act(async () => {
+      fireEvent.click(command('new'));
+    });
+    await waitFor(() => expect(document.querySelector('.doc-surface')).toBeNull());
+    expect(screen.getByText('Siparişsiz satın alma mal kabulü')).toBeTruthy();
   });
 
   it('a voided receipt has İptal as its end state and no invoice command', async () => {
