@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Database, Play, Plus, Search, Trash2 } from "lu
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
 import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
 import { bindingPath } from "./pageBindings";
-import { ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, findOperation, mergedParameters, type ErpCatalog, type ErpOperation } from "./erpOperations";
+import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, findOperation, mergedParameters, type ErpCatalog, type ErpOperation, type ErpOperationParameter } from "./erpOperations";
 
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid";
 export type PageQueryParameter = { name: string; binding: string; type: QueryParameterType };
@@ -14,11 +14,12 @@ export type QueryKind = "read" | "insert" | "update" | "delete";
  */
 export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
 export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
-export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean };
+export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; meta?: Record<string, unknown> };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
 export const isWriteKind = (kind: QueryKind) => kind !== "read";
-export const MAX_QUERIES = 20;
+// schemaVersion 2 sınırı (sunucudaki MaxQueries); Studio her zaman v2 kaydeder.
+export const MAX_QUERIES = 30;
 export const MAX_QUERY_PARAMETERS = 20;
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar"];
@@ -146,6 +147,23 @@ function OperationPicker({ operations, value, disabled, onPick }: { operations: 
   </div>;
 }
 
+/** Gövde eşlemeli ERP işlemine özel alan kodu ekler: büyük harfe çevrilir, kurala uymayan ya da çakışan kod eklenmez. */
+function CustomFieldAdder({ taken, disabled, onAdd }: { taken: string[]; disabled: boolean; onAdd: (code: string) => void }) {
+  const [code, setCode] = useState("");
+  const problem = code === "" ? null : !CUSTOM_FIELD_CODE.test(code) ? "Kod büyük harfle başlamalı; yalnız A–Z, 0–9 ve _ içermeli (en fazla 40 karakter)."
+    : taken.includes(code.toLowerCase()) ? "Bu ad işlemde ya da listede zaten var." : null;
+  const add = () => { if (code && !problem) { onAdd(code); setCode(""); } };
+  return <div className="pd-field">Özel alan ekle<small>Özel alan kodu (ör. RENK); eklenen alanı yukarıdaki tabloda bağlayın.</small>
+    <div className="pd-query-custom-add">
+      <input value={code} maxLength={40} spellCheck={false} disabled={disabled} placeholder="ALAN_KODU" aria-label="Özel alan kodu" aria-invalid={problem ? true : undefined}
+        onChange={(event) => setCode(event.target.value.toUpperCase().replace(/\s+/g, "_"))}
+        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(); } }}/>
+      <button type="button" className="pd-button small" disabled={disabled || !code || !!problem} onClick={add}><Plus size={13}/>Ekle</button>
+    </div>
+    {problem && <small className="pd-query-warning">{problem}</small>}
+  </div>;
+}
+
 /** Tasarımcının "Sorgular" sekmesi: sorgu kartları, seçili sorgunun SQL'i, parametreleri ve önizlemesi. */
 export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery }: Props) {
   const [running, setRunning] = useState<string | null>(null);
@@ -254,26 +272,42 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
           </div>)}
         <div className="pd-field">Parametreler<small>Adlar ve türler işlemden gelir; <b>*</b> zorunludur.</small>
           {(() => {
-            const rows = operation ? mergedParameters<QueryParameterType>(operation, selected.parameters)
+            const rows: { name: string; binding: string; type: QueryParameterType; spec?: ErpOperationParameter; custom?: boolean }[] = operation
+              ? mergedParameters<QueryParameterType>(operation, selected.parameters)
               : selected.parameters.map((parameter) => ({ ...parameter, spec: undefined }));
-            if (rows.length === 0) return <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>;
             const fromSource = (place: string | undefined) => place === "route" && !!operation?.sourceOperation;
-            return <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
-              {rows.map((row) => {
-                const required = !!row.spec?.required;
-                const empty = row.binding.trim() === "";
-                const invalid = empty ? required && !fromSource(row.spec?.in) : !bindingPath(row.binding);
-                const update = (binding: string) => onUpdate(selected.id, {
-                  parameters: rows.map((item) => ({ name: item.name, binding: item.name === row.name ? binding : item.binding, type: item.type })),
-                }, `query:${selected.id}:param:${row.name}`);
-                return <tr key={row.name}>
-                  <td><code title={row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
-                  <td><BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
-                    placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/></td>
-                  <td><small>{parameterTypes.find(([value]) => value === row.type)?.[1] ?? row.type}</small></td>
-                </tr>;
-              })}
-            </tbody></table>;
+            const toParameters = (items: typeof rows) => items.map((item) => ({ name: item.name, binding: item.binding, type: item.type }));
+            const bodyMap = operation?.bodyMap ?? null;
+            const mapSource = bodyMap ? findOperation(catalog, bodyMap.sourceOperation) : undefined;
+            return <>
+              {rows.length === 0 ? <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>
+                : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
+                {rows.map((row) => {
+                  const required = !!row.spec?.required;
+                  const custom = row.custom === true;
+                  const empty = row.binding.trim() === "";
+                  const invalid = empty ? required && !fromSource(row.spec?.in) : !bindingPath(row.binding);
+                  const update = (binding: string) => onUpdate(selected.id, {
+                    parameters: toParameters(rows.map((item) => item.name === row.name ? { ...item, binding } : item)),
+                  }, `query:${selected.id}:param:${row.name}`);
+                  return <tr key={row.name}>
+                    <td><code title={custom ? "Özel alan (gövde eşlemesi)" : row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
+                    <td><BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
+                      placeholder={fromSource(row.spec?.in) ? "Kaynak kayıttan" : custom ? "Bağlanmazsa korunur" : "{{girisAdi.value}}"} ariaLabel={`${row.name} bağlaması`} onChange={update}/></td>
+                    <td>{custom ? <span className="pd-query-custom-type"><small>Metin</small>
+                      <button type="button" className="pd-icon-button" aria-label={`${row.name} özel alanını kaldır`} disabled={!editable}
+                        onClick={() => onUpdate(selected.id, { parameters: toParameters(rows.filter((item) => item.name !== row.name)) })}><Trash2 size={12}/></button></span>
+                      : <small>{parameterTypes.find(([value]) => value === row.type)?.[1] ?? row.type}</small>}</td>
+                  </tr>;
+                })}
+              </tbody></table>}
+              {operation && bodyMap && <>
+                <CustomFieldAdder key={selected.id} disabled={!editable || rows.length >= MAX_QUERY_PARAMETERS}
+                  taken={rows.map((row) => row.name.toLowerCase())}
+                  onAdd={(code) => onUpdate(selected.id, { parameters: [...toParameters(rows), { name: code, binding: "", type: "text" }] })}/>
+                <p className="pd-binding-note">Bağlanmayan özel alanlar “{mapSource?.label ?? bodyMap.sourceOperation}” sorgusundaki değerleriyle korunur.</p>
+              </>}
+            </>;
           })()}
           {selected.parameters.some((parameter) => parameter.binding.trim() !== "" && !bindingPath(parameter.binding)) && <small className="pd-query-warning">Bağlanan her parametre tek bir <code>{"{{…}}"}</code> ifadesi olmalıdır.</small>}
         </div>

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
-  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, Plus, Redo2,
+  Grid3X3, Heading1, History, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Plus, Redo2,
   Rows3, Save, Search, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { ActionBarPreview, BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, BadgePreview, ContextPanelPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, MetricPreview, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -21,7 +21,10 @@ import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
 import { MAX_JAVASCRIPT_LENGTH, type StubHostData } from "./page-designer/codeBridgeStub";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
 import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
-import { chipText, idList, ownedInputIds, parseFieldList } from "./page-designer/layoutRefs";
+import { chipText, idList, ownedInputIds, parseFieldList, parseTabs, tabOwnedIds } from "./page-designer/layoutRefs";
+import { conditionProblem } from "./page-designer/conditions";
+import { ConditionFields } from "./page-designer/ConditionFields";
+import { TabsFields, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string };
@@ -32,7 +35,7 @@ type WorkflowOption = { id: string; code: string; name: string; status: string }
 type ReportSource = { code: string; label: string; columns: { code: string; label: string; dataType: string }[]; aggregates: { code: string; label: string }[] };
 type PreviewData = { totalCount: number; rows: Record<string, unknown>[] };
 type Capability = { canRead: boolean; canCreate: boolean; canUpdate: boolean; canPublish: boolean; canDelete: boolean };
-type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar";
+type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar" | "tabs";
 type PropValue = string | number | boolean | string[];
 type PageComponent = { id: string; type: ComponentType; name?: string; props: Record<string, PropValue>; children?: unknown };
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
@@ -48,6 +51,7 @@ const palette: PaletteItem[] = [
   { type: "contextPanel", label: "Bağlam paneli", group: "Tasarım dili", icon: PanelRight, sample: { title: "Bağlam paneli", fields: [] } },
   { type: "filterChips", label: "Filtre çipleri", group: "Tasarım dili", icon: Filter, sample: { inputs: [] } },
   { type: "facetPanel", label: "Yan filtre paneli", group: "Tasarım dili", icon: SlidersHorizontal, sample: { title: "Filtreler", inputs: [] } },
+  { type: "tabs", label: "Sekmeler", group: "Tasarım dili", icon: PanelsTopLeft, sample: { tabs: ["Genel=", "Ayrıntı="], defaultTab: 0 } },
   { type: "heading", label: "Başlık", group: "Metin ve düzen", icon: Heading1, sample: { text: "Sayfa başlığı" } },
   { type: "text", label: "Açıklama", group: "Metin ve düzen", icon: AlignLeft, sample: { text: "Kısa bir açıklama yazın." } },
   { type: "label", label: "Etiket", group: "Metin ve düzen", icon: Type, sample: { text: "Etiket metni" } },
@@ -91,13 +95,17 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   filterChips: [],
   facetPanel: [{ key: "title", label: "Başlık", kind: "text" }],
   actionBar: [],
+  tabs: [],
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons"]);
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons",
+  // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
+  "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
+  "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
-const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage"]);
+const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason"]);
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }];
 const MAX_REFRESH_QUERIES = 10;
 const bindingNote = "Değerler SQL'e her zaman parametre olarak gider.";
@@ -116,6 +124,21 @@ function dropQueryReferences(component: PageComponent, queryId: string, removed:
   if (staleRefresh) { const next = (refresh as string[]).filter((item) => item !== queryId); if (next.length > 0) props.refreshQueries = next; else delete props.refreshQueries; }
   return { ...component, props };
 }
+/** Giriş türü değişince silinen, türe bağlı doğrulama özellikleri ("Zorunlu" türden bağımsızdır, kalır). */
+const validationReset: Record<string, undefined> = { min: undefined, max: undefined, step: undefined, maxLength: undefined, pattern: undefined, patternMessage: undefined, upperCase: undefined };
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Biçim (pattern) sorunu: sunucu .NET Regex ile derler; burada JavaScript ile yaklaşık denetlenir. */
+const patternProblem = (pattern: string): string | null => {
+  if (/[<>]|\{\{|\}\}/.test(pattern)) return "Biçim < > {{ }} içeremez.";
+  try { new RegExp(`^(?:${pattern})$`, "u"); return null; } catch { return "'pattern' geçerli bir düzenli ifade değil."; }
+};
+/** Görünürlük koşulu olan bileşen: tasarımcıda gizlenmez, tuvalde "Koşullu" işaretiyle gösterilir. */
+const isConditional = (component: PageComponent) => typeof component.props.visibleWhen === "string" && component.props.visibleWhen.trim() !== "";
+/** Koşul kökü olabilecek sayfa adları: adlı bileşenler ve sorgular. */
+const pageNamesOf = (definition: PageDefinition) => [
+  ...definition.queries.map((query) => query.name).filter(Boolean),
+  ...definition.components.map((component) => component.name).filter((name): name is string => !!name),
+];
 const isFacetInput = (component: PageComponent) => component.props.inputType === "select" && typeof component.props.optionsQuery === "string" && component.props.optionsQuery !== "";
 const FACET_COUNT = /^[^=]{1,64}=[^=]{1,128}$/;
 const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b.length && a.every((item, index) => item === b[index]);
@@ -125,14 +148,47 @@ const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b
  * Değişiklik yoksa aynı nesneyi döndürür (geri alma yığını ve commit karşılaştırması bozulmaz).
  */
 function reconcileLayoutRefs(definition: PageDefinition): PageDefinition {
-  const byId = new Map(definition.components.map((component) => [component.id, component]));
+  let changed = false;
+  // `disabledReason` yalnız `disabledWhen` ile geçerlidir (sunucu kuralı); koşul silinince neden de kalkar.
+  const source = definition.components.map((component) => {
+    if (!("disabledReason" in component.props) || (typeof component.props.disabledWhen === "string" && component.props.disabledWhen !== "")) return component;
+    const props = { ...component.props };
+    delete props.disabledReason;
+    changed = true;
+    return { ...component, props };
+  });
+  const byId = new Map(source.map((component) => [component.id, component]));
   const readIds = new Set(definition.queries.filter((query) => !isWriteKind(query.kind)).map((query) => query.id));
   const writeKinds = new Map(definition.queries.map((query) => [query.id, query.kind]));
   const owned = new Set<string>();
-  let changed = false;
+  // Sekme kuralı: form kartı / yan filtre panelinin girişi ve listenin arama girişi sekmeye alınamaz; bileşen tek sekmede olur.
+  const layoutOwned = ownedInputIds(source);
+  const searchInputs = new Set(source.filter((component) => component.type === "dataTable" && typeof component.props.searchInput === "string").map((component) => String(component.props.searchInput)));
+  const tabOwned = new Set<string>();
   let barSeen = false;
-  const components = definition.components.map((component): PageComponent | null => {
+  const components = source.map((component): PageComponent | null => {
     const props = component.props;
+    if (component.type === "tabs") {
+      const tabs = parseTabs(props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids.filter((id) => {
+        const target = byId.get(id);
+        if (!target || target.type === "tabs" || target.type === "actionBar" || tabOwned.has(id)) return false;
+        if (target.type === "input" && (layoutOwned.has(id) || searchInputs.has(id))) return false;
+        tabOwned.add(id);
+        return true;
+      }) }));
+      const wanted = tabsValue(tabs);
+      const next = { ...props };
+      let touched = false;
+      if (!sameList(props.tabs, wanted)) { next.tabs = wanted; touched = true; }
+      if ("defaultTab" in props) {
+        const raw = Number(props.defaultTab);
+        const clamped = tabs.length === 0 ? undefined : Number.isInteger(raw) ? Math.max(0, Math.min(raw, tabs.length - 1)) : 0;
+        if (clamped === undefined) { delete next.defaultTab; touched = true; } else if (clamped !== props.defaultTab) { next.defaultTab = clamped; touched = true; }
+      }
+      if (!touched) return component;
+      changed = true;
+      return { ...component, props: next };
+    }
     if (component.type === "formCard" || component.type === "facetPanel" || component.type === "filterChips") {
       const wanted = idList(props.inputs).filter((id) => {
         const input = byId.get(id);
@@ -215,8 +271,9 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
   }),
 });
 const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
-// erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı.
-const sessionUser = (token: string) => {
+// erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı,
+// rol oturumdaki üyelik rolü (Studio'da `role` özelliği; ERP'de belirteçteki role iddiası).
+const sessionUser = (token: string, role: string) => {
   let id = "";
   try {
     const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
@@ -224,15 +281,17 @@ const sessionUser = (token: string) => {
   } catch { /* geçersiz belirteç */ }
   let name = "";
   try { name = localStorage.getItem("aierp.user") ?? ""; } catch { /* depolama kapalı */ }
-  return { id, ad: name };
+  return { id, ad: name, rol: role };
 };
 const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** Bağlama yoluna eklenebilen sütun kodu: tek ad ya da düzleştirilmiş "nesne.alan" adları. */
+const columnPath = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 const iconFor = (type: ComponentType) => palette.find((item) => item.type === type)?.icon ?? LayoutTemplate;
-const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "formCard" || type === "filterChips" || type === "actionBar" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
+const defaultSpan = (type: ComponentType) => type === "metric" ? 3 : type === "formCard" || type === "filterChips" || type === "actionBar" || type === "tabs" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
 // ERP tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); ERP gösterimi aynı değerleri kullanır.
 const DEFAULT_RADIUS = 8;
-const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel"].includes(type) ? 12 : 0;
+const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel", "tabs"].includes(type) ? 12 : 0;
 const spanOf = (component: PageComponent) => Math.max(1, Math.min(12, Number(component.props.width) || defaultSpan(component.type)));
 // Mirrors erp-web's tenant-custom-page.css: tablets show every block at half width, phones stack them.
 const deviceSpan = (span: number, device: Device) => device === "mobile" ? 12 : device === "tablet" ? 6 : span;
@@ -634,7 +693,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Palet'ten eklenen düzen bileşenleri sunucunun kabul etmediği boş liste yerine sayfanın uygun girişleri/tablosuyla başlar.
   const fillLayoutDefaults = (type: ComponentType, props: PageComponent["props"], state: PageDefinition) => {
-    const owned = ownedInputIds(state.components);
+    // Sekmedeki girişler de sahipli sayılır: yeni form kartı onları sekmeden çekip almaz.
+    const owned = new Set([...ownedInputIds(state.components), ...tabOwnedIds(state.components)]);
     const inputs = state.components.filter((component) => component.type === "input");
     if (type === "formCard") props.inputs = inputs.filter((component) => !owned.has(component.id)).slice(0, 12).map((component) => component.id);
     else if (type === "filterChips") props.inputs = inputs.slice(0, 12).map((component) => component.id);
@@ -782,12 +842,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önizleme parametreleri tasarım zamanı kapsamından çözülür: oturum, diğer sorguların son önizlemesi,
   // ızgaraların ilk önizleme satırı (seçili satır yerine) ve girişlerin varsayılan değerleri.
   const designScope = (): PageScope => {
-    const scope: PageScope = { kullanici: sessionUser(token), bugun: localToday(), [COUNTS_ROOT]: counts };
+    const scope: PageScope = { kullanici: sessionUser(token, role), bugun: localToday(), [COUNTS_ROOT]: counts };
     const state = definitionRef.current;
     for (const query of state.queries) {
       if (isWriteKind(query.kind)) continue;
       const preview = queryPreviews[query.id];
-      if (preview) scope[query.name] = { rows: preview.rows, rowCount: preview.rowCount, columns: preview.columns, truncated: preview.truncated };
+      if (preview) scope[query.name] = { rows: preview.rows, rowCount: preview.rowCount, columns: preview.columns, truncated: preview.truncated, meta: preview.meta ?? {} };
     }
     for (const component of state.components) {
       if (!component.name) continue;
@@ -876,8 +936,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const label = `“${summaryOf(component)}”`;
       const empty = component.type === "formCard" || component.type === "filterChips" || component.type === "facetPanel" ? idList(component.props.inputs).length === 0 ? `${label} için en az bir giriş kutusu seçin.` : null
         : component.type === "contextPanel" ? !component.props.table ? `${label} için bir tablo seçin.` : parseFieldList(component.props.fields).length === 0 ? `${label} için en az bir alan ekleyin.` : null
-          : null;
-      if (empty) { setError(empty); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+          : component.type === "tabs" ? parseTabs(component.props.tabs).length === 0 ? `${label} için en az bir sekme ekleyin.` : null
+            : null;
+      // Koşul sözdizimi ve kök adları: sunucu da reddeder; burada aynı metinle ve bileşen seçilerek gösterilir.
+      const condition = empty ?? conditionProblem("visibleWhen", component.props.visibleWhen, pageNamesOf(definition))
+        ?? conditionProblem("disabledWhen", component.props.disabledWhen, pageNamesOf(definition));
+      if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
     }
     // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
     for (const query of definition.queries) {
@@ -1058,6 +1122,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const ownedIds = useMemo(() => ownedInputIds(definition.components), [definition]);
   // "İşlemler" menüsüne taşınan düğmeler ERP'de kendi yerinde çizilmez; tuvalde de gizlenir (katmanlardan seçilebilir kalır).
   const movedIds = useMemo(() => movedButtonIds(definition.components), [definition]);
+  // Sekmelere alınan bileşenler üst düzeyde çizilmez; Sekmeler bileşeninin içinde varsayılan (ya da tıklanan) sekmede görünür.
+  const tabIds = useMemo(() => tabOwnedIds(definition.components), [definition]);
   const rendered = useMemo(() => {
   const owned = ownedInputIds(definition.components);
   const inputById = new Map(definition.components.filter((item) => item.type === "input").map((item) => [item.id, item]));
@@ -1078,7 +1144,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
     return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
   };
-  return definition.components.map((component) => {
+  const byComponentId = new Map(definition.components.map((item) => [item.id, item]));
+  // Sekmeler bileşeni sahiplendiği bileşenleri bu işlevle kendi içinde çizer (sekme bir sekme içermez; özyineleme bir düzeydir).
+  const renderOne = (component: PageComponent): ReactNode => {
     const props = component.props;
     const style = componentStyle(component.type, props);
     switch (component.type) {
@@ -1173,10 +1241,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         new: idList(props.newInputs).length > 0, save: typeof props.saveQuery === "string" && props.saveQuery !== "", remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length} />;
+      case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
+        onSelect={setSelectedComponentId}
+        spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
+        renderOwned={(id) => {
+          const child = byComponentId.get(id);
+          if (!child || child.type === "tabs") return null;
+          return <>{isConditional(child) && <span className="pd-cond-chip">Koşullu</span>}{renderOne(child)}</>;
+        }} />;
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
-  });
-  }, [definition, forms, sources, previewData, queryPreviews, counts, token]);
+  };
+  // Sekmedeki bileşenler yalnız sekmenin içinde çizilir (kod bileşeni iki kez çalışmasın diye üst düzeyde hiç oluşturulmaz).
+  const inTabs = tabOwnedIds(definition.components);
+  return definition.components.map((component) => inTabs.has(component.id) ? null : renderOne(component));
+  }, [definition, forms, sources, previewData, queryPreviews, counts, token, role, device]);
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
@@ -1226,15 +1305,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       continue;
     }
     bindingSuggestions.push({ path: `${query.name}.rows`, detail: "Sorgu satırları", group: "Sorgular" }, { path: `${query.name}.rowCount`, detail: "Satır sayısı", group: "Sorgular" });
-    for (const column of queryColumns(query.id)) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}`, group: "Sorgular" });
+    // Düzleştirilmiş işlemlerin sütun kodları noktalıdır ("balance.code"); bağlama iç nesne üzerinden aynı değere çözülür.
+    for (const column of queryColumns(query.id)) if (columnPath.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}`, group: "Sorgular" });
+    const op = isOperationQuery(query) ? findOperation(erpCatalog, query.operation) : undefined;
+    for (const key of op?.result.metaPaths ?? []) if (identifier.test(key))
+      bindingSuggestions.push({ path: `${query.name}.meta.${key}`, detail: `Üst bilgi${queryPreviews[query.id]?.meta?.[key] != null ? ` (şu an ${String(queryPreviews[query.id]?.meta?.[key])})` : ""}`, group: "Sorgular" });
   }
   for (const component of definition.components) {
     if (!component.name || !identifier.test(component.name)) continue;
     if (component.type === "input") bindingSuggestions.push({ path: `${component.name}.value`, detail: "Giriş değeri", group: "Girişler" });
     if (component.type === "dataTable" && typeof component.props.query === "string")
-      for (const column of queryColumns(component.props.query)) if (identifier.test(column.code)) bindingSuggestions.push({ path: `${component.name}.seciliSatir.${column.code}`, detail: "Izgarada seçili satır", group: "Izgarada seçili satır" });
+      for (const column of queryColumns(component.props.query)) if (columnPath.test(column.code)) bindingSuggestions.push({ path: `${component.name}.seciliSatir.${column.code}`, detail: "Izgarada seçili satır", group: "Izgarada seçili satır" });
   }
-  bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği", group: "Oturum" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" });
+  bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği", group: "Oturum" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı", group: "Oturum" },
+    { path: "kullanici.rol", detail: "Oturumdaki kullanıcının rolü", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" });
   for (const source of sources) if (isCountableSource(source.code))
     bindingSuggestions.push({ path: `${COUNTS_ROOT}.${source.code}`, detail: `${source.label} · kayıt sayısı${typeof counts[source.code] === "number" ? ` (şu an ${counts[source.code].toLocaleString("tr-TR")})` : ""}`, group: "Sayılar" });
   const readQueries = definition.queries.filter((query) => !isWriteKind(query.kind));
@@ -1288,6 +1372,68 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const next = column ? [...rest, `${inputId}=${column}`] : rest;
     patchComponent(selected.id, { facetCounts: next.length ? next : undefined });
   };
+  // Tek alan yazımı: değer varsa birleştirilen geri alma adımıyla yazılır, boşsa özellik silinir.
+  const setOptionalProp = (id: string, key: string, value: PropValue | undefined) => {
+    if (value === undefined) patchComponent(id, { [key]: undefined }); else updateComponent(id, key, value);
+  };
+  // "Giriş" bölümünün Doğrulama alanları (türe göre). İstemci denetimi kolaylıktır; sunucu doğrulaması her zaman çalışır.
+  const renderValidationFields = (input: PageComponent) => {
+    const props = input.props;
+    const inputType = String(props.inputType || "text");
+    const numberOf = (raw: string) => raw.trim() === "" || !Number.isFinite(Number(raw)) ? undefined : Number(raw);
+    const minValue = props.min;
+    const maxValue = props.max;
+    const rangeProblem = inputType === "number" && typeof minValue === "number" && typeof maxValue === "number" && minValue > maxValue
+      || inputType === "date" && typeof minValue === "string" && typeof maxValue === "string" && minValue > maxValue
+      ? "En az değeri en fazla değerinden büyük olamaz." : null;
+    const step = props.step;
+    const stepProblem = typeof step === "number" && (step <= 0 || step > 1_000_000) ? "Adım 0'dan büyük ve en fazla 1.000.000 olmalıdır." : null;
+    const maxLength = props.maxLength;
+    const lengthProblem = typeof maxLength === "number" && (!Number.isInteger(maxLength) || maxLength < 1 || maxLength > 4000) ? "En fazla karakter 1 ile 4.000 arasında bir tam sayı olmalıdır." : null;
+    const pattern = typeof props.pattern === "string" ? props.pattern : "";
+    const bound = (key: "min" | "max", label: string) => inputType === "date"
+      ? <label className="pd-field">{label}<input type="date" value={typeof props[key] === "string" && ISO_DATE.test(String(props[key])) ? String(props[key]) : ""} onChange={(event) => setOptionalProp(input.id, key, ISO_DATE.test(event.target.value) ? event.target.value : undefined)}/></label>
+      : <label className="pd-field">{label}<input type="number" value={typeof props[key] === "number" ? props[key] as number : ""} onChange={(event) => setOptionalProp(input.id, key, numberOf(event.target.value))}/></label>;
+    return <div className="pd-validation">
+      <div className="pd-field">Doğrulama<small>ERP'de kayıttan önce denetlenir; sunucudaki doğrulamanın yerini almaz.</small></div>
+      <label className="pd-check"><input type="checkbox" checked={props.required === true} onChange={(event) => patchComponent(input.id, { required: event.target.checked ? true : undefined })}/>Zorunlu</label>
+      {(inputType === "number" || inputType === "date") && <div className="pd-field-row">{bound("min", "En az")}{bound("max", "En fazla")}</div>}
+      {rangeProblem && <small className="pd-query-warning">{rangeProblem}</small>}
+      {inputType === "number" && <label className="pd-field">Adım<small>Ör. 0.01 kuruş, 1 tam sayı.</small><input type="number" min={0} value={typeof step === "number" ? step : ""} onChange={(event) => setOptionalProp(input.id, "step", numberOf(event.target.value))}/>
+        {stepProblem && <small className="pd-query-warning">{stepProblem}</small>}</label>}
+      {inputType === "text" && <>
+        <label className="pd-field">En fazla karakter<input type="number" min={1} max={4000} value={typeof maxLength === "number" ? maxLength : ""} onChange={(event) => setOptionalProp(input.id, "maxLength", numberOf(event.target.value))}/>
+          {lengthProblem && <small className="pd-query-warning">{lengthProblem}</small>}</label>
+        <label className="pd-field">Biçim (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
+          <input className="pd-condition-input" value={pattern} maxLength={200} spellCheck={false} onChange={(event) => {
+            const next = event.target.value;
+            if (next === "") patchComponent(input.id, { pattern: undefined, patternMessage: undefined }); else updateComponent(input.id, "pattern", next);
+          }}/>
+          {pattern && patternProblem(pattern) && <small className="pd-query-warning">{patternProblem(pattern)}</small>}</label>
+        {pattern && <label className="pd-field">Biçim hatası mesajı<small>Boşsa “Değer beklenen biçimde değil.” gösterilir.</small>
+          <input value={typeof props.patternMessage === "string" ? props.patternMessage : ""} maxLength={120} onChange={(event) => setOptionalProp(input.id, "patternMessage", sanitizeSafeValue(event.target.value, false) || undefined)}/></label>}
+        <label className="pd-check"><input type="checkbox" checked={props.upperCase === true} onChange={(event) => patchComponent(input.id, { upperCase: event.target.checked ? true : undefined })}/>Büyük harfe çevir</label>
+      </>}
+    </div>;
+  };
+  // Sekmeler müfettişi: sekmeye alınabilecek bileşenler (sunucudaki sekme kuralı) ve başka Sekmeler bileşenlerinin sahiplikleri.
+  const tabCandidates: PickerInput[] = selected?.type === "tabs" ? (() => {
+    const layoutOwned = ownedInputIds(definition.components);
+    const searchInputs = new Set(definition.components.filter((component) => component.type === "dataTable" && typeof component.props.searchInput === "string").map((component) => String(component.props.searchInput)));
+    return definition.components.filter((component) => component.type !== "tabs" && component.type !== "actionBar"
+      && !(component.type === "input" && (layoutOwned.has(component.id) || searchInputs.has(component.id))))
+      .map((component) => {
+        const summary = summaryOf(component);
+        const title = titleFor(component.type);
+        return { id: component.id, name: component.name, label: summary === title ? title : `${title}: ${summary}`, inputType: component.type, hasOptions: false };
+      });
+  })() : [];
+  const tabsTakenElsewhere: Record<string, string> = {};
+  if (selected?.type === "tabs") for (const component of definition.components) {
+    if (component.type !== "tabs" || component.id === selected.id) continue;
+    for (const tab of parseTabs(component.props.tabs)) for (const id of tab.ids) tabsTakenElsewhere[id] = `${summaryOf(component)} · ${tab.label}`;
+  }
+  const setTabs = (id: string, tabs: TabEntry[], defaultTab: number) => patchComponent(id, { tabs: tabsValue(tabs), defaultTab: tabs.length > 0 ? defaultTab : undefined });
 
   return <main className={`pd-shell${fullscreen ? " pd-fullscreen" : ""}`}>
     <header className="pd-topbar">
@@ -1391,7 +1537,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 const drop = dropTarget?.index === index ? dropTarget.edge : null;
                 const horizontal = deviceSpan(spanOf(component), device) < 12;
                 return <div key={component.id}
-                  className={`pd-block ${ownedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
+                  className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
@@ -1400,6 +1546,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   onDragOver={(event) => dragOverBlock(index, component, event)}
                   onDrop={(event) => dropAt(drop === "after" ? index + 1 : index, event)}>
                   <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
+                  {isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
                   {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
                     <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
                     <button type="button" title="Aşağı taşı (Alt+↓)" aria-label="Aşağı taşı" disabled={index === definition.components.length - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
@@ -1441,7 +1588,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selected.type === "list" && <label className="pd-field">Liste öğeleri<small>Her satıra bir madde yazın.</small><textarea rows={5} value={Array.isArray(selected.props.items) ? selected.props.items.join("\n") : ""} onChange={(event) => updateComponent(selected.id, "items", event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}/></label>}
             </>)}
             {selected.type === "input" && section("input", "Giriş", <>
-              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, event.target.value === "select" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
+                ...(event.target.value === "select" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
+                // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
+                ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
+              })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               {selected.props.inputType === "select" && <>
                 <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 {typeof selected.props.optionsQuery === "string" && (["optionValueColumn", "optionLabelColumn"] as const).map((key) => {
@@ -1454,6 +1605,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   </label>;
                 })}
               </>}
+              {renderValidationFields(selected)}
             </>)}
             {(selected.type === "metric" || selected.type === "dataTable") && section("data", "Veri", <>
               <div className="pd-field">Veri kaynağı<div className="pd-segment">
@@ -1639,6 +1791,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </label>
               {typeof selected.props.relatedQuery === "string" && <label className="pd-field">İlgili liste başlığı<input value={String(selected.props.relatedTitle ?? "")} maxLength={60} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { relatedTitle: sanitizeSafeValue(event.target.value, false) || undefined })} onBlur={(event) => { const trimmed = event.target.value.trim(); if (trimmed !== event.target.value) patchComponent(selected.id, { relatedTitle: trimmed || undefined }); }}/></label>}
             </>)}
+            {selected.type === "tabs" && section("tabs", "Sekmeler", <>
+              <small>Sekmeye alınan bileşenler sayfada kendi yerinde çizilmez, yalnız sekmesinde görünür. Tuvalde sekme başlığına tıklayarak sekmeler arasında geçebilirsiniz.</small>
+              <TabsFields tabs={parseTabs(selected.props.tabs)} defaultTab={Number(selected.props.defaultTab ?? 0)} candidates={tabCandidates}
+                takenElsewhere={tabsTakenElsewhere} disabled={!canEdit} onChange={(tabs, defaultTab) => setTabs(selected.id, tabs, defaultTab)}/>
+            </>)}
+            {section("conditions", "Koşullar", <ConditionFields props={selected.props} allowDisabled={selected.type === "button" || selected.type === "input"}
+              pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit}
+              onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>)}
             {section("style", "Görünüm", <>
               {selected.type === "metric" && <>
                 <div className="pd-field">Anlam<ToneSelect value={(["info", "success", "warning", "danger"] as const).find((tone) => tone === selected.props.variant)} disabled={!canEdit} onChange={(tone) => patchComponent(selected.id, { variant: tone })}/></div>
