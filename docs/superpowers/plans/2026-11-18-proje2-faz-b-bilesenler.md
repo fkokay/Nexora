@@ -72,7 +72,7 @@
    - a create sequence `olustur` → `birimEkleYeni` (iterating over two staged unit rows);
    - unit row 2 fails.
 
-   The status reads `"Stok kartına birim ekle (satır 2/2) başarısız: … Önceki 2 işlem kaydedildi; kalan adımlar çalıştırılmadı."`. Unit row 1 leaves the staged list and row 2 stays. Pressing save again sends **only** the row-2 POST. `olustur` is skipped by its `sequenceWhen` (`olustur.sonuc.id == null`), and the unit step binds `{{olustur.sonuc.id}}` from the persisted state. Test: Task 5 (`retry after partial failure sends only remaining rows`).
+   The status reads `"Stok kartına birim ekle (satır 2/2) başarısız: … Önceki 2 işlem kaydedildi; kalan adımlar çalıştırılmadı."`. Unit row 1 leaves the staged list and row 2 stays. Pressing save again sends **only** the row-2 POST. `olustur` is skipped by its `sequenceWhen` (`olustur.sonuc.id == null`), and the unit step binds `{{olustur.sonuc.id}}` from the persisted state. A partial failure reruns only the source reads, so the selection and the staged rows survive in edit mode too. After a full success the sequence `sonuc` is cleared, so the next create posts a new card. Tests: Task 6 (`retry after partial failure sends only remaining rows`, `edit-mode retry after partial failure keeps selection and remaining rows`, `second create after a successful create posts a new card`).
 2. **A typed value never moves to another record.** Setup: a formCard with `recordKey: "{{kart.rows[0].id}}"`; the user edits `ad` on card A and then selects card B (no `trackChanges`). `ad` shows B's value, and save sends B's value. With `trackChanges` the row click asks first; answering Vazgeç keeps A selected and keeps the typed text. Test: Task 6 (`recordKey change resets owned inputs`, `dirty form confirms row change`).
 3. **A TenantUser can save a card with no unit changes.** `birimEkle`/`birimSil` have `allowed:false`, but their iterating steps have zero rows, so they are skipped without a request or an error. With one staged unit, the step reports `"Bu işlem için yetkiniz yok."` and sends no request. Test: Task 3 (`unallowed step with zero rows is skipped`, `unallowed step with rows fails without request`).
 4. **Ctrl+S inside the movement dialog saves the dialog, not the card.** With the dialog open, Ctrl+S runs the dialog's `saveQuery` (`stok.hareket.ekle`). The actionBar `saveSequence` is not called. After the dialog closes, Ctrl+S saves the card again. Test: Task 5 (`ctrl+s in dialog runs dialog save only`).
@@ -167,8 +167,15 @@ Allowed on:
 7. **End.**
    - If at least one call succeeded:
      - successful iteration rows are committed (removed from the grid's staged lists);
-     - the page reruns its load reads plus `refreshQueries`;
      - `afterSave` is emitted once with `{ query, sonuc, adimlar }`. `query`/`sonuc` are the last successful call; `adimlar` is `[{ query, ok, sonuc?, hata? }]`, an additive field (the Proje 2b payload keeps `query` and `sonuc`).
+   - **Refresh after full success.** The page reruns its load reads plus `refreshQueries`, as Faz A does after a save. Then the `sonuc` of every write query in this sequence is cleared (`clearResults`), so the next save starts a new create. A single `saveQuery` keeps the Proje 1 behavior: its `sonuc` stays.
+   - **Refresh after a partial failure** (at least one call succeeded and one failed). Only these are rerun:
+     - the steps' source reads (the `sourceOperation` read and the `bodyMap.sourceOperation` read; `kart` gets its new `rowVersion` for the retry);
+     - the `sourceQuery` of every grid that a step iterates;
+     - `refreshQueries`.
+
+     The list is **not** rerun, so the table selection, the `recordKey` and the remaining staged rows survive. These reruns keep their `ranWith`, so no grid or block resets. The `sonuc` values are kept, so `sequenceWhen` can skip the steps that already succeeded.
+   - When no call succeeded, nothing is rerun or cleared.
    - The lock is released.
 
 **A sequence may contain at most one step whose operation has a `sourceOperation`.** A second one would reuse the pre-sequence source row and its `rowVersion`.
@@ -208,7 +215,7 @@ Allowed on:
 | `promptRequired` | bool; only with `promptLabel` |
 | `dialogId` | the id of a `dialog` component; required with `actionType: "openDialog"` and allowed only then |
 
-The prompt runs after validation and `beforeSave`, and before the confirm. When both prompt and confirm are set, only the prompt is shown, because the prompt is itself a confirmation.
+The prompt runs after validation and `beforeSave`, and before the confirm. When both prompt and `confirmEnabled` are set, only the prompt is shown, because the prompt is itself a confirmation. **In preview the preview warning confirm still follows the prompt**: the preview rule wins.
 
 ### Editable grid (`editableGrid`, B3)
 
@@ -338,8 +345,11 @@ A new v2 type. A `name` is required. Props:
 - a `list`/`matrix` grid has rows;
 - a `customFieldsBlock` has typed values.
 
+**Record tables.** The record tables of a formCard are the tables that its `recordKey` depends on. A table counts when it is the root of the `recordKey` binding, or the root of any parameter binding of a query reached from it, transitively. For `{{kart.rows[0].id}}`, `kart` binds `{{liste.seciliSatir.stockItem.id}}`, so the record table is `liste`.
+
 **Leave confirmation** (only when the page is dirty):
-- **A user row click** in a named dataTable asks `confirmDialog({ title: "Kayıt değiştirilsin mi?", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })`. Vazgeç keeps the old selection. A selection cleared by a data refresh never asks.
+- **A user row click, including a row-action click,** in a record table of a formCard with `trackChanges` asks `confirmDialog({ title: "Kayıt değiştirilsin mi?", message: "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?", confirmLabel: "Devam" })`. Vazgeç keeps the old selection. A click in any other table (e.g. "Ters kayıt" in the movement dialog) never asks, and neither does a selection cleared by a data refresh.
+- **Results.** A confirmed (or clean) user row change in a record table also clears the `sonuc` of the actionBar's save-path write queries.
 - **actionBar Yeni** uses the existing `confirmStartNew(true)`. When it continues, Yeni also:
   - resets every grid and custom-fields block;
   - clears the `sonuc` of every write query in the actionBar's `saveQuery`/`saveSequence`.
@@ -361,6 +371,7 @@ A new v2 type. A `name` is required. Props:
   - `ValidName` adds the reservation of `onceki`.
 - Modify: `tests/IntegrationTests/ErpOperationCatalogTests.cs`
 - Create: `tests/IntegrationTests/TenantCustomPageCollectionParameterTests.cs` (a new file, so it does not collide with Task 2)
+- Check, do not change: `CustomPageQueryEndpoints.Convert` handles only the six SQL types, and `TenantCustomPageQueries` (line ~58) reads parameters generically. Operation queries never reach the SQL run endpoint, and the test `Run_endpoint_refuses_operation_query` (below) pins that. A published page with a `list`/`map` operation parameter must still load and run its SQL queries.
 
 **Interfaces (Produces):**
 
@@ -409,6 +420,8 @@ public List<(string Query, string Parameter, string Kind /* list|map */, string 
     - `Rejects_list_type_on_sql_query`: error contains "text, int, decimal, date, bool veya guid".
     - `Accepts_values_map_on_body_map_operation`: `stok.kart.ozelAlanKaydet` with `values` = `{{ozel.degerler}}` plus `RENK` text. Faz A's same-id rule still applies.
     - `Rejects_onceki_as_component_name` and `Rejects_onceki_as_query_name`.
+    - `Run_endpoint_refuses_operation_query`: `POST /api/custom-pages/<kod>/queries/<id>/run` for an operation query (with a `list` parameter) does not execute SQL. It returns the existing refusal status. If no refusal exists today, return 400 with `"ERP işlemi sorgusu bu uçtan çalıştırılamaz."` and list the change under Files.
+    - `Published_page_with_collection_parameter_runs_sql_query`: a page with `variants` bound and a SQL read query runs that read normally.
 
     These tests use only the query rules, so the `varyant`/`ozel` roots need not resolve yet; the test pages declare no such components. Task 2 adds root resolution. In the same commit it updates the three accepting tests here to declare a `list` grid `varyant` and a block `ozel`, because unresolved roots then fail.
 - [ ] **Step 2: Run** `dotnet test tests/IntegrationTests --filter "FullyQualifiedName~ErpOperationCatalogTests|FullyQualifiedName~TenantCustomPageCollectionParameterTests"`. Expected: the new tests FAIL.
@@ -753,11 +766,18 @@ export function validateCustomFields(specs: CustomFieldSpec[], values: Record<st
     - The top-level render skips dialog-owned and row-owned ids.
   - **Validation.** `ancestorsOf` treats a closed dialog as a hidden owner.
   - **Rows.** `select` gains `{ user?: boolean }`, used by Task 6.
+  - **Bindable props.** `BINDABLE_PROPS` gains `promptLabel`, `fixedRowLabel`, `matrixCode`, `matrixName` and `recordKey`.
+  - **Button actions.** The `movedButtonIds` `hasAction` callback in `PageBody`, plus `buttonLabel` and `runButton` in `PageActionCommands`, learn the two new action types:
+    - `sequence`: has an action when `saveSequence` is non-empty, needs every step kind's page right, and runs through `startSequence`;
+    - `openDialog`: has an action when `dialogId` names a dialog, needs only `view`, and calls `openDialog`.
+
+    Without this, the pilot's "Hareketler" button does not appear in the İşlemler menu.
 - Modify: `frontend/erp-web/src/custom-page/pageActions.ts`:
   - `save` is bound when `saveSequence` is set; the rights check covers every step kind;
   - a `moreButtons` entry whose button has `actionType: "openDialog"` runs `deps.run.button` (no change in shape);
   - `PageActionDeps.queryKind` is reused for the steps.
 - Modify: `frontend/erp-web/src/custom-page/layoutRefs.ts`: `dialogOwnedIds(components)`, `rowActionIds(components)`.
+- Modify: `frontend/erp-web/src/custom-page/usePageQueries.ts`. Add `clearResults(queryNames)`, which resets `sonuc`/`fieldErrors` of write states. It is used after a full sequence success here, and by Task 6 for Yeni and record row changes.
 - Modify: `frontend/erp-web/src/tenant-custom-page.css`
 - Test: `frontend/erp-web/src/custom-page/TenantCustomPageSequence.test.tsx` (new; render `TenantCustomPage` with mocked `../erpApi` as `TenantCustomPageErp.test.tsx` does), `CustomPageTable.test.tsx` (extend), `pageActions.test.ts` (extend), `layoutRefs.test.ts` (extend)
 
@@ -808,7 +828,10 @@ A single `saveQuery`/`queryId` without `saveSequence` and without a prompt keeps
     - `sequenceWhen skips create on edit`.
     - `persisted sonuc skips create on second save` (`olustur=olustur.sonuc.id == null`).
     - `ctrl+s in dialog runs dialog save only` (wrap in `CommandProvider` + `KeepAliveViews` like `CommandProvider.test.tsx`).
-    - `open dialog from moreButtons`.
+    - `open dialog from moreButtons` (the button is listed in the menu and opens the dialog).
+    - `sequence button in moreButtons runs the sequence`.
+    - `full success clears sequence sonuc; partial failure keeps it`.
+    - `partial failure reruns only source reads and refreshQueries` (the list query is not called again, and the selection survives).
     - `dialog resetOnOpen clears owned inputs`.
     - `closed dialog inputs are not validated`.
     - `prompt answer binds as yanit and cancel sends nothing`.
@@ -839,7 +862,6 @@ A single `saveQuery`/`queryId` without `saveSequence` and without a prompt keeps
   - formCard `recordKey`/`trackChanges`;
   - `isDirty()` and the leave confirmations;
   - Yeni resets the grids, blocks and write `sonuc` values.
-- Modify: `frontend/erp-web/src/custom-page/usePageQueries.ts`: add `clearResults(queryNames)`, which resets `sonuc`/`fieldErrors` of write states (for Yeni).
 - Modify: `frontend/erp-web/src/tenant-custom-page.css`
 - Test: `frontend/erp-web/src/custom-page/TenantCustomPageGrid.test.tsx` (new), `TenantCustomPageChanges.test.tsx` (new)
 
@@ -863,7 +885,8 @@ export function CustomFieldsBlock(props: { id: string; title: string; columns: 1
 - **Block keys.** Block inputs use ids `page-cf-<blok>-<CODE>`. Server errors come from the `fieldErrors["<param>.<CODE>"]` of any write that binds `{{<blok>.degerler}}`.
 - **`recordKey`.** A `useEffect` per formCard compares the resolved key with the previous one. On change it removes the owned ids from `touched`, `validationErrors` and `lookupState`; the first render only records the key.
 - **Row clicks.**
-  - `select(table, row, { user: true })` checks `isDirty()`.
+  - `recordTables(formCardId)` computes the record tables per the Wire contract: binding roots followed through `queryById` parameters, with cycles guarded by a visited set.
+  - `select(table, row, { user: true })` checks `isDirty()` only when `table` is a record table of some `trackChanges` formCard. After the change it clears the save-path `sonuc` (`clearResults`).
   - When dirty, it awaits the confirmation (Wire contract text).
   - When declined, it keeps the selection and emits nothing.
 - **Yeni.** Yeni calls `confirmStartNew(isDirty())`. When it continues, Yeni:
@@ -888,7 +911,9 @@ export function CustomFieldsBlock(props: { id: string; title: string; columns: 1
     - `empty definitions text`.
   - **`TenantCustomPageGrid.test.tsx`:**
     - `staged units are posted and deleted by sequence then committed`.
-    - `retry after partial failure sends only remaining rows` (Review Focus 1).
+    - `retry after partial failure sends only remaining rows` (Review Focus 1, create mode).
+    - `edit-mode retry after partial failure keeps selection and remaining rows`. Card selected, `guncelle` OK, unit row 2 fails. The selection, the form values and staged row 2 survive. The retry sends `guncelle` with the refreshed `rowVersion` and only row 2's POST.
+    - `second create after a successful create posts a new card` (no stale `olustur.sonuc`).
     - `variants matrix sent in olustur body`.
     - `tracking list sent in hareket.ekle body`.
     - `grid validation blocks sequence and jumps to tab`.
@@ -902,6 +927,8 @@ export function CustomFieldsBlock(props: { id: string; title: string; columns: 1
     - `trackChanges shows change count`.
     - `dirty form confirms row change` (Vazgeç keeps the old selection and the typed text; Devam switches and resets).
     - `refresh-driven selection clear does not confirm`.
+    - `row click in a non-record table does not confirm` (a row action in the dialog's movement table while the card is dirty).
+    - `record row change clears save-path sonuc`.
     - `Yeni over dirty page confirms and resets grids, blocks and sonuc`.
     - `dirty dialog close confirms`.
 - [ ] **Step 2: Run** `npx vitest run src/custom-page src/TenantCustomPage`. Expected: the new tests FAIL.
@@ -919,7 +946,7 @@ New files and page-designer modules only; `CustomPagesPage.tsx` is **not** edite
   - `wireParameters` keeps declared `list`/`map` parameters with a non-empty binding;
   - `mergedParameters` keeps their `spec`;
   - new `collectionCandidates(kind, components)` returns the names of eligible grids and blocks.
-- Modify: `page-designer/QueriesPanel.tsx`. A `list`/`map` parameter row shows a `<select>` of `collectionCandidates` instead of `BindingInput`, and writes `{{<ad>.satirlar}}`/`{{<ad>.degerler}}`. The option label is `"<ad> (Düzenlenebilir tablo)"` / `"<ad> (Özel alanlar)"`. With no candidate, the hint reads `"Önce sayfaya bir düzenlenebilir tablo ekleyin."` / `"Önce sayfaya bir özel alanlar bloğu ekleyin."`.
+- Modify: `page-designer/QueriesPanel.tsx`. `QueryParameterType` gains `"list" | "map"`, with the display labels `Liste`/`Eşlem`. These two types are never offered in the SQL parameter type select. A `list`/`map` parameter row shows a `<select>` of `collectionCandidates` instead of `BindingInput`, and writes `{{<ad>.satirlar}}`/`{{<ad>.degerler}}`. The option label is `"<ad> (Düzenlenebilir tablo)"` / `"<ad> (Özel alanlar)"`. With no candidate, the hint reads `"Önce sayfaya bir düzenlenebilir tablo ekleyin."` / `"Önce sayfaya bir özel alanlar bloğu ekleyin."`.
 - Create: `page-designer/gridColumns.ts`, the twin of the `parseGridColumn` part of erp-web `gridState.ts`.
 - Create: `page-designer/SequenceFields.tsx`. It edits:
   - the ordered step list: add from write queries, ↑/↓ and remove;
