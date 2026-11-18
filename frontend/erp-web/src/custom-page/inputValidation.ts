@@ -30,7 +30,7 @@ export function inputRules(props: Record<string, unknown>): InputRules {
 
 function compilePattern(pattern: string): RegExp | null {
   if (pattern.length > MAX_PATTERN) return null;
-  try { return new RegExp("^(?:" + pattern + ")$", "u"); } catch {
+  try { return new RegExp("^(?:" + pattern + ")$"); } catch {
     console.warn("Giriş deseni geçerli bir düzenli ifade değil; yok sayıldı.");
     return null;
   }
@@ -45,8 +45,11 @@ export function validateInputValue(inputType: string, rules: InputRules, raw: st
   if (text.trim() === "") return rules.required ? "Bu alan zorunludur." : null;
 
   if (inputType === "number") {
-    // Sayı girişi tarayıcıdan noktalı ondalıkla gelir (sunucuya da öyle gider); "1e3", "0x10", "1,5" geçersizdir.
+    // Sınır kuralı yoksa tarayıcının sayı girişinin kabul ettiği her sonlu sayı geçer (".5", "1e3"); "abc" geçmez.
+    // min/max/step varsa karşılaştırma için katı biçim aranır: noktalı ondalık; "1e3", "0x10", "1,5" geçersizdir.
+    const hasNumberRule = typeof rules.min === "number" || typeof rules.max === "number" || rules.step !== undefined;
     const trimmed = text.trim();
+    if (!hasNumberRule) return Number.isFinite(Number(trimmed)) ? checkTextRules(rules, text) : "Geçerli bir sayı girin.";
     if (!NUMBER_TEXT.test(trimmed)) return "Geçerli bir sayı girin.";
     const value = Number(trimmed);
     if (typeof rules.min === "number" && value < rules.min) return `En az ${String(rules.min)} olmalıdır.`;
@@ -61,6 +64,10 @@ export function validateInputValue(inputType: string, rules: InputRules, raw: st
     if (typeof rules.max === "string" && DATE_TEXT.test(rules.max) && value > rules.max) return `En geç ${rules.max} olabilir.`;
   }
 
+  return checkTextRules(rules, text);
+}
+
+function checkTextRules(rules: InputRules, text: string): string | null {
   if (rules.maxLength !== undefined && text.length > rules.maxLength) return `En fazla ${String(rules.maxLength)} karakter girilebilir.`;
   if (rules.pattern !== undefined) {
     const pattern = compilePattern(rules.pattern);

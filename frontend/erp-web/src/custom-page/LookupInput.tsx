@@ -66,16 +66,19 @@ export function lookupOptionsWithValue(props: Record<string, unknown>, state: Qu
  * Arama kutusu (combobox). Seçimde etiket saklanır; değer dışarıdan değişirse (varsayılan, setInput) eşleşen seçeneğin
  * etiketi, eşleşme yoksa ham değer gösterilir; değer hiçbir zaman seçeneklere göre temizlenmez.
  */
-export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder }: {
-  inputId: string; label: string; raw: string; onChange: (value: string, row: Record<string, unknown> | null) => void;
+export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected }: {
+  inputId: string; label: string; raw: string; onChange: (value: string, row: Record<string, unknown> | null, label: string) => void;
   onSearch: (text: string) => void; options: LookupOption[];
   loading: boolean; error?: string; allowClear: boolean; disabled: boolean; placeholder: string;
+  /** Sayfa çalışma zamanının sakladığı son seçim (bileşen yeniden bağlansa da, ör. visibleWhen açılıp kapanınca, kaybolmaz). */
+  selected?: { value: string; label: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   // Yazılan arama metni; null iken kutuda seçili etiket görünür.
   const [text, setText] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(-1);
-  const [chosen, setChosen] = useState<{ value: string; label: string } | null>(null);
+  const [localChosen, setChosen] = useState<{ value: string; label: string } | null>(null);
+  const chosen = selected !== undefined ? selected : localChosen;
   const listId = `${inputId}-listbox`;
   const display = chosen && chosen.value === raw ? chosen.label : options.find((option) => option.value === raw)?.label ?? raw;
   const listOpen = open && !disabled;
@@ -87,12 +90,12 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   };
   const choose = (option: LookupOption) => {
     setChosen({ value: option.value, label: option.label });
-    onChange(option.value, option.row);
+    onChange(option.value, option.row, option.label);
     close();
   };
   const clear = () => {
     setChosen(null);
-    onChange("", null);
+    onChange("", null, "");
     close();
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

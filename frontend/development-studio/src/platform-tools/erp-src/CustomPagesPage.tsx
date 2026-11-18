@@ -142,10 +142,13 @@ function dropQueryReferences(component: PageComponent, queryId: string, removed:
 /** Giriş türü değişince silinen, türe bağlı doğrulama özellikleri ("Zorunlu" türden bağımsızdır, kalır). */
 const validationReset: Record<string, undefined> = { min: undefined, max: undefined, step: undefined, maxLength: undefined, pattern: undefined, patternMessage: undefined, upperCase: undefined };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-/** Biçim (pattern) sorunu: sunucu .NET Regex ile derler; burada JavaScript ile yaklaşık denetlenir. */
+/** .NET'te olup ECMAScript'te olmayan yapılar (satır içi seçenekler `(?i)`, `\A`, `\Z`, `\z`); sunucudaki kuralın aynısı. */
+const UNSUPPORTED_PATTERN = /\(\?[imnsx-]+[):]|(?:^|[^\\])(?:\\\\)*\\[AZz]/;
+/** Biçim (pattern) sorunu: sunucu .NET Regex ile derler; burada JavaScript ile ("u" bayrağı olmadan, ERP'deki gibi) denetlenir. */
 const patternProblem = (pattern: string): string | null => {
   if (/[<>]|\{\{|\}\}/.test(pattern)) return "Biçim < > {{ }} içeremez.";
-  try { new RegExp(`^(?:${pattern})$`, "u"); return null; } catch { return "'pattern' geçerli bir düzenli ifade değil."; }
+  if (UNSUPPORTED_PATTERN.test(pattern)) return "Desen tarayıcıda desteklenmeyen bir yapı içeriyor.";
+  try { new RegExp(`^(?:${pattern})$`); return null; } catch { return "'pattern' geçerli bir düzenli ifade değil."; }
 };
 /** Görünürlük koşulu olan bileşen: tasarımcıda gizlenmez, tuvalde "Koşullu" işaretiyle gösterilir. */
 const isConditional = (component: PageComponent) => typeof component.props.visibleWhen === "string" && component.props.visibleWhen.trim() !== "";
@@ -168,11 +171,17 @@ type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; query
 function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptions = {}): PageDefinition {
   const catalog = options.catalog;
   let changed = false;
-  // `disabledReason` yalnız `disabledWhen` ile geçerlidir (sunucu kuralı); koşul silinince neden de kalkar.
+  // `disabledReason` yalnız `disabledWhen` ile geçerlidir (sunucu kuralı); koşul silinince neden de kalkar. İkisi de yalnız
+  // düğme ve girişte geçerlidir; başka türde kalanlar silinir.
   const reasoned = definition.components.map((component) => {
-    if (!("disabledReason" in component.props) || (typeof component.props.disabledWhen === "string" && component.props.disabledWhen !== "")) return component;
+    const disableable = component.type === "button" || component.type === "input";
+    const dropWhen = !disableable && "disabledWhen" in component.props;
+    const dropReason = "disabledReason" in component.props
+      && (!disableable || !(typeof component.props.disabledWhen === "string" && component.props.disabledWhen !== ""));
+    if (!dropWhen && !dropReason) return component;
     const props = { ...component.props };
-    delete props.disabledReason;
+    if (dropWhen) delete props.disabledWhen;
+    if (dropReason) delete props.disabledReason;
     changed = true;
     return { ...component, props };
   });

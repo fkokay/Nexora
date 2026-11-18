@@ -85,12 +85,19 @@ describe('inputValidation', () => {
     warn.mockRestore();
   });
 
-  it('number parsing is strict', () => {
-    expect(validateInputValue('number', rules(), ' 12 ')).toBeNull();
-    expect(validateInputValue('number', rules(), '-1.5')).toBeNull();
-    for (const bad of ['1e3', '0x10', '1,5', '.5', '1.', 'Infinity', '+1']) {
-      expect(validateInputValue('number', rules(), bad), bad).toBe('Geçerli bir sayı girin.');
+  it('number parsing is strict when min, max or step is set', () => {
+    for (const ruled of [rules({ min: 0 }), rules({ max: 1000 }), rules({ step: 0.5 })]) {
+      expect(validateInputValue('number', ruled, ' 12 ')).toBeNull();
+      for (const bad of ['1e3', '0x10', '1,5', '.5', '1.', 'Infinity', '+1']) {
+        expect(validateInputValue('number', ruled, bad), bad).toBe('Geçerli bir sayı girin.');
+      }
     }
+    expect(validateInputValue('number', rules({ min: -5 }), '-1.5')).toBeNull();
+  });
+
+  it('unruled number input accepts whatever the browser number input accepts', () => {
+    for (const ok of ['1e3', '.5', '-1.5', ' 12 ']) expect(validateInputValue('number', rules(), ok), ok).toBeNull();
+    expect(validateInputValue('number', rules({ required: true }), '1e3')).toBeNull();
   });
 
   it('date limits accept only YYYY-MM-DD', () => {

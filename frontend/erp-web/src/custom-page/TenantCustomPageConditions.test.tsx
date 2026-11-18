@@ -103,6 +103,24 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
     await waitFor(() => expect(writes).toEqual(['qi']));
   });
 
+  it('tab error badge ignores inputs that are no longer validated', async () => {
+    const { container } = setup([
+      { id: 'bar', type: 'actionBar', props: { saveQuery: 'qi' } },
+      { id: 'gz', type: 'input', name: 'gizle', props: { inputType: 'checkbox', label: 'Gizle' } },
+      { id: 'tb', type: 'tabs', props: { tabs: ['Genel=kod', 'Diğer=not'] } },
+      { id: 'kod', type: 'input', name: 'kod', props: { inputType: 'text', label: 'Kod', required: true, visibleWhen: 'gizle.value == false' } },
+      { id: 'not', type: 'input', name: 'not', props: { inputType: 'text', label: 'Not' } },
+    ], [insertQuery]);
+    await screen.findAllByRole('tab');
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(screen.getAllByRole('tab')[0].classList.contains('is-error')).toBe(true));
+    expect(container.querySelector('.tenant-page-tab-badge')?.textContent).toBe('1');
+    // Giriş gizlenince (doğrulanmaz) kalan iletisi sekme işaretinde sayılmaz.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Gizle' }));
+    await waitFor(() => expect(screen.getAllByRole('tab')[0].classList.contains('is-error')).toBe(false));
+    expect(container.querySelector('.tenant-page-tab-badge')).toBeNull();
+  });
+
   it('hidden input is not validated', async () => {
     setup([
       { id: 'bar', type: 'actionBar', props: { saveQuery: 'qi' } },

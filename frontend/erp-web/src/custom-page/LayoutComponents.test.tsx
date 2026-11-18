@@ -130,6 +130,16 @@ describe('FacetPanel', () => {
     expect(screen.getByText('Sorgu başarısız')).toBeTruthy();
     expect(screen.getByText('Yükleniyor…')).toBeTruthy();
   });
+  it('pasif grup seçenekleri devre dışıdır; Temizle onu atlar', () => {
+    const onSelect = vi.fn();
+    panel([group({ selected: 'Merkez', disabled: true }), group({ id: 'in2', label: 'Tür', selected: 'X', options: [{ value: 'X', label: 'X' }] })], onSelect);
+    const disabledGroup = screen.getByRole('group', { name: 'Şube' });
+    for (const button of disabledGroup.querySelectorAll('button')) expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /Merkez/ }));
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Süzgeçler süzgeçlerini temizle' }));
+    expect(onSelect.mock.calls).toEqual([['in2', '']]);
+  });
   it('Temizle seçili tüm grupları boşaltır', () => {
     const onSelect = vi.fn();
     panel([group({ selected: 'Merkez' }), group({ id: 'in2', label: 'Tür', selected: 'X', options: [{ value: 'X', label: 'X' }] }), group({ id: 'in3', label: 'Üç' })], onSelect);

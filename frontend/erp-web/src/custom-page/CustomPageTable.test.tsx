@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage, { PageBadge, QueryTable } from '../TenantCustomPage';
 import { parseColumnFormats, parseToneMap } from './cellFormat';
+import { PagedTableFooter } from './PagedTableFooter';
 import type { QueryState } from './usePageQueries';
 
 afterEach(cleanup);
@@ -135,6 +136,7 @@ const pagedTable = (props: Record<string, unknown> = {}) => ({
 });
 
 let urls: string[] = [];
+let shrunkTotal: number | null = null;
 let hold: ((url: string) => boolean) | null = null;
 let held: (() => void)[] = [];
 
@@ -143,7 +145,7 @@ const pageResponse = (url: string) => {
   const page = Number(params.get('page') ?? '1');
   const size = Number(params.get('pageSize') ?? '25');
   const search = params.get('search') ?? '';
-  const total = search ? 3 : 340;
+  const total = search ? 3 : shrunkTotal ?? 340;
   const count = Math.max(0, Math.min(size, total - (page - 1) * size));
   return {
     items: Array.from({ length: count }, (_, index) => ({ kod: `${search || 'P'}${page}-${index + 1}`, miktar: 1 })),
@@ -176,7 +178,7 @@ const firstCell = () => document.querySelector('.tenant-page-table tbody td')?.t
 const pagerRange = () => document.querySelector('.tenant-page-pager-range')?.textContent;
 
 describe('Sunucu sayfalı liste', () => {
-  beforeEach(() => { urls = []; hold = null; held = []; api.mockReset(); downloadXlsx.mockReset(); });
+  beforeEach(() => { urls = []; shrunkTotal = null; hold = null; held = []; api.mockReset(); downloadXlsx.mockReset(); });
 
   it('server paged table sends page and pageSize', async () => {
     setupPaged([searchInput, pagedTable({ pageSize: 10 })]);
@@ -231,6 +233,34 @@ describe('Sunucu sayfalı liste', () => {
     setupPaged([searchInput, pagedTable()]);
     await waitFor(() => expect(firstCell()).toBe('P1-1'));
     expect(screen.queryByText('İlk 5.000 satır gösteriliyor.')).toBeNull();
+  });
+
+  it('clamps to the last page when the total shrinks and re-runs', async () => {
+    setupPaged([searchInput, pagedTable({ pageSize: 100 })]);
+    await waitFor(() => expect(firstCell()).toBe('P1-1'));
+    for (let click = 0; click < 2; click += 1) fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    await waitFor(() => expect(firstCell()).toBe('P3-1'));
+    // Kayıtlar başka yerde silindi: sayfa 4 isteği 150 toplamla boş döner; son sayfaya (2) geçilir ve sorgu yeniden çalışır.
+    shrunkTotal = 150;
+    fireEvent.click(screen.getByRole('button', { name: 'Sonraki' }));
+    await waitFor(() => expect(firstCell()).toBe('P2-1'));
+    expect(urls.at(-1)).toBe('/api/warehouses/balances/page?page=2&pageSize=100');
+    expect(pagerRange()).toBe('101–150 / 150');
+    expect(screen.getByText('Sayfa 2 / 2')).toBeTruthy();
+    cleanup();
+    const onPage = vi.fn();
+    const { container } = render(<PagedTableFooter page={4} pageSize={100} total={150} meta={[]} onPage={onPage} />);
+    expect(container.querySelector('.tenant-page-pager-range')!.textContent).toBe('Son sayfaya geçiliyor…');
+    expect(within(container as HTMLElement).getByText('Sayfa 2 / 2')).toBeTruthy();
+    expect(onPage).toHaveBeenCalledWith(2);
+    // Yüklenirken (eski toplamla) sayfa değiştirilmez.
+    const waiting = vi.fn();
+    render(<PagedTableFooter page={4} pageSize={100} total={150} meta={[]} onPage={waiting} loading />);
+    expect(waiting).not.toHaveBeenCalled();
+    // Toplam sıfıra inerse sayfa 1'e dönülür.
+    const empty = vi.fn();
+    render(<PagedTableFooter page={3} pageSize={25} total={0} meta={[]} onPage={empty} />);
+    expect(empty).toHaveBeenCalledWith(1);
   });
 
   it('empty paged result reads 0 / 0', () => {

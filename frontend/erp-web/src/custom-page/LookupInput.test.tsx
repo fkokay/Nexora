@@ -164,6 +164,29 @@ describe('LookupInput', () => {
     expect(runs.some((run) => run.id === 'qi')).toBe(false);
   });
 
+  it('selected label survives remount after visibleWhen toggle', async () => {
+    // Arama zorunlu sorgu: arama metni yokken satır dönmez; seçimden sonra seçenekler boşalır.
+    const toggle = { id: 'g', type: 'input', name: 'goster', props: { inputType: 'checkbox', label: 'Göster', defaultValue: 'true' } };
+    setup([toggle, lookupComponent({ visibleWhen: 'goster.value == true' })], [optionsQuery([{ name: 'arama', binding: '{{depo.search}}', type: 'text' }])]);
+    const answer = api.getMockImplementation()!;
+    api.mockImplementation(async (endpoint: string, token: string, init?: { body?: string }) => {
+      const result = await answer(endpoint, token, init);
+      const arama = init?.body ? JSON.parse(init.body).parameters?.arama : undefined;
+      return endpoint.includes('/queries/') ? { ...result, rows: arama ? warehouses.filter((row) => row.Ad.includes(arama)) : [], rowCount: arama ? 1 : 0 } : result;
+    });
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Depo' }), { target: { value: 'Ankara' } });
+    fireEvent.click(await within(screen.getByRole('listbox')).findByText('Ankara Depo'));
+    await waitFor(() => expect(runs.at(-1)?.parameters.arama).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Yükleniyor…')).toBeNull());
+    expect(combobox().value).toBe('Ankara Depo');
+    const checkbox = screen.getByRole('checkbox', { name: 'Göster' });
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Depo' })).toBeNull());
+    fireEvent.click(checkbox);
+    // Yeniden bağlanan giriş, seçenekler artık içermese de seçili etiketi gösterir (ham değeri değil).
+    expect((await screen.findByRole('combobox', { name: 'Depo' }) as HTMLInputElement).value).toBe('Ankara Depo');
+  });
+
   it('shows searching text while options load', async () => {
     setup([lookupComponent()], [optionsQuery()]);
     const answer = api.getMockImplementation()!;

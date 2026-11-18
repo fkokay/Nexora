@@ -914,12 +914,21 @@ internal static class TenantCustomPageSchema
         {
             if (inputType != "text" || pattern.ValueKind != JsonValueKind.String || pattern.GetString()!.Length > MaxPatternLength || !CompilesAsRegex(pattern.GetString()!))
             { error = "'pattern' geçerli bir düzenli ifade değil."; return false; }
+            if (EcmaUnsupportedPattern.IsMatch(pattern.GetString()!))
+            { error = "Desen tarayıcıda desteklenmeyen bir yapı içeriyor."; return false; }
         }
         if (props.TryGetProperty("patternMessage", out var patternMessage)
             && (!hasPattern || patternMessage.ValueKind != JsonValueKind.String || patternMessage.GetString()!.Length > MaxPatternMessageLength))
         { error = $"'patternMessage' yalnız 'pattern' tanımlı girişte en fazla {MaxPatternMessageLength} karakterlik metin olabilir."; return false; }
         return true;
     }
+
+    /// <summary>
+    /// .NET'in kabul edip ECMAScript'in ("u" bayraksız) farklı yorumladığı ya da reddettiği yapılar: satır içi seçenekler
+    /// <c>(?i)</c>, <c>(?m:...)</c> ve <c>\A</c>, <c>\Z</c>, <c>\z</c> çapaları (önünde çift sayıda ters bölü varken). Adlı grup
+    /// <c>(?&lt;ad&gt;</c> zaten <c>&lt;</c> kuralıyla engellidir.
+    /// </summary>
+    private static readonly Regex EcmaUnsupportedPattern = new(@"\(\?[imnsx-]+[):]|(?:^|[^\\])(?:\\\\)*\\[AZz]", RegexOptions.CultureInvariant, RegexTimeout);
 
     private static bool CompilesAsRegex(string pattern)
     {
@@ -972,6 +981,9 @@ internal static class TenantCustomPageSchema
             || query.Operation is null || !context.Lookup(query.Operation, out var found))
         { error = $"Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: {table.Id}"; return false; }
         operation = found;
+        // Sayfa/boyut değişince yalnız sayfa açılınca çalışan sorgu yeniden çalışır; elle çalışan sorgu hiç sayfalanmaz.
+        if (query.RunOn != "load")
+        { error = "Sayfalı listenin sorgusu sayfa açılınca çalışmalı (runOn: load)."; return false; }
         foreach (var (parameterName, suffix) in new[] { (table.PageParam, "sayfa"), (table.PageSizeParam, "sayfaBoyutu") })
         {
             if (!operation.Parameters.Any(x => x.In == "query" && x.Type == "int" && string.Equals(x.Name, parameterName, StringComparison.Ordinal)))

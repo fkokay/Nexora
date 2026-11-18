@@ -86,6 +86,8 @@ type PageRuntime = {
   validationErrors: Record<string, string>;
   /** Yazmadan önce sorgunun bağladığı görünür, etkin girişleri doğrular; geçersizse VALIDATION_BLOCKED döner. */
   validateFor: (query: PageQueryDefinition) => string | null;
+  /** Giriş doğrulanmıyor mu (kendisi veya bir sahibi gizli, ya da kendisi pasif). */
+  skipsValidation: (inputId: string) => boolean;
   /** Engellenen yazmada hangi sekmeler bileşeninin hangi sekmesine atlanacağı (kimliğe göre); `signal` her engelde artar. */
   errorJump: { signal: number; targets: Record<string, number> } | null;
   /** Giriş bulanıklaştı: iletisi gösterilir veya kaldırılır. */
@@ -102,7 +104,9 @@ type PageRuntime = {
 };
 type LookupBinding = {
   options: LookupOption[]; loading: boolean; error?: string;
-  onChange: (value: string, row: Record<string, unknown> | null) => void; onSearch: (text: string) => void;
+  onChange: (value: string, row: Record<string, unknown> | null, label: string) => void; onSearch: (text: string) => void;
+  /** Son seçimin değeri ve etiketi (çalışma zamanında saklanır; giriş yeniden bağlanınca etiket korunur). */
+  selected: { value: string; label: string } | null;
 };
 /** Sayfalı listenin alt satırı ve başlıktaki arama girişi. */
 export type TablePaging = { page: number; pageSize: number; meta: { label: string; value: string }[]; onPage: (page: number) => void; search?: ReactNode };
@@ -304,7 +308,7 @@ export function QueryTable({ state, columns, title, description, style, selected
         </table></div>}
     {!paging && !state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
     {paging && !state.error && !neverRan(state) && <PagedTableFooter page={paging.page} pageSize={paging.pageSize} total={state.rowCount}
-      meta={paging.meta} onPage={paging.onPage} />}
+      meta={paging.meta} onPage={paging.onPage} loading={state.loading} />}
   </section>;
 }
 
@@ -400,7 +404,8 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     return <div className={`tenant-page-input tenant-page-input-lookup${error ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
       <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
         allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
-        error={lookup?.error} onChange={(value, row) => (lookup ? lookup.onChange(value, row) : onChange(value))} onSearch={(text) => lookup?.onSearch(text)} />
+        error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
+        onSearch={(text) => lookup?.onSearch(text)} />
       {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
     </div>;
   }
@@ -494,7 +499,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           return { value, label, count: countColumn ? facetCount(row[countColumn]) : undefined };
         });
         const raw = runtime.inputValues[id];
-        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined }];
+        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined, disabled: componentDisabled(input, runtime) }];
       });
       return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
     }
@@ -553,8 +558,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (!runtime) return null;
       const tabs = parseTabs(props.tabs);
       const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
+      // Doğrulanmayan (gizli veya pasif) girişlerin kalan iletileri sayılmaz.
       const errorCounts = tabs.map((tab) => Object.keys(runtime.validationErrors)
-        .filter((inputId) => runtime.ancestorsOf(inputId).some((id) => tab.ids.includes(id))).length);
+        .filter((inputId) => !runtime.skipsValidation(inputId) && runtime.ancestorsOf(inputId).some((id) => tab.ids.includes(id))).length);
       const target = runtime.errorJump?.targets[component.id];
       const jumpTo = runtime.errorJump && target !== undefined ? { tab: target, signal: runtime.errorJump.signal } : null;
       const renderOwned = (id: string) => {
@@ -839,7 +845,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [errorJump, setErrorJump] = useState<PageRuntime["errorJump"]>(null);
   // Arama kutuları: yazılan metin ve seçim anında saklanan satır (yalnız değer hâlâ aynıyken geçerli).
-  const [lookupState, setLookupState] = useState<Record<string, { search: string; value?: string; row?: Record<string, unknown> | null }>>({});
+  const [lookupState, setLookupState] = useState<Record<string, { search: string; value?: string; row?: Record<string, unknown> | null; label?: string }>>({});
   // Sayfalı listeler: sayfa, hangi sorgu değerleri (sayfa parametreleri hariç) ve arama metniyle seçildiyse o anahtarla saklanır.
   const [tablePages, setTablePages] = useState<Record<string, { page: number; key: string }>>({});
 
@@ -927,6 +933,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   // Köprü (BridgeHost) bir kez kurulur ve sayfanın en güncel durumunu okur; çerçeve her girdiye güvenilmez gözle bakar.
   const codeLatest = useRef({ scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations });
   codeLatest.current = { scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations };
+  // İstemci giriş doğrulaması (aşağıda tanımlanır); köprünün yazma yolu da diğer yazma yolları gibi önce doğrular.
+  const codeValidate = useRef<(query: PageQueryDefinition) => string | null>(() => null);
   const catalogWaiters = useRef(new Set<() => void>());
   useEffect(() => {
     if (!erpOperations.operations && !erpOperations.error) return;
@@ -971,6 +979,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
         const outcome = await runWriteAction({
           query, isPreview: current.isPreview, inFlight: writeLock, confirm: { enabled: false },
           write: (target, confirmWrite) => codeLatest.current.writeFor(target, confirmWrite),
+          validate: () => codeValidate.current(query),
           errorText: (cause) => writeErrorText("", cause),
           ...codeWriteHooks(events),
         });
@@ -1064,6 +1073,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     return VALIDATION_BLOCKED;
   };
 
+  codeValidate.current = validateFor;
+
   const setInput = (componentId: string, value: InputRaw) => {
     setTouched((previous) => ({ ...previous, [componentId]: value }));
     // Gösterilen ileti, değer geçerli olunca kalkar (geçersiz kaldıkça güncel iletiyle kalır).
@@ -1085,8 +1096,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
       options: lookupOptionsWithValue(props, optionsState, lookupState[id]?.search ?? "", serverSearch, textValue(inputValues[id])),
       loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined,
       onSearch: (text) => setLookupState((previous) => ({ ...previous, [id]: { ...previous[id], search: text } })),
-      onChange: (value, row) => {
-        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value, row } }));
+      selected: lookupState[id] && "value" in lookupState[id] ? { value: lookupState[id].value ?? "", label: lookupState[id].label ?? "" } : null,
+      onChange: (value, row, label) => {
+        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value, row, label } }));
         setInput(id, value);
       },
     };
@@ -1101,6 +1113,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
+    skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
     blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),
     tabOwned, topLevelById, ancestorsOf,
     selections,

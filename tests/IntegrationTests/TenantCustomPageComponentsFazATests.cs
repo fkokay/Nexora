@@ -210,6 +210,18 @@ public sealed class TenantCustomPageComponentsFazATests
     }
 
     [Fact]
+    public void Rejects_paged_table_on_manual_query()
+    {
+        var manual = new
+        {
+            id = "bakiye", name = "bakiyeler", kind = "read", operation = "stok.bakiye.sayfa", runOn = "manual",
+            parameters = new[] { Param("q", "{{ara.value}}"), Param("page", "{{liste.sayfa}}", "int"), Param("pageSize", "{{liste.sayfaBoyutu}}", "int") }
+        };
+        AssertRejected(V2([manual], [SearchBox, PagedTable(new { query = "bakiye", paging = "server" })]),
+            "Sayfalı listenin sorgusu sayfa açılınca çalışmalı (runOn: load).");
+    }
+
+    [Fact]
     public void Rejects_paged_table_on_sql_query()
     {
         AssertRejected(V2([SqlQuery("q1", "veri")], [PagedTable(new { query = "q1", paging = "server" })]),
@@ -270,6 +282,29 @@ public sealed class TenantCustomPageComponentsFazATests
     public void Rejects_invalid_pattern()
     {
         AssertRejected(V2(components: [Input("i1", "kod", new { inputType = "text", pattern = "(" })]), "'pattern' geçerli bir düzenli ifade değil.");
+    }
+
+    [Theory]
+    [InlineData("(?i)abc")]
+    [InlineData("(?m:^a)")]
+    [InlineData("(?-i)a")]
+    [InlineData(@"\Aabc")]
+    [InlineData(@"abc\Z")]
+    [InlineData(@"abc\z")]
+    [InlineData(@"x\\\z")]
+    public void Rejects_pattern_constructs_ecmascript_lacks(string pattern)
+    {
+        AssertRejected(V2(components: [Input("i1", "kod", new { inputType = "text", pattern })]), "Desen tarayıcıda desteklenmeyen bir yapı içeriyor.");
+    }
+
+    [Theory]
+    [InlineData(@"[A-Z]{3}\d+")]
+    [InlineData(@"(?:ab)+")]
+    [InlineData(@"a\\z")]
+    [InlineData(@"(?=a)a")]
+    public void Accepts_pattern_shared_by_dotnet_and_ecmascript(string pattern)
+    {
+        AssertAccepted(V2(components: [Input("i1", "kod", new { inputType = "text", pattern })]));
     }
 
     [Fact]

@@ -69,6 +69,7 @@ export function tableSearchInputIds(components: PagedComponent[]): Set<string> {
 export function pagedTableProblem(component: PagedComponent & { id: string }, query: PageQuery | undefined): string | null {
   if (!isPagedTable(component)) return null;
   if (!component.name || !query || typeof query.operation !== "string") return `Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: ${component.id}`;
+  if (query.runOn === "manual") return "Sayfalı listenin sorgusu sayfa açılınca çalışmalı (runOn: load).";
   const params = pagingParams(component.props);
   for (const [name, binding, label] of [[params.page, pageBinding(component.name), "sayfa"], [params.pageSize, pageSizeBinding(component.name), "sayfaBoyutu"]] as const) {
     const bound = query.parameters.find((parameter) => parameter.name.toLowerCase() === name.toLowerCase());
