@@ -1,42 +1,66 @@
 import { X } from "lucide-react";
 import { DocumentSurface } from "../../document-page/DocumentSurface";
 import { returnStatus } from "../../document-page/documentStatus";
+import {
+  DetailChain,
+  DetailContext,
+  DetailInfoGrid,
+  DetailLinesFooter,
+  DetailLinesHead,
+  formatAmount,
+} from "../../document-detail/DocumentDetailLayout";
+import { ReturnFlow, SALES_DETAIL_HINTS, SalesLinesMeta, SalesFooterStatus, salesTotalRows, vatByRate } from "../../sales/salesDocumentDetail";
 import { formatReturnAmount, formatReturnDate, formatReturnQuantity, type ReturnDetail, type ReturnSideConfig } from "../types";
 
 type Props = {
   detail: ReturnDetail;
   config: ReturnSideConfig;
-  busy: boolean;
   error: string;
   notice: string;
   onDismissError: () => void;
   onDismissNotice: () => void;
   onClose: () => void;
   onOpenInvoice: () => void;
-  onVoid: () => void;
 };
 
-/** Kayıtlı bir iadenin tam sayfa detayı: üst bilgiler, satırlar, toplamlar ve iptal. */
-export function ReturnDetailSurface({ detail, config, busy, error, notice, onDismissError, onDismissNotice, onClose, onOpenInvoice, onVoid }: Props) {
+/**
+ * Kayıtlı bir iadenin tam sayfa detayı (taslak 02): durum akışı, üst bilgiler, satır ızgarası, KDV oranına göre
+ * toplamlar ve bağlam panelinde belge zinciri. Faturayı aç ve İadeyi iptal et İşlem Çubuğu'nun İşlemler menüsündedir.
+ */
+export function ReturnDetailSurface({ detail, config, error, notice, onDismissError, onDismissNotice, onClose, onOpenInvoice }: Props) {
   const posted = detail.status === "Posted";
+  const purchase = config.invoicePage === "sales-purchase-invoices";
+  const money = (value: number) => formatAmount(value, detail.currencyCode);
+  const vat = vatByRate(
+    detail.lines.map((line) => ({
+      vatPercent: line.vatPercent,
+      taxable: line.lineSubtotal !== undefined ? line.lineSubtotal - line.discountAmount : line.lineTotal - line.taxAmount,
+      vat: line.taxAmount,
+    })),
+    { taxable: detail.subtotal - detail.discountTotal, vat: detail.taxTotal },
+  );
   return (
     <DocumentSurface
+      variant="detail"
       title={config.singular}
       code={detail.code}
       subtitle={detail.partyName}
       status={returnStatus(detail.status)}
+      meta={<span>{formatReturnDate(detail.returnDate)}</span>}
+      statusFlow={<ReturnFlow status={detail.status} />}
       onClose={onClose}
-      bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
-      actions={
-        <>
-          <button type="button" className="secondary" onClick={onOpenInvoice}>Faturayı aç</button>
-          {posted && (
-            <button type="button" className="secondary danger-action" disabled={busy} onClick={onVoid}>
-              {busy ? "İptal ediliyor…" : "İadeyi iptal et"}
-            </button>
-          )}
-        </>
+      aside={
+        <DetailContext title="Belge zinciri">
+          <DetailChain
+            items={[
+              { key: "invoice", code: detail.invoiceCode, label: purchase ? "Alış faturası" : "Satış faturası", onOpen: onOpenInvoice },
+              { key: "self", code: detail.code, label: "Bu iade", kind: config.singular, current: true, status: returnStatus(detail.status) },
+            ]}
+          />
+        </DetailContext>
       }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={<SalesFooterStatus lines={detail.lines.length} total={money(detail.grandTotal)} />}
     >
       {error && (
         <div className="alert inline-alert" role="alert">
@@ -50,62 +74,69 @@ export function ReturnDetailSurface({ detail, config, busy, error, notice, onDis
           <button type="button" aria-label="Kapat" onClick={onDismissNotice}><X size={15} /></button>
         </div>
       )}
-      <div className="sales-detail-content">
-        <section className="sales-quote-readonly-form" aria-label="İade üst bilgileri">
-          <label><span>{config.partyLabel}</span><input readOnly value={detail.partyName} /></label>
-          <label><span>İade tarihi</span><input readOnly value={formatReturnDate(detail.returnDate)} /></label>
-          <label><span>{config.warehouseLabel}</span><input readOnly value={detail.warehouseName} /></label>
-          <label><span>Kaynak fatura</span><input readOnly value={detail.invoiceCode} /></label>
-          <label><span>Para birimi</span><input readOnly value={detail.currencyCode} /></label>
-          <label><span>Durum</span><input readOnly value={returnStatus(detail.status).label} /></label>
-        </section>
-        <section className="sales-quote-lines-section">
-          <h3 className="sales-quote-section-title">İade Satırları</h3>
-          <div className="ledger-list sales-quote-lines">
-            <table className="customer-table quote-detail-table">
-              <thead>
-                <tr>
-                  <th>Stok</th>
-                  <th>Miktar</th>
-                  <th>Birim fiyat</th>
-                  <th>İskonto</th>
-                  <th>KDV</th>
-                  <th>Toplam</th>
+      <div className="dd-box">
+        <DetailInfoGrid
+          label="İade üst bilgileri"
+          items={[
+            { label: "İade tarihi", value: formatReturnDate(detail.returnDate) },
+            { label: config.warehouseLabel, value: detail.warehouseName },
+            { label: "Kaynak fatura", value: detail.invoiceCode },
+            { label: "Para birimi", value: detail.currencyCode },
+          ]}
+        />
+      </div>
+      <div className="dd-box">
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} />} />
+        <div className="dd-lines-wrap">
+          <table className="dd-lines" aria-label="İade satırları">
+            <thead>
+              <tr>
+                <th className="dd-ix">#</th>
+                <th>Stok</th>
+                <th className="dd-num">Miktar</th>
+                <th className="dd-num">Birim fiyat</th>
+                <th className="dd-num">İskonto</th>
+                <th className="dd-num">KDV</th>
+                <th className="dd-num">Toplam</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detail.lines.length === 0 && (
+                <tr><td colSpan={7} className="dd-empty">Satır yok.</td></tr>
+              )}
+              {detail.lines.map((line, index) => (
+                <tr key={line.orderLineNumber}>
+                  <td className="dd-ix">{index + 1}</td>
+                  <td className="dd-stock">
+                    <b>{line.stockCode}</b>
+                    <small>{line.stockName}</small>
+                  </td>
+                  <td className="dd-num">
+                    <span>{formatReturnQuantity(line.quantity)}</span> <span>{line.unitCode}</span>
+                    {line.enteredQuantity && line.enteredUnitCode && line.enteredUnitCode !== line.unitCode && (
+                      <small><span>{formatReturnQuantity(line.enteredQuantity)}</span> <span>{line.enteredUnitCode}</span></small>
+                    )}
+                  </td>
+                  <td className="dd-num">{formatReturnAmount(line.unitPrice)}</td>
+                  <td className="dd-num">
+                    {formatReturnAmount(line.discountAmount)}
+                    <small>%{line.discountPercent}</small>
+                  </td>
+                  <td className="dd-num">
+                    {formatReturnAmount(line.taxAmount)}
+                    <small>%{line.vatPercent}</small>
+                  </td>
+                  <td className="dd-num">{formatReturnAmount(line.lineTotal)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {detail.lines.length === 0 && (
-                  <tr><td colSpan={6} className="table-empty">Satır yok.</td></tr>
-                )}
-                {detail.lines.map((line) => (
-                  <tr key={line.orderLineNumber}>
-                    <td>
-                      <b>{line.stockCode}</b>
-                      <small className="cell-subtitle">{line.stockName}</small>
-                    </td>
-                    <td>
-                      <span>{formatReturnQuantity(line.quantity)}</span> <span>{line.unitCode}</span>
-                      {line.enteredQuantity && line.enteredUnitCode && line.enteredUnitCode !== line.unitCode && (
-                        <small className="cell-subtitle"><span>{formatReturnQuantity(line.enteredQuantity)}</span> <span>{line.enteredUnitCode}</span></small>
-                      )}
-                    </td>
-                    <td>{formatReturnAmount(line.unitPrice)}</td>
-                    <td><span>{formatReturnAmount(line.discountAmount)}</span> <span>(%{line.discountPercent})</span></td>
-                    <td><span>{formatReturnAmount(line.taxAmount)}</span> <span>(%{line.vatPercent})</span></td>
-                    <td><b>{formatReturnAmount(line.lineTotal)}</b></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section className="order-grand-total quote-total-breakdown" aria-label="İade toplamları">
-          <div><span>Ara toplam</span><span><span>{formatReturnAmount(detail.subtotal)}</span> <span>{detail.currencyCode}</span></span></div>
-          <div><span>Toplam iskonto</span><span><span>{formatReturnAmount(detail.discountTotal)}</span> <span>{detail.currencyCode}</span></span></div>
-          <div><span>KDV toplamı</span><span><span>{formatReturnAmount(detail.taxTotal)}</span> <span>{detail.currencyCode}</span></span></div>
-          <div className="grand"><span>Genel toplam</span><span><span>{formatReturnAmount(detail.grandTotal)}</span> <span>{detail.currencyCode}</span></span></div>
-        </section>
-        <p className="muted">{posted ? config.effectNote : "Bu iade iptal edildi; stok ve cari hareketleri ters kayıtla geri alındı."}</p>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <DetailLinesFooter
+          label="İade toplamları"
+          aside={<p className="dd-muted">{posted ? config.effectNote : "Bu iade iptal edildi; stok ve cari hareketleri ters kayıtla geri alındı."}</p>}
+          totals={salesTotalRows(detail, money, vat)}
+        />
       </div>
     </DocumentSurface>
   );

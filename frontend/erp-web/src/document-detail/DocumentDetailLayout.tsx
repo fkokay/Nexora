@@ -3,10 +3,11 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import "./document-detail.css";
 
 /*
- * Kayıtlı belge detayının gövde parçaları. Başlık çubuğu DocumentSurface'tir
- * (variant="detail", eyebrow, actions); bu dosya gövdedeki özet kutucukları, bilgi ızgarası,
- * alt çizgili sekmeler, satır altı toplamlar ve işlem formları için sağ paneli verir.
- * Sıra: DetailTiles → (DetailTabs) → DetailInfoGrid → satır tablosu (.dd-lines) → DetailLinesFooter → DetailSection…
+ * Kayıtlı belge detayının gövde parçaları (taslak 02). Başlık, durum akışı, bağlam paneli yuvası ve alt bilgi
+ * DocumentSurface'tedir; bu dosya gövdedeki özet kutucukları, başlık alanları ızgarası, alt çizgili sekmeler, satır
+ * kartı başlığı, toplamlar, bağlam paneli bölümleri ve işlem formları için sağ paneli verir.
+ * Sıra: (DetailTiles) → (DetailTabs) → DetailInfoGrid → DetailLinesHead + satır tablosu (.dd-lines) →
+ * DetailLinesFooter / DocumentTotals → DetailSection…; bağlam paneli: DetailContext + DetailChain / DetailKeyValues / DetailMeterRows.
  */
 
 export type DetailTone = "default" | "warning" | "danger" | "success" | "muted";
@@ -48,19 +49,27 @@ export function DetailTiles({ items, label }: { items: DetailTile[]; label?: str
   );
 }
 
-export type DetailInfoItem = { label: string; value: ReactNode; title?: string };
+export type DetailInfoItem = {
+  label: string;
+  value: ReactNode;
+  title?: string;
+  /** React anahtarı; etiketler tekrar edebiliyorsa (kiracı alan düzeni) verilir, varsayılan `label`. */
+  key?: string;
+};
 
-/** Salt okunur bilgi ızgarası: etiket / değer, giriş kutusu yok. */
+/** Salt okunur bilgi ızgarası: etiket / değer, giriş kutusu yok. Sütun sayısı kartın kendi genişliğine göre (container query). */
 export function DetailInfoGrid({ items, label }: { items: DetailInfoItem[]; label?: string }) {
   return (
-    <dl className="dd-info" aria-label={label}>
-      {items.map((item) => (
-        <div key={item.label}>
-          <dt>{item.label}</dt>
-          <dd title={item.title}>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="dd-info-wrap">
+      <dl className="dd-info" aria-label={label}>
+        {items.map((item) => (
+          <div key={item.key ?? item.label}>
+            <dt>{item.label}</dt>
+            <dd title={item.title}>{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -108,27 +117,174 @@ export function DetailTabs<K extends string>({
   );
 }
 
-export type DetailTotalLine = {
+export type DocumentTotalRow = {
   label: ReactNode;
   value: ReactNode;
-  /** "grand": kalın genel toplam satırı; "negative": düşülen tutar (tevkifat gibi). */
-  emphasis?: "grand" | "negative" | "muted";
+  /**
+   * "grand": vurgulu genel toplam; "negative": düşülen tutar (iskonto, tevkifat); "muted": soluk bilgi satırı;
+   * "sub": bir üst satırın dökümü, girintili ve küçük (KDV oranlarına göre matrah / KDV); "strong": genel toplamdan
+   * sonra gelen, onunla aynı tutardaki kalın satır (ör. tevkifat yokken Ödenecek tutar) — bloğun tek "grand" satırı kalır.
+   */
+  emphasis?: "grand" | "negative" | "muted" | "sub" | "strong";
   key?: string;
 };
+/** Eski ad; `DocumentTotalRow` ile aynıdır. */
+export type DetailTotalLine = DocumentTotalRow;
+
+/**
+ * Belge toplamları bloğu (taslak 02, sağ alt): satırlar sayfadan gelir; KDV dökümünü oran başına `emphasis: "sub"`
+ * satırlarıyla, genel toplamı `"grand"` ile verin. Yalnızca görünümdür, hesap yapmaz.
+ */
+export function DocumentTotals({ rows, label }: { rows: DocumentTotalRow[]; label?: string }) {
+  return (
+    <dl className="dd-totals" aria-label={label ?? "Belge toplamları"}>
+      {rows.map((row, index) => (
+        <div key={row.key ?? index} className={row.emphasis ? `is-${row.emphasis}` : undefined}>
+          <dt>{row.label}</dt>
+          <dd>{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 /** Satır tablosunun hemen altı: solda notlar / koşullar, sağda toplamlar. */
-export function DetailLinesFooter({ aside, totals, label }: { aside?: ReactNode; totals: DetailTotalLine[]; label?: string }) {
+export function DetailLinesFooter({ aside, totals, label }: { aside?: ReactNode; totals: DocumentTotalRow[]; label?: string }) {
   return (
     <div className="dd-lines-footer">
       <div className="dd-lines-aside">{aside}</div>
-      <dl className="dd-totals" aria-label={label ?? "Belge toplamları"}>
-        {totals.map((line, index) => (
-          <div key={line.key ?? index} className={line.emphasis ? `is-${line.emphasis}` : undefined}>
-            <dt>{line.label}</dt>
-            <dd>{line.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <DocumentTotals rows={totals} label={label} />
+    </div>
+  );
+}
+
+export type DetailLineHint = { keys: string; label: string };
+
+/**
+ * Satır kartının başlık satırı: "Satırlar", kısa özet ("5 satır · 1 uyarı · Fiyatlar KDV hariç") ve sağda satır
+ * kısayolları. Yalnızca ekranda gerçekten çalışan tuşları verin.
+ */
+export function DetailLinesHead({ title, meta, hints }: { title: ReactNode; meta?: ReactNode; hints?: DetailLineHint[] }) {
+  return (
+    <div className="dd-lines-head">
+      <div className="dd-lines-title">
+        <h2>{title}</h2>
+        {meta && <span className="dd-lines-meta">{meta}</span>}
+      </div>
+      {hints && hints.length > 0 && (
+        <span className="dd-lines-keys">
+          {hints.map((hint) => (
+            <span key={hint.keys}>
+              <kbd>{hint.keys}</kbd> {hint.label}
+            </span>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Sağ bağlam panelinin bir bölümü (Belge zinciri, Cari özeti, Stok durumu): başlık, sağında kısa açıklama. */
+export function DetailContext({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section className="dd-ctx" aria-labelledby={id}>
+      <h3 className="dd-ctx-head">
+        <span id={id}>{title}</span>
+        {hint && <small>{hint}</small>}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+export type DetailChainItem = {
+  key: string;
+  /** Belge numarası; numarası bilinmeyen bağlı belge yalnızca türüyle gösterilir. */
+  code?: string | null;
+  /** Belge türü ("Satış siparişi") ya da açık belge için "Bu fatura". */
+  label: string;
+  /** İşaret harflerinin alındığı belge türü; `label` "Bu fatura" gibi olduğunda verilir ("Satış faturası" → SF). */
+  kind?: string;
+  /** Alt satır: tarih, satır sayısı. */
+  meta?: ReactNode;
+  status?: { label: string; tone: "neutral" | "info" | "warning" | "success" | "danger" };
+  /** Açık olan belge. */
+  current?: boolean;
+  /** Verilirse belge numarası bu belgeyi açan bir düğmedir. */
+  onOpen?: () => void;
+};
+
+/** Belge zinciri: sipariş → irsaliye → fatura; açık belge vurgulu, diğerleri tıklanınca açılır. */
+export function DetailChain({ items, label }: { items: DetailChainItem[]; label?: string }) {
+  return (
+    <ol className="dd-chain" aria-label={label ?? "Belge zinciri"}>
+      {items.map((item) => {
+        const initials = (item.kind ?? item.label)
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((word) => word.charAt(0).toLocaleUpperCase("tr-TR"))
+          .join("");
+        const body = (
+          <>
+            <span className="dd-chain-mark" aria-hidden="true">{initials}</span>
+            <span className="dd-chain-text">
+              <span>
+                {item.code && (
+                  <>
+                    <span className="dd-chain-code">{item.code}</span>{" "}
+                  </>
+                )}
+                {item.label}
+              </span>
+              {item.meta && <small>{item.meta}</small>}
+            </span>
+          </>
+        );
+        return (
+          <li key={item.key} className={item.current ? "is-current" : undefined} aria-current={item.current ? "true" : undefined}>
+            {item.onOpen && !item.current ? (
+              <button type="button" className="dd-chain-open" onClick={item.onOpen}>
+                {body}
+              </button>
+            ) : (
+              <span className="dd-chain-open">{body}</span>
+            )}
+            {item.status && <span className={`doc-status is-${item.status.tone}`}>{item.status.label}</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Kısa etiket / değer satırları (bağlam panelinde: bakiye, rezerve, son satış). */
+export function DetailKeyValues({ items }: { items: { label: string; value: ReactNode; tone?: "danger" }[] }) {
+  return (
+    <dl className="dd-kv">
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt>{item.label}</dt>
+          <dd className={item.tone === "danger" ? "dd-danger-text" : undefined}>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Oranı çubukla gösterilen satırlar (aktif satırın depolardaki stoku). `share` 0–1. */
+export function DetailMeterRows({ rows }: { rows: { label: string; value: ReactNode; share: number }[] }) {
+  return (
+    <div className="dd-meter">
+      {rows.map((row) => (
+        <div key={row.label}>
+          <span>{row.label}</span>
+          <span className="dd-meter-bar" aria-hidden="true">
+            <i style={{ width: `${Math.round(Math.min(1, Math.max(0, row.share)) * 100)}%` }} />
+          </span>
+          <b>{row.value}</b>
+        </div>
+      ))}
     </div>
   );
 }
@@ -158,7 +314,8 @@ export function DetailSection({
   count?: number;
   description?: ReactNode;
   actions?: ReactNode;
-  children: ReactNode;
+  /** Verilmezse yalnızca başlık (başlık, açıklama, işlemler) çizilir. */
+  children?: ReactNode;
 }) {
   const id = useId();
   return (

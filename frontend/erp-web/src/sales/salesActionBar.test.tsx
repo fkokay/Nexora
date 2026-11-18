@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
@@ -207,10 +207,9 @@ describe('Satış Teklifleri', () => {
     expect(enabled('delete')).toBe(true);
     expect(openMenu()).toEqual(['Düzenle', 'İletildi yap', 'Revizyon oluştur']);
     expect(duplicates()).toEqual([]);
-    // The detail header keeps its workflow buttons; Yazdır and Sil moved to the bar.
-    const detailButtons = Array.from(document.querySelectorAll('.doc-surface-actions button')).map((node) => node.textContent?.trim());
-    expect(detailButtons).toContain('Düzenle');
-    expect(detailButtons.some((text) => /Yazdır|^Sil$/.test(text ?? ''))).toBe(false);
+    // Faz 3: the detail header has no buttons any more — the workflow actions are only in İşlemler (above);
+    // Yazdır and Sil are the bar's own commands.
+    expect(document.querySelector('.doc-surface-actions')).toBeNull();
     // The hidden list's Excel and filter do not apply to the open quote; F5 reloads the quote, not the list.
     expect(enabled('export')).toBe(false);
     expect(reason('export')).toContain('Belge açıkken kullanılamaz');
@@ -303,8 +302,11 @@ describe('Satış Faturaları', () => {
   it('a posted invoice is cancelled, not deleted; a voided one can be deleted', async () => {
     renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
-    // A row click opens the invoice; its detail owns the bar.
+    // A row click makes the invoice current (list type, mockup 06); Aç opens it and its detail owns the bar.
     fireEvent.click(row('F-i1'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › Faturayı iptal et'));
     expect(enabled('delete')).toBe(false);
     expect(openMenu()).toEqual(['Faturayı iptal et']);
@@ -313,6 +315,9 @@ describe('Satış Faturaları', () => {
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › İptal et'));
     expect(openMenu()).toEqual(['İptal et', 'CSV olarak dışa aktar']);
     fireEvent.click(row('F-i2'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     fireEvent.click(await screen.findByRole('button', { name: 'Listeye dön' }));
     await waitFor(() => expect(enabled('delete')).toBe(true));
   });
@@ -434,6 +439,9 @@ describe('Other Satış screens', () => {
     renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
     fireEvent.click(row('IADE-r1'));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
     await waitFor(() => expect(reason('delete')).toContain('Kesilmiş belge silinemez — İşlemler › İadeyi iptal et'));
     expect(enabled('delete')).toBe(false);
     expect(openMenu()).toEqual(['Faturayı aç', 'İadeyi iptal et']);
@@ -457,7 +465,10 @@ describe('Other Satış screens', () => {
     expect(screen.queryByRole('button', { name: /Yeni kampanya/ })).toBeNull();
     expect(duplicates()).toEqual([]);
     expect(openMenu()).toEqual(['Performans raporu']);
+    // F2 opens the empty campaign form in the definition screen's right pane (no modal).
     fireEvent.keyDown(window, { key: 'F2' });
-    expect(await screen.findByRole('dialog')).toBeTruthy();
+    const pane = document.querySelector<HTMLElement>('.nx-def-pane')!;
+    expect(await within(pane).findByRole('heading', { name: 'Kampanya oluştur' })).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

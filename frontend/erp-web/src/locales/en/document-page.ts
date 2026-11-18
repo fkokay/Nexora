@@ -104,11 +104,50 @@ export const english: Record<string, string> = {
   "Kesildi": "Issued",
   // Sales invoice subtitle
   "Perakende · KDV dâhil": "Retail · VAT included",
+  // Document screen kit (DocumentSurface, DocumentStatusFlow, document-detail parts)
+  "Durum akışı": "Status flow",
+  "Belgeler arası gezinme": "Document navigation",
+  "Önceki belge": "Previous document",
+  "Sonraki belge": "Next document",
+  "PgUp/PgDn önceki/sonraki belge": "PgUp/PgDn previous/next document",
+  "Belge zinciri": "Document chain",
+  // Sales document details (Faz 3)
+  "Faturalandı": "Invoiced",
+  "Ödeme durumu": "Payment status",
+  "Unvan": "Name",
+  "Talep satırları": "Request lines",
+  "İade satırları": "Return lines",
+  "Bu talepten hazırlanan teklifler": "Quotes prepared from this request",
+  "Alt+İ işlemler": "Alt+İ actions",
+  "Sipariş üst bilgileri": "Order header",
+  "Sevk deposu": "Shipping warehouse",
+  "Fatura durumu": "Invoice status",
+  "Fatura bekliyor": "Awaiting invoice",
+  "Fatura durumu: İşlendi": "Invoice status: Posted",
+  "Fatura durumu: İptal edildi": "Invoice status: Voided",
+  "Belge bilgileri": "Document details",
+  "E-belge": "E-document",
+  "Fatura Bilgileri": "Invoice details",
+  "Fatura bilgilerini gir": "Enter invoice details",
+  "Teklif hazırla (İşlemler), müşteri ve satırları dolu bir teklif taslağı açar. İlk teklifle birlikte talep “Teklif verildi” durumuna geçer.":
+    "Prepare quote (Actions) opens a quote draft with the customer and lines filled in. With the first quote the request moves to “Quoted”.",
+  // Belge oluşturma ekranları (RecordFormPage `document`)
+  "satır ekle": "add line",
+  "Ctrl+Shift+Enter satır ekle": "Ctrl+Shift+Enter add line",
+  "Depo gözü": "Storage location",
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) talep ayrıntılarını aç$/, 'Open request $1 details'],
   [/^(.+?) iade ayrıntılarını aç$/, 'Open return $1 details'],
+  [/^(.+?) fatura ayrıntılarını aç$/, 'Open invoice $1 details'],
+  [/^(.+?) silinemez$/, '$1 cannot be deleted'],
   [/^(.+?) kaydedildi\.$/, '$1 saved.'],
   [/^Satır (\d+) sil$/, 'Delete line $1'],
+  [/^(\d+) değişiklik kaydedilmedi$/, '$1 unsaved changes'],
+  [/^KDV %(\d+(?:,\d+)?) · matrah (.+)$/, 'VAT $1% · base $2'],
+  [/^KDV %(\d+(?:,\d+)?) matrahı$/, 'VAT $1% base'],
+  [/^Satır (\d+) depo gözü$/, 'Line $1 storage location'],
+  [/^Satır (\d+) son kullanma tarihi$/, 'Line $1 expiry date'],
+  [/^Birim fiyat \(([A-Z]{3})\)$/, 'Unit price ($1)'],
 ]

@@ -616,6 +616,20 @@ describe('RecordFormPage context panel', () => {
     expect(aside.hidden).toBe(true);
   });
 
+  it('leaves Ctrl+. alone when another handler already took it (defaultPrevented)', () => {
+    formWidth = 1000;
+    inView(<Sectioned aside={<p>Stok durumu</p>} />);
+    const aside = screen.getByText('Stok durumu').closest('aside')!;
+    const taken = (event: KeyboardEvent) => event.preventDefault();
+    window.addEventListener('keydown', taken, true);
+    try {
+      press('.', { ctrlKey: true }, screen.getByLabelText('Stok adı'));
+    } finally {
+      window.removeEventListener('keydown', taken, true);
+    }
+    expect(aside.hidden).toBe(true);
+  });
+
   it('is open when the form is at least 1100px wide and follows later resizes', () => {
     formWidth = 1200;
     inView(<Sectioned aside={<p>Stok durumu</p>} />);

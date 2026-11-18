@@ -24,6 +24,8 @@ export type ReturnLine = {
   unitPrice: number;
   discountPercent: number;
   vatPercent: number;
+  /** Brüt satır tutarı (miktar × fiyat); API verir, eski kayıtta olmayabilir. */
+  lineSubtotal?: number;
   discountAmount: number;
   taxAmount: number;
   lineTotal: number;

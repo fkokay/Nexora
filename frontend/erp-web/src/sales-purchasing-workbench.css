@@ -666,7 +666,11 @@ html[data-theme="dark"] .invoice-detail-modal>.modal-foot{border-color:var(--erp
 .sales-delivery-create-card .delivery-document-line-fields input,.sales-delivery-create-card .delivery-document-line-fields select{box-sizing:border-box;width:100%;min-width:0;height:40px}
 .sales-delivery-create-card .quote-lines-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 0;padding-bottom:9px;border-bottom:1px solid #e5ebf2;color:#142b45;font-size:11px}
 .sales-document-dialog{width:min(940px,calc(100vw - 36px));max-height:min(90vh,900px);overflow:auto}
-.sales-invoice-entry-page{width:100%;min-width:0;padding:0 0 24px}
+/* Full-page standalone invoice (document create form): no outer padding, like the other Satış create screens. */
+.sales-invoice-entry-page{width:100%;min-width:0;padding:0}
+/* The shell paints every "*-card" class with the surface colour (!important); this wrapper is not a card — the form's
+   header sits on the page background like the other create screens. */
+#root .app-shell .sales-invoice-entry-page>.sales-invoice-entry-card{background:transparent!important}
 .sales-invoice-entry-card{width:100%;max-width:none;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 .sales-invoice-entry-card .modal-head h1{margin:0;color:var(--erp-text);font-size:24px;line-height:1.25}
 .sales-invoice-entry-card>.muted{margin:0 0 16px;padding:12px 14px;border-radius:8px;background:var(--erp-surface-soft);line-height:1.5}

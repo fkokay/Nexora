@@ -28,6 +28,8 @@ export const english: Record<string, string> = {
   'Önceki / sonraki kayıt': 'Previous / next record',
   'Bağlam panelini aç / kapat': 'Show / hide context panel',
   'Formu kapat (Vazgeç)': 'Close the form (Cancel)',
+  'Belge ekranı': 'Document screen',
+  'Önceki / sonraki belge': 'Previous / next document',
   'Önce bir kayıt seçin': 'Select a record first',
   'CSV olarak dışa aktar': 'Export as CSV',
   'Transfer için en az iki aktif depo gerekir': 'A transfer needs at least two active warehouses',

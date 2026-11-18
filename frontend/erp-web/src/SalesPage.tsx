@@ -24,6 +24,22 @@ import SalesRowActionsMenu from "./sales/components/SalesRowActionsMenu";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import "./sales/sales-list-v2.css";
+import { ListSummaryCards } from "./list-page/ListSummaryCards";
+import {
+  INVOICE_LIST_WIDTHS,
+  ORDER_LIST_WIDTHS,
+  QUOTE_LIST_WIDTHS,
+  SALES_CODE_FIELDS,
+  SALES_NUMBER_FIELDS,
+  listAmount,
+  listTag,
+} from "./sales/components/salesListCells";
+import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
+import { SalesListFooter, pageAmount, pageAmountHint } from "./sales/components/SalesListFooter";
+import { InvoiceListPanel, OrderListPanel, QuoteListPanel, SalesListPanelEmpty } from "./sales/components/SalesListPanels";
+import type { BulkAction } from "./list-page/BulkActionBar";
+import { CircleDollarSign, CircleSlash, Clock3, Truck } from "lucide-react";
 import { SalesQuotePdfTools } from "./sales/components/SalesQuotePdfTools";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot, confirmStartNew, documentOpenCommands } from "./commands/PageCommandsSlot";
@@ -50,8 +66,12 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { DocumentStatusBadge } from "./document-page/DocumentStatusBadge";
 import {
+  DetailChain,
+  DetailContext,
   DetailInfoGrid,
+  DetailKeyValues,
   DetailLinesFooter,
+  DetailLinesHead,
   DetailNotes,
   DetailSection,
   DetailTabs,
@@ -61,7 +81,9 @@ import {
   formatDate,
   formatQuantity,
 } from "./document-detail/DocumentDetailLayout";
-import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purchaseRequestStatus, salesDeliveryStatus, salesInvoiceStatus, salesOrderStatus, salesQuoteStatus } from "./document-page/documentStatus";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
+import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -394,7 +416,9 @@ export function SalesPage({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState(""),
-    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null);
+    [selectedSalesId, setSelectedSalesId] = useState<string | null>(null),
+    // Ticked rows of the visible list page (checkbox column).
+    [salesTicked, setSalesTicked] = useState<string[]>([]);
   const [detail, setDetail] = useState<SalesQuoteDetail | null>(null),
     [quoteRevisions, setQuoteRevisions] = useState<SalesQuoteRevisionSummary[]>([]),
     [quoteDetailTab, setQuoteDetailTab] = useState<"information" | "revisions">("information"),
@@ -1822,19 +1846,10 @@ export function SalesPage({
         .toLocaleLowerCase("tr")
         .includes(search.toLocaleLowerCase("tr")),
   );
+  // The quote row menu moved to İşlemler (current row) and the detail panel: no "⋯" column.
   const visibleQuoteFields = quoteScreenFields
-    .filter(
-      (field) =>
-        field.key !== "revisionNumber" &&
-        (field.key === "actions" || field.visible),
-    )
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+    .filter((field) => field.key !== "revisionNumber" && field.key !== "actions" && field.visible)
+    .sort((a, b) => a.position - b.position);
   const visibleOrderFields = orderScreenFields
     .filter((field) => field.key === "actions" || field.visible)
     .sort((a, b) =>
@@ -1892,46 +1907,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesQuoteStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void openQuote(item.id)}>Detay</button>
-            {item.status === "Draft" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteEdit(item.id)}>Düzenle</button>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void sendQuote(item)}>İletildi yap</button>
-                {role === "TenantAdmin" && (
-                  <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void deleteQuote(item)}>Sil</button>
-                )}
-              </>
-            )}
-            {item.status === "Sent" && (
-              <>
-                <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void decideQuote(item, "accept")}>Kabul et</button>
-                <button role="menuitem" className="sales-row-menu-item danger-action" disabled={busy} onClick={() => void decideQuote(item, "reject")}>Reddet</button>
-              </>
-            )}
-            {item.status === "Accepted" && !item.hasSalesOrder && (
-              <button role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void convertQuote(item)}>Sipariş oluştur</button>
-            )}
-            {item.status === "Accepted" && item.hasSalesOrder && (
-              <span className="sales-row-menu-note">Sipariş hazır</span>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("quote", item.status);
       default:
         return null;
     }
@@ -1966,19 +1944,9 @@ export function SalesPage({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesOrderStatus(item.status)} />
-        );
+        return listTag("order", item.status);
       case "actions":
         return (
           <SalesRowActionsMenu label={item.code}>
@@ -2005,6 +1973,35 @@ export function SalesPage({
   const quoteListScreen = activeTab === "quotes" && !createQuotePage && !createOrderPage;
   const orderListScreen = activeTab === "orders" && !createQuotePage && !createOrderPage;
   const salesPageDialogOpen = quoteFieldCatalogOpen || orderFieldCatalogOpen;
+  // List type (mockup 06): the current row is the one the user chose (click, ↑/↓; `selectedSalesId`), never an
+  // implicit first row. Aç / Sil act on it, else on a single ticked row; the detail panel shows the current row.
+  const invoiceListScreen = activeTab === "invoices" && !createQuotePage && !createOrderPage && !createInvoicePage;
+  const visibleInvoices = invoices.filter(
+    (x) =>
+      !search ||
+      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
+        .toLocaleLowerCase("tr")
+        .includes(search.toLocaleLowerCase("tr")),
+  );
+  const listRows: Array<SalesQuoteSummary | SalesOrderSummary | SalesInvoiceSummary> = quoteListScreen
+    ? filtered
+    : orderListScreen
+      ? filteredOrders
+      : invoiceListScreen
+        ? visibleInvoices
+        : [];
+  const listCurrent = listRows.find((row) => row.id === selectedSalesId);
+  const listTarget = listCurrent ?? (salesTicked.length === 1 ? listRows.find((row) => row.id === salesTicked[0]) : undefined);
+  const salesListActive =
+    (quoteListScreen || orderListScreen || invoiceListScreen) &&
+    !detail && !orderDetail && !invoiceId && !salesPageDialogOpen && !invoiceCreateOpen;
+  const salesPanel = useSalesListPanel<SalesQuoteDetail | SalesOrderDetail | AppTypes.SalesInvoiceDetail>({
+    active: salesListActive,
+    token,
+    currentId: listCurrent?.id ?? null,
+    path: (id) => `/api/sales/${quoteListScreen ? "quotes" : orderListScreen ? "orders" : "invoices"}/${id}`,
+    reloadKey: listCurrent ? JSON.stringify(listCurrent) : undefined,
+  });
   const ownsActionBar =
     !orderDetail && !invoiceId && (createQuotePage || createOrderPage || quoteListScreen || orderListScreen);
   const salesNewCommand: CommandSpec | undefined = salesPageDialogOpen
@@ -2063,8 +2060,8 @@ export function SalesPage({
       more.push({ id: "quote-revise", label: "Revizyon oluştur", disabledReason: busyReason, run: () => beginQuoteRevision() });
     salesCommands.more = more;
   } else if (quoteListScreen || orderListScreen) {
-    const selectedQuote = quoteListScreen ? filtered.find((item) => item.id === selectedSalesId) : undefined;
-    const selectedOrder = orderListScreen ? filteredOrders.find((item) => item.id === selectedSalesId) : undefined;
+    const selectedQuote = quoteListScreen ? (listTarget as SalesQuoteSummary | undefined) : undefined;
+    const selectedOrder = orderListScreen ? (listTarget as SalesOrderSummary | undefined) : undefined;
     const selectedRecord = selectedQuote ?? selectedOrder;
     salesCommands.open = {
       disabledReason: selectedRecord ? undefined : "Önce bir kayıt seçin",
@@ -2084,6 +2081,17 @@ export function SalesPage({
         run: () => (selectedQuote ? deleteQuote(selectedQuote) : selectedOrder ? deleteOrder(selectedOrder) : undefined),
       };
     const more: MenuCommand[] = [];
+    // Former row menu ("⋯") of the quote list, with its conditions; Detay is Aç, Sil is the bar's Sil.
+    if (selectedQuote?.status === "Draft") {
+      more.push({ id: "quote-row-edit", label: "Düzenle", disabledReason: busyReason, run: () => beginQuoteEdit(selectedQuote.id) });
+      more.push({ id: "quote-row-send", label: "İletildi yap", disabledReason: busyReason, run: () => sendQuote(selectedQuote) });
+    }
+    if (selectedQuote?.status === "Sent") {
+      more.push({ id: "quote-row-accept", label: "Kabul et", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "accept") });
+      more.push({ id: "quote-row-reject", label: "Reddet", disabledReason: busyReason, run: () => decideQuote(selectedQuote, "reject") });
+    }
+    if (selectedQuote?.status === "Accepted" && !selectedQuote.hasSalesOrder)
+      more.push({ id: "quote-row-convert", label: "Sipariş oluştur", disabledReason: busyReason, run: () => convertQuote(selectedQuote) });
     if (role === "TenantAdmin" || role === "TenantDeveloper")
       more.push(
         quoteListScreen
@@ -2095,6 +2103,149 @@ export function SalesPage({
   }
   // Passed to an open order / invoice detail, which owns the bar while it is open.
   const detailNewCommand = salesNewCommand ? { run: salesNewCommand.run } : undefined;
+  // Summary cards: figures of the loaded page only ("bu sayfa"); the list endpoints return no totals, due dates or
+  // outstanding amounts, so there is no Tahsil edilmemiş / Vadesi geçen card.
+  const amountCard = (id: string, label: string, rows: Array<{ grandTotal: number; currencyCode: string }>, hint: React.ReactNode) => ({
+    id,
+    label,
+    value: loading ? "—" : pageAmount(rows) ?? "—",
+    icon: CircleDollarSign,
+    hint: pageAmountHint(rows, hint),
+  });
+  const countValue = (count: number) => (loading ? "—" : count.toLocaleString("tr-TR"));
+  let listSummary: React.ReactNode = null;
+  if (quoteListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard("quote-total", "Teklif tutarı", filtered, <span>bu sayfa · tüm durumlar</span>),
+          {
+            id: "quote-sent",
+            label: "Yanıt bekleyen",
+            value: countValue(filtered.filter((item) => item.status === "Sent").length),
+            icon: Clock3,
+            tone: "warn",
+            hint: "bu sayfa",
+            // The list's existing status filter (İletildi).
+            filterActive: quoteStatusFilter === "Sent",
+            onFilter: () => setQuoteStatusFilter((value) => (value === "Sent" ? "" : "Sent")),
+          },
+        ]}
+      />
+    );
+  else if (orderListScreen)
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          amountCard(
+            "order-total",
+            "Sipariş tutarı",
+            filteredOrders.filter((item) => item.status !== "Cancelled"),
+            <span>bu sayfa · iptaller hariç</span>,
+          ),
+          {
+            id: "order-open",
+            label: "Sevk bekleyen",
+            value: countValue(filteredOrders.filter((item) => item.status === "Open").length),
+            icon: Truck,
+            tone: "warn",
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  else if (invoiceListScreen) {
+    const posted = visibleInvoices.filter((item) => item.status === "Posted");
+    listSummary = (
+      <ListSummaryCards
+        cards={[
+          {
+            ...amountCard(
+              "invoice-posted",
+              "Kesilen",
+              posted,
+              <>
+                <span>{posted.length.toLocaleString("tr-TR")}</span> <span>fatura · bu sayfa</span>
+              </>,
+            ),
+            tone: "ok",
+          },
+          {
+            id: "invoice-voided",
+            label: "İptal",
+            value: countValue(visibleInvoices.filter((item) => item.status === "Voided").length),
+            icon: CircleSlash,
+            hint: "bu sayfa",
+          },
+        ]}
+      />
+    );
+  }
+  const salesPanelOpen = salesPanel.open && salesListActive;
+  const panelControls = {
+    error: salesPanel.error,
+    onClose: salesPanel.close,
+    takeFocus: salesPanel.takeFocus,
+    openDisabled: busy,
+  };
+  let salesListPanel: React.ReactNode = null;
+  if (salesPanelOpen) {
+    if (quoteListScreen)
+      salesListPanel = listCurrent ? (
+        <QuoteListPanel
+          {...panelControls}
+          row={listCurrent as SalesQuoteSummary}
+          detail={salesPanel.detail as SalesQuoteDetail | null}
+          onOpen={() => void openQuote(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="quote" />
+      );
+    else if (orderListScreen)
+      salesListPanel = listCurrent ? (
+        <OrderListPanel
+          {...panelControls}
+          row={listCurrent as SalesOrderSummary}
+          detail={salesPanel.detail as SalesOrderDetail | null}
+          onOpen={() => void openOrder(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="order" />
+      );
+    else if (invoiceListScreen)
+      salesListPanel = listCurrent ? (
+        <InvoiceListPanel
+          {...panelControls}
+          row={listCurrent as SalesInvoiceSummary}
+          detail={salesPanel.detail as AppTypes.SalesInvoiceDetail | null}
+          onOpen={() => void openInvoice(listCurrent.id)}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="invoice" />
+      );
+  }
+  const salesListFooter = (
+    <SalesListFooter
+      ticked={salesTicked.length}
+      shown={listRows.length}
+      total={salesListTotal}
+      page={salesListPage}
+      loading={loading}
+      onPageChange={setSalesListPage}
+    />
+  );
+  const salesBulkActions: BulkAction[] = [
+    { id: "export-selected", label: "Excel (seçilenler)", run: () => void salesGridExportRef.current?.exportExcel() },
+  ];
+  const salesGridSelection = {
+    currentId: selectedSalesId,
+    onCurrentChange: setSelectedSalesId,
+    onTickedChange: setSalesTicked,
+    // Only while the list is on screen: a document or form over it must not show the floating bar.
+    bulkActions: salesListActive ? salesBulkActions : undefined,
+    onOpen: (id: string) => void (quoteListScreen ? openQuote(id) : openOrder(id)),
+  };
+  const salesListBodyClass = `sales-list-body${salesListPanel ? " has-detail" : ""}`;
   return (
     <div className="list-v2 sales-lv2-root">
       {ownsActionBar && <PageCommandsSlot commands={salesCommands} />}
@@ -2126,6 +2277,7 @@ export function SalesPage({
               }
               count={salesListTotal}
             />
+            {listSummary}
             <SalesListToolbar
               activeTab={activeTab as "quotes" | "orders" | "invoices"}
               search={search}
@@ -2138,6 +2290,7 @@ export function SalesPage({
               onQuoteDateToChange={setQuoteDateTo}
               toolsSlotRef={setSalesGridToolsSlot}
               onRefresh={() => void load()}
+              extra={<SalesListPanelToggle open={salesPanel.open} onToggle={salesPanel.toggle} />}
             />
           </div>
         )}
@@ -2215,7 +2368,7 @@ export function SalesPage({
           />
         ) : activeTab === "invoices" ? (
           <SalesInvoiceTable
-            invoices={invoices}
+            invoices={visibleInvoices}
             orders={orders}
             customers={customers}
             stockItems={stockItems}
@@ -2223,6 +2376,12 @@ export function SalesPage({
             onOpen={openInvoice}
             onSelect={setSelectedSalesId}
             selectedId={selectedSalesId}
+            ticked={salesTicked}
+            onTickedChange={setSalesTicked}
+            listFooter={salesListFooter}
+            listPanel={salesListPanel}
+            listBodyRef={salesPanel.rootRef}
+            listBodyClass={salesListBodyClass}
             search={search}
             fields={invoiceScreenFields}
             toolbarContainer={salesGridToolsSlot}
@@ -2252,61 +2411,62 @@ export function SalesPage({
             commandsSuspended={!!invoiceId || !!orderDetail}
           />
         ) : activeTab === "quotes" ? (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış teklifi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-quotes"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleQuoteFields}
-              items={filtered}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Teklifler yükleniyor…"
-              emptyMessage="Henüz satış teklifi yok."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen teklif yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderQuoteField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış teklifi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-quotes"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleQuoteFields}
+                items={filtered}
+                loading={loading}
+                loadingMessage="Teklifler yükleniyor…"
+                emptyMessage="Henüz satış teklifi yok."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen teklif yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderQuoteField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={QUOTE_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ) : (
-          <section
-            className="sales-document-list-card list-v2-list"
-            aria-label="Satış siparişi listesi"
-          >
-            <SalesDocumentGrid
-              gridId="sales-orders"
-              hideExport
-              exportActionsRef={salesGridExportRef}
-              fields={visibleOrderFields}
-              items={filteredOrders}
-              selectedId={selectedSalesId}
-              loading={loading}
-              loadingMessage="Siparişler yükleniyor…"
-              emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
-              search={search}
-              searchEmptyMessage="Aramanızla eşleşen sipariş yok."
-              toolbarContainer={salesGridToolsSlot}
-              onSelect={setSelectedSalesId}
-              renderCell={renderOrderField}
-            />
-          </section>
+          <div ref={salesPanel.rootRef} className={salesListBodyClass}>
+            <section
+              className="sales-document-list-card list-v2-list"
+              aria-label="Satış siparişi listesi"
+            >
+              <SalesDocumentGrid
+                gridId="sales-orders"
+                hideExport
+                exportActionsRef={salesGridExportRef}
+                fields={visibleOrderFields}
+                items={filteredOrders}
+                loading={loading}
+                loadingMessage="Siparişler yükleniyor…"
+                emptyMessage="Henüz satış siparişi yok. Yeni sipariş oluşturabilir veya kabul edilen bir teklifi dönüştürebilirsiniz."
+                search={search}
+                searchEmptyMessage="Aramanızla eşleşen sipariş yok."
+                toolbarContainer={salesGridToolsSlot}
+                renderCell={renderOrderField}
+                selection={salesGridSelection}
+                footer={salesListFooter}
+                columnWidths={ORDER_LIST_WIDTHS}
+                numberFields={SALES_NUMBER_FIELDS}
+                codeFields={SALES_CODE_FIELDS}
+              />
+            </section>
+            {salesListPanel}
+          </div>
         ))}
-      {(activeTab === "quotes" ||
-        activeTab === "orders" ||
-        activeTab === "invoices") &&
-        !createOrderPage && !createQuotePage && (
-          <ListPagination
-            page={salesListPage}
-            total={salesListTotal}
-            loading={loading}
-            onPageChange={setSalesListPage}
-          />
-        )}
       {quoteFieldCatalogOpen && (
         <div
           className="modal-backdrop"
@@ -2614,6 +2774,14 @@ export function SalesPage({
       {createOrderPage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış siparişi",
+              code: directOrderCode.trim() || undefined,
+              party: customers.find((x) => x.id === customerId)?.name,
+              // A new order is Açık only once saved; an edited order already is.
+              statusFlow: <SalesOrderFlow status={directOrderEditId ? "Open" : undefined} />,
+              hints: SALES_FORM_HINTS,
+            }}
             title={directOrderEditId ? "Sipariş Düzenleme" : "Yeni Sipariş"}
             mode={directOrderEditId ? "edit" : "create"}
             busy={busy}
@@ -2647,7 +2815,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Sipariş Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
                 <label>
                   <span>Sipariş no <RequiredMark /></span>
                   <input
@@ -2713,11 +2881,15 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Sipariş Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table direct-order-lines-table">
-                  <thead><tr><th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th><th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th><th>KDV türü</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th></tr></thead>
+            <SalesFormLines
+              label="Sipariş satırları"
+              lines={directOrderLines.length}
+              extra={customers.find((x) => x.id === customerId)?.currencyCode || undefined}
+              totals={salesFormTotalRows(directOrderTotals, (value) => renderOrderCurrency(value, customers.find((x) => x.id === customerId)?.currencyCode || "TRY"))}
+              totalsLabel="Sipariş toplamları"
+            >
+                <table className="dd-lines">
+                  <thead><tr><th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th><th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th><th>KDV türü</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th></tr></thead>
                   <tbody>
                     {directOrderLines.map((line, index) => {
                       const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
@@ -2728,40 +2900,26 @@ export function SalesPage({
                       const discount = subtotal * Number(line.discountPercent || 0) / 100;
                       const tax = (subtotal - discount) * Number(line.vatPercent || 0) / 100;
                       return <tr key={index}>
-                        <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
-                        <td className="quote-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
-                        <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
+                        <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setDirectOrderLines((current) => current.length > 1 ? current.filter((_, rowIndex) => rowIndex !== index) : [{ stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}>×</button></td>
+                        <td className="dd-stock-cell"><SearchableRecordPicker options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))} selectedId={line.stockItemId} onSelect={(id) => void selectDirectOrderStock(index, id)} title="Stok kartı seçin" placeholder="Stok seçin" searchPlaceholder="Stok kodu veya adıyla ara" emptyMessage="Aramanızla eşleşen stok kartı bulunamadı." required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateDirectOrderLine(index, "quantity", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateDirectOrderLine(index, "unitCode", event.target.value)} required><option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>{(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateDirectOrderLine(index, "unitPrice", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => updateDirectOrderLine(index, "currencyCode", event.target.value)}>{quoteCurrencies.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></td>
-                        <td><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
-                        <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
-                        <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} value={fxRate === null ? "Kur yok" : formatOrderMoney(fxRate)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateDirectOrderLine(index, "discountPercent", event.target.value)} required /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateDirectOrderLine(index, "vatPercent", event.target.value)} required /></td>
                         <td><select aria-label={`Satır ${index + 1} KDV dahil veya hariç`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateDirectOrderLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">KDV hariç</option><option value="included">KDV dâhil</option></select></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
-                        <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
-                        <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(subtotal)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(discount)} disabled /></td>
+                        <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(tax)} disabled /></td>
+                        <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(subtotal - discount + tax)} disabled /></td>
                       </tr>;
                     })}
-                    <tr className="quote-line-add-row"><td colSpan={14}><button type="button" className="secondary small-button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><Plus size={14} /> Satır ekle <small>Ctrl+Shift+Enter</small></button></td></tr>
+                    <tr className="dd-new-line"><td colSpan={14}><button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={() => setDirectOrderLines((current) => [...current, { stockItemId: "", quantity: "1", unitPrice: "0", discountPercent: "0", vatPercent: "20", isVatIncluded: false, unitCode: "", currencyCode: currencyCode || "TRY" }])}><LineAddLabel /></button></td></tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-total-breakdown" aria-label="Sipariş toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(directOrderTotals.subtotal, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(directOrderTotals.discount, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</span></div>
-                {Object.keys(directOrderTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(directOrderTotals.taxableByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                {Object.keys(directOrderTotals.vatByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`order-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(directOrderTotals.vatByRate[rate], customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(directOrderTotals.vat, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(directOrderTotals.total, customers.find((x) => x.id === customerId)?.currencyCode || "TRY")}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
+            </SalesFormLines>
               {orderFieldDefinitions.length > 0 && (
                 <RecordFormGroup title="Sipariş Özel Alanları">
                   <small>Tenant alan tanımlarına göre doğrulanır.</small>
@@ -2827,6 +2985,25 @@ export function SalesPage({
       {createQuotePage && (
           <RecordFormPage
             className="sales-rf"
+            document={{
+              type: "Satış teklifi",
+              code: code.trim() || undefined,
+              party: isProspectQuote ? prospectCustomerName.trim() : customers.find((x) => x.id === customerId)?.name,
+              statusFlow: <SalesQuoteFlow status="Draft" />,
+              hints: SALES_FORM_HINTS,
+            }}
+            aside={
+              sourceSalesRequest ? (
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      { key: "request", code: sourceSalesRequest.code, label: "Satış talebi" },
+                      { key: "self", code: code.trim() || undefined, label: "Bu teklif", kind: "Satış teklifi", current: true },
+                    ]}
+                  />
+                </DetailContext>
+              ) : undefined
+            }
             title={editingQuoteId ? "Teklif Düzenleme" : revisesQuoteId ? "Teklif Revizyonu" : "Yeni Teklif"}
             mode={editingQuoteId ? "edit" : "create"}
             busy={busy}
@@ -2861,7 +3038,7 @@ export function SalesPage({
               </>
             }
           >
-            <RecordFormGroup title="Teklif Kimliği" bodyClassName="rf-identity">
+            <RecordFormGroup title="Belge bilgileri" hint="* zorunlu alan" bodyClassName="rf-identity doc-form-fields">
               <label className="rf-check rf-columns-wide quote-prospect-toggle">
                 <input type="checkbox" checked={isProspectQuote} onChange={(event) => {
                   setIsProspectQuote(event.target.checked);
@@ -2942,15 +3119,48 @@ export function SalesPage({
                   />
                 </label>
             </RecordFormGroup>
-            <RecordFormGroup title="Teklif Satırları">
-              <div className="sales-order-create-card sales-rf-lines">
-              <div className="quote-lines-table-wrap">
-                <table className="quote-lines-table">
+            <SalesFormLines
+              label="Teklif satırları"
+              lines={lines.length}
+              extra={currencyCode || undefined}
+              totals={salesFormTotalRows(
+                { subtotal: quoteTotals.subtotal, discount: quoteTotals.discount, vat: quoteTotals.tax, total: quoteTotals.total, taxableByRate: quoteTotals.taxableByRate, vatByRate: quoteTotals.taxByRate },
+                (value) => renderOrderCurrency(value, currencyCode),
+              )}
+              totalsLabel="Teklif toplamları"
+              notes={
+                <>
+                  <label>
+                    <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={deliveryTerms}
+                      onChange={(e) => setDeliveryTerms(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="sales-rf-tall"
+                      placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
+                    />
+                  </label>
+                  <label>
+                    <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      maxLength={1000}
+                      rows={7}
+                      className="sales-rf-tall"
+                      placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
+                    />
+                  </label>
+                </>
+              }
+            >
+                <table className="dd-lines">
                   <thead>
                     <tr>
-                      <th>#</th><th>Stok kartı</th><th>Miktar</th><th>Birim</th>
-                      <th>Birim fiyat</th><th>Döviz</th><th>Kur</th><th>İskonto %</th><th>KDV %</th>
-                      <th>KDV</th><th>Ara toplam</th><th>İskonto</th><th>KDV tutarı</th><th>Satır toplamı</th>
+                      <th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th>
+                      <th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th>
+                      <th>KDV</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2961,8 +3171,8 @@ export function SalesPage({
                       const lineFxRate = quoteLineEffectiveFxRate(line);
                       return (
                         <tr key={index}>
-                          <td className="quote-line-index"><span>{index + 1}</span><button type="button" className="quote-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
-                          <td className="quote-stock-cell">
+                          <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
+                          <td className="dd-stock-cell">
                             <SearchableRecordPicker
                               options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
                               selectedId={line.stockItemId}
@@ -2992,14 +3202,14 @@ export function SalesPage({
                               required
                             />
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, "quantity", event.target.value)} required /></td>
                           <td>
                             <select aria-label={`Satır ${index + 1} birim`} value={line.unitCode || itemUnit} onChange={(event) => updateLine(index, "unitCode", event.target.value)} required>
                               <option value={itemUnit || line.unitCode}>{itemUnit || line.unitCode || "Temel birim"}</option>
                               {(quoteUnits[line.stockItemId] || []).filter((unit) => unit.isActive).map((unit) => <option key={unit.id} value={unit.unitCode}>{unit.unitCode} (×{unit.factorToBase})</option>)}
                             </select>
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} birim fiyat`} type="number" min="0" step="0.0001" value={line.unitPrice} onChange={(event) => updateLine(index, "unitPrice", event.target.value)} required /></td>
                           <td>
                               <select aria-label={`Satır ${index + 1} para birimi`} value={lineCurrency} onChange={(event) => {
                                 updateLine(index, "currencyCode", event.target.value);
@@ -3015,22 +3225,21 @@ export function SalesPage({
                               </small>
                             )}
                           </td>
-                          <td><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
-                          <td><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
-                          <td><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} döviz kuru`} type="number" min="0.00000001" step="0.00000001" value={lineCurrency.toUpperCase() === currencyCode.toUpperCase() ? "1" : line.exchangeRateOverride || (lineFxRate === null ? "" : String(lineFxRate))} disabled={lineCurrency.toUpperCase() === currencyCode.toUpperCase()} onChange={(event) => updateLine(index, "exchangeRateOverride", event.target.value)} /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.discountPercent} onChange={(event) => updateLine(index, "discountPercent", event.target.value)} required /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV yüzdesi`} type="number" min="0" max="100" step="0.01" value={line.vatPercent} onChange={(event) => updateLine(index, "vatPercent", event.target.value)} required /></td>
                           <td><select aria-label={`Satır ${index + 1} KDV dahil mi`} value={line.isVatIncluded ? "included" : "excluded"} onChange={(event) => updateLine(index, "isVatIncluded", event.target.value === "included")}><option value="excluded">Hariç</option><option value="included">Dahil</option></select></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
-                          <td className="quote-amount-cell"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
-                          <td className="quote-amount-cell quote-row-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} ara toplam`} value={formatOrderMoney(amount.subtotal)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
+                          <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
+                          <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
                         </tr>
                       );
                     })}
-                    <tr className="quote-line-add-row">
+                    <tr className="dd-new-line">
                       <td colSpan={14}>
                         <button
                           type="button"
-                          className="secondary small-button"
                           data-line-add-shortcut
                           title="Ctrl+Shift+Enter ile satır ekle"
                           onClick={() => setLines((current) => [...current, {
@@ -3045,53 +3254,13 @@ export function SalesPage({
                             exchangeRateOverride: "",
                           }])}
                         >
-                          <Plus size={14} /> Satır ekle
+                          <LineAddLabel />
                         </button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
-              </div>
-              </div>
-            </RecordFormGroup>
-            <div className="sales-rf-totals-layout">
-            <RecordFormGroup title="Koşullar ve Açıklama">
-              <label>
-                <span>Teslimat koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={deliveryTerms}
-                  onChange={(e) => setDeliveryTerms(e.target.value)}
-                  maxLength={1000}
-                  rows={3}
-                  className="sales-rf-tall"
-                  placeholder="Teslimat süresi, yeri ve teslim şekli gibi bilgileri yazın."
-                />
-              </label>
-              <label>
-                <span>Açıklama ve satış koşulları <span className="optional-label">İsteğe bağlı</span></span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  maxLength={1000}
-                  rows={7}
-                  className="sales-rf-tall"
-                  placeholder="Teklife ilişkin açıklama, ödeme ve diğer satış koşullarını yazın."
-                />
-              </label>
-            </RecordFormGroup>
-            <RecordFormGroup title="Toplamlar">
-              <div className="sales-order-create-card sales-rf-lines">
-              <section className="order-grand-total quote-grand-total quote-total-breakdown" aria-label="Teklif toplamları">
-                <div><span>Mal / hizmet toplamı</span>{renderOrderCurrency(quoteTotals.subtotal, currencyCode)}</div>
-                <div><span>Toplam iskonto</span><span className="sales-total-discount">− {renderOrderCurrency(quoteTotals.discount, currencyCode)}</span></div>
-                {Object.keys(quoteTotals.taxableByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-tax-${rate}`}><span>KDV %{rate} matrahı</span>{renderOrderCurrency(quoteTotals.taxableByRate[rate], currencyCode)}</div>)}
-                {Object.keys(quoteTotals.taxByRate).map(Number).sort((a, b) => a - b).map((rate) => <div key={`quote-vat-${rate}`}><span>KDV %{rate}</span>{renderOrderCurrency(quoteTotals.taxByRate[rate], currencyCode)}</div>)}
-                <div><span>KDV toplamı</span>{renderOrderCurrency(quoteTotals.tax, currencyCode)}</div>
-                <div className="grand"><span>Genel toplam · Ödenecek tutar</span>{renderOrderCurrency(quoteTotals.total, currencyCode)}</div>
-              </section>
-              </div>
-            </RecordFormGroup>
-            </div>
+            </SalesFormLines>
               {quoteFieldDefinitions.length > 0 && (
               <RecordFormGroup title="Teklif Özel Alanları">
                 <small>Tenant alan tanımlarına göre doğrulanır.</small>
@@ -3178,50 +3347,36 @@ export function SalesPage({
               </span>
             }
             status={salesQuoteStatus(detail.status)}
+            meta={<span>{formatDate(detail.quoteDate)}</span>}
+            statusFlow={<SalesQuoteFlow status={detail.status} />}
             onClose={() => setDetail(null)}
             className="sales-quote-detail"
-            actions={
+            aside={
               <>
-                {detail.status === "Draft" && !detail.hasSalesOrder && (
-                  <button type="button" className="secondary" disabled={busy} onClick={() => void beginQuoteEdit(detail.id)}>
-                    Düzenle
-                  </button>
-                )}
-                {detail.status === "Draft" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void sendQuote(detail)}>
-                    {busy ? "Kaydediliyor…" : "İletildi yap"}
-                  </button>
-                )}
-                {detail.status === "Sent" && (
-                  <>
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void decideQuote(detail, "reject")}>
-                      Reddet
-                    </button>
-                    <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                      Kabul et
-                    </button>
-                  </>
-                )}
-                {detail.status === "Rejected" && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void decideQuote(detail, "accept")}>
-                    Reddedilen teklifi kabul et
-                  </button>
-                )}
-                {detail.status === "Accepted" && !detail.hasSalesOrder && (
-                  <button type="button" className="primary" disabled={busy} onClick={() => void convertQuote(detail)}>
-                    Siparişe dönüştür
-                  </button>
-                )}
-                {/* Yazdır and Sil are the action bar's print / delete commands. */}
-                {canRevise && (
-                  <SalesRowActionsMenu label={detail.code}>
-                    <button type="button" role="menuitem" className="sales-row-menu-item" disabled={busy} onClick={() => void beginQuoteRevision()}>
-                      Revizyon oluştur
-                    </button>
-                  </SalesRowActionsMenu>
-                )}
+                <DetailContext title="Belge zinciri">
+                  <DetailChain
+                    items={[
+                      ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi" }] : []),
+                      { key: "self", code: detail.code, label: "Bu teklif", kind: "Satış teklifi", current: true, status: salesQuoteStatus(detail.status) },
+                      ...(detail.salesOrderId && detail.salesOrderCode
+                        ? [{ key: "order", code: detail.salesOrderCode, label: "Satış siparişi", onOpen: () => void openOrder(detail.salesOrderId!) }]
+                        : []),
+                    ]}
+                  />
+                </DetailContext>
+                <DetailContext title="Cari" hint={detail.customerCode || undefined}>
+                  <DetailKeyValues
+                    items={[
+                      { label: "Unvan", value: detail.customerName },
+                      ...(!detail.customerId ? [{ label: "Kayıt", value: "Kayıtsız alıcı" }] : []),
+                      { label: "Plasiyer", value: detail.salespersonName || "—" },
+                    ]}
+                  />
+                </DetailContext>
               </>
             }
+            hints={SALES_DETAIL_HINTS}
+            footerStatus={<SalesFooterStatus lines={detail.lines.length} total={quoteMoney(detail.grandTotal)} />}
           >
             {error && (
               <div className="alert inline-alert">
@@ -3300,10 +3455,15 @@ export function SalesPage({
                   />
                 </div>
                 <div className="dd-box">
+                  <DetailLinesHead
+                    title="Satırlar"
+                    meta={<SalesLinesMeta lines={detail.lines.length} extra={usesForeignCurrency ? undefined : detail.currencyCode} />}
+                  />
                   <div className="dd-lines-wrap">
                     <table className="dd-lines" aria-label="Teklif satırları">
                       <thead>
                         <tr>
+                          <th className="dd-ix">#</th>
                           <th>Stok</th>
                           <th className="dd-num">Miktar</th>
                           {usesForeignCurrency && <th className="dd-num">Döviz fiyatı</th>}
@@ -3315,10 +3475,11 @@ export function SalesPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {detail.lines.map((line) => {
+                        {detail.lines.map((line, index) => {
                           const foreign = !!line.enteredCurrencyCode && line.enteredCurrencyCode !== detail.currencyCode;
                           return (
                             <tr key={line.lineNumber}>
+                              <td className="dd-ix">{index + 1}</td>
                               <td className="dd-stock">
                                 <b>{line.stockCode}</b>
                                 <small>{line.stockName}</small>
@@ -3377,12 +3538,14 @@ export function SalesPage({
                         ]}
                       />
                     }
-                    totals={[
-                      { label: "Ara toplam", value: quoteMoney(detail.subtotal) },
-                      { label: "Toplam iskonto", value: quoteMoney(detail.discountTotal) },
-                      { label: "Toplam KDV", value: quoteMoney(detail.taxTotal) },
-                      { label: "Genel toplam", value: quoteMoney(detail.grandTotal), emphasis: "grand" },
-                    ]}
+                    totals={salesTotalRows(
+                      detail,
+                      quoteMoney,
+                      vatByRate(
+                        detail.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+                        { taxable: detail.subtotal - detail.discountTotal, vat: detail.taxTotal },
+                      ),
+                    )}
                   />
                 </div>
                 {detail.status === "Draft" && detail.customFields.length > 0 && (
@@ -10285,15 +10448,45 @@ function SalesOrderModal({
       },
     });
   if (orderMore.length) orderCommands.more = orderMore;
+  const orderMoney = (value: number) => formatAmount(value, order.currencyCode);
   return (
     <DocumentSurface
+      variant="detail"
       title="Satış siparişi"
       code={order.code}
       subtitle={order.customerName}
       status={salesOrderStatus(order.status)}
+      meta={<span>{formatDate(order.orderDate)}</span>}
+      statusFlow={<SalesOrderFlow status={order.status} />}
       onClose={onClose}
-      className="sales-order-detail-backdrop"
-      bodyClassName="modal ledger-modal sales-detail-modal sales-quote-detail-modal"
+      aside={
+        <DetailContext title="Belge zinciri">
+          <DetailChain
+            items={[
+              ...(order.quoteCode ? [{ key: "quote", code: order.quoteCode, label: "Satış teklifi" }] : []),
+              { key: "self", code: order.code, label: "Bu sipariş", kind: "Satış siparişi", current: true, status: salesOrderStatus(order.status) },
+              ...deliveries.map((item) => ({
+                key: `delivery-${item.id}`,
+                code: item.code,
+                label: "Satış irsaliyesi",
+                meta: formatDate(item.deliveryDate),
+                status: salesDeliveryStatus(item.status),
+              })),
+              // A delivery gives its invoice's status and id, not its number.
+              ...deliveries
+                .filter((item) => item.invoiceId && item.invoiceStatus)
+                .map((item) => ({
+                  key: `invoice-${item.invoiceId}`,
+                  label: "Satış faturası",
+                  status: salesInvoiceStatus(item.invoiceStatus!),
+                  onOpen: () => onInvoiceCreated(item.invoiceId!),
+                })),
+            ]}
+          />
+        </DetailContext>
+      }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={<SalesFooterStatus lines={order.lines.length} total={orderMoney(order.grandTotal)} />}
     >
         {ownsActionBar && <PageCommandsSlot commands={orderCommands} />}
         {error && (
@@ -10312,20 +10505,27 @@ function SalesOrderModal({
             </button>
           </div>
         )}
-        <nav className="sales-quote-detail-tabs" role="tablist" aria-label="Sipariş detay bölümleri">
-          {([ ["information", "Sipariş Bilgileri"], ["deliveries", "İrsaliye Geçmişi"] ] as const).map(([key, label]) => (
-            <button key={key} type="button" role="tab" aria-selected={detailTab === key} className={detailTab === key ? "active" : ""} onClick={() => setDetailTab(key)}>{label}{key === "deliveries" && <span>{deliveries.length}</span>}</button>
-          ))}
-        </nav>
-        <div className="sales-detail-content">
+        <DetailTabs<"information" | "deliveries">
+          label="Sipariş detay bölümleri"
+          value={detailTab}
+          onChange={setDetailTab}
+          tabs={[
+            { key: "information", label: "Sipariş Bilgileri" },
+            { key: "deliveries", label: "İrsaliye Geçmişi", count: deliveries.length },
+          ]}
+        />
         {detailTab === "information" && <>
-        <h3 className="sales-quote-section-title">Sipariş Üst Bilgileri</h3>
-        <section className="sales-quote-overview-grid">
-          <article><small>Müşteri</small><b>{order.customerName}</b></article>
-          <article><small>Durum</small><b><span className={`quote-status ${order.status === "Fulfilled" ? "accepted" : order.status === "Cancelled" ? "rejected" : "sent"}`}>{order.status === "Fulfilled" ? "Tamamlandı" : order.status === "Cancelled" ? "İptal" : "Açık"}</span></b></article>
-          <article><small>İstenen teslim tarihi</small><b>{order.requestedDeliveryDate || "—"}</b></article>
-          <article><small>Para birimi</small><b>{order.currencyCode}</b></article>
-        </section>
+        <div className="dd-box">
+          <DetailInfoGrid
+            label="Sipariş üst bilgileri"
+            items={[
+              { label: "Sipariş tarihi", value: formatDate(order.orderDate) },
+              { label: "İstenen teslim tarihi", value: formatDate(order.requestedDeliveryDate) },
+              { label: "Para birimi", value: order.currencyCode },
+              { label: "Kaynak teklif", value: order.quoteCode || "—" },
+            ]}
+          />
+        </div>
         {order.status === "Open" && (
           <form
             className="panel"
@@ -10432,18 +10632,6 @@ function SalesOrderModal({
             )}
           </form>
         )}
-        <div className="sales-order-lines-heading">
-          <h3 className="sales-quote-section-title">Sipariş Satırları</h3>
-          {order.status === "Open" && !activeReservation && (
-            <button className="secondary small-button" type="button" onClick={() => {
-              setReservationWarehouseId(warehouses.find((warehouse) => warehouse.isActive)?.id || "");
-              setReservationRequestId(crypto.randomUUID());
-              setReservationEditor(true);
-            }}>
-              Stok ayır
-            </button>
-          )}
-        </div>
         {reservationEditor && detailTab === "information" && (
           <form className="delivery-editor" onSubmit={reserveOrderStock}>
             <label>
@@ -10469,13 +10657,15 @@ function SalesOrderModal({
             </div>
           </form>
         )}
-        <div className="ledger-list sales-quote-lines">
+        <div className="dd-box">
+        <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={order.lines.length} extra={order.currencyCode} />} />
+        <div className="dd-grid">
           <AdvancedDataGrid className="customer-table quote-detail-table" gridId="sales-order-lines" {...screenViewGridDefaults(visibleOrderLineFields)} enableRowSelection={false}>
             <thead>
               <ScreenViewGroupHeader fields={visibleOrderLineFields} />
               <tr>
                 {visibleOrderLineFields.map((field) => (
-                  <th key={field.key}>{field.label}</th>
+                  <th key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>{field.label}</th>
                 ))}
               </tr>
             </thead>
@@ -10483,7 +10673,7 @@ function SalesOrderModal({
               {order.lines.map((line) => (
                 <tr key={line.lineNumber}>
                   {visibleOrderLineFields.map((field) => (
-                    <td key={field.key}>
+                    <td key={field.key} className={ORDER_NUMBER_FIELDS.has(field.key) ? "dd-num" : undefined}>
                       {field.key === "stockCode" ? (
                         line.stockCode
                       ) : field.key === "stockName" ? (
@@ -10532,42 +10722,20 @@ function SalesOrderModal({
             </tbody>
           </AdvancedDataGrid>
         </div>
-        <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
-        <section className="sales-quote-totals-panel">
-          <div><span>Ara toplam</span><b>{order.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam iskonto</span><b>{order.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div><span>Toplam KDV</span><b>{order.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {order.currencyCode}</b></div>
-          <div className="grand-total"><span>Genel toplam</span><b>{order.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {order.currencyCode}</b></div>
-        </section>
+        <DetailLinesFooter
+          label="Sipariş toplamları"
+          totals={salesTotalRows(
+            order,
+            orderMoney,
+            vatByRate(
+              order.lines.map((line) => ({ vatPercent: line.vatPercent, taxable: line.lineSubtotal - line.discountAmount, vat: line.taxAmount })),
+              { taxable: order.subtotal - order.discountTotal, vat: order.taxTotal },
+            ),
+          )}
+        />
+        </div>
         </>}
         {detailTab === "deliveries" && <>
-        <div className="delivery-history-head">
-          <b>İrsaliyeler</b>
-          {order.status === "Open" &&
-            activeReservation &&
-            role === "TenantAdmin" && (
-              <button
-                className="secondary danger-action"
-                disabled={busy}
-                onClick={() => void releaseOrderReservation()}
-              >
-                Rezervasyonu bırak
-              </button>
-            )}
-          {order.status === "Open" && (
-            <button
-              className="primary"
-              disabled={
-                busy ||
-                warehouses.length === 0 ||
-                order.lines.every((x) => x.remainingQuantity === 0)
-              }
-              onClick={startDelivery}
-            >
-              <Plus size={14} /> İrsaliye oluştur
-            </button>
-          )}
-        </div>
         {editor && (
           <RecordFormPage
             variant="dialog"
@@ -10692,6 +10860,38 @@ function SalesOrderModal({
             </RecordFormGroup>
           </RecordFormPage>
         )}
+        <DetailSection
+          title="İrsaliyeler"
+          count={deliveries.length}
+          actions={
+            <>
+          {order.status === "Open" &&
+            activeReservation &&
+            role === "TenantAdmin" && (
+              <button
+                className="secondary danger-action"
+                disabled={busy}
+                onClick={() => void releaseOrderReservation()}
+              >
+                Rezervasyonu bırak
+              </button>
+            )}
+          {order.status === "Open" && (
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                warehouses.length === 0 ||
+                order.lines.every((x) => x.remainingQuantity === 0)
+              }
+              onClick={startDelivery}
+            >
+              <Plus size={14} /> İrsaliye oluştur
+            </button>
+          )}
+            </>
+          }
+        >
         <div className="delivery-list">
           {loading ? (
             <span className="cell-subtitle">İrsaliyeler yükleniyor…</span>
@@ -10743,11 +10943,16 @@ function SalesOrderModal({
             ))
           )}
         </div>
+        </DetailSection>
         </>}
-        </div>
       </DocumentSurface>
   );
 }
+
+/** Order line grid columns that hold numbers (right-aligned, tabular figures). */
+const ORDER_NUMBER_FIELDS = new Set(["quantity", "deliveredQuantity", "remainingQuantity", "unitPrice", "lineTotal"]);
+
+const noTicks = () => undefined;
 
 function SalesInvoiceTable({
   invoices,
@@ -10772,6 +10977,12 @@ function SalesInvoiceTable({
   onChanged,
   onNew,
   commandsSuspended = false,
+  ticked = [],
+  onTickedChange,
+  listFooter,
+  listPanel,
+  listBodyRef,
+  listBodyClass = "sales-list-body",
 }: {
   invoices: SalesInvoiceSummary[];
   orders: SalesOrderSummary[];
@@ -10779,7 +10990,7 @@ function SalesInvoiceTable({
   stockItems: StockItem[];
   warehouses: Warehouse[];
   onOpen: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelect: (id: string | null) => void;
   selectedId: string | null;
   search: string;
   fields: BuiltInScreenLayoutField[];
@@ -10797,6 +11008,14 @@ function SalesInvoiceTable({
   onNew: () => void;
   /** An invoice / order detail or a page dialog owns the action bar. */
   commandsSuspended?: boolean;
+  /** Ticked rows of the list page (the current row is `selectedId`). */
+  ticked?: string[];
+  onTickedChange?: (ids: string[]) => void;
+  /** Footer and detail panel of the list (owned by SalesPage, which also renders the summary cards). */
+  listFooter?: React.ReactNode;
+  listPanel?: React.ReactNode;
+  listBodyRef?: React.Ref<HTMLDivElement>;
+  listBodyClass?: string;
 }) {
   const [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState(""),
@@ -10906,35 +11125,37 @@ function SalesInvoiceTable({
       setBusy(false);
     }
   }
-  const visible = invoices.filter(
-    (x) =>
-      !search ||
-      `${x.code} ${x.deliveryCode} ${x.orderCode} ${x.customerName} ${x.customerTaxNumber ?? ""}`
-        .toLocaleLowerCase("tr")
-        .includes(search.toLocaleLowerCase("tr")),
-  );
-  const ordered = fields
-    .filter((field) => field.key === "actions" || field.visible)
-    .sort((a, b) =>
-      a.key === "actions"
-        ? 1
-        : b.key === "actions"
-          ? -1
-          : a.position - b.position,
-    );
+  // Already filtered by the search in SalesPage (visibleInvoices).
+  const visible = invoices;
+  // The bar (Aç, Sil, İşlemler › İptal et) and the detail panel cover the former row menu: no "⋯" column.
+  const ordered = fields.filter((field) => field.key !== "actions" && field.visible).sort((a, b) => a.position - b.position);
   const render = (
     item: SalesInvoiceSummary,
     field: BuiltInScreenLayoutField,
   ) => {
     switch (field.key) {
       case "code":
-        return <span className="customer-code">{item.code}</span>;
+        return (
+          <button
+            type="button"
+            className="erp-link-button customer-code"
+            aria-haspopup="dialog"
+            aria-label={`${item.code} fatura ayrıntılarını aç`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect(item.id);
+              onOpen(item.id);
+            }}
+          >
+            {item.code}
+          </button>
+        );
       case "deliveryCode":
         return item.deliveryCode || "—";
       case "orderCode":
         return item.orderCode || "—";
       case "customerName":
-        return <b className="customer-name">{item.customerName}</b>;
+        return <span className="customer-name">{item.customerName}</span>;
       case "customerTaxNumber":
         return item.customerTaxNumber || "—";
       case "invoiceDate":
@@ -10942,48 +11163,9 @@ function SalesInvoiceTable({
       case "lineCount":
         return item.lineCount;
       case "grandTotal":
-        return (
-          <b>
-            {item.grandTotal.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}{" "}
-            {item.currencyCode}
-          </b>
-        );
+        return listAmount(item.grandTotal, item.currencyCode);
       case "status":
-        return (
-          <DocumentStatusBadge status={salesInvoiceStatus(item.status)} />
-        );
-      case "actions":
-        return (
-          <SalesRowActionsMenu label={item.code}>
-            <button role="menuitem" className="sales-row-menu-item" onClick={() => onOpen(item.id)}>Detay</button>
-            {role === "TenantAdmin" && item.status === "Posted" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy}
-                onClick={() => void voidInvoice(item)}
-              >
-                İptal et
-              </button>
-            )}
-            {role === "TenantAdmin" && (
-              <button
-                type="button"
-                role="menuitem"
-                className="sales-row-menu-item danger-action"
-                disabled={busy || item.status === "Posted"}
-                title={item.status === "Posted" ? "Kesilmiş belge silinemez — İşlemler › İptal et" : undefined}
-                onClick={() => void deleteInvoice(item)}
-              >
-                Sil
-              </button>
-            )}
-          </SalesRowActionsMenu>
-        );
+        return listTag("invoice", item.status);
       default:
         if (field.key.startsWith("custom:")) return item.listCustomFields?.[field.key] || "—";
         return null;
@@ -11003,7 +11185,10 @@ function SalesInvoiceTable({
       },
     };
   } else if (!createOpen) {
-    const selected = visible.find((item) => item.id === selectedId);
+    // The current row, else a single ticked row (never an implicit first row).
+    const selected =
+      visible.find((item) => item.id === selectedId) ??
+      (ticked.length === 1 ? visible.find((item) => item.id === ticked[0]) : undefined);
     commands.new = { primary: true, run: onNew };
     commands.open = {
       disabledReason: selected ? undefined : "Önce bir kayıt seçin",
@@ -11050,30 +11235,41 @@ function SalesInvoiceTable({
           </button>
         </div>
       )}
-      {!entryPage && <section
-        className="sales-invoice-list-card list-v2-list"
-        aria-label="Satış faturası listesi"
-      >
-        <SalesDocumentGrid
-          gridId="sales-invoices"
-          hideExport
-          exportActionsRef={gridExportRef}
-          fields={ordered}
-          items={visible}
-          selectedId={selectedId}
-          loading={false}
-          loadingMessage="Faturalar yükleniyor…"
-          emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
-          search={search}
-          searchEmptyMessage="Aramanızla eşleşen fatura yok."
-          toolbarContainer={toolbarContainer}
-          onSelect={(id) => {
-            onSelect(id);
-            onOpen(id);
-          }}
-          renderCell={(field, item) => render(item, field)}
-        />
-      </section>}
+      {!entryPage && (
+        <div ref={listBodyRef} className={listBodyClass}>
+          <section className="sales-invoice-list-card list-v2-list" aria-label="Satış faturası listesi">
+            <SalesDocumentGrid
+              gridId="sales-invoices"
+              hideExport
+              exportActionsRef={gridExportRef}
+              fields={ordered}
+              items={visible}
+              loading={false}
+              loadingMessage="Faturalar yükleniyor…"
+              emptyMessage="Henüz satış faturası yok. Yeni fatura oluştururken sipariş ve irsaliye kaydı otomatik oluşturulur."
+              search={search}
+              searchEmptyMessage="Aramanızla eşleşen fatura yok."
+              toolbarContainer={toolbarContainer}
+              renderCell={(field, item) => render(item, field)}
+              selection={{
+                currentId: selectedId,
+                onCurrentChange: onSelect,
+                onTickedChange: onTickedChange ?? noTicks,
+                // Only while the list is on screen: a document or form over it must not show the floating bar.
+                bulkActions: !commandsSuspended && !createOpen
+                  ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                  : undefined,
+                onOpen,
+              }}
+              footer={listFooter}
+              columnWidths={INVOICE_LIST_WIDTHS}
+              numberFields={SALES_NUMBER_FIELDS}
+              codeFields={SALES_CODE_FIELDS}
+            />
+          </section>
+          {listPanel}
+        </div>
+      )}
       {createOpen && (
         <SalesInvoiceFromDeliveryDialog
           key={createFormKey}

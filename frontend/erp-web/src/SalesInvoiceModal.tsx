@@ -11,7 +11,23 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { DocumentSurface } from "./document-page/DocumentSurface";
 import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
 import type { CommandSpec, PageCommands } from "./commands/types";
-import { salesInvoiceStatus } from "./document-page/documentStatus";
+import { returnStatus, salesInvoiceStatus } from "./document-page/documentStatus";
+import {
+  DetailChain,
+  DetailContext,
+  DetailInfoGrid,
+  DetailKeyValues,
+  DetailLinesFooter,
+  DetailLinesHead,
+  DetailNotes,
+  DetailSection,
+  DetailTabs,
+  DetailTiles,
+  formatAmount,
+  formatDate,
+  formatQuantity,
+} from "./document-detail/DocumentDetailLayout";
+import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesInvoiceFlow, SalesLinesMeta, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type CustomerCollection = AppTypes.CustomerCollection;
 type FinancialAccount = AppTypes.FinancialAccount;
@@ -677,15 +693,88 @@ export function SalesInvoiceModal({
       },
     ];
   }
+  const money = (value: number) => formatAmount(value, invoice?.currencyCode);
+  // KDV by rate from the server line amounts: a line's VAT is its VAT breakdown entry when it has one, else its tax.
+  // With additional or withholding taxes the lines do not add up to the stored tax total and no breakdown is shown.
+  const vat = invoice
+    ? vatByRate(
+        invoice.lines.map((line) => ({
+          vatPercent: line.vatPercent,
+          taxable: line.lineSubtotal - line.discountAmount,
+          vat: readInvoiceTaxBreakdown(line.taxBreakdownJson).find((tax) => tax.code === "VAT" || tax.code === "KDV")?.amount ?? line.taxAmount,
+        })),
+        { taxable: invoice.subtotal - invoice.discountTotal, vat: invoice.taxTotal },
+      )
+    : null;
+  const eDocument =
+    invoice &&
+    (invoice.eDocumentScenario || invoice.eDocumentRecipientAlias || invoice.eCommercePurchaseUrl || invoice.deliveryCarrierName || invoice.eCommercePaymentMeans || invoice.eCommercePaymentType)
+      ? [
+          `E-belge ${invoice.eDocumentScenario || "senaryo yok"} · ${invoice.eDocumentTypeCode || "tür yok"}`,
+          invoice.eDocumentRecipientAlias ? ` · Alıcı etiketi ${invoice.eDocumentRecipientAlias}` : "",
+          invoice.eCommercePurchaseUrl ? ` · Satın alma ${invoice.eCommercePurchaseUrl}` : "",
+          invoice.eCommercePaymentAgentName ? ` · Ödeme aracısı ${invoice.eCommercePaymentAgentName}` : "",
+          invoice.eCommercePaymentType ? ` · Ödeme türü ${invoice.eCommercePaymentType}` : "",
+          invoice.eCommercePaymentMeans ? ` · Yöntem ${invoice.eCommercePaymentMeans}` : "",
+          invoice.eCommercePaymentDate ? ` · Ödeme ${invoice.eCommercePaymentDate}` : "",
+          invoice.eCommercePaymentDueDate ? ` · Son ödeme ${invoice.eCommercePaymentDueDate}` : "",
+          invoice.deliveryCarrierName ? ` · Taşıyıcı ${invoice.deliveryCarrierName}` : "",
+          invoice.deliverySentAt ? ` · Sevk ${invoice.deliverySentAt}` : "",
+        ].join("")
+      : null;
   return (
     <DocumentSurface
+      variant="detail"
       title="Satış faturası"
       code={invoice?.code}
-      subtitle={invoice ? <><span>{invoice.customerName}</span>{invoice.invoiceType && <> · <span>{invoice.invoiceType === "Retail" ? "Perakende · KDV dâhil" : "Toptan · KDV hariç"}</span></>}</> : "Yükleniyor…"}
+      subtitle={invoice ? invoice.customerName : "Yükleniyor…"}
       status={invoice ? salesInvoiceStatus(invoice.status) : undefined}
+      meta={
+        invoice && (
+          <>
+            <span>{formatDate(invoice.invoiceDate)}</span>
+            {invoice.invoiceType && <span>{invoice.invoiceType === "Retail" ? "Perakende · KDV dâhil" : "Toptan · KDV hariç"}</span>}
+          </>
+        )
+      }
+      statusFlow={invoice && <SalesInvoiceFlow status={invoice.status} />}
       onClose={onClose}
-      className="sales-invoice-detail-backdrop"
-      bodyClassName="modal ledger-modal invoice-detail-modal"
+      aside={
+        invoice && (
+          <>
+            <DetailContext title="Belge zinciri">
+              <DetailChain
+                items={[
+                  ...(invoice.orderCode ? [{ key: "order", code: invoice.orderCode, label: "Satış siparişi" }] : []),
+                  ...(invoice.deliveryCode ? [{ key: "delivery", code: invoice.deliveryCode, label: "Satış irsaliyesi" }] : []),
+                  { key: "self", code: invoice.code, label: "Bu fatura", kind: "Satış faturası", current: true, status: salesInvoiceStatus(invoice.status) },
+                  ...invoice.returns.map((item) => ({
+                    key: `return-${item.id}`,
+                    code: item.code,
+                    label: "Satış iadesi",
+                    meta: formatDate(item.returnDate),
+                    status: returnStatus(item.status),
+                  })),
+                ]}
+              />
+            </DetailContext>
+            <DetailContext title="Ödeme durumu" hint={invoice.currencyCode}>
+              <DetailKeyValues
+                items={[
+                  { label: "Tahsil edilen", value: money(invoice.paidAmount) },
+                  { label: "İade edilen", value: money(invoice.returnedAmount) },
+                  { label: "Açık bakiye", value: money(invoice.outstandingAmount) },
+                ]}
+              />
+            </DetailContext>
+            <DetailContext title="Cari" hint={invoice.customerTaxNumber || undefined}>
+              <DetailKeyValues items={[{ label: "Unvan", value: invoice.customerName }]} />
+            </DetailContext>
+          </>
+        )
+      }
+      hints={SALES_DETAIL_HINTS}
+      footerStatus={invoice && <SalesFooterStatus lines={invoice.lines.length} total={money(invoice.grandTotal)} />}
     >
         <PageCommandsSlot commands={commands} />
         {error && (
@@ -704,51 +793,93 @@ export function SalesInvoiceModal({
             </button>
           </div>
         )}
+        {!invoice && <div className="dd-loading">Fatura yükleniyor…</div>}
         {invoice && (
           <>
-          <nav className="sales-quote-detail-tabs invoice-detail-tabs" role="tablist" aria-label="Fatura detay bölümleri">
-            <button type="button" role="tab" aria-selected={detailTab === "information"} className={detailTab === "information" ? "active" : ""} onClick={() => setDetailTab("information")}>Fatura Bilgileri</button>
-            <button type="button" role="tab" aria-selected={detailTab === "transactions"} className={detailTab === "transactions" ? "active" : ""} onClick={() => setDetailTab("transactions")}>Tahsilat ve İadeler<span>{invoice.collections.length + invoice.returns.length}</span></button>
-          </nav>
-          <div className="invoice-detail-layout">
+            <DetailTabs<"information" | "transactions">
+              label="Fatura detay bölümleri"
+              value={detailTab}
+              onChange={setDetailTab}
+              tabs={[
+                { key: "information", label: "Fatura Bilgileri" },
+                { key: "transactions", label: "Tahsilat ve İadeler", count: invoice.collections.length + invoice.returns.length },
+              ]}
+            />
             {detailTab === "information" && <>
-            <section
-              className="invoice-payment-overview"
-              aria-label="Fatura tutar özeti"
-            >
-              <article>
-                <small>Fatura toplamı</small>
-                <b>
-                  {invoice.grandTotal.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {invoice.currencyCode}
-                </b>
-              </article>
-              <article>
-                <small>Tahsil edilen</small>
-                <b>
-                  {invoice.paidAmount.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {invoice.currencyCode}
-                </b>
-              </article>
-              <article>
-                <small>Açık bakiye</small>
-                <b>
-                  {invoice.outstandingAmount.toLocaleString("tr-TR", {
-                    minimumFractionDigits: 2,
-                  })}{" "}
-                  {invoice.currencyCode}
-                </b>
-              </article>
-              <span
-                className={`quote-status ${invoice.status === "Posted" ? "accepted" : "rejected"}`}
-              >
-                {invoice.status === "Posted" ? "Kesildi" : "İptal"}
-              </span>
-            </section>
+            <DetailTiles
+              label="Fatura tutar özeti"
+              items={[
+                { label: "Fatura toplamı", value: money(invoice.grandTotal) },
+                { label: "Tahsil edilen", value: money(invoice.paidAmount) },
+                { label: "Açık bakiye", value: money(invoice.outstandingAmount) },
+              ]}
+            />
+            <div className="dd-box">
+              <DetailInfoGrid
+                label="Belge bilgileri"
+                items={[
+                  ...[...detailScreenFields]
+                    .filter((field) => field.visible && !["grandTotal", "paidAmount", "outstandingAmount", "status"].includes(field.key))
+                    .sort((a, b) => a.position - b.position)
+                    .map((field) => ({
+                      key: field.key,
+                      label: field.label,
+                      // Same day format as the header meta (the tenant field mapper returns the ISO date).
+                      value: field.key === "invoiceDate" ? formatDate(invoice.invoiceDate) : invoiceDetailValue(field) || "—",
+                    })),
+                  ...(eDocument ? [{ key: "eDocument", label: "E-belge", value: eDocument }] : []),
+                ]}
+              />
+            </div>
+            <div className="dd-box">
+              <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={invoice.lines.length} extra={invoice.currencyCode} />} />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines" aria-label="Fatura satırları">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">#</th>
+                      <th>Stok</th>
+                      <th className="dd-num">Miktar</th>
+                      <th className="dd-num">Birim fiyat</th>
+                      <th className="dd-num">İskonto</th>
+                      <th className="dd-num">KDV</th>
+                      <th className="dd-num">Toplam</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoice.lines.map((line, index) => (
+                      <tr key={line.id ?? line.orderLineNumber}>
+                        <td className="dd-ix">{index + 1}</td>
+                        <td className="dd-stock">
+                          <b>{line.stockCode}</b>
+                          <small>{line.stockName}</small>
+                        </td>
+                        <td className="dd-num">
+                          {formatQuantity(line.quantity)} {line.unitCode}
+                        </td>
+                        <td className="dd-num">
+                          {line.unitPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        </td>
+                        <td className="dd-num">
+                          {formatAmount(line.discountAmount)}
+                          <small>%{line.discountPercent}</small>
+                        </td>
+                        <td className="dd-num">
+                          {formatAmount(line.taxAmount)}
+                          <small>%{line.vatPercent}</small>
+                        </td>
+                        <td className="dd-num">{formatAmount(line.lineTotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <DetailLinesFooter
+                label="Fatura toplamları"
+                aside={invoice.notes ? <DetailNotes items={[{ label: "Fatura notu", value: invoice.notes }]} /> : undefined}
+                totals={salesTotalRows(invoice, money, vat)}
+              />
+            </div>
             {(invoice.accountingProfileCode || invoice.taxBreakdownJson) && (() => {
               const taxes = readInvoiceTaxBreakdown(invoice.taxBreakdownJson);
               return <section className="invoice-tax-breakdown" aria-label="Mevzuat profili ve vergi dökümü">
@@ -756,12 +887,6 @@ export function SalesInvoiceModal({
                 {taxes.length > 0 && <div className="invoice-tax-breakdown-list">{taxes.map((tax, index) => <span key={`${tax.code}-${index}`}><b>{tax.name}</b><small>{tax.code} · %{tax.rate} · {tax.treatment === "Withholding" ? "Tevkifat" : "Ek vergi"}</small><strong>{tax.amount.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</strong></span>)}</div>}
               </section>;
             })()}
-            {invoice.notes && (
-              <section className="invoice-note-view" aria-label="Fatura notu">
-                <b>Fatura notu</b>
-                <p>{invoice.notes}</p>
-              </section>
-            )}
             {invoice &&
               (invoice.customFields?.length > 0 || role === "TenantAdmin" || role === "TenantDeveloper") && (
                 <section className="panel invoice-custom-fields">
@@ -1045,115 +1170,20 @@ export function SalesInvoiceModal({
                 )}
               </section>
             )}
-            <div className="panel invoice-detail-summary">
-              <div className="panel-heading">
-                <div>
-                  <b>Belge bilgileri</b>
-                  <small>Müşteri, tarih ve bağlantılı belgeler</small>
-                </div>
-                <span
-                  className={`quote-status ${invoice.status === "Posted" ? "accepted" : "rejected"}`}
-                >
-                  {invoice.status === "Posted" ? "Kesildi" : "İptal"}
-                </span>
-              </div>
-              <dl className="erp-record-facts">
-                {[...detailScreenFields]
-                  .filter(
-                    (field) =>
-                      field.visible &&
-                      ![
-                        "grandTotal",
-                        "paidAmount",
-                        "outstandingAmount",
-                        "status",
-                      ].includes(field.key),
-                  )
-                  .sort((a, b) => a.position - b.position)
-                  .map((field) => (
-                    <div key={field.key}>
-                      <dt>{field.label}</dt>
-                      <dd>{invoiceDetailValue(field) || "—"}</dd>
-                    </div>
-                  ))}
-              </dl>
-            </div>
-            <h3 className="sales-quote-section-title">Fatura Satırları</h3>
-            <div className="ledger-list invoice-lines-wrap">
-              <table className="customer-table quote-detail-table">
-                <thead>
-                  <tr>
-                    <th>Stok</th>
-                    <th>Miktar</th>
-                    <th>Birim fiyat</th>
-                    <th>İskonto</th>
-                    <th>KDV</th>
-                    <th>Toplam</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.lines.map((line) => (
-                    <tr key={line.orderLineNumber}>
-                      <td>
-                        <b>{line.stockCode}</b>
-                        <small className="cell-subtitle">
-                          {line.stockName}
-                        </small>
-                      </td>
-                      <td>
-                        {line.quantity.toLocaleString("tr-TR", {
-                          maximumFractionDigits: 4,
-                        })}{" "}
-                        {line.unitCode}
-                      </td>
-                      <td>
-                        {line.unitPrice.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 4,
-                        })}
-                      </td>
-                      <td>
-                        {line.discountAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        ({line.discountPercent}%)
-                      </td>
-                      <td>
-                        {line.taxAmount.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        ({line.vatPercent}%)
-                      </td>
-                      <td>
-                        {line.lineTotal.toLocaleString("tr-TR", {
-                          minimumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <h3 className="sales-quote-section-title sales-quote-totals-title">Toplamlar</h3>
-            <section className="sales-quote-totals-panel">
-              <div><span>Ara toplam</span><b>{invoice.subtotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
-              <div><span>Toplam iskonto</span><b>{invoice.discountTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
-              <div><span>Toplam KDV</span><b>{invoice.taxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
-              <div className="grand-total"><span>Genel toplam</span><b>{invoice.grandTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {invoice.currencyCode}</b></div>
-            </section>
             </>}
             {detailTab === "transactions" && <>
-            <div className="list-toolbar invoice-collections-heading">
-              <div>
-                <h2>Tahsilatlar</h2>
-                <p>
+            <DetailSection
+              title="Tahsilatlar"
+              count={invoice.collections.length}
+              description={
+                <>
                   {invoice.paidAmount.toLocaleString("tr-TR", {
                     minimumFractionDigits: 2,
                   })}{" "}
                   {invoice.currencyCode} mahsup edildi
-                </p>
-              </div>
-            </div>
+                </>
+              }
+            >
             <div className="ledger-list invoice-collections-wrap">
               <AdvancedDataGrid
                 className="customer-table"
@@ -1229,6 +1259,7 @@ export function SalesInvoiceModal({
                 </tbody>
               </AdvancedDataGrid>
             </div>
+            </DetailSection>
             {invoice.status === "Posted" && invoice.outstandingAmount > 0 && (
               <form
                 onSubmit={createCollection}
@@ -1340,17 +1371,18 @@ export function SalesInvoiceModal({
                 </div>
               </form>
             )}
-            <div className="list-toolbar invoice-returns-heading">
-              <div>
-                <h2>Satış iadeleri</h2>
-                <p>
+            <DetailSection
+              title="Satış iadeleri"
+              count={invoice.returns.length}
+              description={
+                <>
                   {invoice.returnedAmount.toLocaleString("tr-TR", {
                     minimumFractionDigits: 2,
                   })}{" "}
                   {invoice.currencyCode} tutarında aktif iade
-                </p>
-              </div>
-            </div>
+                </>
+              }
+            >
             <div className="ledger-list invoice-returns-wrap">
               <FinanceStudioGrid
                 token={token}
@@ -1417,6 +1449,7 @@ export function SalesInvoiceModal({
                 </table>
               </FinanceStudioGrid>
             </div>
+            </DetailSection>
             {invoice.status === "Posted" && (
               <form
                 onSubmit={createReturn}
@@ -1575,63 +1608,6 @@ export function SalesInvoiceModal({
               </form>
             )}
             </>}
-            {detailTab === "information" && <>
-            <div className="invoice-meta invoice-detail-meta">
-              <span>
-                Fatura tarihi {invoice.invoiceDate} · Sipariş{" "}
-                {invoice.orderCode}
-              </span>
-              {(invoice.eDocumentScenario || invoice.eDocumentRecipientAlias || invoice.eCommercePurchaseUrl || invoice.deliveryCarrierName || invoice.eCommercePaymentMeans || invoice.eCommercePaymentType) && (
-                <span>
-                  E-belge {invoice.eDocumentScenario || "senaryo yok"} · {invoice.eDocumentTypeCode || "tür yok"}
-                  {invoice.eDocumentRecipientAlias ? ` · Alıcı etiketi ${invoice.eDocumentRecipientAlias}` : ""}
-                  {invoice.eCommercePurchaseUrl ? ` · Satın alma ${invoice.eCommercePurchaseUrl}` : ""}
-                  {invoice.eCommercePaymentAgentName ? ` · Ödeme aracısı ${invoice.eCommercePaymentAgentName}` : ""}
-                  {invoice.eCommercePaymentType ? ` · Ödeme türü ${invoice.eCommercePaymentType}` : ""}
-                  {invoice.eCommercePaymentMeans ? ` · Yöntem ${invoice.eCommercePaymentMeans}` : ""}
-                  {invoice.eCommercePaymentDate ? ` · Ödeme ${invoice.eCommercePaymentDate}` : ""}
-                  {invoice.eCommercePaymentDueDate ? ` · Son ödeme ${invoice.eCommercePaymentDueDate}` : ""}
-                  {invoice.deliveryCarrierName ? ` · Taşıyıcı ${invoice.deliveryCarrierName}` : ""}
-                  {invoice.deliverySentAt ? ` · Sevk ${invoice.deliverySentAt}` : ""}
-                </span>
-              )}
-              <span>
-                {invoice.ledgerEntryId
-                  ? "Cari borç kaydı oluşturuldu"
-                  : "Cari hareketi yok"}
-              </span>
-            </div>
-            </>}
-            <div className="modal-foot">
-              <span>
-                Fatura iptali için tahsilat ve iadeleri önce iptal edin.
-              </span>
-              <div>
-                {invoice.status === "Posted" && (
-                  <button
-                    className="secondary danger-action"
-                    disabled={
-                      busy ||
-                      invoice.paidAmount > 0 ||
-                      invoice.returnedAmount > 0
-                    }
-                    title={
-                      invoice.paidAmount > 0 || invoice.returnedAmount > 0
-                        ? "Önce tahsilat ve iadeleri iptal edin."
-                        : ""
-                    }
-                    onClick={() => void voidInvoice()}
-                  >
-                    {busy
-                      ? "İptal ediliyor…"
-                      : invoice.paidAmount > 0 || invoice.returnedAmount > 0
-                        ? "Önce tahsilat ve iadeleri iptal edin"
-                        : "Faturayı iptal et"}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
           </>
         )}
       </DocumentSurface>

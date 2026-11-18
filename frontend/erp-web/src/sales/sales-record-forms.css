@@ -209,3 +209,27 @@ html[data-theme="dark"] .record-form.sales-rf {
   .record-form.sales-rf .rf-form .delivery-document-line-fields { grid-template-columns: minmax(0, 1fr); }
   .sales-rf-fulfillment > .requests-list { margin-inline: 16px; }
 }
+
+/* Belge oluşturma ekranları (RecordFormPage `document`, taslak 02): alanlar kayıt formunun 31px yüksekliğinde, kayıtsız
+   alıcı seçeneği kartın içinde kutusuz bir satır, toplam tutarları belge toplamlarının yazısıyla (para birimi yanında). */
+.app-shell .record-form.sales-rf.doc-form .rf-form .rf-group-body .customer-popup-trigger {
+  height: var(--nx-control-h);
+  min-height: var(--nx-control-h);
+  font-size: 12.5px;
+}
+.app-shell .record-form.sales-rf.doc-form .rf-form .rf-group-body > .quote-prospect-toggle {
+  grid-column: 1 / -1;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell .record-form.sales-rf.doc-form .rf-form .quote-prospect-toggle-copy b { color: var(--nx-text); font-size: 12.5px; font-weight: 600; }
+.app-shell .record-form.sales-rf.doc-form .dd-totals .sales-total-amount { display: inline-flex; align-items: baseline; gap: 4px; color: inherit; font-variant-numeric: tabular-nums; }
+.app-shell .record-form.sales-rf.doc-form .dd-totals .sales-total-amount > b { font-weight: inherit; }
+.app-shell .record-form.sales-rf.doc-form .dd-totals .sales-total-amount > small { color: inherit; font-size: inherit !important; font-weight: inherit; }
+.app-shell .record-form.sales-rf.doc-form .dd-lines-aside textarea.sales-rf-tall { height: 76px; min-height: 76px; }

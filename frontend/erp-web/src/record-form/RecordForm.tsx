@@ -40,6 +40,23 @@ export type RecordNav = {
 const ASIDE_ROOM = 1100;
 const ASIDE_CLOSE = 1060;
 
+/**
+ * Document chrome for a line-item document being created or edited (mockup 02): the header of the document screen
+ * (type above, number · cari, mode, status flow) in place of the record header. Behaviour is the record form's.
+ */
+export type RecordFormDocument = {
+  /** Document type, singular: "Satış teklifi". Top line of the header, after the breadcrumb. */
+  type: string;
+  /** Document number as entered; the heading shows it (named "{type} {code}"), else `title`. */
+  code?: string;
+  /** Cari (customer) next to the number. */
+  party?: ReactNode;
+  /** `DocumentStatusFlow` with the step the save produces as current. */
+  statusFlow?: ReactNode;
+  /** Shortcuts of the screen, listed in the footer after "Ctrl+S kaydet" ("Ctrl+Shift+Enter satır ekle"). */
+  hints?: string[];
+};
+
 export type RecordFormPageProps = {
   /** Screen title, e.g. "Cari Kart Tanımlama". */
   title: string;
@@ -78,6 +95,8 @@ export type RecordFormPageProps = {
   aside?: ReactNode;
   /** "dialog" fits the same structure inside an existing modal: tighter padding, no full-height stretch. */
   variant?: "page" | "dialog";
+  /** Document chrome (page variant): the document screen's header instead of the record header. */
+  document?: RecordFormDocument;
   className?: string;
   children: ReactNode;
 };
@@ -110,6 +129,7 @@ export function RecordFormPage({
   dirty,
   aside,
   variant = "page",
+  document: documentChrome,
   className,
   children,
 }: RecordFormPageProps) {
@@ -282,7 +302,7 @@ export function RecordFormPage({
   useEffect(() => setAsideOverride(null), [roomy]);
   const asideOpen = asideOverride ?? roomy;
   useWindowKeyDown(hasAside, (event) => {
-    if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+    if (event.key !== "." || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.defaultPrevented) return;
     if (!ownsKeys()) return;
     event.preventDefault();
     setAsideOverride((current) => !(current ?? roomy));
@@ -299,6 +319,7 @@ export function RecordFormPage({
     ? [
         "Tab sonraki alan",
         "Ctrl+S kaydet",
+        ...(documentChrome?.hints ?? []),
         undo?.run && !undo.disabledReason ? "Ctrl+Z geri al" : null,
         recordNav ? "PgUp/PgDn önceki/sonraki kayıt" : null,
         hasAside ? "Ctrl+. bağlam paneli" : null,
@@ -306,99 +327,140 @@ export function RecordFormPage({
       ].filter((hint): hint is string => !!hint)
     : [];
 
+  const modeBadge = mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT";
+  // Right side of the header: change note, record navigation, the form's own buttons (no bar), Vazgeç.
+  const headerSide = (className: string) => (
+    <div className={className}>
+      {dirtyText && (
+        <span className="rf-dirty">
+          <i aria-hidden="true" />
+          {dirtyText}
+        </span>
+      )}
+      {recordNav && (
+        <div className="rf-rnav" role="group" aria-label="Kayıtlar arası gezinme">
+          <button
+            type="button"
+            aria-label="Önceki kayıt"
+            disabled={!recordNav.onPrev}
+            title={!recordNav.onPrev ? recordNav.prevDisabledReason : undefined}
+            onClick={recordNav.onPrev}
+          >
+            ‹ <kbd>PgUp</kbd>
+          </button>
+          <span>{`${recordNav.index} / ${recordNav.total}`}</span>
+          <button
+            type="button"
+            aria-label="Sonraki kayıt"
+            disabled={!recordNav.onNext}
+            title={!recordNav.onNext ? recordNav.nextDisabledReason : undefined}
+            onClick={recordNav.onNext}
+          >
+            <kbd>PgDn</kbd> ›
+          </button>
+        </div>
+      )}
+      {ownButtons && (
+        <>
+          <button
+            type="submit"
+            form={id}
+            className="rf-btn rf-btn--primary"
+            disabled={busy || !!saveDisabledReason}
+            title={saveDisabledReason}
+            onClick={() => onSaveIntent?.(false)}
+          >
+            <Save size={16} aria-hidden="true" />
+            {busy ? "Kaydediliyor…" : "Kaydet"}
+            <kbd>Ctrl+S</kbd>
+          </button>
+          {canSaveAndNew && (
+            <button
+              type="submit"
+              form={id}
+              className="rf-btn"
+              disabled={busy || !!saveDisabledReason}
+              title={saveDisabledReason}
+              onClick={() => onSaveIntent?.(true)}
+            >
+              <CopyPlus size={16} aria-hidden="true" />
+              Kaydet ve Yeni
+              <kbd>Ctrl+F2</kbd>
+            </button>
+          )}
+          {canReset && (
+            <button type="button" className="rf-btn" disabled={busy} onClick={onReset}>
+              <Eraser size={16} aria-hidden="true" />
+              Temizle
+            </button>
+          )}
+        </>
+      )}
+      <button type="button" className="rf-btn" onClick={onCancel}>
+        <X size={16} aria-hidden="true" />
+        Vazgeç
+      </button>
+    </div>
+  );
+
   return (
     <RecordFormContext.Provider value={context}>
       <div
         ref={rootRef}
         onFocusCapture={markActive}
-        className={`record-form${variant === "dialog" ? " record-form--dialog" : ""}${className ? ` ${className}` : ""}`}
+        className={`record-form${variant === "dialog" ? " record-form--dialog" : ""}${documentChrome ? " doc-form" : ""}${className ? ` ${className}` : ""}`}
       >
-        <header className="rf-toolbar">
-          <div className="rf-head">
-            {media != null && media !== false && <div className="rf-media">{media}</div>}
-            <div className="rf-head-text">
-              <div className={`rf-title${showSlot && breadcrumb ? " rf-title--crumb" : ""}`}>
-                {showSlot && breadcrumb}
-                <h1>{title}</h1>
+        {documentChrome ? (
+          <header className="doc-surface-head">
+            <div className="doc-surface-title">
+              <div className="doc-surface-eyebrow">
+                {showSlot && breadcrumb && <span className="doc-surface-crumb">{breadcrumb}</span>}
+                <span>{documentChrome.type}</span>
               </div>
-              <div className="rf-meta">
-                <span className="rf-badge">{mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT"}</span>
+              <div className="doc-surface-code-row">
+                <h1>
+                  {documentChrome.code ? (
+                    <>
+                      <span className="doc-surface-sr">{documentChrome.type} </span>
+                      <b>{documentChrome.code}</b>
+                    </>
+                  ) : (
+                    <b>{title}</b>
+                  )}
+                </h1>
+                {documentChrome.party != null && documentChrome.party !== false && documentChrome.party !== "" && (
+                  <>
+                    <span className="doc-surface-sep" aria-hidden="true">·</span>
+                    <div className="doc-surface-party">{documentChrome.party}</div>
+                  </>
+                )}
+              </div>
+              <div className="doc-surface-meta">
+                <span className="rf-badge">{modeBadge}</span>
                 {subtitle}
               </div>
             </div>
-          </div>
-          <div className="rf-actions">
-            {dirtyText && (
-              <span className="rf-dirty">
-                <i aria-hidden="true" />
-                {dirtyText}
-              </span>
-            )}
-            {recordNav && (
-              <div className="rf-rnav" role="group" aria-label="Kayıtlar arası gezinme">
-                <button
-                  type="button"
-                  aria-label="Önceki kayıt"
-                  disabled={!recordNav.onPrev}
-                  title={!recordNav.onPrev ? recordNav.prevDisabledReason : undefined}
-                  onClick={recordNav.onPrev}
-                >
-                  ‹ <kbd>PgUp</kbd>
-                </button>
-                <span>{`${recordNav.index} / ${recordNav.total}`}</span>
-                <button
-                  type="button"
-                  aria-label="Sonraki kayıt"
-                  disabled={!recordNav.onNext}
-                  title={!recordNav.onNext ? recordNav.nextDisabledReason : undefined}
-                  onClick={recordNav.onNext}
-                >
-                  <kbd>PgDn</kbd> ›
-                </button>
+            {documentChrome.statusFlow && <div className="doc-surface-flow">{documentChrome.statusFlow}</div>}
+            {headerSide("doc-surface-side")}
+          </header>
+        ) : (
+          <header className="rf-toolbar">
+            <div className="rf-head">
+              {media != null && media !== false && <div className="rf-media">{media}</div>}
+              <div className="rf-head-text">
+                <div className={`rf-title${showSlot && breadcrumb ? " rf-title--crumb" : ""}`}>
+                  {showSlot && breadcrumb}
+                  <h1>{title}</h1>
+                </div>
+                <div className="rf-meta">
+                  <span className="rf-badge">{modeBadge}</span>
+                  {subtitle}
+                </div>
               </div>
-            )}
-            {ownButtons && (
-              <>
-                <button
-                  type="submit"
-                  form={id}
-                  className="rf-btn rf-btn--primary"
-                  disabled={busy || !!saveDisabledReason}
-                  title={saveDisabledReason}
-                  onClick={() => onSaveIntent?.(false)}
-                >
-                  <Save size={16} aria-hidden="true" />
-                  {busy ? "Kaydediliyor…" : "Kaydet"}
-                  <kbd>Ctrl+S</kbd>
-                </button>
-                {canSaveAndNew && (
-                  <button
-                    type="submit"
-                    form={id}
-                    className="rf-btn"
-                    disabled={busy || !!saveDisabledReason}
-                    title={saveDisabledReason}
-                    onClick={() => onSaveIntent?.(true)}
-                  >
-                    <CopyPlus size={16} aria-hidden="true" />
-                    Kaydet ve Yeni
-                    <kbd>Ctrl+F2</kbd>
-                  </button>
-                )}
-                {canReset && (
-                  <button type="button" className="rf-btn" disabled={busy} onClick={onReset}>
-                    <Eraser size={16} aria-hidden="true" />
-                    Temizle
-                  </button>
-                )}
-              </>
-            )}
-            <button type="button" className="rf-btn" onClick={onCancel}>
-              <X size={16} aria-hidden="true" />
-              Vazgeç
-            </button>
-          </div>
-        </header>
+            </div>
+            {headerSide("rf-actions")}
+          </header>
+        )}
         {showSlot && <ActionBarSlot slotRef={slotRef} />}
         {error && (
           <div className="alert inline-alert rf-error" role="alert">

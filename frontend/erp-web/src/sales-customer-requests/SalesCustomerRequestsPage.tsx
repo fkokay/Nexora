@@ -4,11 +4,15 @@ import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
 import { promptDialog } from "../confirmDialog";
 import { ListPageHeader } from "../list-page/ListPageHeader";
-import { ListPagination } from "../list-page/ListPagination";
 import { ListToolbar } from "../list-page/ListToolbar";
-import { DocumentStatusBadge } from "../document-page/DocumentStatusBadge";
-import { salesRequestStatus } from "../document-page/documentStatus";
+import { ListSummaryCards } from "../list-page/ListSummaryCards";
+import { Clock3 } from "lucide-react";
 import SalesDocumentGrid from "../sales/components/SalesDocumentGrid";
+import { useSalesListPanel } from "../sales/useSalesListPanel";
+import { SalesListPanelToggle } from "../sales/components/SalesListDetailPanel";
+import { SalesListFooter } from "../sales/components/SalesListFooter";
+import { RequestListPanel, SalesListPanelEmpty } from "../sales/components/SalesListPanels";
+import { SALES_CODE_FIELDS, SALES_NUMBER_FIELDS, listTag } from "../sales/components/salesListCells";
 import type { GridExportActions } from "../AdvancedDataGrid";
 import { PageCommandsSlot, documentOpenCommands } from "../commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
@@ -27,13 +31,13 @@ const pageSize = 25;
 const basePath = "/api/sales/requests";
 
 const fields: AppTypes.BuiltInScreenLayoutField[] = [
-  { key: "code", label: "Talep no", width: 150 },
-  { key: "requestDate", label: "Tarih", width: 110 },
-  { key: "customerName", label: "Müşteri", width: 280 },
-  { key: "neededByDate", label: "İhtiyaç tarihi", width: 120 },
-  { key: "lineCount", label: "Satır", width: 80 },
-  { key: "quoteCount", label: "Teklif", width: 80 },
-  { key: "status", label: "Durum", width: 140 },
+  { key: "code", label: "Talep no", width: 130 },
+  { key: "requestDate", label: "Tarih", width: 100 },
+  { key: "customerName", label: "Müşteri", width: 260 },
+  { key: "neededByDate", label: "İhtiyaç tarihi", width: 115 },
+  { key: "lineCount", label: "Satır", width: 65 },
+  { key: "quoteCount", label: "Teklif", width: 65 },
+  { key: "status", label: "Durum", width: 125 },
 ].map((field, position) => ({ ...field, visible: true, position }));
 
 /** Satış talepleri: müşteriden gelen ürün talepleri listelenir, kaydedilir ve teklife dönüştürülür. */
@@ -53,6 +57,17 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
   const [detailError, setDetailError] = useState("");
   const [detailNotice, setDetailNotice] = useState("");
   const gridExportRef = useRef<GridExportActions | null>(null);
+  const [ticked, setTicked] = useState<string[]>([]);
+  // The row the user chose (click, ↑/↓); never an implicit first row.
+  const current = items.find((item) => item.id === selectedId);
+  const listActive = !creating && !detail;
+  const panel = useSalesListPanel<SalesRequestDetail>({
+    active: listActive,
+    token,
+    currentId: current?.id ?? null,
+    path: (id) => `${basePath}/${id}`,
+    reloadKey: current ? JSON.stringify(current) : undefined,
+  });
 
   async function load() {
     setLoading(true);
@@ -167,13 +182,13 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
       case "neededByDate": return formatRequestDate(item.neededByDate);
       case "lineCount": return item.lineCount;
       case "quoteCount": return item.quoteCount;
-      case "status": return <DocumentStatusBadge status={salesRequestStatus(item.status)} />;
+      case "status": return listTag("request", item.status);
       default: return null;
     }
   };
 
   // Action bar of the request list and of an open request (requests are cancelled, not deleted).
-  const selected = items.find((item) => item.id === selectedId);
+  const selected = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
   const commands: PageCommands = { new: { primary: !detail, run: () => setCreating(true) } };
   const more: MenuCommand[] = [];
   if (detail) {
@@ -193,6 +208,22 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
     more.push(csvExportCommand(gridExportRef));
   }
   commands.more = more;
+  const listPanel =
+    panel.open && listActive ? (
+      current ? (
+        <RequestListPanel
+          row={current}
+          detail={panel.detail}
+          error={panel.error}
+          onOpen={() => void openDetail(current.id)}
+          openDisabled={detailBusy}
+          onClose={panel.close}
+          takeFocus={panel.takeFocus}
+        />
+      ) : (
+        <SalesListPanelEmpty kind="request" />
+      )
+    ) : null;
 
   return (
     <div className="sales-lv2-stack list-v2" ref={rootRef}>
@@ -202,6 +233,18 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
         description="Müşterilerden gelen ürün talepleri. Talepten teklif hazırlanır; satış akışının ilk adımıdır."
         count={loading && total === 0 ? null : total}
       />
+      <ListSummaryCards
+        cards={[
+          {
+            id: "open",
+            label: "Teklif bekleyen",
+            value: loading ? "—" : items.filter((item) => item.status === "Open").length.toLocaleString("tr-TR"),
+            icon: Clock3,
+            tone: "warn",
+            hint: "bu sayfa",
+          },
+        ]}
+      />
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
@@ -210,44 +253,66 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
         searchPlaceholder="Talep no veya müşteri ara"
         toolsSlotRef={setToolsSlot}
         onRefresh={() => { if (!loading) void load(); }}
-      />
+      >
+        <SalesListPanelToggle open={panel.open} onToggle={panel.toggle} />
+      </ListToolbar>
       {error && (
         <div className="alert inline-alert" role="alert">
           {error}
           <button type="button" aria-label="Kapat" onClick={() => setError("")}><X size={15} /></button>
         </div>
       )}
-      <section className="list-v2-list">
-        <SalesDocumentGrid
-          gridId="sales-customer-requests"
-          hideExport
-          exportActionsRef={gridExportRef}
-          fields={fields}
-          items={items}
-          selectedId={selectedId}
-          loading={loading}
-          loadingMessage="Talepler yükleniyor…"
-          emptyMessage="Henüz satış talebi yok. Yeni talep ile ilk kaydı oluşturun."
-          search={filter}
-          searchEmptyMessage="Aramanızla eşleşen talep yok."
-          toolbarContainer={toolsSlot}
-          onSelect={(id) => void openDetail(id)}
-          renderCell={renderCell}
-          ariaLabel="Satış talebi kayıtları"
-        />
-      </section>
-      <ListPagination page={page} total={total} pageSize={pageSize} loading={loading} onPageChange={setPage} />
+      <div ref={panel.rootRef} className={`sales-list-body${listPanel ? " has-detail" : ""}`}>
+        <section className="list-v2-list">
+          <SalesDocumentGrid
+            gridId="sales-customer-requests"
+            hideExport
+            exportActionsRef={gridExportRef}
+            fields={fields}
+            items={items}
+            loading={loading}
+            loadingMessage="Talepler yükleniyor…"
+            emptyMessage="Henüz satış talebi yok. Yeni talep ile ilk kaydı oluşturun."
+            search={filter}
+            searchEmptyMessage="Aramanızla eşleşen talep yok."
+            toolbarContainer={toolsSlot}
+            renderCell={renderCell}
+            ariaLabel="Satış talebi kayıtları"
+            selection={{
+              currentId: selectedId,
+              onCurrentChange: setSelectedId,
+              onTickedChange: setTicked,
+              // Only while the list is on screen: a document or form over it must not show the floating bar.
+              bulkActions: listActive
+                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                : undefined,
+              onOpen: (id) => void openDetail(id),
+            }}
+            footer={
+              <SalesListFooter
+                ticked={ticked.length}
+                shown={items.length}
+                total={total}
+                page={page}
+                pageSize={pageSize}
+                loading={loading}
+                onPageChange={setPage}
+              />
+            }
+            numberFields={SALES_NUMBER_FIELDS}
+            codeFields={SALES_CODE_FIELDS}
+          />
+        </section>
+        {listPanel}
+      </div>
       {detail && (
         <SalesRequestDetailSurface
           detail={detail}
-          busy={detailBusy}
           error={detailError}
           notice={detailNotice}
           onDismissError={() => setDetailError("")}
           onDismissNotice={() => setDetailNotice("")}
           onClose={() => setDetail(null)}
-          onCreateQuote={() => createQuote(detail.id)}
-          onCancelRequest={() => void cancelRequest()}
         />
       )}
     </div>
