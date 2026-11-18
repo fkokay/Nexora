@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
+    "test": "vitest run --dir src && node --test \"tests/*.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {

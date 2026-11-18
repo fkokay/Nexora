@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Kart içi tasarım</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--ok:#13804b;--ok-bg:#e5f5ec}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.frame{display:grid;grid-template-columns:200px 1fr 250px;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:1200px;box-shadow:0 4px 18px rgba(15,27,45,.08)}
+.pal{border-right:1px solid var(--line);padding:12px;background:#fbfbfe}
+.pal .g{font-size:10.5px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:10px 0 6px}
+.pal .it{padding:6px 8px;border-radius:8px;margin-bottom:3px}.pal .it.drag{background:var(--st-soft);color:var(--st);font-weight:600;box-shadow:0 2px 8px rgba(91,61,245,.25)}
+.cv{padding:12px 14px;background:#f7f7fb}
+.crumb{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.crumb a{color:var(--st);font-weight:600}.crumb b{font-size:13px}.crumb .back{margin-left:auto;border:1px solid #d8d0fb;color:var(--st);border-radius:7px;padding:4px 10px;font-weight:600;background:#fff}
+.ghost{opacity:.35;pointer-events:none;border:1px dashed #c9cfdb;border-radius:10px;padding:10px;margin-bottom:10px;background:#fff}
+.card{border:2px solid var(--st);border-radius:12px;background:#fff;position:relative;max-width:420px;margin-left:auto}
+.card .chip{position:absolute;top:-11px;left:12px;background:var(--st);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+.cg{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;padding:14px 12px;background:repeating-linear-gradient(90deg,transparent 0 calc(100%/12 - 1px),#f1effa calc(100%/12 - 1px) calc(100%/12))}
+.b{background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px}.b small{display:block;color:var(--mut);font-size:10.5px}
+.b.sel{outline:2px solid var(--st)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--ok-bg);color:var(--ok)}
+.btn{display:inline-block;background:var(--pri);color:#fff;border-radius:6px;padding:4px 10px;font-weight:600}
+.tabs{display:flex;gap:10px;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:6px}.tabs span.on{color:var(--pri);border-bottom:2px solid var(--pri);font-weight:600}
+.drop{grid-column:span 6;border:2px dashed var(--st);border-radius:9px;background:var(--st-soft);color:var(--st);font-weight:600;display:flex;align-items:center;justify-content:center;min-height:52px}
+.insp{border-left:1px solid var(--line);padding:12px}.insp h4{margin:0 0 8px;font-size:13px}
+.insp .row{display:flex;justify-content:space-between;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px}.insp .row em{color:var(--mut);font-style:normal}
+.hint{color:var(--mut);font-size:11.5px;margin:6px 0 10px}
+.page{max-width:1200px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.page .list{border:1px solid var(--line);border-radius:10px;height:150px;background:repeating-linear-gradient(0deg,#f6f7fb 0 22px,#fff 22px 30px)}
+.page .mini{border:1px solid var(--line);border-radius:10px;padding:10px;position:relative}
+.page .mini .edit{position:absolute;top:8px;right:8px;background:var(--st);color:#fff;border-radius:6px;padding:3px 9px;font-weight:600;font-size:11.5px}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+</style></head><body>
+<h1>Bilgi kartının içini kendi ekranında tasarlamak</h1>
+<p class="sub">Taslak · 2026-11-19 · Bugün kartın içi tuvalde yalnız önizlenir; içine bileşen sürüklenemez, içindeki bileşen seçilemez. Öneri: kartta "Kartın içini tasarla" düğmesi; kart tuvalin tamamına açılır, sayfanın geri kalanı soluk arka plan olur. Kartın içi 12 sütunlu bırakma alanıdır; sekmeler bu ekranda da kap olarak çalışır.</p>
+
+<div class="lbl">1 · Sayfa tuvalinde: kartın üzerinde "Kartın içini tasarla"</div>
+<div class="page"><div class="list"></div>
+  <div class="mini"><span class="edit">✎ Kartın içini tasarla</span><b>{{liste.seciliSatir.balance.name}}</b><br><small style="color:var(--mut)">STK-0001</small><br><br><span class="btn">Aç</span> <span class="tag">Yeterli</span><div class="tabs" style="margin-top:8px"><span class="on">Özet</span><span>Depolar</span><span>Hareketler</span></div></div></div>
+<p class="note">Karta çift tıklamak da aynı ekranı açar. Kartın sayfadaki yeri, genişliği ve koşulları sayfa tuvalinde düzenlenmeye devam eder.</p>
+
+<div class="lbl">2 · Kart ekranı: içine sürükle-bırak, seç, düzenle</div>
+<div class="frame">
+  <div class="pal"><div class="g">KARTA EKLENEBİLİR</div><div class="it">H Başlık</div><div class="it">● Durum etiketi</div><div class="it">▭ Düğme</div><div class="it drag">◧ Veri göstergesi ⇢</div><div class="it">▭ Sekmeler</div><div class="it">☰ Izgara</div><div class="it">≡ Bağlam paneli</div></div>
+  <div class="cv">
+    <div class="crumb"><a>Stok Kartları</a> › <b>Detay kartı</b><span class="back">← Sayfaya dön</span></div>
+    <div class="ghost">Sayfanın geri kalanı (liste, süzgeçler) soluk görünür; düzenlenmez.</div>
+    <div class="card"><span class="chip">Detay kartı · 4/12</span>
+      <div class="cg">
+        <div class="b" style="grid-column:span 9"><small>Başlık</small><b>{{liste.seciliSatir.balance.name}}</b></div>
+        <div class="b" style="grid-column:span 3;text-align:center"><span class="btn">Aç</span></div>
+        <div class="b" style="grid-column:span 12"><span class="tag">Yeterli</span> <span class="tag" style="background:#e8f0fd;color:#1f5fd1">Lot</span></div>
+        <div class="b" style="grid-column:span 12"><div class="tabs"><span class="on">Özet</span><span>Depolar</span><span>Hareketler</span><span style="color:var(--st)">+ Sekme</span></div>
+          <div class="cg" style="padding:6px 0;background:none">
+            <div class="b sel" style="grid-column:span 6"><small>Depo bakiyesi</small><b>1.100</b></div>
+            <div class="b" style="grid-column:span 6"><small>Kullanılabilir</small><b>1.100</b></div>
+            <div class="drop">Buraya bırakın · Özet</div>
+          </div></div>
+        <div class="b" style="grid-column:span 12"><span class="btn" style="background:#fff;color:#b42318;border:1px solid #f3c7c2">Devre dışı bırak</span></div>
+      </div></div>
+  </div>
+  <div class="insp"><h4>Veri göstergesi · Depo bakiyesi</h4><div class="hint">Konum: Detay kartı › Sekmeler › Özet</div>
+    <div class="row">Başlık<em>Depo bakiyesi</em></div><div class="row">Değer<em>{{liste.seciliSatir…}}</em></div><div class="row">Genişlik<em>6 / 12</em></div>
+    <div class="hint">Bileşeni karttan çıkarıp sayfaya taşımak için "Karttan çıkar".</div></div>
+</div>
+<p class="note">• Katmanlar panelinde kart açılır bir dal olur (kart › sekmeler › bileşenler); oradan tıklamak da bu ekranı açar. • Geri al / yinele ve kaydet sayfayla ortaktır. • Kaydedilen tanım aynı kalır (kartın <code>children</code> dizisi ve sekmelerin bileşen listeleri); ERP çalışma zamanı değişmez.</p>
+</body></html>

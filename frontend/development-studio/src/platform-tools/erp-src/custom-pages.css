@@ -714,3 +714,24 @@ html.pd-fullscreen-active{overflow:hidden}
 .custom-page-preview-metric{min-width:0;overflow:hidden}
 .custom-page-preview-metric>*{min-width:0}
 .custom-page-preview-metric span,.custom-page-preview-metric small,.custom-page-preview-metric b{overflow-wrap:anywhere}
+
+
+/* Kart tasarım ekranı ("Kartın içini tasarla"): kırıntı, soluk sayfa arka planı ve kartın 12 sütunlu bırakma ızgarası. */
+.pd-card-focus{display:grid;gap:10px;padding:12px 18px 24px}
+.pd-card-focus-crumb{display:flex;align-items:center;gap:8px;min-width:0}
+.pd-card-focus-crumb .pd-link-button{color:var(--pd-accent);font-weight:600}
+.pd-card-focus-crumb b{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.pd-card-focus-back{display:inline-flex;align-items:center;gap:5px;margin-left:auto;padding:4px 10px;border:1px solid var(--pd-accent-line);border-radius:7px;background:#fff;color:#5132c7;font-weight:600;cursor:pointer}
+.pd-card-focus-back:hover{background:var(--pd-accent-soft)}
+.pd-card-focus-ghost{position:relative;max-height:150px;overflow:hidden;border:1px dashed #c9cfdb;border-radius:10px;background:#fff;opacity:.35;pointer-events:none;user-select:none}
+.pd-card-focus-ghost::after{content:"";position:absolute;inset:auto 0 0;height:40px;background:linear-gradient(transparent,#fff)}
+.pd-card-focus-ghost .pd-grid{min-height:0;padding:10px}
+.pd-card-focus-ghost-block{min-width:0}
+.pd-card-focus-hint{margin:0;color:var(--pd-muted);font-size:11.5px}
+.pd-card-focus-card{position:relative;margin-top:8px;border:2px solid var(--pd-accent);border-radius:12px;background:#fff}
+.pd-card-focus-card.is-selected{box-shadow:0 0 0 4px #6844df24}
+.pd-card-focus-chip{position:absolute;top:-11px;left:12px;z-index:2;padding:2px 8px;border-radius:6px;background:var(--pd-accent);color:#fff;font-size:11px;font-weight:700}
+.pd-card-focus-head{display:grid;gap:2px;padding:16px 18px 0}
+.pd-card-focus-head small{color:var(--pd-muted)}
+.pd-card-focus-card>.pd-grid{min-height:160px;padding-top:30px}
+.pd-card-location{margin-top:6px}
