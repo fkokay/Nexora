@@ -131,6 +131,30 @@ export function FormCardPreview({ title, columns, children, style, inline = fals
   </section>;
 }
 
+export type FilterBarPreviewField = { key: string; label: string; kind: "text" | "range" | "date" | "select" | "toggle"; sample?: string };
+
+/**
+ * Süzgeç alanı (ERP'deki tek satır süzgeç dizilimiyle aynı): arama kutusu, satırdaki süzgeçler, "＋ Daha fazla süzgeç (n)".
+ * Tablo yoksa soluk bir örnek satır gösterilir.
+ */
+export function FilterBarPreview({ search, row, moreCount, style, empty }: {
+  search: string | null; row: FilterBarPreviewField[]; moreCount: number; style: CSSProperties; empty?: string;
+}) {
+  return <section className="pd-layout-block pd-form-card is-inline pd-filterbar-preview" style={style} aria-label="Süzgeç alanı">
+    <div className="pd-form-card-grid is-inline">
+      {search !== null && <div className="pd-form-card-cell is-search"><span className="pd-inline-search"><Search size={13} aria-hidden="true"/><input tabIndex={-1} readOnly placeholder={search || "Ara"}/></span></div>}
+      {row.map((field) => <div key={field.key} className="pd-form-card-cell">
+        {field.kind === "toggle" ? <span className="pd-inline-toggle">{field.label}</span>
+          : field.kind === "select" ? <span className="pd-filterbar-field"><span>{field.label}</span><span className="pd-lookup-select"><input tabIndex={-1} readOnly value={field.sample || "Tümü"}/><ChevronDown size={14} aria-hidden="true"/></span></span>
+            : field.kind === "range" || field.kind === "date" ? <span className="pd-filterbar-field"><span>{field.label}</span><span className="pd-filterbar-range"><i>{field.kind === "date" ? "başlangıç" : "en az"}</i><i>{field.kind === "date" ? "bitiş" : "en çok"}</i></span></span>
+              : <span className="pd-filterbar-field"><span>{field.label}</span><input tabIndex={-1} readOnly placeholder="içerir"/></span>}
+      </div>)}
+      {moreCount > 0 && <div className="pd-form-card-cell"><span className="pd-filterbar-more">＋ Daha fazla süzgeç ({moreCount})</span></div>}
+      {search === null && row.length === 0 && moreCount === 0 && <div className="pd-form-card-cell"><span className="pd-filterbar-empty">{empty || "Süzgeç alanı: tablo ve süzgeç seçin"}</span></div>}
+    </div>
+  </section>;
+}
+
 /** Çip yoksa bileşen tuvalde kaybolmasın diye soluk bir örnek çip gösterilir. */
 export function FilterChipsPreview({ chips, style }: { chips: { id: string; label: string; text: string }[]; style: CSSProperties }) {
   if (chips.length === 0) return <div className="pd-chips" style={style}><span className="pd-chip is-sample"><span className="pd-chip-label">Örnek:</span><strong>değer</strong></span></div>;
