@@ -756,3 +756,13 @@ html[data-theme='dark'] #root .manufacturing-order-inspector h3 { color: var(--n
 #root .manufacturing-page .work-center-detail .list-v2-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 #root .app-shell .manufacturing-page .work-center-detail .work-center-detail-close { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: var(--nx-radius-control); background: transparent; box-shadow: none; color: var(--nx-muted); cursor: pointer; }
 #root .app-shell .manufacturing-page .work-center-detail .work-center-detail-close:hover { background: var(--nx-canvas); color: var(--nx-text); }
+
+/* ---- Reçete rotası as a kit line table (mockup 10 · record v3); Gelişmiş is a detail row ---- */
+#root .mfg-rf .mfg-rf-operations select { width: 100%; min-width: 180px; }
+#root .app-shell .mfg-rf .mfg-rf-operations .mfg-rf-disclosure { margin: 0; }
+#root .mfg-rf .mfg-rf-operations .mfg-rf-op-detail-row > td { padding-top: 0; background: var(--nx-surface); }
+#root .mfg-rf .mfg-rf-operations .mfg-rf-op-details { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 8px; }
+#root .mfg-rf .mfg-rf-route .mfg-rf-info { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+@media (max-width: 900px) {
+  #root .mfg-rf .mfg-rf-operations .mfg-rf-op-details { grid-template-columns: minmax(0, 1fr); }
+}

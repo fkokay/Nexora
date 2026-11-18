@@ -45,6 +45,7 @@ const bom = (id: string, code: string, isActive: boolean, orderCount: number) =>
 });
 const workCenters = [
   { id: 'wc1', code: 'WC-01', name: 'Dolum hattı', capacityMinutesPerDay: 480, laborCostPerHourBase: 100, overheadCostPerHourBase: 50, workingDaysMask: 31, isActive: true, shiftStartMinuteOfDay: 480, shiftEndMinuteOfDay: 960 },
+  { id: 'wc2', code: 'WC-02', name: 'Yedek dolum', capacityMinutesPerDay: 480, laborCostPerHourBase: 90, overheadCostPerHourBase: 40, workingDaysMask: 31, isActive: true, shiftStartMinuteOfDay: 480, shiftEndMinuteOfDay: 960 },
 ];
 
 function respond(url: string): unknown {
@@ -59,7 +60,7 @@ function respond(url: string): unknown {
         lines: [{ componentStockItemId: 's1', componentName: 'Domates', quantity: 2, scrapPercent: 5, standardUnitCostBase: 4 }],
         operations: [
           { sequence: 1, workCenterId: 'wc1', workCenterName: 'Dolum hattı', setupMinutes: 10, runMinutesPerOutputUnit: 2, minimumWaitDaysAfterPrevious: 0,
-            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1'] },
+            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1', 'wc2'] },
         ],
       },
     ];
@@ -387,12 +388,38 @@ describe('Create / edit forms: request bodies', () => {
         operations: [
           {
             sequence: 1, workCenterId: 'wc1', setupMinutes: 10, runMinutesPerOutputUnit: 2, minimumWaitDaysAfterPrevious: 0,
-            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1'],
+            setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1', 'wc2'],
           },
         ],
         rowVersion: 'AA==',
       },
     });
+  });
+
+  it('Reçete düzenle: the route is a kit line table and its edits reach the PUT body; the navigator holds the checklist', async () => {
+    renderScreen(<RecipeHarness />);
+    await screen.findByText('RC-ED reçetesi');
+    fireEvent.click(within(row('RC-ED reçetesi')).getAllByText('Domates salçası 830 g')[0]);
+    await waitFor(() => expect(enabled('open')).toBe(true));
+    await act(async () => {
+      fireEvent.click(command('open'));
+    });
+    const navigator = await screen.findByRole('tablist', { name: 'Reçete bölümleri' });
+    for (const name of [/Kimlik/, /Bileşenler/, /Rota/]) expect(within(navigator).getByRole('tab', { name })).toBeTruthy();
+    expect(screen.queryByText('Kaydetmeden önce')).toBeNull();
+    fireEvent.click(within(navigator).getByRole('tab', { name: /Rota/ }));
+    const route = screen.getByRole('region', { name: 'Rota' }).querySelector('table.dd-lines')!;
+    fireEvent.change(within(route as HTMLElement).getByLabelText('Kurulum (dk)'), { target: { value: '12' } });
+    await act(async () => {
+      fireEvent.submit(route.closest('form')!);
+    });
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect((writes[0].body as { operations: unknown[] }).operations).toEqual([
+      {
+        sequence: 1, workCenterId: 'wc1', setupMinutes: 12, runMinutesPerOutputUnit: 2, minimumWaitDaysAfterPrevious: 0,
+        setupFamilyCode: 'A', plannedEnergyKwhPerOutput: 0.5, plannedEnergyCostPerKwhBase: 3, eligibleWorkCenterIds: ['wc1', 'wc2'],
+      },
+    ]);
   });
 
   it('Yeni üretim emri: the POST body', async () => {

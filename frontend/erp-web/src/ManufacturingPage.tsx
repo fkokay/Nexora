@@ -2,6 +2,7 @@ import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type { ScreenColumnPin } from "./erp-types";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -43,7 +44,9 @@ import type {
 import {
   RecordFormGroup,
   RecordFormPage,
+  RecordFormTabs,
   RequiredMark,
+  type RecordFormTab,
 } from "./record-form/RecordForm";
 import { ListChipGroup, ListToolbar } from "./list-page/ListToolbar";
 import { DefinitionEmptyPane, DefinitionLayout } from "./list-page/DefinitionLayout";
@@ -431,6 +434,8 @@ export default function ManufacturingPage({
     [expandedBomOperations, setExpandedBomOperations] = useState<
       Record<number, boolean>
     >({}),
+    // Section of the recipe form (navigator: Kimlik, Bileşenler, Rota).
+    [recipeTab, setRecipeTab] = useState("identity"),
     [workCenterTab, setWorkCenterTab] = useState<
       "calendar" | "general" | "exceptions"
     >("calendar"),
@@ -2429,13 +2434,16 @@ export default function ManufacturingPage({
         ? sum + quantity * (1 + scrap / 100) * cost
         : sum;
     }, 0);
-    const recipeChecklist = [
-      { label: "Reçete kodu", done: code.trim().length > 0 },
-      { label: "Mamul seçimi", done: !!product },
+    // The former "Kaydetmeden önce" checklist (reçete kodu, mamul, en az bir bileşen) is the section navigator's state.
+    const recipeTabs: RecordFormTab[] = [
+      { key: "identity", label: "Kimlik", state: code.trim() && product ? "done" : "empty" },
       {
-        label: "En az bir bileşen",
-        done: components.some((line) => !!line.stockItemId),
+        key: "components",
+        label: "Bileşenler",
+        count: components.length,
+        state: components.some((line) => !!line.stockItemId) ? "done" : "empty",
       },
+      { key: "route", label: "Rota", count: bomOperations.length, state: bomOperations.length ? "done" : "empty" },
     ];
     return (
       <div className="manufacturing-page manufacturing-record-form-host">
@@ -2487,8 +2495,10 @@ export default function ManufacturingPage({
               items={[{ label: "Temizle", onSelect: clearBom, disabled: busy }]}
             />
           )}
+          <RecordFormTabs tabs={recipeTabs} active={recipeTab} onChange={setRecipeTab} label="Reçete bölümleri">
           <div className="mfg-rf-layout">
             <div className="mfg-rf-stack">
+            <div data-rf-section="identity" hidden={recipeTab !== "identity"}>
             <section className="mfg-rf-card mfg-rf-main">
               <div className="mfg-rf-row">
                 <label>
@@ -2559,7 +2569,9 @@ export default function ManufacturingPage({
                 </label>
               </div>
             </section>
-            {/* Bileşenler: the kit line table (mockup 02 satır kartı), its own card next to the identity card. */}
+            </div>
+            {/* Bileşenler: the kit line table (mockup 02 satır kartı). */}
+            <div data-rf-section="components" hidden={recipeTab !== "components"}>
             <section className="dd-box mfg-rf-lines" aria-label="Bileşenler">
               <DetailLinesHead
                 title="Bileşenler"
@@ -2719,35 +2731,31 @@ export default function ManufacturingPage({
                 birimindedir.
               </p>
             </section>
-            <section className="mfg-rf-card mfg-rf-route">
-              <div className="mfg-rf-section">
-                <div className="mfg-rf-section-head">
-                  <h2>Rota / operasyonlar</h2>
-                  {bomOperations.length > 0 && (
-                    <button
-                      type="button"
-                      className="mfg-rf-link"
-                      disabled={!canAddBomOperation}
-                      onClick={addBomOperation}
-                    >
-                      {`+ Operasyon ekle (${bomOperations.length}/50)`}
-                    </button>
-                  )}
-                </div>
-                {bomOperations.length === 0 ? (
-                  <div className="mfg-rf-empty">
-                    <small>Rota isteğe bağlıdır; henüz operasyon yok.</small>
-                    <button
-                      type="button"
-                      className="mfg-rf-link"
-                      disabled={!canAddBomOperation}
-                      onClick={addBomOperation}
-                    >
-                      + Operasyon ekle
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mfg-rf-op-list">
+            </div>
+            <div data-rf-section="route" hidden={recipeTab !== "route"}>
+            {/* Rota: the kit line table (mockup 10 · record v3 "satır ızgarası"); Gelişmiş opens a detail row. */}
+            <section className="dd-box mfg-rf-lines mfg-rf-route" aria-label="Rota">
+              <DetailLinesHead
+                title="Rota / operasyonlar"
+                meta={
+                  <>
+                    <span>{bomOperations.length.toLocaleString("tr-TR")}</span> <span>/ 50 operasyon · isteğe bağlı</span>
+                  </>
+                }
+              />
+              <div className="dd-lines-wrap">
+                <table className="dd-lines mfg-rf-operations">
+                  <thead>
+                    <tr>
+                      <th className="dd-ix">Sıra</th>
+                      <th>İş merkezi</th>
+                      <th className="dd-num">Birim süre (dk)</th>
+                      <th className="dd-num">Kurulum (dk)</th>
+                      <th>Gelişmiş</th>
+                      <th className="dd-menu" aria-label="Satır işlemleri" />
+                    </tr>
+                  </thead>
+                  <tbody>
                     {bomOperations.map((operation, index) => {
                       const waitDays = operation.minimumWaitDaysAfterPrevious;
                       const advancedInvalid =
@@ -2767,12 +2775,12 @@ export default function ManufacturingPage({
                         advancedInvalid ||
                         (expandedBomOperations[index] ?? advancedSet);
                       return (
-                        <div className="mfg-rf-op" key={index}>
-                          <div className="mfg-rf-op-main">
-                            <span className="mfg-rf-seq">{index + 1}</span>
-                            <label>
-                              İş merkezi
+                        <Fragment key={index}>
+                          <tr>
+                            <td className="dd-ix">{index + 1}</td>
+                            <td>
                               <select
+                                aria-label="İş merkezi"
                                 value={operation.workCenterId}
                                 onChange={(e) =>
                                   updateBomOperation(index, (x) => ({
@@ -2795,11 +2803,11 @@ export default function ManufacturingPage({
                                     </option>
                                   ))}
                               </select>
-                            </label>
-                            <label>
-                              Birim süre (dk)
+                            </td>
+                            <td className="dd-num">
                               <input
                                 className="rf-num"
+                                aria-label="Birim süre (dk)"
                                 type="number"
                                 min="0"
                                 step="0.0001"
@@ -2812,11 +2820,11 @@ export default function ManufacturingPage({
                                 }
                                 required
                               />
-                            </label>
-                            <label>
-                              Kurulum (dk)
+                            </td>
+                            <td className="dd-num">
                               <input
                                 className="rf-num"
+                                aria-label="Kurulum (dk)"
                                 type="number"
                                 min="0"
                                 step="0.01"
@@ -2829,37 +2837,45 @@ export default function ManufacturingPage({
                                 }
                                 required
                               />
-                            </label>
-                            <button
-                              type="button"
-                              className="manufacturing-remove"
-                              aria-label="Operasyonu kaldır"
-                              onClick={() => {
-                                setBomOperations((rows) =>
-                                  rows.filter((_, i) => i !== index),
-                                );
-                                setExpandedBomOperations({});
-                              }}
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <button
-                            type="button"
-                            className="mfg-rf-disclosure"
-                            aria-expanded={expanded}
-                            disabled={advancedInvalid}
-                            onClick={() =>
-                              setExpandedBomOperations((state) => ({
-                                ...state,
-                                [index]: !expanded,
-                              }))
-                            }
-                          >
-                            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-                            Gelişmiş
-                          </button>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="mfg-rf-disclosure"
+                                aria-expanded={expanded}
+                                disabled={advancedInvalid}
+                                onClick={() =>
+                                  setExpandedBomOperations((state) => ({
+                                    ...state,
+                                    [index]: !expanded,
+                                  }))
+                                }
+                              >
+                                <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                                Gelişmiş
+                              </button>
+                            </td>
+                            <td className="dd-menu">
+                              <button
+                                type="button"
+                                className="dd-line-remove"
+                                aria-label="Operasyonu kaldır"
+                                title="Operasyonu kaldır"
+                                onClick={() => {
+                                  setBomOperations((rows) =>
+                                    rows.filter((_, i) => i !== index),
+                                  );
+                                  setExpandedBomOperations({});
+                                }}
+                              >
+                                <Trash2 size={13} aria-hidden="true" />
+                              </button>
+                            </td>
+                          </tr>
                           {expanded && (
+                            <tr className="mfg-rf-op-detail-row">
+                              <td />
+                              <td colSpan={5}>
                             <div className="mfg-rf-op-details">
                               <label>
                                 Kurulum ailesi
@@ -2989,13 +3005,32 @@ export default function ManufacturingPage({
                                 </div>
                               </div>
                             </div>
+
+                              </td>
+                            </tr>
                           )}
-                        </div>
+                        </Fragment>
                       );
                     })}
-                  </div>
-                )}
-                <small className="mfg-rf-hint">
+                    {!bomOperations.length && (
+                      <tr>
+                        <td colSpan={6} className="mfg-rf-lines-empty">
+                          Rota isteğe bağlıdır; henüz operasyon yok.
+                        </td>
+                      </tr>
+                    )}
+                    <tr className="dd-new-line">
+                      <td colSpan={6}>
+                        <button type="button" disabled={!canAddBomOperation} onClick={addBomOperation}>
+                          <Plus size={13} aria-hidden="true" /> {`Operasyon ekle (${bomOperations.length}/50)`}
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mfg-rf-lines-note">
+
                   Enerji, bekleme ve alternatif merkezler 'Gelişmiş' altında.
                   <span
                     className="mfg-rf-info"
@@ -3005,9 +3040,10 @@ export default function ManufacturingPage({
                   >
                     <Info size={13} aria-hidden="true" />
                   </span>
-                </small>
-              </div>
+
+              </p>
             </section>
+            </div>
             </div>
             <aside className="mfg-rf-side">
               <section className="mfg-rf-card" aria-labelledby="mfg-recipe-summary">
@@ -3036,22 +3072,9 @@ export default function ManufacturingPage({
                   </small>
                 </div>
               </section>
-              <section
-                className="mfg-rf-card"
-                aria-labelledby="mfg-recipe-checklist"
-              >
-                <h2 id="mfg-recipe-checklist">Kaydetmeden önce</h2>
-                <ul className="mfg-rf-checklist">
-                  {recipeChecklist.map((item) => (
-                    <li key={item.label} className={item.done ? "is-done" : ""}>
-                      <span aria-hidden="true">{item.done ? "✓" : "○"}</span>
-                      {item.label}
-                    </li>
-                  ))}
-                </ul>
-              </section>
             </aside>
           </div>
+          </RecordFormTabs>
           <StickyFormBar
             saveLabel={
               editingBomId ? "Değişiklikleri Kaydet" : "Reçeteyi Kaydet"
