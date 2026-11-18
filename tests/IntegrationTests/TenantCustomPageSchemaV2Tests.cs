@@ -460,6 +460,9 @@ public sealed class TenantCustomPageSchemaV2Tests
         Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
         // Alert icon/value were never constrained: pages saved before the status strip keep validating.
         Assert.True(TenantCustomPageSchema.Validate(Page(new { id = "a2", type = "alert", props = new { icon = "rocket", value = new string('a', 300) } }), out error), error);
+        // Extended metric icon set (hyphenated lucide names) next to the original eight.
+        foreach (var icon in new[] { "wallet", "warehouse", "shopping-cart", "building-2", "refresh-cw" })
+            Assert.True(TenantCustomPageSchema.Validate(Page(new { id = "m2", type = "metric", props = new { query = "q1", icon } }), out error), $"{icon}: {error}");
     }
 
     [Fact]
