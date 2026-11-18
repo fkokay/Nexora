@@ -341,6 +341,25 @@ public sealed class InventoryStockStandardTests
     }
 
     [Fact]
+    public void Non_nullable_numeric_update_members_are_required_while_editing()
+    {
+        // A cleared optional number is sent as null (it overrides the source record); a member that cannot be null must
+        // instead be refilled while an existing card is edited. Creation leaves blanks to the server defaults.
+        var constructor = typeof(StockItemUpdateRequest).GetConstructors().OrderByDescending(x => x.GetParameters().Length).First();
+        var numeric = constructor.GetParameters()
+            .Where(x => x.ParameterType == typeof(decimal) || x.ParameterType == typeof(int) || x.ParameterType == typeof(decimal?) || x.ParameterType == typeof(int?))
+            .ToDictionary(x => char.ToLowerInvariant(x.Name![0]) + x.Name[1..], x => Nullable.GetUnderlyingType(x.ParameterType) is null);
+        Assert.Equal(21, numeric.Count);
+        Assert.Equal(12, numeric.Count(x => x.Value));
+        foreach (var field in FieldMap.Where(x => numeric.ContainsKey(x.Name)))
+        {
+            var requiredWhen = (string?)Props(field.Input)["requiredWhen"];
+            Assert.True((numeric[field.Name] ? "kart.rows[0].id != null" : null) == requiredWhen, $"{field.Input} requiredWhen");
+        }
+        Assert.All(FieldMap.Where(x => !numeric.ContainsKey(x.Name)), field => Assert.Null(Props(field.Input)["requiredWhen"]));
+    }
+
+    [Fact]
     public void Inputs_default_to_card_record()
     {
         foreach (var field in FieldMap)

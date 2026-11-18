@@ -77,9 +77,10 @@ export function chooseRoute(op: ErpOperation, values: Record<string, unknown>): 
  * İşlem isteğini kurar. Gövde `{...kaynak, ...fixedBody}` ile başlar, bağlı gövde parametreleri üzerine yazılır.
  * Yol parametresi bağlı değerden, yoksa kaynak kaydın aynı adlı alanından (büyük/küçük harf duyarsız) gelir;
  * geçersiz ya da eksik yol parametresi "Geçersiz parametre: <ad>" ile reddedilir. GET ve DELETE gövde göndermez.
+ * `cleared`: kullanıcının bilerek boşalttığı gövde parametreleri; değerleri null ise kaynak kaydın değerini de ezerek null yazılır.
  */
 export function buildOperationRequest(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null,
-  mapSourceRows?: Record<string, unknown>[] | null): OperationRequest {
+  mapSourceRows?: Record<string, unknown>[] | null, cleared?: ReadonlySet<string>): OperationRequest {
   // Gövde eşlemesi kaynak satırlar olmadan kurulmaz: başka bir kaydın değerleri ya da boş eşlem yazılmasın.
   if (op.bodyMap && !mapSourceRows) throw new Error(MAP_SOURCE_MISSING);
   const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter]));
@@ -131,7 +132,9 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     // Çözülemeyen koleksiyon (list/map) anahtarı hiç yazılmaz.
     if (isCollection(parameter) && (value === null || value === undefined)) continue;
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
-    if ((value === null || value === undefined) && Object.keys(body).some((key) => key.toLowerCase() === lower)) continue;
+    // Kullanıcının boşalttığı (`cleared`) alan ise bilinçli temizlemedir: null kaynak değerin yerine yazılır.
+    const clearedByUser = value === null && cleared?.has(parameter.name) === true;
+    if ((value === null || value === undefined) && !clearedByUser && Object.keys(body).some((key) => key.toLowerCase() === lower)) continue;
     for (const key of Object.keys(body)) if (key !== parameter.name && key.toLowerCase() === lower) delete body[key];
     body[parameter.name] = value;
   }

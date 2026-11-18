@@ -312,6 +312,37 @@ describe('İstem ve onay', () => {
     expect(writes()[0]).toEqual({ url: `/api/stock/movements/${G2}/reverse`, method: 'POST', body: '{"reason":"Yanlış depo"}' });
   });
 
+  const listReads = () => calls.filter((call) => call.method === 'GET' && call.url === '/api/stock/items').length;
+  const answer = async (button: string, text: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: button }));
+    const prompt = await screen.findByRole('alertdialog');
+    fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: text } });
+    fireEvent.click(within(prompt).getByRole('button', { name: button }));
+  };
+
+  it('row action prompted write refreshes only refreshQueries', async () => {
+    page();
+    await screen.findByText('Var olan');
+    const before = listReads();
+    await answer('Ters kayıt', 'Yanlış depo');
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(listReads()).toBe(before);
+  });
+
+  it('prompted button without refreshQueries reruns load queries', async () => {
+    const not = q('qn', 'notEkle', 'insert', 'stok.hareket.ekle', [['quantity', '{{notBtn.yanit}}', 'decimal']]);
+    setup([
+      { id: 't', type: 'dataTable', name: 'liste', props: { query: 'ql', title: 'Kartlar', columns: ['name'] } },
+      { id: 'nb', type: 'button', name: 'notBtn', props: { text: 'Not ekle', actionType: 'query', queryId: 'qn', promptLabel: 'Miktar notu' } },
+    ], [q('ql', 'liste', 'read', 'stok.kart.liste', [], 'load'), not]);
+    await screen.findByText('Var olan');
+    const before = listReads();
+    await answer('Not ekle', '3');
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    await waitFor(() => expect(listReads()).toBe(before + 1));
+  });
+
   it('sequence button with confirm asks once', async () => {
     setup([adInput, birimInput,
       { id: 'sb', type: 'button', props: { text: 'Kart ve birim', actionType: 'sequence', saveSequence: ['qo', 'qb'], confirmEnabled: true, confirmText: 'Kart ve birim kaydedilsin mi?' } }],

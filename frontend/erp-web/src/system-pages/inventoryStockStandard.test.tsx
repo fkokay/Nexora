@@ -27,6 +27,7 @@ const W = 'aaaaaaaa-0000-0000-0000-000000000001';
 const S1 = '11111111-0000-0000-0000-000000000001';
 const S2 = '11111111-0000-0000-0000-000000000002';
 const U1 = 'cccccccc-0000-0000-0000-000000000001';
+const NEW = '11111111-0000-0000-0000-0000000000aa';
 const E1 = 'eeeeeeee-0000-0000-0000-000000000001';
 const E2 = 'eeeeeeee-0000-0000-0000-000000000002';
 const E3 = 'eeeeeeee-0000-0000-0000-000000000003';
@@ -39,7 +40,7 @@ const card = (id: string, code: string, name: string, extra: Record<string, unkn
   priceCurrencyCode: 'TRY', purchaseVatPercent: 20, salesVatPercent: 20, exciseTaxPercent: 0, communicationTaxPercent: 0,
   purchaseDiscountPercent: 0, salesDiscountPercent: 0, maximumStock: 100, reorderPoint: 15, safetyStock: 5, netWeight: null, grossWeight: null,
   length: null, width: null, height: null, productImageUrl: null, purchaseAccountCode: null, salesAccountCode: null, costAccountCode: null,
-  marketplaceProductId: null, parentStockItemId: null, isVariantParent: false, withholdingTaxPercent: null, stampTaxPercent: null, ...extra,
+  marketplaceProductId: null, parentStockItemId: null, isVariantParent: false, withholdingTaxPercent: 0, stampTaxPercent: 0, ...extra,
 });
 const balanceItem = (stockItem: ReturnType<typeof card>, quantity: number, status: string) => ({
   balance: {
@@ -59,7 +60,7 @@ type Call = { url: string; method: string; body?: string };
 let calls: Call[] = [];
 let operations: Operation[] = catalog.operations;
 /** Bir sonraki eşleşen isteği hataya çeviren kurallar (yöntem + yol öneki). */
-let failures: { method: string; url: string; status: number; error: string }[] = [];
+let failures: { method: string; url: string; status: number; error: string; exact?: boolean }[] = [];
 /** Verilirse kart özel alan değerleri okuması bu söz çözülene kadar bekler (kaynak okuması yükleniyor durumu). */
 let valuesGate: Promise<void> | null = null;
 
@@ -94,7 +95,7 @@ function respond(url: string, method: string): unknown {
       return { items: [movement(E1), movement(E2), movement(E3, { hasReversal: true })], page: 1, pageSize: 50, totalCount: 3 };
     }
   } else {
-    if (path === '/api/stock/items' && method === 'POST') return { ...card(S2, 'YENI', 'Yeni'), id: 'new-card' };
+    if (path === '/api/stock/items' && method === 'POST') return { ...card(S2, 'YENI', 'Yeni'), id: NEW };
     if (path === `/api/stock/items/${S1}` && method === 'PUT') return card(S1, 'KLM', 'Kalem');
     if (path === `/api/stock/items/${S1}` && method === 'DELETE') return null;
     if (/^\/api\/stock\/items\/[^/]+\/(deactivate|activate)$/.test(path) && method === 'POST') return card(S1, 'KLM', 'Kalem');
@@ -119,7 +120,7 @@ function setup(role = 'TenantAdmin') {
     if (endpoint === '/api/custom-pages/erp-operations') return { operations };
     const method = init?.method ?? 'GET';
     calls.push({ url: endpoint, method, body: typeof init?.body === 'string' ? init.body : undefined });
-    const failure = failures.find((rule) => rule.method === method && endpoint.startsWith(rule.url));
+    const failure = failures.find((rule) => rule.method === method && (rule.exact ? endpoint.split('?')[0] === rule.url : endpoint.startsWith(rule.url)));
     if (failure) {
       failures = failures.filter((rule) => rule !== failure);
       throw Object.assign(new Error(failure.error), { status: failure.status, serverError: failure.error });
@@ -428,10 +429,137 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     ctrlS();
     await waitFor(() => expect(writes().some((call) => call.method === 'PUT' && call.url === `/api/stock/items/${S1}`)).toBe(true), T);
     const body = JSON.parse(writes().find((call) => call.method === 'PUT' && call.url === `/api/stock/items/${S1}`)!.body!) as Record<string, unknown>;
-    // Ölçülen davranış (2026-11-18, eşdeğerlik listesi "İsteğe bağlı alanı boşaltma"): boşaltılan metin alanı "" olarak
-    // gider (sunucu barkodu null yapar, temizlenir); boşaltılan sayı alanı null'a çözülür ve kaynak kaydın değeri gövdede
-    // kalır (maksimum stok sayfadan temizlenemez: fark). Bu plan bunu düzeltmez; davranış değişirse bu beklenti güncellenmeli.
-    expect({ barcode: body.barcode, maximumStock: body.maximumStock }).toEqual({ barcode: '', maximumStock: 100 });
+    // Eşdeğerlik listesi "İsteğe bağlı alanı boşaltma": boşaltılan metin alanı "" olarak gider (sunucu barkodu null yapar);
+    // boşaltılan isteğe bağlı sayı alanı null olarak gider ve kaynak kaydın değerini ezer (maksimum stok temizlenir).
+    expect({ barcode: body.barcode, maximumStock: body.maximumStock }).toEqual({ barcode: '', maximumStock: null });
+    // Dokunulmamış alanlar kaynak kaydın değerini korur.
+    expect({ reorderPoint: body.reorderPoint, minimumStock: body.minimumStock }).toEqual({ reorderPoint: 15, minimumStock: 10 });
+  });
+
+  it('clearing a non-nullable number on edit is required', async () => {
+    setup();
+    await selectCard();
+    await openCard();
+    fireEvent.click(tab(drawer(), 'Fiyat ve vergi'));
+    type('alisKdv', '');
+    fireEvent.click(tab(drawer(), 'Genel'));
+    type('minimumStok', '');
+    ctrlS();
+    await waitFor(() => expect(input('minimumStok').closest('.tenant-page-input')?.querySelector('.tenant-page-input-error')?.textContent).toBe('Bu alan zorunludur.'), T);
+    await settle(100);
+    expect(writes()).toEqual([]);
+  });
+
+  it('kart read failure disables aç', async () => {
+    failures = [{ method: 'GET', url: `/api/stock/items/${S1}`, status: 500, error: 'Sunucu hatası', exact: true }];
+    setup();
+    fireEvent.click(await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T));
+    await waitFor(() => expect(gets(`/api/stock/items/${S1}`)).toHaveLength(1), T);
+    await waitFor(() => expect(command('open').getAttribute('title')).toBe('Kayıt okunamadı'), T);
+    expect(command('open').getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(command('open'));
+    await settle(50);
+    expect(screen.queryByRole('dialog', { name: /^Stok kartı/ })).toBeNull();
+    expect(writes()).toEqual([]);
+  });
+
+  it('kart read failure while the card is open blocks save', async () => {
+    setup();
+    await selectCard();
+    await openCard();
+    // Pencere açıkken başka bir satır seçilir ve kartı okunamaz: kayıt yeni kart oluşturmaz.
+    failures = [{ method: 'GET', url: `/api/stock/items/${S2}`, status: 500, error: 'Sunucu hatası', exact: true }];
+    fireEvent.click(listRow('Defter'));
+    await waitFor(() => expect(gets(`/api/stock/items/${S2}`)).toHaveLength(1), T);
+    await waitFor(() => expect(input('kod').value).toBe(''), T);
+    type('kod', 'yeni-1');
+    type('ad', 'Yeni kart');
+    type('anaBirim', 'adet');
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
+    await within(drawer()).findByText('Kayıt okunamadı; hiçbir değişiklik kaydedilmedi. Kaydı yeniden açıp deneyin.', {}, T);
+    ctrlS();
+    await settle(100);
+    expect(writes()).toEqual([]);
+  });
+
+  it('custom field values read failure writes nothing', async () => {
+    failures = [{ method: 'GET', url: `/api/stock/items/${S1}/custom-fields`, status: 500, error: 'Sunucu hatası', exact: true }];
+    setup();
+    await selectCard();
+    fireEvent.click(command('open'));
+    await screen.findByRole('dialog', { name: 'Stok kartı KLM' }, T);
+    await waitFor(() => expect(input('ad').value).toBe('Kalem'), T);
+    await waitFor(() => expect(gets(`/api/stock/items/${S1}/custom-fields`)).toHaveLength(1), T);
+    await settle(50);
+    type('ad', 'Kalem (mavi)');
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
+    await within(drawer()).findByText('Kayıt okunamadı; hiçbir değişiklik kaydedilmedi. Kaydı yeniden açıp deneyin.', {}, T);
+    await settle(100);
+    expect(writes()).toEqual([]);
+  });
+
+  it('a step without operation right blocks the whole save', async () => {
+    operations = catalog.operations.map((operation) => operation.name === 'stok.kart.ozelAlanKaydet' ? { ...operation, allowed: false } : operation);
+    setup();
+    await selectCard();
+    await openCard();
+    type('ad', 'Kalem 2');
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Kaydet' }));
+    await within(drawer()).findByText(/Bu işlem için yetkiniz yok\. Hiçbir değişiklik kaydedilmedi\.$/, {}, T);
+    await settle(100);
+    expect(writes()).toEqual([]);
+  });
+
+  it('values typed right after yeni survive the detail reset', async () => {
+    setup();
+    await selectCard();
+    await waitFor(() => expect(gets(`/api/stock/items/${S1}/custom-fields`)).toHaveLength(1), T);
+    await settle(50);
+    fireEvent.keyDown(document.body, { key: 'F2' });
+    await screen.findByRole('dialog', { name: /^Stok kartı/ }, T);
+    // Beklemeden yazılır: eski kartın özel alan değerleri ve gecikmeli sıfırlama yazılanı silmez.
+    fireEvent.click(tab(drawer(), 'Özel alanlar'));
+    const renk = within(drawer()).getByLabelText('Renk') as HTMLInputElement;
+    expect(renk.value).toBe('');
+    fireEvent.change(renk, { target: { value: 'Yeşil' } });
+    fireEvent.click(tab(drawer(), 'Genel'));
+    type('kod', 'yeni-2');
+    type('ad', 'Yeni kart');
+    type('anaBirim', 'adet');
+    await settle(450);
+    fireEvent.click(tab(drawer(), 'Özel alanlar'));
+    expect((within(drawer()).getByLabelText('Renk') as HTMLInputElement).value).toBe('Yeşil');
+    expect(input('kod').value).toBe('YENI-2');
+    ctrlS();
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(writes()[0]).toMatchObject({ method: 'POST', url: '/api/stock/items' });
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'YENI-2', name: 'Yeni kart', customFields: { RENK: 'Yeşil' } });
+    expect(writes()[0].body).not.toContain('Mavi');
+  });
+
+  it('retry after a partial create says field changes need reopening', async () => {
+    failures = [{ method: 'POST', url: `/api/stock/items/${NEW}/units`, status: 400, error: 'Birim kodu geçersiz', exact: true }];
+    setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-table td' }, T);
+    fireEvent.keyDown(document.body, { key: 'F2' });
+    await screen.findByRole('dialog', { name: /^Stok kartı/ }, T);
+    type('kod', 'yeni-3');
+    type('ad', 'Yeni kart');
+    type('anaBirim', 'adet');
+    fireEvent.click(tab(drawer(), 'Birimler'));
+    fireEvent.click(within(drawer()).getByRole('button', { name: 'Satır ekle' }));
+    fireEvent.change(within(drawer()).getAllByLabelText(/^Birim \(satır/)[0], { target: { value: 'pk' } });
+    fireEvent.change(within(drawer()).getAllByLabelText(/^Ana birim katsayısı \(satır/)[0], { target: { value: '6' } });
+    ctrlS();
+    await within(drawer()).findByText(/Önceki 1 işlem kaydedildi/, {}, T);
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual(['POST /api/stock/items', `POST /api/stock/items/${NEW}/units`]);
+    calls = [];
+    fireEvent.click(tab(drawer(), 'Genel'));
+    type('ad', 'Yeni kart 2');
+    ctrlS();
+    await within(drawer()).findByText(/Kart oluşturuldu; alan değişiklikleri için kartı yeniden açın\.$/, {}, T);
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`POST /api/stock/items/${NEW}/units`]);
+    expect(drawer()).toBeTruthy();
   });
 
   it('esc on a dirty card asks before closing', async () => {

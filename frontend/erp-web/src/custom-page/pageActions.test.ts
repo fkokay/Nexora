@@ -220,6 +220,9 @@ describe('işlem yetkisi ve kayıt penceresi', () => {
     expect(open).toHaveBeenCalledTimes(1);
     const loading = buildPageCommands({}, makeDeps({ formDialog: { open, startNew, hasRecord: true, recordLoading: true } }).deps);
     expect(loading.open?.disabledReason).toBe('Kayıt yükleniyor…');
+    const failed = buildPageCommands({}, makeDeps({ formDialog: { open, startNew, hasRecord: true, recordFailed: true } }).deps);
+    expect(failed.open?.disabledReason).toBe('Kayıt okunamadı');
+    expect(failed.open?.run).toBeUndefined();
   });
 
   it('form dialog: yeni starts a new record in the dialog and focuses the first new input', () => {

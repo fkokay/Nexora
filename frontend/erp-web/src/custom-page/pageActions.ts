@@ -1,5 +1,6 @@
 import type { MenuCommand, PageCommands } from "../commands/types";
 import { idList } from "./layoutRefs";
+import { RECORD_LOADING, RECORD_UNREADABLE } from "./recordMessages";
 
 /** İşlem Çubuğu (`actionBar`) bileşeninin komut kuralları: saf işlevler, React'e bağlı değildir. */
 
@@ -10,7 +11,6 @@ const NO_RIGHT = "Bu işlem için yetkiniz yok";
 const BUSY = "İşlem sürüyor…";
 const NEEDS_SELECTION = "Önce bir kayıt seçin";
 const TABLE_LOADING = "Liste henüz yüklenmedi";
-const RECORD_LOADING = "Kayıt yükleniyor…";
 const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 /** Düzleştirilmiş bileşen dizisindeki ilk `actionBar`. */
@@ -45,7 +45,9 @@ export type PageActionDeps = {
    * `actionBar.formDialog` (kayıt penceresi): Yeni pencerede yeni kayıt başlatır (`startNew(focusId)`), Aç seçili kaydı
    * pencerede açar. `hasRecord`: pencerenin bir formCard'ının kayıt tablosunda seçim var.
    */
-  formDialog?: { open(): void; startNew(focusId: string | undefined): void; hasRecord: boolean; recordLoading?: boolean };
+  formDialog?: { open(): void; startNew(focusId: string | undefined): void; hasRecord: boolean; recordLoading?: boolean;
+    /** Kayıt anahtarının okuması hata verdi ya da boş döndü: Aç pasiftir (pencere seçili kaydı yeni kayıt sanmasın). */
+    recordFailed?: boolean };
   run: {
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
@@ -100,7 +102,8 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
       : unbound,
     open: !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
-      : formDialog.recordLoading ? { disabledReason: RECORD_LOADING } : { run: () => formDialog.open() },
+      : formDialog.recordLoading ? { disabledReason: RECORD_LOADING }
+      : formDialog.recordFailed ? { disabledReason: RECORD_UNREADABLE } : { run: () => formDialog.open() },
     save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
       : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
     delete: !deleteBound ? unbound

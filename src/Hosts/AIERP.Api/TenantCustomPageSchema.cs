@@ -42,7 +42,9 @@ internal static class TenantCustomPageSchema
       "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit",
       "recordKey", "trackChanges",
       // Proje 4: the actionBar's record dialog (Yeni / Aç).
-      "formDialog" };
+      "formDialog",
+      // Proje 4: conditional required input (e.g. only while an existing record is edited).
+      "requiredWhen" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog" };
@@ -868,11 +870,13 @@ internal static class TenantCustomPageSchema
     private static bool ValidateConditionProps(JsonElement props, string typeText, Context context, out string? error)
     {
         error = null;
-        foreach (var key in new[] { "visibleWhen", "disabledWhen" })
+        foreach (var key in new[] { "visibleWhen", "disabledWhen", "requiredWhen" })
         {
             if (!props.TryGetProperty(key, out var condition)) continue;
             if (key == "disabledWhen" && typeText is not ("button" or "input" or "editableGrid" or "customFieldsBlock"))
             { error = "'disabledWhen' yalnız düğme ve giriş bileşenlerinde kullanılabilir."; return false; }
+            if (key == "requiredWhen" && typeText != "input")
+            { error = "'requiredWhen' yalnız giriş bileşeninde kullanılabilir."; return false; }
             if (condition.ValueKind != JsonValueKind.String)
             { error = $"'{key}' koşulu geçersiz: ifade metin olmalı"; return false; }
             if (!PageConditionExpression.TryParse(condition.GetString()!, out var roots, out var reason))

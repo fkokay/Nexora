@@ -42,6 +42,14 @@ describe('buildOperationRequest', () => {
     expect(JSON.parse(request.body!)).toEqual({ Id: guid, name: 'B', rowVersion: 'AAA=' });
   });
 
+  it('null keeps the source value unless the parameter was cleared by the user', () => {
+    const source = { id: guid, name: 'A', rowVersion: 'AAA=' };
+    expect(JSON.parse(buildOperationRequest(update, { name: null }, source).body!)).toEqual(source);
+    expect(JSON.parse(buildOperationRequest(update, { name: null }, source, null, new Set(['name'])).body!)).toEqual({ ...source, name: null });
+    // Yalnız null değer temizler; dolu değer her zaman yazılır.
+    expect(JSON.parse(buildOperationRequest(update, { name: 'B' }, source, null, new Set(['name'])).body!)).toEqual({ ...source, name: 'B' });
+  });
+
   it('merges fixedBody', () => {
     const request = buildOperationRequest(deactivate, {}, { id: guid, rowVersion: 'BBB=' });
     expect(request.url).toBe(`/api/stock/items/${guid}/deactivate`);

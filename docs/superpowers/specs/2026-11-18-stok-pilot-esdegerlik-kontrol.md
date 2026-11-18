@@ -139,7 +139,7 @@ Kaynaklar:
 | Görsel: `productImageUrl` (≤ 1000, yalnız bağlantı) | `gorsel` ve `gorselOnizleme` (görsel bileşeni) | karşılandı | |
 | Pazaryeri: `marketplaceProductId` (≤ 120) | `pazaryeriKimligi` | karşılandı | |
 | Oluşturma varsayılanları (TRY, KDV 20) | Boş alan gövdeye yazılmaz; varsayılanı sunucu uygular. Sayfa bunu yer tutucuyla gösterir ("TRY", "20"). | fark | |
-| İsteğe bağlı alanı boşaltma (barkod, maksimum stok) | Ölçüldü (test: `clearing an optional field on edit`). Boşaltılan metin alanı `""` olarak gider; sunucu barkodu `null` yapar, yani barkod temizlenir. Boşaltılan sayı alanı `null`'a çözülür; çalışma zamanı da çözülmeyen değeri yazmadığı için kaynak kaydın değeri gövdede kalır (`maximumStock: 100`). **Maksimum stok ve öteki isteğe bağlı sayı alanları sayfadan temizlenemez.** Bu planda düzeltilmedi. | fark | |
+| İsteğe bağlı alanı boşaltma (barkod, maksimum stok) | Boşaltılan metin alanı `""` olarak gider; sunucu barkodu `null` yapar, yani barkod temizlenir. Kullanıcının boşalttığı isteğe bağlı sayı alanı (maksimum stok, yeniden sipariş noktası, fiyatlar, ağırlık ve ölçüler) `null` olarak gider ve kaynak kaydın değerini ezer, yani temizlenir (test: `clearing an optional field on edit`). Boş bırakılamayan sayı alanları (minimum ve emniyet stoku, tedarik ve üretim süresi, iskonto ve vergi oranları) kayıtlı kart düzenlenirken `requiredWhen` ile zorunludur: boşaltılınca "Bu alan zorunludur." gösterilir, kayıt yapılmaz (test: `clearing a non-nullable number on edit is required`). Yeni kartta bu alanlar boş bırakılabilir, varsayılanı sunucu uygular. | karşılandı | |
 
 ### Bileşik bloklar
 
