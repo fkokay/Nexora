@@ -74,6 +74,7 @@ export function BankStatementDetailPanel({
 }: Props) {
   const [tab, setTab] = useState<StatementTab>("lines");
   const [currentLineId, setCurrentLineId] = useState<string | null>(null);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const matchedCount = statement.lines.filter((line) => line.financialAccountTransactionId).length;
   const hasOpenLines = matchedCount < statement.lines.length;
   const open = statement.status === "Imported";
@@ -222,6 +223,7 @@ export function BankStatementDetailPanel({
           />
           {tab === "lines" && (
             <>
+              <div className="fin-acc-lines-head">
               <DetailLinesHead
                 title="Ekstre satırları"
                 meta={
@@ -232,6 +234,8 @@ export function BankStatementDetailPanel({
                   </span>
                 }
               />
+              <div className="fin-acc-tools" ref={setToolsSlot} />
+              </div>
               <div className="dd-grid">
                 <FinanceStudioGrid
                   token={token}
@@ -239,7 +243,8 @@ export function BankStatementDetailPanel({
                   defaults={financeGridDefaults["finance-statement-lines"]}
                   enableRowSelection={false}
                   hideSearch
-                  hideExport
+                  externalPagination
+                  toolbarContainer={toolsSlot}
                 >
                   <table className="customer-table">
                     <thead>
@@ -334,10 +339,13 @@ export function BankStatementDetailPanel({
           )}
           {tab === "unmatched" && (
             <>
+              <div className="fin-acc-lines-head">
               <DetailLinesHead
                 title="Eşleşmeyen defter hareketleri"
                 meta={<span>Defterde olup ekstreden henüz eşleşmeyen hareketler. Eşleştirme, ekstre satırları sekmesinden yapılır.</span>}
               />
+              <div className="fin-acc-tools" ref={setToolsSlot} />
+              </div>
               <div className="dd-grid">
                 <FinanceStudioGrid
                   token={token}
@@ -345,7 +353,8 @@ export function BankStatementDetailPanel({
                   defaults={financeGridDefaults["finance-statement-unmatched-book"]}
                   enableRowSelection={false}
                   hideSearch
-                  hideExport
+                  externalPagination
+                  toolbarContainer={toolsSlot}
                 >
                   <table className="customer-table">
                     <thead>

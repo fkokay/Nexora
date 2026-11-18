@@ -8,4 +8,4 @@
 /* Statement surface: the tabs sit at the top of the lines card, the grids reach its edges. */
 #root .bst-detail .dd-box > .dd-tabs { padding: 0 12px; border-bottom: 1px solid var(--nx-line); }
 #root .bst-detail .dd-box > .dd-lines-head + .dd-grid { border-top: 1px solid var(--nx-line); }
-#root .app-shell .bst-detail .dd-grid td select { width: 100%; max-width: 280px; min-width: 0; height: 26px; }
+#root .app-shell .fin-acc-statement.bst-detail .dd-grid td select { width: 100%; max-width: 220px; min-width: 0; height: 26px; }

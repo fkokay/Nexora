@@ -169,6 +169,13 @@ describe('Banka Ekstreleri (list and statement surface)', () => {
     expect(calls('/api/finance/statements/s1')).toEqual([]);
     const rows = Array.from(document.querySelectorAll('.list-v2-list tbody tr')).map((tr) => tr.textContent ?? '');
     expect(rows.some((text) => text.includes('BE-2026-0001') && text.includes('0 / 2') && text.includes('Bekliyor'))).toBe(true);
+    // Yeni opens today's import form (no request until it is submitted).
+    fireEvent.click(bar().querySelector<HTMLElement>('[data-command="new"]')!);
+    await settle(50);
+    expect(document.querySelector('dialog[open]')?.textContent ?? '').toContain('Ekstre Kimliği');
+    expect(apiMock.mock.calls.some(([url]) => /\/api\/finance\/accounts\/[^/]+\/statements$/.test(String(url)))).toBe(false);
+    fireEvent.click(screen.getAllByRole('button', { name: /Vazgeç/ })[0]);
+    await settle(50);
     await openStatement('BE-2026-0001');
     toggleMenu();
     expect(item('statement-line-match').getAttribute('aria-disabled')).toBe('true');

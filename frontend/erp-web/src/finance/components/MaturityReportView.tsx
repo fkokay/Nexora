@@ -8,6 +8,8 @@ import { StatusTag } from "../../list-page/StatusTag";
 import { LedgerReportFrame, ReportParam } from "../../general-ledger/components/LedgerReportFrame";
 import { downloadCsv, downloadXlsx, type ExportCell } from "../../general-ledger/ledgerReportUtils";
 import "../finance-reports.css";
+import "../../finance-hub.css";
+import "../../credit-facilities.css";
 
 type Direction = "all" | "Receivable" | "Payable";
 type Item = MaturityReport["items"][number];
