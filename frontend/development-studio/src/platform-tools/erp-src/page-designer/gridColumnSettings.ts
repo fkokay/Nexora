@@ -217,11 +217,18 @@ export function conditionTerms(components: readonly { type: string; name?: strin
     if (component.type === "dialog") terms.push({ expression: `${component.name}.acik`, label: `${component.name} penceresi açık` });
     if (component.type === "dataTable") {
       // Seçili satır nesnesi koşulda null sayılır; bir sütunu üzerinden sınanır (ör. liste.seciliSatir.id != null).
+      // Kimlik sütunlarının her biri aynı anlama gelir (ör. stockItem.id, balance.stockItemId); kayıtlı kural hangisini
+      // kullanıyorsa tanınır. Kimlik sütunu yoksa ilk sütun.
       const codes = columnsOf(component).filter((code) => column.test(code));
-      const key = codes.find((code) => code.toLowerCase() === "id" || code.toLowerCase().endsWith(".id")) ?? codes[0];
-      if (key) terms.push({ expression: `${component.name}.seciliSatir.${key} != null`, label: `${component.name} listesinde satır seçili` });
+      const ids = codes.filter((code) => { const lower = code.toLowerCase(); return lower === "id" || lower.endsWith(".id") || lower.endsWith("id") && code.includes("."); });
+      for (const key of ids.length > 0 ? ids : codes.slice(0, 1))
+        terms.push({ expression: `${component.name}.seciliSatir.${key} != null`, label: `${component.name} listesinde satır seçili${ids.length > 1 ? ` (${key})` : ""}` });
     }
-    if (component.type === "input") terms.push({ expression: `${component.name}.value != null`, label: `${component.name} girişi dolu` });
+    if (component.type === "input") {
+      const label = typeof component.props.label === "string" && component.props.label ? component.props.label : component.name;
+      if (component.props.inputType === "checkbox") terms.push({ expression: `${component.name}.value == true`, label: `“${label}” işaretli` });
+      else terms.push({ expression: `${component.name}.value != null`, label: `${component.name} girişi dolu` });
+    }
   }
   return terms;
 }

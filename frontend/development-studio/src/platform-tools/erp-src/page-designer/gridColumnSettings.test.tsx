@@ -82,12 +82,13 @@ describe("eski tanımlar aynen geri yazılır", () => {
     expect(html).not.toContain(">c149<");
   });
 
-  it("tanınmayan koşullu genişlik ifadesi hazır terimlere bölünmez (ham kalır)", () => {
+  it("stok listesinin daralma kuralı hazır terimlerle tanınır (onay kutusu işaretli ve satır seçili)", () => {
     const parsed = parseWidthWhen(stockList.widthWhen)!;
     expect(parsed.width).toBe(8);
-    const terms = conditionTerms([{ type: "dataTable", name: "liste", props: { query: "bakiye" } }, { type: "input", name: "detayPaneli", props: {} }],
-      () => ["balance.code", "stockItem.id"]);
-    expect(splitConditionTerms(parsed.condition, terms)).toBeNull();
+    const terms = conditionTerms([{ type: "dataTable", name: "liste", props: { query: "bakiye" } }, { type: "input", name: "detayPaneli", props: { inputType: "checkbox", label: "Detay paneli" } }],
+      () => ["balance.code", "balance.stockItemId", "stockItem.id"]);
+    expect(splitConditionTerms(parsed.condition, terms)).toEqual(["detayPaneli.value == true", "liste.seciliSatir.stockItem.id != null"]);
+    expect(splitConditionTerms("detayPaneli.value == true || x", terms)).toBeNull();
     expect(widthWhenText(parsed.width, parsed.condition)).toBe(stockList.widthWhen);
   });
 });

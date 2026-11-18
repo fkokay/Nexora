@@ -2991,7 +2991,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "dataTable" && pane("view", section("style", "Görünüm", <>
               <WidthSegment span={spanOf(selected)} disabled={!canEdit} onChange={(width) => updateComponent(selected.id, "width", width)}/>
               <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
-                terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
+                terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id || component.type === "dataTable"), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
                 onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
               <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>
               <div className="pd-field">Yoğunluk<div className="pd-segment">{([["comfort", "Rahat"], ["dense", "Sık"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit} className={(selected.props.density === "comfort" ? "comfort" : "dense") === value ? "active" : ""} onClick={() => patchComponent(selected.id, { density: value === "dense" ? undefined : value })}>{label}</button>)}</div></div>
