@@ -91,6 +91,10 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 await master.OpenAsync();
                 foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
                     await ExecuteAsync(master, batch);
+                // Upgrades re-run the install script on an instance where the signer
+                // login/user already exist; the second run must succeed unchanged.
+                foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    await ExecuteAsync(master, batch);
             }
 
             var workerConnection = new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
@@ -338,8 +342,12 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 await master.OpenAsync();
                 foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
                     await ExecuteAsync(master, batch);
+                // A second run must succeed unchanged with the query-login roles already present.
+                foreach (var batch in batches.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    await ExecuteAsync(master, batch);
             }
 
+            var readerPassword = CreatePassword();
             await using (var worker = new SqlConnection(new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
             {
                 InitialCatalog = "master",
@@ -352,8 +360,13 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
             }.ConnectionString))
             {
                 await worker.OpenAsync();
-                await EnsureSqlLoginAsync(worker, readyTenantId, component: 3, CreatePassword());
+                await EnsureSqlLoginAsync(worker, readyTenantId, component: 3, readerPassword);
                 await EnsureSqlLoginAsync(worker, readyTenantId, component: 4, CreatePassword());
+
+                // The worker itself must not be able to touch the hardening roles directly.
+                var directRole = await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(worker,
+                    "ALTER SERVER ROLE [NexoraTenantQueryLogins] ADD MEMBER " + Q(workerLogin) + ";"));
+                Assert.Equal(15151, directRole.Number);
 
                 var notReady3 = await Assert.ThrowsAsync<SqlException>(() => EnsureSqlLoginAsync(worker, notReadyTenantId, component: 3, CreatePassword()));
                 Assert.Equal(51023, notReady3.Number);
@@ -384,6 +397,46 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                     "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeReaderLogin)));
                 Assert.Equal(activeReadyDatabase, await ScalarAsync<string>(verify,
                     "SELECT default_database_name FROM sys.server_principals WHERE name=@login;", ("@login", activeWriterLogin)));
+
+                // Every query login (including the rotated ones) is in both hardening roles exactly once.
+                foreach (var login in new[] { readerLogin, writerLogin, activeReaderLogin, activeWriterLogin })
+                {
+                    Assert.Equal(1, await ScalarAsync<int>(verify,
+                        "SELECT COUNT(*) FROM sys.server_role_members WHERE role_principal_id=SUSER_ID(N'NexoraTenantQueryLogins') AND member_principal_id=SUSER_ID(@login);",
+                        ("@login", login)));
+                    Assert.Equal(1, await ScalarAsync<int>(verify,
+                        "SELECT COUNT(*) FROM master.sys.database_role_members WHERE role_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers') AND member_principal_id=DATABASE_PRINCIPAL_ID(@login);",
+                        ("@login", login)));
+                }
+
+                // Provisioning maps the query user into its own tenant database (BuildDatabaseAccessSql).
+                await ExecuteAsync(verify, "USE " + Q(readyDatabase) + "; CREATE USER " + Q(readerLogin) + " FOR LOGIN " + Q(readerLogin) + "; ALTER ROLE [db_datareader] ADD MEMBER " + Q(readerLogin) + "; USE [master];");
+            }
+
+            await using (var reader = new SqlConnection(new SqlConnectionStringBuilder(rootBuilder.ConnectionString)
+            {
+                InitialCatalog = readyDatabase,
+                UserID = readerLogin,
+                Password = readerPassword,
+                IntegratedSecurity = false,
+                PersistSecurityInfo = false,
+                Pooling = false,
+                ConnectTimeout = 10
+            }.ConnectionString))
+            {
+                // Its own database still opens; other tenant databases are invisible; file-system probes are denied.
+                await reader.OpenAsync();
+                Assert.Equal(readyDatabase, await ScalarAsync<string>(reader, "SELECT DB_NAME();"));
+                Assert.Equal(0, await ScalarAsync<int>(reader,
+                    "SELECT COUNT(*) FROM sys.databases WHERE name IN (@a,@b,N'AIERPPlatform');",
+                    ("@a", notReadyDatabase), ("@b", activeReadyDatabase)));
+                Assert.Equal(1, await ScalarAsync<int>(reader, "SELECT CASE WHEN DB_ID(@db) IS NULL THEN 1 ELSE 0 END;", ("@db", activeReadyDatabase)));
+                foreach (var procedure in new[] { "xp_dirtree", "xp_fileexist", "xp_subdirs" })
+                {
+                    var denied = await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(reader,
+                        $"EXEC master.sys.{procedure} N'/';"));
+                    Assert.Equal(229, denied.Number);
+                }
             }
         }
         finally
@@ -433,9 +486,11 @@ public sealed class TenantProvisioningSqlBoundaryAcceptanceTests
                 ("@db", database));
         await ExecuteAsync(cleanup, "IF DB_ID(N'AIERPPlatform') IS NOT NULL BEGIN ALTER DATABASE [AIERPPlatform] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [AIERPPlatform]; END;");
         await ExecuteAsync(cleanup, "IF EXISTS (SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.NexoraEnsureTenantDatabase')) DROP SIGNATURE FROM OBJECT::dbo.NexoraEnsureTenantDatabase BY CERTIFICATE [NexoraTenantProvisioningSigner]; IF EXISTS (SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.NexoraEnsureTenantSqlLogin')) DROP SIGNATURE FROM OBJECT::dbo.NexoraEnsureTenantSqlLogin BY CERTIFICATE [NexoraTenantProvisioningSigner]; IF EXISTS (SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.NexoraTenantDatabaseExists')) DROP SIGNATURE FROM OBJECT::dbo.NexoraTenantDatabaseExists BY CERTIFICATE [NexoraTenantProvisioningSigner]; IF OBJECT_ID(N'dbo.NexoraEnsureTenantDatabase',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraEnsureTenantDatabase; IF OBJECT_ID(N'dbo.NexoraEnsureTenantSqlLogin',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraEnsureTenantSqlLogin; IF OBJECT_ID(N'dbo.NexoraTenantDatabaseExists',N'P') IS NOT NULL DROP PROCEDURE dbo.NexoraTenantDatabaseExists;");
+        await ExecuteAsync(cleanup, TenantProvisioningBoundaryCleanupSql.BeforeCertificateDrop);
         await ExecuteAsync(cleanup, "IF SUSER_ID(N'NexoraTenantProvisioningSignerLogin') IS NOT NULL DROP LOGIN [NexoraTenantProvisioningSignerLogin]; IF CERT_ID(N'NexoraTenantProvisioningSigner') IS NOT NULL DROP CERTIFICATE [NexoraTenantProvisioningSigner];");
         foreach (var login in logins)
             await ExecuteAsync(cleanup, "IF SUSER_ID(@login) IS NOT NULL BEGIN DECLARE @ddl nvarchar(max)=N'DROP LOGIN '+QUOTENAME(@login); EXEC sys.sp_executesql @ddl; END;", ("@login", login));
+        await ExecuteAsync(cleanup, TenantProvisioningBoundaryCleanupSql.DropServerRole);
         if (dropMasterKey)
             await ExecuteAsync(cleanup, "IF EXISTS (SELECT 1 FROM sys.symmetric_keys WHERE name=N'##MS_DatabaseMasterKey##') DROP MASTER KEY;");
     }

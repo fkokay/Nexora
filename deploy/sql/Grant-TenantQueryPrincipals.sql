@@ -5,9 +5,11 @@
   existing tenant ERP database and sets their role memberships. Run by a DBA/migrator
   after the Tenant Provisioning Worker has created the logins with
   --provision-tenant-query-credentials; the provisioning principal intentionally has no
-  access to existing tenant databases. It must also be run for every NEW tenant,
-  because only a DBA can apply the server-level DENYs below. Requires a principal that
-  can grant/deny server permissions. See docs/tenant-query-credentials.md.
+  access to existing tenant databases. NEW tenants do not need this script: the Worker
+  maps their database users itself, and the signed NexoraEnsureTenantSqlLogin adds every
+  query login to the DBA-owned hardening roles (NexoraTenantQueryLogins /
+  NexoraTenantQueryUsers). Requires a principal that can grant/deny server permissions.
+  See docs/tenant-query-credentials.md.
 
   SQLCMD variable:
     TenantId  tenant GUID in 32-digit "N" form (no dashes), e.g.
@@ -34,8 +36,8 @@ GO
   logins could list every tenant database through sys.databases / DB_NAME() / DB_ID() and
   probe the file system through xp_dirtree / xp_fileexist / xp_subdirs, which master
   grants to public. The extended-procedure DENYs need a user for each login in master.
-  The provisioning principal cannot apply server-level DENYs, so this script must also be
-  run by a DBA for every NEW tenant (see docs/tenant-query-credentials.md).
+  The signed provisioning procedure applies the same DENYs through role membership; these
+  direct DENYs are kept as defense in depth for existing tenants.
 */
 DENY VIEW ANY DATABASE TO [aierp_tr_$(TenantId)];
 DENY VIEW ANY DATABASE TO [aierp_tw_$(TenantId)];

@@ -22,7 +22,7 @@ internal static class CustomPageAccessEndpoints
             TenantDbContext tenantDb, CancellationToken ct) =>
         {
             if (await AdminContextAsync(user, platformDb, ct) is not var (tenant, _)) return Results.Forbid();
-            if (!TenantCustomPageEndpoints.ValidCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
+            if (!TenantCustomPageEndpoints.ValidCode(code) && !SystemPageCodes.IsSystemCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
             var pageCode = await FindPageCodeAsync(tenantDb, tenant, code, ct);
             if (pageCode is null) return Results.NotFound();
             var access = await platformDb.TenantCustomPageAccesses.AsNoTracking().Include(x => x.Users)
@@ -34,7 +34,7 @@ internal static class CustomPageAccessEndpoints
             PlatformDbContext platformDb, TenantDbContext tenantDb, CancellationToken ct) =>
         {
             if (await AdminContextAsync(user, platformDb, ct) is not var (tenant, userId)) return Results.Forbid();
-            if (!TenantCustomPageEndpoints.ValidCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
+            if (!TenantCustomPageEndpoints.ValidCode(code) && !SystemPageCodes.IsSystemCode(code)) return Results.BadRequest(new { error = "Sayfa kodu geçersiz." });
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             var pageCode = await FindPageCodeAsync(tenantDb, tenant, code, ct);
             if (pageCode is null) return Results.NotFound();
@@ -178,9 +178,17 @@ internal static class CustomPageAccess
             var definitions = await tenantDb.TenantCustomPages.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.IsPublished && codes.Contains(x.Code))
                 .Select(x => new { x.Code, x.DefinitionJson }).ToListAsync(ct);
-            return definitions.Where(x => TenantCustomPageQueries.HasQueries(x.DefinitionJson)).Select(x => x.Code)
+            return definitions.Where(x => RestrictsMembersWithoutRow(x.Code, x.DefinitionJson)).Select(x => x.Code)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }, ct);
+
+    /// <summary>
+    /// Whether a page without an access row is hidden from non-admin members. Custom pages are hidden when they have any
+    /// query or ERP operation; a system page (<c>@&lt;screenKey&gt;</c>) only when it has SQL queries, so a TenantUser keeps
+    /// seeing a system page whose queries are ERP operations run with the user's own rights.
+    /// </summary>
+    public static bool RestrictsMembersWithoutRow(string pageCode, string definitionJson) =>
+        SystemPageCodes.IsSystemCode(pageCode) ? TenantCustomPageQueries.HasSqlQueries(definitionJson) : TenantCustomPageQueries.HasQueries(definitionJson);
 
     private static async Task<IReadOnlyDictionary<string, CustomPageRights>> EvaluateAsync(PlatformDbContext platformDb, Guid tenantId,
         IReadOnlyCollection<string> pageCodes, Guid userId, string role,

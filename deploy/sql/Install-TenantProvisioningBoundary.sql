@@ -36,21 +36,75 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NexoraTenantProvisioningSignerLogin')
     CREATE LOGIN [NexoraTenantProvisioningSignerLogin]
         FROM CERTIFICATE [NexoraTenantProvisioningSigner];
+/* A certificate-mapped principal's SID is sys.certificates.sid (a fixed prefix plus
+   the thumbprint), not the raw thumbprint; comparing to thumbprint made every
+   re-run fail here. */
 ELSE IF (SELECT sid FROM sys.server_principals WHERE name=N'NexoraTenantProvisioningSignerLogin')
-     <> (SELECT thumbprint FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
+     <> (SELECT sid FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
     THROW 51003, 'The existing signer login is not bound to the expected certificate.', 1;
 GO
 
+/* Tenant query logins (aierp_tr_/aierp_tw_) are hardened through two DBA-owned
+   roles so the signed procedure never needs server-wide DENY rights:
+   - server role NexoraTenantQueryLogins carries DENY VIEW ANY DATABASE, so a
+     member cannot list other tenant databases (sys.databases, DB_ID, DB_NAME);
+   - master role NexoraTenantQueryUsers carries DENY EXECUTE on the file-system
+     extended procedures master grants to public.
+   The signed procedure only adds members to these two roles. */
+IF SUSER_ID(N'NexoraTenantQueryLogins') IS NULL
+    CREATE SERVER ROLE [NexoraTenantQueryLogins];
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'NexoraTenantQueryLogins' AND type=N'R' AND is_fixed_role=0)
+    THROW 51044, 'NexoraTenantQueryLogins exists but is not a user-defined server role.', 1;
+IF EXISTS (SELECT 1 FROM sys.server_permissions
+           WHERE grantee_principal_id=SUSER_ID(N'NexoraTenantQueryLogins') AND state IN ('G','W'))
+   OR EXISTS (SELECT 1 FROM sys.server_role_members WHERE member_principal_id=SUSER_ID(N'NexoraTenantQueryLogins'))
+    THROW 51045, 'NexoraTenantQueryLogins must not hold grants or role memberships.', 1;
+DENY VIEW ANY DATABASE TO [NexoraTenantQueryLogins];
+GO
+
 /* SQL Server grants CONNECT SQL as part of certificate-login creation. The
-   signer additionally receives only the two permissions required by the
-   signed procedures. */
+   signer additionally receives only the permissions required by the signed
+   procedures: CREATE ANY DATABASE, ALTER ANY LOGIN and ALTER on the query
+   login role (to add members). */
 GRANT CREATE ANY DATABASE TO [NexoraTenantProvisioningSignerLogin];
 GRANT ALTER ANY LOGIN TO [NexoraTenantProvisioningSignerLogin];
+GRANT ALTER ON SERVER ROLE::[NexoraTenantQueryLogins] TO [NexoraTenantProvisioningSignerLogin];
 IF EXISTS (SELECT 1 FROM sys.server_permissions
            WHERE grantee_principal_id=SUSER_ID(N'NexoraTenantProvisioningSignerLogin')
              AND state IN ('G','W')
-             AND permission_name NOT IN (N'CONNECT SQL',N'CREATE ANY DATABASE',N'ALTER ANY LOGIN'))
-    THROW 51009, 'Signer certificate login has grants beyond CONNECT SQL, CREATE ANY DATABASE, and ALTER ANY LOGIN.', 1;
+             AND NOT ((class=100 AND permission_name IN (N'CONNECT SQL',N'CREATE ANY DATABASE',N'ALTER ANY LOGIN'))
+                      OR (class=101 AND permission_name=N'ALTER' AND major_id=SUSER_ID(N'NexoraTenantQueryLogins'))))
+    THROW 51009, 'Signer certificate login has grants beyond CONNECT SQL, CREATE ANY DATABASE, ALTER ANY LOGIN, and ALTER on NexoraTenantQueryLogins.', 1;
+GO
+
+IF DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers') IS NULL
+    CREATE ROLE [NexoraTenantQueryUsers];
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NexoraTenantQueryUsers' AND type=N'R' AND is_fixed_role=0)
+    THROW 51046, 'NexoraTenantQueryUsers exists in master but is not a user-defined database role.', 1;
+IF EXISTS (SELECT 1 FROM sys.database_permissions
+           WHERE grantee_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers') AND state IN ('G','W'))
+   OR EXISTS (SELECT 1 FROM sys.database_role_members WHERE member_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers'))
+    THROW 51047, 'NexoraTenantQueryUsers must not hold grants or role memberships in master.', 1;
+DENY EXECUTE ON OBJECT::[sys].[xp_dirtree] TO [NexoraTenantQueryUsers];
+DENY EXECUTE ON OBJECT::[sys].[xp_fileexist] TO [NexoraTenantQueryUsers];
+DENY EXECUTE ON OBJECT::[sys].[xp_subdirs] TO [NexoraTenantQueryUsers];
+
+/* The certificate user in master lets the signed procedure create the master
+   user of a query login and add it to NexoraTenantQueryUsers. */
+IF DATABASE_PRINCIPAL_ID(N'NexoraTenantProvisioningSignerMasterUser') IS NULL
+    CREATE USER [NexoraTenantProvisioningSignerMasterUser] FROM CERTIFICATE [NexoraTenantProvisioningSigner];
+ELSE IF (SELECT sid FROM sys.database_principals WHERE name=N'NexoraTenantProvisioningSignerMasterUser')
+     <> (SELECT sid FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
+    THROW 51048, 'The existing master signer user is not bound to the expected certificate.', 1;
+GRANT ALTER ANY USER TO [NexoraTenantProvisioningSignerMasterUser];
+GRANT ALTER ON ROLE::[NexoraTenantQueryUsers] TO [NexoraTenantProvisioningSignerMasterUser];
+IF EXISTS (SELECT 1 FROM sys.database_permissions
+           WHERE grantee_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantProvisioningSignerMasterUser')
+             AND state IN ('G','W')
+             AND NOT ((class=0 AND permission_name IN (N'CONNECT',N'ALTER ANY USER'))
+                      OR (class=4 AND permission_name=N'ALTER' AND major_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers'))))
+   OR EXISTS (SELECT 1 FROM sys.database_role_members WHERE member_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantProvisioningSignerMasterUser'))
+    THROW 51049, 'The master signer user has grants beyond ALTER ANY USER and ALTER on NexoraTenantQueryUsers.', 1;
 GO
 
 CREATE OR ALTER PROCEDURE dbo.NexoraEnsureTenantDatabase
@@ -175,6 +229,31 @@ BEGIN
        THEN N'CREATE LOGIN '+QUOTENAME(@LoginName)+N' WITH PASSWORD=N'''+@EscapedPassword+N''', CHECK_POLICY=ON, DEFAULT_DATABASE='+QUOTENAME(@DatabaseName)+N';'
        ELSE N'ALTER LOGIN '+QUOTENAME(@LoginName)+N' WITH PASSWORD=N'''+@EscapedPassword+N''', CHECK_POLICY=ON; ALTER LOGIN '+QUOTENAME(@LoginName)+N' WITH DEFAULT_DATABASE='+QUOTENAME(@DatabaseName)+N';' END;
     EXEC sys.sp_executesql @LoginSql;
+
+    /* Query logins are hardened on every create and rotation, so a query login
+       never exists without these DENYs and rotation backfills older tenants. */
+    IF @Component IN (3,4)
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM sys.server_role_members
+                       WHERE role_principal_id=SUSER_ID(N'NexoraTenantQueryLogins') AND member_principal_id=SUSER_ID(@LoginName))
+        BEGIN
+            DECLARE @ServerRoleSql nvarchar(max)=N'ALTER SERVER ROLE [NexoraTenantQueryLogins] ADD MEMBER '+QUOTENAME(@LoginName)+N';';
+            EXEC sys.sp_executesql @ServerRoleSql;
+        END;
+        IF DATABASE_PRINCIPAL_ID(@LoginName) IS NULL
+        BEGIN
+            DECLARE @MasterUserSql nvarchar(max)=N'CREATE USER '+QUOTENAME(@LoginName)+N' FOR LOGIN '+QUOTENAME(@LoginName)+N';';
+            EXEC sys.sp_executesql @MasterUserSql;
+        END
+        ELSE IF (SELECT sid FROM sys.database_principals WHERE name=@LoginName) <> SUSER_SID(@LoginName)
+            THROW 51027, 'The master user of the tenant query login is not mapped to that login.', 1;
+        IF NOT EXISTS (SELECT 1 FROM sys.database_role_members
+                       WHERE role_principal_id=DATABASE_PRINCIPAL_ID(N'NexoraTenantQueryUsers') AND member_principal_id=DATABASE_PRINCIPAL_ID(@LoginName))
+        BEGIN
+            DECLARE @MasterRoleSql nvarchar(max)=N'ALTER ROLE [NexoraTenantQueryUsers] ADD MEMBER '+QUOTENAME(@LoginName)+N';';
+            EXEC sys.sp_executesql @MasterRoleSql;
+        END;
+    END;
 END;
 GO
 
@@ -246,7 +325,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.certificates WHERE name=N'NexoraTenantProvision
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NexoraTenantProvisioningSignerUser')
     CREATE USER [NexoraTenantProvisioningSignerUser] FROM CERTIFICATE [NexoraTenantProvisioningSigner];
 ELSE IF (SELECT sid FROM sys.database_principals WHERE name=N'NexoraTenantProvisioningSignerUser')
-     <> (SELECT thumbprint FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
+     <> (SELECT sid FROM sys.certificates WHERE name=N'NexoraTenantProvisioningSigner')
     THROW 51005, 'The existing Platform signer user is not bound to the expected certificate.', 1;
 GRANT SELECT ON dbo.Tenants TO [NexoraTenantProvisioningSignerUser];
 GRANT SELECT ON dbo.TenantProvisioningJobs TO [NexoraTenantProvisioningSignerUser];
@@ -275,7 +354,7 @@ BEGIN
     DECLARE @CreateUser nvarchar(max)=N'CREATE USER '+QUOTENAME(@WorkerDbUser)+N' FOR LOGIN '+QUOTENAME(@Worker)+N';';
     EXEC sys.sp_executesql @CreateUser;
 END
-ELSE IF USER_SID(@WorkerDbUser) <> SUSER_SID(@Worker)
+ELSE IF USER_SID(USER_ID(@WorkerDbUser)) <> SUSER_SID(@Worker)
     THROW 51006, 'The existing Worker database user does not map to the supplied server login.', 1;
 IF EXISTS (SELECT 1 FROM sys.database_permissions
            WHERE grantee_principal_id=USER_ID(@WorkerDbUser) AND state IN ('G','W')
@@ -300,7 +379,7 @@ BEGIN
     DECLARE @CreatePlatformUser nvarchar(max)=N'CREATE USER '+QUOTENAME(@Worker)+N' FOR LOGIN '+QUOTENAME(@Worker)+N';';
     EXEC sys.sp_executesql @CreatePlatformUser;
 END
-ELSE IF USER_SID(@Worker) <> SUSER_SID(@Worker)
+ELSE IF USER_SID(USER_ID(@Worker)) <> SUSER_SID(@Worker)
     THROW 51050, 'The Worker Platform user does not map to the supplied server login.', 1;
 
 IF EXISTS (SELECT 1 FROM sys.database_role_members WHERE member_principal_id=USER_ID(@Worker))
@@ -314,7 +393,7 @@ IF EXISTS (SELECT 1 FROM sys.database_permissions p
                  OR (p.permission_name IN (N'SELECT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.TenantProvisioningJobs') AND p.minor_id=0)
                  OR (p.permission_name IN (N'SELECT',N'INSERT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.TenantDatabaseCatalog') AND p.minor_id=0)
                  OR (p.permission_name IN (N'SELECT',N'INSERT',N'UPDATE') AND p.major_id=OBJECT_ID(N'dbo.DatabaseSeparationComponentStates') AND p.minor_id=0)
-                 OR (p.permission_name=N'INSERT' AND p.major_id=OBJECT_ID(N'dbo.AuditEvents') AND p.minor_id=0)
+                 OR (p.permission_name IN (N'SELECT',N'INSERT') AND p.major_id=OBJECT_ID(N'dbo.AuditEvents') AND p.minor_id=0)
              ))
     THROW 51052, 'Worker has Platform grants outside the approved job/catalog permission set.', 1;
 
@@ -324,6 +403,10 @@ GRANT UPDATE (IsActive) ON dbo.Tenants TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, UPDATE ON dbo.TenantProvisioningJobs TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, INSERT, UPDATE ON dbo.TenantDatabaseCatalog TO [$(TenantProvisioningLoginName)];
 GRANT SELECT, INSERT, UPDATE ON dbo.DatabaseSeparationComponentStates TO [$(TenantProvisioningLoginName)];
-GRANT INSERT ON dbo.AuditEvents TO [$(TenantProvisioningLoginName)];
+/* SELECT is required too: PlatformDbContext.SaveChanges adds a fallback mutation
+   AuditEvent for every TenantDatabaseCatalog change, and EF inserts it with
+   OUTPUT INSERTED.Id, which needs SELECT on the table. Without it every new-tenant
+   provisioning job fails with DbUpdateException. */
+GRANT SELECT, INSERT ON dbo.AuditEvents TO [$(TenantProvisioningLoginName)];
 GO
 

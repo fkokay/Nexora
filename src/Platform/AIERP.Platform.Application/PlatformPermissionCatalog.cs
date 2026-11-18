@@ -8,11 +8,27 @@ public interface IPlatformPermissionAuthorizer
 {
     Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role, ResolvedPlatformPermission permission,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One decision per permission, in order, with the same semantics as <see cref="IsAllowedAsync"/>. Implementations
+    /// may resolve the membership and rules once for the whole batch; the default asks one by one.
+    /// </summary>
+    async Task<IReadOnlyList<bool>> IsAllowedManyAsync(Guid tenantId, Guid userId, string role,
+        IReadOnlyList<ResolvedPlatformPermission> permissions, CancellationToken cancellationToken = default)
+    {
+        var decisions = new bool[permissions.Count];
+        for (var index = 0; index < permissions.Count; index++)
+            decisions[index] = await IsAllowedAsync(tenantId, userId, role, permissions[index], cancellationToken);
+        return decisions;
+    }
 }
 
 public static class PlatformPermissionCatalog
 {
     private static readonly string[] Actions = ["read", "create", "update", "delete", "execute"];
+    private static readonly System.Text.RegularExpressions.Regex StockItemBalancesPath = new(
+        "^/api/stock/items/[0-9a-f-]{36}/balances/?$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public static IReadOnlyList<PermissionResourceDefinition> Resources { get; } =
     [
@@ -227,6 +243,15 @@ public static class PlatformPermissionCatalog
         }
         else if (path.StartsWith("/api/warehouses/transfers", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.inventory-transfers");
+        else if ((method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase))
+            && (normalizedRoute.Equals("/api/stock/items/{id:guid}/balances", StringComparison.OrdinalIgnoreCase)
+                || StockItemBalancesPath.IsMatch(path)))
+        {
+            // A card's balances per warehouse expose warehouse balances: a user denied warehouses must not read them
+            // through /api/stock. Matched on the route template (casing/trailing slash of the request do not matter),
+            // with a case-insensitive path check as a second guard.
+            resource = Resources.First(x => x.ResourceType == "erp.warehouses");
+        }
         else if (path.Equals("/api/inventory-stock-widgets", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/inventory-stock-widgets/", StringComparison.OrdinalIgnoreCase))
         {
@@ -253,6 +278,18 @@ public static class PlatformPermissionCatalog
         else if (path.Equals("/api/location-definitions", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/location-definitions/", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.customer-locations");
+        else if (path.Equals("/api/system-pages", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/system-pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            // The runtime map and a published system page are tenant navigation, like /api/custom-pages/{code}/published;
+            // the catalog, drafts, reset, "Yeni" items and history are low-code customization.
+            var runtime = normalizedRoute.Equals("/api/system-pages/runtime", StringComparison.OrdinalIgnoreCase)
+                || normalizedRoute.EndsWith("/{screenKey}/published", StringComparison.OrdinalIgnoreCase);
+            resource = Resources.First(x => x.ResourceType == (runtime ? "erp.custom-menus" : "erp.tenant-customizations"));
+            // "Standarda dön" rewrites the open draft (or starts one), so it needs only "update", matching the handler.
+            explicitUpdateAction = method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+                && normalizedRoute.EndsWith("/{screenKey}/reset", StringComparison.OrdinalIgnoreCase);
+        }
         else if (path.Equals("/api/custom-pages", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))
         {
@@ -265,7 +302,9 @@ public static class PlatformPermissionCatalog
             // permission family.
             var publishedQueryRun = normalizedRoute.EndsWith("/{code}/queries/{queryId}/run", StringComparison.OrdinalIgnoreCase);
             explicitReadAction = publishedQueryRun;
-            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun
+            // The ERP operation catalog holds no tenant data and is loaded by published pages at runtime.
+            var erpOperationCatalog = normalizedRoute.Equals("/api/custom-pages/erp-operations", StringComparison.OrdinalIgnoreCase);
+            resource = normalizedRoute.EndsWith("/{code}/published", StringComparison.OrdinalIgnoreCase) || publishedQueryRun || erpOperationCatalog
                 ? Resources.First(x => x.ResourceType == "erp.custom-menus")
                 : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
         }

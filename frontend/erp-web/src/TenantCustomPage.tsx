@@ -1,12 +1,43 @@
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
-import { confirmDialog } from "./confirmDialog";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
+import { MetricCard } from "./custom-page/MetricCard";
 import TenantWorkflowAction from "./TenantWorkflowAction";
-import { displayText, interpolate, type PageScope } from "./custom-page/pageBindings";
-import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState } from "./custom-page/usePageQueries";
+import { bindingPath, displayText, interpolate, resolvePath, type PageScope } from "./custom-page/pageBindings";
+import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
+import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
+import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
+import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
+import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { LookupInput, lookupCandidates, lookupOptionsWithValue, type LookupOption } from "./custom-page/LookupInput";
+import { PagedTableFooter } from "./custom-page/PagedTableFooter";
+import { runWriteAction } from "./custom-page/writeAction";
+import { conditionHolds } from "./custom-page/conditions";
+import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED } from "./custom-page/inputValidation";
+import { PageTabs } from "./custom-page/PageTabs";
+import type { BridgeHost } from "./custom-page/codeBridge";
+import { CodeFrame } from "./custom-page/CodeFrame";
+import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
+import { mapOperationResult, type ErpOperation } from "./custom-page/erpOperations";
+import { useErpOperations } from "./custom-page/useErpOperations";
+import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
+import { usePageCommands } from "./commands/CommandProvider";
+import { startPageWorkflow } from "./custom-page/workflowStart";
+import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
+import { confirmDialog, promptDialog } from "./confirmDialog";
+import { confirmStartNew } from "./commands/PageCommandsSlot";
+import { EditableGrid } from "./custom-page/EditableGrid";
+import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
+import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
+  type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
+import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
+import { countVariantDrafts } from "./inventory/variantDrafts";
+import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
+import { PageImage } from "./custom-page/PageImage";
+import { iterationOf, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import "./tenant-custom-page.css";
+import "./system-pages/system-pages.css";
 
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
@@ -30,7 +61,8 @@ type PublishedPage = {
 const textValue = (value: unknown, fallback = "") =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 
-const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue"];
+const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue", "disabledReason",
+  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey"];
 type InputRaw = string | boolean;
 /** v2 sayfaların çalışma zamanı: bağlama kapsamı, sorgu durumları, giriş değerleri ve ızgara seçimleri. */
 type PageRuntime = {
@@ -40,16 +72,154 @@ type PageRuntime = {
   inputValues: Record<string, InputRaw>;
   setInput: (componentId: string, value: InputRaw) => void;
   selections: Record<string, Record<string, unknown> | null>;
-  select: (tableName: string, row: Record<string, unknown> | null) => void;
+  /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
+  select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   queryById: Record<string, PageQueryDefinition>;
+  /** ERP işlemi doğrulama hataları, giriş adına göre (parametre bağlaması `{{<giriş>.value}}`). */
+  inputErrors: Record<string, string>;
+  /** formCard/facetPanel'in sahiplendiği girişler (üst düzeyde ayrıca çizilmez) ve kimliğe göre giriş bileşenleri. */
+  ownedInputs: Set<string>;
+  inputById: Record<string, ComponentDefinition>;
+  /** contextPanel'in `table` başvurusu için kimliğe göre veri tabloları. */
+  tableById: Record<string, ComponentDefinition>;
   rights: NonNullable<PublishedPage["rights"]>;
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
   isPreview: boolean;
-  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<{ affectedRows: number }>;
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<WriteResult>;
+  /** Kod bileşenleri arası olay merkezi (load/select/beforeSave/afterSave) ve köprünün sayfa tarafı. */
+  events: PageEvents;
+  codeHost: BridgeHost;
+  /** `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğmeler: sayfada çizilmez. */
+  movedButtons: Set<string>;
+  /** Sayfadaki tüm yazma yolları (sorgu düğmeleri, İşlem Çubuğu, Ctrl+S) için tek uçuş kilidi. */
+  writeLock: { current: boolean };
+  /** İşlem Çubuğu eylemlerinin sonucu (sayfadaki durum satırı). */
+  actionStatus: ActionStatus | null;
+  /** Gösterilen istemci doğrulama iletileri, giriş kimliğine göre (bulanıklaşınca veya engellenen yazmada). */
+  validationErrors: Record<string, string>;
+  /** Yazmadan önce sorgunun bağladığı görünür, etkin girişleri doğrular; geçersizse VALIDATION_BLOCKED döner. */
+  validateFor: (query: PageQueryDefinition) => string | null;
+  /** Giriş doğrulanmıyor mu (kendisi veya bir sahibi gizli, ya da kendisi pasif). */
+  skipsValidation: (inputId: string) => boolean;
+  /** Engellenen yazmada hangi sekmeler bileşeninin hangi sekmesine atlanacağı (kimliğe göre); `signal` her engelde artar. */
+  errorJump: { signal: number; targets: Record<string, number> } | null;
+  /** Giriş bulanıklaştı: iletisi gösterilir veya kaldırılır. */
+  blurInput: (componentId: string) => void;
+  /** Sekmelerin sahiplendiği bileşenler (üst düzeyde ayrıca çizilmez) ve kimliğe göre üst düzey bileşenler. */
+  tabOwned: Set<string>;
+  topLevelById: Record<string, ComponentDefinition>;
+  /** Sekme başına hata sayısı için: bileşenin sahip zinciri (giriş → formCard → sekmeler…). */
+  ancestorsOf: (componentId: string) => string[];
+  /** Arama kutusu (inputType: lookup) girişinin seçenekleri ve seçim/arama geri çağrıları. */
+  lookupFor: (component: ComponentDefinition, props: Record<string, unknown>) => LookupBinding;
+  /** Sunucu sayfalı veri listesinin geçerli sayfası ve sayfa değiştirme (sayfalı değilse undefined). */
+  tablePaging: (table: ComponentDefinition) => { page: number; pageSize: number; onPage: (page: number) => void } | undefined;
+  /** En güncel bağlama kapsamı (ref): bekleyen işlemler render anındaki kapsamı değil bunu okur. */
+  currentScope: () => PageScope;
+  writeWith: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => Promise<WriteResult>;
+  /** Kayıt dizisini (`saveSequence`) ya da istemli tek yazmayı çalıştırır (İşlem Çubuğu, düğme, pencere, satır işlemi). */
+  runSequence: (source: SequenceSource) => Promise<void>;
+  /** Düzenlenebilir tablonun yineleme satırları ve gönderilen satırların listeden düşürülmesi (Görev 6'ya kadar boş). */
+  gridIteration: (grid: string, list: SequenceList) => { key: string; row: Record<string, unknown> }[];
+  commitGrid: (grid: string, list: SequenceList, keys: string[]) => void;
+  /** Pencereler: açık/kapalı durumu, açma (açan öğeye odak geri döner) ve kapatma. */
+  dialogs: Record<string, boolean>;
+  openDialog: (id: string, opener: HTMLElement | null) => void;
+  closeDialog: (id: string) => void;
+  saveDialog: (id: string) => void;
+  dialogStatus: Record<string, ActionStatus | null>;
+  dialogBusy: Record<string, boolean>;
+  dialogOpener: (id: string) => HTMLElement | null;
+  /** Pencerelerin ve satır işlemlerinin sahiplendiği bileşenler: üst düzeyde ayrıca çizilmez. */
+  dialogOwned: Set<string>;
+  rowOwned: Set<string>;
+  buttonById: Record<string, ComponentDefinition>;
+  /** Düğmenin çalıştırılabilir eylemi ve gereken sayfa hakları (yoksa null). */
+  buttonAction: (button: ComponentDefinition) => ButtonAction | null;
+  /** Satır işlemi: satırı seçer, düğmeyi o satırın bindirmesiyle çalıştırır. */
+  runRowAction: (table: ComponentDefinition, button: ComponentDefinition, row: Record<string, unknown>, opener: HTMLElement | null) => void;
+  tableStatus: Record<string, ActionStatus | null>;
+  /** Düzenlenebilir tablonun ve özel alanlar bloğunun çizim verisi (kimlik/ad, durum, iletiler, geri çağrılar). */
+  gridFor: (grid: ComponentDefinition) => GridView;
+  blockFor: (block: ComponentDefinition) => BlockView;
+  /** `trackChanges` formCard'ının değişen giriş sayısı. */
+  cardChanges: (card: ComponentDefinition) => number;
+  /** Doğrulama iletisi gösterilen tablo ve blokların kimlikleri (sekme hata sayısı için). */
+  componentErrorIds: string[];
+  /** Kullanıcının pencereyi kapatması (Esc, Kapat, Vazgeç): kirliyse önce sorar. */
+  requestCloseDialog: (id: string) => void;
+  /** Sayfada kaydedilmemiş değişiklik var mı (İşlem Çubuğu Yeni). */
+  isDirty: () => boolean;
+  /** İşlem Çubuğu Yeni: tablolar, bloklar ve kayıt yolunun yazma sonuçları sıfırlanır. */
+  startNew: () => void;
 };
+type GridView = {
+  id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
+  dispatch: (action: GridAction) => void; errors: Record<string, Record<string, string>>; maxRows: number; loading: boolean; error?: string;
+  matrixPreviewCount?: number;
+};
+type BlockView = {
+  id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
+  errors: Record<string, string>; loading: boolean; error?: string;
+};
+/** Kayıt dizisinin kaynağı: İşlem Çubuğu, düğme ya da pencere özellikleri (bağlanmamış) ve sonucun gideceği yer. */
+type SequenceSource = {
+  props: Record<string, unknown>;
+  /** İstem yanıtının adı (`{{<düğmeAdı>.yanit}}`). */
+  name?: string;
+  /** Satır işlemi bindirmesi (`{ <tablo>: { seciliSatir: satır } }`): koşullar, doğrulama ve değerler bununla çözülür. */
+  overlay?: Record<string, unknown>;
+  onStatus: (status: ActionStatus | null) => void;
+  onBusy: (busy: boolean) => void;
+  /** Tüm çağrılar başarılı oldu (pencere `closeOnSave`). */
+  onSuccess?: () => void;
+};
+type ButtonAction = { type: "query" | "sequence" | "openDialog" | "workflow"; rights: string[]; query?: PageQueryDefinition };
+export type RowAction = {
+  id: string; label: string; visible: (row: Record<string, unknown>) => boolean;
+  /** Pasifse nedeni, değilse null. */
+  disabled: (row: Record<string, unknown>) => string | null;
+  run: (row: Record<string, unknown>, opener: HTMLElement | null) => void;
+};
+type LookupBinding = {
+  options: LookupOption[]; loading: boolean; error?: string;
+  onChange: (value: string, row: Record<string, unknown> | null, label: string) => void; onSearch: (text: string) => void;
+  /** Son seçimin değeri ve etiketi (çalışma zamanında saklanır; giriş yeniden bağlanınca etiket korunur). */
+  selected: { value: string; label: string } | null;
+};
+/** Sayfalı listenin alt satırı ve başlıktaki arama girişi. */
+export type TablePaging = { page: number; pageSize: number; meta: { label: string; value: string }[]; onPage: (page: number) => void; search?: ReactNode };
 
-const PREVIEW_WRITE_WARNING = "Bu taslak önizlemesinde veriler gerçekten değişecek. Devam edilsin mi?";
+const isPlainObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+/** Bindirme kök başına birleşir: sorgu durumu ya da tablo kapsamı korunur, yalnız verilen alanlar değişir. */
+const mergeOverlay = (scope: PageScope, overlay: Record<string, unknown>): PageScope => {
+  const merged: PageScope = { ...scope };
+  for (const [key, value] of Object.entries(overlay)) merged[key] = isPlainObject(scope[key]) && isPlainObject(value) ? { ...scope[key], ...value } : value;
+  return merged;
+};
+const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+const rightOf = (kind: string) => (kind === "read" ? "view" : kind);
+
+/** Düğmenin çalıştırılabilir eylemi: sorgu, kayıt dizisi, pencere ya da iş akışı; eylemi yoksa null. */
+function buttonActionOf(props: Record<string, unknown>, queryById: Record<string, PageQueryDefinition>, dialogIds: Set<string>): ButtonAction | null {
+  if (props.actionType === "workflow") return typeof props.workflowId === "string" && props.workflowId.trim() !== "" ? { type: "workflow", rights: [] } : null;
+  if (props.actionType === "query") {
+    const query = typeof props.queryId === "string" ? queryById[props.queryId] : undefined;
+    return query ? { type: "query", rights: [rightOf(query.kind)], query } : null;
+  }
+  if (props.actionType === "sequence") {
+    const steps = idList(props.saveSequence, 8).map((id) => queryById[id]);
+    if (steps.length === 0 || steps.some((query) => !query || query.kind === "read")) return null;
+    return { type: "sequence", rights: [...new Set(steps.map((query) => query!.kind))] };
+  }
+  if (props.actionType === "openDialog") return typeof props.dialogId === "string" && dialogIds.has(props.dialogId) ? { type: "openDialog", rights: ["view"] } : null;
+  return null;
+}
+const actionAllowed = (action: ButtonAction | null, rights: Record<string, boolean | undefined>) => !!action && action.rights.every((right) => rights[right] === true);
+/** İstemli (promptLabel) yazma ya da dizi düğmesi `runSaveSequence` ile çalışır; düz sorgu düğmesi Faz A yolunu korur. */
+const usesSequence = (action: ButtonAction | null, props: Record<string, unknown>) =>
+  !!action && (action.type === "sequence" || (action.type === "query" && action.query!.kind !== "read" && textValue(props.promptLabel).trim() !== ""));
 
 const bindProps = (props: Record<string, unknown>, scope: PageScope): Record<string, unknown> => {
   const bound = { ...props };
@@ -71,14 +241,27 @@ const localToday = () => {
 
 const sessionUser = (token: string) => {
   let id = "";
+  let rol = "";
   try {
     const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
-    id = String((JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown }).sub ?? "");
-  } catch { /* geçersiz belirteç: kimlik boş kalır */ }
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown; role?: unknown };
+    id = String(claims.sub ?? "");
+    // `role` talebi dizi olabilir: ilk öğe kullanılır; yoksa boş.
+    const role = Array.isArray(claims.role) ? claims.role[0] : claims.role;
+    rol = typeof role === "string" ? role : "";
+  } catch { /* geçersiz belirteç: kimlik ve rol boş kalır */ }
   let name = "";
   try { name = localStorage.getItem("aierp.user") ?? ""; } catch { /* depolama kapalı */ }
-  return { id, ad: name };
+  return { id, ad: name, rol };
 };
+
+/** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
+const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !runtime || conditionHolds(component.props?.visibleWhen, runtime.scope, true);
+const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !!runtime && (component.type === "button" || component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock")
+  && conditionHolds(component.props?.disabledWhen, runtime.scope, false);
+const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 const flattenComponents = (components: ComponentDefinition[]): ComponentDefinition[] =>
   components.flatMap((component) => [component, ...flattenComponents(component.children ?? [])]);
@@ -94,23 +277,27 @@ const scopeInputValue = (inputType: string, raw: InputRaw): unknown => {
   return raw;
 };
 
-const isolatedCodeDocument = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 
+// Tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); Studio tuvali aynı değerleri kullanır.
+const DEFAULT_BLOCK_PADDING = 12;
+const DEFAULT_RADIUS = 8;
 const visualStyle = (type: string, props: Record<string, unknown>): CSSProperties => {
   const bounded = (value: unknown, fallback: number, min: number, max: number) => {
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" || type === "editableGrid" || type === "customFieldsBlock" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form"].includes(type) ? 16 : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs", "editableGrid", "customFieldsBlock"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
-    borderRadius: `${number("borderRadius", 12, 32)}px`,
+    borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
+    // ERP kabuğunun eski `[class*="-card"]`/`-panel` köşe kuralı !important; seçilen köşe bu değişkenle korunur.
+    ["--tp-radius" as string]: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
   };
 };
 
@@ -161,50 +348,107 @@ function QueryError({ message }: { message: string }) {
   return <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{message}</span></div>;
 }
 
+type MetricExtras = Pick<ComponentProps<typeof MetricCard>, "tone" | "icon" | "trend" | "active" | "onActivate">;
+
 const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
 /** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
 const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
 
-function QueryMetric({ state, title, description, style }: { state: QueryState; title: string; description: string; style: CSSProperties }) {
+function QueryMetric({ state, title, description, style, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties } & MetricExtras) {
   const first = state.columns[0]?.code;
   const value = state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
-  return <article className={`tenant-page-metric tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
-    {title && <span>{title}</span>}
-    {state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
-      : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>}
-    {description && <small>{description}</small>}
-  </article>;
+  return <MetricCard title={title} description={description} style={style} hasError={!!state.error} {...card}
+    value={state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
+      : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
 
-function QueryTable({ state, columns, title, description, style, selected, onSelect }: {
+export function QueryTable({ state, columns, title, description, style, selected, onSelect, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null }: {
   state: QueryState; columns: string[]; title: string; description: string; style: CSSProperties;
-  selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null) => void;
+  selected?: Record<string, unknown> | null; onSelect?: (row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
+  formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
+  /** Sunucu sayfalı liste: sonuç her zaman "kesilmiş"tir; uyarı yerine sayfa alt satırı gösterilir. */
+  paging?: TablePaging;
+  /** Satır işlemleri: en az biri çizilen bir satırda görünürse son sütun "İşlemler" eklenir. */
+  rowActions?: RowAction[];
+  /** Boş liste metni: elle çalışan sorgunun bekleme metninin ve boş sonuç metninin yerine geçer. */
+  emptyText?: string;
+  /** Yalnız ilk `limit` satır çizilir (toplamlar da çizilen satırlardan). */
+  limit?: number;
+  /** Satır işleminin sonucu. */
+  status?: ActionStatus | null;
 }) {
   const chosen = columns.length > 0 ? state.columns.filter((column) => columns.includes(column.code)) : [];
   const visible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
+  const hasTotals = visible.some((column) => totals.includes(column.code));
+  const drawn = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
+  const actionsShown = rowActions.length > 0 && drawn.some((row) => rowActions.some((action) => action.visible(row)));
   // Yeni sonuç gelince eski satır seçimi geçersizdir.
   useEffect(() => { if (selected && !state.rows.includes(selected)) onSelect?.(null); }, [state.rows]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row);
+  const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
+  const cellClass = (column: { code: string; dataType?: string }) => {
+    const format = formats[column.code];
+    return [isRightAligned(format, column.dataType) ? "num" : "", format === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
+  };
+  const renderCell = (column: { code: string; dataType?: string }, row: Record<string, unknown>) => {
+    const text = formatCell(row[column.code], formats[column.code], column.dataType);
+    if (formats[column.code] !== "status" || text === "—") return text;
+    const tone = toneFor(text, toneMap);
+    return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
+  };
+  const totalLabel = paging ? `Sayfa toplamı · ${drawn.length} kayıt`
+    : state.truncated ? `Toplam · ilk ${drawn.length} satır` : `Toplam · ${drawn.length} kayıt`;
+  // Satır işlemi tıklaması (ve klavyesi) satır seçimini değiştirmez; satırı işlem kendisi seçer.
+  const actionCell = (row: Record<string, unknown>) => <td className="tenant-page-row-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+    {rowActions.filter((action) => action.visible(row)).map((action) => {
+      const reason = action.disabled(row);
+      return <button key={action.id} type="button" className="tenant-page-row-action" disabled={reason !== null} title={reason ?? undefined}
+        onClick={(event) => { event.stopPropagation(); action.run(row, event.currentTarget); }}>{action.label}</button>;
+    })}
+  </td>;
   return <section className={`tenant-page-block tenant-page-table tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
     {title && <h3>{title}</h3>}
     {description && <p>{description}</p>}
+    {/* Arama girişi yükleme sırasında da yerinde kalır (yazarken odak kaybolmasın). */}
+    {paging?.search && <div className="tenant-page-table-search">{paging.search}</div>}
     {state.loading ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
       : state.error ? <QueryError message={state.error} />
-        : neverRan(state) ? <div className="tenant-report-state" role="status">{MANUAL_QUERY_IDLE}</div>
-        : <div className="tenant-page-table-scroll"><table>
-          <thead><tr>{visible.map((column) => <th scope="col" key={column.code}>{column.label || column.code}</th>)}</tr></thead>
+        : neverRan(state) ? <div className="tenant-report-state" role="status">{emptyText || MANUAL_QUERY_IDLE}</div>
+        : <div className="tenant-page-table-scroll"><table className={density === "comfort" ? "is-comfort" : undefined}>
+          <thead><tr>{visible.map((column) => <th scope="col" key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}
+            {actionsShown && <th scope="col" className="tenant-page-row-actions">İşlemler</th>}</tr></thead>
           <tbody>
-            {state.rows.length === 0 && <tr><td colSpan={Math.max(1, visible.length)} className="tenant-report-state">Gösterilecek kayıt bulunamadı.</td></tr>}
-            {state.rows.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
+            {drawn.length === 0 && <tr><td colSpan={Math.max(1, visible.length)} className="tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</td></tr>}
+            {drawn.map((row, index) => <tr key={index} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
               aria-selected={onSelect ? selected === row : undefined} tabIndex={onSelect ? 0 : undefined}
               onClick={onSelect ? () => toggle(row) : undefined}
               onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(row); } } : undefined}>
-              {visible.map((column) => <td key={column.code}>{cellText(row[column.code])}</td>)}
+              {visible.map((column) => <td key={column.code} className={cellClass(column)}>{renderCell(column, row)}</td>)}
+              {actionsShown && actionCell(row)}
             </tr>)}
           </tbody>
+          {hasTotals && drawn.length > 0 && <tfoot><tr className="tenant-page-total">
+            {visible.map((column, index) => {
+              const total = totals.includes(column.code) ? columnTotal(drawn, column.code) : null;
+              const inTotals = totals.includes(column.code);
+          const text = total !== null ? formatCell(total, formats[column.code] === "money" ? "money" : "number") : inTotals ? "—" : "";
+              if (index === 0 && total !== null) return <td key={column.code}><span className="tenant-page-total-label">{totalLabel}</span><span className="num">{text}</span></td>;
+              return <td key={column.code} className={total !== null ? "num" : undefined}>{index === 0 ? totalLabel : text}</td>;
+            })}
+            {actionsShown && <td />}
+          </tr></tfoot>}
         </table></div>}
-    {!state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
+    {status && <p className={`tenant-page-action-feedback is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
+    {!paging && !state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
+    {paging && !state.error && !neverRan(state) && <PagedTableFooter page={paging.page} pageSize={paging.pageSize} total={state.rowCount}
+      meta={paging.meta} onPage={paging.onPage} loading={state.loading} />}
   </section>;
+}
+
+/** Durum rozeti: değer toneMap ile eşleşirse o ton, yoksa variant geri dönüş tonudur. */
+export function PageBadge({ text, variant, toneMap, style }: { text: string; variant?: unknown; toneMap?: unknown; style?: CSSProperties }) {
+  const fallback = ["success", "warning", "danger", "info"].includes(textValue(variant)) ? textValue(variant) : "info";
+  const tone = toneFor(text, parseToneMap(toneMap)) ?? fallback;
+  return <span className={`tenant-page-badge tone-${tone}`} style={style}>{text}</span>;
 }
 
 /**
@@ -218,86 +462,142 @@ function writeErrorText(configured: string, cause: unknown): string {
   return failure.serverError || failure.message || "İşlem tamamlanamadı.";
 }
 
-/** Sorgu eylemli düğme: hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif kalır ve sonucu bildirir. */
-function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
+/**
+ * Eylemli düğme (sorgu, kayıt dizisi, pencere): hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif
+ * kalır ve sonucu bildirir. İstemli yazma ve dizi `runtime.runSequence` ile, düz sorgu Faz A yoluyla çalışır.
+ */
+function QueryActionButton({ component, props, label, runtime, disabled = false, disabledReason = "" }: {
+  component: ComponentDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
+}) {
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const allowed = runtime.rights[query.kind === "read" ? "view" : query.kind] === true;
+  const [feedback, setFeedback] = useState<ActionStatus | null>(null);
+  const action = runtime.buttonAction(component);
+  // ERP işlemi yazmaları da (SQL yazmaları gibi) sayfanın insert/update/delete hakkını ister; sunucu yalnız işlemin kendi iznine bakar, istemci bilerek daha sıkıdır.
+  const allowed = actionAllowed(action, runtime.rights);
   const mounted = useRef(true);
-  // Çift tıklamada ikinci yazma isteğini engeller; busy durumu bir sonraki çizime kadar görünmez.
+  // Okuma yeniden çalıştırmada çift tıklamayı engeller; yazmalar sayfanın ortak kilidini (runtime.writeLock) kullanır.
   const inFlight = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  if (!allowed) return null;
-  const write = query.kind !== "read";
-  const refreshIds = Array.isArray(props.refreshQueries) ? props.refreshQueries.filter((id): id is string => typeof id === "string") : [];
+  if (!allowed || !action) return null;
+  const query = action.query;
+  const write = action.type === "sequence" || (!!query && query.kind !== "read");
+  const refreshIds = stringList(props.refreshQueries);
   const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
 
-  const click = async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    try {
-      setFeedback(null);
-      if (!write) { runtime.rerun([query.id]); return; }
-      // Önizlemede onay her zaman sorulur (düğmede onay kapalı olsa da), çünkü taslak gerçek veriyi değiştirir.
-      if (props.confirmEnabled === true || runtime.isPreview) {
-        const configured = props.confirmEnabled === true ? bound("confirmText") : "";
-        const message = runtime.isPreview ? [configured, PREVIEW_WRITE_WARNING].filter(Boolean).join(" ") : configured;
-        const confirmed = await confirmDialog({
-          title: "Emin misiniz?", message: message || undefined, confirmLabel: "Onayla", cancelLabel: "Vazgeç",
-          tone: query.kind === "delete" || query.kind === "update" || runtime.isPreview ? "danger" : "default",
-        });
-        if (!confirmed) return;
-      }
-      setBusy(true);
-      try {
-        const result = await runtime.writeFor(query, runtime.isPreview);
-        const message = `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)`;
-        if (mounted.current) setFeedback({ tone: "success", text: message });
-        runtime.rerun(refreshIds);
-      } catch (cause) {
-        if (mounted.current) setFeedback({ tone: "error", text: writeErrorText(bound("errorMessage"), cause) });
-      } finally {
-        if (mounted.current) setBusy(false);
-      }
-    } finally {
-      inFlight.current = false;
+  const click = async (opener: HTMLElement) => {
+    if (disabled) return;
+    setFeedback(null);
+    if (action.type === "openDialog") { runtime.openDialog(props.dialogId as string, opener); return; }
+    if (usesSequence(action, props)) {
+      await runtime.runSequence({
+        props: component.props ?? {}, name: component.name,
+        onStatus: (status) => { if (mounted.current) setFeedback(status); },
+        onBusy: (next) => { if (mounted.current) setBusy(next); },
+      });
+      return;
+    }
+    if (!query) return;
+    if (!write) {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try { runtime.rerun([query.id]); } finally { inFlight.current = false; }
+      return;
+    }
+    const result = await runWriteAction({
+      query, isPreview: runtime.isPreview, inFlight: runtime.writeLock,
+      confirm: {
+        enabled: props.confirmEnabled === true, text: bound("confirmText"),
+        tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
+      },
+      write: async (target, confirmWrite) => {
+        if (mounted.current) setBusy(true);
+        try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
+      },
+      errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+      validate: () => runtime.validateFor(query),
+      ...codeWriteHooks(runtime.events),
+    });
+    if ("ok" in result && result.ok) {
+      if (mounted.current) setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
+      runtime.rerun(refreshIds);
+    } else if ("error" in result) {
+      if (mounted.current) setFeedback({ tone: "error", text: result.error });
     }
   };
   return <div className="tenant-page-query-action">
-    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button" disabled={busy} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    <button className={`tenant-page-button${query && write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button"
+      disabled={busy || disabled} title={disabled && disabledReason ? disabledReason : undefined} onClick={(event) => void click(event.currentTarget)}>{busy ? "Çalışıyor…" : label}</button>
+    {disabled && disabledReason && <small className="tenant-page-disabled-reason">{disabledReason}</small>}
     {feedback && <p className={`tenant-page-action-feedback is-${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p>}
   </div>;
 }
 
-function PageInput({ component, props, raw, onChange, optionsState, style }: {
+/** Seçim girişinin seçenekleri (optionsQuery sonucundan); satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur. */
+const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState) => {
+  const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
+  const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
+  return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
+};
+
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
-  optionsState?: QueryState; style: CSSProperties;
+  optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void; lookup?: LookupBinding;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
   const inputId = `page-input-${component.id}`;
+  if (inputType === "lookup") {
+    // Arama kutusu yalnız `required` kuralını destekler; bulanıklaşma sarmalayıcıda yakalanır (doğrulama iletisi için).
+    return <div className={`tenant-page-input tenant-page-input-lookup${error ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
+      <LookupInput inputId={inputId} label={label} raw={typeof raw === "string" ? raw : ""} placeholder={textValue(props.placeholder)}
+        allowClear={props.allowClear === true} disabled={disabled} options={lookup?.options ?? []} loading={lookup?.loading ?? false}
+        error={lookup?.error} selected={lookup?.selected} onChange={(value, row, chosenLabel) => (lookup ? lookup.onChange(value, row, chosenLabel) : onChange(value))}
+        onSearch={(text) => lookup?.onSearch(text)} />
+      {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
+    </div>;
+  }
+  const rules = inputRules(props);
+  const invalid = !!error;
+  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, onBlur };
+  const limit = (value: number | string | undefined) =>
+    value === undefined ? undefined : inputType === "number" ? (typeof value === "number" ? value : undefined) : inputType === "date" ? (typeof value === "string" ? value : undefined) : undefined;
   let control;
   if (inputType === "checkbox") {
-    control = <input id={inputId} type="checkbox" checked={raw === true} onChange={(event) => onChange(event.target.checked)} />;
+    control = <input {...common} type="checkbox" checked={raw === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
-    const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
-    const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
-    const options = (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]) }));
-    control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
+    const options = selectOptions(props, optionsState);
+    control = <select {...common} value={typeof raw === "string" ? raw : ""} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
     </select>;
   } else {
-    control = <input id={inputId} type={inputType === "number" || inputType === "date" ? inputType : "text"} step={inputType === "number" ? "any" : undefined}
-      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(event.target.value)} />;
+    const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
+    control = <input {...common} type={htmlType} disabled={disabled}
+      step={inputType === "number" ? rules.step ?? "any" : undefined} min={limit(rules.min)} max={limit(rules.max)}
+      maxLength={htmlType === "text" ? rules.maxLength : undefined}
+      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
-  return <div className={`tenant-page-input tenant-page-input-${inputType}`} style={style}>
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${invalid ? " is-invalid" : ""}`} style={style}>
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
+    {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
   </div>;
 }
 
-function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime) {
+function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+  if (!componentVisible(component, runtime)) return null;
+  // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
+  const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
+  return <PageInput key={component.id} component={component} props={props} style={style}
+    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
+    error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
+    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
+    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} />;
+}
+
+function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
+  // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
+  if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
   const style = visualStyle(component.type, props);
   const title = textValue(props.title);
@@ -310,51 +610,212 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     case "heading": return <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
     case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
-    case "input": return <PageInput key={component.id} component={component} props={props} style={style}
-      raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
-      optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
+    case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
+    case "formCard": {
+      const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+      const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
+      const changes = runtime && props.trackChanges === true ? runtime.cardChanges(component) : 0;
+      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined}>
+        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime))}
+      </FormCard>;
+    }
+    case "filterChips": {
+      if (!runtime) return null;
+      const chips = idList(props.inputs).flatMap((id) => {
+        const input = runtime.inputById[id];
+        if (!input || !componentVisible(input, runtime)) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        const inputType = textValue(inputProps.inputType, "text");
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const text = chipText(runtime.inputValues[id], inputType, inputType === "select" ? selectOptions(inputProps, optionsState) : undefined);
+        return text === null ? [] : [{ id, label: textValue(inputProps.label) || input.name || id, text }];
+      });
+      const clear = (id: string) => runtime.setInput(id, textValue(runtime.inputById[id]?.props?.inputType, "text") === "checkbox" ? false : "");
+      return <FilterChips key={component.id} chips={chips} style={style} onClear={clear} onClearAll={() => chips.forEach((chip) => clear(chip.id))} />;
+    }
+    case "facetPanel": {
+      if (!runtime) return null;
+      const counts = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
+      const groups = idList(props.inputs).flatMap((id): FacetGroup[] => {
+        const input = runtime.inputById[id];
+        if (!input || !componentVisible(input, runtime)) return [];
+        const inputProps = bindProps(input.props ?? {}, runtime.scope);
+        if (textValue(inputProps.inputType, "text") !== "select") return [];
+        const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
+        const countColumn = counts[id];
+        const options = selectOptions(inputProps, optionsState).map(({ value, label, row }) => {
+          return { value, label, count: countColumn ? facetCount(row[countColumn]) : undefined };
+        });
+        const raw = runtime.inputValues[id];
+        return [{ id, label: textValue(inputProps.label) || input.name || id, options, selected: typeof raw === "string" ? raw : "", loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined, disabled: componentDisabled(input, runtime) }];
+      });
+      return <FacetPanel key={component.id} title={title} groups={groups} style={style} onSelect={(inputId, next) => runtime.setInput(inputId, next)} />;
+    }
+    case "contextPanel": {
+      if (!runtime) return null;
+      const table = typeof props.table === "string" ? runtime.tableById[props.table] : undefined;
+      const row = table?.name ? runtime.selections[table.name] ?? null : null;
+      const formats = parseColumnFormats(table?.props?.columnFormats);
+      const fields = parseFieldList(props.fields).map((field) => ({ ...field, text: row ? formatCell(row[field.code], formats[field.code]) : "" }));
+      const relatedState = typeof props.relatedQuery === "string" ? runtime.states[runtime.queryNames[props.relatedQuery]] : undefined;
+      const relatedCodes = (relatedState?.columns ?? []).slice(0, 2).map((column) => column.code);
+      const related = relatedState ? {
+        title: textValue(props.relatedTitle) || "İlgili kayıtlar", loading: relatedState.loading, error: relatedState.error || undefined,
+        rows: relatedState.rows.map((relatedRow) => relatedCodes.map((code) => displayText(relatedRow[code])).filter(Boolean).join(" · ")),
+      } : undefined;
+      return <ContextPanel key={component.id} title={title} row={row} fields={fields} related={related} style={style} />;
+    }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
-      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} />;
-      return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} />;
+      const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
+      const icon = runtime && typeof props.icon === "string" ? props.icon : undefined;
+      const trendState = runtime && typeof props.trendQuery === "string" ? runtime.states[runtime.queryNames[props.trendQuery]] : undefined;
+      const trend = trendState ? trendPoints(trendState.rows) : undefined;
+      const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;
+      const filterValue = typeof props.filterValue === "string" ? props.filterValue : "";
+      const active = !!runtime && !!filterInput && filterValue !== "" && String(runtime.inputValues[filterInput] ?? "") === filterValue;
+      const onActivate = runtime && filterInput && filterValue !== "" ? () => runtime.setInput(filterInput, active ? "" : filterValue) : undefined;
+      const card = { tone, icon, trend, active, onActivate };
+      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
+      return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
     case "card": case "section": return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
     case "divider": return <hr key={component.id} style={style} />;
     case "spacer": return <div className="tenant-page-spacer" style={style} aria-hidden="true" key={component.id} />;
-    case "button": return <div className="tenant-page-action" style={style} key={component.id}>
-      {props.actionType === "workflow" && typeof props.workflowId === "string"
-        ? <TenantWorkflowAction token={token} workflowId={props.workflowId} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
-        : props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
-          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} />
-        : <button className="tenant-page-button" type="button" disabled>{text || title || "Eylem"}</button>}
-    </div>;
+    case "actionBar": {
+      const status = runtime?.actionStatus;
+      return status ? <div key={component.id} className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"} style={{ gridColumn: style.gridColumn, margin: style.margin }}>{status.text}</div> : null;
+    }
+    case "button": {
+      if (runtime?.movedButtons.has(component.id) || runtime?.rowOwned.has(component.id)) return null;
+      const disabled = componentDisabled(component, runtime);
+      const reason = disabled ? textValue(props.disabledReason).trim() : "";
+      const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
+      const action = runtime?.buttonAction(component);
+      return <div className="tenant-page-action" style={style} key={component.id}>
+        {runtime && action && action.type !== "workflow"
+          ? <QueryActionButton component={component} props={props} label={text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+          : workflow && !disabled
+            ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+            : <>
+              <button className="tenant-page-button" type="button" disabled title={reason || undefined}>{text || title || (workflow ? "İş akışını başlat" : "Eylem")}</button>
+              {reason && <small className="tenant-page-disabled-reason">{reason}</small>}
+            </>}
+      </div>;
+    }
+    case "tabs": {
+      if (!runtime) return null;
+      const tabs = parseTabs(props.tabs);
+      const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
+      // Doğrulanmayan (gizli veya pasif) girişlerin kalan iletileri sayılmaz.
+      // Doğrulama iletisi gösterilen düzenlenebilir tablolar ve özel alan blokları da sayılır.
+      const errorCounts = tabs.map((tab) => [...Object.keys(runtime.validationErrors).filter((inputId) => !runtime.skipsValidation(inputId)), ...runtime.componentErrorIds]
+        .filter((id) => runtime.ancestorsOf(id).some((owner) => tab.ids.includes(owner))).length);
+      const target = runtime.errorJump?.targets[component.id];
+      const jumpTo = runtime.errorJump && target !== undefined ? { tab: target, signal: runtime.errorJump.signal } : null;
+      const renderOwned = (id: string) => {
+        const owned = runtime.topLevelById[id];
+        // Sekme yalnız üst düzey bileşen sahiplenir; sekme içinde sekme, pencere ve İşlem Çubuğu çizilmez.
+        if (!owned || owned.type === "tabs" || owned.type === "actionBar" || owned.type === "dialog") return null;
+        return renderComponent(owned, forms, token, pageCode, runtime);
+      };
+      return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={defaultTab} renderOwned={renderOwned}
+        errorCounts={errorCounts} jumpTo={jumpTo} style={style} />;
+    }
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
       if (runtime && queryName && runtime.states[queryName]) {
         const tableName = component.name;
-        return <QueryTable key={component.id} state={runtime.states[queryName]} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
-          selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row) => runtime.select(tableName, row) : undefined} />;
+        const totals = Array.isArray(props.totals) ? props.totals.filter((code): code is string => typeof code === "string") : [];
+        const state = runtime.states[queryName];
+        const pager = runtime.tablePaging(component);
+        let paging: TablePaging | undefined;
+        if (pager) {
+          const searchInput = typeof props.searchInput === "string" ? runtime.inputById[props.searchInput.trim()] : undefined;
+          paging = {
+            ...pager,
+            meta: parseFieldList(props.footerMeta).map((item) => ({ label: item.label, value: cellText(state.meta?.[item.code]) })),
+            search: searchInput ? renderPageInput(searchInput, bindProps(searchInput.props ?? {}, runtime.scope), {}, runtime) : undefined,
+          };
+        }
+        // Satır işlemleri satır bindirmesiyle (`<tablo>.seciliSatir = satır`) değerlendirilir; tablo adsızsa çizilmez.
+        const rowActions: RowAction[] = tableName ? idList(props.rowActions, 4).flatMap((id) => {
+          const button = runtime.buttonById[id];
+          if (!button || !actionAllowed(runtime.buttonAction(button), runtime.rights)) return [];
+          const raw = button.props ?? {};
+          const rowScope = (row: Record<string, unknown>) => mergeOverlay(runtime.scope, { [tableName]: { seciliSatir: row } });
+          const buttonProps = bindProps(raw, runtime.scope);
+          return [{
+            id, label: textValue(buttonProps.text ?? buttonProps.label) || textValue(buttonProps.title) || "Eylem",
+            visible: (row) => conditionHolds(raw.visibleWhen, rowScope(row), true),
+            disabled: (row) => conditionHolds(raw.disabledWhen, rowScope(row), false)
+              ? interpolate(textValue(raw.disabledReason), rowScope(row)).trim() || BUTTON_UNAVAILABLE : null,
+            run: (row, opener) => runtime.runRowAction(component, button, row, opener),
+          }];
+        }) : [];
+        const limit = tableLimit(props.limit);
+        return <QueryTable key={component.id} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
+          formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
+          selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
+          rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null} />;
       }
-      return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} />;
+      return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
     case "form": {
       const formCode = textValue(props.formCode);
       const form = forms.find((item) => item.code === formCode);
       return form ? <div key={component.id} className="tenant-page-form-wrap" style={style}><EmbeddedCustomForm form={form} token={token} /></div> : <section className="tenant-page-block tenant-page-form" style={style} key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
     }
-    case "code": return <iframe key={component.id} className="tenant-page-code-frame" style={style} title={title || "Yalıtılmış özel kod"} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={isolatedCodeDocument(textValue(props.css), textValue(props.javascript))} />;
+    case "code": return <CodeFrame key={component.id} id={component.id} css={textValue(props.css)} javascript={textValue(props.javascript)}
+      hidden={props.hidden === true} style={style} title={title || "Yalıtılmış özel kod"} host={runtime?.codeHost ?? INERT_CODE_HOST} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
     case "alert": {
       const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
       return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={variant === "danger" ? "alert" : "status"}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
     }
     case "badge": {
-      const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
-      return <span key={component.id} className={`tenant-page-badge tone-${variant}`} style={style}>{text || title || "Durum"}</span>;
+      return <PageBadge key={component.id} text={text || title || "Durum"} variant={props.variant} toneMap={props.toneMap} style={style} />;
     }
     case "list": {
       const items = Array.isArray(props.items) ? props.items.filter((item): item is string => typeof item === "string").slice(0, 40) : [];
       return <section key={component.id} className="tenant-page-block tenant-page-list" style={style}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{items.length ? <ul>{items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul> : <p>Henüz liste öğesi eklenmedi.</p>}</section>;
+    }
+    case "dialog": {
+      if (!runtime) return null;
+      const ids = idList(props.contains, 20);
+      const steps = idList(props.saveSequence, 8);
+      const saveIds = steps.length > 0 ? steps : typeof props.saveQuery === "string" && props.saveQuery.trim() ? [props.saveQuery.trim()] : [];
+      const saveQueries = saveIds.map((id) => runtime.queryById[id]);
+      const canSave = saveQueries.length > 0 && saveQueries.every((query) => query && query.kind !== "read" && runtime.rights[query.kind] === true);
+      const renderOwned = (id: string) => {
+        const owned = runtime.topLevelById[id];
+        // Pencere yalnız üst düzey bileşen sahiplenir; pencere içinde pencere ve İşlem Çubuğu çizilmez.
+        if (!owned || owned.type === "dialog" || owned.type === "actionBar") return null;
+        return renderComponent(owned, forms, token, pageCode, runtime);
+      };
+      return <PageDialog key={component.id} id={component.id} title={title || "Pencere"} presentation={props.presentation === "drawer" ? "drawer" : "dialog"}
+        open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids}
+        save={canSave ? { label: textValue(props.saveLabel).trim() || "Kaydet", busy: runtime.dialogBusy[component.id] === true, run: () => runtime.saveDialog(component.id) } : undefined}
+        status={runtime.dialogStatus[component.id] ?? null} returnFocus={runtime.dialogOpener(component.id)} />;
+    }
+    case "editableGrid": {
+      if (!runtime || !component.name) return null;
+      const grid = runtime.gridFor(component);
+      const disabled = componentDisabled(component, runtime);
+      return <EditableGrid key={component.id} {...grid} title={title} style={style} disabled={disabled}
+        disabledReason={disabled ? textValue(props.disabledReason).trim() || BUTTON_UNAVAILABLE : ""}
+        fixedRowLabel={textValue(props.fixedRowLabel).trim()} addLabel={textValue(props.addLabel).trim() || "Satır ekle"} />;
+    }
+    case "customFieldsBlock": {
+      if (!runtime || !component.name) return null;
+      const block = runtime.blockFor(component);
+      const disabled = componentDisabled(component, runtime);
+      const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+      return <CustomFieldsBlock key={component.id} {...block} title={title} columns={columns} disabled={disabled} style={style} />;
+    }
+    case "image": {
+      const height = typeof props.height === "number" && Number.isFinite(props.height) ? Math.max(40, Math.min(400, Math.round(props.height))) : 160;
+      return <PageImage key={component.id} url={value} alt={title} height={height} fit={props.fit === "cover" ? "cover" : "contain"} style={style} />;
     }
     case "progress": {
       const progress = Math.max(0, Math.min(100, Number(props.value) || 0));
@@ -364,66 +825,1204 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   }
 }
 
+type GridSpec = { name: string; mode: GridMode; columns: GridColumn[]; maxRows: number; rowKey: string; sourceQuery: string };
+/** Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), satır anahtarı ve kaynak sorgu. */
+const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
+  const props = grid.props ?? {};
+  const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
+  const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 200 ? props.maxRows : 50;
+  return {
+    name: grid.name ?? "", mode, columns: mode === "matrix" ? [] : parseGridColumns(props.gridColumns), maxRows,
+    rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
+  };
+};
+/** Varyant kipinin önizleme sayısı: geçerli özelliklerin (adı ve değeri olan) farklı değer sayılarının çarpımı (200 sınırı uygulanmadan). */
+const matrixVariantCount = (state: GridState) => countVariantDrafts(state.rows.slice(0, MATRIX_MAX_ROWS)
+  .map((draft) => ({ name: String(draft.cells.name ?? ""), values: String(draft.cells.values ?? "") })));
+/** `stage` tablosunun sabit satır (ör. ana birim) değerleri: `unique` sütunlar bunlarla da karşılaştırılır. */
+const gridFixedValues = (grid: ComponentDefinition, spec: GridSpec, scope: PageScope) => spec.mode === "stage"
+  ? fixedRowValues(textValue(grid.props?.fixedRowLabel), spec.columns, (path) => resolvePath(scope, path)) : undefined;
+/** Bağlama yolu tablonun `satirlar`/`eklenenSatir`/`silinenSatir` alanına bakıyorsa o alan, değilse null. */
+const gridBindingList = (path: string | null, name: string) => {
+  if (!path || !path.startsWith(`${name}.`)) return null;
+  return /^(satirlar|eklenenSatir|silinenSatir)(?:\.|\[|$)/.exec(path.slice(name.length + 1))?.[1] ?? null;
+};
+const bindsGrid = (query: PageQueryDefinition, name: string, list?: string) =>
+  query.parameters.some((parameter) => { const bound = gridBindingList(bindingPath(parameter.binding), name); return bound !== null && (!list || bound === list); });
+const bindsBlock = (query: PageQueryDefinition, name: string) => query.parameters.some((parameter) => bindingPath(parameter.binding) === `${name}.degerler`);
+/** Verilen anahtarlar olmadan kayıt (hiçbiri yoksa aynı nesne). */
+const without = <T,>(record: Record<string, T>, ids: string[]) => {
+  if (!ids.some((id) => id in record)) return record;
+  const next = { ...record };
+  for (const id of ids) delete next[id];
+  return next;
+};
+const LEAVE_MESSAGE = "Kaydedilmemiş değişiklikler kaybolacak. Devam edilsin mi?";
+const PLACEHOLDER_ROOT = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+
+const inputIsCheckbox = (input: ComponentDefinition | undefined) => textValue(input?.props?.inputType, "text") === "checkbox";
+/** Veri listesinin `limit` özelliği (1–100 tamsayı); geçersizse sınır yok. */
+const tableLimit = (value: unknown) => (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 100 ? value : undefined);
+
+/** Sayfa yazma yollarının kod bileşeni kancaları: beforeSave sorusu ve afterSave olayı. */
+const codeWriteHooks = (events: PageEvents) => ({
+  beforeWrite: (query: PageQueryDefinition) => events.beforeSave(query.name),
+  afterWrite: (query: PageQueryDefinition, result: WriteResult) => events.emit("afterSave", { query: query.name, sonuc: result.sonuc ?? null }),
+});
+
+/** v1 sayfalarda bağlama/sorgu yoktur: köprü yalnız yüksekliği ve abonelikleri kabul eder, veri isteklerini reddeder. */
+const V1_BRIDGE_ERROR = "Bu sayfada kod köprüsü kullanılamaz.";
+const INERT_CODE_HOST: BridgeHost = {
+  get: () => { throw new Error(V1_BRIDGE_ERROR); },
+  setInput: () => { throw new Error(V1_BRIDGE_ERROR); },
+  runQuery: async () => { throw new Error(V1_BRIDGE_ERROR); },
+  callOperation: async () => { throw new Error(V1_BRIDGE_ERROR); },
+  subscribe: () => undefined,
+  setHeight: () => undefined,
+};
+const INERT_PAGE_EVENTS = createPageEvents();
+
+const NO_RIGHTS = "Bu işlem için yetkiniz yok.";
+const WRITE_BUSY = "Başka bir yazma işlemi sürüyor; biraz sonra yeniden deneyin.";
+const CATALOG_WAIT_MS = 10_000;
+
+/**
+ * Sayfadaki `actionBar` bileşeninin komutlarını kabuğun İşlem Çubuğu'na kaydeder (yalnız actionBar varken bağlanır;
+ * kalkınca kayıt da kalkar). Tüm yazma yolları tek uçuş kilidini paylaşır.
+ */
+function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onStatus, onBusy, busy }: {
+  barProps: Record<string, unknown>; runtime: PageRuntime; page: PublishedPage; token: string; flat: ComponentDefinition[];
+  loadIds: string[]; onStatus: (status: ActionStatus | null) => void; onBusy: (busy: boolean) => void; busy: boolean;
+}) {
+  const inFlight = runtime.writeLock;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const latest = useRef(runtime);
+  latest.current = runtime;
+  const buttonProps = (component: ComponentDefinition) => bindProps(component.props ?? {}, latest.current.scope);
+  const buttonLabel = (id: string) => {
+    const component = flat.find((item) => item.id === id && item.type === "button");
+    if (!component) return undefined;
+    const props = buttonProps(component);
+    const label = textValue(props.text ?? props.label) || textValue(props.title);
+    if (props.actionType === "workflow" && typeof props.workflowId === "string" && props.workflowId) return label || "İş akışını başlat";
+    // Sorgu ve dizi her adım türünün sayfa hakkını, pencere yalnız görüntüleme hakkını ister.
+    if (!actionAllowed(runtime.buttonAction(component), runtime.rights)) return undefined;
+    return label || "Eylem";
+  };
+  const sequenceSource = (props: Record<string, unknown>, name?: string): SequenceSource => ({
+    props, name,
+    onStatus: (status) => { if (mounted.current) onStatus(status); },
+    onBusy: (next) => { if (mounted.current) onBusy(next); },
+  });
+
+  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = []) => {
+    onStatus(null);
+    const result = await runWriteAction({
+      query, isPreview: latest.current.isPreview, inFlight, confirm,
+      write: async (target, confirmWrite) => {
+        if (mounted.current) onBusy(true);
+        try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
+      },
+      errorText: (cause) => writeErrorText(errorPrefix, cause),
+      validate: () => latest.current.validateFor(query),
+      ...codeWriteHooks(latest.current.events),
+    });
+    if (!mounted.current || !("ok" in result)) return;
+    if (result.ok) {
+      onStatus({ tone: "success", text: `${successText} (${result.affectedRows} kayıt)` });
+      latest.current.rerun([...new Set([...loadIds, ...extraRefresh])]);
+    } else if ("error" in result) onStatus({ tone: "error", text: result.error });
+  };
+
+  const runButton = (id: string) => {
+    const component = flat.find((item) => item.id === id && item.type === "button");
+    if (!component) return;
+    // Menü komutu oluşturulduktan sonra koşul değişmiş olabilir: gizli veya pasif düğme çalışmaz.
+    if (!componentVisible(component, latest.current) || componentDisabled(component, latest.current)) return;
+    const props = buttonProps(component);
+    const bound = (key: string) => interpolate(textValue(props[key]), latest.current.scope).trim();
+    if (props.actionType === "workflow" && typeof props.workflowId === "string") {
+      const title = textValue(props.text ?? props.label) || textValue(props.title) || "İş akışını başlat";
+      if (inFlight.current) return;
+      inFlight.current = true;
+      onStatus(null);
+      void startPageWorkflow(token, props.workflowId, title, page.code, id)
+        .then(() => { if (mounted.current) onStatus({ tone: "success", text: "İş akışı başlatıldı." }); })
+        .catch((cause: unknown) => { if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "İş akışı başlatılamadı." }); })
+        .finally(() => { inFlight.current = false; });
+      return;
+    }
+    const action = latest.current.buttonAction(component);
+    if (!actionAllowed(action, latest.current.rights)) return;
+    if (action?.type === "openDialog") {
+      latest.current.openDialog(props.dialogId as string, document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      return;
+    }
+    if (usesSequence(action, props)) {
+      onStatus(null);
+      void latest.current.runSequence(sequenceSource(component.props ?? {}, component.name));
+      return;
+    }
+    const query = action?.query;
+    if (!query) return;
+    if (query.kind === "read") { latest.current.rerun([query.id]); return; }
+    const refresh = Array.isArray(props.refreshQueries) ? props.refreshQueries.filter((item): item is string => typeof item === "string") : [];
+    void writeThroughBar(query, {
+      enabled: props.confirmEnabled === true, text: bound("confirmText"),
+      tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
+    }, bound("successMessage") || "İşlem tamamlandı.", bound("errorMessage"), refresh);
+  };
+
+  const exportTable = async (tableId: string) => {
+    const current = latest.current;
+    const table = current.tableById[tableId];
+    const state = table && typeof table.props?.query === "string" ? current.states[current.queryNames[table.props.query]] : undefined;
+    if (!table || !state) return;
+    const chosen = Array.isArray(table.props?.columns) ? table.props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
+    const title = interpolate(textValue(table.props?.title), current.scope).trim() || "Liste";
+    // `limit`: aktarım da yalnız çizilen satırları kullanır.
+    const limit = tableLimit(table.props?.limit);
+    const rows = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
+    onStatus(null);
+    try {
+      await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, rows, chosen));
+      // Sunucu sayfalı liste her zaman "kesilmiş"tir: yalnız görünen sayfa aktarılır ve bu bildirilir.
+      if (mounted.current && table.props?.paging === "server") onStatus({ tone: "warning", text: `Yalnız görünen sayfa aktarıldı (${state.rows.length} satır).` });
+      else if (mounted.current && state.truncated) onStatus({ tone: "warning", text: `Liste ilk ${state.rows.length} satırla sınırlı` });
+    } catch (cause) {
+      if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "Excel dosyası oluşturulamadı." });
+    }
+  };
+
+  const commands = buildPageCommands(barProps, {
+    rights: runtime.rights, busy,
+    queryKind: (id) => runtime.queryById[id]?.kind,
+    inputIds: new Set(Object.keys(runtime.inputById)),
+    tableState: (tableId) => {
+      const table = runtime.tableById[tableId];
+      const state = table && typeof table.props?.query === "string" ? runtime.states[runtime.queryNames[table.props.query]] : undefined;
+      return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
+    },
+    buttonLabel,
+    buttonGate: (id) => {
+      const component = flat.find((item) => item.id === id && item.type === "button");
+      if (!component) return undefined;
+      if (!componentVisible(component, runtime)) return { hidden: true };
+      if (!componentDisabled(component, runtime)) return undefined;
+      return { disabled: true, disabledReason: textValue(buttonProps(component).disabledReason).trim() || BUTTON_UNAVAILABLE };
+    },
+    deleteNeedsSelection: (() => {
+      const deleteQuery = latest.current.queryById[typeof barProps.deleteQuery === "string" ? barProps.deleteQuery.trim() : ""];
+      return !!deleteQuery && deleteQuery.parameters.some((parameter) => {
+        const table = /^([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir(?:\.|$)/.exec(bindingPath(parameter.binding) ?? "")?.[1];
+        return !!table && !runtime.selections[table];
+      });
+    })(),
+    run: {
+      clearInputs: (ids) => ids.forEach((id) => latest.current.setInput(id, inputIsCheckbox(latest.current.inputById[id]) ? false : "")),
+      write: (queryId, kind) => {
+        const query = latest.current.queryById[queryId];
+        if (!query) return;
+        if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "");
+        else void writeThroughBar(query, { enabled: true, title: "Kayıt silinsin mi?", confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
+      },
+      saveSequence: () => {
+        onStatus(null);
+        void latest.current.runSequence(sequenceSource(barProps));
+      },
+      refresh: () => latest.current.rerun(loadIds),
+      focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
+      print: () => window.print(),
+      exportTable: (tableId) => void exportTable(tableId),
+      button: runButton,
+    },
+  });
+  // Yeni: kaydedilmemiş değişiklik varsa önce sorulur; devam edilirse tablolar, bloklar ve kayıt sonuçları da sıfırlanır.
+  const clearAndFocus = commands.new?.run;
+  if (commands.new && clearAndFocus) {
+    commands.new = {
+      ...commands.new,
+      run: async () => {
+        if (!(await confirmStartNew(latest.current.isDirty()))) return;
+        latest.current.startNew();
+        await clearAndFocus();
+      },
+    };
+  }
+  usePageCommands(commands);
+  return null;
+}
+
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
 function PageBody({ page, components, queryDefinitions, isV2, token, previewId }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   const [selections, setSelections] = useState<Record<string, Record<string, unknown> | null>>({});
+  const [actionStatus, setActionStatus] = useState<ActionStatus | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const flat = useMemo(() => flattenComponents(components), [components]);
+  const bar = useMemo(() => (isV2 ? actionBarOf(flat) : null), [isV2, flat]);
+  const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
+  const dialogById = useMemo(() => Object.fromEntries((isV2 ? components : []).filter((component) => component.type === "dialog").map((dialog) => [dialog.id, dialog])), [isV2, components]);
+  const dialogIds = useMemo(() => new Set(Object.keys(dialogById)), [dialogById]);
+  // Eylemi olan düğme (sorgu, dizi, pencere, iş akışı) İşlemler menüsüne taşınır; eylemsiz düğme sayfada kalır.
+  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds) !== null)
+    : new Set<string>()), [bar, flat, queryById, dialogIds]);
+  const dialogOwned = useMemo(() => (isV2 ? dialogOwnedIds(components) : new Set<string>()), [isV2, components]);
+  const rowOwned = useMemo(() => (isV2 ? rowActionIds(flat) : new Set<string>()), [isV2, flat]);
+  const buttonById = useMemo(() => Object.fromEntries(flat.filter((component) => component.type === "button").map((button) => [button.id, button])), [flat]);
+  // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
+  const writeLock = useRef(false);
   const user = useMemo(() => sessionUser(token), [token]);
   const inputs = useMemo(() => flattenComponents(components).filter((component) => component.type === "input"), [components]);
-  const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
+  // {{sayilar.x}}: yalnız sayfada geçen rapor kaynaklarının kayıt sayısı getirilir.
+  const countCodes = useMemo(() => isV2
+    ? referencedCountCodes(collectTexts([flattenComponents(components).map((component) => component.props ?? {}), queryDefinitions.map((query) => query.parameters)]))
+    : [], [isV2, components, queryDefinitions]);
+  const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
+  // formCard/facetPanel girişleri ve sayfalı listelerin arama girişleri üst düzeyde ayrıca çizilmez.
+  const ownedInputs = useMemo(() => {
+    const layout = flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }));
+    return new Set([...ownedInputIds(layout), ...(isV2 ? tableSearchInputIds(layout) : [])]);
+  }, [components, isV2]);
+  const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
+  const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
+  const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
+  const flatById = useMemo(() => Object.fromEntries(flat.map((component) => [component.id, component])), [flat]);
+  const topLevelById = useMemo(() => Object.fromEntries(components.map((component) => [component.id, component])), [components]);
+  const tabOwned = useMemo(() => (isV2 ? tabOwnedIds(flat) : new Set<string>()), [isV2, flat]);
+  // Sahip zinciri: iç içe çocuk → üst bileşen, formCard/facetPanel girişi → kart, sekmenin bileşeni → sekmeler.
+  const parentOf = useMemo(() => {
+    const map: Record<string, string> = {};
+    const walk = (list: ComponentDefinition[], parent?: string) => list.forEach((component) => {
+      if (parent) map[component.id] = parent;
+      walk(component.children ?? [], component.id);
+    });
+    walk(components);
+    for (const component of flat) {
+      if (component.type === "formCard" || component.type === "facetPanel") for (const id of idList(component.props?.inputs)) map[id] = component.id;
+      // Sayfalı listenin arama girişi liste başlığında çizilir: görünürlüğü ve sekme hata zinciri listeyi izler.
+      if (component.type === "dataTable" && component.props?.paging === "server" && typeof component.props.searchInput === "string") {
+        const searchId = component.props.searchInput.trim();
+        if (searchId && !(searchId in map)) map[searchId] = component.id;
+      }
+    }
+    // Pencerenin bileşeni → pencere (kapalı pencere gizli sahip sayılır: girişleri doğrulanmaz).
+    for (const component of components) {
+      if (component.type !== "dialog") continue;
+      for (const id of idList(component.props?.contains, 20)) if (!(id in map)) map[id] = component.id;
+    }
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      for (const tab of parseTabs(component.props?.tabs)) for (const id of tab.ids) if (!(id in map)) map[id] = component.id;
+    }
+    return map;
+  }, [components, flat]);
+  const ancestorsOf = (componentId: string): string[] => {
+    const chain: string[] = [];
+    for (let id: string | undefined = componentId; id !== undefined && !chain.includes(id); id = parentOf[id]) chain.push(id);
+    return chain;
+  };
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [errorJump, setErrorJump] = useState<PageRuntime["errorJump"]>(null);
+  // Arama kutuları: yazılan metin ve seçim anında saklanan satır (yalnız değer hâlâ aynıyken geçerli).
+  const [lookupState, setLookupState] = useState<Record<string, { search: string; value?: string; row?: Record<string, unknown> | null; label?: string }>>({});
+  // Sayfalı listeler: sayfa, hangi sorgu değerleri (sayfa parametreleri hariç) ve arama metniyle seçildiyse o anahtarla saklanır.
+  const [tablePages, setTablePages] = useState<Record<string, { page: number; key: string }>>({});
+  // Pencereler: açık durumu, kayıt sonucu ve meşguliyeti; açan öğe odağın döneceği yerdir.
+  const [dialogs, setDialogs] = useState<Record<string, boolean>>({});
+  const [dialogStatus, setDialogStatus] = useState<Record<string, ActionStatus | null>>({});
+  const [dialogBusy, setDialogBusy] = useState<Record<string, boolean>>({});
+  const dialogOpeners = useRef<Record<string, HTMLElement | null>>({});
+  const [tableStatus, setTableStatus] = useState<Record<string, ActionStatus | null>>({});
+  // Düzenlenebilir tablolar (ada göre bekleyen satırlar) ve özel alan blokları (ada göre yazılan değerler).
+  const [grids, setGrids] = useState<Record<string, GridState>>({});
+  const [customTyped, setCustomTyped] = useState<Record<string, Record<string, string>>>({});
+  const customTypedRef = useRef(customTyped);
+  customTypedRef.current = customTyped;
+  // Engellenen kayıttan sonra iletisi gösterilen tablolar ve bloklar (iletiler düzeltildikçe canlı güncellenir).
+  const [gridShown, setGridShown] = useState<Record<string, boolean>>({});
+  const [blockShown, setBlockShown] = useState<Record<string, boolean>>({});
+  const gridComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "editableGrid" && !!component.name) : []), [isV2, flat]);
+  const blockComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "customFieldsBlock" && !!component.name) : []), [isV2, flat]);
+  const formCards = useMemo(() => (isV2 ? flat.filter((component) => component.type === "formCard") : []), [isV2, flat]);
+
+  /** Girişin kapsamdaki nesnesi; arama kutusunda `search` (minChars altında null) ve `seciliSatir` da vardır. */
+  const inputScope = (input: ComponentDefinition, raw: InputRaw, states: Record<string, QueryState>): Record<string, unknown> => {
+    const inputType = textValue(input.props?.inputType, "text");
+    const value = scopeInputValue(inputType, raw);
+    if (inputType !== "lookup") return { value };
+    const stored = lookupState[input.id];
+    const search = stored?.search ?? "";
+    const minChars = typeof input.props?.minChars === "number" ? input.props.minChars : 1;
+    const text = typeof raw === "string" ? raw : "";
+    let seciliSatir: Record<string, unknown> | null = null;
+    if (stored && "value" in stored && stored.value === text) seciliSatir = stored.row ?? null;
+    else if (text !== "") {
+      // Değer dışarıdan geldi (varsayılan, setInput): eşleşen sorgu satırı; sabit veya bilinmeyen seçenekte null.
+      const optionsId = input.props?.optionsQuery;
+      const optionsState = typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined;
+      seciliSatir = lookupCandidates(input.props ?? {}, optionsState, "", false).find((option) => option.value === text)?.row ?? null;
+    }
+    return { value, search: search.length >= minChars ? search : null, seciliSatir };
+  };
+  /** Sayfalı listenin sayfası: saklanan anahtar güncel sorgu değerleriyle (sayfa parametreleri hariç) ve arama metniyle eşleşmezse 1. */
+  const tablePageInfo = (table: ComponentDefinition, scope: PageScope, raw: Record<string, InputRaw>) => {
+    const props = table.props ?? {};
+    const pageSize = typeof props.pageSize === "number" && Number.isInteger(props.pageSize) && props.pageSize >= 5 && props.pageSize <= 100 ? props.pageSize : 25;
+    const pageParam = textValue(props.pageParam) || "page";
+    const pageSizeParam = textValue(props.pageSizeParam) || "pageSize";
+    const query = typeof props.query === "string" ? queryById[props.query] : undefined;
+    const values = query ? resolveQueryParameters({ ...query, parameters: query.parameters.filter((parameter) => parameter.name !== pageParam && parameter.name !== pageSizeParam) }, scope) : null;
+    const searchId = typeof props.searchInput === "string" ? props.searchInput.trim() : "";
+    const key = JSON.stringify([values, searchId ? raw[searchId] ?? "" : null]);
+    const stored = tablePages[table.name!];
+    return { page: stored && stored.key === key ? stored.page : 1, pageSize, key };
+  };
+
+  /** `stage` tablosunun kaynak sorgu durumu (diğer kiplerde yok). */
+  const gridSourceState = (spec: GridSpec, states: Record<string, QueryState>) => (spec.sourceQuery ? states[queryNames[spec.sourceQuery]] : undefined);
+  /** Kaynak anahtarı: kaynak okumasının çalıştığı değerler (`ranWith`). */
+  const gridKey = (spec: GridSpec, states: Record<string, QueryState>) => JSON.stringify(gridSourceState(spec, states)?.ranWith ?? null);
+  const gridSourceRows = (spec: GridSpec, states: Record<string, QueryState>) => (spec.mode === "stage" ? gridSourceState(spec, states)?.rows ?? [] : []);
+  /** Saklanmamış tablo, güncel kaynak anahtarıyla boş başlar. */
+  const gridStateOf = (spec: GridSpec, states: Record<string, QueryState>) => grids[spec.name] ?? emptyGridState(gridKey(spec, states));
+  const blockData = (block: ComponentDefinition, states: Record<string, QueryState>) => {
+    const definitionsId = textValue(block.props?.definitionsQuery).trim();
+    const valuesId = textValue(block.props?.valuesQuery).trim();
+    const definitions = definitionsId ? states[queryNames[definitionsId]] : undefined;
+    const valuesState = valuesId ? states[queryNames[valuesId]] : undefined;
+    const specs = customFieldSpecs(definitions?.rows ?? []);
+    const typed = customTyped[block.name!] ?? {};
+    const values = customFieldValues(specs, valuesState?.rows ?? [], typed);
+    // Kirli: yazılan değerlerden en az biri kaynak değerden farklı (başarılı kayıttan sonra yazılanlar kaynağa eşitlenir).
+    const stored = customFieldValues(specs, valuesState?.rows ?? [], {});
+    const dirty = specs.some((spec) => Object.prototype.hasOwnProperty.call(typed, spec.code) && typed[spec.code] !== stored[spec.code]);
+    return { specs, values, dirty, definitions, valuesState };
+  };
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
-    const base: PageScope = { kullanici: user, bugun: localToday(), ...states };
+    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
+    for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
+    // Sayfalı listenin kapsamı seçimden önce de vardır (ilk istek sayfa 1 ile gider); kesin sayfa girişlerden sonra çözülür.
+    for (const table of pagedTables) base[table.name!] = { seciliSatir: selections[table.name!] ?? null, sayfa: tablePages[table.name!]?.page ?? 1, sayfaBoyutu: 25 };
     for (const input of inputs) {
-      if (input.name && input.id in touched) base[input.name] = { value: scopeInputValue(textValue(input.props?.inputType, "text"), touched[input.id]) };
+      if (input.name && input.id in touched) base[input.name] = inputScope(input, touched[input.id], states);
     }
     const scope: PageScope = { ...base };
     const raw: Record<string, InputRaw> = {};
+    const defaults: Record<string, InputRaw> = {};
     for (const input of inputs) {
       const inputType = textValue(input.props?.inputType, "text");
-      raw[input.id] = input.id in touched ? touched[input.id] : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
-      if (input.name) scope[input.name] = { value: scopeInputValue(inputType, raw[input.id]) };
+      defaults[input.id] = rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
+      raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
+      if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
     }
-    return { scope, raw };
+    // Düzenlenebilir tablolar ve özel alan blokları girişlerden sonra çözülür (varyant kod/ad önekleri girişlere bağlanır).
+    for (const grid of gridComponents) {
+      const spec = gridSpecOf(grid);
+      const matrix = spec.mode === "matrix"
+        ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
+      scope[spec.name] = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
+    }
+    for (const block of blockComponents) {
+      const data = blockData(block, states);
+      scope[block.name!] = { degerler: data.values, degisti: data.dirty };
+    }
+    const pages: Record<string, { page: number; pageSize: number; key: string }> = {};
+    for (const table of pagedTables) {
+      const info = tablePageInfo(table, scope, raw);
+      pages[table.name!] = info;
+      scope[table.name!] = { seciliSatir: selections[table.name!] ?? null, sayfa: info.page, sayfaBoyutu: info.pageSize };
+    }
+    return { scope, raw, pages, defaults };
   };
 
-  const { states, scope, rerun, runWrite } = usePageQueries({
+  // ERP işlem kataloğu yalnız işlem kullanan sayfalarda getirilir; SQL sorgulu sayfalar ek istek yapmaz.
+  // Kod bileşeni callOperation çağırınca katalog ilk kez o an istenir (kod kullanmayan sayfalar ek istek yapmaz).
+  const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
+  const [codeWantsOperations, setCodeWantsOperations] = useState(false);
+  const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
+  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults } = usePageQueries({
     queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
+    operations: erpOperations.operations,
   });
+  const inputErrors = operationInputErrors(queryDefinitions, states);
+  const events = useMemo(() => createPageEvents(), []);
+  const rights = page.rights ?? { view: true };
+  const isPreview = Boolean(previewId);
+  /**
+   * Düzenleme (bodyMap) eşlemi kaynak satırların üzerine birleştirilir: yalnız kullanıcının yazdığı kodlar ve kaynakta değeri
+   * olmayan Boolean alanların "false"u gönderilir; dokunulmamış kodlar "" ile gidip kayıtlı değeri silmez.
+   */
+  const editMapValues = (query: PageQueryDefinition, values: Record<string, unknown>): Record<string, unknown> => {
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    if (!op?.bodyMap) return values;
+    const parameter = query.parameters.find((item) => item.name === op.bodyMap!.property);
+    const path = parameter ? bindingPath(parameter.binding) : null;
+    const block = path ? blockComponents.find((component) => `${component.name}.degerler` === path) : undefined;
+    if (!parameter || !block) return values;
+    const current = currentScope() as Record<string, unknown>;
+    const stateOf = (id: string) => (id ? current[queryNames[id]] as QueryState | undefined : undefined);
+    const specs = customFieldSpecs(stateOf(textValue(block.props?.definitionsQuery).trim())?.rows ?? []);
+    const rows = stateOf(textValue(block.props?.valuesQuery).trim())?.rows ?? [];
+    const typed = customTypedRef.current[block.name!] ?? {};
+    const all = customFieldValues(specs, rows, typed);
+    // Kaynakta değeri olan kodlar eşlemin gerçek kaynağından (bodyMap.sourceOperation okuması) okunur, bloğun valuesQuery'sinden değil.
+    const { sourceOperation, keyColumn, valueColumn } = op.bodyMap;
+    const mapSource = queryDefinitions.find((candidate) => candidate.kind === "read" && candidate.operation === sourceOperation);
+    const mapRows = (mapSource ? (current[mapSource.name] as QueryState | undefined)?.rows : undefined) ?? [];
+    const sourceHas = new Set(mapRows.filter((row) => typeof row?.[keyColumn] === "string" && displayText(row[valueColumn]) !== "")
+      .map((row) => row[keyColumn] as string));
+    const overlay: Record<string, string> = {};
+    for (const spec of specs) {
+      if (Object.prototype.hasOwnProperty.call(typed, spec.code)) overlay[spec.code] = all[spec.code];
+      else if (spec.inputType === "checkbox" && !sourceHas.has(spec.code)) overlay[spec.code] = "false";
+    }
+    return { ...values, [parameter.name]: overlay };
+  };
+  // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
+  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
+    const values = editMapValues(query, resolved);
+    const result = await runWrite(query, values, confirmWrite);
+    const sent = gridComponents.filter((grid) => gridSpecOf(grid).mode !== "stage" && bindsGrid(query, grid.name!, "satirlar")).map((grid) => grid.name!);
+    if (sent.length > 0) {
+      setGrids((previous) => without(previous, sent));
+      setGridShown((previous) => without(previous, sent));
+    }
+    return result;
+  };
+  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean) => trackedWrite(query, resolveQueryParameters(query, scope), confirmWrite);
+  const writeWith = (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => trackedWrite(query, values, confirmWrite);
+  // Bekleyen işlemler (dizi adımları, istem/onay sonrası) render anındaki değil en güncel kapsamı okur.
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const currentScope = () => scopeRef.current;
+  const loadIds = useMemo(() => queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id), [queryDefinitions]);
+
+  // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır. ERP kataloğu yüklenemediyse
+  // işlem sorguları hiç çalışmaz; onlar sonuçlanmış sayılır (load yine yayımlanır).
+  const operationsFailed = Boolean(erpOperations.error);
+  const loadSettled = isV2 && queryDefinitions.every((query) => query.kind !== "read" || query.runOn !== "load"
+    || (query.operation !== undefined && operationsFailed) || !states[query.name]?.loading);
+  useEffect(() => { if (loadSettled && !events.isLoaded()) events.emit("load", {}); }, [loadSettled, events]);
+
+  // Köprü (BridgeHost) bir kez kurulur ve sayfanın en güncel durumunu okur; çerçeve her girdiye güvenilmez gözle bakar.
+  const codeLatest = useRef({ scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations });
+  codeLatest.current = { scope, inputs, queryDefinitions, rights, isPreview, writeFor, runRead, callOperation, erpOperations };
+  // İstemci giriş doğrulaması (aşağıda tanımlanır); köprünün yazma yolu da diğer yazma yolları gibi önce doğrular.
+  const codeValidate = useRef<(query: PageQueryDefinition) => string | null>(() => null);
+  const catalogWaiters = useRef(new Set<() => void>());
+  useEffect(() => {
+    if (!erpOperations.operations && !erpOperations.error) return;
+    const waiters = [...catalogWaiters.current];
+    catalogWaiters.current.clear();
+    waiters.forEach((wake) => wake());
+  }, [erpOperations.operations, erpOperations.error]);
+  useEffect(() => () => { catalogWaiters.current.forEach((wake) => wake()); catalogWaiters.current.clear(); }, []);
+  const codeHost = useMemo<BridgeHost>(() => {
+    const catalog = async (): Promise<Map<string, ErpOperation>> => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const { operations, error } = codeLatest.current.erpOperations;
+        if (operations) return operations;
+        if (error) throw new Error(`ERP işlem kataloğu yüklenemedi: ${error}`);
+        if (attempt === 1) break;
+        setCodeWantsOperations(true);
+        await new Promise<void>((resolve) => {
+          const wake = () => { clearTimeout(timer); catalogWaiters.current.delete(wake); resolve(); };
+          const timer = setTimeout(wake, CATALOG_WAIT_MS);
+          catalogWaiters.current.add(wake);
+        });
+      }
+      throw new Error("ERP işlem kataloğu yüklenemedi.");
+    };
+    return {
+      get: (path) => resolvePath(codeLatest.current.scope, path),
+      setInput: (name, value) => {
+        const input = codeLatest.current.inputs.find((candidate) => candidate.name === name);
+        if (!input) throw new Error(`Giriş bulunamadı: ${name}`);
+        const raw: InputRaw = inputIsCheckbox(input) ? value === true || value === "true" : value === null ? "" : String(value);
+        setTouched((current) => ({ ...current, [input.id]: raw }));
+      },
+      runQuery: async (name) => {
+        const current = codeLatest.current;
+        const query = current.queryDefinitions.find((candidate) => candidate.name === name);
+        if (!query) throw new Error(`Sorgu bulunamadı: ${name}`);
+        if (current.rights[query.kind === "read" ? "view" : query.kind] !== true) throw new Error(NO_RIGHTS);
+        if (query.kind === "read") {
+          const state = await current.runRead(query.id);
+          return { rows: state.rows, rowCount: state.rowCount };
+        }
+        const outcome = await runWriteAction({
+          query, isPreview: current.isPreview, inFlight: writeLock, confirm: { enabled: false },
+          write: (target, confirmWrite) => codeLatest.current.writeFor(target, confirmWrite),
+          validate: () => codeValidate.current(query),
+          errorText: (cause) => writeErrorText("", cause),
+          ...codeWriteHooks(events),
+        });
+        if (outcome.ok) return { affectedRows: outcome.affectedRows, sonuc: outcome.sonuc ?? null };
+        if ("busy" in outcome) throw new Error(WRITE_BUSY);
+        if ("cancelled" in outcome) throw new Error("İşlem iptal edildi.");
+        throw new Error(outcome.error);
+      },
+      callOperation: async (name, values) => {
+        const op = (await catalog()).get(name);
+        if (!op) throw new Error(`ERP işlemi bulunamadı: ${name}`);
+        const current = codeLatest.current;
+        // Yazma işlemi sayfanın ekle/güncelle/sil hakkını ister; tutarsız (yazma + pageKind "read") giriş reddedilir.
+        const right = op.kind === "read" ? "view" : op.pageKind === "read" ? null : op.pageKind;
+        if (!op.allowed || !right || current.rights[right] !== true) throw new Error(NO_RIGHTS);
+        if (op.kind === "read") {
+          const mapped = mapOperationResult(op, await current.callOperation(op, values));
+          return { rows: mapped.rows, rowCount: mapped.rowCount };
+        }
+        if (current.isPreview) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
+        if (writeLock.current) throw new Error(WRITE_BUSY);
+        writeLock.current = true;
+        try { return { sonuc: await current.callOperation(op, values) }; } finally { writeLock.current = false; }
+      },
+      subscribe: () => undefined,
+      setHeight: () => undefined,
+    };
+  }, [events]);
+
+  const current = effective(states);
+  const inputValues = current.raw;
+  // Arama metni veya listenin sorgu değerleri değişti: sayfa 1'e döner ve öyle saklanır (eski anahtara dönülse de 1 kalır).
+  const stalePages = Object.entries(current.pages).filter(([name, info]) => tablePages[name] && tablePages[name].key !== info.key);
+  const stalePageSignature = JSON.stringify(stalePages.map(([name, info]) => [name, info.key]));
+  useEffect(() => {
+    if (stalePages.length === 0) return;
+    setTablePages((previous) => {
+      const next = { ...previous };
+      for (const [name, info] of stalePages) next[name] = { page: 1, key: info.key };
+      return next;
+    });
+  }, [stalePageSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Girişin istemci doğrulama iletisi (yoksa null); kurallar girişin kendi özelliklerinden okunur. */
+  const inputMessage = (componentId: string, raw: InputRaw | undefined): string | null => {
+    const input = inputById[componentId];
+    if (!input) return null;
+    return validateInputValue(textValue(input.props?.inputType, "text"), inputRules(input.props ?? {}), raw ?? "");
+  };
+  const storeMessage = (componentId: string, message: string | null) => setValidationErrors((current) => {
+    if (message === null) {
+      if (!(componentId in current)) return current;
+      const next = { ...current };
+      delete next[componentId];
+      return next;
+    }
+    return current[componentId] === message ? current : { ...current, [componentId]: message };
+  });
+  // Doğrulanmayan girişler: kendisi veya bir sahibi `visibleWhen` ile gizli (kapalı pencere de gizli sahiptir), ya da kendisi `disabledWhen` ile pasif.
+  const skipsValidation = (input: ComponentDefinition) =>
+    ancestorsOf(input.id).some((id) => flatById[id] && (!conditionHolds(flatById[id].props?.visibleWhen, scope, true)
+      || (flatById[id].type === "dialog" && dialogs[id] !== true)))
+    || conditionHolds(input.props?.disabledWhen, scope, false);
+  const validateFor = (query: PageQueryDefinition): string | null => validateForAll([query]);
+  /** Sorguların bağladığı girişlerin birleşimini tek geçişte doğrular (kayıt dizisi: etkin adımlar). */
+  const validateForAll = (queries: PageQueryDefinition[]): string | null => {
+    const names: string[] = [];
+    for (const query of queries) {
+      for (const name of boundInputNames(query)) if (!names.includes(name)) names.push(name);
+      // Arama kutusu `{{ad.seciliSatir…}}` ile de bağlanabilir: o zaman da doğrulanır.
+      for (const parameter of query.parameters) {
+        const root = /^([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir(?:\.|$)/.exec(bindingPath(parameter.binding) ?? "")?.[1];
+        if (root && !names.includes(root) && inputs.some((input) => input.name === root && textValue(input.props?.inputType, "text") === "lookup")) names.push(root);
+      }
+    }
+    const failures: Record<string, string> = {};
+    const cleared: string[] = [];
+    for (const input of inputs) {
+      if (!input.name || !names.includes(input.name)) continue;
+      const message = skipsValidation(input) ? null : inputMessage(input.id, inputValues[input.id]);
+      if (message) failures[input.id] = message; else cleared.push(input.id);
+    }
+    setValidationErrors((current) => {
+      const next = { ...current, ...failures };
+      for (const id of cleared) delete next[id];
+      return next;
+    });
+    // Sorguların bağladığı düzenlenebilir tablolar (`satirlar` ya da yineleme listesi) ve özel alan blokları (`degerler`).
+    const componentFailures: string[] = [];
+    const shownGrids: Record<string, boolean> = {};
+    for (const grid of gridComponents) {
+      const spec = gridSpecOf(grid);
+      if (!queries.some((query) => bindsGrid(query, spec.name))) continue;
+      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()));
+      shownGrids[spec.name] = Object.keys(errors).length > 0;
+      if (shownGrids[spec.name]) componentFailures.push(grid.id);
+    }
+    const shownBlocks: Record<string, boolean> = {};
+    for (const block of blockComponents) {
+      if (!queries.some((query) => bindsBlock(query, block.name!))) continue;
+      const data = blockData(block, states);
+      const errors = skipsValidation(block) ? {} : validateCustomFields(data.specs, data.values);
+      shownBlocks[block.name!] = Object.keys(errors).length > 0;
+      if (shownBlocks[block.name!]) componentFailures.push(block.id);
+    }
+    if (Object.keys(shownGrids).length > 0) setGridShown((current) => ({ ...current, ...shownGrids }));
+    if (Object.keys(shownBlocks).length > 0) setBlockShown((current) => ({ ...current, ...shownBlocks }));
+    const failing = [...Object.keys(failures), ...componentFailures];
+    if (failing.length === 0) return null;
+    // Her sekmeler bileşeninde (sekme sırasıyla) geçersiz girişi doğrudan veya bir sahip üzerinden içeren ilk sekme.
+    const targets: Record<string, number> = {};
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      const index = parseTabs(component.props?.tabs).findIndex((tab) => failing.some((id) => ancestorsOf(id).some((owner) => tab.ids.includes(owner))));
+      if (index >= 0) targets[component.id] = index;
+    }
+    setErrorJump((current) => ({ signal: (current?.signal ?? 0) + 1, targets }));
+    return VALIDATION_BLOCKED;
+  };
+
+  codeValidate.current = validateFor;
+
+  const setInput = (componentId: string, value: InputRaw) => {
+    setTouched((previous) => ({ ...previous, [componentId]: value }));
+    // Gösterilen ileti, değer geçerli olunca kalkar (geçersiz kaldıkça güncel iletiyle kalır).
+    const message = inputMessage(componentId, value);
+    setValidationErrors((previous) => {
+      if (!(componentId in previous)) return previous;
+      const next = { ...previous };
+      if (message) next[componentId] = message; else delete next[componentId];
+      return next;
+    });
+  };
+  const lookupFor = (component: ComponentDefinition, props: Record<string, unknown>): LookupBinding => {
+    const optionsId = typeof props.optionsQuery === "string" ? props.optionsQuery : "";
+    const optionsState = optionsId ? states[queryNames[optionsId]] : undefined;
+    // Sunucu araması: seçenek sorgusunun bir parametresi `{{<ad>.search}}` bağlıyor; değilse satırlar istemcide süzülür.
+    const serverSearch = !!component.name && !!queryById[optionsId]?.parameters.some((parameter) => bindingPath(parameter.binding) === `${component.name}.search`);
+    const id = component.id;
+    return {
+      options: lookupOptionsWithValue(props, optionsState, lookupState[id]?.search ?? "", serverSearch, textValue(inputValues[id])),
+      loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined,
+      onSearch: (text) => setLookupState((previous) => ({ ...previous, [id]: { ...previous[id], search: text } })),
+      selected: lookupState[id] && "value" in lookupState[id] ? { value: lookupState[id].value ?? "", label: lookupState[id].label ?? "" } : null,
+      onChange: (value, row, label) => {
+        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value, row, label } }));
+        setInput(id, value);
+      },
+    };
+  };
+  const tablePaging = (table: ComponentDefinition) => {
+    const name = table.name;
+    const info = name && table.props?.paging === "server" ? current.pages[name] : undefined;
+    if (!name || !info) return undefined;
+    return { page: info.page, pageSize: info.pageSize, onPage: (page: number) => setTablePages((previous) => ({ ...previous, [name]: { page: Math.max(1, page), key: info.key } })) };
+  };
+
+  /** Pencerenin doğrudan ya da formCard/facetPanel, sekmeler, bölüm/kart çocukları ve sayfalı liste araması üzerinden sahiplendiği girişler. */
+  const dialogInputIds = (dialogId: string): string[] => dialogContent(dialogId).filter((id) => flatById[id]?.type === "input");
+  /** Pencerenin doğrudan ya da sahipler üzerinden içerdiği tüm bileşenler (girişler, kartlar, tablolar, bloklar…). */
+  const dialogContent = (dialogId: string): string[] => {
+    const found: string[] = [];
+    const seen = new Set<string>();
+    const visit = (id: string) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      const component = flatById[id];
+      if (!component) return;
+      found.push(id);
+      if (component.type === "input") return;
+      if (component.type === "formCard" || component.type === "facetPanel") idList(component.props?.inputs).forEach(visit);
+      if (component.type === "tabs") parseTabs(component.props?.tabs).forEach((tab) => tab.ids.forEach(visit));
+      if (component.type === "dataTable" && typeof component.props?.searchInput === "string") visit(component.props.searchInput.trim());
+      (component.children ?? []).forEach((child) => visit(child.id));
+    };
+    idList(dialogById[dialogId]?.props?.contains, 20).forEach(visit);
+    return found;
+  };
+  const openDialog = (id: string, opener: HTMLElement | null) => {
+    const dialog = dialogById[id];
+    if (!dialog) return;
+    // resetOnOpen (varsayılan açık): sahip olunan girişlerin yazılan değeri, doğrulama iletisi ve arama durumu temizlenir.
+    if (dialog.props?.resetOnOpen !== false) {
+      const owned = dialogInputIds(id);
+      setTouched((previous) => without(previous, owned));
+      setValidationErrors((previous) => without(previous, owned));
+      setLookupState((previous) => without(previous, owned));
+    }
+    dialogOpeners.current[id] = opener;
+    setDialogStatus((previous) => ({ ...previous, [id]: null }));
+    setDialogs((previous) => ({ ...previous, [id]: true }));
+  };
+  const closeDialog = (id: string) => setDialogs((previous) => (previous[id] ? { ...previous, [id]: false } : previous));
+  /** Tabloların bekleyen satırları ve blokların yazılan değerleri (ve gösterilen iletileri) atılır. */
+  const resetCollections = (ids: string[]) => {
+    const names = ids.map((id) => flatById[id]).filter((component) => component && (component.type === "editableGrid" || component.type === "customFieldsBlock") && component.name)
+      .map((component) => component!.name!);
+    if (names.length === 0) return;
+    setGrids((previous) => without(previous, names));
+    setGridShown((previous) => without(previous, names));
+    setCustomTyped((previous) => without(previous, names));
+    setBlockShown((previous) => without(previous, names));
+  };
+  /** Kullanıcı kapatması (Esc, Kapat, Vazgeç): içerik kirliyse sorulur; kapanınca tabloları ve blokları atılır (kirliyse girişleri de). */
+  const requestCloseDialog = (id: string) => {
+    const content = dialogContent(id);
+    const close = (dirty: boolean) => {
+      resetCollections(content);
+      if (dirty) {
+        const owned = content.filter((owned) => flatById[owned]?.type === "input");
+        setTouched((previous) => without(previous, owned));
+        setValidationErrors((previous) => without(previous, owned));
+        setLookupState((previous) => without(previous, owned));
+      }
+      closeDialog(id);
+    };
+    if (!content.some((owned) => flatById[owned] && componentDirty(flatById[owned]))) { close(false); return; }
+    void confirmDialog({ title: "Pencere kapatılsın mı?", message: LEAVE_MESSAGE, confirmLabel: "Kapat" }).then((ok) => { if (ok) close(true); });
+  };
+
+  /** Kaynak okumaları: adımların `sourceOperation` ve `bodyMap.sourceOperation` okumaları ile yinelenen tabloların `sourceQuery`'si. */
+  const sourceReadIds = (steps: SequenceStep[]): string[] => {
+    const ids = new Set<string>();
+    const readOf = (operation: string | null | undefined) => {
+      if (!operation) return;
+      for (const query of queryDefinitions) if (query.kind === "read" && query.operation === operation) ids.add(query.id);
+    };
+    for (const step of steps) {
+      const op = step.query.operation ? erpOperations.operations?.get(step.query.operation) : undefined;
+      readOf(op?.sourceOperation);
+      readOf(op?.bodyMap?.sourceOperation);
+      if (step.iterate) {
+        const grid = flat.find((component) => component.type === "editableGrid" && component.name === step.iterate!.grid);
+        const sourceQuery = textValue(grid?.props?.sourceQuery).trim();
+        if (sourceQuery && queryById[sourceQuery]?.kind === "read") ids.add(sourceQuery);
+      }
+    }
+    return [...ids];
+  };
+
+  /**
+   * Kayıt dizisi ya da istemli tek yazma (Wire sözleşmesi): etkin adımlar (`sequenceWhen`, yineleme satırları, katalog izni),
+   * tek doğrulama, beforeSave, istem/onay, adımlar; sonra satır kesinleştirme, yenileme ve sonuç temizleme.
+   */
+  const startSequence = async (source: SequenceSource) => {
+    const { props } = source;
+    const overlay = source.overlay ?? {};
+    const sequenceIds = idList(props.saveSequence, 8);
+    const single = textValue(props.saveQuery).trim() || textValue(props.queryId).trim();
+    const queries = (sequenceIds.length > 0 ? sequenceIds : single ? [single] : [])
+      .map((id) => queryById[id]).filter((query): query is PageQueryDefinition => !!query && query.kind !== "read");
+    if (queries.length === 0) return;
+    const baseScope = mergeOverlay(currentScope(), overlay);
+    const bound = bindProps(props, baseScope);
+    const text = (key: string) => interpolate(textValue(props[key]), baseScope).trim();
+    // `sequenceWhen` ilk adımdan önce bir kez, sayfa kapsamında (ve satır bindirmesiyle) değerlendirilir; anahtar sorgu kimliğidir.
+    const when: Record<string, string> = {};
+    for (const entry of stringList(props.sequenceWhen).slice(0, 8)) {
+      const index = entry.indexOf("=");
+      if (index > 0) when[entry.slice(0, index).trim()] = entry.slice(index + 1).trim();
+    }
+    const names = new Set(queries.map((query) => query.name));
+    const steps: SequenceStep[] = queries.filter((query) => !(query.id in when) || conditionHolds(when[query.id], baseScope, true)).map((query) => {
+      const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+      const refs = new Set<string>();
+      for (const parameter of query.parameters) {
+        const root = bindingPath(parameter.binding)?.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
+        if (root && (root === "onceki" || (root !== query.name && names.has(root)))) refs.add(root);
+      }
+      const iteration = iterationOf(query);
+      return {
+        query, label: stepLabel(query, op), allowed: query.operation ? op?.allowed !== false : true, refs: [...refs],
+        iterate: iteration ? { ...iteration, rows: gridIteration(iteration.grid, iteration.list) } : null,
+      };
+    });
+    // Doğrulama yalnız çalışacak adımları kapsar (yürütücünün süzgeciyle aynı: sıfır satırlı yinelenen adım atlanır).
+    const active = steps.filter((step) => !step.iterate || step.iterate.rows.length > 0).map((step) => step.query);
+    const promptLabel = text("promptLabel");
+    const buttonText = textValue(bound.text ?? bound.label) || textValue(bound.title) || "Eylem";
+    const kinds = new Set(queries.map((query) => query.kind));
+    const outcome = await runSaveSequence({
+      steps, stopOnError: props.stopOnError !== false, lock: writeLock, isPreview,
+      confirm: { enabled: props.confirmEnabled === true, text: text("confirmText"), tone: kinds.has("delete") || kinds.has("update") ? "danger" : "default" },
+      successText: text("successMessage"),
+      validate: () => validateForAll(active),
+      beforeWrite: (query) => events.beforeSave(query.name),
+      prompt: promptLabel ? () => promptDialog({ title: buttonText, label: promptLabel, required: props.promptRequired === true, multiline: true, confirmLabel: buttonText }) : undefined,
+      promptName: promptLabel ? source.name : undefined,
+      resolve: (query, stepOverlay) => resolveQueryParameters(query, mergeOverlay(mergeOverlay(currentScope(), overlay), stepOverlay)),
+      write: async (query, values, confirmWrite) => {
+        source.onBusy(true);
+        try { return await writeWith(query, values, confirmWrite); } finally { source.onBusy(false); }
+      },
+      errorText: (cause) => writeErrorText(text("errorMessage"), cause),
+      afterWrite: (payload) => events.emit("afterSave", payload),
+    });
+    if (outcome.status === "busy" || outcome.status === "cancelled") return;
+    if (outcome.status === "blocked") { source.onStatus({ tone: "error", text: outcome.message }); return; }
+    source.onStatus({ tone: outcome.tone, text: outcome.message });
+    // Gönderilen yineleme satırları tablonun bekleyen listelerinden düşer.
+    const committed = new Map<string, { grid: string; list: SequenceList; keys: string[] }>();
+    for (const call of outcome.calls) {
+      const iterate = steps.find((step) => step.query.name === call.query)?.iterate;
+      if (!call.ok || !iterate || call.rowKey === undefined) continue;
+      const key = `${iterate.grid}|${iterate.list}`;
+      if (!committed.has(key)) committed.set(key, { grid: iterate.grid, list: iterate.list, keys: [] });
+      committed.get(key)!.keys.push(call.rowKey);
+    }
+    committed.forEach((group) => commitGrid(group.grid, group.list, group.keys));
+    if (outcome.succeeded === 0) return;
+    const refresh = stringList(props.refreshQueries);
+    if (outcome.calls.every((call) => call.ok)) {
+      rerun([...new Set([...loadIds, ...refresh])]);
+      // Tam başarı: dizinin yazma sonuçları temizlenir, sonraki kayıt yeni oluşturma ile başlar (tek saveQuery Proje 1 gibi korunur).
+      if (sequenceIds.length > 0) clearResults(queries.map((query) => query.name));
+      source.onSuccess?.();
+    } else {
+      // Kısmi hata: liste yenilenmez (seçim ve bekleyen satırlar kalır); kaynak okumaları ve refreshQueries yenilenir.
+      rerun([...new Set([...sourceReadIds(steps), ...refresh])]);
+    }
+  };
+  const sequenceRef = useRef(startSequence);
+  sequenceRef.current = startSequence;
+
+  /** Bindirmeli düz tek yazma (Faz A yolu, `runWriteAction`): satır işlemi ve pencerenin `saveQuery`'si. */
+  const runQueryWrite = async (query: PageQueryDefinition, props: Record<string, unknown>, overlay: Record<string, unknown>,
+    onStatus: (status: ActionStatus | null) => void, onBusy: (busy: boolean) => void, onSuccess?: () => void) => {
+    const text = (key: string) => interpolate(textValue(props[key]), mergeOverlay(currentScope(), overlay)).trim();
+    onStatus(null);
+    const result = await runWriteAction({
+      query, isPreview, inFlight: writeLock,
+      confirm: { enabled: props.confirmEnabled === true, text: text("confirmText"), tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default" },
+      write: async (target, confirmWrite) => {
+        onBusy(true);
+        try { return await writeWith(target, resolveQueryParameters(target, mergeOverlay(currentScope(), overlay)), confirmWrite); } finally { onBusy(false); }
+      },
+      errorText: (cause) => writeErrorText(text("errorMessage"), cause),
+      validate: () => validateFor(query),
+      ...codeWriteHooks(events),
+    });
+    if (result.ok) {
+      onStatus({ tone: "success", text: `${text("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
+      rerun(stringList(props.refreshQueries));
+      onSuccess?.();
+    } else if ("error" in result) onStatus({ tone: "error", text: result.error });
+  };
+  const queryWriteRef = useRef(runQueryWrite);
+  queryWriteRef.current = runQueryWrite;
+
+  const saveDialog = (id: string) => {
+    const dialog = dialogById[id];
+    if (!dialog || dialogs[id] !== true) return;
+    const props = dialog.props ?? {};
+    const onStatus = (status: ActionStatus | null) => setDialogStatus((previous) => ({ ...previous, [id]: status }));
+    const onBusy = (busy: boolean) => setDialogBusy((previous) => ({ ...previous, [id]: busy }));
+    // closeOnSave (varsayılan açık): yalnız tam başarıda kapanır.
+    const onSuccess = props.closeOnSave === false ? undefined : () => closeDialog(id);
+    if (idList(props.saveSequence, 8).length > 0) { void sequenceRef.current({ props, onStatus, onBusy, onSuccess }); return; }
+    const query = queryById[textValue(props.saveQuery).trim()];
+    if (query && query.kind !== "read") void queryWriteRef.current(query, props, {}, onStatus, onBusy, onSuccess);
+  };
+
+  // ---- Değişiklik izleme ----
+  /** formCard'ın değişen girişleri: dokunulmuş ve ham değeri çözülmüş varsayılandan farklı olan sahip olunan girişler. */
+  const cardChanges = (card: ComponentDefinition) =>
+    idList(card.props?.inputs).filter((id) => inputById[id] && id in touched && touched[id] !== current.defaults[id]).length;
+  const componentDirty = (component: ComponentDefinition): boolean => {
+    if (component.type === "formCard") return component.props?.trackChanges === true && cardChanges(component) > 0;
+    if ((component.type !== "editableGrid" && component.type !== "customFieldsBlock") || !component.name) return false;
+    const value = scope[component.name];
+    return isPlainObject(value) && value.degisti === true;
+  };
+  const isDirty = () => [...formCards, ...gridComponents, ...blockComponents].some(componentDirty);
+  /** Kayıt tabloları: `recordKey` bağlamasının ve ondan ulaşılan sorguların parametre bağlamalarının kökündeki tablolar. */
+  const recordTableSets = useMemo(() => {
+    const tableNames = new Set(Object.values(tableById).map((table) => table.name).filter((name): name is string => !!name));
+    const queryByName = new Map(queryDefinitions.map((query) => [query.name, query]));
+    const tablesOf = (text: string) => {
+      const found = new Set<string>();
+      const visited = new Set<string>();
+      const visit = (root: string) => {
+        if (visited.has(root)) return;
+        visited.add(root);
+        if (tableNames.has(root)) found.add(root);
+        for (const parameter of queryByName.get(root)?.parameters ?? []) for (const match of parameter.binding.matchAll(PLACEHOLDER_ROOT)) visit(match[1]);
+      };
+      for (const match of text.matchAll(PLACEHOLDER_ROOT)) visit(match[1]);
+      return found;
+    };
+    const all = new Set<string>();
+    const tracked = new Set<string>();
+    for (const card of formCards) {
+      const tables = tablesOf(textValue(card.props?.recordKey));
+      tables.forEach((name) => { all.add(name); if (card.props?.trackChanges === true) tracked.add(name); });
+    }
+    return { all, tracked };
+  }, [tableById, queryDefinitions, formCards]);
+  /** İşlem Çubuğu'nun kayıt yolundaki (saveQuery/saveSequence) yazma sorgularının adları. */
+  const saveQueryNames = useMemo(() => {
+    if (!bar) return [];
+    const ids = [textValue(bar.props.saveQuery).trim(), ...idList(bar.props.saveSequence, 8)].filter(Boolean);
+    return ids.map((id) => queryById[id]).filter((query) => query && query.kind !== "read").map((query) => query.name);
+  }, [bar, queryById]);
+  const startNew = () => {
+    setGrids({});
+    setGridShown({});
+    setCustomTyped({});
+    setBlockShown({});
+    clearResults(saveQueryNames);
+  };
+
+  const applySelect = (tableName: string, row: Record<string, unknown> | null) => {
+    setSelections((current) => ({ ...current, [tableName]: row }));
+    // Güncelleyicinin dışında: StrictMode güncelleyiciyi iki kez çalıştırır.
+    events.emit("select", { table: tableName, row });
+  };
+  /**
+   * Kullanıcının satır değiştirmesi: `trackChanges` kartının kayıt tablosunda ve sayfa kirliyken önce sorulur (Vazgeç seçimi
+   * korur, olay yayımlanmaz). Kayıt tablosunda değişen seçim kayıt yolunun yazma sonuçlarını temizler; sonra `then` çalışır.
+   */
+  const userSelect = (tableName: string, row: Record<string, unknown> | null, then?: () => void) => {
+    const changes = (selections[tableName] ?? null) !== row;
+    const commit = () => {
+      applySelect(tableName, row);
+      if (changes && recordTableSets.all.has(tableName)) clearResults(saveQueryNames);
+      then?.();
+    };
+    if (!changes || !recordTableSets.tracked.has(tableName) || !isDirty()) { commit(); return; }
+    void confirmDialog({ title: "Kayıt değiştirilsin mi?", message: LEAVE_MESSAGE, confirmLabel: "Devam" }).then((ok) => { if (ok) commit(); });
+  };
+  const select = (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => {
+    if (options?.user) userSelect(tableName, row);
+    else applySelect(tableName, row);
+  };
+  const runRowAction = (table: ComponentDefinition, button: ComponentDefinition, row: Record<string, unknown>, opener: HTMLElement | null) => {
+    const tableName = table.name;
+    const action = buttonActionOf(button.props ?? {}, queryById, dialogIds);
+    if (!tableName || !actionAllowed(action, rights) || !action) return;
+    const overlay = { [tableName]: { seciliSatir: row } };
+    // Koşullar satırın bindirmesiyle yeniden denetlenir (çizimden sonra değişmiş olabilir).
+    const rowScope = mergeOverlay(currentScope(), overlay);
+    if (!conditionHolds(button.props?.visibleWhen, rowScope, true) || conditionHolds(button.props?.disabledWhen, rowScope, false)) return;
+    const props = button.props ?? {};
+    const onStatus = (status: ActionStatus | null) => setTableStatus((previous) => ({ ...previous, [table.id]: status }));
+    // Satır işlemi de satır değiştirir: kayıt tablosunda kirli sayfa önce sorar; Vazgeç işlemi de çalıştırmaz.
+    userSelect(tableName, row, () => {
+      if (action.type === "openDialog") { openDialog(props.dialogId as string, opener); return; }
+      if (usesSequence(action, props)) { onStatus(null); void sequenceRef.current({ props, name: button.name, overlay, onStatus, onBusy: () => undefined }); return; }
+      if (!action.query) return;
+      if (action.query.kind === "read") { rerun([action.query.id]); return; }
+      void queryWriteRef.current(action.query, props, overlay, onStatus, () => undefined);
+    });
+  };
+
+  // ---- Düzenlenebilir tablolar ve özel alan blokları ----
+  const gridByName = useMemo(() => Object.fromEntries(gridComponents.map((grid) => [grid.name!, grid])), [gridComponents]);
+  const dispatchGrid = (spec: GridSpec, action: GridAction) => {
+    const key = gridKey(spec, states);
+    setGrids((previous) => {
+      const stored = previous[spec.name] ?? emptyGridState(key);
+      const next = gridReducer(stored, action, { mode: spec.mode, maxRows: spec.maxRows });
+      return next === stored && previous[spec.name] ? previous : { ...previous, [spec.name]: next };
+    });
+  };
+  /** Yinelenen dizi adımının satırları (yalnız `stage` tablosu). */
+  const gridIteration = (gridName: string, list: SequenceList): { key: string; row: Record<string, unknown> }[] => {
+    const grid = gridByName[gridName];
+    if (!grid) return [];
+    const spec = gridSpecOf(grid);
+    if (spec.mode !== "stage") return [];
+    return iterationRows(list, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey);
+  };
+  /** Gönderilen satırlar tablonun bekleyen listesinden düşer. */
+  const commitGrid = (gridName: string, list: SequenceList, keys: string[]) => {
+    const grid = gridByName[gridName];
+    if (grid && keys.length > 0) dispatchGrid(gridSpecOf(grid), { type: "commit", list, keys });
+  };
+  const gridFor = (grid: ComponentDefinition): GridView => {
+    const spec = gridSpecOf(grid);
+    const source = gridSourceState(spec, states);
+    const state = gridStateOf(spec, states);
+    const sourceRows = gridSourceRows(spec, states);
+    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope)) : {};
+    return {
+      id: spec.name, mode: spec.mode, columns: spec.columns, state, sourceRows, rowKey: spec.rowKey, errors, maxRows: spec.maxRows,
+      dispatch: (action) => dispatchGrid(spec, action),
+      // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
+      loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
+      matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
+    };
+  };
+  /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
+  const blockServerErrors = (name: string): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    for (const query of queryDefinitions) {
+      const fieldErrors = query.kind === "read" ? undefined : states[query.name]?.fieldErrors;
+      if (!fieldErrors) continue;
+      for (const parameter of query.parameters) {
+        if (bindingPath(parameter.binding) !== `${name}.degerler`) continue;
+        const prefix = `${parameter.name.toLowerCase()}.`;
+        for (const [key, message] of Object.entries(fieldErrors)) if (key.toLowerCase().startsWith(prefix)) errors[key.slice(prefix.length)] = message;
+      }
+    }
+    return errors;
+  };
+  const blockFor = (block: ComponentDefinition): BlockView => {
+    const name = block.name!;
+    const data = blockData(block, states);
+    // İstemci iletisi sunucu hatasından önce gelir.
+    const clientErrors = blockShown[name] && !skipsValidation(block) ? validateCustomFields(data.specs, data.values) : {};
+    return {
+      id: name, specs: data.specs, values: data.values, errors: { ...blockServerErrors(name), ...clientErrors },
+      onChange: (code, value) => setCustomTyped((previous) => ({ ...previous, [name]: { ...previous[name], [code]: value } })),
+      loading: !!data.definitions && data.definitions.loading && !data.definitions.ran,
+      error: data.definitions?.error || data.valuesState?.error || undefined,
+    };
+  };
+  const componentErrorIds = [
+    ...gridComponents.filter((grid) => gridShown[grid.name!] && Object.keys(gridFor(grid).errors).length > 0).map((grid) => grid.id),
+    ...blockComponents.filter((block) => blockShown[block.name!] && !skipsValidation(block)
+      && Object.keys(validateCustomFields(blockData(block, states).specs, blockData(block, states).values)).length > 0).map((block) => block.id),
+  ];
+
+  // Kaynak değişti (`ranWith`): bekleyen satırlar sıfırlanır; aynı kaynak yenilendiyse yalnız artık olmayan silme işaretleri düşer.
+  // Yüklenmekte olan kaynak beklenir (yeniden yükleme eski satırları ve `ranWith`'i korur).
+  const gridSourceSignature = JSON.stringify(gridComponents.flatMap((grid) => {
+    const spec = gridSpecOf(grid);
+    const source = gridSourceState(spec, states);
+    if (spec.mode !== "stage" || !source || source.loading) return [];
+    return [[spec.name, gridKey(spec, states), source.rows.map((row) => displayText(row[spec.rowKey]))]];
+  }));
+  useEffect(() => {
+    const entries = JSON.parse(gridSourceSignature) as [string, string, string[]][];
+    setGrids((previous) => {
+      let next = previous;
+      for (const [name, key, keys] of entries) {
+        const stored = previous[name];
+        const grid = gridByName[name];
+        if (!stored || !grid) continue;
+        const spec = gridSpecOf(grid);
+        const reset = gridReducer(stored, stored.sourceKey === key ? { type: "reset", sourceKey: key, sourceKeys: keys } : { type: "reset", sourceKey: key },
+          { mode: spec.mode, maxRows: spec.maxRows });
+        if (reset === stored) continue;
+        if (next === previous) next = { ...previous };
+        next[name] = reset;
+      }
+      return next;
+    });
+  }, [gridSourceSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bloğun değer sorgusunun `ranWith`'i değişti: yazılan değerler atılır (ilk yanıt yalnız kaydedilir).
+  const blockKeys = useRef<Record<string, string>>({});
+  const blockSignature = JSON.stringify(blockComponents.flatMap((block) => {
+    const valuesId = textValue(block.props?.valuesQuery).trim();
+    const state = valuesId ? states[queryNames[valuesId]] : undefined;
+    return state && !state.loading ? [[block.name!, JSON.stringify(state.ranWith ?? null)]] : [];
+  }));
+  useEffect(() => {
+    const changed: string[] = [];
+    for (const [name, key] of JSON.parse(blockSignature) as [string, string][]) {
+      const previous = blockKeys.current[name];
+      blockKeys.current[name] = key;
+      if (previous !== undefined && previous !== key) changed.push(name);
+    }
+    if (changed.length === 0) return;
+    setCustomTyped((previous) => without(previous, changed));
+    setBlockShown((previous) => without(previous, changed));
+  }, [blockSignature]);
+
+  // formCard `recordKey`: çözülen anahtar ilk çizimden sonra değişirse kartın girişleri sıfırlanır (dokunma, ileti, arama durumu).
+  const previousCardKeys = useRef<Record<string, string>>({});
+  const cardKeySignature = JSON.stringify(formCards.filter((card) => textValue(card.props?.recordKey).trim() !== "")
+    .map((card) => [card.id, interpolate(textValue(card.props?.recordKey), scope)]));
+  useEffect(() => {
+    const reset: string[] = [];
+    for (const [id, key] of JSON.parse(cardKeySignature) as [string, string][]) {
+      const previous = previousCardKeys.current[id];
+      previousCardKeys.current[id] = key;
+      if (previous !== undefined && previous !== key) reset.push(...idList(flatById[id]?.props?.inputs));
+    }
+    if (reset.length === 0) return;
+    setTouched((previous) => without(previous, reset));
+    setValidationErrors((previous) => without(previous, reset));
+    setLookupState((previous) => without(previous, reset));
+  }, [cardKeySignature]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const runtime: PageRuntime | undefined = isV2 ? {
-    scope, states, queryNames, inputValues: effective(states).raw,
-    setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
-    selections,
-    select: (tableName, row) => setSelections((current) => ({ ...current, [tableName]: row })),
-    queryById, rights: page.rights ?? { view: true }, rerun, isPreview: Boolean(previewId),
-    writeFor: (query, confirmWrite) => runWrite(query, resolveQueryParameters(query, scope), confirmWrite),
+    scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
+    validationErrors, validateFor, errorJump,
+    skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
+    blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),
+    tabOwned, topLevelById, ancestorsOf,
+    selections, select,
+    queryById, inputErrors, ownedInputs, inputById, tableById, rights, rerun, isPreview,
+    writeFor, events, codeHost,
+    movedButtons, writeLock, actionStatus,
+    currentScope, writeWith, runSequence: (source) => sequenceRef.current(source), gridIteration, commitGrid,
+    dialogs, openDialog, closeDialog, saveDialog, dialogStatus, dialogBusy, dialogOpener: (id) => dialogOpeners.current[id] ?? null,
+    dialogOwned, rowOwned, buttonById,
+    buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds),
+    runRowAction, tableStatus,
+    gridFor, blockFor, cardChanges, componentErrorIds, requestCloseDialog, isDirty, startNew,
   } : undefined;
 
-  return <div className="tenant-custom-page-content">{components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}</div>;
+  return <div className="tenant-custom-page-content">
+    {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
+      loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
+    {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
+    {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id))
+      .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
+  </div>;
 }
 
-export default function TenantCustomPage({ code, previewId, token }: { code?: string; previewId?: string; token: string }) {
+/** Sorgu durumlarındaki ERP doğrulama hatalarını (parametre adına göre) `{{<giriş>.value}}` bağlamasıyla giriş adlarına eşler. */
+function operationInputErrors(queries: PageQueryDefinition[], states: Record<string, QueryState>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const query of queries) {
+    const errors = states[query.name]?.fieldErrors;
+    if (!errors) continue;
+    const byLower = new Map(Object.entries(errors).map(([name, message]) => [name.toLowerCase(), message]));
+    for (const parameter of query.parameters) {
+      const message = byLower.get(parameter.name.toLowerCase());
+      const input = bindingPath(parameter.binding)?.match(/^([A-Za-z_][A-Za-z0-9_]*)\.value$/)?.[1];
+      if (message && input) result[input] = message;
+    }
+  }
+  return result;
+}
+
+type TenantCustomPageProps = {
+  code?: string; previewId?: string; token: string;
+  /** System mode: the page key of a built-in screen whose firm design or standard is served by `/api/system-pages`. */
+  systemScreenKey?: string;
+  onOpenLegacy?: () => void;
+  /** Called on a 404 in system mode (stale runtime map) instead of showing an error. */
+  onSystemPageMissing?: () => void;
+};
+
+export default function TenantCustomPage({ code, previewId, token, systemScreenKey, onOpenLegacy, onSystemPageMissing }: TenantCustomPageProps) {
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  // The router passes inline callbacks; keep them out of the load effect's dependencies.
+  const onMissingRef = useRef(onSystemPageMissing);
+  onMissingRef.current = onSystemPageMissing;
 
   useEffect(() => {
     let active = true;
     setLoading(true); setError(""); setPage(null);
     const endpoint = previewId
       ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview`
-      : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+      : systemScreenKey
+        ? `/api/system-pages/${encodeURIComponent(systemScreenKey)}/published`
+        : `/api/custom-pages/${encodeURIComponent(code || "")}/published`;
+    let missing = false;
     // api() maps every 403 to a generic text; the published endpoint's own 403 message
     // ("Bu sayfayı görüntüleme yetkiniz yok.") travels on the error as serverError.
     void api<PublishedPage>(endpoint, token)
       .catch((cause: unknown) => {
         const failure = cause as Error & { status?: number; serverError?: string };
+        if (systemScreenKey && !previewId && failure.status === 404) { missing = true; throw cause; }
         throw failure.status === 403 && failure.serverError ? new Error(failure.serverError) : cause;
       })
       .then((result) => {
@@ -432,13 +2031,21 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
         if ((definition.schemaVersion !== 1 && definition.schemaVersion !== 2) || !Array.isArray(definition.components)) throw new Error("Yayımlanan sayfa tanımı geçersiz.");
         setPage(result);
       })
-      .catch((cause: unknown) => { if (active) setError((cause as Error).message || "Sayfa yüklenemedi."); })
-      .finally(() => { if (active) setLoading(false); });
+      .then(() => { if (active) setLoading(false); }, (cause: unknown) => {
+        if (!active) return;
+        // Stale map: stay in the loading state while the router falls back to the legacy screen.
+        if (missing) { onMissingRef.current?.(); return; }
+        setError((cause as Error).message || "Sayfa yüklenemedi.");
+        setLoading(false);
+      });
     return () => { active = false; };
-  }, [code, previewId, token]);
+  }, [code, previewId, systemScreenKey, token]);
 
+  const legacyLink = onOpenLegacy
+    ? <button type="button" className="link-button system-page-legacy-link" onClick={onOpenLegacy}>Eski ekranda aç</button>
+    : null;
   if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
-  if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span></div>;
+  if (error || !page) return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert"><AlertCircle size={18} /><span>{error || "Yayımlanmış sayfa bulunamadı."}</span>{legacyLink}</div>;
 
   let components: ComponentDefinition[] = [];
   let queryDefinitions: ReturnType<typeof readPageQueries> = [];
@@ -448,11 +2055,11 @@ export default function TenantCustomPage({ code, previewId, token }: { code?: st
     components = Array.isArray(definition.components) ? definition.components : [];
     isV2 = definition.schemaVersion === 2;
     if (isV2) queryDefinitions = readPageQueries(definition);
-  } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.</div>; }
+  } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.{legacyLink}</div>; }
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div></header>
+    <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>
     <PageBody key={`${page.id}:${page.revision}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} />
   </main>;
 }

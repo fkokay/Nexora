@@ -20,8 +20,12 @@ public certificate in-memory from `master` to `AIERPPlatform`; it does not use
 a host-specific filesystem path. The certificate private key stays in
 `master`.
 
-The signer certificate login receives only `CREATE ANY DATABASE` and
-`ALTER ANY LOGIN`. A matching certificate user in `AIERPPlatform` has `SELECT`
+The signer certificate login receives only `CREATE ANY DATABASE`,
+`ALTER ANY LOGIN` and `ALTER` on the server role `NexoraTenantQueryLogins`; a
+certificate user in `master` (`NexoraTenantProvisioningSignerMasterUser`)
+receives only `ALTER ANY USER` and `ALTER` on the `master` role
+`NexoraTenantQueryUsers` (errors `51009`/`51049` stop the install if either
+holds more). A matching certificate user in `AIERPPlatform` has `SELECT`
 only on `Tenants`, `TenantProvisioningJobs`, `TenantDatabaseCatalog`, and
 `DatabaseSeparationComponentStates`, the exact tables read by the state gates.
 The Worker receives `EXECUTE` only on the three procedures in `master`; it is
@@ -48,6 +52,15 @@ The SQL procedure contract uses component values `1 = ERP`, `2 = AIStudio`.
 the canonical ERP database `AIERPTenant_<guidN>`); they follow the same state
 gates as component 1. `NexoraEnsureTenantDatabase` and
 `NexoraTenantDatabaseExists` accept only 1/2.
+
+Query logins are hardened by the procedure itself on every create and password
+rotation: the login is added to the server role `NexoraTenantQueryLogins`
+(which carries `DENY VIEW ANY DATABASE`) and gets a `master` user in the role
+`NexoraTenantQueryUsers` (which carries `DENY EXECUTE` on `xp_dirtree`,
+`xp_fileexist`, `xp_subdirs`). The install script creates both roles and
+their DENYs, and refuses roles that hold grants or memberships (`51044`–`51047`).
+A `master` user with the login's name but another SID stops the procedure with
+`51027`. No DBA step is needed per new tenant.
 
 **REQUIRED pre-deploy:** reinstall this boundary script **before** deploying the
 Worker build that creates query logins. That Worker calls component 3/4 during every

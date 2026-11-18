@@ -1,21 +1,35 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
+import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRouteValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
   parameters: { name: string; binding: string; type: string }[];
+  /** SQL yerine çağrılacak ERP işlemi (`modul.nesne.eylem`); yol ve yöntem yalnız sunucu kataloğundan gelir. */
+  operation?: string;
 };
 export type QueryColumn = { code: string; label: string; dataType?: string };
 export type QueryState = {
   rows: Record<string, unknown>[]; rowCount: number; columns: QueryColumn[]; truncated: boolean; loading: boolean; error: string;
   /** Sorgu en az bir kez yanıt (sonuç ya da hata) aldı mı; elle çalışan ve hiç çalışmamış sorguyu boş sonuçtan ayırır. */
   ran: boolean;
+  /** ERP yazma işleminin JSON yanıtı; `{{sorgu.sonuc.alan}}` ile bağlanabilir. */
+  sonuc?: unknown;
+  /** ERP işleminin sunucu doğrulama hataları (işlem parametre adına göre). */
+  fieldErrors?: Record<string, string>;
+  /** ERP okuma işleminin üst bilgileri (`metaPaths`); `{{sorgu.meta.totalCount}}` ile bağlanabilir. */
+  meta?: Record<string, unknown>;
+  /** Okumanın en son çalıştığı çözülmüş parametre değerleri; yazma öncesi eskimiş kaynak denetimi için. */
+  ranWith?: Record<string, unknown>;
 };
-export type WriteResult = { affectedRows: number };
+/** ERP yazma işleminde `sonuc` sunucunun JSON yanıtıdır (SQL yazmalarında yoktur). */
+export type WriteResult = { affectedRows: number; sonuc?: unknown };
 type RunResult = { columns?: QueryColumn[]; rows?: Record<string, unknown>[]; rowCount?: number; truncated?: boolean };
 
 export const QUERY_DEBOUNCE_MS = 300;
+/** Özel alan (bodyMap) kaynağı hiç çalışmadı ya da hata verdi: kayıt tüm değerleri değiştireceği için yazılmaz. */
+export const MAP_SOURCE_FAILED = "Özel alan değerleri yüklenemedi; kayıt yapılmadı.";
 const emptyState = (loading: boolean): QueryState => ({ rows: [], rowCount: 0, columns: [], truncated: false, loading, error: "", ran: false });
 
 /** v2 sayfa tanımındaki `queries` dizisini savunmacı biçimde okur; okunamayan girdiler atlanır. */
@@ -30,7 +44,8 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
     const parameters = Array.isArray(item.parameters) ? (item.parameters as Record<string, unknown>[])
       .filter((p) => p && typeof p.name === "string" && typeof p.binding === "string" && typeof p.type === "string")
       .map((p) => ({ name: p.name as string, binding: p.binding as string, type: p.type as string })) : [];
-    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters });
+    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters,
+      ...(typeof item.operation === "string" ? { operation: item.operation } : {}) });
   }
   return result;
 }
@@ -53,14 +68,23 @@ export function resolveQueryParameters(query: PageQueryDefinition, scope: PageSc
 export function usePageQueries(options: {
   queries: PageQueryDefinition[]; token: string; pageCode: string; previewId?: string;
   buildScope: (states: Record<string, QueryState>) => PageScope;
+  /** ERP işlem kataloğu; null iken işlem sorguları katalog yüklenene kadar bekler. */
+  operations?: Map<string, ErpOperation> | null;
 }): {
   states: Record<string, QueryState>; scope: PageScope;
   /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
   rerun: (queryIds: string[]) => void;
   /** Yazma sorgusunu çalıştırır; hata durumunda sunucu mesajıyla fırlatır. Önizlemede `confirmWrite` açık onayı taşır. */
   runWrite: (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite?: boolean) => Promise<WriteResult>;
+  /** Okuma sorgusunu hemen çalıştırır ve sonucunu bekler; çalıştırılamazsa reddeder. */
+  runRead: (queryId: string) => Promise<QueryState>;
+  /** ERP işlemini doğrudan çağırır (yetki ve önizleme denetimi çağıranındır); JSON yanıtını döner. */
+  callOperation: (op: ErpOperation, values: Record<string, unknown>) => Promise<unknown>;
+  /** Verilen yazma sorgularının (ad) `sonuc` ve `fieldErrors` değerlerini temizler (sonraki kayıt yeni oluşturma ile başlar). */
+  clearResults: (queryNames: string[]) => void;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
+  const operations = options.operations ?? null;
   const endpointFor = (query: PageQueryDefinition) => previewId
     ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview/queries/${encodeURIComponent(query.id)}/run`
     : `/api/custom-pages/${encodeURIComponent(pageCode)}/queries/${encodeURIComponent(query.id)}/run`;
@@ -82,7 +106,7 @@ export function usePageQueries(options: {
       const root = path?.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0];
       if (root && root !== query.name && byName.has(root)) upstream.add(root);
     }
-    const waiting = [...upstream].some((dependency) => states[dependency]?.loading);
+    const waiting = [...upstream].some((dependency) => states[dependency]?.loading) || (query.operation !== undefined && operations === null);
     return { query, values, key: JSON.stringify(values), waiting };
   });
   const signature = plans.map((plan) => `${plan.query.id}:${plan.waiting ? 1 : 0}:${plan.key}`).join("|");
@@ -95,7 +119,108 @@ export function usePageQueries(options: {
     lastKeys.current.clear();
   }, []);
 
-  const execute = async (query: PageQueryDefinition, values: Record<string, unknown>) => {
+  // Zamanlayıcılar ve komut çubuğu eski kapanışları çağırabilir; kaynak satır ve katalog her zaman en güncelden okunur.
+  const latestStates = useRef(states);
+  latestStates.current = states;
+  const latestOperations = useRef(operations);
+  latestOperations.current = operations;
+  const operationOf = (query: PageQueryDefinition): ErpOperation => {
+    if (!latestOperations.current) throw new Error("ERP işlem kataloğu henüz yüklenmedi.");
+    const op = latestOperations.current.get(query.operation!);
+    if (!op) throw new Error(`ERP işlemi bulunamadı: ${query.operation}`);
+    return op;
+  };
+  /** İşlemin kaynak sorgusu: sayfada `operation === op.sourceOperation` olan okuma sorgusu. */
+  const sourceQueryOf = (op: ErpOperation) => op.sourceOperation
+    ? queries.find((candidate) => candidate.kind === "read" && candidate.operation === op.sourceOperation) : undefined;
+  const sourceRow = (op: ErpOperation): Record<string, unknown> | null => {
+    const source = sourceQueryOf(op);
+    return (source && latestStates.current[source.name]?.rows[0]) ?? null;
+  };
+  /** Gövde eşlemesinin kaynak sorgusu: sayfada `operation === op.bodyMap.sourceOperation` olan okuma sorgusu. */
+  const mapSourceQueryOf = (op: ErpOperation) => op.bodyMap
+    ? queries.find((candidate) => candidate.kind === "read" && candidate.operation === op.bodyMap!.sourceOperation) : undefined;
+  /** Kaynak sorgu yanıt almış ve yüklenmiyorsa satırları; aksi halde null (istek kurulmaz). */
+  const mapSourceRows = (op: ErpOperation): Record<string, unknown>[] | null => {
+    const source = mapSourceQueryOf(op);
+    const state = source ? latestStates.current[source.name] : undefined;
+    return state && state.ran && !state.loading ? state.rows : null;
+  };
+  /** 403 her zaman genel yetki metniyle gösterilir; sunucunun `error` gövdesi (serverError) onu ezmesin. */
+  const operationFailure = (cause: unknown): unknown => (cause as { status?: number } | null)?.status === 403
+    ? Object.assign(new Error("Bu işlem için yetkiniz yok."), { status: 403 }) : cause;
+  const operationInit = (request: OperationRequest): RequestInit => request.body !== undefined
+    ? { method: request.method, headers: { "Content-Type": "application/json" }, body: request.body }
+    : { method: request.method };
+
+  const executeOperation = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState | undefined> => {
+    const sequence = (sequences.current.get(query.name) ?? 0) + 1;
+    sequences.current.set(query.name, sequence);
+    const currentGeneration = generation.current;
+    setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(true)), loading: true, error: "" } }));
+    try {
+      const op = operationOf(query);
+      if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
+      const source = sourceRow(op);
+      // Yol parametresi henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
+      if (missingRouteValue(op, values, source)) {
+        if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
+        const idle = emptyState(false);
+        setStates((current) => ({ ...current, [query.name]: idle }));
+        return idle;
+      }
+      const request = buildOperationRequest(op, values, source);
+      const json = await api<unknown>(request.url, token, operationInit(request));
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
+      const mapped = mapOperationResult(op, json);
+      const next: QueryState = { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true, ranWith: values };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
+    } catch (cause) {
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
+      const failure = operationFailure(cause) as Error & { serverError?: string };
+      const next: QueryState = { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
+    }
+  };
+
+  const runOperationWrite = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<WriteResult> => {
+    if (previewId) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
+    const op = operationOf(query);
+    const source = sourceQueryOf(op);
+    // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
+    const mapSource = mapSourceQueryOf(op);
+    if ((source && latestStates.current[source.name]?.loading) || (mapSource && latestStates.current[mapSource.name]?.loading)) {
+      throw new Error("Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.");
+    }
+    // Özel alan kaydı tüm değerleri değiştirir: kaynak okuması hiç çalışmadıysa ya da hata verdiyse boş/eksik eşlem yazılmaz.
+    const mapState = mapSource ? latestStates.current[mapSource.name] : undefined;
+    if (mapSource && (!mapState || !mapState.ran || mapState.error)) throw new Error(MAP_SOURCE_FAILED);
+    // Elle çalışan kaynak başka bir kayıt için yüklenmiş olabilir: yazmanın yol değerleri kaynağın çalıştığı değerlerle eşleşmeli.
+    for (const sourceQuery of [source, mapSource]) {
+      const stale = sourceQuery ? staleSourceError(op, values, latestStates.current[sourceQuery.name]?.ranWith) : null;
+      if (stale) throw new Error(stale);
+    }
+    const row = sourceRow(op);
+    const mismatch = sourceRecordError(op, values, row);
+    if (mismatch) throw new Error(mismatch);
+    const request = buildOperationRequest(op, values, row, mapSourceRows(op));
+    setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(false)), fieldErrors: undefined } }));
+    try {
+      const json = await api<unknown>(request.url, token, operationInit(request));
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, sonuc: json } }));
+      return { affectedRows: 1, sonuc: json };
+    } catch (cause) {
+      const failure = cause as Error & { fieldErrors?: Record<string, string[]> };
+      const fieldErrors = fieldErrorsByParameter(op, failure.fieldErrors);
+      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), ran: true, fieldErrors } }));
+      throw operationFailure(cause);
+    }
+  };
+
+  const execute = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState | undefined> => {
+    if (query.operation !== undefined) return executeOperation(query, values);
     const sequence = (sequences.current.get(query.name) ?? 0) + 1;
     sequences.current.set(query.name, sequence);
     const currentGeneration = generation.current;
@@ -104,16 +229,20 @@ export function usePageQueries(options: {
       const result = await api<RunResult>(endpointFor(query), token, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
       });
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const rows = Array.isArray(result.rows) ? result.rows : [];
-      setStates((current) => ({ ...current, [query.name]: {
+      const next: QueryState = {
         rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length,
         columns: Array.isArray(result.columns) ? result.columns : [], truncated: result.truncated === true, loading: false, error: "", ran: true,
-      } }));
+      };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     } catch (cause) {
-      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return;
+      if (sequences.current.get(query.name) !== sequence || generation.current !== currentGeneration) return undefined;
       const failure = cause as Error & { serverError?: string };
-      setStates((current) => ({ ...current, [query.name]: { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true } }));
+      const next: QueryState = { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true };
+      setStates((current) => ({ ...current, [query.name]: next }));
+      return next;
     }
   };
 
@@ -124,12 +253,46 @@ export function usePageQueries(options: {
       if (plan.query.kind === "read" && queryIds.includes(plan.query.id) && !plan.waiting) void execute(plan.query, plan.values);
     }
   };
+  /**
+   * Okuma sorgusunu (id) güncel parametrelerle hemen çalıştırır ve sonuç durumunu döner (kod bileşeni köprüsü).
+   * Bağlı olduğu sorgu yükleniyorsa ya da çalıştırma daha yenisiyle geçersizleşirse reddedilir; hiçbir zaman asılı kalmaz.
+   */
+  const runRead = async (queryId: string): Promise<QueryState> => {
+    const plan = latestPlans.current.find((candidate) => candidate.query.id === queryId && candidate.query.kind === "read");
+    if (!plan) throw new Error("Okuma sorgusu bulunamadı.");
+    if (plan.waiting) throw new Error("Sorgu şu an çalıştırılamaz; bağlı olduğu veri yükleniyor.");
+    const next = await execute(plan.query, plan.values);
+    if (!next) throw new Error("Sorgu daha yeni bir çalıştırmayla geçersizleşti.");
+    if (next.error) throw new Error(next.error);
+    return next;
+  };
+  /** Katalogdaki ERP işlemini doğrudan çağırır ve JSON yanıtını döner (kod bileşeni köprüsü; kaynak kayıt yok). */
+  const callOperation = async (op: ErpOperation, values: Record<string, unknown>): Promise<unknown> => {
+    const request = buildOperationRequest(op, values, null);
+    try { return await api<unknown>(request.url, token, operationInit(request)); } catch (cause) { throw operationFailure(cause); }
+  };
   const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false): Promise<WriteResult> => {
+    if (query.operation !== undefined) return runOperationWrite(query, values);
     const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(confirmWrite ? { parameters: values, confirmWrite: true } : { parameters: values }),
     });
     return { affectedRows: typeof result.affectedRows === "number" ? result.affectedRows : 0 };
+  };
+
+  const clearResults = (queryNames: string[]) => {
+    const writes = new Set(queries.filter((query) => query.kind !== "read" && queryNames.includes(query.name)).map((query) => query.name));
+    if (writes.size === 0) return;
+    setStates((current) => {
+      let next = current;
+      for (const name of writes) {
+        const state = current[name];
+        if (!state || (state.sonuc === undefined && state.fieldErrors === undefined)) continue;
+        if (next === current) next = { ...current };
+        next[name] = { ...state, sonuc: undefined, fieldErrors: undefined };
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -155,5 +318,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite };
+  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults };
 }
