@@ -27,7 +27,8 @@ public static class PlatformPermissionCatalog
 {
     private static readonly string[] Actions = ["read", "create", "update", "delete", "execute"];
     private static readonly System.Text.RegularExpressions.Regex StockItemBalancesPath = new(
-        "^/api/stock/items/[0-9a-fA-F-]{36}/balances$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        "^/api/stock/items/[0-9a-f-]{36}/balances/?$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public static IReadOnlyList<PermissionResourceDefinition> Resources { get; } =
     [
@@ -242,10 +243,13 @@ public static class PlatformPermissionCatalog
         }
         else if (path.StartsWith("/api/warehouses/transfers", StringComparison.OrdinalIgnoreCase))
             resource = Resources.First(x => x.ResourceType == "erp.inventory-transfers");
-        else if (method.Equals("GET", StringComparison.OrdinalIgnoreCase) && StockItemBalancesPath.IsMatch(path))
+        else if ((method.Equals("GET", StringComparison.OrdinalIgnoreCase) || method.Equals("HEAD", StringComparison.OrdinalIgnoreCase))
+            && (normalizedRoute.Equals("/api/stock/items/{id:guid}/balances", StringComparison.OrdinalIgnoreCase)
+                || StockItemBalancesPath.IsMatch(path)))
         {
             // A card's balances per warehouse expose warehouse balances: a user denied warehouses must not read them
-            // through /api/stock.
+            // through /api/stock. Matched on the route template (casing/trailing slash of the request do not matter),
+            // with a case-insensitive path check as a second guard.
             resource = Resources.First(x => x.ResourceType == "erp.warehouses");
         }
         else if (path.Equals("/api/inventory-stock-widgets", StringComparison.OrdinalIgnoreCase)

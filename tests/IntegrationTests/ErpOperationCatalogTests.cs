@@ -248,6 +248,9 @@ public sealed class ErpOperationCatalogTests
         // The reader may read stock cards, but warehouse balances are denied, also through /api/stock.
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/stock/items/{item.Id:D}")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances")).StatusCode);
+        // Request casing or a trailing slash must not fall back to the stock-card permission.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/API/Stock/Items/{item.Id.ToString("D").ToUpperInvariant()}/BALANCES")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances/")).StatusCode);
         var readerOps = await GetOperationsAsync(client);
         Assert.True(readerOps["stok.kart.getir"].GetProperty("allowed").GetBoolean());
         Assert.False(readerOps["stok.kart.depoBakiyeleri"].GetProperty("allowed").GetBoolean());
@@ -256,6 +259,8 @@ public sealed class ErpOperationCatalogTests
         // Positive control: a user with the warehouses Allow reads them.
         SetIdentity(client, Writer, "TenantUser");
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/API/Stock/Items/{item.Id.ToString("D").ToUpperInvariant()}/BALANCES")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/stock/items/{item.Id:D}/balances/")).StatusCode);
         var writerOps = await GetOperationsAsync(client);
         Assert.True(writerOps["stok.kart.depoBakiyeleri"].GetProperty("allowed").GetBoolean());
         Assert.True(writerOps["stok.bakiye.sayfa"].GetProperty("allowed").GetBoolean());
