@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
-  Activity, AlignLeft, AppWindow, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
+  Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Plus, Redo2,
   RotateCcw, Rows3, Save, Search, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
 } from "lucide-react";
@@ -8,7 +8,7 @@ import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { ActionBarPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -21,7 +21,7 @@ import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
 import { MAX_JAVASCRIPT_LENGTH, type StubHostData } from "./page-designer/codeBridgeStub";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
 import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
-import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, chipText, dialogOwnedIds, idList, ownableCandidates, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tabOwnedIds } from "./page-designer/layoutRefs";
+import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields } from "./page-designer/RowActionsFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
@@ -30,7 +30,8 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import { parseGridColumns } from "./page-designer/gridColumns";
 import { conditionProblem } from "./page-designer/conditions";
 import { ConditionFields } from "./page-designer/ConditionFields";
-import { TabsFields, tabsValue, type TabEntry } from "./page-designer/TabsFields";
+import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
+import { useFlip } from "./page-designer/useFlip";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import "./custom-pages.css";
@@ -716,6 +717,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [previewHref, setPreviewHref] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
+  // Tuvalde sürüklenirken yer tutucunun durduğu bileşen dizisi sırası (canlı yeniden yerleşim); Katmanlar `dropTarget` kullanır.
+  const [canvasDrop, setCanvasDrop] = useState<number | null>(null);
+  // Tuvalde açık olan sekme (Sekmeler kimliği → sekme sırası); yalnız tasarımcı görünümüdür, tanıma yazılmaz.
+  const [activeTabs, setActiveTabs] = useState<Record<string, number>>({});
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [device, setDevice] = useState<Device>("desktop");
@@ -1124,8 +1129,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const index = definition.components.findIndex((component) => component.id === selectedComponentId);
     return index < 0 ? definition.components.length : index + 1;
   };
-  const addComponent = (item: PaletteItem, at?: number) => {
+  const addComponent = (item: PaletteItem, at?: number, tab?: { tabsId: string; tabIndex: number; position: number }) => {
     if (!canEdit) return;
+    if (tab && tabPlacementProblem(definitionRef.current.components, tab.tabsId, tab.tabIndex, { type: item.type })) return;
     if (item.type === "actionBar" && actionBarOf(definitionRef.current.components)) return; // sayfada en çok bir İşlem Çubuğu
     const id = newId(item.type);
     const props = Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
@@ -1136,10 +1142,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     commit((value) => {
       const components = [...value.components];
       fillLayoutDefaults(item.type, props, value);
-      components.splice(at == null ? components.length : Math.max(0, Math.min(at, components.length)), 0, { id, type: item.type, ...(name ? { name } : {}), props });
-      return { ...value, components };
+      // Sekmeye bırakılan yeni bileşen dizide Sekmeler bileşeninin hemen arkasına girer (sekmeden çıkarılınca orada görünür)
+      // ve aynı geri alma adımında sekmeye yazılır.
+      const ownerIndex = tab ? components.findIndex((component) => component.id === tab.tabsId) : -1;
+      const index = ownerIndex >= 0 ? ownerIndex + 1 : at == null ? components.length : Math.max(0, Math.min(at, components.length));
+      components.splice(index, 0, { id, type: item.type, ...(name ? { name } : {}), props });
+      if (!tab) return { ...value, components };
+      const placed = placeInTab(components, tab.tabsId, tab.tabIndex, id, tab.position);
+      return placed ? { ...value, components: placed } : value;
     });
     setSelectedComponentId(id);
+    if (tab) setActiveTabs((value) => ({ ...value, [tab.tabsId]: tab.tabIndex }));
   };
   // Palet'ten eklenen düzen bileşenleri sunucunun kabul etmediği boş liste yerine sayfanın uygun girişleri/tablosuyla başlar.
   const fillLayoutDefaults = (type: ComponentType, props: PageComponent["props"], state: PageDefinition) => {
@@ -1158,10 +1171,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         .map((column) => `${column.code}=${sanitizeSafeValue(column.label || column.code).slice(0, 60) || "Alan"}`);
     }
   };
-  const dropAt = (targetIndex: number, event: DragEvent) => {
+  const clearDrag = () => { setDropTarget(null); setCanvasDrop(null); setDragging(null); };
+  // `detach`: tuvalde sayfaya bırakılan sekme bileşeni sekmesinden çıkar (Katmanlar'daki sıralama sekmeyi değiştirmez).
+  const dropAt = (targetIndex: number, event: DragEvent, detach = false) => {
     event.preventDefault();
     event.stopPropagation();
-    setDropTarget(null); setDragging(null);
+    clearDrag();
     if (!canEdit) return;
     const type = event.dataTransfer.getData("application/x-nexora-component");
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
@@ -1171,7 +1186,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       if (item) addComponent(item, targetIndex);
     } else if (Number.isInteger(from) && from >= 0 && from < definition.components.length) {
       commit((state) => {
-        const components = [...state.components];
+        const movedId = state.components[from]?.id;
+        const base = detach && movedId ? removeFromTabs(state.components, movedId) : state.components;
+        const components = [...base];
         const [moved] = components.splice(from, 1);
         const insertion = from < targetIndex ? targetIndex - 1 : targetIndex;
         components.splice(Math.max(0, Math.min(insertion, components.length)), 0, moved);
@@ -1179,16 +1196,65 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       });
     }
   };
-  const dragOverBlock = (index: number, component: PageComponent, event: DragEvent<HTMLElement>) => {
+  // Sekmenin içine bırakma: paletten yeni bileşen ya da tuvaldeki/katmanlardaki var olan bileşen, tek geri alma adımı.
+  const dropIntoTab = (tabsId: string, tabIndex: number, position: number, event: DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    clearDrag();
     if (!canEdit) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const horizontal = deviceSpan(spanOf(component), device) < 12;
-    const before = horizontal ? event.clientX < rect.left + rect.width / 2 : event.clientY < rect.top + rect.height / 2;
-    const edge = before ? "before" : "after";
-    if (dropTarget?.index !== index || dropTarget.edge !== edge) setDropTarget({ index, edge });
+    const type = event.dataTransfer.getData("application/x-nexora-component");
+    const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
+    const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
+    if (type) {
+      const item = palette.find((entry) => entry.type === type);
+      if (item) addComponent(item, undefined, { tabsId, tabIndex, position });
+      return;
+    }
+    const moved = Number.isInteger(from) ? definitionRef.current.components[from] : undefined;
+    if (!moved) return;
+    commit((state) => {
+      const placed = placeInTab(state.components, tabsId, tabIndex, moved.id, position);
+      return placed && placed !== state.components ? { ...state, components: placed } : state;
+    });
+    setSelectedComponentId(moved.id);
+    setActiveTabs((value) => ({ ...value, [tabsId]: tabIndex }));
   };
+  // Sürüklenen şey: tuvaldeki bir bileşen (kimlik) ya da paletten bir tür. Sekmeye kabul ve yer tutucu genişliği buna göre.
+  const draggingComponent = dragging ? definition.components.find((component) => component.id === dragging) : undefined;
+  const draggingType = draggingComponent?.type ?? (dragging && palette.some((item) => item.type === dragging) ? dragging as ComponentType : null);
+  const dragSpan = draggingComponent ? deviceSpan(spanOf(draggingComponent), device) : draggingType ? deviceSpan(defaultSpan(draggingType), device) : 12;
+  // Tuval ızgarasında konum hesabı kare başına bir kez yapılır; yer tutucunun üstündeyken konum korunur.
+  const canvasHit = useRef<{ target: Element | null; x: number; y: number } | null>(null);
+  const canvasFrame = useRef(0);
+  const dragOverCanvas = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    if (!canEdit || !dragging) return;
+    canvasHit.current = { target: event.target as Element | null, x: event.clientX, y: event.clientY };
+    if (canvasFrame.current) return;
+    canvasFrame.current = requestAnimationFrame(() => {
+      canvasFrame.current = 0;
+      const hit = canvasHit.current;
+      const grid = gridRef.current;
+      if (!hit || !grid) return;
+      const element = hit.target instanceof Element ? hit.target.closest<HTMLElement>("[data-page-index], [data-page-placeholder]") : null;
+      if (!element || element.parentElement !== grid) {
+        // Izgaranın boş yeri: son bloğun altındaysa sona; değilse konum korunur.
+        const blocks = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-page-index]")).filter((block) => block.offsetParent !== null);
+        const lastBlock = blocks[blocks.length - 1];
+        if (!lastBlock || hit.y > lastBlock.getBoundingClientRect().bottom) setCanvasDrop(definitionRef.current.components.length);
+        return;
+      }
+      if (element.dataset.pagePlaceholder !== undefined) return;
+      const index = Number(element.dataset.pageIndex);
+      const component = definitionRef.current.components[index];
+      if (!component) return;
+      const rect = element.getBoundingClientRect();
+      const horizontal = deviceSpan(spanOf(component), device) < 12;
+      const before = horizontal ? hit.x < rect.left + rect.width / 2 : hit.y < rect.top + rect.height / 2;
+      setCanvasDrop(before ? index : index + 1);
+    });
+  };
+  useEffect(() => () => cancelAnimationFrame(canvasFrame.current), []);
   const updateComponent = (id: string, key: string, value: PropValue) => commit((state) => ({
     ...state,
     components: state.components.map((component) => component.id === id ? { ...component, props: { ...component.props, [key]: numericKeys.includes(key) ? Number(value) : value } } : component),
@@ -1366,20 +1432,34 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       if (index < 0) return state;
       const components = [...state.components];
       components.splice(index + 1, 0, duplicate);
-      return { ...state, components };
+      // Sekmedeki bileşenin kopyası aynı sekmede, aslının hemen arkasında başlar (sekme doluysa sayfaya düşer).
+      const location = tabLocation(state.components, id);
+      const placed = location ? placeInTab(components, location.tabsId, location.tabIndex, copyId, location.position + 1) : null;
+      return { ...state, components: placed ?? components };
     });
     setSelectedComponentId(copyId);
   };
+  // Sekmedeki bileşen kendi sekmesinde (sekme sırası ERP'deki sıradır), diğerleri sayfa dizisinde taşınır.
   const moveComponent = (index: number, delta: number) => commit((state) => {
+    const id = state.components[index]?.id;
+    if (id && tabLocation(state.components, id)) {
+      const moved = moveWithinTab(state.components, id, delta < 0 ? -1 : 1);
+      return moved ? { ...state, components: moved } : state;
+    }
     const next = [...state.components]; const target = index + delta;
     if (target < 0 || target >= next.length) return state;
     [next[index], next[target]] = [next[target], next[index]];
     return { ...state, components: next };
   });
+  const detachFromTab = (id: string) => commit((state) => {
+    const components = removeFromTabs(state.components, id);
+    return components === state.components ? state : { ...state, components };
+  });
   const startResize = (component: PageComponent, event: ReactPointerEvent<HTMLSpanElement>) => {
     if (!canEdit || device !== "desktop" || !gridRef.current) return;
     event.preventDefault(); event.stopPropagation();
-    const grid = gridRef.current;
+    // Sekmedeki bileşen sekme gövdesinin 12 sütununa göre boyutlanır.
+    const grid = event.currentTarget.closest<HTMLElement>(".pd-tabs-canvas-panel") ?? gridRef.current;
     const gap = Number.parseFloat(getComputedStyle(grid).columnGap) || 0;
     const column = (grid.clientWidth + gap) / 12;
     const startX = event.clientX;
@@ -1799,9 +1879,93 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Sekmedeki ve penceredeki bileşenler yalnız sahibinin içinde, satır işlemi düğmeleri listenin İşlemler sütununda çizilir
   // (kod bileşeni iki kez çalışmasın diye üst düzeyde hiç oluşturulmaz).
-  const nested = new Set([...tabOwnedIds(definition.components), ...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]);
-  return definition.components.map((component) => nested.has(component.id) ? null : renderOne(component));
+  const tabOwned = tabOwnedIds(definition.components);
+  const nested = new Set([...tabOwned, ...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]);
+  // Sayfadaki Sekmeler bileşeninin kabı (TabsCanvas) seçim ve sürükleme durumuna bağlı olduğundan bu önbelleğin dışında
+  // çizilir; içindeki bileşenlerin önizlemesi burada bir kez hazırlanır. Pencerenin içindeki Sekmeler durağan önizlemedir.
+  const tabChildren = new Map<string, ReactNode>();
+  for (const id of tabOwned) {
+    const child = byComponentId.get(id);
+    if (child && child.type !== "tabs" && child.type !== "dialog") tabChildren.set(id, renderOne(child));
+  }
+  const list = definition.components.map((component) => nested.has(component.id) || component.type === "tabs" ? null : renderOne(component));
+  return { list, tabChildren };
   }, [definition, forms, sources, previewData, queryPreviews, counts, token, role, device]);
+
+  // Canlı yeniden yerleşim: sürüklenen bloğun genişliğinde yer tutucu; bileşen yerinden oynamıyorsa (kendi önü/arkası)
+  // gösterilmez, soluk asıl blok yerini belirtir. Sekmedeki bileşen sayfaya taşınırken her zaman gösterilir.
+  const draggingIndex = draggingComponent ? definition.components.indexOf(draggingComponent) : -1;
+  const draggingInPlace = draggingIndex >= 0 && !tabIds.has(draggingComponent!.id) && (canvasDrop === draggingIndex || canvasDrop === draggingIndex + 1);
+  const pagePlaceholderAt = canEdit && dragging && canvasDrop !== null && !draggingInPlace ? canvasDrop : null;
+  const pagePlaceholder = <div key="__placeholder" data-flip="__placeholder" data-page-placeholder="" className="pd-drop-placeholder"
+    style={{ gridColumn: `span ${dragSpan}` }}>Buraya bırakın</div>;
+  useFlip(gridRef, `${device}|${definition.components.map((component) => component.id).join(",")}|${pagePlaceholderAt ?? "-"}`);
+  // Katmanlardan ya da başka yoldan seçilen sekme bileşeni tuvalde görünsün diye sekmesi açılır.
+  useEffect(() => {
+    if (!selectedComponentId) return;
+    const location = tabLocation(definitionRef.current.components, selectedComponentId);
+    if (location) setActiveTabs((value) => value[location.tabsId] === location.tabIndex ? value : { ...value, [location.tabsId]: location.tabIndex });
+  }, [selectedComponentId]);
+  const activeTabOf = (component: PageComponent) => {
+    const tabs = parseTabs(component.props.tabs);
+    const picked = activeTabs[component.id];
+    return picked !== undefined && picked >= 0 && picked < tabs.length ? picked : clampDefaultTab(Number(component.props.defaultTab ?? 0), tabs.length);
+  };
+  const writeTabs = (tabsId: string, update: (tabs: TabEntry[]) => TabEntry[] | null) => commit((state) => {
+    let changed = false;
+    const components = state.components.map((component) => {
+      if (component.id !== tabsId) return component;
+      const next = update(parseTabs(component.props.tabs));
+      if (!next) return component;
+      changed = true;
+      return { ...component, props: { ...component.props, tabs: tabsValue(next) } };
+    });
+    return changed ? { ...state, components } : state;
+  });
+  const renderTabsContainer = (component: PageComponent) => {
+    const tabs = parseTabs(component.props.tabs);
+    const byId = new Map(definition.components.map((item) => [item.id, item]));
+    const childToolbar = (id: string) => {
+      const child = byId.get(id);
+      const location = tabLocation(definition.components, id);
+      if (!child || !location) return null;
+      const count = tabs[location.tabIndex]?.ids.length ?? 0;
+      const index = definition.components.indexOf(child);
+      return <>
+        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => moveComponent(index, -1)}><ArrowUp size={13}/></button>
+        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => moveComponent(index, 1)}><ArrowDown size={13}/></button>
+        <button type="button" title="Sekmeden çıkar" aria-label="Sekmeden çıkar" onClick={() => detachFromTab(id)}><ArrowUpFromLine size={13}/></button>
+        <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => duplicateComponent(id)}><Copy size={13}/></button>
+        <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(id)}><Trash2 size={13}/></button>
+      </>;
+    };
+    return <TabsCanvas tabs={tabs} active={activeTabOf(component)} canEdit={canEdit} resizable={device === "desktop"} selectedId={selectedComponentId}
+      draggingId={dragging ? draggingComponent?.id ?? `palette:${dragging}` : null} dropSpan={dragSpan} style={componentStyle(component.type, component.props)}
+      acceptsTab={(tabIndex) => !!draggingType && !tabPlacementProblem(definition.components, component.id, tabIndex, { id: draggingComponent?.id, type: draggingType })}
+      renderChild={(id) => rendered.tabChildren.get(id) ?? null}
+      spanFor={(id) => { const child = byId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
+      labelFor={(id) => { const child = byId.get(id); return child ? `${titleFor(child.type)} · ${spanOf(child)}/12` : id; }}
+      conditional={(id) => { const child = byId.get(id); return !!child && isConditional(child); }}
+      toolbarFor={childToolbar}
+      onActivate={(index) => setActiveTabs((value) => value[component.id] === index ? value : { ...value, [component.id]: index })}
+      onSelect={setSelectedComponentId}
+      onClaimDrag={() => { if (canvasDrop !== null) setCanvasDrop(null); }}
+      onDrop={(tabIndex, position, event) => dropIntoTab(component.id, tabIndex, position, event)}
+      onItemDragStart={(id, event) => {
+        if (resizing.current) { event.preventDefault(); return; }
+        event.dataTransfer.setData("application/x-nexora-index", String(definition.components.findIndex((item) => item.id === id)));
+        event.dataTransfer.effectAllowed = "move";
+        setDragging(id);
+      }}
+      onDragEnd={clearDrag}
+      onRename={(index, label) => writeTabs(component.id, (current) => renameTab(current, index, cleanTabLabel(label)))}
+      canAddTab={tabs.length < MAX_TABS}
+      onAddTab={() => {
+        writeTabs(component.id, addTab);
+        setActiveTabs((value) => ({ ...value, [component.id]: Math.min(tabs.length, MAX_TABS - 1) }));
+      }}
+      onResizeStart={(id, event) => { const child = byId.get(id); if (child) startResize(child, event); }}/>;
+  };
 
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const searchText = paletteSearch.trim().toLocaleLowerCase("tr-TR");
@@ -2075,24 +2239,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     </div>;
   };
   // Sekmeler müfettişi: sekmeye alınabilecek bileşenler (sunucudaki sekme kuralı) ve başka Sekmeler bileşenlerinin sahiplikleri.
-  const tabCandidates: PickerInput[] = selected?.type === "tabs" ? (() => {
-    return ownableCandidates(definition.components, { id: selected.id, type: "tabs" })
-      .map((component) => {
-        const summary = summaryOf(component);
-        const title = titleFor(component.type);
-        return { id: component.id, name: component.name, label: summary === title ? title : `${title}: ${summary}`, inputType: component.type, hasOptions: false };
-      });
-  })() : [];
-  const tabsTakenElsewhere: Record<string, string> = {};
-  if (selected?.type === "tabs") for (const component of definition.components) {
-    if (component.type !== "tabs" || component.id === selected.id) continue;
-    for (const tab of parseTabs(component.props.tabs)) for (const id of tab.ids) tabsTakenElsewhere[id] = `${summaryOf(component)} · ${tab.label}`;
-  }
-  // Pencereye alınmış bileşenler de başka bir sahibe aittir (sekmede soluk gösterilir).
-  if (selected?.type === "tabs") for (const component of definition.components) {
-    if (component.type !== "dialog") continue;
-    for (const id of idList(component.props.contains, MAX_DIALOG_IDS)) tabsTakenElsewhere[id] = `${summaryOf(component)} · pencere`;
-  }
+  // Seçili bileşen bir sekmedeyse müfettişte konumu ("Sekmeler › Özet") ve "Sekmeden çıkar" gösterilir.
+  const selectedTabLocation = selected ? tabLocation(definition.components, selected.id) : null;
+  const selectedTabOwner = selectedTabLocation ? definition.components.find((component) => component.id === selectedTabLocation.tabsId) : undefined;
+  const selectedTabLabel = selectedTabOwner && selectedTabLocation ? parseTabs(selectedTabOwner.props.tabs)[selectedTabLocation.tabIndex]?.label ?? "" : "";
   const setTabs = (id: string, tabs: TabEntry[], defaultTab: number) => patchComponent(id, { tabs: tabsValue(tabs), defaultTab: tabs.length > 0 ? defaultTab : undefined });
   // "Sayfalama" bölümü (veri listesi): sunucu sayfalaması adlı, ERP işlemine bağlı ve işlemi page/pageSize alan listede açılabilir.
   const pagedQuery = selected?.type === "dataTable" && selectedQueryRef ? definition.queries.find((query) => query.id === selectedQueryRef) : undefined;
@@ -2232,23 +2382,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
             <div ref={gridRef} className={`pd-grid ${dragging ? "is-dragging" : ""}`}
-              onDragOver={(event) => { event.preventDefault(); if (event.target === event.currentTarget && dropTarget) setDropTarget(null); }}
-              onDrop={(event) => dropAt(definition.components.length, event)}>
+              onDragOver={dragOverCanvas}
+              onDragLeave={(event) => { const next = event.relatedTarget as Node | null; if (!next || !event.currentTarget.contains(next)) setCanvasDrop(null); }}
+              onDrop={(event) => dropAt(canvasDrop ?? definition.components.length, event, true)}>
               {showGrid && <div className="pd-grid-guides" aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>}
-              {definition.components.length === 0 && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setLeftTab("templates"); }}><LayoutTemplate size={14}/>Şablonları göster</button>}</div>}
-              {definition.components.map((component, index) => {
+              {definition.components.length === 0 && pagePlaceholderAt === null && <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setLeftTab("templates"); }}><LayoutTemplate size={14}/>Şablonları göster</button>}</div>}
+              {definition.components.flatMap((component, index) => {
                 const isSelected = selectedComponentId === component.id;
-                const drop = dropTarget?.index === index ? dropTarget.edge : null;
-                const horizontal = deviceSpan(spanOf(component), device) < 12;
-                return <div key={component.id}
-                  className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""} ${drop ? `drop-${drop}-${horizontal ? "h" : "v"}` : ""}`}
+                const block = <div key={component.id} data-flip={component.id} data-page-index={index}
+                  className={`pd-block ${ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id)) ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""} ${dragging === component.id ? "is-dragging" : ""}`}
                   style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
                   draggable={canEdit}
                   onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
                   onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; setDragging(component.id); }}
-                  onDragEnd={() => { setDragging(null); setDropTarget(null); }}
-                  onDragOver={(event) => dragOverBlock(index, component, event)}
-                  onDrop={(event) => dropAt(drop === "after" ? index + 1 : index, event)}>
+                  onDragEnd={clearDrag}>
                   <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
                   {isConditional(component) && <span className="pd-cond-chip" title={String(component.props.visibleWhen)}>Koşullu</span>}
                   {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
@@ -2257,10 +2404,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" disabled={component.type === "actionBar"} onClick={() => duplicateComponent(component.id)}><Copy size={13}/></button>
                     <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => removeComponent(component.id)}><Trash2 size={13}/></button>
                   </div>}
-                  <div className="pd-block-render">{rendered[index]}</div>
+                  <div className="pd-block-render">{component.type === "tabs" && !nestedIds.has(component.id) ? renderTabsContainer(component) : rendered.list[index]}</div>
                   {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
                 </div>;
+                return pagePlaceholderAt === index ? [pagePlaceholder, block] : [block];
               })}
+              {pagePlaceholderAt !== null && pagePlaceholderAt >= definition.components.length && pagePlaceholder}
             </div>
           </div>
         </div>
@@ -2272,6 +2421,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && systemAdmin && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
         </div> : selected ? <div className="pd-right-body">
           <div className="pd-right-head"><SelectedIcon size={16}/><div><b>{titleFor(selected.type)}</b><small>{selected.id}</small></div><button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
+          {selectedTabLocation && selectedTabOwner && <div className="pd-tab-location">
+            <small>Konum: <button type="button" className="pd-link-button" onClick={() => setSelectedComponentId(selectedTabOwner.id)} title="Sekmeler bileşenini seç">{summaryOf(selectedTabOwner)}</button> › {selectedTabLabel}</small>
+            {canEdit && <button type="button" className="pd-button small" onClick={() => detachFromTab(selected.id)} title="Bileşen sayfaya, kendi yerine geri alınır"><ArrowUpFromLine size={13}/>Sekmeden çıkar</button>}
+          </div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
             <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>
               <input className="pd-binding-name" value={selected.name ?? ""} maxLength={64} spellCheck={false} placeholder={selected.type === "input" ? "gunEsigi" : selected.type === "dataTable" ? "izgara" : selected.type === "editableGrid" ? "tablo1" : selected.type === "customFieldsBlock" ? "ozelAlanlar1" : ""} onChange={(event) => setComponentName(selected.id, event.target.value.trim())}/>
@@ -2558,9 +2711,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {typeof selected.props.relatedQuery === "string" && <label className="pd-field">İlgili liste başlığı<input value={String(selected.props.relatedTitle ?? "")} maxLength={60} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { relatedTitle: sanitizeSafeValue(event.target.value, false) || undefined })} onBlur={(event) => { const trimmed = event.target.value.trim(); if (trimmed !== event.target.value) patchComponent(selected.id, { relatedTitle: trimmed || undefined }); }}/></label>}
             </>)}
             {selected.type === "tabs" && section("tabs", "Sekmeler", <>
-              <small>Sekmeye alınan bileşenler sayfada kendi yerinde çizilmez, yalnız sekmesinde görünür. Tuvalde sekme başlığına tıklayarak sekmeler arasında geçebilirsiniz.</small>
-              <TabsFields tabs={parseTabs(selected.props.tabs)} defaultTab={Number(selected.props.defaultTab ?? 0)} candidates={tabCandidates}
-                takenElsewhere={tabsTakenElsewhere} disabled={!canEdit} onChange={(tabs, defaultTab) => setTabs(selected.id, tabs, defaultTab)}/>
+              <TabsFields tabs={parseTabs(selected.props.tabs)} defaultTab={Number(selected.props.defaultTab ?? 0)}
+                disabled={!canEdit} onChange={(tabs, defaultTab) => setTabs(selected.id, tabs, defaultTab)}/>
             </>)}
             {selected.type === "editableGrid" && section("grid", "Düzenlenebilir tablo", <EditableGridFields name={selected.name} props={selected.props} readQueries={readQueries}
               sourceColumns={typeof selected.props.sourceQuery === "string" ? queryColumns(selected.props.sourceQuery) : []}
