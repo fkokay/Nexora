@@ -127,10 +127,30 @@ internal static class ErpOperationCatalog
             if (!reportSources.TryGetValue(source, out var report))
                 throw new InvalidOperationException($"Rapor kaynağı katalogda yok: {source}");
             operations.Add(new ErpOperation($"rapor.{source}", "Rapor: " + report.Label, ReportModule, "read", "read", "POST", "/api/reports/run",
-                [], new ErpOperationResult("list", "rows", report.Columns.Select(x => new ErpOperationColumn(x.Code, x.Label, x.DataType)).ToArray()),
-                null, new Dictionary<string, object?>(StringComparer.Ordinal) { ["source"] = source, ["pageSize"] = 100 }, Since));
+                [], new ErpOperationResult("list", "rows", ReportColumns(report).Select(x => new ErpOperationColumn(x.Code, x.Label, x.DataType)).ToArray()),
+                null, ReportBody(source, report), Since));
         }
         return operations;
+    }
+
+    // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
+    private static IReadOnlyList<ReportColumn> ReportColumns(ReportSource report) => report.Columns.Take(12).ToArray();
+
+    /// <summary>
+    /// The fixed /api/reports/run body for a report source. The sort column default ("code") does not exist on every
+    /// source, so the first sort choice the endpoint's own validator accepts is used; a source with none fails startup.
+    /// </summary>
+    private static Dictionary<string, object?> ReportBody(string source, ReportSource report)
+    {
+        var columns = ReportColumns(report).Select(x => x.Code).ToArray();
+        foreach (var sortBy in new string?[] { null }.Concat(report.Columns.Select(x => x.Code)))
+        {
+            if (!ReportEndpoints.Validate(new ReportRunRequest(source, columns, null, sortBy, false, PageSize: 100), out _, out _)) continue;
+            var body = new Dictionary<string, object?>(StringComparer.Ordinal) { ["source"] = source, ["columns"] = columns, ["pageSize"] = 100 };
+            if (sortBy is not null) body["sortBy"] = sortBy;
+            return body;
+        }
+        throw new InvalidOperationException($"Rapor kaynağı için geçerli bir rapor isteği kurulamadı: {source}");
     }
 
     private static ErpOperationResult List(IReadOnlyList<ErpOperationColumn> columns, string? rowsPath) => new("list", rowsPath, columns);

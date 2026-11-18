@@ -188,7 +188,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
     {
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
-        // A designer with customization rights may write operation-only pages: they carry no SQL and run with the user's own token.
+        // A designer with customization rights may write read-only operation pages: they carry no SQL and run with the user's own token.
         SetIdentity(client, Ayse, "TenantUser");
         var created = await CreateDraftAsync(client, "op-page", OperationDefinition());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
@@ -207,6 +207,96 @@ public sealed class CustomPageQueryRulesIntegrationTests
         // Adding SQL to the page is still admin-only.
         var sqlDraft = await CreateDraftAsync(client, "op-page", QueryDefinition());
         Assert.Equal(HttpStatusCode.Forbidden, sqlDraft.StatusCode);
+    }
+
+    internal static object WriteOperationDefinition() => new
+    {
+        schemaVersion = 2,
+        queries = new object[]
+        {
+            new
+            {
+                id = "q1", name = "kartSil", kind = "delete", runOn = "manual", operation = "stok.kart.sil",
+                parameters = new object[] { new { name = "id", binding = "{{bugun}}", type = "guid" } }
+            }
+        },
+        components = new object[] { new { id = "heading_1", type = "heading", props = new { title = "Sil" } } }
+    };
+
+    [Fact]
+    public async Task Write_operation_page_is_admin_only_for_draft_and_publish()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        // A non-admin designer cannot add a write ERP operation to a page, even with customization rights.
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", WriteOperationDefinition())).StatusCode);
+        // A stale TenantAdmin role claim without an admin membership is not enough either.
+        SetIdentity(client, Ayse, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", WriteOperationDefinition())).StatusCode);
+
+        SetIdentity(client, Admin, "TenantAdmin");
+        var created = await CreateDraftAsync(client, "op-write", WriteOperationDefinition());
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var draftId = await IdOf(created);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/op-write/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
+
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
+        var storedJson = (await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{draftId}")).GetProperty("definitionJson").GetString()!;
+        Assert.True(TenantCustomPageQueries.HasWriteOperationQueries(storedJson), storedJson);
+
+        // Replacing the published write-operation page, even with a read-only draft, stays admin-only.
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", OperationDefinition())).StatusCode);
+    }
+
+    internal static object CodeDefinition(string javascript, bool nested = true)
+    {
+        var code = new { id = "code_1", type = "code", props = new { css = ".x{color:red}", javascript } };
+        return new
+        {
+            schemaVersion = 1,
+            components = nested
+                ? new object[] { new { id = "section_1", type = "section", props = new { title = "Bölüm" }, children = new object[] { code } } }
+                : new object[] { code }
+        };
+    }
+
+    [Fact]
+    public async Task Code_component_with_javascript_is_admin_only_for_draft_and_publish()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, Ayse, "TenantUser");
+        // Nested or top level, a code component with JavaScript needs a verified TenantAdmin.
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("document.body.dataset.x = '1';"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);", nested: false))).StatusCode);
+        SetIdentity(client, Ayse, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);"))).StatusCode);
+
+        // Without JavaScript (blank, or CSS only) a designer keeps the previous behavior.
+        SetIdentity(client, Ayse, "TenantUser");
+        var blank = await CreateDraftAsync(client, "css-page", CodeDefinition("   "));
+        Assert.Equal(HttpStatusCode.Created, blank.StatusCode);
+        var blankId = await IdOf(blank);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{blankId}",
+            new { expectedRevision = 1, name = "CSS", definition = CodeDefinition("") })).StatusCode);
+        // Adding JavaScript to an existing draft is refused.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/custom-pages/{blankId}",
+            new { expectedRevision = 2, name = "CSS", definition = CodeDefinition("alert(1);") })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{blankId}/publish", new { expectedRevision = 2 })).StatusCode);
+
+        SetIdentity(client, Admin, "TenantAdmin");
+        var created = await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);"));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var draftId = await IdOf(created);
+        SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
     }
 
     [Fact]

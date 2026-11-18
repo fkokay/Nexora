@@ -81,6 +81,43 @@ public sealed class ErpOperationCatalogTests
     }
 
     [Fact]
+    public void Every_report_fixed_body_passes_report_run_validation()
+    {
+        foreach (var op in ErpOperationCatalog.All.Where(x => x.Name.StartsWith("rapor.", StringComparison.Ordinal)))
+        {
+            var request = JsonSerializer.Deserialize<ReportRunRequest>(JsonSerializer.Serialize(op.FixedBody), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            Assert.True(ReportEndpoints.Validate(request, out _, out var errors),
+                $"{op.Name}: {string.Join("; ", errors!.Select(x => x.Key + "=" + string.Join(",", x.Value)))}");
+            var columns = Assert.IsAssignableFrom<IReadOnlyList<string>>(op.FixedBody!["columns"]);
+            Assert.InRange(columns.Count, 1, 12);
+            Assert.Equal(columns, op.Result.Columns.Select(x => x.Code));
+        }
+    }
+
+    [Fact]
+    public async Task Stock_items_report_operation_runs_with_catalog_body()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            db.StockItems.Add(new StockItem { TenantId = TenantA, Code = "STK-R", Name = "Rapor vidası", UnitCode = "EA", IsActive = true });
+            await db.SaveChangesAsync();
+        }
+        Assert.True(ErpOperationCatalog.TryGet("rapor.stockItems", out var op));
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        using var response = await client.PostAsJsonAsync(op.Route, op.FixedBody);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var rows = body.GetProperty(op.Result.RowsPath!).EnumerateArray().ToArray();
+        Assert.Single(rows);
+    }
+
+    [Fact]
     public void Names_are_unique_and_well_formed()
     {
         var all = ErpOperationCatalog.All;

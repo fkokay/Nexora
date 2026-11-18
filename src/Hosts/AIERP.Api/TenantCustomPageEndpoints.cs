@@ -296,23 +296,30 @@ internal static class TenantCustomPageEndpoints
         return await auth.IsAllowedAsync(tenant, userId, role, new ResolvedPlatformPermission(definition, attributes), ct);
     }
     /// <summary>
-    /// Pages whose definition contains SQL queries may only be written by a verified TenantAdmin (role claim and current
-    /// membership). The Platform database is resolved only when one of the definitions has SQL queries. Pages that only
-    /// bind ERP operations need no such gate: operations run against their own endpoints with the user's own token.
+    /// Pages whose definition contains SQL queries, write ERP operation queries or a code component with JavaScript
+    /// (it can reach page data and operations) may only be written by a verified
+    /// TenantAdmin (role claim and current membership). The Platform database is resolved only when one of the
+    /// definitions needs the check. Pages that only bind read ERP operations need no such gate: reads run against their
+    /// own endpoints with the user's own token.
     /// </summary>
-    private static async Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
-        params string[] definitions)
-    {
-        if (!definitions.Any(TenantCustomPageQueries.HasSqlQueries)) return true;
-        var platformDb = http.RequestServices.GetRequiredService<PlatformDbContext>();
-        return await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
-    }
+    private static Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
+        params string[] definitions) =>
+        VerifiedAdminRequiredAsync(http, tenant, userId, role, ct,
+            definitions.Any(x => TenantCustomPageQueries.HasSqlQueries(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
+                || TenantCustomPageQueries.HasCodeScript(x)));
     /// <summary>
     /// Query SQL in designer responses is shown only to a verified TenantAdmin (role claim and current membership); other
     /// users get the definition without <c>queries[].sql</c>. Definitions without SQL queries need no check.
     /// </summary>
     private static Task<bool> QuerySqlVisibleAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
-        params string[] definitions) => QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, definitions);
+        params string[] definitions) =>
+        VerifiedAdminRequiredAsync(http, tenant, userId, role, ct, definitions.Any(TenantCustomPageQueries.HasSqlQueries));
+    private static async Task<bool> VerifiedAdminRequiredAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct, bool required)
+    {
+        if (!required) return true;
+        var platformDb = http.RequestServices.GetRequiredService<PlatformDbContext>();
+        return await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
+    }
     private static IResult ViewForbidden() => Results.Json(new { error = "Bu sayfayı görüntüleme yetkiniz yok." }, statusCode: StatusCodes.Status403Forbidden);
     private static TenantCustomPageRevision RevisionOf(TenantCustomPage x, Guid userId, string kind) => new() { TenantId = x.TenantId, CustomPageId = x.Id, Revision = x.Revision, Code = x.Code, Name = x.Name, Description = x.Description, DefinitionJson = x.DefinitionJson, ChangeKind = kind, ChangedByUserId = userId, CreatedAt = DateTimeOffset.UtcNow };
     private static void AddAudit(TenantDbContext db, Guid tenant, Guid userId, string action, string code) => db.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = userId, Action = action, Resource = $"custom-page:{code}" });

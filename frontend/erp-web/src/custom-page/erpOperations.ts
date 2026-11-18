@@ -85,6 +85,25 @@ export function missingRouteValue(op: ErpOperation, values: Record<string, unkno
   return false;
 }
 
+/**
+ * Kaynak kayıttan başlayan (sourceOperation) yazma işlemi için ön denetim: kaynak satır yoksa ya da bağlı bir yol
+ * değeri kaynak satırın aynı adlı alanından (büyük/küçük harf duyarsız metin karşılaştırması) farklıysa hata metni döner.
+ * Böylece başka bir kaydın gizli alanları ve rowVersion'ı seçili kayda yazılmaz. Kaynaksız işlemde null.
+ */
+export function sourceRecordError(op: ErpOperation, values: Record<string, unknown>, source: Record<string, unknown> | null): string | null {
+  if (!op.sourceOperation) return null;
+  if (!source) return "Kaynak kayıt yüklenmedi; önce bir kayıt seçin.";
+  const byName = new Map(op.parameters.map((parameter) => [parameter.name.toLowerCase(), parameter.name]));
+  for (const match of op.route.matchAll(ROUTE_PLACEHOLDER)) {
+    const name = byName.get(match[1].toLowerCase()) ?? match[1];
+    const bound = values[name];
+    if (isEmpty(bound)) continue;
+    const own = propertyCaseInsensitive(source, name);
+    if (isEmpty(own) || String(bound).toLowerCase() !== String(own).toLowerCase()) return "Kaynak kayıt seçili kayıtla eşleşmiyor.";
+  }
+  return null;
+}
+
 /** İşlem yanıtını sayfa sorgu durumu biçimine çevirir; `rowCount` sayısal `totalCount` varsa odur, yoksa satır sayısı. */
 export function mapOperationResult(op: ErpOperation, json: unknown): { rows: Record<string, unknown>[]; rowCount: number; columns: { code: string; label: string; dataType?: string }[] } {
   const columns = op.result.columns ?? [];
