@@ -11,6 +11,7 @@ import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormat
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
 import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
 import { runWriteAction } from "./custom-page/writeAction";
+import { isolatedCodeDocument } from "./custom-page/codeBridge";
 import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, buildPageCommands, exportRows, movedButtonIds } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
@@ -116,7 +117,6 @@ const scopeInputValue = (inputType: string, raw: InputRaw): unknown => {
   return raw;
 };
 
-const isolatedCodeDocument = (css: string, javascript: string) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none';"><style>html,body{margin:0;padding:12px;font:14px system-ui,sans-serif;color:#172554;min-height:24px;box-sizing:border-box}*{box-sizing:border-box}${css.replace(/<\/style/gi, "<\\/style")}</style></head><body><div id="nexora-root">Özel kod bileşeni</div><script>${javascript.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 
 // Tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); Studio tuvali aynı değerleri kullanır.
 const DEFAULT_BLOCK_PADDING = 12;
