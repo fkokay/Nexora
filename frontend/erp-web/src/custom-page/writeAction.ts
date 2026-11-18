@@ -15,13 +15,16 @@ export type WriteOutcome =
  * Sorgu eylemi ortak yazma yolu (sorgu düğmesi ve İşlem Çubuğu): tek uçuş, isteğe bağlı onay (önizlemede her zaman,
  * uyarı metniyle ve `danger` tonuyla), sonra yazma. `errorText` hatayı kullanıcı metnine çevirir.
  * `beforeWrite` (kod bileşenlerinin beforeSave olayı) kilit alındıktan sonra, onaydan önce sorulur; iptal yazmayı
- * göndermeden `{ ok: false, error: <mesaj> }` döner. `afterWrite` başarılı yazmadan sonra çağrılır (hatası yutulur).
+ * göndermeden `{ ok: false, error: <mesaj> }` döner. `validate` (istemci giriş doğrulaması) kilitten sonra ve
+ * `beforeWrite`'tan önce çalışır; null dışı sonuç da aynı biçimde döner. `afterWrite` başarılı yazmadan sonra çağrılır (hatası yutulur).
  */
 export async function runWriteAction(opts: {
   query: PageQueryDefinition; confirm: WriteConfirm; isPreview: boolean;
   write: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<WriteResult>;
   inFlight: { current: boolean };
   errorText?: (cause: unknown) => string;
+  /** İstemci giriş doğrulaması: null dışı sonuç yazmayı (beforeWrite, onay ve yazma dahil) göndermeden durdurur. */
+  validate?: () => string | null;
   beforeWrite?: (query: PageQueryDefinition) => Promise<{ cancel: true; message: string } | null>;
   afterWrite?: (query: PageQueryDefinition, result: WriteResult) => void;
 }): Promise<WriteOutcome> {
@@ -29,6 +32,9 @@ export async function runWriteAction(opts: {
   if (inFlight.current) return { ok: false, busy: true };
   inFlight.current = true;
   try {
+    // Doğrulama yalnız kullanıcıya yardımdır (sunucu yine doğrular); beforeWrite'tan ve onaydan önce çalışır.
+    const invalid = opts.validate ? opts.validate() : null;
+    if (invalid !== null) return { ok: false, error: invalid };
     if (opts.beforeWrite) {
       let verdict: { cancel: true; message: string } | null;
       try { verdict = await opts.beforeWrite(query); } catch { verdict = { cancel: true, message: BEFORE_SAVE_TIMEOUT_MESSAGE }; }

@@ -137,6 +137,19 @@ describe('buildPageCommands', () => {
     void commands.more?.[0].run?.();
     expect(run.button).toHaveBeenCalledWith('b1');
   });
+
+  it('hidden more button is omitted, disabled one carries reason', () => {
+    const { deps, run } = makeDeps({
+      buttonLabel: (id) => ({ b1: 'Onayla', b2: 'Gizli', b3: 'Kilitli', b4: 'Nedensiz' } as Record<string, string>)[id],
+      buttonGate: (id) => (id === 'b2' ? { hidden: true } : id === 'b3' ? { disabled: true, disabledReason: 'Önce onaylayın' }
+        : id === 'b4' ? { disabled: true } : undefined),
+    });
+    const commands = buildPageCommands({ moreButtons: ['b1', 'b2', 'b3', 'b4'] }, deps);
+    expect(commands.more?.map((item) => item.id)).toEqual(['b1', 'b3', 'b4']);
+    expect(commands.more?.[1]).toEqual({ id: 'b3', label: 'Kilitli', disabledReason: 'Önce onaylayın' });
+    expect(commands.more?.[2]).toEqual({ id: 'b4', label: 'Nedensiz', disabledReason: 'Bu işlem şu anda kullanılamaz.' });
+    expect(run.button).not.toHaveBeenCalled();
+  });
 });
 
 describe('exportRows', () => {

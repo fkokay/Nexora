@@ -1,4 +1,4 @@
-import type { PageCommands } from "../commands/types";
+import type { MenuCommand, PageCommands } from "../commands/types";
 import { idList } from "./layoutRefs";
 
 /** İşlem Çubuğu (`actionBar`) bileşeninin komut kuralları: saf işlevler, React'e bağlı değildir. */
@@ -10,6 +10,7 @@ const NO_RIGHT = "Bu işlem için yetkiniz yok";
 const BUSY = "İşlem sürüyor…";
 const NEEDS_SELECTION = "Önce bir kayıt seçin";
 const TABLE_LOADING = "Liste henüz yüklenmedi";
+const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 /** Düzleştirilmiş bileşen dizisindeki ilk `actionBar`. */
 export function actionBarOf(components: Component[]): { id: string; props: Record<string, unknown> } | null {
@@ -33,6 +34,8 @@ export type PageActionDeps = {
   inputIds: Set<string>;
   tableState: (tableId: string) => { loading: boolean; error?: string; rowCount: number } | undefined;
   buttonLabel: (id: string) => string | undefined;
+  /** moreButtons düğmesinin koşul durumu: `visibleWhen` yanlışsa gizli (menüye girmez), `disabledWhen` doğruysa nedenli pasif. */
+  buttonGate?: (id: string) => { hidden?: boolean; disabled?: boolean; disabledReason?: string } | undefined;
   /** Silme sorgusu, seçimi olmayan bir tablonun `seciliSatir` alanına bağlıysa true. */
   deleteNeedsSelection: boolean;
   run: {
@@ -64,9 +67,13 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const gated = (right: string, run: () => void) =>
     !deps.rights[right] ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
 
-  const more = idList(props.moreButtons, 10).flatMap((id) => {
+  const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
-    return label ? [{ id, label, run: () => deps.run.button(id) }] : [];
+    if (!label) return [];
+    const gate = deps.buttonGate?.(id);
+    if (gate?.hidden) return [];
+    if (gate?.disabled) return [{ id, label, disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE }];
+    return [{ id, label, run: () => deps.run.button(id) }];
   });
 
   return {
