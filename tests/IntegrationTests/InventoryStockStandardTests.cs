@@ -164,7 +164,8 @@ public sealed class InventoryStockStandardTests
     [Fact]
     public void State_commands_are_menu_buttons()
     {
-        Assert.Equal(new[] { "devreDisiBirak", "etkinlestir" }, Strings(Props("komutlar")["moreButtons"]));
+        // Task 6 appends the movements button after the two state commands.
+        Assert.Equal(new[] { "devreDisiBirak", "etkinlestir", "hareketlerDugmesi" }, Strings(Props("komutlar")["moreButtons"]));
         var deactivate = Props("devreDisiBirak");
         Assert.Equal("Devre dışı bırak", (string)deactivate["text"]!);
         Assert.Equal("query", (string)deactivate["actionType"]!);
@@ -234,6 +235,9 @@ public sealed class InventoryStockStandardTests
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
         Assert.True(components.Length <= 90, $"Bileşen sayısı {components.Length} > 90");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
+        // Final pilot numbers after Task 6 (wire contract: 82 components, 25 queries).
+        Assert.Equal(82, components.Length);
+        Assert.Equal(25, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
         foreach (var component in components)
@@ -560,6 +564,196 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);
         Assert.Equal("load", (string)Query("negatifStok")["runOn"]!);
         Assert.Empty(Query("negatifStok")["parameters"]!.AsArray());
+    }
+
+    // ---- Task 6: movement dialog, list and reversal ----
+
+    [Fact]
+    public void Movement_dialog_contains_form_tracking_and_list()
+    {
+        Assert.Equal("dialog", (string)Component("hareketPenceresi")["type"]!);
+        var props = Props("hareketPenceresi");
+        Assert.Equal("dialog", (string)props["presentation"]!);
+        Assert.Equal("Stok hareketleri · {{liste.seciliSatir.balance.code}} · {{depoSecimi.seciliSatir.name}}", (string)props["title"]!);
+        Assert.Equal(new[] { "hareketFormu", "izlemeSatirlari", "hareketTablosu" }, Strings(props["contains"]));
+        Assert.Equal("hareketEkle", (string)props["saveQuery"]!);
+        Assert.Null(props["saveSequence"]);
+        Assert.Equal("Hareketi kaydet", (string)props["saveLabel"]!);
+        Assert.True((bool)props["closeOnSave"]!);
+        Assert.True((bool)props["resetOnOpen"]!);
+        Assert.Equal(new[] { "hareketler", "kartDepolari", "sonHareketler", "bakiye" }, Strings(props["refreshQueries"]));
+
+        var form = Props("hareketFormu");
+        Assert.Equal("formCard", (string)Component("hareketFormu")["type"]!);
+        Assert.Equal("Yeni hareket", (string)form["title"]!);
+        Assert.Equal(2, (int)form["columns"]!);
+        Assert.Equal(new[] { "hareketYonu", "hareketTarihi", "hareketBirimi", "hareketMiktari", "hareketAciklamasi", "hareketKonumu", "birimMaliyet" },
+            Strings(form["inputs"]));
+        // A recordKey here would reset the movement entry on every list row change.
+        Assert.Null(form["recordKey"]);
+        Assert.Null(form["trackChanges"]);
+
+        var grid = Props("izlemeSatirlari");
+        Assert.Equal("list", (string)grid["gridMode"]!);
+        Assert.Equal("Lot / seri satırları", (string)grid["title"]!);
+        Assert.Equal(200, (int)grid["maxRows"]!);
+        Assert.Equal(new[]
+        {
+            "trackingCode|Lot / seri kodu|text|required,unique,maxLength:80", "quantity|Miktar|number|required,min:0.0001",
+            "expiryDate|Son kullanma tarihi|date"
+        }, Strings(grid["gridColumns"]));
+        Assert.Equal("Seri numaralarında miktar 1 olmalı ve son kullanma tarihi boş kalmalıdır; lotlarda son kullanma tarihi zorunludur.",
+            (string)grid["description"]!);
+        Assert.Null(grid["sourceQuery"]);
+    }
+
+    [Fact]
+    public void Every_movement_parameter_is_bound()
+    {
+        var expected = new Dictionary<string, string>
+        {
+            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["entryDate"] = "{{hareketTarihi.value}}", ["direction"] = "{{hareketYonu.value}}", ["quantity"] = "{{hareketMiktari.value}}",
+            ["description"] = "{{hareketAciklamasi.value}}", ["unitCostBase"] = "{{birimMaliyet.value}}", ["unitCode"] = "{{hareketBirimi.value}}",
+            ["storageLocationId"] = "{{hareketKonumu.value}}", ["tracking"] = "{{izlemeSatirlari.satirlar}}"
+        };
+        var insert = Query("hareketEkle");
+        Assert.Equal(("stok.hareket.ekle", "insert", "manual"), ((string)insert["operation"]!, (string)insert["kind"]!, (string)insert["runOn"]!));
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.ekle", out var operation));
+        // Every catalog parameter is bound, and nothing else.
+        Assert.Equal(operation.Parameters.Select(x => x.Name).Order(StringComparer.Ordinal), expected.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(expected.Count, insert["parameters"]!.AsArray().Count);
+        foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("hareketEkle", parameter));
+
+        var reversal = new Dictionary<string, string>
+        {
+            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["entryId"] = "{{hareketTablosu.seciliSatir.id}}", ["reason"] = "{{tersKayitDugmesi.yanit}}"
+        };
+        var reverse = Query("tersKayit");
+        Assert.Equal(("stok.hareket.tersKayit", "insert", "manual"), ((string)reverse["operation"]!, (string)reverse["kind"]!, (string)reverse["runOn"]!));
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverseOperation));
+        Assert.Equal(reverseOperation.Parameters.Select(x => x.Name).Order(StringComparer.Ordinal), reversal.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(reversal.Count, reverse["parameters"]!.AsArray().Count);
+        foreach (var (parameter, binding) in reversal) Assert.Equal(binding, Binding("tersKayit", parameter));
+
+        Assert.Equal("depo.konumlari", (string)Query("konumlar")["operation"]!);
+        Assert.Equal("load", (string)Query("konumlar")["runOn"]!);
+        Assert.Equal("{{depoSecimi.value}}", Binding("konumlar", "warehouseId"));
+        Assert.Single(Query("konumlar")["parameters"]!.AsArray());
+    }
+
+    [Fact]
+    public void Movement_inputs_follow_legacy_rules()
+    {
+        var direction = Props("hareketYonu");
+        Assert.Equal(("lookup", "Yön"), ((string)direction["inputType"]!, (string)direction["label"]!));
+        Assert.Equal(new[] { "Receipt=Giriş", "Issue=Çıkış" }, Strings(direction["staticOptions"]));
+        Assert.Equal(0, (int)direction["minChars"]!);
+        Assert.True((bool)direction["required"]!);
+        Assert.Equal("Receipt", (string)direction["defaultValue"]!);
+
+        var date = Props("hareketTarihi");
+        Assert.Equal(("date", "Tarih"), ((string)date["inputType"]!, (string)date["label"]!));
+        Assert.True((bool)date["required"]!);
+        Assert.Equal("{{bugun}}", (string)date["defaultValue"]!);
+
+        var unit = Props("hareketBirimi");
+        Assert.Equal(("lookup", "Hareket birimi"), ((string)unit["inputType"]!, (string)unit["label"]!));
+        Assert.Equal("birimler", (string)unit["optionsQuery"]!);
+        Assert.Equal(("unitCode", "unitCode"), ((string)unit["optionValueColumn"]!, (string)unit["optionLabelColumn"]!));
+        Assert.Equal(0, (int)unit["minChars"]!);
+        Assert.True((bool)unit["allowClear"]!);
+        Assert.Null(unit["required"]);
+        Assert.Equal("Ana birim ({{liste.seciliSatir.balance.unitCode}})", (string)unit["placeholder"]!);
+
+        var quantity = Props("hareketMiktari");
+        Assert.Equal(("number", "Miktar"), ((string)quantity["inputType"]!, (string)quantity["label"]!));
+        Assert.True((bool)quantity["required"]!);
+        Assert.Equal(0.0001, (double)quantity["min"]!);
+        Assert.Equal(0.0001, (double)quantity["step"]!);
+
+        var description = Props("hareketAciklamasi");
+        Assert.Equal(("text", "Açıklama"), ((string)description["inputType"]!, (string)description["label"]!));
+        Assert.True((bool)description["required"]!);
+        Assert.Equal(240, (int)description["maxLength"]!);
+
+        var location = Props("hareketKonumu");
+        Assert.Equal(("lookup", "Depo konumu"), ((string)location["inputType"]!, (string)location["label"]!));
+        Assert.Equal("konumlar", (string)location["optionsQuery"]!);
+        Assert.Equal(("id", "name", "code"),
+            ((string)location["optionValueColumn"]!, (string)location["optionLabelColumn"]!, (string)location["optionDescriptionColumn"]!));
+        Assert.True((bool)location["allowClear"]!);
+        Assert.Null(location["required"]);
+        Assert.Equal("konumlar.rows[0].id != null", (string)location["visibleWhen"]!);
+
+        var cost = Props("birimMaliyet");
+        Assert.Equal(("number", "Birim maliyet"), ((string)cost["inputType"]!, (string)cost["label"]!));
+        Assert.Equal(0, (double)cost["min"]!);
+        Assert.Null(cost["required"]);
+        Assert.Equal("hareketYonu.value == 'Receipt'", (string)cost["visibleWhen"]!);
+
+        Assert.Equal("liste.seciliSatir.stockItem.trackingMode != 'None'", (string)Props("izlemeSatirlari")["visibleWhen"]!);
+    }
+
+    [Fact]
+    public void Movement_list_is_server_paged_by_50()
+    {
+        var table = Props("hareketTablosu");
+        Assert.Equal("dataTable", (string)Component("hareketTablosu")["type"]!);
+        Assert.Equal("hareketler", (string)table["query"]!);
+        Assert.Equal("server", (string)table["paging"]!);
+        Assert.Equal(50, (int)table["pageSize"]!);
+        Assert.Equal(new[]
+        {
+            "entryDate", "direction", "quantity", "enteredQuantity", "enteredUnitCode", "unitCostBase", "storageLocationCode",
+            "description", "isReversal", "hasReversal"
+        }, Strings(table["columns"]));
+        Assert.Equal(new[] { "tersKayitDugmesi" }, Strings(table["rowActions"]));
+        Assert.Equal("Bu depoda hareket yok.", (string)table["emptyText"]!);
+
+        var expected = new Dictionary<string, string>
+        {
+            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["page"] = "{{hareketTablosu.sayfa}}", ["pageSize"] = "{{hareketTablosu.sayfaBoyutu}}"
+        };
+        Assert.Equal(("stok.hareket.listele", "read", "load"),
+            ((string)Query("hareketler")["operation"]!, (string)Query("hareketler")["kind"]!, (string)Query("hareketler")["runOn"]!));
+        Assert.Equal(expected.Count, Query("hareketler")["parameters"]!.AsArray().Count);
+        foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("hareketler", parameter));
+    }
+
+    [Fact]
+    public void Reversal_asks_for_a_reason_and_skips_reversed_rows()
+    {
+        var button = Props("tersKayitDugmesi");
+        Assert.Equal("button", (string)Component("tersKayitDugmesi")["type"]!);
+        Assert.Equal("Ters kayıt", (string)button["text"]!);
+        Assert.Equal("query", (string)button["actionType"]!);
+        Assert.Equal("tersKayit", (string)button["queryId"]!);
+        Assert.Equal("Ters kayıt gerekçesi", (string)button["promptLabel"]!);
+        Assert.True((bool)button["promptRequired"]!);
+        Assert.Equal("hareketTablosu.seciliSatir.hasReversal || hareketTablosu.seciliSatir.isReversal", (string)button["disabledWhen"]!);
+        Assert.Equal("Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.", (string)button["disabledReason"]!);
+        Assert.Equal("Ters kayıt oluşturuldu.", (string)button["successMessage"]!);
+        // A bakiye rerun would drop the list selection while the dialog is still open.
+        Assert.Equal(new[] { "hareketler", "kartDepolari", "sonHareketler" }, Strings(button["refreshQueries"]));
+    }
+
+    [Fact]
+    public void Movements_button_needs_a_warehouse()
+    {
+        var button = Props("hareketlerDugmesi");
+        Assert.Equal("button", (string)Component("hareketlerDugmesi")["type"]!);
+        Assert.Equal("Hareketler / ekle", (string)button["text"]!);
+        Assert.Equal("openDialog", (string)button["actionType"]!);
+        Assert.Equal("hareketPenceresi", (string)button["dialogId"]!);
+        Assert.Equal("liste.seciliSatir.stockItem.id != null", (string)button["visibleWhen"]!);
+        Assert.Equal("depoSecimi.value == null", (string)button["disabledWhen"]!);
+        Assert.Equal("Hareket için önce bir depo seçin.", (string)button["disabledReason"]!);
+        Assert.Contains("hareketlerDugmesi", Strings(Props("komutlar")["moreButtons"]));
+        var item = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar");
+        Assert.Contains("component:hareketlerDugmesi", item.Requires);
     }
 
     private static JsonObject Definition() =>JsonNode.Parse(SystemPageStandards.All[Key].DefinitionJson)!.AsObject();
