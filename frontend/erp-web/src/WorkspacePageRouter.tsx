@@ -2,6 +2,8 @@ import { lazy } from "react";
 import type { Locale } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
+import type { SystemPageMap } from "./system-pages/useSystemPageMap";
+import { LegacyScreenBar } from "./system-pages/LegacyScreenBar";
 
 const PurchaseDeliveryNotesPage = lazy(
   () => import("./PurchaseDeliveryNotesPage"),
@@ -151,8 +153,40 @@ type Props = {
     name: string;
   }) => void;
 };
+type RouterProps = Props & {
+  /** Runtime map of system pages for the selected tenant; without it every key renders its legacy screen. */
+  systemPages?: SystemPageMap;
+};
 
-export function WorkspacePageRouter({
+// Keys that are not built-in screens: they never have a system page design.
+const nonBuiltInPrefixes = ["custom-page:", "custom-page-preview:", "module:"];
+const isBuiltInPageKey = (key: string) => !nonBuiltInPrefixes.some((prefix) => key.startsWith(prefix));
+
+export function WorkspacePageRouter({ systemPages, ...props }: RouterProps) {
+  const key = props.page;
+  if (!systemPages || !isBuiltInPageKey(key)) return <LegacyPageRouter {...props} />;
+  if (systemPages.status === "loading")
+    return <div className="panel page-loading" role="status">Sayfa yükleniyor…</div>;
+  if (systemPages.legacy.has(key))
+    return (
+      <>
+        <LegacyScreenBar onBack={() => systemPages.closeLegacy(key)} />
+        <LegacyPageRouter {...props} />
+      </>
+    );
+  if (Object.prototype.hasOwnProperty.call(systemPages.screens, key))
+    return (
+      <TenantCustomPage
+        token={props.token}
+        systemScreenKey={key}
+        onOpenLegacy={() => systemPages.openLegacy(key)}
+        onSystemPageMissing={() => systemPages.dropScreen(key)}
+      />
+    );
+  return <LegacyPageRouter {...props} />;
+}
+
+function LegacyPageRouter({
   page,
   token,
   tenant,
