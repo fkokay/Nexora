@@ -1283,9 +1283,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const chosen = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string") : [];
         const picked = preview ? preview.columns.filter((column) => chosen.includes(column.code)) : [];
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
-        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div><p>Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın.</p></article>;
-        const shownRows = preview.rows.slice(0, 5);
+        // Arama girişi üst düzeyde çizilmez; önizleme yokken de listenin başlığında görünür.
         const searchInput = isPagedTable(component) && typeof props.searchInput === "string" ? inputById.get(props.searchInput) : undefined;
+        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın.</p></article>;
+        const shownRows = preview.rows.slice(0, 5);
         const paging = isPagedTable(component) ? {
           pageSize: typeof props.pageSize === "number" && props.pageSize > 0 ? props.pageSize : DEFAULT_PAGE_SIZE, total: preview.rowCount,
           meta: parseFieldList(props.footerMeta).map((entry) => ({ label: entry.label, value: preview.meta?.[entry.code] == null ? "—" : String(preview.meta[entry.code]) })),
