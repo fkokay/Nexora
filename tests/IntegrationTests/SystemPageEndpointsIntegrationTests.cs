@@ -213,8 +213,21 @@ public sealed class SystemPageEndpointsIntegrationTests
 
         var draft = await (await client.PostAsync($"/api/system-pages/{ScreenKey}/draft", null)).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(["code", "isActive"], TableColumns(draft.GetProperty("definitionJson").GetString()!));
-        // Visibility alone is not a layout change.
+        // Visibility alone is not a layout change; the hidden unmapped field is still reported.
         Assert.Equal([SystemPageMerge.UnmappedFieldNote("Açıklama")], draft.GetProperty("importNotes").EnumerateArray().Select(x => x.GetString()));
+    }
+
+    [Fact]
+    public async Task Open_draft_does_not_report_unmapped_field_left_at_catalog_default()
+    {
+        await using var app = await StartApplicationAsync();
+        await SeedScreenViewAsync(app, codeLabel: "Depo kodu", availabilityVisible: true);
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        var draft = await (await client.PostAsync($"/api/system-pages/{ScreenKey}/draft", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(["code", "isActive"], TableColumns(draft.GetProperty("definitionJson").GetString()!));
+        Assert.Empty(draft.GetProperty("importNotes").EnumerateArray());
     }
 
     [Fact]
@@ -507,7 +520,7 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     /// <summary>A published "Görünümü düzenle" view of the warehouse list: "Depo adı" hidden and "Depo kodu" relabelled.</summary>
-    private static async Task SeedScreenViewAsync(WebApplication app, string codeLabel = "Kod")
+    private static async Task SeedScreenViewAsync(WebApplication app, string codeLabel = "Kod", bool availabilityVisible = false)
     {
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
@@ -516,7 +529,7 @@ public sealed class SystemPageEndpointsIntegrationTests
             new { key = "code", label = codeLabel, visible = true, position = 0 },
             new { key = "name", label = "Depo adı", visible = false, position = 1 },
             new { key = "status", label = "Durum", visible = true, position = 2 },
-            new { key = "availability", label = "Açıklama", visible = true, position = 3 }
+            new { key = "availability", label = "Açıklama", visible = availabilityVisible, position = 3 }
         };
         db.TenantScreenViews.Add(new TenantScreenView
         {

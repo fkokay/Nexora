@@ -33,7 +33,11 @@ internal static class SystemPageMerge
             var hiddenColumns = new HashSet<string>(StringComparer.Ordinal);
             foreach (var field in fields)
             {
-                if (!view.Fields.TryGetValue(field.Key, out var column)) AddOnce(notes, UnmappedFieldNote(field.Label));
+                if (!view.Fields.TryGetValue(field.Key, out var column))
+                {
+                    // An unmapped field left at its catalog default lost nothing; only a hidden or changed one is reported.
+                    if (!field.Visible || field.DiffersFromDefault) AddOnce(notes, UnmappedFieldNote(field.Label));
+                }
                 else if (!field.Visible) hiddenColumns.Add(column);
             }
             if (fields.Any(x => x.DiffersFromDefault)) AddOnce(notes, LayoutNotImportedNote);

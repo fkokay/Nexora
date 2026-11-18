@@ -94,6 +94,23 @@ public sealed class SystemPageMergeTests
     }
 
     [Fact]
+    public void Unmapped_field_at_catalog_default_adds_no_note()
+    {
+        var result = SystemPageMerge.ImportScreenViews(Warehouses(),
+            View(F("code", "Depo kodu"), F("name", "Depo adı"), F("status", "Durum"), F("availability", "Açıklama")));
+        Assert.Equal(new[] { "code", "name", "isActive" }, Columns(result.DefinitionJson));
+        Assert.Empty(result.Notes);
+    }
+
+    [Fact]
+    public void Unmapped_field_with_changed_settings_adds_note()
+    {
+        var result = SystemPageMerge.ImportScreenViews(Warehouses(),
+            View(F("code", "Depo kodu"), F("name", "Depo adı"), F("status", "Durum"), F("availability", "Açıklama", differs: true)));
+        Assert.Equal(new[] { "“Açıklama” alanının yeni tasarımda karşılığı yok; aktarılmadı.", OrderNote }, result.Notes);
+    }
+
+    [Fact]
     public void Label_or_order_change_adds_single_note()
     {
         var result = SystemPageMerge.ImportScreenViews(Warehouses(),

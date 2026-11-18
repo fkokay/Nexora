@@ -129,7 +129,7 @@ public sealed class CustomPageAccessRulesTests
     [InlineData("/api/system-pages/inventory-warehouses/new-items", "GET", "/api/system-pages/{screenKey}/new-items", "read")]
     [InlineData("/api/system-pages/inventory-warehouses/history", "GET", "/api/system-pages/{screenKey}/history", "read")]
     [InlineData("/api/system-pages/inventory-warehouses/draft", "POST", "/api/system-pages/{screenKey}/draft", "create")]
-    [InlineData("/api/system-pages/inventory-warehouses/reset", "POST", "/api/system-pages/{screenKey}/reset", "create")]
+    [InlineData("/api/system-pages/inventory-warehouses/reset", "POST", "/api/system-pages/{screenKey}/reset", "update")]
     public void System_page_management_routes_resolve_to_tenant_customization_permission(string path, string method, string route, string action)
     {
         var resolved = PlatformPermissionCatalog.TryResolve(path, method, route,

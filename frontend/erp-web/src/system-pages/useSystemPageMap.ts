@@ -20,6 +20,8 @@ type MapState = {
 };
 
 const EMPTY_LEGACY: ReadonlySet<string> = new Set();
+/** How long the runtime map may load before it counts as failed and system-page keys render their legacy screens. */
+export const SYSTEM_PAGE_MAP_TIMEOUT_MS = 5000;
 
 function readScreens(payload: unknown): Record<string, SystemScreenEntry> {
   const raw = (payload as { screens?: unknown } | null)?.screens;
@@ -49,11 +51,19 @@ export function useSystemPageMap(token: string, tenantId: string): SystemPageMap
       return;
     }
     let active = true;
+    const controller = new AbortController();
+    // A map that does not arrive in time counts as failed, so system-page keys fall back to their legacy screens.
+    const timeout = setTimeout(() => {
+      if (active) setState({ tenantId, status: "failed", screens: {}, legacy: EMPTY_LEGACY });
+      active = false;
+      controller.abort();
+    }, SYSTEM_PAGE_MAP_TIMEOUT_MS);
     setState({ tenantId, status: "loading", screens: {}, legacy: EMPTY_LEGACY });
-    void api<unknown>("/api/system-pages/runtime", tokenRef.current)
+    void api<unknown>("/api/system-pages/runtime", tokenRef.current, { signal: controller.signal })
       .then((payload) => { if (active) setState({ tenantId, status: "ready", screens: readScreens(payload), legacy: EMPTY_LEGACY }); })
-      .catch(() => { if (active) setState({ tenantId, status: "failed", screens: {}, legacy: EMPTY_LEGACY }); });
-    return () => { active = false; };
+      .catch(() => { if (active) setState({ tenantId, status: "failed", screens: {}, legacy: EMPTY_LEGACY }); })
+      .finally(() => clearTimeout(timeout));
+    return () => { active = false; clearTimeout(timeout); controller.abort(); };
     // Once per tenant selection; a session appearing (token set) also counts.
   }, [tenantId, hasSession]);
 

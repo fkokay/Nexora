@@ -286,6 +286,9 @@ public static class PlatformPermissionCatalog
             var runtime = normalizedRoute.Equals("/api/system-pages/runtime", StringComparison.OrdinalIgnoreCase)
                 || normalizedRoute.EndsWith("/{screenKey}/published", StringComparison.OrdinalIgnoreCase);
             resource = Resources.First(x => x.ResourceType == (runtime ? "erp.custom-menus" : "erp.tenant-customizations"));
+            // "Standarda dön" rewrites the open draft (or starts one), so it needs only "update", matching the handler.
+            explicitUpdateAction = method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+                && normalizedRoute.EndsWith("/{screenKey}/reset", StringComparison.OrdinalIgnoreCase);
         }
         else if (path.Equals("/api/custom-pages", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/api/custom-pages/", StringComparison.OrdinalIgnoreCase))

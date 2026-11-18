@@ -8,6 +8,7 @@ import type * as AppTypes from '../erp-types';
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 vi.mock('../InventoryWarehousesPage', () => ({ default: () => <div>Eski depo ekranı</div> }));
+vi.mock('../CrmOpportunitiesPage', () => ({ default: () => <div>Eski fırsat ekranı</div> }));
 
 const KEY = 'inventory-warehouses';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
@@ -64,6 +65,36 @@ describe('system page routing', () => {
     expect(screen.queryByText('Eski depo ekranı')).toBeNull();
     await act(async () => { resolve({ screens: {} }); });
     expect(await screen.findByText('Eski depo ekranı')).toBeTruthy();
+  });
+
+  it('does not block built-in keys without a standard while the map loads', async () => {
+    api.mockImplementation(() => new Promise(() => {}));
+    render(<Harness page="crm-opportunities" />);
+    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
+    expect(screen.queryByText('Sayfa yükleniyor…')).toBeNull();
+  });
+
+  it('falls back to legacy when the map does not arrive within 5 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      let signal: AbortSignal | undefined;
+      api.mockImplementation((_endpoint: string, _token: string, init?: RequestInit) => {
+        signal = init?.signal ?? undefined;
+        return new Promise(() => {});
+      });
+      render(<Harness />);
+      expect(screen.getByText('Sayfa yükleniyor…')).toBeTruthy();
+      await act(async () => { vi.advanceTimersByTime(4999); });
+      expect(screen.getByText('Sayfa yükleniyor…')).toBeTruthy();
+      expect(signal?.aborted).toBe(false);
+      await act(async () => { vi.advanceTimersByTime(1); });
+      expect(signal?.aborted).toBe(true);
+      expect(screen.queryByText('Sayfa yükleniyor…')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await screen.findByText('Eski depo ekranı')).toBeTruthy();
+    expect(api).not.toHaveBeenCalledWith(`/api/system-pages/${KEY}/published`, 'tok');
   });
 
   it('override key renders system page from system endpoint', async () => {

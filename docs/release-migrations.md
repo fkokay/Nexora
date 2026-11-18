@@ -1,5 +1,9 @@
 # Production release migrations
 
+## System pages schema (Proje 3)
+
+Platform migration `20261118032634_AddSystemPageOverrides` and Tenant migration `20261118033043_AddTenantSystemPageOverrides` add the nullable `TenantCustomPages.ScreenKey` and `StandardVersion` columns (plus `TenantCustomPageRevisions.StandardVersion`), a check constraint and a filtered index. The schema change itself is additive (expand only). Rollback limit: once system page rows (`@<screenKey>` codes) exist in a tenant database, do not roll the API back to a release from before system pages; older releases do not know these rows. No deployment of these migrations is recorded here yet.
+
 ## Remote development invoice-notes schema and master `fcf1d318` — 2026-11-14
 
 `master` advanced to `fcf1d318` (PRs #40, #41, #42). PR #42 adds Platform migration `20261113204002_AddSalesInvoiceNotes` and Tenant migration `20261113204027_AddTenantSalesInvoiceNotes`. Both add the nullable column `SalesInvoices.Notes nvarchar(1000)`; nothing else changes. Before the change, the live histories were:

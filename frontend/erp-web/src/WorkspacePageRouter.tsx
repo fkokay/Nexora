@@ -3,6 +3,7 @@ import type { Locale } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
+import { canBeSystemPage } from "./system-pages/systemPageKeys";
 import { LegacyScreenBar } from "./system-pages/LegacyScreenBar";
 
 const PurchaseDeliveryNotesPage = lazy(
@@ -164,7 +165,8 @@ const isBuiltInPageKey = (key: string) => !nonBuiltInPrefixes.some((prefix) => k
 
 export function WorkspacePageRouter({ systemPages, ...props }: RouterProps) {
   const key = props.page;
-  if (!systemPages || !isBuiltInPageKey(key)) return <LegacyPageRouter {...props} />;
+  // A key without a standard definition is never in the runtime map, so it need not wait for the map to load.
+  if (!systemPages || !isBuiltInPageKey(key) || !canBeSystemPage(key)) return <LegacyPageRouter {...props} />;
   if (systemPages.status === "loading")
     return <div className="panel page-loading" role="status">Sayfa yükleniyor…</div>;
   if (systemPages.legacy.has(key))
