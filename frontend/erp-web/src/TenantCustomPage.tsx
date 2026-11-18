@@ -228,6 +228,8 @@ function buttonActionOf(props: Record<string, unknown>, queryById: Record<string
 }
 const actionAllowed = (action: ButtonAction | null, rights: Record<string, boolean | undefined>) => !!action && action.rights.every((right) => rights[right] === true);
 const NO_OPERATION_RIGHT = "Bu işlem için yetkiniz yok";
+/** Dizinin bir kaynak okuması (rowVersion, özel alan eşlemi, kaynak tablo) yüklenirken dizi hiç başlamaz. */
+const SEQUENCE_SOURCE_LOADING = "Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.";
 /** Sorgu eylemi, bağlı ERP işleminin katalog izni (`allowed === false`) yüzünden çalışamaz: düğme nedenli pasif çizilir. */
 const operationBlocked = (action: ButtonAction | null | undefined, runtime: Pick<PageRuntime, "queryAllowed">) =>
   action?.type === "query" && !!action.query && !runtime.queryAllowed(action.query.id);
@@ -1693,7 +1695,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
       steps, stopOnError: props.stopOnError !== false, lock: writeLock, isPreview,
       confirm: { enabled: props.confirmEnabled === true, text: text("confirmText"), tone: kinds.has("delete") || kinds.has("update") ? "danger" : "default" },
       successText: text("successMessage"),
-      validate: () => validateForAll(active),
+      // Kaynak okuması yüklenirken (ör. kart açılır açılmaz kaydet) ilk yazma gidip sonraki adım düşmesin: kısmi kayıt olmaz.
+      validate: () => validateForAll(active) ?? (sourceReadIds(steps.filter((step) => active.includes(step.query)))
+        .some((id) => !!queryById[id] && (currentScope()[queryById[id].name] as QueryState | undefined)?.loading === true) ? SEQUENCE_SOURCE_LOADING : null),
       beforeWrite: (query) => events.beforeSave(query.name),
       prompt: promptLabel ? () => promptDialog({ title: buttonText, label: promptLabel, required: props.promptRequired === true, multiline: true, confirmLabel: buttonText }) : undefined,
       promptName: promptLabel ? source.name : undefined,
@@ -1721,7 +1725,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     if (outcome.succeeded === 0) return;
     const refresh = stringList(props.refreshQueries);
     if (outcome.calls.every((call) => call.ok)) {
-      rerun([...new Set([...loadIds, ...refresh])]);
+      // İstemli tek yazma (ör. satır işlemi "Ters kayıt") düz tek yazma gibi yalnız refreshQueries'i yeniler: açılış
+      // sorgularının yenilenmesi yeni satır nesneleri döndürür ve tabloların seçimini (pencere açıkken) düşürürdü.
+      rerun([...new Set([...(sequenceIds.length > 0 ? loadIds : []), ...refresh])]);
       // Tam başarı: dizinin yazma sonuçları temizlenir, sonraki kayıt yeni oluşturma ile başlar (tek saveQuery Proje 1 gibi korunur).
       if (sequenceIds.length > 0) clearResults(queries.map((query) => query.name));
       source.onSuccess?.();
