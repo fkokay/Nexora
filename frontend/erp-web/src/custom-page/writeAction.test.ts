@@ -105,3 +105,21 @@ describe('runWriteAction kod bileşeni kancaları', () => {
     expect(await runWriteAction(opts)).toEqual({ ok: true, affectedRows: 2 });
   });
 });
+
+describe('runWriteAction doğrulama', () => {
+  it('validate blocks before confirm and write', async () => {
+    const beforeWrite = vi.fn(async () => null);
+    const { write, opts, inFlight } = setup({ validate: () => 'Formda düzeltilmesi gereken alanlar var.', beforeWrite });
+    expect(await runWriteAction(opts)).toEqual({ ok: false, error: 'Formda düzeltilmesi gereken alanlar var.' });
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
+    expect(beforeWrite).not.toHaveBeenCalled();
+    expect(inFlight.current).toBe(false);
+  });
+
+  it('validate null dönerse yazma sürer', async () => {
+    const { write, opts } = setup({ confirm: { enabled: false }, validate: () => null });
+    expect(await runWriteAction(opts)).toEqual({ ok: true, affectedRows: 2 });
+    expect(write).toHaveBeenCalledOnce();
+  });
+});

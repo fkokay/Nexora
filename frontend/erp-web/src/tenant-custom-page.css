@@ -118,6 +118,11 @@
 .tenant-page-form-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); }
 .tenant-page-input { min-width: 0; }
 .tenant-page-input-error { display: block; margin-top: 3px; color: var(--nx-bad); font-size: 11px; font-weight: 500; }
+.tenant-page-input.is-invalid input:not([type="checkbox"]), .tenant-page-input.is-invalid select { border-color: var(--nx-bad); }
+.tenant-page-input.is-invalid input:focus, .tenant-page-input.is-invalid select:focus { border-color: var(--nx-bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-bad) 18%, transparent); }
+.tenant-page-input input:disabled, .tenant-page-input select:disabled { color: var(--nx-muted); background: var(--nx-line-soft); cursor: not-allowed; }
+.tenant-page-disabled-reason { display: block; margin-top: 3px; color: var(--nx-muted); font-size: 11px; }
+.tenant-page-action:has(.tenant-page-disabled-reason) { flex-wrap: wrap; gap: 4px 8px; }
 .tenant-page-input-checkbox > label { display: flex; align-items: center; gap: 8px; color: var(--nx-text); font-size: 12.5px; }
 .tenant-page-query-error { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); border-radius: var(--nx-radius-card); color: var(--nx-bad); background: var(--nx-bad-bg); }
 
@@ -128,8 +133,21 @@
 .tenant-custom-page-preview-banner strong { white-space: nowrap; }
 .tenant-custom-page-preview-banner span { color: var(--nx-muted); }
 
-@media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > * { grid-column: span 6 !important; } }
-@media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > * { grid-column: span 4 !important; } }
+/* Sekmeler — paneller sayfa gibi 12 sütunlu ızgaradır; etkin olmayan panel `hidden` ile gizlenir */
+.tenant-page-tabs { display: grid; gap: 10px; box-sizing: border-box; min-width: 0; border: 1px solid var(--custom-page-line); background: var(--custom-page-surface); }
+.tenant-page-tablist { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--nx-line); }
+.tenant-page-tab { display: inline-flex; align-items: center; gap: 6px; min-height: var(--nx-control-h); margin-bottom: -1px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; color: var(--nx-muted); background: transparent; font: 600 12.5px var(--nx-font); cursor: pointer; }
+.tenant-page-tab:hover { color: var(--nx-text); }
+.tenant-page-tab.is-active { border-bottom-color: var(--nx-primary); color: var(--nx-primary-strong, var(--nx-primary)); }
+.tenant-page-tab:focus-visible { outline: 2px solid var(--nx-primary); outline-offset: -2px; }
+.tenant-page-tab.is-error { color: var(--nx-bad); }
+.tenant-page-tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; color: #fff; background: var(--nx-bad); font-size: 10.5px; font-weight: 700; }
+.tenant-page-tabpanel { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap); }
+.tenant-page-tabpanel > * { grid-column: span 12; min-width: 0; }
+.tenant-page-tabpanel[hidden] { display: none; }
+
+@media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 6 !important; } }
+@media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content, .tenant-page-tabpanel { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 4 !important; } }
 
 /* Durum etiketi, yoğunluk ve toplam satırı — eski kabuk tablo kuralları (.app-shell table … !important) için önekli */
 .tenant-page-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; color: var(--nx-muted); background: var(--nx-line-soft); font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }

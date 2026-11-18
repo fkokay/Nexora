@@ -1,4 +1,4 @@
-import { type ComponentProps, type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, LayoutTemplate } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -9,8 +9,11 @@ import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQuery
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
-import { idList, ownedInputIds, parseFieldList } from "./custom-page/layoutRefs";
+import { idList, ownedInputIds, parseFieldList, parseTabs, tabOwnedIds } from "./custom-page/layoutRefs";
 import { runWriteAction } from "./custom-page/writeAction";
+import { conditionHolds } from "./custom-page/conditions";
+import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED } from "./custom-page/inputValidation";
+import { PageTabs } from "./custom-page/PageTabs";
 import type { BridgeHost } from "./custom-page/codeBridge";
 import { CodeFrame } from "./custom-page/CodeFrame";
 import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
@@ -44,7 +47,7 @@ type PublishedPage = {
 const textValue = (value: unknown, fallback = "") =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 
-const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue"];
+const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue", "disabledReason"];
 type InputRaw = string | boolean;
 /** v2 sayfaların çalışma zamanı: bağlama kapsamı, sorgu durumları, giriş değerleri ve ızgara seçimleri. */
 type PageRuntime = {
@@ -77,6 +80,19 @@ type PageRuntime = {
   writeLock: { current: boolean };
   /** İşlem Çubuğu eylemlerinin sonucu (sayfadaki durum satırı). */
   actionStatus: ActionStatus | null;
+  /** Gösterilen istemci doğrulama iletileri, giriş kimliğine göre (bulanıklaşınca veya engellenen yazmada). */
+  validationErrors: Record<string, string>;
+  /** Yazmadan önce sorgunun bağladığı görünür, etkin girişleri doğrular; geçersizse VALIDATION_BLOCKED döner. */
+  validateFor: (query: PageQueryDefinition) => string | null;
+  /** Engellenen yazmada hangi sekmeler bileşeninin hangi sekmesine atlanacağı (kimliğe göre); `signal` her engelde artar. */
+  errorJump: { signal: number; targets: Record<string, number> } | null;
+  /** Giriş bulanıklaştı: iletisi gösterilir veya kaldırılır. */
+  blurInput: (componentId: string) => void;
+  /** Sekmelerin sahiplendiği bileşenler (üst düzeyde ayrıca çizilmez) ve kimliğe göre üst düzey bileşenler. */
+  tabOwned: Set<string>;
+  topLevelById: Record<string, ComponentDefinition>;
+  /** Sekme başına hata sayısı için: bileşenin sahip zinciri (giriş → formCard → sekmeler…). */
+  ancestorsOf: (componentId: string) => string[];
 };
 type ActionStatus = { tone: "success" | "error" | "warning"; text: string };
 
@@ -100,14 +116,26 @@ const localToday = () => {
 
 const sessionUser = (token: string) => {
   let id = "";
+  let rol = "";
   try {
     const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
-    id = String((JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown }).sub ?? "");
-  } catch { /* geçersiz belirteç: kimlik boş kalır */ }
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { sub?: unknown; role?: unknown };
+    id = String(claims.sub ?? "");
+    // `role` talebi dizi olabilir: ilk öğe kullanılır; yoksa boş.
+    const role = Array.isArray(claims.role) ? claims.role[0] : claims.role;
+    rol = typeof role === "string" ? role : "";
+  } catch { /* geçersiz belirteç: kimlik ve rol boş kalır */ }
   let name = "";
   try { name = localStorage.getItem("aierp.user") ?? ""; } catch { /* depolama kapalı */ }
-  return { id, ad: name };
+  return { id, ad: name, rol };
 };
+
+/** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
+const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !runtime || conditionHolds(component.props?.visibleWhen, runtime.scope, true);
+const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !!runtime && (component.type === "button" || component.type === "input") && conditionHolds(component.props?.disabledWhen, runtime.scope, false);
+const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 const flattenComponents = (components: ComponentDefinition[]): ComponentDefinition[] =>
   components.flatMap((component) => [component, ...flattenComponents(component.children ?? [])]);
@@ -132,13 +160,13 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "filterChips" || type === "actionBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
@@ -280,7 +308,9 @@ function writeErrorText(configured: string, cause: unknown): string {
 }
 
 /** Sorgu eylemli düğme: hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif kalır ve sonucu bildirir. */
-function QueryActionButton({ query, props, label, runtime }: { query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime }) {
+function QueryActionButton({ query, props, label, runtime, disabled = false, disabledReason = "" }: {
+  query: PageQueryDefinition; props: Record<string, unknown>; label: string; runtime: PageRuntime; disabled?: boolean; disabledReason?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   // ERP işlemi yazmaları da (SQL yazmaları gibi) sayfanın insert/update/delete hakkını ister; sunucu yalnız işlemin kendi iznine bakar, istemci bilerek daha sıkıdır.
@@ -295,6 +325,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
   const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
 
   const click = async () => {
+    if (disabled) return;
     setFeedback(null);
     if (!write) {
       if (inFlight.current) return;
@@ -313,6 +344,7 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
         try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
       },
       errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+      validate: () => runtime.validateFor(query),
       ...codeWriteHooks(runtime.events),
     });
     if ("ok" in result && result.ok) {
@@ -323,7 +355,9 @@ function QueryActionButton({ query, props, label, runtime }: { query: PageQueryD
     }
   };
   return <div className="tenant-page-query-action">
-    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button" disabled={busy} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    <button className={`tenant-page-button${write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button"
+      disabled={busy || disabled} title={disabled && disabledReason ? disabledReason : undefined} onClick={() => void click()}>{busy ? "Çalışıyor…" : label}</button>
+    {disabled && disabledReason && <small className="tenant-page-disabled-reason">{disabledReason}</small>}
     {feedback && <p className={`tenant-page-action-feedback is-${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.text}</p>}
   </div>;
 }
@@ -335,27 +369,35 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   return (optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }));
 };
 
-export function PageInput({ component, props, raw, onChange, optionsState, style, error }: {
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
-  optionsState?: QueryState; style: CSSProperties; error?: string;
+  optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
   const inputId = `page-input-${component.id}`;
+  const rules = inputRules(props);
+  const invalid = !!error;
+  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, onBlur };
+  const limit = (value: number | string | undefined) =>
+    value === undefined ? undefined : inputType === "number" ? (typeof value === "number" ? value : undefined) : inputType === "date" ? (typeof value === "string" ? value : undefined) : undefined;
   let control;
   if (inputType === "checkbox") {
-    control = <input id={inputId} type="checkbox" checked={raw === true} onChange={(event) => onChange(event.target.checked)} />;
+    control = <input {...common} type="checkbox" checked={raw === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />;
   } else if (inputType === "select") {
     const options = selectOptions(props, optionsState);
-    control = <select id={inputId} value={typeof raw === "string" ? raw : ""} disabled={optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
+    control = <select {...common} value={typeof raw === "string" ? raw : ""} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
       <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
     </select>;
   } else {
-    control = <input id={inputId} type={inputType === "number" || inputType === "date" ? inputType : "text"} step={inputType === "number" ? "any" : undefined}
-      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(event.target.value)} />;
+    const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
+    control = <input {...common} type={htmlType} disabled={disabled}
+      step={inputType === "number" ? rules.step ?? "any" : undefined} min={limit(rules.min)} max={limit(rules.max)}
+      maxLength={htmlType === "text" ? rules.maxLength : undefined}
+      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
-  return <div className={`tenant-page-input tenant-page-input-${inputType}`} style={style}>
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${invalid ? " is-invalid" : ""}`} style={style}>
     <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
@@ -363,13 +405,18 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
 }
 
 function renderPageInput(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime) {
+  if (!componentVisible(component, runtime)) return null;
+  // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
+  const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
   return <PageInput key={component.id} component={component} props={props} style={style}
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
-    error={runtime && component.name ? runtime.inputErrors[component.name] : undefined}
+    error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
     optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined} />;
 }
 
-function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime) {
+function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
+  // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
+  if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
   const style = visualStyle(component.type, props);
   const title = textValue(props.title);
@@ -394,7 +441,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (!runtime) return null;
       const chips = idList(props.inputs).flatMap((id) => {
         const input = runtime.inputById[id];
-        if (!input) return [];
+        if (!input || !componentVisible(input, runtime)) return [];
         const inputProps = bindProps(input.props ?? {}, runtime.scope);
         const inputType = textValue(inputProps.inputType, "text");
         const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
@@ -409,7 +456,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const counts = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
       const groups = idList(props.inputs).flatMap((id): FacetGroup[] => {
         const input = runtime.inputById[id];
-        if (!input) return [];
+        if (!input || !componentVisible(input, runtime)) return [];
         const inputProps = bindProps(input.props ?? {}, runtime.scope);
         if (textValue(inputProps.inputType, "text") !== "select") return [];
         const optionsState = typeof inputProps.optionsQuery === "string" ? runtime.states[runtime.queryNames[inputProps.optionsQuery]] : undefined;
@@ -457,13 +504,39 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const status = runtime?.actionStatus;
       return status ? <div key={component.id} className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"} style={{ gridColumn: style.gridColumn, margin: style.margin }}>{status.text}</div> : null;
     }
-    case "button": if (runtime?.movedButtons.has(component.id)) return null; return <div className="tenant-page-action" style={style} key={component.id}>
-      {props.actionType === "workflow" && typeof props.workflowId === "string"
-        ? <TenantWorkflowAction token={token} workflowId={props.workflowId} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
-        : props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
-          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} />
-        : <button className="tenant-page-button" type="button" disabled>{text || title || "Eylem"}</button>}
-    </div>;
+    case "button": {
+      if (runtime?.movedButtons.has(component.id)) return null;
+      const disabled = componentDisabled(component, runtime);
+      const reason = disabled ? textValue(props.disabledReason).trim() : "";
+      const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
+      return <div className="tenant-page-action" style={style} key={component.id}>
+        {props.actionType === "query" && runtime && typeof props.queryId === "string" && runtime.queryById[props.queryId]
+          ? <QueryActionButton query={runtime.queryById[props.queryId]} props={props} label={text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+          : workflow && !disabled
+            ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+            : <>
+              <button className="tenant-page-button" type="button" disabled title={reason || undefined}>{text || title || (workflow ? "İş akışını başlat" : "Eylem")}</button>
+              {reason && <small className="tenant-page-disabled-reason">{reason}</small>}
+            </>}
+      </div>;
+    }
+    case "tabs": {
+      if (!runtime) return null;
+      const tabs = parseTabs(props.tabs);
+      const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
+      const errorCounts = tabs.map((tab) => Object.keys(runtime.validationErrors)
+        .filter((inputId) => runtime.ancestorsOf(inputId).some((id) => tab.ids.includes(id))).length);
+      const target = runtime.errorJump?.targets[component.id];
+      const jumpTo = runtime.errorJump && target !== undefined ? { tab: target, signal: runtime.errorJump.signal } : null;
+      const renderOwned = (id: string) => {
+        const owned = runtime.topLevelById[id];
+        // Sekme yalnız üst düzey bileşen sahiplenir; sekme içinde sekme ve İşlem Çubuğu çizilmez.
+        if (!owned || owned.type === "tabs" || owned.type === "actionBar") return null;
+        return renderComponent(owned, forms, token, pageCode, runtime);
+      };
+      return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={defaultTab} renderOwned={renderOwned}
+        errorCounts={errorCounts} jumpTo={jumpTo} style={style} />;
+    }
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
@@ -560,6 +633,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
       },
       errorText: (cause) => writeErrorText(errorPrefix, cause),
+      validate: () => latest.current.validateFor(query),
       ...codeWriteHooks(latest.current.events),
     });
     if (!mounted.current || !("ok" in result)) return;
@@ -572,6 +646,8 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   const runButton = (id: string) => {
     const component = flat.find((item) => item.id === id && item.type === "button");
     if (!component) return;
+    // Menü komutu oluşturulduktan sonra koşul değişmiş olabilir: gizli veya pasif düğme çalışmaz.
+    if (!componentVisible(component, latest.current) || componentDisabled(component, latest.current)) return;
     const props = buttonProps(component);
     const bound = (key: string) => interpolate(textValue(props[key]), latest.current.scope).trim();
     if (props.actionType === "workflow" && typeof props.workflowId === "string") {
@@ -621,6 +697,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
     },
     buttonLabel,
+    buttonGate: (id) => {
+      const component = flat.find((item) => item.id === id && item.type === "button");
+      if (!component) return undefined;
+      if (!componentVisible(component, runtime)) return { hidden: true };
+      if (!componentDisabled(component, runtime)) return undefined;
+      return { disabled: true, disabledReason: textValue(buttonProps(component).disabledReason).trim() || BUTTON_UNAVAILABLE };
+    },
     deleteNeedsSelection: (() => {
       const deleteQuery = latest.current.queryById[typeof barProps.deleteQuery === "string" ? barProps.deleteQuery.trim() : ""];
       return !!deleteQuery && deleteQuery.parameters.some((parameter) => {
@@ -676,6 +759,33 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const ownedInputs = useMemo(() => ownedInputIds(flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }))), [components]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
   const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
+  const flatById = useMemo(() => Object.fromEntries(flat.map((component) => [component.id, component])), [flat]);
+  const topLevelById = useMemo(() => Object.fromEntries(components.map((component) => [component.id, component])), [components]);
+  const tabOwned = useMemo(() => (isV2 ? tabOwnedIds(flat) : new Set<string>()), [isV2, flat]);
+  // Sahip zinciri: iç içe çocuk → üst bileşen, formCard/facetPanel girişi → kart, sekmenin bileşeni → sekmeler.
+  const parentOf = useMemo(() => {
+    const map: Record<string, string> = {};
+    const walk = (list: ComponentDefinition[], parent?: string) => list.forEach((component) => {
+      if (parent) map[component.id] = parent;
+      walk(component.children ?? [], component.id);
+    });
+    walk(components);
+    for (const component of flat) {
+      if (component.type === "formCard" || component.type === "facetPanel") for (const id of idList(component.props?.inputs)) map[id] = component.id;
+    }
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      for (const tab of parseTabs(component.props?.tabs)) for (const id of tab.ids) if (!(id in map)) map[id] = component.id;
+    }
+    return map;
+  }, [components, flat]);
+  const ancestorsOf = (componentId: string): string[] => {
+    const chain: string[] = [];
+    for (let id: string | undefined = componentId; id !== undefined && !chain.includes(id); id = parentOf[id]) chain.push(id);
+    return chain;
+  };
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [errorJump, setErrorJump] = useState<PageRuntime["errorJump"]>(null);
 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
@@ -793,9 +903,69 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     };
   }, [events]);
 
+  const inputValues = effective(states).raw;
+  /** Girişin istemci doğrulama iletisi (yoksa null); kurallar girişin kendi özelliklerinden okunur. */
+  const inputMessage = (componentId: string, raw: InputRaw | undefined): string | null => {
+    const input = inputById[componentId];
+    if (!input) return null;
+    return validateInputValue(textValue(input.props?.inputType, "text"), inputRules(input.props ?? {}), raw ?? "");
+  };
+  const storeMessage = (componentId: string, message: string | null) => setValidationErrors((current) => {
+    if (message === null) {
+      if (!(componentId in current)) return current;
+      const next = { ...current };
+      delete next[componentId];
+      return next;
+    }
+    return current[componentId] === message ? current : { ...current, [componentId]: message };
+  });
+  // Doğrulanmayan girişler: kendisi veya bir sahibi `visibleWhen` ile gizli, ya da kendisi `disabledWhen` ile pasif.
+  const skipsValidation = (input: ComponentDefinition) =>
+    ancestorsOf(input.id).some((id) => flatById[id] && !conditionHolds(flatById[id].props?.visibleWhen, scope, true))
+    || conditionHolds(input.props?.disabledWhen, scope, false);
+  const validateFor = (query: PageQueryDefinition): string | null => {
+    const names = boundInputNames(query);
+    const failures: Record<string, string> = {};
+    const cleared: string[] = [];
+    for (const input of inputs) {
+      if (!input.name || !names.includes(input.name)) continue;
+      const message = skipsValidation(input) ? null : inputMessage(input.id, inputValues[input.id]);
+      if (message) failures[input.id] = message; else cleared.push(input.id);
+    }
+    setValidationErrors((current) => {
+      const next = { ...current, ...failures };
+      for (const id of cleared) delete next[id];
+      return next;
+    });
+    const failing = Object.keys(failures);
+    if (failing.length === 0) return null;
+    // Her sekmeler bileşeninde (sekme sırasıyla) geçersiz girişi doğrudan veya bir sahip üzerinden içeren ilk sekme.
+    const targets: Record<string, number> = {};
+    for (const component of flat) {
+      if (component.type !== "tabs") continue;
+      const index = parseTabs(component.props?.tabs).findIndex((tab) => failing.some((id) => ancestorsOf(id).some((owner) => tab.ids.includes(owner))));
+      if (index >= 0) targets[component.id] = index;
+    }
+    setErrorJump((current) => ({ signal: (current?.signal ?? 0) + 1, targets }));
+    return VALIDATION_BLOCKED;
+  };
+
   const runtime: PageRuntime | undefined = isV2 ? {
-    scope, states, queryNames, inputValues: effective(states).raw,
-    setInput: (componentId, value) => setTouched((current) => ({ ...current, [componentId]: value })),
+    scope, states, queryNames, inputValues,
+    setInput: (componentId, value) => {
+      setTouched((current) => ({ ...current, [componentId]: value }));
+      // Gösterilen ileti, değer geçerli olunca kalkar (geçersiz kaldıkça güncel iletiyle kalır).
+      const message = inputMessage(componentId, value);
+      setValidationErrors((current) => {
+        if (!(componentId in current)) return current;
+        const next = { ...current };
+        if (message) next[componentId] = message; else delete next[componentId];
+        return next;
+      });
+    },
+    validationErrors, validateFor, errorJump,
+    blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),
+    tabOwned, topLevelById, ancestorsOf,
     selections,
     select: (tableName, row) => {
       setSelections((current) => ({ ...current, [tableName]: row }));
@@ -808,10 +978,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   } : undefined;
 
   return <div className="tenant-custom-page-content">
-    {runtime && bar && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
+    {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id)} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-    {components.map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
+    {components.filter((component) => !tabOwned.has(component.id)).map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }
 
