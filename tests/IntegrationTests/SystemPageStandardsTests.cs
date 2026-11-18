@@ -25,6 +25,9 @@ public sealed class SystemPageStandardsTests
         Assert.Same(standard, same);
         Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
+        Assert.Equal(new[] { "inventory-stock", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
+        foreach (var each in SystemPageStandards.All.Values)
+            Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");
     }
 
     [Fact]

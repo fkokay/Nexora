@@ -1,1 +1,2 @@
+inventory-stock=1
 inventory-warehouses=1
