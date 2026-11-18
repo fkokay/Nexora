@@ -39,7 +39,7 @@ function renderCell(quote: Quote, key: string): ReactNode {
     case "code":
       return quote.code;
     case "requestCode":
-      return quote.requestCode;
+      return quote.requestCode ?? "—";
     case "supplierName":
       return <b className="customer-name">{quote.supplierName}</b>;
     case "quoteDate":

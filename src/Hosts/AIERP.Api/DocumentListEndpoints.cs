@@ -103,7 +103,7 @@ public static class DocumentListEndpoints
                 x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal)).ToList();
             var fields = definitions.Select(field => new PurchaseSupplierQuoteCustomFieldValueView(field.Id, field.Code, field.Label, field.DataType, field.MaxLength,
                 field.Version, field.IsRequired, quote.CustomFieldValues.FirstOrDefault(value => value.DefinitionId == field.Id)?.Value ?? "")).ToList();
-            return Results.Ok(new PurchaseSupplierQuoteDetail(quote.Id, quote.PurchaseRequestId, quote.PurchaseRequest.Code, quote.PurchaseRequest.Status, quote.Code,
+            return Results.Ok(new PurchaseSupplierQuoteDetail(quote.Id, quote.PurchaseRequestId, quote.PurchaseRequest?.Code, quote.PurchaseRequest?.Status, quote.Code,
                 quote.SupplierId, quote.Supplier.Name, quote.QuoteDate, quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Subtotal, quote.DiscountTotal,
                 quote.TaxTotal, quote.GrandTotal, quote.Notes, quote.CreatedAt, lines, baseCurrency, comparable, conversion, rateDate, fields,
                 quote.PurchaseOrder?.Id, quote.PurchaseOrder?.Code));

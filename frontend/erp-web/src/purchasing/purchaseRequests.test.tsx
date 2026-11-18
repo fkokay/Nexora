@@ -71,7 +71,11 @@ function respond(url: string): unknown {
   const match = /^\/api\/purchasing\/requests\/(r\d)$/.exec(path);
   if (match) return detailOf(match[1]);
   if (path === '/api/purchasing/requests/r2/supplier-quotes' || path === '/api/purchasing/requests/r3/supplier-quotes') return [supplierQuote];
-  if (path === '/api/purchasing/supplier-quotes/') return page([listQuote('a', 'Submitted'), listQuote('b', 'Selected'), listQuote('c', 'NotSelected')]);
+  if (path === '/api/purchasing/supplier-quotes/')
+    return page([listQuote('a', 'Submitted'), listQuote('b', 'Selected'), listQuote('c', 'NotSelected'), { ...listQuote('d', 'Submitted'), purchaseRequestId: null, requestCode: null }]);
+  if (/^\/api\/purchasing\/supplier-quotes\/[a-z0-9]+$/.test(path)) return { ...supplierQuote, id: path.split('/').pop() };
+  if (path === '/api/customers/') return page(params.get('type') === 'Supplier' ? [{ id: 'sup1', code: 'TED-1', name: 'Ege Ambalaj', type: 'Supplier', isActive: true, currencyCode: 'TRY' }] : []);
+  if (path === '/api/stock/items/') return page([{ id: 's1', code: 'AMB-2040', name: 'Koli 40×30×30', unitCode: 'ADET', isActive: true, purchaseListPrice: 4.5, priceCurrencyCode: 'TRY' }]);
   if (path === '/api/warehouses/') return [{ id: 'w1', code: 'D1', name: 'Ana depo', isActive: true }];
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
   if (path.endsWith('/custom-fields') || path === '/api/hr/employees/') return [];
@@ -93,6 +97,7 @@ beforeAll(() => {
   if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};
   apiMock.mockImplementation(async (url: string, _token: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined });
+    if (init?.method === 'POST' && url === '/api/purchasing/supplier-quotes/') return { id: 'new1', code: 'TKL-YENI' };
     return respond(url);
   });
 });
@@ -302,14 +307,14 @@ describe('Satınalma Talepleri list', () => {
 });
 
 describe('Satınalma Teklifleri list', () => {
-  it('is read-only on the list type; Aç opens the quote\'s request in Satınalma talepleri', async () => {
+  it('Yeni is available; Aç opens the quote\'s request in Satınalma talepleri', async () => {
     const onOpenRequests = vi.fn();
-    renderScreen(<PurchaseSupplierQuotesPage token={token} onOpenRequests={onOpenRequests} />);
+    renderScreen(<PurchaseSupplierQuotesPage token={token} role="TenantAdmin" onOpenRequests={onOpenRequests} />);
     await waitFor(() => expect(within(grid()).getByText('TKL-a')).toBeTruthy());
     expect(tagOf(row('TKL-a'))?.className).toContain('is-warn');
     expect(tagOf(row('TKL-b'))?.className).toContain('is-ok');
     expect(tagOf(row('TKL-c'))?.className).toContain('is-off');
-    expect(command('new')).toBeNull();
+    expect(enabled('new')).toBe(true);
     expect(enabled('open')).toBe(false);
     expect(openMenu()).toEqual(['Talep üzerinden teklif gir', 'CSV olarak dışa aktar']);
     fireEvent.click(row('TKL-a').querySelectorAll('td')[3]);
@@ -317,6 +322,52 @@ describe('Satınalma Teklifleri list', () => {
     fireEvent.click(command('open'));
     expect(onOpenRequests).toHaveBeenCalledTimes(1);
     expect(sessionStorage.getItem('nexora.purchase-request.open')).toBe('r2');
+  });
+
+  it('Yeni is for the company admin only', async () => {
+    renderScreen(<PurchaseSupplierQuotesPage token={token} role="TenantUser" onOpenRequests={vi.fn()} />);
+    await waitFor(() => expect(within(grid()).getByText('TKL-a')).toBeTruthy());
+    expect(enabled('new')).toBe(false);
+    expect(reason('new')).toContain('Teklifi yalnızca firma yöneticisi kaydedebilir');
+  });
+
+  it('a requestless quote shows a dash as its request and cannot be opened', async () => {
+    const onOpenRequests = vi.fn();
+    renderScreen(<PurchaseSupplierQuotesPage token={token} role="TenantAdmin" onOpenRequests={onOpenRequests} />);
+    await waitFor(() => expect(within(grid()).getByText('TKL-d')).toBeTruthy());
+    expect(row('TKL-d').textContent).toContain('—');
+    fireEvent.click(row('TKL-d').querySelectorAll('td')[3]);
+    expect(enabled('open')).toBe(false);
+    expect(reason('open')).toContain('Bu teklif bir talebe bağlı değil');
+    fireEvent.doubleClick(row('TKL-d').querySelectorAll('td')[3]);
+    expect(onOpenRequests).not.toHaveBeenCalled();
+  });
+
+  it('Yeni opens the requestless quote form and saves supplier, dates and stock / quantity / price lines', async () => {
+    renderScreen(<PurchaseSupplierQuotesPage token={token} role="TenantAdmin" onOpenRequests={vi.fn()} />);
+    await waitFor(() => expect(within(grid()).getByText('TKL-a')).toBeTruthy());
+    fireEvent.click(command('new'));
+    await waitFor(() => expect(screen.getByText('Yeni tedarikçi teklifi')).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText('TKL-2026-001'), { target: { value: 'TKL-YENI' } });
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith('/api/customers/?type=Supplier'))).toBe(true));
+    fireEvent.click(screen.getByText('Tedarikçi seçin').closest('button')!);
+    fireEvent.click(await screen.findByRole('option', { name: /Ege Ambalaj/ }));
+    const stock = screen.getByLabelText('Stok kodu veya adıyla ara');
+    fireEvent.focus(stock);
+    fireEvent.change(stock, { target: { value: 'AMB' } });
+    fireEvent.click(await screen.findByRole('option', { name: /AMB-2040/ }, { timeout: 2000 }));
+    expect((screen.getByLabelText('Satır 1 birim fiyat') as HTMLInputElement).value).toBe('4.5');
+    fireEvent.change(screen.getByLabelText('Satır 1 miktar'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Satır 1 birim fiyat'), { target: { value: '5' } });
+    fireEvent.submit(document.getElementById('supplier-quote-create-form')!);
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+    const post = calls.find((call) => call.method === 'POST')!;
+    expect(post.url).toBe('/api/purchasing/supplier-quotes/');
+    expect(JSON.parse(post.body!)).toMatchObject({
+      code: 'TKL-YENI', supplierId: 'sup1', validUntil: null,
+      lines: [{ stockItemId: 's1', quantity: 3, unitPrice: 5, discountPercent: 0, vatPercent: 20 }],
+    });
+    await waitFor(() => expect(within(grid()).getByText('TKL-a')).toBeTruthy());
   });
 
   it('the request list opens the request it was asked to open', async () => {
@@ -337,7 +388,8 @@ describe('English', () => {
       'Satınalma siparişi kayıtları', 'en iyi', 'aramayla eşleşen', 'tüm talepler', 'Mal bekleyen', 'Kıyas', 'Mal kabuller',
       'Teklif bulunamadı.', 'TKL-1 kalem fiyatları', 'Kısmen alındı', 'Gecikmiş', 'Talep kararı', 'Tedarikçi teklifi',
       'Faturalanan', 'Beklenen teslim', 'Talep üzerinden teklif gir', 'Değerlendiriliyor', 'ST-1 talep ayrıntılarını aç',
-      'SA-1 sipariş ayrıntılarını aç', '4 gün geçti', 'bu sayfa · iptaller hariç',
+      'SA-1 sipariş ayrıntılarını aç', '4 gün geçti', 'bu sayfa · iptaller hariç', 'Yeni tedarikçi teklifi', 'Teklif kaydet',
+      'Bu teklif bir talebe bağlı değil', 'Teklifi yalnızca firma yöneticisi kaydedebilir',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
   });

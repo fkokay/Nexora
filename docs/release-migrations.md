@@ -1,5 +1,9 @@
 # Production release migrations
 
+## Requestless supplier quotes schema
+
+Platform migration `20261118204246_AllowRequestlessSupplierQuotes` and Tenant migration `20261118204408_AddTenantRequestlessSupplierQuotes` make `PurchaseSupplierQuotes.PurchaseRequestId` and `PurchaseSupplierQuoteLines.PurchaseRequestId` nullable and add the nullable `PurchaseSupplierQuoteLines.StockItemId` (index and FK to `StockItems`). The change is not purely additive: it drops the alternate key `AK_PurchaseSupplierQuotes_TenantId_Id_PurchaseRequestId` and re-points the two FKs that used it (quote lines → quote, purchase order → source quote) to `(TenantId, Id)`; the request/quote match on orders is now enforced by the API only. Existing rows keep their values; existing request-based lines keep `StockItemId` null. The migrations were applied to empty disposable copies on a local SQL Server 2025 (both histories, `has-pending-model-changes` clean); no rehearsal on a data-bearing backup and no deployment are recorded here yet. Rollback limit: once a quote without a request exists, do not roll the API back to a release from before this change; older releases assume every quote has a request.
+
 ## System pages schema (Proje 3)
 
 Platform migration `20261118032634_AddSystemPageOverrides` and Tenant migration `20261118033043_AddTenantSystemPageOverrides` add the nullable `TenantCustomPages.ScreenKey` and `StandardVersion` columns (plus `TenantCustomPageRevisions.StandardVersion`), a check constraint and a filtered index. The schema change itself is additive (expand only). Rollback limit: once system page rows (`@<screenKey>` codes) exist in a tenant database, do not roll the API back to a release from before system pages; older releases do not know these rows. No deployment of these migrations is recorded here yet.
