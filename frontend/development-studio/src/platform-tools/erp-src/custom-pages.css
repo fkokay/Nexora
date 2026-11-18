@@ -735,3 +735,12 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-card-focus-head small{color:var(--pd-muted)}
 .pd-card-focus-card>.pd-grid{min-height:160px;padding-top:30px}
 .pd-card-location{margin-top:6px}
+/* İşlem Çubuğu Yeni / Aç / Kaydettikten sonra grupları (taslak 13). */
+.pd-bar-commands{display:grid;gap:10px;margin-bottom:10px}
+.pd-bar-group{border:1px solid #e3e1ee;border-radius:10px;padding:10px;margin:0;min-width:0}
+.pd-bar-group legend{display:flex;align-items:center;gap:6px;padding:0 4px;font-weight:700;font-size:12.5px}
+.pd-bar-group legend .pd-action-key{margin-left:6px}
+.pd-bar-group .pd-segment{margin-bottom:8px}
+.pd-bar-param{grid-template-columns:70px auto 1fr auto auto}
+.pd-bar-legacy{display:grid;gap:6px;border:1px dashed #e8b4b0;border-radius:10px;padding:10px;background:#fff7f6}
+.pd-bar-legacy-note{display:block;color:#667085;margin:-2px 0 8px}

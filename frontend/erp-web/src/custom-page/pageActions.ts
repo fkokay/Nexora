@@ -39,6 +39,47 @@ export function movedButtonIds(components: Component[], hasAction: (button: Comp
 /** İşlem Çubuğu'nun düğme çalıştıran özellikleri: Yeni, Aç ve başarılı kayıttan sonra. */
 export const BAR_BUTTON_KEYS = ["newButton", "openButton", "afterSaveButton"] as const;
 
+/** Sayfa açan komutun gezinme özellikleri: "Sayfa aç" düğmesiyle aynı biçim (`runNavigation` bunları çalıştırır). */
+export type BarPageNavigation = { actionType: "page"; pageCode: string; target?: string; params?: string[] };
+export type BarNewPlan = { mode: "off" | "clear" | "dialog" | "button" | "page"; button?: string; page?: BarPageNavigation };
+export type BarOpenPlan = { mode: "off" | "dialog" | "button" | "page"; button?: string; page?: BarPageNavigation; table?: string };
+export type BarAfterSavePlan = { mode: "off" | "button" | "page"; button?: string; page?: BarPageNavigation; refresh: boolean };
+export type BarCommandPlan = { new: BarNewPlan; open: BarOpenPlan; afterSave: BarAfterSavePlan };
+
+const barPage = (props: Record<string, unknown>, codeKey: string, targetKey: string, paramsKey?: string): BarPageNavigation | undefined => {
+  const pageCode = str(props[codeKey]);
+  if (!pageCode) return undefined;
+  const target = props[targetKey] === "newTab" || props[targetKey] === "sameTab" ? props[targetKey] as string : undefined;
+  const params = paramsKey && Array.isArray(props[paramsKey]) ? (props[paramsKey] as unknown[]).filter((item): item is string => typeof item === "string") : [];
+  return { actionType: "page", pageCode, ...(target ? { target } : {}), ...(params.length > 0 ? { params } : {}) };
+};
+
+/**
+ * Yeni / Aç / kaydettikten sonra ne yapar: düz özellikler (`newAction`, `openAction`, `afterSaveAction`) varsa onlar,
+ * yoksa eski kurallar: kayıt penceresi (`formDialog`), sonra düğme (`newButton` / `openButton` / `afterSaveButton`), Yeni için
+ * son olarak temizlenecek girişler (`newInputs`). Eski düğmeli kayıttan sonra her zaman açılan sayfayı yeniler.
+ */
+export function barCommandPlan(props: Record<string, unknown>, hasDialog = str(props.formDialog) !== ""): BarCommandPlan {
+  const newButton = str(props.newButton);
+  const openButton = str(props.openButton);
+  const afterSaveButton = str(props.afterSaveButton);
+  const newAction = str(props.newAction);
+  const openAction = str(props.openAction);
+  const afterSaveAction = str(props.afterSaveAction);
+  const newPlan: BarNewPlan = newAction === "page" ? { mode: "page", page: barPage(props, "newPageCode", "newTarget") }
+    : newAction === "clear" || newAction === "dialog" || newAction === "off" ? { mode: newAction }
+    : hasDialog ? { mode: "dialog" } : newButton ? { mode: "button", button: newButton }
+    : idList(props.newInputs).length > 0 ? { mode: "clear" } : { mode: "off" };
+  const openPlan: BarOpenPlan = openAction === "page" ? { mode: "page", page: barPage(props, "openPageCode", "openTarget", "openParams"), table: str(props.openTable) || undefined }
+    : openAction === "dialog" || openAction === "off" ? { mode: openAction }
+    : hasDialog ? { mode: "dialog" } : openButton ? { mode: "button", button: openButton } : { mode: "off" };
+  const afterSavePlan: BarAfterSavePlan = afterSaveAction === "page"
+    ? { mode: "page", page: barPage(props, "afterSavePageCode", "afterSaveTarget"), refresh: props.afterSaveRefresh === true }
+    : afterSaveAction === "off" ? { mode: "off", refresh: false }
+    : afterSaveButton ? { mode: "button", button: afterSaveButton, refresh: true } : { mode: "off", refresh: false };
+  return { new: newPlan, open: openPlan, afterSave: afterSavePlan };
+}
+
 export type PageActionDeps = {
   rights: Record<string, boolean | undefined>;
   busy: boolean;
@@ -59,7 +100,11 @@ export type PageActionDeps = {
   formDialog?: { open(): void; startNew(focusId: string | undefined): void; hasRecord: boolean; recordLoading?: boolean;
     /** Kayıt anahtarının okuması hata verdi ya da boş döndü: Aç pasiftir (pencere seçili kaydı yeni kayıt sanmasın). */
     recordFailed?: boolean };
+  /** Aç sayfa açıyorsa (`openTable`): listenin bir satırı seçili mi. */
+  tableSelected?: (tableId: string) => boolean;
   run: {
+    /** Yeni / Aç'ın açtığı sayfa: "Sayfa aç" düğmesiyle aynı gezinme yolu. */
+    navigate?(page: BarPageNavigation): void;
     clearInputs(ids: string[]): void;
     write(queryId: string, kind: "save" | "delete"): void;
     /** İşlem Çubuğu `saveSequence` kayıt dizisini çalıştırır. */
@@ -106,8 +151,30 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     if (gate?.disabled) return { disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE };
     return deps.busy ? { disabledReason: BUSY } : { run: () => deps.run.button(id) };
   };
-  const newButton = formDialog ? null : buttonCommand("newButton");
-  const openButton = formDialog ? null : buttonCommand("openButton");
+  // Eski kural: çözülmüş kayıt penceresi (deps.formDialog) Yeni ve Aç'ın önüne geçer.
+  const plan = barCommandPlan(props, !!formDialog);
+  const newButton = formDialog || plan.new.mode !== "button" ? null : buttonCommand("newButton");
+  const openButton = formDialog || plan.open.mode !== "button" ? null : buttonCommand("openButton");
+  // Sayfa açan Yeni / Aç: gezinme veri yazmaz, yalnız görüntüleme hakkı ister; Aç listenin seçili satırını bekler.
+  const pageCommand = (page: BarPageNavigation | undefined, table?: string) => {
+    if (!page || !deps.run.navigate) return unbound;
+    if (!deps.rights.view) return { disabledReason: NO_RIGHT };
+    if (table && !deps.tableSelected?.(table)) return { disabledReason: NEEDS_SELECTION };
+    return deps.busy ? { disabledReason: BUSY } : { run: () => deps.run.navigate!(page) };
+  };
+  const dialogOpen = !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
+    : formDialog.recordLoading ? { disabledReason: RECORD_LOADING }
+    : formDialog.recordFailed ? { disabledReason: RECORD_UNREADABLE } : { run: () => formDialog.open() };
+  const clearNew = newIds.length > 0 ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); } } : unbound;
+  const newCommand = plan.new.mode === "page" ? pageCommand(plan.new.page)
+    : plan.new.mode === "clear" ? clearNew
+    : plan.new.mode === "dialog" ? (formDialog ? { run: () => formDialog.startNew(newIds[0]) } : clearNew)
+    : plan.new.mode === "button" ? newButton ?? clearNew
+    : unbound;
+  const openCommand = plan.open.mode === "page" ? pageCommand(plan.open.page, plan.open.table)
+    : plan.open.mode === "dialog" ? dialogOpen
+    : plan.open.mode === "button" ? openButton ?? unbound
+    : unbound;
 
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
@@ -119,14 +186,8 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   });
 
   return {
-    new: formDialog ? { run: () => formDialog.startNew(newIds[0]), primary: !saveBound }
-      : newButton ? { ...newButton, primary: !saveBound }
-      : newIds.length > 0
-      ? { run: () => { deps.run.clearInputs(newIds); deps.run.focus(newIds[0]); }, primary: !saveBound }
-      : unbound,
-    open: openButton ? openButton : !formDialog ? unbound : !formDialog.hasRecord ? { disabledReason: NEEDS_SELECTION }
-      : formDialog.recordLoading ? { disabledReason: RECORD_LOADING }
-      : formDialog.recordFailed ? { disabledReason: RECORD_UNREADABLE } : { run: () => formDialog.open() },
+    new: newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound },
+    open: openCommand,
     save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
       : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
     delete: !deleteBound ? unbound
