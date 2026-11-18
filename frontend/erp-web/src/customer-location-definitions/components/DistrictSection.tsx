@@ -1,5 +1,4 @@
-import { useState, type FormEvent } from "react";
-import { ListToolbar } from "../../list-page/ListToolbar";
+import { type FormEvent } from "react";
 import AdvancedDataGrid from "../../AdvancedDataGrid";
 import { screenViewGridDefaults } from "../../screenViewGridLayout";
 import type {
@@ -7,6 +6,7 @@ import type {
   CustomerLocationProvinceView,
   TurkeyDistrictOption,
 } from "../../erp-types";
+import { LocationStatusTag } from "./LocationStatusTag";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import "../../purchasing-record-forms.css";
 
@@ -24,6 +24,8 @@ type DistrictFormProps = {
   name: string;
   active: boolean;
   busy: boolean;
+  error?: string;
+  onDismissError?: () => void;
   onProvinceIdChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onActiveChange: (value: boolean) => void;
@@ -31,13 +33,15 @@ type DistrictFormProps = {
   onCancel: () => void;
 };
 
-function DistrictForm({
+export function DistrictForm({
   provinces,
   editingId,
   provinceId,
   name,
   active,
   busy,
+  error,
+  onDismissError,
   onProvinceIdChange,
   onNameChange,
   onActiveChange,
@@ -47,24 +51,22 @@ function DistrictForm({
   return (
     <RecordFormPage
       variant="dialog"
-      className={`prf-embedded${editingId ? "" : " prf-no-cancel"}${provinces.length === 0 ? " prf-save-blocked" : ""}`}
-      title={editingId ? "İlçe Tanımını Düzenle" : "Yeni İlçe Tanımı"}
+      className={provinces.length === 0 ? "prf-save-blocked" : undefined}
+      title={editingId ? "İlçeyi düzenle" : "Yeni ilçe"}
       mode={editingId ? "edit" : "create"}
       busy={busy}
-      saveLabel={editingId ? "İlçe tanımını kaydet" : "İlçe ekle"}
+      saveLabel={editingId ? "Kaydet" : "İlçe ekle"}
       onSubmit={onSubmit}
-      onCancel={() => {
-        if (editingId) onCancel();
-      }}
+      onCancel={onCancel}
+      error={error}
+      onDismissError={onDismissError}
       status={
         <span>
-          {editingId
-            ? "Seçili ilçe tanımını düzenleyin."
-            : "Yeni ilçe tanımı ekleyin."}
+          Pasif ilçeler yeni adres seçimlerinde gösterilmez.
         </span>
       }
     >
-      <RecordFormGroup title="İlçe Kimliği" bodyClassName="rf-identity prf-identity-3">
+      <RecordFormGroup title="İlçe Kimliği" bodyClassName="rf-identity">
         <label>
           <span>İl <RequiredMark /></span>
           <select
@@ -120,7 +122,7 @@ type DistrictGridProps = {
   fields?: BuiltInScreenLayoutField[];
 };
 
-function DistrictGrid({
+export function DistrictGrid({
   districts,
   provinces,
   loading,
@@ -129,9 +131,11 @@ function DistrictGrid({
   onToggle,
   fields,
   toolbarContainer,
-}: DistrictGridProps & { toolbarContainer?: HTMLElement | null }) {
+  emptyMessage = "Seçili il için ilçe bulunamadı.",
+}: DistrictGridProps & { toolbarContainer?: HTMLElement | null; emptyMessage?: string }) {
   const visibleFields = (fields?.length ? fields : defaultDistrictFields)
-    .filter((field) => field.key === "actions" || field.visible)
+    // The panel is the selected province's: its İl column would repeat the heading.
+    .filter((field) => field.key !== "province" && (field.key === "actions" || field.visible))
     .sort((a, b) =>
       a.key === "actions" ? 1 : b.key === "actions" ? -1 : a.position - b.position,
     );
@@ -145,7 +149,7 @@ function DistrictGrid({
             ?.name || "—"
         );
       case "status":
-        return item.isActive ? "Aktif" : "Pasif";
+        return <LocationStatusTag active={item.isActive} />;
       case "actions":
         return (
           <>
@@ -190,7 +194,7 @@ function DistrictGrid({
         </thead>
         <tbody>
           {districts.map((item) => (
-            <tr key={item.id}>
+            <tr key={item.id} className={item.isActive ? undefined : "cld-inactive-row"}>
               {visibleFields.map((field) => (
                 <td key={field.key}>{renderCell(item, field.key)}</td>
               ))}
@@ -199,87 +203,12 @@ function DistrictGrid({
           {!loading && districts.length === 0 && (
             <tr>
               <td colSpan={Math.max(visibleFields.length, 1)} className="table-empty">
-                Seçili il için ilçe bulunamadı.
+                {emptyMessage}
               </td>
             </tr>
           )}
         </tbody>
       </AdvancedDataGrid>
     </div>
-  );
-}
-
-type Props = DistrictFormProps &
-  DistrictGridProps & {
-    title: string;
-    resultCount: number;
-  totalCount: number;
-    query: string;
-    onQueryChange: (value: string) => void;
-  };
-
-export function DistrictSection(props: Props) {
-  const {
-    provinces,
-    editingId,
-    provinceId,
-    name,
-    active,
-    busy,
-    onProvinceIdChange,
-    onNameChange,
-    onActiveChange,
-    onSubmit,
-    onCancel,
-    districts,
-    loading,
-    onEdit,
-    onToggle,
-    title,
-    resultCount,
-    totalCount,
-    query,
-    onQueryChange,
-    fields,
-  } = props;
-  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
-  return (
-    <section className="panel list-v2-list">
-      <div className="panel-heading">
-        <div>
-          <h2>{title}</h2>
-          <p>{totalCount} kayıt · {resultCount} listelenen</p>
-        </div>
-      </div>
-      <ListToolbar
-        search={query}
-        onSearchChange={onQueryChange}
-        searchPlaceholder="İlçe adı ara"
-        toolsSlotRef={setToolsSlot}
-      />
-      <DistrictGrid
-        districts={districts}
-        provinces={provinces}
-        loading={loading}
-        busy={busy}
-        onEdit={onEdit}
-        onToggle={onToggle}
-        fields={fields}
-        toolbarContainer={toolsSlot}
-      />
-      <DistrictForm
-        provinces={provinces}
-        editingId={editingId}
-        provinceId={provinceId}
-        name={name}
-        active={active}
-        busy={busy}
-        onProvinceIdChange={onProvinceIdChange}
-        onNameChange={onNameChange}
-        onActiveChange={onActiveChange}
-        onSubmit={onSubmit}
-        onCancel={onCancel}
-      />
-    </section>
   );
 }

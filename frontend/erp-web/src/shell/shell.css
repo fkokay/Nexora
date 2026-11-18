@@ -444,3 +444,50 @@
 html.embedded-studio-tool #root .app-shell:not(.standalone-studio) .topbar { display: flex !important; }
 html.embedded-studio-tool #root .app-shell:not(.standalone-studio) .topbar > :not(.topbar-tabs) { display: none; }
 html.embedded-studio-tool #root .app-shell:not(.standalone-studio) > .workspace-subnav { display: none; }
+
+/* ---- Shell notice toast (ShellNoticeToast) --------------------------------
+   Floats under the top bar, top right, so the tab-limit warning (and other shell notices) stays in view however
+   far the page is scrolled. */
+#root .nx-shell-toast {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 11px 10px 11px 13px;
+  border: 1px solid var(--nx-line);
+  border-radius: 10px;
+  background: var(--nx-surface);
+  color: var(--nx-text);
+  font-size: 12.5px;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 12%), 0 2px 6px rgb(15 23 42 / 8%);
+  animation: nx-shell-toast-in .18s ease-out;
+}
+#root .nx-shell-toast.is-warn { border-color: color-mix(in srgb, var(--nx-warn) 45%, var(--nx-line)); }
+#root .nx-shell-toast-icon { flex: none; margin-top: 1px; color: var(--nx-primary); }
+#root .nx-shell-toast.is-warn .nx-shell-toast-icon { color: var(--nx-warn); }
+#root .nx-shell-toast-text { display: grid; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#root .nx-shell-toast-text b { font-weight: 650; }
+#root .nx-shell-toast-text span { color: var(--nx-muted); }
+#root .nx-shell-toast-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  margin: -2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nx-muted);
+  cursor: pointer;
+}
+#root .nx-shell-toast-close:hover { background: color-mix(in srgb, var(--nx-muted) 12%, transparent); color: var(--nx-text); }
+@keyframes nx-shell-toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { #root .nx-shell-toast { animation: none; } }
