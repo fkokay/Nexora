@@ -19,6 +19,8 @@ export type CatalogRow = {
   code: string;
   module: string | null;
   version: number | null;
+  /** Sürüm firma revizyonu değil, standart ekran tanımının sürümü. */
+  versionIsStandard?: boolean;
   updatedAt: string | null;
   description: string | null;
   statuses: CatalogStatus[];
@@ -31,6 +33,11 @@ export type CatalogRow = {
 };
 
 export const PAGE_SIZE = 25;
+
+/** Geçmiş okunabilen satırlar: özel sayfa ya da firma tasarımı (taslak/yayın) olan sistem sayfası. */
+export const historyUrl = (row: CatalogRow): string | null =>
+  row.custom ? `/api/custom-pages/${row.custom.id}/history`
+  : row.system && (row.system.draftId || row.system.publishedId) ? `/api/system-pages/${encodeURIComponent(row.system.screenKey)}/history` : null;
 export const NO_MODULE = "__none__";
 
 export const kindLabel: Record<CatalogKind, string> = { custom: "Özel", system: "Sistem", builtIn: "Yerleşik" };
@@ -51,7 +58,8 @@ const systemStatuses = (page: SystemPageItem): CatalogStatus[] => {
 
 const systemRow = (system: SystemPageItem, name: string, key: string): CatalogRow => ({
   key, kind: "system", name, code: `@${system.screenKey}`, module: system.module || null,
-  version: system.draftId || system.publishedId ? system.version : null, updatedAt: null,
+  // Liste yanıtında firma tasarımı revizyonu yok; sistem sayfalarında sürüm Nexora standardının sürümüdür.
+  version: system.version, versionIsStandard: true, updatedAt: null,
   description: system.description ?? null, statuses: systemStatuses(system), fieldCount: null, newItemCount: system.newItemCount, system,
 });
 

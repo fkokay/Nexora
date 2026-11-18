@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronRight, FilePlus2, LayoutGrid, LayoutTemplate, List, MoreHorizontal, PanelsTopLeft, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FilePlus2, History, LayoutGrid, LayoutTemplate, List, MoreHorizontal, PanelsTopLeft, Search, Trash2, X } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomMenusPage from "./CustomMenusPage";
 import CustomPagesPage from "./CustomPagesPage";
@@ -9,13 +9,16 @@ import BusinessRulesPage from "./BusinessRulesPage";
 import WorkflowPage from "./WorkflowPage";
 import CustomDataModelsPage from "./CustomDataModelsPage";
 import {
-  buildCatalogRows, byKind, filterCatalogRows, formatUpdatedAt, kindCounts, kindLabel, moduleOptions, NO_MODULE, paginate, PAGE_SIZE, readCatalogView, statusFilterOptions, writeCatalogView,
+  buildCatalogRows, byKind, filterCatalogRows, formatUpdatedAt, historyUrl, kindCounts, kindLabel, moduleOptions, NO_MODULE, paginate, PAGE_SIZE, readCatalogView, statusFilterOptions, writeCatalogView,
   type CatalogFilter, type CatalogRow, type CatalogView, type CustomPageCatalogItem, type PageCatalogItem, type StatusFilter, type SystemPageItem,
 } from "./pageCatalogModel";
 import "./low-code-designer.css";
 
 type Section = "pages" | "reports" | "workflows" | "rules" | "menus" | "data";
 type SystemPageDraft = { id: string; importNotes?: string[] };
+type RevisionItem = { id: string; revision: number; changeKind: string; createdAt: string };
+type HistoryState = { name: string; loading: boolean; items: RevisionItem[]; error: string };
+type MenuState = { key: string; top: number; right: number };
 type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
@@ -49,7 +52,9 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   const [moduleFilter, setModuleFilter] = useState("all");
   const [view, setView] = useState<CatalogView>(() => readCatalogView());
   const [page, setPage] = useState(1);
-  const [menuKey, setMenuKey] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [historyView, setHistoryView] = useState<HistoryState | null>(null);
+  const menuKey = menu?.key ?? null;
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [canDeletePages, setCanDeletePages] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -93,14 +98,29 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   // ⋯ menüsü dışarı tıklanınca veya Esc ile kapanır.
   useEffect(() => {
     if (!menuKey) return;
-    const close = (event: MouseEvent) => { if (!(event.target instanceof Element) || !event.target.closest(".lcp-row-menu")) setMenuKey(null); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuKey(null); };
+    // Menü sabit konumlu (tablo kaydırma kabına kırpılmaz); kaydırma veya yeniden boyutlanmada kapanır.
+    const close = (event: MouseEvent) => { if (!(event.target instanceof Element) || !event.target.closest(".lcp-row-menu, .lcp-menu")) setMenu(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    const dismiss = () => setMenu(null);
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", escape);
-    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); window.removeEventListener("scroll", dismiss, true); window.removeEventListener("resize", dismiss); };
   }, [menuKey]);
   useEffect(() => { setPage(1); }, [pageSearch, catalogFilter, statusFilter, moduleFilter]);
 
+  const showHistory = async (row: CatalogRow) => {
+    const url = historyUrl(row);
+    if (!url) return;
+    setHistoryView({ name: row.name, loading: true, items: [], error: "" });
+    try {
+      const response = await authenticatedFetch(url, token);
+      if (!response.ok) throw new Error(`Geçmiş yüklenemedi (${response.status}).`);
+      const items = await response.json() as RevisionItem[];
+      setHistoryView((value) => value && { ...value, loading: false, items: Array.isArray(items) ? items : [] });
+    } catch (e) { setHistoryView((value) => value && { ...value, loading: false, error: (e as Error).message }); }
+  };
   const deleteCustomPage = async (item: CustomPageCatalogItem) => {
     if (!window.confirm(`“${item.name}” sayfası silinsin mi? Yayımlanmışsa ERP'den de kaldırılır.`)) return;
     setDeletingId(item.id); setPageCatalogError("");
@@ -161,19 +181,23 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     const key = row.screen?.key ?? "";
     return { label: "Görünümü düzenle", disabled: !key, run: () => setEditingScreenKey(key) };
   };
-  // Katalog düzeyinde desteklenen ikincil eylemler: sil / firma tasarımını kaldır (yetkiye bağlı).
+  // Katalog düzeyinde desteklenen ikincil eylemler: geçmiş (salt okunur), sil / firma tasarımını kaldır (yetkiye bağlı).
+  // Önizle ve Kopyala için katalogdan çağrılabilecek bir API yok; bunlar tasarımcının içinde kalır.
   const menuActions = (row: CatalogRow): (RowAction & { danger?: boolean })[] => {
-    if (row.custom && canDeletePages) { const item = row.custom; return [{ label: "Sil", danger: true, disabled: deletingId === item.id, run: () => void deleteCustomPage(item) }]; }
-    if (row.system?.publishedId && row.system.canEdit && canDeletePages) { const system = row.system; return [{ label: "Firma tasarımını kaldır", danger: true, disabled: deletingId === system.publishedId, run: () => void removeSystemFirmDesign(system) }]; }
-    return [];
+    const actions: (RowAction & { danger?: boolean })[] = [];
+    if (historyUrl(row)) actions.push({ label: "Geçmiş", disabled: false, run: () => void showHistory(row) });
+    if (row.custom && canDeletePages) { const item = row.custom; actions.push({ label: "Sil", danger: true, disabled: deletingId === item.id, run: () => void deleteCustomPage(item) }); }
+    if (row.system?.publishedId && row.system.canEdit && canDeletePages) { const system = row.system; actions.push({ label: "Firma tasarımını kaldır", danger: true, disabled: deletingId === system.publishedId, run: () => void removeSystemFirmDesign(system) }); }
+    return actions;
   };
   const renderMenu = (row: CatalogRow) => {
     const actions = menuActions(row);
     if (!actions.length) return null;
     const open = menuKey === row.key;
     return <div className="lcp-row-menu" onClick={(event) => event.stopPropagation()}>
-      <button type="button" className="lcp-more" aria-label={`${row.name} için diğer eylemler`} aria-haspopup="menu" aria-expanded={open} onClick={() => setMenuKey(open ? null : row.key)}><MoreHorizontal size={15}/></button>
-      {open && <div className="lcp-menu" role="menu">{actions.map((action) => <button type="button" role="menuitem" key={action.label} className={action.danger ? "danger" : ""} disabled={action.disabled} onClick={() => { setMenuKey(null); action.run(); }}>{action.danger && <Trash2 size={13}/>}{action.label}</button>)}</div>}
+      <button type="button" className="lcp-more" aria-label={`${row.name} için diğer eylemler`} aria-haspopup="menu" aria-expanded={open}
+        onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu(open ? null : { key: row.key, top: rect.bottom + 4, right: window.innerWidth - rect.right }); }}><MoreHorizontal size={15}/></button>
+      {open && menu && <div className="lcp-menu" role="menu" style={{ top: menu.top, right: menu.right }}>{actions.map((action) => <button type="button" role="menuitem" key={action.label} className={action.danger ? "danger" : ""} disabled={action.disabled} onClick={() => { setMenu(null); action.run(); }}>{action.danger ? <Trash2 size={13}/> : <History size={13}/>}{action.label}</button>)}</div>}
     </div>;
   };
   const statusPills = (row: CatalogRow) => <span className="lcp-tags">
@@ -191,7 +215,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         <td><span className={`lcp-status ${row.kind === "system" ? "system" : "builtin"}`}>{kindLabel[row.kind]}</span></td>
         <td>{statusPills(row)}</td>
         <td>{row.module ?? "—"}</td>
-        <td>{row.version != null ? `v${row.version}` : "—"}</td>
+        <td title={row.versionIsStandard ? "Nexora standart ekran sürümü" : undefined}>{row.version != null ? `v${row.version}` : "—"}</td>
         <td className="lcp-muted">{formatUpdatedAt(row.updatedAt)}</td>
         <td><div className="lcp-row-actions" onClick={(event) => event.stopPropagation()}>
           <button type="button" className={`lcp-open ${row.kind === "builtIn" ? "is-secondary" : ""}`} disabled={primary.disabled} title={primary.title} onClick={primary.run}>{primary.label}</button>
@@ -220,7 +244,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
           <a className="lcd-crumb" href="#adaptation">Uyarlama araçları <ChevronRight size={12} aria-hidden="true"/></a>
           <h1>{sectionTitles[active]}</h1>
         </div>
-        <span className="lcd-save-state"><i aria-hidden="true"/> Taslaklar güvenle kaydedilir</span>
+        {active === "pages" && <span className="lcd-save-state"><i aria-hidden="true"/> Taslaklar güvenle kaydedilir</span>}
         {active === "pages" && !editingScreenKey && <button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni sayfa</button>}
       </header>}
 
@@ -274,6 +298,14 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         {active === "menus" && <CustomMenusPage token={token} role={role} />}
         {active === "data" && <CustomDataModelsPage token={token} />}
       </section>
+      {historyView && <div className="lcp-history-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryView(null); }}>
+        <section className="lcp-history" role="dialog" aria-modal="true" aria-label={`${historyView.name} geçmişi`}>
+          <header><div><b>Geçmiş</b><small>{historyView.name}</small></div><button type="button" aria-label="Kapat" onClick={() => setHistoryView(null)}><X size={15}/></button></header>
+          {historyView.loading ? <p className="lcp-state">Geçmiş yükleniyor…</p> : historyView.error ? <p className="lcp-state error" role="alert">{historyView.error}</p> : historyView.items.length === 0 ? <p className="lcp-state">Kayıtlı sürüm yok.</p>
+            : <ol>{historyView.items.map((item) => <li key={item.id}><b>v{item.revision}</b><span>{item.changeKind}</span><small>{new Date(item.createdAt).toLocaleString("tr-TR")}</small></li>)}</ol>}
+          <p className="lcp-history-note">Bir sürümü geri yüklemek için sayfayı tasarımcıda açıp Geçmiş panelini kullanın.</p>
+        </section>
+      </div>}
     </main>
   );
 }

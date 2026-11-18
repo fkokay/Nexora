@@ -164,3 +164,14 @@
 .lcp-pager-nav button:disabled{opacity:.45;cursor:not-allowed}
 .lcp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media(max-width:760px){.lcd-top{flex-wrap:wrap}.lcd-save-state{display:none}.lcp-toolbar .lcp-search{flex:1 1 100%}.lcp-view-toggle{margin-left:0}}
+/* ⋯ menüsü düğmeye göre sabit konumlanır; tablo kaydırma kabı onu kırpmaz. */
+.lcp-menu{position:fixed;top:auto;z-index:1100}
+.lcp-history-backdrop{position:fixed;inset:0;z-index:1150;display:grid;place-items:center;padding:20px;background:#101a2d80}
+.lcp-history{display:grid;gap:10px;width:min(460px,96vw);max-height:80vh;overflow:auto;padding:14px 16px;border:1px solid var(--lcd-line);border-radius:14px;background:#fff;box-shadow:0 24px 60px #0d183440}
+.lcp-history header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.lcp-history header>div{display:grid;gap:2px}.lcp-history header b{font-size:15px}.lcp-history header small{color:var(--lcd-muted);font-size:12px}
+.lcp-history header button{display:grid;place-items:center;width:30px;height:30px;border:1px solid #dce4f0;border-radius:8px;background:#fff;color:#55647c;cursor:pointer}
+.lcp-history ol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.lcp-history li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #eef1f6;border-radius:8px;font-size:12.5px}
+.lcp-history li small{margin-left:auto;color:var(--lcd-muted)}
+.lcp-history-note{margin:0;color:var(--lcd-muted);font-size:11.5px}

@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { buildCatalogRows, byKind, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
+import { buildCatalogRows, byKind, historyUrl, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
 
 vi.mock("./authApi", () => ({ authenticatedFetch: vi.fn(() => new Promise(() => {})) }));
 
@@ -32,7 +32,11 @@ describe("sayfa kataloğu modeli", () => {
     expect(rows[2].version).toBe(9);
     expect(rows[3].statuses[0].label).toBe("Görünüm ayarı · 6 alan");
     expect(rows[4].statuses[0].label).toBe("Standart");
-    expect(rows[4].version).toBeNull();
+    expect(rows[4].version).toBe(1);
+    expect(historyUrl(rows[0])).toBe("/api/custom-pages/c1/history");
+    expect(historyUrl(rows[2])).toBe("/api/system-pages/inventory-stock/history");
+    expect(historyUrl(rows[3])).toBeNull();
+    expect(historyUrl(rows[4])).toBeNull();
   });
 
   it("arama ad ve kodda çalışır; durum ve modül süzer; sayaçlar türe göre", () => {
