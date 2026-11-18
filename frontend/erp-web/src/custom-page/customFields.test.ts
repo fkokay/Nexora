@@ -26,8 +26,12 @@ describe('customFields', () => {
   it('values prefer typed then source then empty', () => {
     const specs = customFieldSpecs(definitions);
     const values = customFieldValues(specs, [{ code: 'RENK', value: 'Mavi' }, { code: 'AGIRLIK', value: '1.5' }, { code: 'IHRAC', value: null }, { code: 'YOK', value: 'x' }], { AGIRLIK: '2' });
-    expect(values).toEqual({ RENK: 'Mavi', AGIRLIK: '2', URETIM: '', IHRAC: '', DIGER: '' });
+    expect(values).toEqual({ RENK: 'Mavi', AGIRLIK: '2', URETIM: '', IHRAC: 'false', DIGER: '' });
     expect(customFieldValues(specs, [], { RENK: '' }).RENK).toBe('');
+    // Boolean: no typed/source value defaults to "false"; typed and stored values win.
+    expect(customFieldValues(specs, [], {}).IHRAC).toBe('false');
+    expect(customFieldValues(specs, [{ code: 'IHRAC', value: 'true' }], {}).IHRAC).toBe('true');
+    expect(customFieldValues(specs, [], { IHRAC: 'true' }).IHRAC).toBe('true');
   });
 
   it('required text empty fails, boolean never fails', () => {

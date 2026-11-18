@@ -72,6 +72,8 @@ let failUnit: string | null = null;
 let rowVersion = 0;
 let serverFieldErrors: Record<string, string[]> | null = null;
 let definitions: Record<string, unknown>[] = [];
+const STORED_VALUES = [{ code: 'RENK', value: 'Mavi' }, { code: 'BEDEN', value: 'M' }];
+let storedValues: Record<string, unknown>[] = STORED_VALUES;
 
 function setup(components: unknown[], queries: unknown[]) {
   api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
@@ -91,7 +93,7 @@ function setup(components: unknown[], queries: unknown[]) {
     if (endpoint === `/api/stock/items/${G2}/units` && method === 'GET') return [{ id: U1, unitCode: 'KUTU', factorToBase: 12 }];
     if (endpoint.endsWith('/units') && method === 'GET') return [];
     if (endpoint === '/api/stock/custom-fields') return definitions;
-    if (endpoint === `/api/stock/items/${G2}/custom-fields` && method === 'GET') return [{ code: 'RENK', value: 'Mavi' }, { code: 'BEDEN', value: 'M' }];
+    if (endpoint === `/api/stock/items/${G2}/custom-fields` && method === 'GET') return storedValues;
     if (endpoint === '/api/stock/items' && method === 'POST') {
       if (serverFieldErrors) throw Object.assign(new Error('Doğrulama hatası'), { status: 400, serverError: 'Doğrulama hatası', fieldErrors: serverFieldErrors });
       return { id: G1 };
@@ -126,7 +128,7 @@ const selectCard = async (index = 0) => {
   await settle();
 };
 
-beforeEach(() => { calls = []; failUnit = null; rowVersion = 0; serverFieldErrors = null; definitions = []; api.mockReset(); });
+beforeEach(() => { calls = []; failUnit = null; rowVersion = 0; serverFieldErrors = null; definitions = []; storedValues = STORED_VALUES; api.mockReset(); });
 afterEach(() => {
   for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog')) fireEvent.click(within(open).getAllByRole('button')[0]);
   cleanup();
@@ -351,5 +353,52 @@ describe('Özel alanlar bloğu', () => {
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes()).toHaveLength(1));
     expect(writes()[0]).toEqual({ url: `/api/stock/items/${G2}/custom-fields`, method: 'PUT', body: '{"values":{"RENK":"Kırmızı","BEDEN":"M"}}' });
+  });
+
+  const kaydetCf = q('qcs', 'ozelKaydet', 'update', 'stok.kart.ozelAlanKaydet', [['id', '{{liste.seciliSatir.id}}', 'guid'], ['values', '{{ozel.degerler}}', 'map']]);
+  const editAndSave = async (blockProps: Record<string, unknown>) => {
+    setup([listeTable, block(blockProps), { id: 'bar', type: 'actionBar', props: { saveQuery: 'qcs' } }], [liste, tanimlar, degerler, kaydetCf]);
+    await screen.findByText('Var olan');
+    fireEvent.click(cardRow(0));
+    await waitFor(() => expect(calls.some((call) => call.url === `/api/stock/items/${G2}/custom-fields`)).toBe(true));
+    await screen.findByLabelText('Renk');
+    await settle();
+    type('Renk', 'Kırmızı');
+    await ready('save');
+    fireEvent.click(command('save'));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    return JSON.parse(writes()[0].body!) as { values: Record<string, string> };
+  };
+
+  it('edit sends only typed codes: untouched codes keep stored values', async () => {
+    definitions = [{ code: 'RENK', label: 'Renk', dataType: 'Text' }, { code: 'BEDEN', label: 'Beden', dataType: 'Text' }, { code: 'EK', label: 'Ek', dataType: 'Text' }];
+    expect((await editAndSave({ valuesQuery: 'qdv' })).values).toEqual({ RENK: 'Kırmızı', BEDEN: 'M' });
+  });
+
+  it('edit without valuesQuery never sends "" for untouched codes', async () => {
+    definitions = [{ code: 'RENK', label: 'Renk', dataType: 'Text' }, { code: 'BEDEN', label: 'Beden', dataType: 'Text' }];
+    expect((await editAndSave({})).values).toEqual({ RENK: 'Kırmızı', BEDEN: 'M' });
+  });
+
+  it('required Boolean field defaults to "false" on edit', async () => {
+    definitions = [{ code: 'RENK', label: 'Renk', dataType: 'Text' }, { code: 'IHRAC', label: 'İhraç', dataType: 'Boolean', isRequired: true }];
+    expect((await editAndSave({ valuesQuery: 'qdv' })).values).toEqual({ RENK: 'Kırmızı', BEDEN: 'M', IHRAC: 'false' });
+  });
+
+  it('edit without valuesQuery keeps a stored Boolean "true" when untouched', async () => {
+    definitions = [{ code: 'RENK', label: 'Renk', dataType: 'Text' }, { code: 'IHRAC', label: 'İhraç', dataType: 'Boolean', isRequired: true }];
+    storedValues = [...STORED_VALUES, { code: 'IHRAC', value: 'true' }];
+    expect((await editAndSave({})).values).toEqual({ RENK: 'Kırmızı', BEDEN: 'M', IHRAC: 'true' });
+  });
+
+  it('required Boolean field defaults to "false" on create', async () => {
+    definitions = [{ code: 'IHRAC', label: 'İhraç', dataType: 'Boolean', isRequired: true }];
+    setup([adInput(), block(), { id: 'bar', type: 'actionBar', props: { saveQuery: 'qo' } }], [tanimlar, olusturCf]);
+    await screen.findByLabelText('İhraç');
+    type('Ad', 'Kalem');
+    await ready('save');
+    fireEvent.click(command('save'));
+    await waitFor(() => expect(writes()).toHaveLength(1));
+    expect(writes()[0].body).toBe('{"name":"Kalem","customFields":{"IHRAC":"false"}}');
   });
 });

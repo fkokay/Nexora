@@ -12,7 +12,7 @@ import { ActionBarPreview, BadgePreview, ContextPanelPreview, CustomFieldsPrevie
 import { ColumnFormatEditor, IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
-import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
+import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
@@ -569,6 +569,21 @@ const fazBProblem = (component: PageComponent, label: string): string | null => 
     if (typeof props.promptLabel === "string" && props.promptLabel !== "" && !component.name) return `Gerekçe soran düğmenin adı olmalıdır: ${component.id}`;
   }
   return null;
+};
+/**
+ * Düzenleme eşlemi (bodyMap) bir özel alanlar bloğuna bağlıysa bloğun `valuesQuery`'si eşlemin kaynak okuması olmalıdır
+ * (sunucu ResolveCollectionBindings ile aynı kural ve metin); aksi halde dokunulmamış alanlar "" ile gidip silinir.
+ */
+const bodyMapBlockProblem = (query: PageQuery, op: ErpOperation, definition: PageDefinition): string | null => {
+  const bodyMap = op.bodyMap;
+  if (!bodyMap) return null;
+  const parameter = query.parameters.find((item) => item.name === bodyMap.property);
+  const root = parameter ? collectionRoot("map", parameter.binding) : null;
+  const block = root ? definition.components.find((component) => component.type === "customFieldsBlock" && component.name === root) : undefined;
+  if (!parameter || !block) return null;
+  const valuesRead = definition.queries.find((item) => item.id === block.props.valuesQuery);
+  return valuesRead?.operation === bodyMap.sourceOperation ? null
+    : `'${query.name}' sorgusundaki '${parameter.name}' parametresi: '${root}' bloğunun 'valuesQuery' sorgusu '${bodyMap.sourceOperation}' okuma sorgusu olmalıdır; aksi halde kayıtlı özel alan değerleri silinebilir.`;
 };
 /** Adı zorunlu türlerin otomatik ad tabanı (tablo1, ozelAlanlar1…); diğer türler adsız başlar. */
 const requiredNameBase = (type: ComponentType) => type === "editableGrid" ? "tablo" : type === "customFieldsBlock" ? "ozelAlanlar" : null;
@@ -1270,7 +1285,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       if (!isOperationQuery(query)) continue;
       const op = findOperation(erpCatalog, query.operation);
       const problem = !query.operation ? `“${query.name}” sorgusu için bir ERP işlemi seçin.`
-        : op ? (() => { const missing = unboundRequiredParameter(op, query.parameters); return missing ? `Zorunlu parametre bağlanmadı: ${missing}` : null; })() : null;
+        : op ? (() => { const missing = unboundRequiredParameter(op, query.parameters); return missing ? `Zorunlu parametre bağlanmadı: ${missing}` : bodyMapBlockProblem(query, op, definition); })() : null;
       if (problem) { setError(problem); setLeftTab("queries"); setSelectedQueryId(query.id); return null; }
     }
     setSaving(true); setError(""); setNotice("");
@@ -2277,7 +2292,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 {layoutInputIds.length === 0 && <small className="pd-query-warning">{pageInputs.length === 0 ? "Bu bileşen için önce bir giriş kutusu ekleyin" : "En az bir giriş kutusu seçin; boş kart kaydedilemez."}</small>}
               </div>
               <div className="pd-field">Sütun sayısı<div className="pd-segment" role="group" aria-label="Sütun sayısı">{[1, 2, 3].map((count) => <button type="button" key={count} disabled={!canEdit} aria-pressed={(Number(selected.props.columns) || 2) === count} className={(Number(selected.props.columns) || 2) === count ? "active" : ""} onClick={() => patchComponent(selected.id, { columns: count })}>{count}</button>)}</div></div>
-              <label className="pd-field">Kayıt anahtarı<small>Değişince kartın girişleri yeni kaydın değerleriyle yeniden dolar.</small>
+              <label className="pd-field">Kayıt anahtarı<small>Değişince kartın girişleri yeni kaydın değerleriyle yeniden dolar. Yüklenen kayda bağlayın (ör. <code>{"{{kart.rows[0].id}}"}</code>); seçili satıra bağlarsanız kayıt yüklenmeden girişler boş değerlerle dolabilir.</small>
                 <BindingInput value={String(selected.props.recordKey ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Kayıt anahtarı"
                   placeholder="{{kart.rows[0].id}}" onChange={(next) => patchComponent(selected.id, { recordKey: next || undefined })}/></label>
               <label className="pd-check"><input type="checkbox" checked={selected.props.trackChanges === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { trackChanges: event.target.checked ? true : undefined })}/>Değişiklikleri izle</label>

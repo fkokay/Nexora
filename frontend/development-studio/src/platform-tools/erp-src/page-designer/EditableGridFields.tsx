@@ -190,7 +190,7 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
           const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index));
           if (!parsed.ok) return <fieldset className="pd-tabs-editor-tab" key={index} disabled={disabled}>
             <div className="pd-tabs-editor-head"><code>{raw}</code><button type="button" className="pd-icon-button danger" aria-label={`Sütun ${index + 1} sil`} onClick={remove}><Trash2 size={12}/></button></div>
-            <small className="pd-query-warning">{`'gridColumns' öğesi geçersiz: ${parsed.error}`}</small>
+            <small className="pd-query-warning">{parsed.error}</small>
           </fieldset>;
           const taken = rawColumns.filter((_, i) => i !== index).map((item) => item.split("|")[0].toLowerCase());
           return <ColumnEditor key={index} column={parsed.column} index={index} options={options} takenCodes={taken} disabled={disabled} onRemove={remove}

@@ -29,9 +29,10 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
-import { emptyGridState, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
+import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
+import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { iterationOf, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
@@ -835,18 +836,11 @@ const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   };
 };
 /** Varyant kipinin önizleme sayısı: geçerli özelliklerin (adı ve değeri olan) farklı değer sayılarının çarpımı (200 sınırı uygulanmadan). */
-const matrixVariantCount = (state: GridState) => {
-  let count = 1;
-  let axes = 0;
-  for (const draft of state.rows.slice(0, MATRIX_MAX_ROWS)) {
-    const name = String(draft.cells.name ?? "").trim();
-    const values = new Set(String(draft.cells.values ?? "").split(",").map((value) => value.trim()).filter(Boolean));
-    if (!name || values.size === 0) continue;
-    axes += 1;
-    count *= values.size;
-  }
-  return axes === 0 ? 0 : count;
-};
+const matrixVariantCount = (state: GridState) => countVariantDrafts(state.rows.slice(0, MATRIX_MAX_ROWS)
+  .map((draft) => ({ name: String(draft.cells.name ?? ""), values: String(draft.cells.values ?? "") })));
+/** `stage` tablosunun sabit satır (ör. ana birim) değerleri: `unique` sütunlar bunlarla da karşılaştırılır. */
+const gridFixedValues = (grid: ComponentDefinition, spec: GridSpec, scope: PageScope) => spec.mode === "stage"
+  ? fixedRowValues(textValue(grid.props?.fixedRowLabel), spec.columns, (path) => resolvePath(scope, path)) : undefined;
 /** Bağlama yolu tablonun `satirlar`/`eklenenSatir`/`silinenSatir` alanına bakıyorsa o alan, değilse null. */
 const gridBindingList = (path: string | null, name: string) => {
   if (!path || !path.startsWith(`${name}.`)) return null;
@@ -1146,6 +1140,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   // Düzenlenebilir tablolar (ada göre bekleyen satırlar) ve özel alan blokları (ada göre yazılan değerler).
   const [grids, setGrids] = useState<Record<string, GridState>>({});
   const [customTyped, setCustomTyped] = useState<Record<string, Record<string, string>>>({});
+  const customTypedRef = useRef(customTyped);
+  customTypedRef.current = customTyped;
   // Engellenen kayıttan sonra iletisi gösterilen tablolar ve bloklar (iletiler düzeltildikçe canlı güncellenir).
   const [gridShown, setGridShown] = useState<Record<string, boolean>>({});
   const [blockShown, setBlockShown] = useState<Record<string, boolean>>({});
@@ -1260,8 +1256,39 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
   const events = useMemo(() => createPageEvents(), []);
   const rights = page.rights ?? { view: true };
   const isPreview = Boolean(previewId);
+  /**
+   * Düzenleme (bodyMap) eşlemi kaynak satırların üzerine birleştirilir: yalnız kullanıcının yazdığı kodlar ve kaynakta değeri
+   * olmayan Boolean alanların "false"u gönderilir; dokunulmamış kodlar "" ile gidip kayıtlı değeri silmez.
+   */
+  const editMapValues = (query: PageQueryDefinition, values: Record<string, unknown>): Record<string, unknown> => {
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    if (!op?.bodyMap) return values;
+    const parameter = query.parameters.find((item) => item.name === op.bodyMap!.property);
+    const path = parameter ? bindingPath(parameter.binding) : null;
+    const block = path ? blockComponents.find((component) => `${component.name}.degerler` === path) : undefined;
+    if (!parameter || !block) return values;
+    const current = currentScope() as Record<string, unknown>;
+    const stateOf = (id: string) => (id ? current[queryNames[id]] as QueryState | undefined : undefined);
+    const specs = customFieldSpecs(stateOf(textValue(block.props?.definitionsQuery).trim())?.rows ?? []);
+    const rows = stateOf(textValue(block.props?.valuesQuery).trim())?.rows ?? [];
+    const typed = customTypedRef.current[block.name!] ?? {};
+    const all = customFieldValues(specs, rows, typed);
+    // Kaynakta değeri olan kodlar eşlemin gerçek kaynağından (bodyMap.sourceOperation okuması) okunur, bloğun valuesQuery'sinden değil.
+    const { sourceOperation, keyColumn, valueColumn } = op.bodyMap;
+    const mapSource = queryDefinitions.find((candidate) => candidate.kind === "read" && candidate.operation === sourceOperation);
+    const mapRows = (mapSource ? (current[mapSource.name] as QueryState | undefined)?.rows : undefined) ?? [];
+    const sourceHas = new Set(mapRows.filter((row) => typeof row?.[keyColumn] === "string" && displayText(row[valueColumn]) !== "")
+      .map((row) => row[keyColumn] as string));
+    const overlay: Record<string, string> = {};
+    for (const spec of specs) {
+      if (Object.prototype.hasOwnProperty.call(typed, spec.code)) overlay[spec.code] = all[spec.code];
+      else if (spec.inputType === "checkbox" && !sourceHas.has(spec.code)) overlay[spec.code] = "false";
+    }
+    return { ...values, [parameter.name]: overlay };
+  };
   // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
-  const trackedWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => {
+  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
+    const values = editMapValues(query, resolved);
     const result = await runWrite(query, values, confirmWrite);
     const sent = gridComponents.filter((grid) => gridSpecOf(grid).mode !== "stage" && bindsGrid(query, grid.name!, "satirlar")).map((grid) => grid.name!);
     if (sent.length > 0) {
@@ -1427,7 +1454,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     for (const grid of gridComponents) {
       const spec = gridSpecOf(grid);
       if (!queries.some((query) => bindsGrid(query, spec.name))) continue;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows);
+      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()));
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -1816,7 +1843,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId }
     const source = gridSourceState(spec, states);
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
-    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows) : {};
+    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope)) : {};
     return {
       id: spec.name, mode: spec.mode, columns: spec.columns, state, sourceRows, rowKey: spec.rowKey, errors, maxRows: spec.maxRows,
       dispatch: (action) => dispatchGrid(spec, action),

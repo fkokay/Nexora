@@ -265,10 +265,11 @@ function inputRulesOf(column: GridColumn): InputRules {
 /**
  * Hücre iletileri: satır anahtarı → sütun kodu → ileti (Faz A giriş iletileri, `unique`). `maxRows` verilir ve düzenlenebilir
  * satır sayısı onu aşarsa tablo düzeyi ileti `[""][""]` anahtarındadır (sınırda dolu tablo geçerlidir). Salt okunur
- * sütunlar ve kaynak satırlar doğrulanmaz; `unique` silinmeyen kaynak satırlarla da karşılaştırılır (büyük/küçük harf duyarsız).
+ * sütunlar ve kaynak satırlar doğrulanmaz; `unique` silinmeyen kaynak satırlarla ve `fixedValues` (sabit satır) değerleriyle de
+ * karşılaştırılır (büyük/küçük harf duyarsız).
  */
 export function validateGrid(mode: string, columns: GridColumn[], state: GridState, sourceRows: Record<string, unknown>[], rowKey: string,
-  maxRows?: number): Record<string, Record<string, string>> {
+  maxRows?: number, fixedValues?: Record<string, string[]>): Record<string, Record<string, string>> {
   const result: Record<string, Record<string, string>> = {};
   const set = (key: string, code: string, message: string) => { (result[key] ??= {})[code] = message; };
   const drafts = editableRows(mode, state);
@@ -284,6 +285,8 @@ export function validateGrid(mode: string, columns: GridColumn[], state: GridSta
     const counts = new Map<string, number>();
     const add = (text: string) => { if (text !== "") counts.set(text, (counts.get(text) ?? 0) + 1); };
     for (const row of kept) add(uniqueText(sourceValue(row, column.code)));
+    // Sabit satır (ör. ana birim) da tablonun bir satırıdır: aynı değer yeni satırda tekrarlanamaz.
+    for (const value of fixedValues?.[column.code] ?? []) add(uniqueText(value));
     for (const draft of drafts) add(uniqueText(cellRaw(column, draft)));
     for (const draft of drafts) {
       const text = uniqueText(cellRaw(column, draft));
@@ -325,4 +328,24 @@ export function iterationRows(list: "eklenenSatir" | "silinenSatir", columns: Gr
   rowKey: string): { key: string; row: Record<string, unknown> }[] {
   if (list === "eklenenSatir") return state.added.map((draft) => ({ key: draft.key, row: wireRow(columns, draft) }));
   return removedSourceRows(state, sourceRows, rowKey).map((row) => ({ key: rowKeyOf(row, rowKey), row }));
+}
+
+const LABEL_BINDING = /\{\{\s*([^{}]+?)\s*\}\}/g;
+/**
+ * `fixedRowLabel` bağlamalarından sabit satırın sütun değerleri (büyük/küçük harf duyarsız): son yol parçası sütun kodu ya da `base` + sütun kodu olan bağlama (ör. `kart.rows[0].unitCode`, `birimler.meta.baseUnitCode`
+ * → `unitCode`) o sütunun değeridir. Şemada yapısal sabit satır değeri olmadığından bu bir sezgidir.
+ */
+export function fixedRowValues(label: string, columns: GridColumn[], resolve: (path: string) => unknown): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const match of label.matchAll(LABEL_BINDING)) {
+    const path = match[1];
+    const last = path.split(/[.[\]]/).filter(Boolean).pop()?.toLowerCase() ?? "";
+    for (const column of columns) {
+      const code = column.code.toLowerCase();
+      if (!column.rules.unique || (last !== code && last !== `base${code}`)) continue;
+      const text = displayText(resolve(path));
+      if (text.trim() !== "") (result[column.code] ??= []).push(text);
+    }
+  }
+  return result;
 }

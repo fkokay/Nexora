@@ -42,7 +42,7 @@ export function customFieldSpecs(definitionRows: Record<string, unknown>[]): Cus
   return specs;
 }
 
-/** Her alanın değeri: yazılan değer, yoksa değer satırındaki değer, yoksa "". */
+/** Her alanın değeri: yazılan değer, yoksa değer satırındaki değer, yoksa "" (Boolean alanda "false"; zorunlu Boolean boş gönderilmez). */
 export function customFieldValues(specs: CustomFieldSpec[], valueRows: Record<string, unknown>[], typed: Record<string, string>): Record<string, string> {
   const source = new Map<string, unknown>();
   for (const row of Array.isArray(valueRows) ? valueRows : []) {
@@ -50,7 +50,8 @@ export function customFieldValues(specs: CustomFieldSpec[], valueRows: Record<st
   }
   const values: Record<string, string> = {};
   for (const spec of specs) {
-    values[spec.code] = Object.prototype.hasOwnProperty.call(typed, spec.code) ? typed[spec.code] : displayText(source.get(spec.code));
+    const value = Object.prototype.hasOwnProperty.call(typed, spec.code) ? typed[spec.code] : displayText(source.get(spec.code));
+    values[spec.code] = spec.inputType === "checkbox" && value === "" ? "false" : value;
   }
   return values;
 }

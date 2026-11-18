@@ -100,7 +100,7 @@ public sealed class TenantCustomPageCollectionParameterTests
         new { id = "t0", type = "input", name = "arama", props = new { inputType = "text" } },
         new { id = "t1", type = "dataTable", name = "liste", props = new { query = "liste" } },
         new { id = "c2", type = "input", name = "renk", props = new { inputType = "text" } },
-        CustomFieldsBlock
+        new { id = "cf", type = "customFieldsBlock", name = "ozel", props = new { definitionsQuery = "tanimlar", valuesQuery = "degerOku" } }
     ];
 
     private static object StockList() => OpQuery("liste", "kartlar", "read", "stok.kart.listele", "load", Param("q", "{{arama.value}}"));

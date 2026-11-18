@@ -5,6 +5,7 @@ import { InputPicker, type PickerInput } from "./LayoutFields";
 import { MAX_DIALOG_IDS, idList, ownableCandidates, parseTabs } from "./layoutRefs";
 import { queryKindLabels, type PageQuery } from "./QueriesPanel";
 import { SequenceFields, type SequenceValue } from "./SequenceFields";
+import { iterationOf } from "./erpOperations";
 
 type DialogComponent = { id: string; type: string; name?: string; props: Record<string, unknown> };
 type Patch = Record<string, unknown>;
@@ -55,6 +56,8 @@ export function DialogFields({ dialog, components, labelOf = defaultLabel, write
     else if (next === "query") onPatch({ saveSequence: undefined, sequenceWhen: undefined, stopOnError: undefined });
     else onPatch({ saveQuery: undefined });
   };
+  // Tek sorgu: sunucu ValidateSaveQueries/ResolveGridIteration gibi yalnız ızgara satırlarını dolaşmayan ekleme/güncelleme sorguları.
+  const saveCandidates = writeQueries.filter((query) => (query.kind === "insert" || query.kind === "update") && !iterationOf(query));
   const presentation = props.presentation === "drawer" ? "drawer" : "dialog";
   const refreshIds = Array.isArray(props.refreshQueries) ? props.refreshQueries.filter((id): id is string => typeof id === "string" && readQueries.some((query) => query.id === id)) : [];
   const refreshOptions = readQueries.filter((query) => !refreshIds.includes(query.id));
@@ -80,9 +83,9 @@ export function DialogFields({ dialog, components, labelOf = defaultLabel, write
     </div>
     {mode === "query" && <label className="pd-field">Kaydet sorgusu
       <select value={saveQuery} disabled={disabled} onChange={(event) => onPatch({ saveQuery: event.target.value || undefined })}>
-        <option value="">{writeQueries.length === 0 ? "Yazma sorgusu yok" : "Yazma sorgusu seçin"}</option>
-        {writeQueries.map((query) => <option key={query.id} value={query.id}>{query.name} ({queryKindLabels[query.kind]})</option>)}
-        {saveQuery && !writeQueries.some((query) => query.id === saveQuery) && <option value={saveQuery}>{saveQuery} (yazma sorgusu değil)</option>}
+        <option value="">{saveCandidates.length === 0 ? "Ekleme/güncelleme sorgusu yok" : "Ekleme/güncelleme sorgusu seçin"}</option>
+        {saveCandidates.map((query) => <option key={query.id} value={query.id}>{query.name} ({queryKindLabels[query.kind]})</option>)}
+        {saveQuery && !saveCandidates.some((query) => query.id === saveQuery) && <option value={saveQuery}>{saveQuery} (kullanılamaz: ekleme/güncelleme değil ya da ızgara satırlarını dolaşıyor)</option>}
       </select></label>}
     {mode === "sequence" && <SequenceFields value={sequence} when={props.sequenceWhen} stopOnError={props.stopOnError} writeQueries={writeQueries}
       componentsNames={pageNames} disabled={disabled} onChange={(next) => onPatch(sequencePatch(next))}/>}

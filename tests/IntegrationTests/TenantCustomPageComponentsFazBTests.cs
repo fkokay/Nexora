@@ -473,6 +473,27 @@ public sealed class TenantCustomPageComponentsFazBTests
     }
 
     [Fact]
+    public void Rejects_body_map_block_whose_values_query_is_not_the_source_read()
+    {
+        const string message = "'alanKaydet' sorgusundaki 'values' parametresi: 'ozel' bloğunun 'valuesQuery' sorgusu 'stok.kart.ozelAlanDegerleri' okuma sorgusu olmalıdır; aksi halde kayıtlı özel alan değerleri silinebilir.";
+        var components = new[] { Input("i0", "arama"), N("t1", "dataTable", "liste", new { query = "kartlar" }), Block(new { definitionsQuery = "tanimlar" }) };
+        // No valuesQuery: every untouched code would be sent as "" and wipe the stored values.
+        AssertRejected(V2([Liste(), Tanimlar(), DegerOku(), AlanKaydet()], components), message);
+        // A valuesQuery that is another read (here the definitions) is rejected too.
+        AssertRejected(V2([Liste(), Tanimlar(), DegerOku(), AlanKaydet(), Op("baskaDeger", "read", "stok.ozelAlanTanimlari", "load")],
+                [Input("i0", "arama"), N("t1", "dataTable", "liste", new { query = "kartlar" }), Block(new { definitionsQuery = "tanimlar", valuesQuery = "baskaDeger" })]),
+            "'valuesQuery' sorgusunun sonucu code ve value sütunlarını içermelidir.");
+        // A SQL read (columns unchecked) is still not the body map's source read.
+        AssertRejected(V2([Liste(), Tanimlar(), DegerOku(), AlanKaydet(),
+                new { id = "sqlDeger", name = "sqlDeger", kind = "read", sql = "SELECT N'A' AS code, N'B' AS value", parameters = Array.Empty<object>(), runOn = "load" }],
+                [Input("i0", "arama"), N("t1", "dataTable", "liste", new { query = "kartlar" }), Block(new { definitionsQuery = "tanimlar", valuesQuery = "sqlDeger" })]),
+            message);
+        // A create (no body map) may use a block without valuesQuery.
+        AssertAccepted(V2(CardQueries(Tanimlar(), Op("olustur2", "insert", "stok.kart.olustur", "manual", P("code", "{{kod.value}}"), P("name", "{{ad.value}}"),
+            P("customFields", "{{ozel.degerler}}", "map"))), CardComponents(Block(new { definitionsQuery = "tanimlar" }))));
+    }
+
+    [Fact]
     public void Rejects_definitions_query_without_required_columns()
     {
         AssertRejected(V2([Liste(), Tanimlar("depo.listele"), DegerOku(), AlanKaydet()],
@@ -607,6 +628,6 @@ public sealed class TenantCustomPageComponentsFazBTests
             })).ToArray()));
         AssertAccepted(V2([Liste(), Tanimlar(), DegerOku(), AlanKaydet()],
             [Input("i0", "arama"), N("t1", "dataTable", "liste", new { query = "kartlar" }),
-                Block(new { definitionsQuery = "tanimlar", disabledWhen = "liste.seciliSatir == null", disabledReason = "Önce bir kart seçin." })]));
+                Block(new { definitionsQuery = "tanimlar", valuesQuery = "degerOku", disabledWhen = "liste.seciliSatir == null", disabledReason = "Önce bir kart seçin." })]));
     }
 }

@@ -32,6 +32,27 @@ export function sequenceWhenProblem(condition: string, pageNames: string[]): str
 }
 
 /**
+ * Koşulsuz ekleme adımı sonraki adımlarca `.sonuc` ile kullanılıyorsa uyarı (engellemez): kısmi hatadan sonra yeniden
+ * kaydetmek ekleme adımını yeniden çalıştırır ve yinelenen kayıt oluşturur. Uyarı yoksa null.
+ */
+const RESULT_ROOT = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.sonuc(?![A-Za-z0-9_])/g;
+export function sequenceRetryWarning(steps: string[], byId: Map<string, PageQuery>, conditions: Record<string, string>): (id: string) => string | null {
+  return (id) => {
+    const index = steps.indexOf(id);
+    const query = byId.get(id);
+    if (!query || query.kind !== "insert" || (conditions[id] ?? "").trim() !== "") return null;
+    const usesResult = (binding: string, root: string) => [...binding.matchAll(RESULT_ROOT)].some((match) => match[1] === root);
+    const used = steps.slice(index + 1).some((laterId, offset) => {
+      const later = byId.get(laterId);
+      return !!later && later.parameters.some((parameter) => usesResult(parameter.binding, query.name) || (offset === 0 && usesResult(parameter.binding, "onceki")));
+    });
+    return used
+      ? `Bu ekleme adımının sonucu sonraki adımlarda kullanılıyor ama koşulu yok: kısmi bir hatadan sonra yeniden kaydetmek yinelenen kayıt oluşturur. Koşul ekleyin, ör. ${query.name}.sonuc.id == null`
+      : null;
+  };
+}
+
+/**
  * Kayıt dizisi düzenleyicisi (İşlem Çubuğu, Pencere ve "Kayıt dizisi" düğmesi): sıralı yazma adımları, adım başına
  * koşul ve "Hata olursa dur". `onChange` her zaman üç değerin tamamını verir; adım silinince koşulu da düşer.
  * `stopOnError` varsayılanı true'dur (özellik yoksa açık sayılır).
@@ -62,6 +83,7 @@ export function SequenceFields({ value, when, stopOnError, writeQueries, compone
     write(steps.filter((step) => step !== id), nextConditions);
   };
   const free = writeQueries.filter((query) => !steps.includes(query.id));
+  const retryWarning = sequenceRetryWarning(steps, byId, conditions);
   return <div className="pd-field">Kayıt dizisi<small>Yazma sorguları bu sırayla çalışır; her adım ayrı bir istek gönderir ve kullanıcının kendi yetkisiyle çalışır.</small>
     {steps.length === 0 && <small className="pd-query-warning">En az bir yazma sorgusu ekleyin.</small>}
     {steps.length > 0 && <div className="pd-tabs-editor">
@@ -80,6 +102,7 @@ export function SequenceFields({ value, when, stopOnError, writeQueries, compone
           </div>
           {!query && <small className="pd-query-warning">Bu adımın sorgusu sayfada yok ya da artık yazma sorgusu değil.</small>}
           {iteration && <small>{SEQUENCE_ITERATION_HINT}</small>}
+          {retryWarning(id) && <small className="pd-query-warning">{retryWarning(id)}</small>}
           <label className="pd-field">Koşul<small>Boşsa adım her zaman çalışır; koşul adımlar başlamadan bir kez değerlendirilir.</small>
             <input className="pd-condition-input" value={condition} maxLength={CONDITION_MAX_LENGTH} spellCheck={false}
               aria-label={`${name} adımının koşulu`} aria-invalid={problem ? true : undefined} placeholder="olustur.sonuc.id == null"

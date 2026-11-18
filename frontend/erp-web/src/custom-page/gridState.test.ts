@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import vectors from './gridColumns.vectors.json';
 import { makeVariantDrafts } from '../inventory/variantDrafts';
 import {
-  GRID_UNIQUE, MATRIX_DIMENSION_COLUMNS, addBlockedMessage, emptyGridState, gridColumnRoot, gridMaxRowsMessage, gridReducer, gridScope,
+  GRID_UNIQUE, MATRIX_DIMENSION_COLUMNS, addBlockedMessage, emptyGridState, fixedRowValues, gridColumnRoot, gridMaxRowsMessage, gridReducer, gridScope,
   iterationRows, parseGridColumn, parseGridColumns, validateGrid, type GridAction, type GridColumn, type GridState,
 } from './gridState';
 
@@ -222,5 +222,16 @@ describe('gridScope', () => {
     ]);
     // Kaynak satır sırasıyla.
     expect(iterationRows('silinenSatir', unitColumns, state, sourceRows, 'id')).toEqual([{ key: 'u1', row: sourceRows[0] }, { key: 'u2', row: sourceRows[1] }]);
+  });
+
+  it('stage unique also compares against the fixed row (base unit)', () => {
+    const state = run(emptyGridState('a'), [{ type: 'add' }, { type: 'edit', key: 'yeni-1', code: 'unitCode', value: 'adet' },
+      { type: 'edit', key: 'yeni-1', code: 'factorToBase', value: '2' }], stage);
+    expect(validateGrid('stage', unitColumns, state, sourceRows, 'id', 50)).toEqual({});
+    const fixed = fixedRowValues('Ana birim: {{kart.rows[0].unitCode}} (1)', unitColumns, (path) => (path === 'kart.rows[0].unitCode' ? 'ADET' : undefined));
+    expect(fixed).toEqual({ unitCode: ['ADET'] });
+    expect(validateGrid('stage', unitColumns, state, sourceRows, 'id', 50, fixed)).toEqual({ 'yeni-1': { unitCode: GRID_UNIQUE } });
+    // meta.baseUnitCode is base + column code; unrelated bindings (even ones merely ending with the code) and non-unique columns are ignored.
+    expect(fixedRowValues('{{birimler.meta.baseUnitCode}} · {{kart.rows[0].name}} {{x.factorToBase}} {{x.altUnitCode}}', unitColumns, () => 'KG')).toEqual({ unitCode: ['KG'] });
   });
 });

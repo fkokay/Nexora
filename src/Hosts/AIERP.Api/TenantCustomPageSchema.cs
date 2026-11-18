@@ -152,7 +152,8 @@ internal static class TenantCustomPageSchema
         /// <summary>editableGrid components by name.</summary>
         public Dictionary<string, GridInfo> GridModesByName { get; } = new(StringComparer.Ordinal);
         /// <summary>Names of customFieldsBlock components.</summary>
-        public HashSet<string> CustomFieldBlocks { get; } = new(StringComparer.Ordinal);
+        /// <summary>Custom fields block name → its <c>valuesQuery</c> id (null when the block has none).</summary>
+        public Dictionary<string, string?> CustomFieldBlocks { get; } = new(StringComparer.Ordinal);
         /// <summary>Query ids run on their own (actionBar/dialog saveQuery, deleteQuery, button queryId): never grid-iterating.</summary>
         public HashSet<string> DirectWriteQueries { get; } = new(StringComparer.Ordinal);
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
@@ -1338,7 +1339,7 @@ internal static class TenantCustomPageSchema
             if (OperationColumns(query.GetString()!, context) is { } resultColumns && columns.Any(x => !resultColumns.Contains(x, StringComparer.Ordinal)))
             { error = message; return false; }
         }
-        context.CustomFieldBlocks.Add(name);
+        context.CustomFieldBlocks[name] = props.TryGetProperty("valuesQuery", out var valuesQuery) ? valuesQuery.GetString() : null;
         return true;
     }
 
@@ -1405,8 +1406,16 @@ internal static class TenantCustomPageSchema
         {
             if (kind == "map")
             {
-                if (!context.CustomFieldBlocks.Contains(root))
+                if (!context.CustomFieldBlocks.TryGetValue(root, out var valuesQueryId))
                     return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi bir özel alanlar bloğuna bağlanmalıdır.", out error);
+                // The body map is the operation's whole value set: the block must show the very source read it is merged over,
+                // otherwise untouched codes would be sent as "" and wipe the stored values.
+                var mapQuery = context.QueryById.Values.First(x => x.Name == queryName);
+                if (mapQuery.Operation is { } mapOperationName && context.Lookup(mapOperationName, out var mapOperation)
+                    && mapOperation.BodyMap is { } bodyMap && string.Equals(bodyMap.Property, parameterName, StringComparison.Ordinal)
+                    && (valuesQueryId is null || !context.QueryById.TryGetValue(valuesQueryId, out var valuesRead)
+                        || !string.Equals(valuesRead.Operation, bodyMap.SourceOperation, StringComparison.Ordinal)))
+                    return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi: '{root}' bloğunun 'valuesQuery' sorgusu '{bodyMap.SourceOperation}' okuma sorgusu olmalıdır; aksi halde kayıtlı özel alan değerleri silinebilir.", out error);
                 continue;
             }
             if (!context.GridModesByName.TryGetValue(root, out var grid) || grid.Mode is not ("list" or "matrix"))
