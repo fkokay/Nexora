@@ -66,6 +66,26 @@ export function tabOwnedIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+/** Pencerelerin (`dialog.contains`, en fazla 20) sahiplendiği bileşen kimlikleri: yalnız pencere açıkken pencerede çizilir. */
+export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dialog") continue;
+    for (const id of idList(component.props?.contains, 20)) owned.add(id);
+  }
+  return owned;
+}
+
+/** Veri listelerinin satır işlemi düğmeleri (`dataTable.rowActions`, en fazla 4): her satırın İşlemler hücresinde çizilir. */
+export function rowActionIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dataTable") continue;
+    for (const id of idList(component.props?.rowActions, 4)) owned.add(id);
+  }
+  return owned;
+}
+
 /** "sütun=Etiket" girdileri; bozuk (ayraçsız veya boş kısımlı) girdiler atlanır. */
 export function parseFieldList(value: unknown): { code: string; label: string }[] {
   if (!Array.isArray(value)) return [];

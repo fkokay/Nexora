@@ -2,7 +2,12 @@
  * ERP işlem kataloğu (`GET /api/custom-pages/erp-operations`) girdileri için saf istek/yanıt eşleme.
  * Sayfa hiçbir zaman URL vermez: yol ve yöntem yalnız sunucu kataloğundan gelir; yol parametreleri doğrulanır ve kodlanır.
  */
-export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean };
+// Koleksiyon kuralları (list/map parametreleri) Studio ikizi page-designer/erpOperations.ts ile aynı tutulmalıdır.
+export type ErpOperationParameterItem = { code: string; label: string; dataType: string; required: boolean };
+/** `items` yalnız `list` parametrelerinde doludur (öğe alanları); diğerlerinde null (eski sunucuda yok). */
+export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean;
+  items?: ErpOperationParameterItem[] | null };
+const isCollection = (parameter: ErpOperationParameter) => parameter.type === "list" || parameter.type === "map";
 export type ErpOperation = {
   name: string; label: string; module: string; kind: "read" | "write"; pageKind: "read" | "insert" | "update" | "delete";
   method: string; route: string; parameters: ErpOperationParameter[];
@@ -97,11 +102,19 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   if (method === "GET" || method === "DELETE") return request;
 
   const body: Record<string, unknown> = { ...safeCopy(source), ...safeCopy(op.fixedBody) };
+  // `bodyMap.property` adlı bildirilmiş `map` parametresi eşlemin yerine geçmez; kaynak satırların üzerine birleştirilir.
+  const mapParameter = op.bodyMap
+    ? op.parameters.find((parameter) => parameter.in === "body" && parameter.type === "map" && parameter.name === op.bodyMap!.property)
+    : undefined;
   if (op.bodyMap && mapSourceRows) {
     const map: Record<string, unknown> = {};
     for (const row of mapSourceRows) {
       const key = row[op.bodyMap.keyColumn];
       if (typeof key === "string" && key !== "" && safeKey(key)) map[key] = row[op.bodyMap.valueColumn];
+    }
+    const bound = mapParameter ? values[mapParameter.name] : undefined;
+    if (isRecord(bound)) {
+      for (const [key, value] of Object.entries(bound)) if (safeKey(key) && value !== null && value !== undefined) map[key] = value;
     }
     // Bildirilmemiş, özel alan kodu biçimindeki değerler eşleme yazılır; null/undefined kaynak değeri korur, "" temizler.
     for (const [name, value] of Object.entries(values)) {
@@ -112,8 +125,11 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   }
   for (const parameter of op.parameters) {
     if (parameter.in !== "body" || !safeKey(parameter.name) || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
+    if (parameter === mapParameter) continue;
     const lower = parameter.name.toLowerCase();
     const value = values[parameter.name];
+    // Çözülemeyen koleksiyon (list/map) anahtarı hiç yazılmaz.
+    if (isCollection(parameter) && (value === null || value === undefined)) continue;
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
     if ((value === null || value === undefined) && Object.keys(body).some((key) => key.toLowerCase() === lower)) continue;
     for (const key of Object.keys(body)) if (key !== parameter.name && key.toLowerCase() === lower) delete body[key];
@@ -215,11 +231,33 @@ export function mapOperationResult(op: ErpOperation, json: unknown): {
 export function fieldErrorsByParameter(op: ErpOperation, fieldErrors: Record<string, string[]> | undefined): Record<string, string> {
   const result: Record<string, string> = {};
   if (!isRecord(fieldErrors)) return result;
+  const byName = (name: string) => op.parameters.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
   for (const [key, messages] of Object.entries(fieldErrors)) {
-    const parameter = op.parameters.find((candidate) => candidate.name.toLowerCase() === key.toLowerCase());
-    if (!parameter) continue;
+    const target = fieldErrorTarget(key, byName);
+    if (target === null) continue;
     const text = (Array.isArray(messages) ? messages : [messages]).filter((message) => typeof message === "string" && message).join(" ");
-    if (text) result[parameter.name] = result[parameter.name] ? `${result[parameter.name]} ${text}` : text;
+    if (text) result[target] = result[target] ? `${result[target]} ${text}` : text;
   }
   return result;
+}
+
+const MAP_ERROR_KEY = /^([A-Za-z_][A-Za-z0-9_]*)\.(.+)$/;
+const LIST_ERROR_KEY = /^([A-Za-z_][A-Za-z0-9_]*)\[(\d{1,4})\]\.(.+)$/;
+
+/**
+ * Sunucu hata anahtarının sayfa anahtarı: `<map>.<KOD>` ve `<list>[i].<alan>` (parametre adı katalogdaki yazımıyla) korunur;
+ * diğer anahtarlar parametre adına eşlenir; eşleşmeyen anahtar null.
+ */
+function fieldErrorTarget(key: string, byName: (name: string) => ErpOperationParameter | undefined): string | null {
+  const list = LIST_ERROR_KEY.exec(key);
+  if (list) {
+    const parameter = byName(list[1]);
+    return parameter && parameter.type === "list" ? `${parameter.name}[${Number(list[2])}].${list[3]}` : null;
+  }
+  const map = MAP_ERROR_KEY.exec(key);
+  if (map) {
+    const parameter = byName(map[1]);
+    if (parameter && parameter.type === "map") return `${parameter.name}.${map[2]}`;
+  }
+  return byName(key)?.name ?? null;
 }

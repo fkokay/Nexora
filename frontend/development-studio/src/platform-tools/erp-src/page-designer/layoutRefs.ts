@@ -57,6 +57,46 @@ export function tabOwnedIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+export const MAX_DIALOG_IDS = 20;
+export const MAX_ROW_ACTIONS = 4;
+
+/** Pencerelerin (`dialog`) `contains` dizisindeki bileşen kimlikleri: üst düzeyde çizilmez, pencere açıkken içinde çizilir. */
+export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dialog") continue;
+    for (const id of idList(component.props?.contains, MAX_DIALOG_IDS)) owned.add(id);
+  }
+  return owned;
+}
+
+/** Veri listelerinin `rowActions` düğmeleri: üst düzeyde çizilmez, listenin "İşlemler" sütununda satır başına çizilir. */
+export function rowActionIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dataTable") continue;
+    for (const id of idList(component.props?.rowActions, MAX_ROW_ACTIONS)) owned.add(id);
+  }
+  return owned;
+}
+
+/**
+ * Yalnız Studio: bir Sekmeler ya da Pencere bileşeninin sahiplenebileceği üst düzey bileşenler (sunucudaki sekme/pencere
+ * kuralı). Kendisi, İşlem Çubuğu, form kartı/yan filtre paneli girişleri, liste arama girişleri ve satır işlemi düğmeleri
+ * hiç aday olmaz; sekmeler Sekmeler ya da Pencere, pencere başka Pencere sahiplenemez (pencere Sekmeler içerebilir).
+ * Başka bir sahibin aldığı bileşenler adaydır; seçicide soluk gösterilir.
+ */
+export function ownableCandidates<C extends LayoutComponent>(components: C[], owner: { id: string; type: "tabs" | "dialog" }): C[] {
+  const layoutOwned = ownedInputIds(components);
+  const rowActions = rowActionIds(components);
+  const searchInputs = new Set(components.filter((component) => component.type === "dataTable" && typeof component.props?.searchInput === "string")
+    .map((component) => String(component.props?.searchInput)));
+  return components.filter((component) => component.id !== owner.id && component.type !== "actionBar" && component.type !== "dialog"
+    && !(owner.type === "tabs" && component.type === "tabs")
+    && !(component.type === "input" && (layoutOwned.has(component.id) || searchInputs.has(component.id)))
+    && !rowActions.has(component.id));
+}
+
 /** "sütun=Etiket" girdileri; bozuk (ayraçsız veya boş kısımlı) girdiler atlanır. */
 export function parseFieldList(value: unknown): { code: string; label: string }[] {
   if (!Array.isArray(value)) return [];

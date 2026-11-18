@@ -1,7 +1,10 @@
 // ERP işlem kataloğu: Studio kopyası. Sözleşme sunucudaki GET /api/custom-pages/erp-operations yanıtıdır;
 // ERP Web'deki custom-page/erpOperations.ts ile aynı tipler. Sayfa hiçbir zaman URL vermez: yol ve yöntem yalnız katalogdan gelir.
 
-export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean };
+/** Liste (`list`) parametresinin öğe alanı; `dataType` skaler bir tür ya da tek düzeyli `map`. */
+export type ErpOperationParameterItem = { code: string; label: string; dataType: string; required: boolean };
+/** `items` yalnız `list` parametrelerinde doludur, diğerlerinde `null` (eski katalogda hiç olmayabilir). */
+export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean; items?: ErpOperationParameterItem[] | null };
 export type ErpOperationColumn = { code: string; label: string; dataType: string };
 export type ErpOperation = {
   name: string; label: string; module: string; kind: "read" | "write"; pageKind: "read" | "insert" | "update" | "delete";
@@ -143,7 +146,8 @@ export function isCustomFieldParameter(operation: ErpOperation, name: string): b
 /**
  * Kaydedilecek parametreler: bağlanmamış olanlar atılır (isteğe bağlılar ve kaynak kayıttan gelen yol parametreleri;
  * bağlanmamış zorunlu parametre zaten kaydı engeller). Katalogda olmayan ad gönderilmez; yalnız gövde eşlemeli işlemde
- * kurala uyan özel alan kodları korunur.
+ * kurala uyan özel alan kodları korunur. Bildirilen `list`/`map` parametreleri de bağlamaları doluysa korunur (bağlanmamış
+ * koleksiyon hiç gönderilmez).
  */
 export function wireParameters<P extends { name: string; binding: string }>(operation: ErpOperation, parameters: P[]): P[] {
   return parameters.filter((parameter) => parameter.binding.trim() !== ""
@@ -151,7 +155,8 @@ export function wireParameters<P extends { name: string; binding: string }>(oper
 }
 
 /**
- * Katalog parametrelerini sayfadaki bağlamalarla birleştirir (ada göre); tür her zaman katalogdan gelir. Gövde eşlemeli
+ * Katalog parametrelerini sayfadaki bağlamalarla birleştirir (ada göre); tür ve `spec` (liste öğeleri dahil) her zaman
+ * katalogdan gelir. Gövde eşlemeli
  * işlemde özel alan satırları (bağlaması boş olsa da) katalog satırlarından sonra `text` türüyle eklenir.
  */
 export function mergedParameters<T extends string>(operation: ErpOperation, parameters: { name: string; binding: string }[]): { name: string; binding: string; type: T; spec: ErpOperationParameter; custom: boolean }[] {
@@ -163,4 +168,59 @@ export function mergedParameters<T extends string>(operation: ErpOperation, para
   const custom = parameters.filter((item) => isCustomFieldParameter(operation, item.name) && !seen.has(item.name) && !!seen.add(item.name))
     .map((item) => ({ name: item.name, binding: item.binding, type: "text" as T, spec: { name: item.name, in: "body" as const, type: "text", required: false }, custom: true }));
   return [...declared, ...custom];
+}
+
+// Koleksiyon parametreleri (Faz B): erp-web/src/custom-page/erpOperations.ts koleksiyon kurallarıyla aynıdır; biri
+// değişirse diğeri de güncellenmelidir. `list` yalnız {{<ızgara>.satirlar}}, `map` yalnız {{<blok>.degerler}} bağlanır.
+
+export type CollectionKind = "list" | "map";
+export const isCollectionType = (type: string): type is CollectionKind => type === "list" || type === "map";
+const COLLECTION_FIELD: Record<CollectionKind, string> = { list: "satirlar", map: "degerler" };
+const COLLECTION_BINDING = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.(satirlar|degerler)\s*\}\}$/;
+
+type CollectionComponent = { type: string; name?: string; props?: Record<string, unknown> };
+
+/**
+ * Koleksiyon parametresine bağlanabilecek bileşen adları: `list` için `list`/`matrix` kipindeki adlı düzenlenebilir
+ * tablolar, `map` için adlı özel alanlar blokları (sayfadaki sırayla).
+ */
+export function collectionCandidates(kind: CollectionKind, components: CollectionComponent[]): string[] {
+  return components.filter((component) => !!component.name && (kind === "list"
+    ? component.type === "editableGrid" && (component.props?.gridMode === "list" || component.props?.gridMode === "matrix")
+    : component.type === "customFieldsBlock")).map((component) => component.name as string);
+}
+
+/** Koleksiyon bağlamasının metni: `{{<ad>.satirlar}}` ya da `{{<ad>.degerler}}`. */
+export const collectionBinding = (kind: CollectionKind, name: string) => `{{${name}.${COLLECTION_FIELD[kind]}}}`;
+
+/** Bağlamanın koleksiyon kökü (doğru alanla yazılmışsa), yoksa null. */
+export function collectionRoot(kind: CollectionKind, binding: string): string | null {
+  const match = COLLECTION_BINDING.exec(binding.trim());
+  return match && match[2] === COLLECTION_FIELD[kind] ? match[1] : null;
+}
+
+/**
+ * Bir düzenlenebilir tablonun (ya da bloğun) bağlı olduğu koleksiyon parametresi: sayfadaki ERP işlemi sorgularında
+ * `{{<ad>.satirlar}}` / `{{<ad>.degerler}}` bağlamalı ilk `list`/`map` parametresi ve katalogdaki tanımı.
+ */
+export function collectionParameterFor(kind: CollectionKind, name: string, queries: { name: string; operation?: string; parameters: { name: string; binding: string }[] }[], catalog: ErpCatalog): { query: string; spec: ErpOperationParameter } | null {
+  for (const query of queries) {
+    const operation = findOperation(catalog, query.operation);
+    if (!operation) continue;
+    for (const parameter of query.parameters) {
+      const spec = operation.parameters.find((item) => item.name.toLowerCase() === parameter.name.toLowerCase());
+      if (spec?.type === kind && collectionRoot(kind, parameter.binding) === name) return { query: query.name, spec };
+    }
+  }
+  return null;
+}
+
+/** Kayıt dizisi adımının dolaştığı ızgara listesi (erp-web saveSequence `iterationOf` ile aynı kural); yoksa null. */
+const ITERATION_BINDING = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.(eklenenSatir|silinenSatir)\./;
+export function iterationOf(query: { parameters: { binding: string }[] }): { grid: string; list: "eklenenSatir" | "silinenSatir" } | null {
+  for (const parameter of query.parameters) {
+    const match = ITERATION_BINDING.exec(parameter.binding);
+    if (match) return { grid: match[1], list: match[2] as "eklenenSatir" | "silinenSatir" };
+  }
+  return null;
 }

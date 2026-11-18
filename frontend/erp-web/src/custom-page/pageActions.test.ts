@@ -4,7 +4,7 @@ import { actionBarOf, buildPageCommands, exportRows, movedButtonIds, type PageAc
 const UNBOUND = 'Bu sayfada bağlanmadı';
 
 function makeDeps(overrides: Partial<PageActionDeps> = {}) {
-  const run = { clearInputs: vi.fn(), write: vi.fn(), refresh: vi.fn(), focus: vi.fn(), print: vi.fn(), exportTable: vi.fn(), button: vi.fn() };
+  const run = { clearInputs: vi.fn(), write: vi.fn(), saveSequence: vi.fn(), refresh: vi.fn(), focus: vi.fn(), print: vi.fn(), exportTable: vi.fn(), button: vi.fn() };
   const deps: PageActionDeps = {
     rights: { view: true, insert: true, update: true, delete: true },
     busy: false,
@@ -149,6 +149,28 @@ describe('buildPageCommands', () => {
     expect(commands.more?.[1]).toEqual({ id: 'b3', label: 'Kilitli', disabledReason: 'Önce onaylayın' });
     expect(commands.more?.[2]).toEqual({ id: 'b4', label: 'Nedensiz', disabledReason: 'Bu işlem şu anda kullanılamaz.' });
     expect(run.button).not.toHaveBeenCalled();
+  });
+});
+
+describe('saveSequence', () => {
+  it('save bound by saveSequence needs rights for every kind', () => {
+    const { deps, run } = makeDeps();
+    const commands = buildPageCommands({ saveSequence: ['q1', 'q2', 'q3'], newInputs: ['i1'] }, deps);
+    expect(commands.save?.primary).toBe(true);
+    expect(commands.new?.primary).toBeFalsy();
+    void commands.save?.run?.();
+    expect(run.saveSequence).toHaveBeenCalledTimes(1);
+    expect(run.write).not.toHaveBeenCalled();
+    for (const missing of ['insert', 'update', 'delete']) {
+      const rights = { view: true, insert: true, update: true, delete: true, [missing]: false };
+      const denied = buildPageCommands({ saveSequence: ['q1', 'q2', 'q3'] }, makeDeps({ rights }).deps);
+      expect(denied.save?.disabledReason).toBe('Bu işlem için yetkiniz yok');
+    }
+    // Yalnız insert/update adımlı dizi silme hakkı istemez.
+    expect(buildPageCommands({ saveSequence: ['q1', 'q2'] }, makeDeps({ rights: { insert: true, update: true, delete: false } }).deps).save?.run).toBeTypeOf('function');
+    // Okuma ya da bilinmeyen sorgu bağlanmamış sayılır.
+    expect(buildPageCommands({ saveSequence: ['q1', 'q4'] }, deps).save?.disabledReason).toBe(UNBOUND);
+    expect(buildPageCommands({ saveSequence: [] }, deps).save?.disabledReason).toBe(UNBOUND);
   });
 });
 

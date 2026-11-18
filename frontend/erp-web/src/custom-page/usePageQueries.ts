@@ -80,6 +80,8 @@ export function usePageQueries(options: {
   runRead: (queryId: string) => Promise<QueryState>;
   /** ERP işlemini doğrudan çağırır (yetki ve önizleme denetimi çağıranındır); JSON yanıtını döner. */
   callOperation: (op: ErpOperation, values: Record<string, unknown>) => Promise<unknown>;
+  /** Verilen yazma sorgularının (ad) `sonuc` ve `fieldErrors` değerlerini temizler (sonraki kayıt yeni oluşturma ile başlar). */
+  clearResults: (queryNames: string[]) => void;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
@@ -278,6 +280,21 @@ export function usePageQueries(options: {
     return { affectedRows: typeof result.affectedRows === "number" ? result.affectedRows : 0 };
   };
 
+  const clearResults = (queryNames: string[]) => {
+    const writes = new Set(queries.filter((query) => query.kind !== "read" && queryNames.includes(query.name)).map((query) => query.name));
+    if (writes.size === 0) return;
+    setStates((current) => {
+      let next = current;
+      for (const name of writes) {
+        const state = current[name];
+        if (!state || (state.sonuc === undefined && state.fieldErrors === undefined)) continue;
+        if (next === current) next = { ...current };
+        next[name] = { ...state, sonuc: undefined, fieldErrors: undefined };
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     for (const plan of plans) {
       const { query } = plan;
@@ -301,5 +318,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite, runRead, callOperation };
+  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults };
 }
