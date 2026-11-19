@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { FilterBarFields } from "./FilterBarFields";
 import {
-  filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, isSearchableColumn, paramForColumn, parseFilterEntries, setFilter, toggleSearchColumn,
+  filterBarParams, filterBarProblem, filterableParams, keptFilterBindings, formatFilterEntry, isSearchableColumn, paramForColumn, parseFilterEntries, setFilter, toggleSearchColumn,
   unboundFilterParams, withFilterBindings, withoutFilterBindings, withoutStaleParams,
 } from "./filterBarSettings";
 import type { PageQuery } from "./QueriesPanel";
@@ -69,6 +69,19 @@ describe("süzgeç alanı ayarları", () => {
     const props = { search: true, searchParam: "q", filters: ["includeInactive|toggle|row|includeInactive", "stockItem.category|select|more|category", "status|auto|row"] };
     expect(withoutStaleParams(props, [{ name: "q", type: "text" }])).toEqual({ search: true, searchParam: "q", filters: ["stockItem.category|select|more", "status|auto|row"] });
     expect(withoutStaleParams(props, null)).toBe(props);
+  });
+
+  it("başka sorguların süzgeç parametresine bağlaması kalır; alan silinince ya da eski listenin sorgusunda kalkar", () => {
+    const params = ["q", "warehouseId"];
+    expect(keptFilterBindings("bakiye", params, "bakiye", "bakiye")).toEqual(params);
+    // Hareket sorgusu süzgecin seçili deposunu okur ({{suzgec.warehouseId}}).
+    expect(keptFilterBindings("hareketler", params, "bakiye", "bakiye")).toEqual(params);
+    // Alan başka tabloya taşındı: eski listenin sorgusundaki bağlamalar kalkar.
+    expect(keptFilterBindings("bakiye", params, "digerListe", "bakiye")).toEqual([]);
+    expect(keptFilterBindings("hareketler", null, undefined, "bakiye")).toEqual([]);
+    const hareketler: PageQuery = { id: "hareketler", name: "hareketler", kind: "read", runOn: "load", operation: "stok.hareket.listele",
+      parameters: [{ name: "warehouseId", binding: "{{suzgec.warehouseId}}", type: "guid" }] };
+    expect(withoutFilterBindings(hareketler, "suzgec", keptFilterBindings("hareketler", params, "bakiye", "bakiye"))).toBe(hareketler);
   });
 
   it("kullanılan parametreler, arama sütunları ve kayıt öncesi sorunlar", () => {

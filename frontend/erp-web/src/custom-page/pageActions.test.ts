@@ -120,6 +120,13 @@ describe('buildPageCommands', () => {
     expect(buildPageCommands({ printEnabled: 'evet' }, deps).print?.disabledReason).toBe(UNBOUND);
   });
 
+  it('filtre: arama kutulu süzgeç alanına da odaklanır; bilinmeyen kimlik bağlanmamıştır', () => {
+    const { deps, run } = makeDeps({ searchBarIds: new Set(['suzgec']) });
+    void buildPageCommands({ focusInput: 'suzgec' }, deps).filter?.run?.();
+    expect(run.focus).toHaveBeenCalledWith('suzgec');
+    expect(buildPageCommands({ focusInput: 'yok' }, deps).filter?.disabledReason).toBe(UNBOUND);
+  });
+
   it('exportTable: yükleniyor / hata / hazır', () => {
     expect(buildPageCommands({ exportTable: 't1' }, makeDeps({ tableState: () => ({ loading: true, rowCount: 0 }) }).deps).export?.disabledReason).toBe('Liste henüz yüklenmedi');
     expect(buildPageCommands({ exportTable: 't1' }, makeDeps({ tableState: () => ({ loading: false, error: 'Bozuk', rowCount: 0 }) }).deps).export?.disabledReason).toBe('Bozuk');

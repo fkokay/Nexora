@@ -203,6 +203,8 @@ internal static class TenantCustomPageSchema
         public Dictionary<string, string> TableQueries { get; } = new(StringComparer.Ordinal);
         /// <summary>filterBar components; their table and parameters resolve after the component loop.</summary>
         public List<FilterBarInfo> PendingFilterBars { get; } = [];
+        /// <summary>filterBar ids with a search box (valid actionBar <c>focusInput</c> targets besides inputs).</summary>
+        public HashSet<string> SearchFilterBarIds { get; } = new(StringComparer.Ordinal);
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -740,8 +742,8 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("focusInput", out var focus))
         {
             if (focus.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(focus.GetString()))
-            { error = "'focusInput' bir giriş bileşeni kimliği olmalıdır."; return false; }
-            context.PendingActionRefs.Add(("focusInput", focus.GetString()!, "input"));
+            { error = "'focusInput' bir giriş bileşeni ya da arama kutulu süzgeç alanı kimliği olmalıdır."; return false; }
+            context.PendingActionRefs.Add(("focusInput", focus.GetString()!, "focusTarget"));
         }
         if (props.TryGetProperty("exportTable", out var export))
         {
@@ -805,6 +807,9 @@ internal static class TenantCustomPageSchema
             { error = $"İşlem Çubuğu '{property}' özelliğindeki bileşen sayfada yok: {id}."; return false; }
             if (expected == "input" && type != "input")
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir giriş bileşeni değil."; return false; }
+            // Filtre komutu (Ctrl+F) bir girişe ya da süzgeç alanının arama kutusuna odaklanır.
+            if (expected == "focusTarget" && type != "input" && !(type == "filterBar" && context.SearchFilterBarIds.Contains(id)))
+            { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir giriş bileşeni ya da arama kutulu süzgeç alanı değil."; return false; }
             if (expected is "button" or "actionButton" && type != "button")
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir düğme bileşeni değil."; return false; }
             if (expected == "actionButton" && !(context.ButtonActionTypes.TryGetValue(id, out var buttonAction)
@@ -1757,6 +1762,7 @@ internal static class TenantCustomPageSchema
         if (parameters.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1) is { } duplicate)
             return Fail($"Süzgeç alanında aynı parametre birden fazla kez kullanılamaz: {duplicate.Key}", out error);
         context.PendingFilterBars.Add(new FilterBarInfo(id, name, table, parameters));
+        if (search) context.SearchFilterBarIds.Add(id);
         return true;
     }
 

@@ -14,7 +14,8 @@ export type FilterSpec = {
 export type RangeValue = { min: string; max: string };
 export type FilterValue = string | boolean | RangeValue;
 export type FilterBarValues = { search: string; values: Record<string, FilterValue> };
-export type FilterOption = { value: string; label: string };
+/** Seçenek; kaynak sorgudan geliyorsa `row` o satırdır (`{{<ad>.seciliSatir.<parametre>.<sütun>}}`). */
+export type FilterOption = { value: string; label: string; row?: Record<string, unknown> };
 /** Türü çözülmüş süzgeç: tabloya ve sorguya göre etiket, tür ve seçenekler. */
 export type ResolvedFilter = FilterSpec & { kind: FilterKind; label: string; options?: FilterSpec["options"]; choices: FilterOption[] };
 
@@ -166,10 +167,20 @@ const setPath = (target: Record<string, unknown>, path: string, value: unknown) 
 /**
  * Bağlama kapsamındaki değerler (`{{<ad>.<parametre ya da anahtar>}}`): metin/seçim boşsa null, aç/kapa true/false,
  * aralık { min, max } (boş uç null). `arama` arama kutusunun metnidir; arama parametresi verilmişse o ad da aynı değeri taşır.
+ * Sorgudan seçenekli seçim süzgecinin seçili satırı `seciliSatir.<parametre ya da anahtar>` altındadır (seçim yoksa null), ör.
+ * `{{suzgec.seciliSatir.warehouseId.name}}`; değerin kendisi düz kalır.
  */
 export function filterScope(filters: ResolvedFilter[], values: FilterBarValues, searchParam?: string): Record<string, unknown> {
   const scope: Record<string, unknown> = { arama: values.search };
   if (searchParam) scope[searchParam] = values.search.trim() === "" ? null : values.search.trim();
+  const selected: Record<string, unknown> = {};
+  for (const filter of filters) {
+    if (filter.kind !== "select" || !filter.options) continue;
+    const value = values.values[filter.key];
+    const text = typeof value === "string" ? value.trim() : "";
+    selected[filter.param ?? filter.key] = text ? filter.choices.find((choice) => choice.value === text)?.row ?? null : null;
+  }
+  if (Object.keys(selected).length > 0) scope.seciliSatir = selected;
   for (const filter of filters) {
     const value = values.values[filter.key];
     const scoped = filter.kind === "toggle" ? value === true
@@ -206,7 +217,7 @@ export function filterChoices(filter: FilterSpec, source: { optionRows?: Record<
       const raw = valueColumn ? row[valueColumn] : undefined;
       if (raw == null || typeof raw === "object") return [];
       const label = row[filter.options!.labelColumn ?? filter.options!.valueColumn ?? keys[1] ?? valueColumn];
-      return [{ value: String(raw), label: label == null || typeof label === "object" ? String(raw) : String(label) }];
+      return [{ value: String(raw), label: label == null || typeof label === "object" ? String(raw) : String(label), row }];
     }).slice(0, 200);
   }
   if (source.valueLabels && Object.keys(source.valueLabels).length > 0) {
@@ -221,7 +232,12 @@ export function filterChoices(filter: FilterSpec, source: { optionRows?: Record<
   return [...distinct].sort((a, b) => a.localeCompare(b, "tr")).map((value) => ({ value, label: value }));
 }
 
-export const filterStorageKey = (pageCode: string, componentId: string) => `nexora.filterBar.${pageCode}.${componentId}`;
+/**
+ * Saklama anahtarı firma (belirtecin `tenant_id` talebi) + sayfa + bileşen başınadır: bir firmanın süzgeci (ör. seçili depo)
+ * aynı tarayıcıda başka firmanın sayfasına taşınmaz. Firma bilinmiyorsa anahtar firmasızdır.
+ */
+export const filterStorageKey = (pageCode: string, componentId: string, tenantId = "") =>
+  tenantId ? `nexora.filterBar.${tenantId}.${pageCode}.${componentId}` : `nexora.filterBar.${pageCode}.${componentId}`;
 
 /** Saklanan süzgeç değerleri; yalnız tanımda olan anahtarlar ve doğru biçimli değerler okunur. Depolama kapalıysa boş. */
 export function loadFilterValues(key: string, filters: FilterSpec[]): FilterBarValues {

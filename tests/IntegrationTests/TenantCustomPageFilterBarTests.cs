@@ -97,20 +97,12 @@ public sealed class TenantCustomPageFilterBarTests
         var clientOnly = definition.ToJsonString();
         Assert.True(TenantCustomPageSchema.Validate(clientOnly, out var error), error);
 
-        // Sunucuya giden süzgeçler: listenin sorgusundaki dört parametre süzgeç alanına bağlanır (Stok Kartları'nın sonraki adımı).
+        // Sunucuya giden süzgeçler: Stok Kartları'nın kendi süzgeç alanı (suzgec) arama, depo ve pasifler parametrelerini taşır.
+        var serverParams = standard.DefinitionJson;
         var query = definition["queries"]!.AsArray().Single(x => (string)x!["id"]! == "bakiye")!;
-        string[] serverNames = ["q", "warehouseId", "belowMinimumOnly", "includeInactive"];
-        foreach (var parameter in query["parameters"]!.AsArray())
-        {
-            var name = (string)parameter!["name"]!;
-            if (serverNames.Contains(name)) parameter["binding"] = $"{{{{stokSuzgec.{name}}}}}";
-        }
-        var bar = components.Single(x => (string)x!["id"]! == "stokSuzgec")!["props"]!.AsObject();
-        bar["searchParam"] = "q";
-        bar["filters"] = new JsonArray("warehouseId|select|row|warehouseId|Depo|depolar:id:name", "belowMinimumOnly|toggle|row|belowMinimumOnly|Minimum altı",
-            "includeInactive|toggle|row|includeInactive|Pasifler dahil", "stockItem.category|select|more", "balance.quantityOnHand|range|more||Depo bakiyesi");
-        var serverParams = definition.ToJsonString();
-        Assert.True(TenantCustomPageSchema.Validate(serverParams, out error), error);
+        foreach (var name in new[] { "q", "warehouseId", "includeInactive" })
+            Assert.Equal($"{{{{suzgec.{name}}}}}", (string)query["parameters"]!.AsArray().Single(x => (string)x!["name"]! == name)!["binding"]!);
+        var bar = components.Single(x => (string)x!["id"]! == "suzgec")!["props"]!.AsObject();
 
         // SQL'siz sistem sayfası: süzgeç alanı sayfa haklarını değiştirmez (her işlem kendi uç noktasında yetkilendirilir).
         var viewOnly = new CustomPageRights(true, false, false, false);
@@ -119,6 +111,16 @@ public sealed class TenantCustomPageFilterBarTests
         // Sayfa parametresi (page) süzgeç alanına bağlanamaz: listenin {{liste.sayfa}} bağlaması kalmalıdır.
         bar["filters"]!.AsArray().Add("page|text|more|page");
         Assert.False(TenantCustomPageSchema.Validate(definition.ToJsonString(), out error));
-        Assert.Contains("{{stokSuzgec.page}}", error);
+        Assert.Contains("{{suzgec.page}}", error);
+    }
+
+    [Fact]
+    public void Action_bar_filter_command_may_focus_a_search_bar()
+    {
+        object ActionBar(string focus) => new { id = "ab1", type = "actionBar", props = new { focusInput = focus } };
+        AssertValid(V2([CustomersQuery()], Table, Bar(new { table = "t1", search = true }), ActionBar("f1")));
+        // Arama kutusu olmayan süzgeç alanına odaklanılamaz.
+        AssertRejected(V2([CustomersQuery()], Table, Bar(new { table = "t1", filters = new[] { "Type|text|row" } }), ActionBar("f1")),
+            "arama kutulu süzgeç alanı değil");
     }
 }

@@ -189,6 +189,8 @@ type PageRuntime = {
 };
 type FilterBarView = {
   search: { placeholder: string; hint: string } | null; values: FilterBarValues; filters: ResolvedFilter[];
+  /** Arama kutusunun kimliği (`page-input-<bileşen>`): İşlem Çubuğu'nun Filtre komutu (focusInput) buna odaklanır. */
+  searchInputId: string;
   onSearch: (text: string) => void; onChange: (key: string, value: FilterValue | undefined) => void; onClearAll: () => void;
 };
 type GridView = {
@@ -301,6 +303,15 @@ const sessionUser = (token: string) => {
   let name = "";
   try { name = localStorage.getItem("aierp.user") ?? ""; } catch { /* depolama kapalı */ }
   return { id, ad: name, rol };
+};
+
+/** Belirtecin firma talebi (`tenant_id`); yoksa ya da okunamazsa boş. */
+const sessionTenant = (token: string) => {
+  try {
+    const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { tenant_id?: unknown };
+    return typeof claims.tenant_id === "string" ? claims.tenant_id : "";
+  } catch { return ""; }
 };
 
 /** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
@@ -1291,6 +1302,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     rights: runtime.rights, busy,
     queryKind: (id) => runtime.queryById[id]?.kind,
     inputIds: new Set(Object.keys(runtime.inputById)),
+    searchBarIds: new Set(flat.filter((component) => component.type === "filterBar" && component.props?.search === true).map((component) => component.id)),
     tableState: (tableId) => {
       const table = runtime.tableById[tableId];
       const state = table && typeof table.props?.query === "string" ? runtime.states[runtime.queryNames[table.props.query]] : undefined;
@@ -1488,12 +1500,13 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Süzgeç alanları: değerler sayfa + bileşen başına tarayıcıda saklanır (önizlemede okunmaz, yazılmaz). İlk değerler eşzamanlı
   // okunur; böylece sunucuya giden süzgeçli sorgu açılışta iki kez çalışmaz.
   const filterBars = useMemo(() => (isV2 ? flat.filter((component) => component.type === "filterBar" && !!component.name) : []), [isV2, flat]);
+  const tenantId = useMemo(() => sessionTenant(token), [token]);
   const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => previewId ? {} : Object.fromEntries(
-    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id), parseFilterEntries(filterBar.props?.filters))])));
+    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), parseFilterEntries(filterBar.props?.filters))])));
   useEffect(() => {
     if (previewId) return;
-    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
-  }, [filterValues, filterBars, previewId, page.code]);
+    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
+  }, [filterValues, filterBars, previewId, page.code, tenantId]);
   const visibleCache = useRef(new Map<string, { state: QueryState; key: string; result: QueryState }>());
   /** Süzgeç alanının tablosu, sorgusu ve türü/etiketi/seçenekleri çözülmüş süzgeçleri; tablo ya da sorgu yoksa null. */
   const filterBarModel = (filterBar: ComponentDefinition, states: Record<string, QueryState>) => {
@@ -2609,7 +2622,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         setFilterValues((previous) => ({ ...previous, [filterBar.id]: change(previous[filterBar.id] ?? EMPTY_FILTER_VALUES) }));
       return {
         search: model.search ? { placeholder: textValue(filterBar.props?.searchPlaceholder) || "Ara", hint: model.hint } : null,
-        values: model.values, filters: model.filters,
+        values: model.values, filters: model.filters, searchInputId: `page-input-${filterBar.id}`,
         onSearch: (text) => update((current) => ({ ...current, search: text })),
         onChange: (key, value) => update((current) => {
           const values = { ...current.values };

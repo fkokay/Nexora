@@ -612,7 +612,7 @@ public sealed class TenantCustomPageSchemaV2Tests
         AssertRejected(P(Bar(new { deleteQuery = "yok" })), "sayfada yok");
         AssertRejected(P(Bar(new { newInputs = new[] { "yok" } })), "sayfada yok");
         AssertRejected(P(Btn("h1"), Bar(new { newInputs = new[] { "h1" } })), "giriş bileşeni değil");
-        AssertRejected(P(Btn("h1"), Bar(new { focusInput = "h1" })), "giriş bileşeni değil");
+        AssertRejected(P(Btn("h1"), Bar(new { focusInput = "h1" })), "giriş bileşeni ya da arama kutulu süzgeç alanı değil");
         AssertRejected(P(Bar(new { focusInput = "yok" })), "sayfada yok");
         AssertRejected(P(Bar(new { newInputs = Array.Empty<string>() })), "newInputs");
         AssertRejected(P(Bar(new { newInputs = Enumerable.Range(0, 13).Select(i => $"i{i}").ToArray() })), "newInputs");
