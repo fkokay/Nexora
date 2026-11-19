@@ -145,6 +145,8 @@ public sealed class ErpOperationCatalogTests
             json.GetProperty("displayUnitCode").GetString()));
         Assert.Equal("LOT-1 (1.000,5), LOT-2 (249,5)", json.GetProperty("trackingText").GetString());
     }
+    // Stok & Depo screen standards (after the stock pilot): paged reads with meta.
+    private static readonly string[] StockScreenOperations = ["stok.izleme.bakiyeler"];
 
     [Fact]
     public void Depo_operations_use_depo_module()
@@ -163,7 +165,7 @@ public sealed class ErpOperationCatalogTests
             foreach (var name in op.Result.Flatten)
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
             // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
-            if (Proje2FazAOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet") continue;
+            if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet") continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -182,6 +184,12 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("Eldeki miktar", page.Result.Columns.Single(x => x.Code == "balance.quantityOnHand").Label);
         Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverse));
         Assert.True(reverse.Parameters.Single(x => x.Name == "reason").Required);
+        Assert.True(ErpOperationCatalog.TryGet("stok.izleme.bakiyeler", out var tracking));
+        Assert.Equal(new[] { "page", "pageSize", "totalCount" }, tracking.Result.MetaPaths);
+        Assert.Equal("items", tracking.Result.RowsPath);
+        Assert.Empty(tracking.Result.Flatten);
+        Assert.Equal(new[] { "stockItemId", "stockItemCode", "stockItemName", "unitCode", "trackingMode", "warehouseId", "warehouseCode",
+            "warehouseName", "trackingCode", "expiryDate", "quantityOnHand", "lastMovementDate" }, tracking.Result.Columns.Select(x => x.Code));
     }
 
     [Fact]
@@ -235,6 +243,7 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("Depo", ops["depo.listele"].GetProperty("module").GetString());
         // Every new operation resolves to a registered endpoint and permission for an admin.
         Assert.All(Proje2FazAOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
+        Assert.All(StockScreenOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
         // Proje 4: both new operations resolve to an endpoint and a permission for an admin.
         Assert.True(ops["uretim.recete.listele"].GetProperty("allowed").GetBoolean());
         Assert.True(ops["ayar.negatifStok"].GetProperty("allowed").GetBoolean());
@@ -651,6 +660,7 @@ public sealed class ErpOperationCatalogTests
         ["satinalma.malKabul.ekMaliyetler"] = "id",
         ["satinalma.malKabul.ekMaliyetDagit"] = "id,entryDate,amountBase,allocationMethod,description",
         ["satinalma.malKabul.ekMaliyetTersKayit"] = "id,adjustmentId,reason",
+        ["stok.izleme.bakiyeler"] = "q,warehouseId,trackingMode,page,pageSize",
     };
 
     [Fact]
@@ -792,6 +802,39 @@ public sealed class ErpOperationCatalogTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var rows = body.GetProperty(op.Result.RowsPath!).EnumerateArray().ToArray();
         Assert.Single(rows);
+    }
+
+    [Fact]
+    public async Task Tracking_balances_operation_reads_its_route_with_catalog_parameters()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        Guid warehouseId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            var warehouse = new Warehouse { TenantId = TenantA, Code = "MRK", Name = "Merkez" };
+            var item = new StockItem { TenantId = TenantA, Code = "ILC", Name = "İlaç", UnitCode = "KUTU", IsActive = true, TrackingMode = InventoryTrackingMode.Lot };
+            var movement = new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouse.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 1),
+                Direction = InventoryDirection.Receipt, Quantity = 5, Description = "Giriş" };
+            db.AddRange(warehouse, item, movement, new InventoryTransactionTrace { TenantId = TenantA, InventoryTransactionId = movement.Id, StockItemId = item.Id,
+                TrackingMode = InventoryTrackingMode.Lot, TrackingCode = "LOT-1", Quantity = 5, ExpiryDate = new DateOnly(2026, 12, 1) });
+            await db.SaveChangesAsync();
+            warehouseId = warehouse.Id;
+        }
+        Assert.True(ErpOperationCatalog.TryGet("stok.izleme.bakiyeler", out var op));
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        using var response = await client.GetAsync($"{op.Route}?warehouseId={warehouseId}&trackingMode=Lot&q=LOT&page=1&pageSize=50");
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var meta in op.Result.MetaPaths) Assert.True(body.TryGetProperty(meta, out _), meta);
+        var row = Assert.Single(body.GetProperty(op.Result.RowsPath!).EnumerateArray());
+        foreach (var column in op.Result.Columns) Assert.True(row.TryGetProperty(column.Code, out _), column.Code);
+        Assert.Equal(("LOT-1", "Lot", "2026-12-01"), (row.GetProperty("trackingCode").GetString(), row.GetProperty("trackingMode").GetString(),
+            row.GetProperty("expiryDate").GetString()));
     }
 
     [Fact]

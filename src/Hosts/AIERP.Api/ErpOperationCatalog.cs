@@ -109,7 +109,8 @@ internal static class ErpOperationCatalog
         ["kind"] = "Kayıt türü", ["purchaseReceiptId"] = "Mal kabul kimliği", ["totalAmountBase"] = "Toplam tutar",
         ["amountBase"] = "Tutar", ["reason"] = "Gerekçe", ["allocationMethod"] = "Dağıtım yöntemi",
         ["purchaseOrderId"] = "Satınalma siparişi kimliği", ["purchaseOrderCode"] = "Satınalma siparişi", ["receiptDate"] = "Kabul tarihi",
-        ["lineCount"] = "Satır sayısı"
+        ["lineCount"] = "Satır sayısı",
+        ["lastMovementDate"] = "Son hareket tarihi"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -171,6 +172,7 @@ internal static class ErpOperationCatalog
         operations.Add(BuildStockMovementHistory(paging));
         operations.AddRange(BuildWarehouseStandard());
         operations.AddRange(BuildStockCost(paging));
+        operations.AddRange(BuildStockScreens(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -347,6 +349,15 @@ internal static class ErpOperationCatalog
         yield return Write(PurchasingModule, "satinalma.malKabul.ekMaliyetTersKayit", "Mal kabul ek maliyetini ters kayıtla düzelt", "insert", "POST",
             landedCostRoute + "/{adjustmentId}/reverse", [receiptId, Route("adjustmentId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)],
             Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+    }
+
+    /// <summary>Stok &amp; Depo screen standards: Lot / Seri İzleme (read only).</summary>
+    private static IEnumerable<ErpOperation> BuildStockScreens(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        // Lot/serial balances computed from traced movements; the endpoint accepts trackingMode Lot or Serial only.
+        yield return Read(StockModule, "stok.izleme.bakiyeler", "Lot / seri bakiyeleri (sayfalı)", "/api/inventory-tracking/balances",
+            [Query("q", "text"), Query("warehouseId", "guid"), Query("trackingMode", "text"), .. paging],
+            List(Columns<InventoryTrackingBalanceView>(), "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
