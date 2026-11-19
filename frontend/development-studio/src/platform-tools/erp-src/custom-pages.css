@@ -764,3 +764,62 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-bar-param{grid-template-columns:70px auto 1fr auto auto}
 .pd-bar-legacy{display:grid;gap:6px;border:1px dashed #e8b4b0;border-radius:10px;padding:10px;background:#fff7f6}
 .pd-bar-legacy-note{display:block;color:#667085;margin:-2px 0 8px}
+
+/* "Koşullu" etiketi bloğun içeriğinin üstüne binmesin: üst kenarın üzerinde, küçük durur (dar düğmelerde metni kapatmaz). */
+.pd-cond-chip{top:-9px;right:8px;padding:0 6px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px #fff}
+.pd-card-child{position:relative}
+/* Form içindeki kapalı açılır kutu tam genişlikte. */
+.pd-binding-preview-input:not(.is-search) .pd-lookup-select{display:flex;width:100%}
+
+/* Düğme görünümleri (`variant`): primary dolu (varsayılan), secondary çerçeveli, danger kırmızı, link düz bağlantı. */
+.pd-frame .custom-page-preview-button{display:inline-flex;align-items:center;gap:5px}
+.pd-frame .custom-page-preview-button.is-secondary{border:1px solid var(--dl-line);background:var(--dl-surface);color:var(--dl-text);font-weight:500}
+.pd-frame .custom-page-preview-button.is-danger{background:var(--dl-bad);color:#fff}
+.pd-frame .custom-page-preview-button.is-link{padding:0 6px;background:transparent;color:var(--dl-primary-strong);font-weight:500}
+/* Örnek veride koşulu tutmayan bileşen: ERP'de gizlenirdi; tuvalde soluk çizilir ("Koşullu" etiketi kenarda). */
+.pd-frame .is-cond-off>:not(.pd-cond-chip):not(.pd-block-toolbar):not(.pd-block-label):not(.pd-resize){opacity:.45}
+
+/*
+ * Detay paneli (kart `variant: "panel"` / `closeInput`): erp-web custom-page/detail-panel.css (.tenant-page-detail) ile
+ * aynı ölçüler — üst satırda küçük kod + bağlantı görünümlü düğmeler + ✕, kalın başlık, hap etiketler, alt çizgili sekmeler,
+ * sıkı 2×2 özet kutuları, anahtar/değer satırları, çerçeveli gövde düğmesi, altlıkta kırmızı "Devre dışı bırak".
+ */
+.pd-frame .pd-detail{display:flex;flex-direction:column;min-width:0;box-sizing:border-box;border:1px solid var(--dl-line);border-radius:8px;background:var(--dl-surface);color:var(--dl-text);font-size:12.5px}
+.pd-frame .pd-detail-head{padding:12px 14px 10px;border-bottom:1px solid var(--dl-line-soft)}
+.pd-frame .pd-detail-top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;color:var(--dl-muted)}
+.pd-frame .pd-detail-code{overflow:hidden;color:var(--dl-muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.pd-frame .pd-detail-actions{display:inline-flex;align-items:center;gap:2px}
+.pd-frame .pd-detail-actions .custom-page-preview-action{display:contents}
+.pd-frame .pd-detail-actions .custom-page-preview-button:not(.is-primary),.pd-frame .pd-detail-close{display:inline-flex;align-items:center;gap:5px;height:26px;min-height:26px;margin:0;padding:0 7px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:var(--dl-muted);font-size:12px;font-weight:500;line-height:1}
+.pd-frame .pd-detail-close{justify-content:center;width:26px;padding:0}
+.pd-frame .pd-detail h3{margin:4px 0 6px;color:var(--dl-text);font-size:15px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
+.pd-frame .pd-detail-labels{display:flex;flex-wrap:wrap;gap:6px}
+.pd-frame .pd-detail-labels .custom-page-preview-badge{display:inline-block;padding:1px 8px!important;border:0;border-radius:999px!important;background:var(--dl-line-soft);color:var(--dl-muted);font-size:11px;font-weight:600;line-height:1.45;white-space:nowrap}
+.pd-frame .pd-detail-labels .custom-page-preview-badge.tone-success{background:var(--dl-ok-bg);color:var(--dl-ok)}
+.pd-frame .pd-detail-labels .custom-page-preview-badge.tone-warning{background:var(--dl-warn-bg);color:var(--dl-warn)}
+.pd-frame .pd-detail-labels .custom-page-preview-badge.tone-danger{background:var(--dl-bad-bg);color:var(--dl-bad)}
+.pd-frame .pd-detail-body{display:grid;min-width:0}
+.pd-frame .pd-detail-empty{margin:0;padding:12px 14px;color:var(--dl-muted)}
+.pd-frame .pd-detail-body>.pd-card-child.is-tabs{width:100%}
+.pd-frame .pd-detail-body .pd-tabs-preview{gap:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.pd-frame .pd-detail-body .pd-tabs-preview-list{flex-wrap:nowrap;gap:14px;padding:0 14px;border-bottom:1px solid var(--dl-line)}
+.pd-frame .pd-detail-body .pd-tabs-preview-list button{margin:0;padding:8px 0;border:0;background:transparent;color:var(--dl-muted);font-size:12.5px;font-weight:400}
+.pd-frame .pd-detail-body .pd-tabs-preview-list button.is-active{box-shadow:inset 0 -2px 0 var(--dl-primary);color:var(--dl-primary-strong);font-weight:600}
+.pd-frame .pd-detail-body .pd-tabs-preview-panel{gap:8px;padding:12px 14px}
+.pd-frame .pd-detail-body .custom-page-preview-metric{display:block;min-height:0;margin:0;padding:7px 9px;border:0;border-radius:8px;background:var(--dl-head);box-shadow:none}
+.pd-frame .pd-detail-body .custom-page-preview-metric :is(.pd-metric-icon,.pd-metric-trend,.pd-metric-desc){display:none}
+.pd-frame .pd-detail-body .custom-page-preview-metric .pd-metric-label{display:block;color:var(--dl-muted);font-size:11px}
+.pd-frame .pd-detail-body .custom-page-preview-metric b{font-size:14px;font-weight:650}
+.pd-frame .pd-detail-body .pd-context{margin:4px 0 0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.pd-frame .pd-detail-body .pd-context>h3{display:none}
+.pd-frame .pd-detail-body .pd-context-fields{display:block}
+.pd-frame .pd-detail-body .pd-context-field{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border:0;border-bottom:1px solid var(--dl-line-soft);border-radius:0;background:transparent}
+.pd-frame .pd-detail-body .pd-context-field dt{margin:0;color:var(--dl-muted);font-size:12.5px;font-weight:400}
+.pd-frame .pd-detail-body .pd-context-field dd{margin:0;font-size:12.5px;font-weight:400;text-align:right}
+.pd-frame .pd-detail-body .pd-tabs-preview-panel .custom-page-preview-button:not(.is-primary){height:31px;min-height:31px;padding:0 12px;border:1px solid var(--dl-line);border-radius:6px;background:var(--dl-surface);color:var(--dl-text);font-size:12.5px;font-weight:500}
+.pd-frame .pd-detail-foot{margin-top:auto;padding:8px 14px 10px;border-top:1px solid var(--dl-line-soft)}
+.pd-frame .pd-detail-foot .custom-page-preview-button:not(.is-primary){min-height:30px;margin:0 -8px;padding:0 8px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:var(--dl-bad);font-size:12.5px;font-weight:600}
+.pd-frame .pd-detail .pd-card-child{display:inline-flex}
+.pd-frame .pd-detail-body>.pd-card-child{display:block}
+.pd-frame .pd-detail-actions .is-cond-off .custom-page-preview-button{opacity:.45}
+.pd-frame .pd-card-child.is-badge .pd-cond-chip{display:none}
