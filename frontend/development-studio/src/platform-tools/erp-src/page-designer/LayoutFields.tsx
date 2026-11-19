@@ -46,11 +46,17 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled, 
       </>}
     </li>;
   };
+  // Başka sahibe ait (seçilemeyen) satırlar listeyi uzatmasın: gizlenir, altta sayısı yazılır.
+  const free = rest.filter((input) => !owned?.[input.id]);
+  const takenCount = rest.length - free.length;
   if (selected.length === 0 && rest.length === 0) return null;
-  return <ul className="pd-columns pd-input-picker">
-    {selected.map((id, index) => row(byId.get(id) as PickerInput, index))}
-    {rest.map((input) => row(input, -1))}
-  </ul>;
+  return <>
+    {(selected.length > 0 || free.length > 0) && <ul className="pd-columns pd-input-picker">
+      {selected.map((id, index) => row(byId.get(id) as PickerInput, index))}
+      {free.map((input) => row(input, -1))}
+    </ul>}
+    {takenCount > 0 && <small className="pd-picker-taken-note">{takenLabel}: {takenCount} öğe listede gösterilmez.</small>}
+  </>;
 }
 
 /** "sütun=Etiket" listesi: sütun seçimi ve etiket metni; "=" ve SafeValue'nun reddettiği parçalar temizlenir. */
