@@ -643,6 +643,14 @@ public sealed class ErpOperationCatalogTests
         ["depo.konum.pasifeAl"] = "warehouseId,locationId,code,name,parentLocationId,rowVersion",
         ["depo.konum.bakiyeleri"] = "warehouseId,locationId,asOfDate",
         ["depo.konumlandirmaDenetimi"] = "warehouseId,asOfDate",
+        // Stok Değerleme (inventory-cost).
+        ["stok.maliyet.kayitlari"] = "warehouseId,stockItemId",
+        ["stok.maliyet.yenidenDegerle"] = "warehouseId,stockItemId,entryDate,amountBase,reason",
+        ["stok.maliyet.tersKayit"] = "id,reason",
+        ["satinalma.malKabul.listele"] = "page,pageSize",
+        ["satinalma.malKabul.ekMaliyetler"] = "id",
+        ["satinalma.malKabul.ekMaliyetDagit"] = "id,entryDate,amountBase,allocationMethod,description",
+        ["satinalma.malKabul.ekMaliyetTersKayit"] = "id,adjustmentId,reason",
     };
 
     [Fact]

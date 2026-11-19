@@ -65,6 +65,7 @@ internal static class ErpOperationCatalog
     private const string ReportModule = "Raporlar";
     private const string ManufacturingModule = "Üretim";
     private const string SettingsModule = "Ayarlar";
+    private const string PurchasingModule = "Satınalma";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
@@ -104,7 +105,11 @@ internal static class ErpOperationCatalog
         ["status"] = "Durum",
         ["displayQuantity"] = "Miktar", ["displayUnitCode"] = "Birim", ["trackingText"] = "Lot / seri",
         ["stockItemCode"] = "Stok kodu", ["stockItemName"] = "Stok adı", ["warehouseQuantity"] = "Depo bakiyesi",
-        ["locatedQuantity"] = "Konumlandırılmış", ["unlocatedQuantity"] = "Konumu boş", ["asOfDate"] = "Tarih itibarıyla"
+        ["locatedQuantity"] = "Konumlandırılmış", ["unlocatedQuantity"] = "Konumu boş", ["asOfDate"] = "Tarih itibarıyla",
+        ["kind"] = "Kayıt türü", ["purchaseReceiptId"] = "Mal kabul kimliği", ["totalAmountBase"] = "Toplam tutar",
+        ["amountBase"] = "Tutar", ["reason"] = "Gerekçe", ["allocationMethod"] = "Dağıtım yöntemi",
+        ["purchaseOrderId"] = "Satınalma siparişi kimliği", ["purchaseOrderCode"] = "Satınalma siparişi", ["receiptDate"] = "Kabul tarihi",
+        ["lineCount"] = "Satır sayısı"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -165,6 +170,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildStockPilotV1());
         operations.Add(BuildStockMovementHistory(paging));
         operations.AddRange(BuildWarehouseStandard());
+        operations.AddRange(BuildStockCost(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -308,6 +314,39 @@ internal static class ErpOperationCatalog
             [warehouseId, locationId, Query("asOfDate", "date")], List(Columns<WarehouseLocationBalanceView>(), "items"));
         yield return Read(WarehouseModule, "depo.konumlandirmaDenetimi", "Konumlandırma denetimi", warehouseRoute + "/location-reconciliation",
             [warehouseId, Query("asOfDate", "date")], List(Columns<WarehouseLocationReconciliationItemView>(), "items"));
+    }
+
+    /// <summary>
+    /// Stok Değerleme (inventory-cost): cost adjustments of a stock item in a warehouse, revaluation, landed costs of a
+    /// purchase receipt and their reversals. Every write handler itself only accepts TenantAdmin; a reversal writes a new
+    /// linked entry and never changes the original, and the handlers keep their fiscal-close checks.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildStockCost(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        var adjustmentColumns = Columns<InventoryCostAdjustmentView>();
+        var warehouseId = Route("warehouseId");
+        var stockItemId = Route("stockItemId");
+        var receiptId = Route("id");
+        const string stockCostRoute = "/api/warehouses/{warehouseId}/stock/{stockItemId}";
+        const string landedCostRoute = "/api/purchasing/receipts/{id}/landed-costs";
+        yield return Read(StockModule, "stok.maliyet.kayitlari", "Stok maliyet kayıtları (depo, son 100)", stockCostRoute + "/cost-adjustments",
+            [warehouseId, stockItemId], List(adjustmentColumns, null));
+        yield return Write(StockModule, "stok.maliyet.yenidenDegerle", "Stok maliyetini yeniden değerle", "insert", "POST", stockCostRoute + "/revaluations",
+            [warehouseId, stockItemId, .. BodyParameters<InventoryCostRevaluationRequest>(sourceBacked: false)], Record(adjustmentColumns), null, null,
+            requiresTenantAdmin: true);
+        yield return Write(StockModule, "stok.maliyet.tersKayit", "Stok değerlemesini ters kayıtla düzelt", "insert", "POST",
+            "/api/warehouses/cost-adjustments/{id}/reverse", [Route("id"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)],
+            Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+        // The list has no status filter; Posted is only checked by the landed cost handler.
+        yield return Read(PurchasingModule, "satinalma.malKabul.listele", "Mal kabulleri listele", "/api/purchasing/receipts", paging,
+            List(Columns<PurchaseReceiptSummary>(), "items"));
+        yield return Read(PurchasingModule, "satinalma.malKabul.ekMaliyetler", "Mal kabul ek maliyetleri", landedCostRoute, [receiptId],
+            List(adjustmentColumns, null));
+        yield return Write(PurchasingModule, "satinalma.malKabul.ekMaliyetDagit", "Mal kabul ek maliyetini dağıt", "insert", "POST", landedCostRoute,
+            [receiptId, .. BodyParameters<LandedCostWriteRequest>(sourceBacked: false)], Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+        yield return Write(PurchasingModule, "satinalma.malKabul.ekMaliyetTersKayit", "Mal kabul ek maliyetini ters kayıtla düzelt", "insert", "POST",
+            landedCostRoute + "/{adjustmentId}/reverse", [receiptId, Route("adjustmentId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)],
+            Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
