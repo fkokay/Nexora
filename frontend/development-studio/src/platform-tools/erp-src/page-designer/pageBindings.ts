@@ -38,6 +38,16 @@ export function interpolate(template: string, scope: PageScope): string {
   return template.replace(EMBEDDED, (_match, path: string) => displayText(resolvePath(scope, path)));
 }
 
+/**
+ * Tuval metni: `{{…}}` bağlamaları örnek kapsamla çözülür; sonuç boşsa (örnek veri yok, yol çözülemedi) ham metin kalır,
+ * böylece tasarımcı bağlamayı görmeye devam eder.
+ */
+export function sampleText(template: string, scope: PageScope): string {
+  if (!template.includes("{{")) return template;
+  const resolved = interpolate(template, scope);
+  return resolved.trim() === "" ? template : resolved;
+}
+
 /** Tek bir "{{ x.y }}" ifadesinin yolunu verir; ifade başka metin içeriyorsa null. */
 export function bindingPath(expression: string): string | null {
   const match = SINGLE.exec(expression);

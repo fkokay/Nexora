@@ -16,7 +16,7 @@ import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInp
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
-import { bindingPath, coerceParameter, interpolate, resolvePath, type PageScope } from "./page-designer/pageBindings";
+import { bindingPath, coerceParameter, interpolate, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
 import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
@@ -37,7 +37,7 @@ import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { parseGridColumns } from "./page-designer/gridColumns";
-import { conditionProblem } from "./page-designer/conditions";
+import { conditionHolds, conditionProblem } from "./page-designer/conditions";
 import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
@@ -241,6 +241,11 @@ const patternProblem = (pattern: string): string | null => {
 };
 /** Görünürlük koşulu olan bileşen: tasarımcıda gizlenmez, tuvalde "Koşullu" işaretiyle gösterilir. */
 const isConditional = (component: PageComponent) => typeof component.props.visibleWhen === "string" && component.props.visibleWhen.trim() !== "";
+/** Örnek veride görünürlük koşulu tutmayan bileşen (ERP'de gizlenirdi): tuvalde soluk ve "Koşullu" işaretli çizilir. */
+const hiddenInSample = (component: PageComponent, scope: PageScope) => isConditional(component) && !conditionHolds(component.props.visibleWhen, scope, true);
+/** Düğme görünümü (`variant`): primary dolu, secondary çerçeveli, danger kırmızı, link düz bağlantı; diğerleri varsayılan (dolu). */
+const BUTTON_VARIANTS = new Set(["primary", "secondary", "danger", "link"]);
+const buttonVariantClass = (variant: unknown) => typeof variant === "string" && BUTTON_VARIANTS.has(variant) ? ` is-${variant}` : "";
 /** Koşul kökü olabilecek sayfa adları: adlı bileşenler ve sorgular. */
 const pageNamesOf = (definition: PageDefinition) => [
   ...definition.queries.map((query) => query.name).filter(Boolean),
@@ -2158,6 +2163,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const sampleHint = (queryId: string) => { const info = samples.info(queryId); return info.state === "off" || info.state === "ready" ? null : info.state === "loading" || info.state === "waiting" ? "Örnek veri yükleniyor…" : info.message ?? null; };
   const sampleHintKey = definition.queries.map((query) => `${query.id}:${samples.info(query.id).state}`).join("|");
   const rendered = useMemo(() => {
+  // Tuval metinlerinin ve koşullarının örnek kapsamı (liste.seciliSatir = listenin ilk örnek satırı).
+  const view = designScope();
+  const shown = (raw: unknown, fallback: string) => { const text = String(raw ?? ""); return text ? sampleText(text, view) : fallback; };
   const owned = ownedInputIds(definition.components);
   // Sunucu sayfalı listenin arama girişi listenin başlığında çizilir (ERP ile aynı), üst düzeyde değil.
   const searchOwned = tableSearchInputIds(definition.components);
@@ -2220,9 +2228,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const props = component.props;
     const style = componentStyle(component.type, props);
     switch (component.type) {
-      case "heading": return <h2 key={component.id} className="custom-page-preview-heading" style={style}>{String(props.text || props.title || "Başlık")}</h2>;
-      case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{String(props.text || "Metin")}</p>;
-      case "label": return <p key={component.id} className="custom-page-preview-text pd-binding-label" style={style}>{String(props.text || "Etiket")}</p>;
+      case "heading": return <h2 key={component.id} className="custom-page-preview-heading" style={style}>{shown(props.text || props.title, "Başlık")}</h2>;
+      case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{shown(props.text, "Metin")}</p>;
+      case "label": return <p key={component.id} className="custom-page-preview-text pd-binding-label" style={style}>{shown(props.text, "Etiket")}</p>;
       case "input": return owned.has(component.id) || searchOwned.has(component.id) ? null : renderInput(component, style);
       case "metric": if (typeof props.query === "string") {
         const query = definition.queries.find((item) => item.id === props.query);
@@ -2238,16 +2246,47 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={shown || "Değer girin"} description={description} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
       } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
       case "card": case "section": {
-        // Kartın içindeki bileşenler (düğme, etiket, sekmeler…) ERP'deki gibi kartın içinde çizilir.
+        // Kartın içindeki bileşenler (düğme, etiket, sekmeler…) ERP'deki gibi kartın içinde çizilir. Örnek veride koşulu
+        // tutmayan çocuk (ör. Lot/Seri etiketi) gizlenmez; soluk ve "Koşullu" işaretlidir.
         const inner = childComponentsOf(component);
+        const wrap = (child: PageComponent) => {
+          const off = hiddenInSample(child, view);
+          return <div key={child.id} className={`pd-card-child is-${child.type}${off ? " is-cond-off" : ""}`}>
+            {off && <span className="pd-cond-chip" title={String(child.props.visibleWhen)}>Koşullu</span>}{renderOne(child)}
+          </div>;
+        };
+        const closable = typeof props.closeInput === "string" && props.closeInput.trim() !== "";
+        if (component.type === "card" && (props.variant === "panel" || closable)) {
+          // ERP DetailPanel ile aynı yerleşim: üstte kod + başlıktan önceki düğmeler + ✕, başlık, etiket satırı; gövde; gövdeden sonraki düğmeler altlıkta.
+          const head: ReactNode[] = [], tags: ReactNode[] = [], body: ReactNode[] = [], foot: ReactNode[] = [];
+          for (const child of inner) {
+            if (child.type === "badge") tags.push(wrap(child));
+            else if (child.type === "button") (body.length > 0 ? foot : head).push(wrap(child));
+            else body.push(wrap(child));
+          }
+          const title = shown(props.title, "");
+          return <aside key={component.id} className="pd-detail" style={style}>
+            <div className="pd-detail-head">
+              <div className="pd-detail-top">
+                <span className="pd-detail-code">{shown(props.description, "")}</span>
+                <span className="pd-detail-actions">{head}{closable && <span className="pd-detail-close" title="Detay panelini kapat"><X size={15} aria-hidden="true"/></span>}</span>
+              </div>
+              {title && <h3>{title}</h3>}
+              {tags.length > 0 && <div className="pd-detail-labels">{tags}</div>}
+            </div>
+            <div className="pd-detail-body">{body.length > 0 ? body : inner.length === 0 ? <p className="pd-detail-empty">Kartın içini tasarlayın</p> : null}</div>
+            {foot.length > 0 && <div className="pd-detail-foot">{foot}</div>}
+          </aside>;
+        }
         return <article key={component.id} className={`custom-page-preview-card ${component.type === "section" ? "is-section" : ""}${inner.length > 0 ? " has-children" : ""}`} style={style}>
-          {(props.title || inner.length === 0) && <b>{String(props.title || titleFor(component.type))}</b>}{props.description && <p>{String(props.description)}</p>}
-          {inner.length > 0 && <div className="pd-card-children">{inner.map((child) => <div key={child.id} className={`pd-card-child is-${child.type}`}>{renderOne(child)}</div>)}</div>}
+          {(props.title || inner.length === 0) && <b>{shown(props.title, titleFor(component.type))}</b>}{props.description && <p>{shown(props.description, "")}</p>}
+          {inner.length > 0 && <div className="pd-card-children">{inner.map(wrap)}</div>}
         </article>;
       }
       case "divider": return <hr key={component.id} className="custom-page-preview-divider" style={style} />;
       case "spacer": return <div key={component.id} className="custom-page-preview-spacer" style={style} />;
-      case "button": return <div key={component.id} className="custom-page-preview-action" style={style}><button type="button" tabIndex={-1} className="custom-page-preview-button">{String(props.text || props.label || "İşlem")}</button></div>;
+      case "button": return <div key={component.id} className="custom-page-preview-action" style={style}><button type="button" tabIndex={-1} className={`custom-page-preview-button${buttonVariantClass(props.variant)}`}>
+        {props.icon === "open" && <Maximize2 size={13} aria-hidden="true"/>}{shown(props.text || props.label, "İşlem")}</button></div>;
       case "dataTable": if (typeof props.query === "string") {
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
@@ -2286,7 +2325,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info";
         return <AlertPreview key={component.id} variant={variant} title={String(props.title || "")} text={String(props.text || "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
       // Etiket metni bağlama içerebilir ({{liste.seciliSatir.status}}): örnek veriyle çözülür, çözülemezse "Durum".
-      case "badge": return <BadgePreview key={component.id} text={interpolate(String(props.text || props.label || ""), designScope()) || String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
+      case "badge": return <BadgePreview key={component.id} text={interpolate(String(props.text || props.label || ""), view) || String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
       case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
       case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
       case "formCard": {
@@ -2567,7 +2606,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const resizable = isCard || focusOwner.type === "dialog";
     const nestedFocus = !isCard && isFocusOwnerType(child.type);
     const element = <div key={child.id} data-flip={child.id} data-card-index={index}
-      className={`pd-block ${child.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
+      className={`pd-block ${child.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}${hiddenInSample(child, designScope()) ? " is-cond-off" : ""}`}
       style={{ gridColumn: `span ${memberSpan(focusOwner, child)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(child.id); }}

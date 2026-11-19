@@ -1,6 +1,6 @@
 // Koşul ifadesi (visibleWhen, disabledWhen) ayrıştırıcısı: erp-web/src/custom-page/conditions.ts parseCondition ve
-// sunucudaki PageConditionExpression ile aynı dilbilgisi. Studio yalnız ayrıştırır (satır içi hata için); tasarımcıda
-// koşul değerlendirilmez, koşullu bileşen hiç gizlenmez.
+// sunucudaki PageConditionExpression ile aynı dilbilgisi. Studio ayrıştırır (satır içi hata için) ve tuvalde örnek veriyle
+// değerlendirir (evaluateCondition, erp-web ile aynı); koşulu tutmayan bileşen gizlenmez, soluk ve "Koşullu" işaretli çizilir.
 //
 //   expr    := and ( "||" and )*
 //   and     := unary ( "&&" unary )*
@@ -8,6 +8,8 @@
 //   cmp     := operand [ ( "==" | "!=" ) operand | "in" "[" literal ( "," literal )* "]" ]
 //   operand := path | literal | "(" expr ")"
 //   literal := 'metin' | "metin" | sayı | true | false | null
+
+import { resolvePath, type PageScope } from "./pageBindings";
 
 export type ConditionNode =
   | { kind: "or" | "and"; items: ConditionNode[] } | { kind: "not"; item: ConditionNode }
@@ -180,4 +182,52 @@ export function conditionProblem(prop: string, text: unknown, pageNames: string[
   const known = new Set([...pageNames, ...CONDITION_RESERVED_ROOTS]);
   const unknown = parsed.roots.find((root) => !known.has(root));
   return unknown ? `'${prop}' koşulu sayfada olmayan bir ada başvuruyor: ${unknown}` : null;
+}
+
+const NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
+type Normalized = string | number | boolean | null;
+
+function normalize(value: unknown): Normalized {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (NUMERIC_TEXT.test(value)) return Number(value);
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+  }
+  return null;
+}
+
+const truthy = (value: Normalized) => value !== null && value !== false && value !== 0;
+
+function operandValue(node: ConditionNode, scope: PageScope): Normalized {
+  if (node.kind === "path") return normalize(resolvePath(scope, node.path));
+  if (node.kind === "literal") return normalize(node.value);
+  return evaluateCondition(node, scope);
+}
+
+/** Ayrıştırılmış koşulu kapsamda değerlendirir (erp-web evaluateCondition ile aynı); çözülemeyen yol null sayılır, fırlatmaz. */
+export function evaluateCondition(node: ConditionNode, scope: PageScope): boolean {
+  switch (node.kind) {
+    case "or": return node.items.some((item) => evaluateCondition(item, scope));
+    case "and": return node.items.every((item) => evaluateCondition(item, scope));
+    case "not": return !evaluateCondition(node.item, scope);
+    case "cmp": {
+      const equal = operandValue(node.left, scope) === operandValue(node.right, scope);
+      return node.op === "==" ? equal : !equal;
+    }
+    case "in": {
+      const value = operandValue(node.item, scope);
+      return node.list.some((item) => operandValue(item, scope) === value);
+    }
+    default: return truthy(operandValue(node, scope));
+  }
+}
+
+/** Metin koşulu kapsamda değerlendirir; boş, metin olmayan ya da ayrıştırılamayan koşul `fallback` döner. */
+export function conditionHolds(text: unknown, scope: PageScope, fallback: boolean): boolean {
+  if (typeof text !== "string" || text.trim() === "") return fallback;
+  const parsed = parseCondition(text);
+  return parsed.ok ? evaluateCondition(parsed.node, scope) : fallback;
 }
