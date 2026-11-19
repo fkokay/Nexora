@@ -155,10 +155,9 @@
 /* Sade ayarlar: sekmeli pencere ve panel tek sütun; yardım metni alanın üzerine gelince ya da odakta görünür (uyarılar hep görünür). */
 .pd-settings-content.pd-settings-tabbed .pd-fieldset{column-count:1;max-width:820px;margin:0 auto}
 .pd-settings-content.pd-settings-tabbed{padding:18px 24px}
-:is(.pd-settings-tabbed,.pd-panel-settings) .pd-field>small:not(.pd-query-warning):not([role=alert]),
-:is(.pd-settings-tabbed,.pd-panel-settings) .pd-inspector-section-body>small:not(.pd-query-warning):not([role=alert]),
+:is(.pd-settings-tabbed,.pd-panel-settings) .pd-field>small:first-of-type:not(.pd-query-warning):not([role=alert]):not(.pd-picker-taken-note),
 :is(.pd-settings-tabbed,.pd-panel-settings) .pd-binding-note{display:none}
-:is(.pd-settings-tabbed,.pd-panel-settings) .pd-field:is(:hover,:focus-within)>small:not(.pd-query-warning){display:block;color:#98a2b3}
+:is(.pd-settings-tabbed,.pd-panel-settings) .pd-field:is(:hover,:focus-within)>small:first-of-type{display:block;color:#98a2b3}
 :is(.pd-settings-tabbed,.pd-panel-settings) .pd-inspector-section-toggle{pointer-events:none}
 :is(.pd-settings-tabbed,.pd-panel-settings) .pd-inspector-section-toggle svg{display:none}
 .pd-panel-settings{display:grid;gap:8px}

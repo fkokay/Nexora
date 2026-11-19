@@ -25,10 +25,12 @@ export function SettingsPane({ tab, children }: { tab: string; children: ReactNo
  * Kapalıyken `children` panelde yerinde çizilir (`hidden` ise hiç çizilmez: Basit kip).
  * `tabs` verilirse pencere sekmelidir: aynı anda tek sekme görünür (`SettingsPane`), sol bölüm listesi çizilmez.
  */
-export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onClose, onOpen, children }: {
+export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onClose, onOpen, panelExtra, children }: {
   open: boolean; hidden?: boolean; title: string; extra?: ReactNode; tabs?: SettingsTab[]; tab?: string; onTab?: (tab: string) => void; onClose: () => void;
   /** Panelde "Pencerede aç": aynı ayarları geniş pencerede açar. */
-  onOpen?: () => void; children: ReactNode;
+  onOpen?: () => void;
+  /** Panelde `extra` yerine çizilen (dar panele sığmayan geniş düzenleyicinin kısa yolu). */
+  panelExtra?: ReactNode; children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -51,7 +53,7 @@ export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onC
       {tabs.map((item) => <button type="button" role="tab" key={item.key} aria-selected={item.key === active} className={item.key === active ? "active" : ""} onClick={() => onTab?.(item.key)}>{item.label}</button>)}
       {onOpen && <button type="button" className="pd-icon-button pd-panel-expand" aria-label="Pencerede aç" title="Pencerede aç" onClick={onOpen}><Maximize2 size={13}/></button>}
     </div>
-    <ActiveTabContext.Provider value={active}>{extra}{children}</ActiveTabContext.Provider>
+    <ActiveTabContext.Provider value={active}>{panelExtra}{children}</ActiveTabContext.Provider>
   </div> : <>{children}</>;
   const jump = (index: number) => contentRef.current?.querySelector<HTMLElement>(`[data-nav-index="${index}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
   const tabKeys = (event: KeyboardEvent, index: number) => {

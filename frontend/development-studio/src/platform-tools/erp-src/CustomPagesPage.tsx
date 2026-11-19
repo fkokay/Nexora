@@ -151,7 +151,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -2730,13 +2730,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const section = (key: string, title: string, body: ReactNode) => selected && selected.type !== "dataTable" ? <SettingsPane key={key} tab={tabOfSection(key)}>{sectionBlock(key, title, body)}</SettingsPane> : sectionBlock(key, title, body);
   const sectionBlock = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
     <button type="button" className="pd-inspector-section-toggle" aria-expanded={!collapsed[key]} onClick={() => toggleSection(key)}>{collapsed[key] ? <ChevronRight size={14}/> : <ChevronDown size={14}/>}<span>{title}</span></button>
-    {(!collapsed[key] || settingsOpen) && <div className="pd-inspector-section-body">{body}</div>}
+    <div className="pd-inspector-section-body">{body}</div>
   </section>;
   // Izgara ayar penceresi sekmelidir: her parça kendi sekmesinde çizilir; diğer bileşenlerde ve panelde etkisizdir.
   // Izgarada sekme verilen anahtardır; diğer bileşenlerde "data" (Ad alanı) ilk sekmeye düşer, bölümler sekmesini
   // `section` içinde kendisi seçer (dış sarmalama gerekmez).
-  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab}>{node}</SettingsPane>
-    : tab === "data" ? <SettingsPane tab={firstTab}>{node}</SettingsPane> : tab === "main" ? <SettingsPane tab="main">{node}</SettingsPane> : node;
+  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab === "name" ? "data" : tab}>{node}</SettingsPane>
+    : tab === "name" ? <SettingsPane tab={firstTab}>{node}</SettingsPane> : tab === "main" ? <SettingsPane tab="main">{node}</SettingsPane> : node;
   const hasContentTab = !!selected && (contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key)));
   const componentTabs = selected ? selected.type === "dataTable" ? GRID_SETTINGS_TABS : settingsTabsFor(selected.type, hasContentTab) : [];
   const firstTab = componentTabs[0]?.key ?? "content";
@@ -3294,13 +3294,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           </div>}
           <SettingsHost open={settingsOpen} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
             tabs={componentTabs} tab={settingsTab} onTab={setSettingsTab} onOpen={() => setSettingsId(selected.id)}
+            panelExtra={selected.type === "dataTable" ? <SettingsPane tab="columns"><button type="button" className="pd-button small" onClick={() => { setSettingsTab("columns"); setSettingsId(selected.id); }}>Sütunları pencerede düzenle</button></SettingsPane> : null}
             extra={selected.type === "dataTable" ? <SettingsPane tab="columns"><section className="pd-inspector-section pd-settings-wide" data-settings-section="Sütunlar"><div className="pd-inspector-section-body">
               {selectedQueryRef || selectedSource ? <ColumnsEditor available={selectedQueryRef ? queryColumns(selectedQueryRef) : selectedSource?.columns ?? []} selected={selectedColumns} formats={columnFormatEntries} totals={totalsSelected}
                 totalsAllowed={!!selectedQueryRef} labels={stringEntries(selected.props.columnLabels)} units={stringEntries(selected.props.columnUnits)} valueLabels={stringEntries(selected.props.valueLabels)} toneMap={toneMapEntries}
                 disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
                 : <p className="pd-binding-note">Önce <button type="button" className="pd-link-button" onClick={() => setSettingsTab("data")}>Veri</button> sekmesinde listeyi bir sorguya ya da rapor kaynağına bağlayın.</p>}</div></section></SettingsPane> : null}>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {pane("data", <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>
+            {pane("name", <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>
               <input className="pd-binding-name" value={selected.name ?? ""} maxLength={64} spellCheck={false} placeholder={selected.type === "input" ? "gunEsigi" : selected.type === "dataTable" ? "izgara" : selected.type === "editableGrid" ? "tablo1" : selected.type === "customFieldsBlock" ? "ozelAlanlar1" : ""} onChange={(event) => setComponentName(selected.id, event.target.value.trim())}/>
               {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
             </label>)}
