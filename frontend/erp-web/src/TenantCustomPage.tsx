@@ -305,6 +305,15 @@ const sessionUser = (token: string) => {
   return { id, ad: name, rol };
 };
 
+/** Belirtecin firma talebi (`tenant_id`); yoksa ya da okunamazsa boş. */
+const sessionTenant = (token: string) => {
+  try {
+    const payload = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/") ?? "";
+    const claims = JSON.parse(atob(payload.padEnd(Math.ceil(payload.length / 4) * 4, "="))) as { tenant_id?: unknown };
+    return typeof claims.tenant_id === "string" ? claims.tenant_id : "";
+  } catch { return ""; }
+};
+
 /** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
 const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime) =>
   !runtime || conditionHolds(component.props?.visibleWhen, runtime.scope, true);
@@ -1491,12 +1500,13 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Süzgeç alanları: değerler sayfa + bileşen başına tarayıcıda saklanır (önizlemede okunmaz, yazılmaz). İlk değerler eşzamanlı
   // okunur; böylece sunucuya giden süzgeçli sorgu açılışta iki kez çalışmaz.
   const filterBars = useMemo(() => (isV2 ? flat.filter((component) => component.type === "filterBar" && !!component.name) : []), [isV2, flat]);
+  const tenantId = useMemo(() => sessionTenant(token), [token]);
   const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => previewId ? {} : Object.fromEntries(
-    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id), parseFilterEntries(filterBar.props?.filters))])));
+    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), parseFilterEntries(filterBar.props?.filters))])));
   useEffect(() => {
     if (previewId) return;
-    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
-  }, [filterValues, filterBars, previewId, page.code]);
+    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
+  }, [filterValues, filterBars, previewId, page.code, tenantId]);
   const visibleCache = useRef(new Map<string, { state: QueryState; key: string; result: QueryState }>());
   /** Süzgeç alanının tablosu, sorgusu ve türü/etiketi/seçenekleri çözülmüş süzgeçleri; tablo ya da sorgu yoksa null. */
   const filterBarModel = (filterBar: ComponentDefinition, states: Record<string, QueryState>) => {

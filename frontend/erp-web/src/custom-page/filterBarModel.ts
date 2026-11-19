@@ -232,7 +232,12 @@ export function filterChoices(filter: FilterSpec, source: { optionRows?: Record<
   return [...distinct].sort((a, b) => a.localeCompare(b, "tr")).map((value) => ({ value, label: value }));
 }
 
-export const filterStorageKey = (pageCode: string, componentId: string) => `nexora.filterBar.${pageCode}.${componentId}`;
+/**
+ * Saklama anahtarı firma (belirtecin `tenant_id` talebi) + sayfa + bileşen başınadır: bir firmanın süzgeci (ör. seçili depo)
+ * aynı tarayıcıda başka firmanın sayfasına taşınmaz. Firma bilinmiyorsa anahtar firmasızdır.
+ */
+export const filterStorageKey = (pageCode: string, componentId: string, tenantId = "") =>
+  tenantId ? `nexora.filterBar.${tenantId}.${pageCode}.${componentId}` : `nexora.filterBar.${pageCode}.${componentId}`;
 
 /** Saklanan süzgeç değerleri; yalnız tanımda olan anahtarlar ve doğru biçimli değerler okunur. Depolama kapalıysa boş. */
 export function loadFilterValues(key: string, filters: FilterSpec[]): FilterBarValues {

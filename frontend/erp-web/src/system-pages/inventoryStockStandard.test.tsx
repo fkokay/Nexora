@@ -35,7 +35,7 @@ const E1 = 'eeeeeeee-0000-0000-0000-000000000001';
 const E2 = 'eeeeeeee-0000-0000-0000-000000000002';
 const E3 = 'eeeeeeee-0000-0000-0000-000000000003';
 
-const jwt = (role: string) => `x.${btoa(JSON.stringify({ sub: 'u1', role })).replace(/=+$/, '')}.y`;
+const jwt = (role: string) => `x.${btoa(JSON.stringify({ sub: 'u1', role, tenant_id: 't1' })).replace(/=+$/, '')}.y`;
 
 const card = (id: string, code: string, name: string, extra: Record<string, unknown> = {}) => ({
   id, code, name, barcode: `869${code}`, unitCode: 'ADET', category: 'Kırtasiye', minimumStock: 10, isActive: true, createdAt: '2026-01-01T00:00:00Z',
@@ -220,7 +220,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(screen.getByRole('group', { name: 'Etkin süzgeçler' }).textContent).toContain('Merkez');
     fireEvent.click(screen.getByLabelText('Pasif kartları da göster'));
     await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('includeInactive') === 'true')).toBe(true), T);
-    // Arama sunucuya q ile gider; liste 1. sayfadan okunur.
+    // Arama sunucuya q ile gider (sayfanın 1'e dönmesi genel olarak CustomPageTable.test.tsx'te sınanır).
     fireEvent.change(input('suzgec'), { target: { value: 'kal' } });
     await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal')).toBe(true), T);
     const searched = calls.filter((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal');
@@ -229,6 +229,24 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     const before = gets('/api/warehouses/balances/page').length;
     fireEvent.change(warehouseSelect(), { target: { value: '' } });
     await waitFor(() => expect(gets('/api/warehouses/balances/page').length).toBeGreaterThan(before), T);
+  });
+
+  it('saklanan süzgeç yalnız aynı firmada geri gelir (seçili depo başka firmaya taşınmaz)', async () => {
+    const stored = JSON.stringify({ search: '', values: { warehouseId: W } });
+    localStorage.setItem('nexora.filterBar.t2.@inventory-stock.suzgec', stored);
+    localStorage.setItem('nexora.filterBar.@inventory-stock.suzgec', stored);
+    setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
+    expect(gets(`/api/warehouses/${W}/balances/page`)).toEqual([]);
+    expect(warehouseSelect().value).toBe('');
+    cleanup();
+    calls = [];
+    localStorage.setItem('nexora.filterBar.t1.@inventory-stock.suzgec', stored);
+    setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
+    // Açılışta tek istek, doğrudan seçili depoyla.
+    expect(gets('/api/warehouses/balances/page')).toEqual([]);
+    expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(0);
   });
 
   it('Filtre komutu (Ctrl+F) süzgeç alanının arama kutusuna odaklanır', async () => {

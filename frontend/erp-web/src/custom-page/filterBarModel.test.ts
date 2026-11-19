@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyClientFilters, filterChips, filterChoices, filterScope, formatFilterEntry, loadFilterValues, parseFilterEntries, resolveKind, saveFilterValues, type ResolvedFilter } from './filterBarModel';
+import { applyClientFilters, filterChips, filterChoices, filterScope, filterStorageKey, formatFilterEntry, loadFilterValues, parseFilterEntries, resolveKind, saveFilterValues, type ResolvedFilter } from './filterBarModel';
 
 const resolved = (entry: string, kind: ResolvedFilter['kind'], label = entry.split('|')[0], choices: ResolvedFilter['choices'] = []): ResolvedFilter =>
   ({ ...parseFilterEntries([entry])[0], kind, label, choices });
@@ -56,6 +56,11 @@ describe('süzgeç alanı modeli', () => {
       arama: ' vida ', q: 'vida', warehouseId: 'w1', stockItem: { category: null }, includeInactive: false, qty: { min: '1', max: null },
     });
     expect(filterScope(filters, { search: '', values: { inactive: true } }, 'q')).toMatchObject({ q: null, warehouseId: null, includeInactive: true });
+  });
+
+  it('saklama anahtarı firma + sayfa + bileşen başınadır', () => {
+    expect(filterStorageKey('inventory-stock', 'suzgec', 't1')).toBe('nexora.filterBar.t1.inventory-stock.suzgec');
+    expect(filterStorageKey('inventory-stock', 'suzgec')).toBe('nexora.filterBar.inventory-stock.suzgec');
   });
 
   it('sorgudan seçenekli seçim süzgecinin seçili satırı seciliSatir altında, değer düz kalır', () => {
