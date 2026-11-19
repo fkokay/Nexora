@@ -735,6 +735,26 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-card-focus-head small{color:var(--pd-muted)}
 .pd-card-focus-card>.pd-grid{min-height:160px;padding-top:30px}
 .pd-card-location{margin-top:6px}
+/* Pencere / çekmece, form kartı ve yan filtre paneli tasarım ekranı: ERP çerçevesi içinde aynı bırakma ızgarası. */
+.pd-focus-dialog,.pd-focus-form,.pd-focus-facet{position:relative;margin-top:8px;border:2px solid var(--pd-accent);border-radius:12px;background:#fff}
+.pd-focus-dialog.is-selected,.pd-focus-form.is-selected,.pd-focus-facet.is-selected{box-shadow:0 0 0 4px #6844df24}
+.pd-focus-dialog{width:min(100%,880px);margin-inline:auto;box-shadow:0 18px 40px rgba(15,27,45,.16)}
+.pd-focus-dialog.is-drawer{width:min(100%,560px);margin-right:0;border-radius:12px 0 0 12px}
+.pd-focus-dialog-head{display:flex;align-items:center;gap:10px;padding:18px 18px 10px;border-bottom:1px solid #e3e1ee}
+.pd-focus-dialog-head b{flex:1;min-width:0;overflow:hidden;font-size:15px;text-overflow:ellipsis;white-space:nowrap}
+.pd-focus-dialog-x{color:var(--pd-muted)}
+.pd-focus-dialog>.pd-grid{min-height:180px;padding-top:28px}
+.pd-focus-dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 18px 14px;border-top:1px solid #e3e1ee}
+.pd-focus-dialog-button{padding:6px 14px;border-radius:7px;background:#1f5fd1;color:#fff;font-weight:600}
+.pd-focus-dialog-button.is-secondary{border:1px solid #d0d5dd;background:#fff;color:#344054}
+.pd-focus-form-title{margin:0;padding:18px 18px 0;font-size:14px}
+.pd-focus-form>.pd-grid,.pd-focus-facet>.pd-grid{min-height:120px;padding-top:28px}
+.pd-focus-form-grid.is-inline{display:flex;flex-wrap:wrap;align-items:flex-end}
+.pd-focus-form-grid.is-inline>.pd-block,.pd-focus-form-grid.is-inline>.pd-drop-placeholder{flex:0 1 200px;min-width:140px}
+.pd-focus-facet{width:min(100%,300px);padding:0}
+.pd-focus-facet>.pd-facet-head{padding:18px 14px 0}
+.pd-focus-facet-grid{gap:8px}
+.pd-dialog-design{margin-left:6px}
 /* İşlem Çubuğu Yeni / Aç / Kaydettikten sonra grupları (taslak 13). */
 .pd-bar-commands{display:grid;gap:10px;margin-bottom:10px}
 .pd-bar-group{border:1px solid #e3e1ee;border-radius:10px;padding:10px;margin:0;min-width:0}

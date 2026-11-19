@@ -144,17 +144,22 @@ const FACET_OPTION_LIMIT = 8;
 export function FacetPanelPreview({ title, groups, style }: { title: string; groups: FacetPreviewGroup[]; style: CSSProperties }) {
   return <aside className="pd-layout-block pd-facet" style={style}>
     <div className="pd-facet-head"><h3>{title}</h3><span className="pd-facet-clear" aria-label={`${title || "Süzgeç"} süzgeçlerini temizle`}>Temizle</span></div>
-    {groups.map((group) => <div className="pd-facet-group" key={group.id} role="group" aria-label={group.label}>
-      <div className="pd-facet-label">{group.label}</div>
-      {!group.ready ? <p className="pd-facet-state">Seçenekler için sorguyu önizleyin</p> : <>
-        <div className="pd-facet-option is-selected"><span>Tümü</span></div>
-        {group.options.slice(0, FACET_OPTION_LIMIT).map((option, index) => <div className="pd-facet-option" key={index}>
-          <span>{option.label}</span>
-          {option.count !== undefined && <span className="pd-facet-count">{option.count.toLocaleString("tr-TR")}</span>}
-        </div>)}
-      </>}
-    </div>)}
+    {groups.map((group) => <FacetGroupPreview key={group.id} group={group}/>)}
   </aside>;
+}
+
+/** Yan filtre panelinin bir grubu (bir seçim girişi); panel tasarım ekranında tek başına blok olarak da çizilir. */
+export function FacetGroupPreview({ group }: { group: FacetPreviewGroup }) {
+  return <div className="pd-facet-group" role="group" aria-label={group.label}>
+    <div className="pd-facet-label">{group.label}</div>
+    {!group.ready ? <p className="pd-facet-state">Seçenekler için sorguyu önizleyin</p> : <>
+      <div className="pd-facet-option is-selected"><span>Tümü</span></div>
+      {group.options.slice(0, FACET_OPTION_LIMIT).map((option, index) => <div className="pd-facet-option" key={index}>
+        <span>{option.label}</span>
+        {option.count !== undefined && <span className="pd-facet-count">{option.count.toLocaleString("tr-TR")}</span>}
+      </div>)}
+    </>}
+  </div>;
 }
 
 export function ContextPanelPreview({ title, row, fields, related, style }: {
@@ -430,18 +435,22 @@ export function ImagePreview({ title, value, height, style }: { title: string; v
  * Pencere: tuvalde kapalı bir kart ("Pencere: <başlık> · <n> bileşen"); tıklanınca içerdiği bileşenler yerinde açılır.
  * Tıklanan bileşen müfettişte seçilir (Sekmeler önizlemesindeki gibi). `saveLabel` null ise pencerede yalnız "Kapat" vardır.
  */
-export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned, spanFor, onSelect, style }: {
+export function DialogPreview({ title, presentation, ids, saveLabel, renderOwned, spanFor, onSelect, onDesign, style }: {
   title: string; presentation: "dialog" | "drawer"; ids: string[]; saveLabel: string | null; renderOwned: (id: string) => ReactNode; spanFor: (id: string) => number;
   onSelect: (id: string) => void; style: CSSProperties;
+  /** "İçini tasarla": pencerenin tasarım ekranını açar. */
+  onDesign?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const kind = presentation === "drawer" ? "Çekmece" : "Pencere";
   return <section className="pd-layout-block pd-dialog-preview" style={style}>
-    <div className="pd-dialog-head">
+    <div className="pd-dialog-head" onDoubleClick={(event) => { if ((event.target as Element).closest("button")) event.stopPropagation(); }}>
       <span className="pd-dialog-icon" aria-hidden="true">{presentation === "drawer" ? "▥" : "▢"}</span>
       <span className="pd-dialog-title"><b>{title || "Başlıksız"}</b><small>{kind} · {ids.length} bileşen · ERP'de düğmeyle açılır</small></span>
       <button type="button" tabIndex={-1} aria-expanded={open} className="pd-dialog-toggle"
         onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}>{open ? "İçini gizle ▴" : "İçini göster ▾"}</button>
+      {onDesign && <button type="button" tabIndex={-1} className="pd-dialog-toggle pd-dialog-design" title="Pencerenin içini tasarla (çift tıklama)"
+        onClick={(event) => { event.stopPropagation(); onDesign(); }}>✎ İçini tasarla</button>}
     </div>
     {open && <>
       <div className="pd-tabs-preview-panel">
