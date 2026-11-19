@@ -891,6 +891,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   // Sütun kılavuzları varsayılan gizlidir (şeffaf bileşenlerin arkasından görünüp üst üste binmiş gibi durur); sürüklerken her zaman görünür.
   const [showGrid, setShowGrid] = useState(false);
+  // Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz; bu anahtarla tuvalde soluk gösterilir.
+  const [showCondOff, setShowCondOff] = useState(false);
   const [device, setDevice] = useState<Device>("desktop");
   const [newPageDialog, setNewPageDialog] = useState<"create" | "template" | null>(null);
   const [queryEditorOpen, setQueryEditorOpen] = useState(false);
@@ -2561,11 +2563,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Tuval blokları: tanım, seçim, cihaz ve önizleme değişince yeniden kurulur; sürükleme durumuna bağlı değildir. Böylece
   // dragover'da yalnız ızgara (yer tutucu) çizilir, 80+ bloğun sarmalayıcısı ve önizlemesi React tarafından atlanır.
+  const condOffCount = (() => { const scope = designScope(); return definition.components.filter((component) => !(ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id)) && hiddenInSample(component, scope)).length; })();
   const canvasBlocks = useMemo<CanvasBlock[]>(() => definition.components.map((component, index) => {
     const isSelected = selectedComponentId === component.id;
     const owned = ownedIds.has(component.id) || tabIds.has(component.id) || nestedIds.has(component.id) || (component.type === "button" && movedIds.has(component.id));
+    const condOff = !owned && hiddenInSample(component, designScope());
     const element = <div key={component.id} data-flip={component.id} data-page-index={index}
-      className={`pd-block ${owned ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
+      className={`pd-block ${owned ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}${condOff ? " is-cond-off" : ""}${condOff && !isSelected && !showCondOff ? " is-cond-hidden" : ""}`}
       style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
@@ -2589,7 +2593,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     </div>;
     return { id: component.id, element };
   // Olay işleyicileri `live` üzerinden güncel işlevleri çağırır; örnek veri rozeti `sampleHintKey` ile izlenir.
-  }), [definition, selectedComponentId, device, canEdit, rendered, ownedIds, tabIds, nestedIds, movedIds, sampleHintKey, activeTabs, dragStore]);
+  }), [definition, selectedComponentId, device, canEdit, rendered, ownedIds, tabIds, nestedIds, movedIds, sampleHintKey, activeTabs, dragStore, showCondOff]);
   const canvasLayoutKey = useMemo(() => `${device}|${definition.components.map((component) => component.id).join(",")}`, [device, definition]);
   const canvasGuides = useMemo(() => <div className={`pd-grid-guides${showGrid ? " is-on" : ""}`} aria-hidden="true">{Array.from({ length: device === "desktop" ? 12 : device === "tablet" ? 2 : 1 }, (_, column) => <span key={column}/>)}</div>, [showGrid, device]);
   /** İşlem çubuğunun `titleCount` bağlaması (`{{sorgu.meta.alan}}`): sorgu önizlemesinin değeri, yoksa "N". */
@@ -3117,6 +3121,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           </div>
           <button type="button" className={`pd-button ${showGrid ? "active" : ""}`} aria-pressed={showGrid} onClick={() => setShowGrid((value) => !value)}><Grid3X3 size={14}/>Izgara</button>
           <span className="pd-canvas-meta">{focusOwner ? `${focusMembers.length} ${focusOwner.type === "formCard" || focusOwner.type === "facetPanel" ? "giriş" : "bileşen"} · ${focusKindText(focusOwner.type)} · ` : `${definition.components.length} bileşen · `}{device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
+          {!focusOwner && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
           <div className={`pd-frame device-${device}`}>
