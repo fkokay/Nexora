@@ -109,6 +109,7 @@
 .nx-action-bar[data-size="lg"] .nx-action-bar__button > svg { width: 17px; height: 17px; }
 .nx-action-bar[data-style="outline"] .nx-action-bar__button { border-color: var(--nx-line); }
 .nx-action-bar[data-style="solid"] .nx-action-bar__button:not([data-primary="true"]) { border-color: var(--nx-line-soft); background: var(--nx-canvas); }
+.nx-action-bar[data-style="solid"] .nx-action-bar__button:not([data-primary="true"]):hover:not([aria-disabled="true"]) { background: var(--nx-primary-soft); }
 .nx-action-bar[data-style="plain"] .nx-action-bar__more { border-color: transparent; background: transparent; }
 /* content=text drops the icons, but the 'icons' compaction level hides the labels: there the icon comes back, so a
    button is never empty. content=icon always shows icons only (the label stays aria-label and tooltip). */
