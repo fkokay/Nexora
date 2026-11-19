@@ -1,5 +1,5 @@
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { cloneElement, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
@@ -50,6 +50,9 @@ import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGIN
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
+import { barLookMap, hiddenForPreview } from "./page-designer/barLook";
+import { BarLookFields } from "./page-designer/BarLookFields";
+import { BarCommandRows } from "./page-designer/BarCommandRows";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
 import { conditionTerms, stringEntries } from "./page-designer/gridColumnSettings";
 import { ColumnsEditor } from "./page-designer/ColumnsEditor";
@@ -277,7 +280,7 @@ const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
   { key: "cond", label: "Koşul" }, { key: "view", label: "Görünüm" },
 ];
 /** Bölüm anahtarının sekmesi (ızgara kendi sekmelerini `pane` ile verir). */
-const tabOfSection = (key: string) => key === "content" ? "content" : key === "conditions" ? "cond" : key === "style" ? "view" : "main";
+const tabOfSection = (key: string) => key === "content" ? "content" : key.startsWith("conditions") ? "cond" : key === "style" ? "view" : "main";
 const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "data", label: "Veri" }, { key: "columns", label: "Sütunlar" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
 /** Satır işlemi olabilen düğme eylem türleri. */
 const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
@@ -2438,7 +2441,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         new: barBound(props).new,
         open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
-      }} moreCount={idList(props.moreButtons, 10).length} />;
+      }} moreCount={idList(props.moreButtons, 10).length} hidden={hiddenForPreview(props)} look={barLookMap(props.barLook)} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
         onSelect={setSelectedComponentId}
         spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
@@ -2918,6 +2921,29 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const eligibleTables = definition.components.filter((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
   // İşlem Çubuğu Yeni / Aç / kaydettikten sonra grupları: Basit ve Gelişmiş kipte aynı alanlar. Eski düğme bağını kaldıran seçim,
   // başka yerde kullanılmayan düğmeyi de aynı geri alma adımında siler.
+  // Komutlar sekmesindeki satır özetleri: komutun ne yaptığı tek satırda.
+  const barSummaries = (props: Record<string, PropValue>): Record<string, string> => {
+    const queryName = (id: unknown) => definition.queries.find((query) => query.id === id)?.name;
+    const modes = barBound(props);
+    const pageOf = (code: unknown) => typeof code === "string" && code ? (pages.find((page) => page.code === code)?.name ?? code) : "";
+    const plan = (action: unknown, page: unknown, fallback: boolean) => action === "page" ? `Sayfa aç → ${pageOf(page) || "seçilmedi"}`
+      : action === "dialog" ? "Pencere aç" : action === "clear" ? "Formu temizle" : action === "off" ? "Kapalı" : fallback ? "Bağlı" : "Bağlı değil";
+    const sequence = idList(props.saveSequence, MAX_SEQUENCE_STEPS).length;
+    const filterInput = pageInputs.find((input) => input.id === props.focusInput);
+    const exportTable = queryTables.find((table) => table.id === props.exportTable);
+    const more = idList(props.moreButtons, 10).length;
+    return {
+      new: plan(props.newAction, props.newPageCode, modes.new), open: plan(props.openAction, props.openPageCode, modes.open),
+      save: sequence > 0 ? `Kaydet dizisi · ${sequence} adım` : queryName(props.saveQuery) ? `Sorgu: ${queryName(props.saveQuery)}` : "Bağlı değil",
+      delete: queryName(props.deleteQuery) ? `Sorgu: ${queryName(props.deleteQuery)}` : "Bağlı değil",
+      refresh: "Sayfa sorgularını yeniler",
+      filter: filterInput ? `Odak: ${filterInput.label}` : typeof props.focusInput === "string" && props.focusInput ? "Süzgeç alanı araması" : "Bağlı değil",
+      print: props.printEnabled === true ? "Açık" : "Kapalı",
+      export: exportTable ? `Liste: ${exportTable.name || exportTable.id}` : "Bağlı değil",
+      more: more > 0 ? `${more} düğme` : "Boş",
+      afterSave: props.afterSaveAction === "page" ? `Sayfa aç → ${pageOf(props.afterSavePageCode) || "seçilmedi"}` : "Kapalı",
+    };
+  };
   const barCommandFields = selected?.type === "actionBar" ? <BarCommandFields props={selected.props} screens={erpScreens}
     pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
     tables={eligibleTables.map((table) => ({ id: table.id, name: table.name!,
@@ -3497,9 +3523,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </label>;
               })}
             </>)}
-            {selected.type === "actionBar" && section("layout", "Komutlar", <>
-              <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
-              {barCommandFields}
+            {selected.type === "actionBar" && section("layout", "Komutlar", <BarCommandRows props={selected.props} disabled={!canEdit}
+              paths={bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }))}
+              pageNames={pageNamesOf(definition)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
+              summaries={barSummaries(selected.props)}
+              renderDetail={(id) => id === "new" || id === "open" || id === "afterSave" ? (barCommandFields && cloneElement(barCommandFields, { only: id }))
+                : id === "save" ? <>
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {
@@ -3517,6 +3546,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </label> : <SequenceFields value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS)} when={selected.props.sequenceWhen} stopOnError={selected.props.stopOnError}
                 writeQueries={writeQueries} componentsNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, sequencePatch(next) as Record<string, PropValue | undefined>)}/>}
               {barSaveMode === "sequence" && <QueryFieldActions kinds={WRITE_KINDS} target="Kaydet dizisi" value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS).at(-1) ?? null} componentId={selected.id} disabled={!canEdit} bind={bindSequenceStep}/>}
+                </> : id === "delete" ? <>
               <label className="pd-field">Sil<span className="pd-action-key" aria-hidden="true">Ctrl+Del</span>
                 <select value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { deleteQuery: event.target.value || undefined })}>
                   <option value="">Yok</option>
@@ -3524,6 +3554,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </select>
                 <QueryFieldActions kinds={["delete"]} target="Sil komutu" value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ deleteQuery: query.id })}/>
               </label>
+                </> : id === "filter" ? <>
               <label className="pd-field">Filtre<span className="pd-action-key" aria-hidden="true">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
                 <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
                   <option value="">Yok</option>
@@ -3532,19 +3563,22 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <option key={component.id} value={component.id}>Süzgeç alanı araması{component.name ? ` (${component.name})` : ""}</option>)}
                 </select>
               </label>
+                </> : id === "print" ? <>
               <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key" aria-hidden="true">Ctrl+P</span></label>
+                </> : id === "export" ? <>
               <label className="pd-field">Excel<span className="pd-action-key" aria-hidden="true">Ctrl+E</span><small>Dışa aktarılacak ızgara; sorguya bağlı olmalı.</small>
                 <select value={typeof selected.props.exportTable === "string" ? selected.props.exportTable : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { exportTable: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {queryTables.map((table) => <option key={table.id} value={table.id}>{table.name || table.id}</option>)}
                 </select>
               </label>
+                </> : id === "more" ? <>
               <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
                 <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} owned={rowActionOwners} takenLabel="Satır işlemi" disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
                 <button type="button" className="pd-button small" disabled={!canEdit || barMoreButtons.length >= 10} onClick={() => addMenuButton(selected.id)}><Plus size={13}/>Yeni menü düğmesi</button>
                 {barMoreButtons.length >= 10 && <small>Menüde en fazla 10 düğme olabilir.</small>}
               </div>
-            </>)}
+                </> : <small>Yenile (F5) sayfadaki sorguları yeniden çalıştırır; bağlanması gerekmez.</small>}/>)}
             {selected.type === "filterBar" && (() => {
               const table = queryTables.find((item) => item.id === selected.props.table);
               const queryId = table ? String(table.props.query) : "";
@@ -3632,6 +3666,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type !== "dataTable" && section("conditions", "Koşullar", <ConditionFields props={selected.props} allowDisabled={DISABLEABLE_TYPES.includes(selected.type)}
               pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit}
               onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>)}
+            {selected.type !== "dataTable" && section("conditions-width", "Koşullu genişlik", <>
+              <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
+                terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
+                onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+              <details className="pd-settings-advanced"><summary>Kod olarak yaz</summary>
+                <RawWidthWhenField value={selected.props.widthWhen} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+              </details>
+            </>)}
             {selected.type === "dataTable" && pane("view", section("style", "Görünüm", <>
               <WidthSegment span={spanOf(selected)} disabled={!canEdit} onChange={(width) => updateComponent(selected.id, "width", width)}/>
               <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
@@ -3648,15 +3690,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </details>
             </>))}
             {selected.type !== "dataTable" && section("style", "Görünüm", <>
+              {selected.type === "actionBar" && <BarLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               {selected.type === "metric" && <>
                 <div className="pd-field">Anlam<ToneSelect value={(["info", "success", "warning", "danger"] as const).find((tone) => tone === selected.props.variant)} disabled={!canEdit} onChange={(tone) => patchComponent(selected.id, { variant: tone })}/></div>
                 <div className="pd-field">İkon<IconSelect value={typeof selected.props.icon === "string" ? selected.props.icon : undefined} disabled={!canEdit} onChange={(icon) => patchComponent(selected.id, { icon })}/></div>
               </>}
               <div className="pd-field">Genişlik<small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small><div className="pd-segment">{[3, 4, 6, 8, 9, 12].map((width) => <button type="button" key={width} className={spanOf(selected) === width ? "active" : ""} onClick={() => updateComponent(selected.id, "width", width)}>{width}</button>)}{![3, 4, 6, 8, 9, 12].includes(spanOf(selected)) && <button type="button" className="active">{spanOf(selected)}</button>}</div></div>
-              <label className="pd-field">Koşullu genişlik<small>“genişlik=koşul” yazın; koşul tutunca bileşen bu genişlikte çizilir (ör. <code>{"8=liste.seciliSatir.id != null"}</code>: satır seçilince liste daralır, yan panele yer açılır).</small>
-                <input value={typeof selected.props.widthWhen === "string" ? selected.props.widthWhen : ""} maxLength={300} spellCheck={false} disabled={!canEdit} placeholder="8=liste.seciliSatir.id != null"
-                  onChange={(event) => patchComponent(selected.id, { widthWhen: event.target.value.trim() ? event.target.value : undefined })}/>
-                {typeof selected.props.widthWhen === "string" && !/^([1-9]|1[0-2])=.+$/.test(selected.props.widthWhen) && <small className="pd-query-warning">'widthWhen' genişlik=koşul biçiminde olmalıdır (genişlik 1–12).</small>}</label>
               {boxFields}
             </>)}
           </fieldset>

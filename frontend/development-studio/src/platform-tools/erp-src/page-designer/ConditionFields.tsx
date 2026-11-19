@@ -1,5 +1,5 @@
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
-import { CONDITION_MAX_LENGTH, conditionProblem } from "./conditions";
+import { ConditionBuilder } from "./ConditionBuilder";
 
 const DISABLED_REASON_MAX = 200;
 
@@ -13,15 +13,11 @@ export function ConditionFields({ props, allowDisabled, pageNames, suggestions, 
   onSet: (key: "visibleWhen" | "disabledWhen" | "disabledReason", value: string | undefined) => void;
 }) {
   const text = (key: string) => typeof props[key] === "string" ? props[key] as string : "";
-  const field = (key: "visibleWhen" | "disabledWhen", label: string, help: string) => {
-    const problem = conditionProblem(key, props[key], pageNames);
-    return <label className="pd-field">{label}<small>{help}</small>
-      <input className="pd-condition-input" value={text(key)} maxLength={CONDITION_MAX_LENGTH} spellCheck={false} disabled={disabled}
-        aria-invalid={problem ? true : undefined} placeholder="kullanici.rol == 'TenantAdmin'"
-        onChange={(event) => onSet(key, event.target.value === "" ? undefined : event.target.value)}/>
-      {problem && <small className="pd-query-warning" role="alert">{problem}</small>}
-    </label>;
-  };
+  // Koşul kural kurucusuyla (alan / işleç / değer) yazılır; kurucunun gösteremediği ifade kod olarak düzenlenir.
+  const paths = suggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
+  const field = (key: "visibleWhen" | "disabledWhen", label: string, help: string) => <div className="pd-field">{label}<small>{help}</small>
+    <ConditionBuilder key={key} prop={key} value={text(key) || undefined} paths={paths} pageNames={pageNames} disabled={disabled} onChange={(next) => onSet(key, next)}/>
+  </div>;
   const hasDisabledWhen = text("disabledWhen") !== "";
   return <>
     {field("visibleWhen", "Görünürlük koşulu", "Boşsa bileşen her zaman görünür; koşul yanlışsa ERP'de gizlenir. Tasarımcıda gizlenmez, “Koşullu” işaretiyle gösterilir.")}
