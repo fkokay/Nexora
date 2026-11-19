@@ -2518,6 +2518,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       if (!child || !location) return null;
       const count = tabs[location.tabIndex]?.ids.length ?? 0;
       return <>
+        {isFocusOwnerType(child.type) && <button type="button" className="pd-block-edit" title="İçini tasarla" onClick={() => live.current.openFocus(id)}>{cardTree.isCardType(child.type) ? "✎ Kartın içini tasarla" : "✎ İçini tasarla"}</button>}
         <button type="button" title="Öne taşı (Alt+↑)" aria-label="Sekmede öne taşı" disabled={location.position === 0} onClick={() => live.current.moveInTab(id, -1)}><ArrowUp size={13}/></button>
         <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Sekmede arkaya taşı" disabled={location.position >= count - 1} onClick={() => live.current.moveInTab(id, 1)}><ArrowDown size={13}/></button>
         <button type="button" title="Sekmeden çıkar" aria-label="Sekmeden çıkar" onClick={() => live.current.detachFromTab(id)}><ArrowUpFromLine size={13}/></button>
