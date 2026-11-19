@@ -764,3 +764,9 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-bar-param{grid-template-columns:70px auto 1fr auto auto}
 .pd-bar-legacy{display:grid;gap:6px;border:1px dashed #e8b4b0;border-radius:10px;padding:10px;background:#fff7f6}
 .pd-bar-legacy-note{display:block;color:#667085;margin:-2px 0 8px}
+
+/* "Koşullu" etiketi bloğun içeriğinin üstüne binmesin: üst kenarın üzerinde, küçük durur (dar düğmelerde metni kapatmaz). */
+.pd-cond-chip{top:-9px;right:8px;padding:0 6px;font-size:10px;line-height:16px;box-shadow:0 0 0 2px #fff}
+.pd-card-child{position:relative}
+/* Form içindeki kapalı açılır kutu tam genişlikte. */
+.pd-binding-preview-input:not(.is-search) .pd-lookup-select{display:flex;width:100%}

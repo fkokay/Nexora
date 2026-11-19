@@ -2157,7 +2157,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const props = component.props;
     const inputType = String(props.inputType || "text");
     const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
-    // Varsayılan değer {{…}} içerebileceğinden tuvalde ham metin olarak gösterilir.
+    // Varsayılan değer ve ipucu {{…}} içerebilir: tuvalde örnek veriyle çözülür (çözülemezse ham metin kalır).
+    const sample = (raw: unknown) => { const text = String(raw ?? ""); return text.includes("{{") ? interpolate(text, designScope()) || text : text; };
+    const defaultShown = sample(props.defaultValue);
+    const placeholderShown = sample(props.placeholder);
     const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
       : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
         : inputType === "lookup" ? (() => {
@@ -2168,9 +2171,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             ...parseStaticOptions(props.staticOptions).map((option) => ({ label: option.label, description: "" })),
             ...rows.map(({ label, row }) => ({ label, description: descriptionColumn && row[descriptionColumn] != null ? String(row[descriptionColumn]) : "" })),
           ];
-          return <LookupPreview placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")} options={options} ready={ready || !optionsQuery} compact={inline}/>;
+          // ERP'deki gibi kapalı açılır kutu: varsayılan değer sabit bir seçeneğin değeriyse etiketi gösterilir (ör. Receipt → Giriş).
+          const fixed = parseStaticOptions(props.staticOptions).find((option) => option.value === String(props.defaultValue ?? ""));
+          return <LookupPreview placeholder={placeholderShown} value={fixed?.label ?? defaultShown} options={options} ready={ready || !optionsQuery} compact/>;
         })()
-        : <input tabIndex={-1} readOnly placeholder={String(props.placeholder || "")} value={String(props.defaultValue ?? "")}/>;
+        : <input tabIndex={-1} readOnly placeholder={placeholderShown} value={defaultShown}/>;
     if (inline && inputType === "checkbox") return <div key={component.id} className="pd-binding-preview-input is-checkbox is-toggle" style={style}><span className="pd-inline-toggle">{String(props.label || component.name)}</span></div>;
     if (inline && inputType === "text" && props.placeholder) return <div key={component.id} className="pd-binding-preview-input is-search" style={style}><span className="pd-inline-search"><Search size={13} aria-hidden="true"/><input tabIndex={-1} readOnly placeholder={String(props.placeholder)} value={String(props.defaultValue ?? "")}/></span></div>;
     return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
