@@ -58,11 +58,12 @@ export type QueryParam = { name: string; type: string };
  * Listenin sorgusunda süzgece verilebilecek parametreler: SQL sorgusunun tanımlı parametreleri ya da ERP işleminin sorgu
  * (query) parametreleri; sayfalama parametreleri hariç.
  */
-export function filterableParams(query: PageQuery | undefined, operationParams: { name: string; in: string; type: string }[] | null, paging: string[]): QueryParam[] {
+export function filterableParams(query: PageQuery | undefined, operationParams: { name: string; in: string; type: string; required?: boolean }[] | null, paging: string[]): QueryParam[] {
   if (!query) return [];
   const skip = new Set(paging.map((name) => name.toLowerCase()));
+  // Sorgu parametresi ya da isteğe bağlı rota parametresi (ör. stok.bakiye.sayfa warehouseId: verilince depoya özel adres).
   const list = operationParams
-    ? operationParams.filter((parameter) => parameter.in === "query" && !["list", "map"].includes(parameter.type)).map((parameter) => ({ name: parameter.name, type: parameter.type }))
+    ? operationParams.filter((parameter) => (parameter.in === "query" || parameter.in === "route" && parameter.required === false) && !["list", "map"].includes(parameter.type)).map((parameter) => ({ name: parameter.name, type: parameter.type }))
     : query.parameters.filter((parameter) => parameter.type !== "list" && parameter.type !== "map").map((parameter) => ({ name: parameter.name, type: parameter.type }));
   return list.filter((parameter) => PARAM.test(parameter.name) && !skip.has(parameter.name.toLowerCase()));
 }

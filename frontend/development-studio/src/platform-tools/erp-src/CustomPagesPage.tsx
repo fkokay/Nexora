@@ -5,6 +5,7 @@ import {
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
   RotateCcw, Rows3, Save, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, Shapes, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
   Search,
+  Plus,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
@@ -1610,6 +1611,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }),
   }));
   // Tek geri alma adımında birden çok özelliği değiştirir; undefined değer özelliği siler (boş dize sunucuda geçersiz olabilir).
+  // İşlem Çubuğu'nun İşlemler menüsüne yeni düğme: düğme oluşturulur ve tek geri alma adımında menüye eklenir; eylemi
+  // düğmenin kendi ayarlarından seçilir (seçim yeni düğmeye geçer).
+  const addMenuButton = (barId: string) => {
+    if (!canEdit) return;
+    const bar = definitionRef.current.components.find((component) => component.id === barId);
+    if (!bar || idList(bar.props.moreButtons, 10).length >= 10) return;
+    const id = newId("button");
+    commit((value) => ({ ...value, components: [
+      ...value.components.map((component) => component.id === barId ? { ...component, props: { ...component.props, moreButtons: [...idList(component.props.moreButtons, 10), id] } } : component),
+      { id, type: "button", props: { label: "Yeni işlem", variant: "secondary", actionType: "workflow", workflowId: "" } },
+    ] }));
+    setSettingsId(null);
+    setSelectedComponentId(id);
+  };
   const patchComponent = (id: string, patch: Record<string, PropValue | undefined>) => commit((state) => ({
     ...state,
     components: cardTree.mapComponents(state.components, (component) => {
@@ -2859,7 +2874,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const layoutInputIds = selected ? idList(selected.props.inputs) : [];
   // İşlem Çubuğu müfettişi: bağlanabilir düğmeler, sorgulu ızgaralar ve seçili listeler.
   const pageButtons: PickerInput[] = definition.components.filter((component) => component.type === "button").map((component) => ({
-    id: component.id, name: component.name, label: String(component.props.label || component.name || "Düğme"), inputType: "button", hasOptions: false,
+    id: component.id, name: component.name, label: String(component.props.text || component.props.label || component.name || "Düğme"), inputType: "button", hasOptions: false,
   }));
   const queryTables = definition.components.filter((component) => component.type === "dataTable" && typeof component.props.query === "string" && component.props.query !== "");
   const barNewInputs = selected?.type === "actionBar" ? idList(selected.props.newInputs) : [];
@@ -3507,7 +3522,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </label>
               <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
                 <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} owned={rowActionOwners} takenLabel="Satır işlemi" disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
-                {pageButtons.length === 0 && <small>Önce sayfaya bir eylem düğmesi ekleyin.</small>}
+                <button type="button" className="pd-button small" disabled={!canEdit || barMoreButtons.length >= 10} onClick={() => addMenuButton(selected.id)}><Plus size={13}/>Yeni menü düğmesi</button>
+                {barMoreButtons.length >= 10 && <small>Menüde en fazla 10 düğme olabilir.</small>}
               </div>
             </>)}
             {selected.type === "filterBar" && (() => {
