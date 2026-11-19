@@ -1,0 +1,82 @@
+{
+  "screenKey": "inventory-tracking", "title": "Lot / Seri İzleme",
+  "description": "Depolardaki izlenen lot ve seri numaralarının güncel bakiyesini ve son hareket tarihini bulun.", "module": "Stok & Depo",
+  "version": 1, "stage": "preview",
+  "items": {
+    "component:komutlar": { "since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "query:bakiye"] },
+    "component:suzgec": { "since": 1, "label": "Süzgeç alanı (arama, iz türü, depo)",
+      "requires": ["component:liste", "query:bakiye", "query:depolar"] },
+    "component:liste": { "since": 1, "label": "Lot / seri bakiyeleri listesi", "requires": ["query:bakiye", "component:suzgec"] },
+    "component:detayKarti": { "since": 1, "label": "Detay paneli (seçili lot / seri)", "requires": ["component:liste"] },
+    "component:sinirNotu": { "since": 1, "label": "Bakiye hesabı notu" },
+    "query:bakiye": { "since": 1, "label": "Lot / seri bakiyeleri (sayfalı)" },
+    "query:depolar": { "since": 1, "label": "Depoları listele" }
+  },
+  "screenViews": [ { "key": "inventory-trace-balances", "component": "liste",
+    "fields": { "trackingCode": "trackingCode", "trackingMode": "trackingMode", "stockItem": "stockItemName", "warehouse": "warehouseName",
+                "quantityOnHand": "quantityOnHand", "expiryDate": "expiryDate", "lastMovementDate": "lastMovementDate" } } ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
+        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{bakiye.meta.totalCount}}" } },
+
+      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
+        "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Lot/seri kodu, stok veya depo ara", "searchParam": "q",
+                   "filters": ["trackingMode|select|row|trackingMode|İz türü",
+                               "warehouseId|select|row|warehouseId|Depo|depolar:id:name"] } },
+      { "id": "liste", "type": "dataTable", "name": "liste",
+        "props": { "title": "Lot / seri bakiyeleri", "query": "bakiye", "paging": "server", "pageSize": 50, "width": 8,
+                   "columns": ["trackingCode", "trackingMode", "stockItemName", "stockItemCode", "warehouseCode", "warehouseName",
+                               "quantityOnHand", "expiryDate", "lastMovementDate"],
+                   "columnLabels": ["trackingCode=Lot / seri", "trackingMode=İz türü", "stockItemName=Stok", "stockItemCode=Stok kodu",
+                                    "warehouseCode=Depo kodu", "warehouseName=Depo", "quantityOnHand=Mevcut miktar",
+                                    "expiryDate=Son kullanma", "lastMovementDate=Son hareket"],
+                   "columnUnits": ["quantityOnHand=unitCode"],
+                   "columnFormats": ["trackingCode=code", "trackingMode=status", "stockItemCode=code", "warehouseCode=code",
+                                     "quantityOnHand=number", "expiryDate=date", "lastMovementDate=date"],
+                   "valueLabels": ["trackingMode:Lot=Lot", "trackingMode:Serial=Seri"],
+                   "toneMap": ["Lot=info"],
+                   "emptyText": "Aktif lot veya seri bakiyesi bulunamadı." } },
+      { "id": "detayKarti", "type": "card", "name": "detayKarti",
+        "props": { "variant": "panel", "title": "{{liste.seciliSatir.trackingCode}}", "description": "{{liste.seciliSatir.stockItemCode}}",
+                   "width": 4 },
+        "children": [
+          { "id": "detayLot", "type": "badge", "name": "detayLot",
+            "props": { "text": "Lot", "variant": "info", "visibleWhen": "liste.seciliSatir.trackingMode == 'Lot'" } },
+          { "id": "detaySeri", "type": "badge", "name": "detaySeri",
+            "props": { "text": "Seri", "variant": "info", "visibleWhen": "liste.seciliSatir.trackingMode == 'Serial'" } },
+          { "id": "detaySuresiGecti", "type": "badge", "name": "detaySuresiGecti",
+            "props": { "text": "Süresi geçti", "variant": "danger", "visibleWhen": "liste.seciliSatir.expiryDate < bugun" } },
+          { "id": "detaySuresiYaklasiyor", "type": "badge", "name": "detaySuresiYaklasiyor",
+            "props": { "text": "Süresi yaklaşıyor", "variant": "warning",
+                       "visibleWhen": "liste.seciliSatir.expiryDate >= bugun && liste.seciliSatir.expiryDate <= bugun + 30" } },
+          { "id": "detayBos", "type": "text", "name": "detayBos",
+            "props": { "text": "Bir lot veya seri seçin; ayrıntıları burada görün.", "visibleWhen": "liste.seciliSatir.trackingCode == null" } },
+          { "id": "detayMiktar", "type": "metric", "name": "detayMiktar",
+            "props": { "title": "Mevcut miktar", "value": "{{liste.seciliSatir.quantityOnHand}}", "format": "number", "width": 12,
+                       "description": "{{liste.seciliSatir.unitCode}}", "icon": "box", "visibleWhen": "liste.seciliSatir.trackingCode != null" } },
+          { "id": "detayBilgi", "type": "contextPanel", "name": "detayBilgi",
+            "props": { "table": "liste", "width": 12, "visibleWhen": "liste.seciliSatir.trackingCode != null",
+                       "fields": ["expiryDate=Son kullanma", "stockItemName=Stok", "warehouseCode=Depo kodu", "warehouseName=Depo",
+                                  "lastMovementDate=Son hareket"] } },
+          { "id": "detayNot", "type": "text", "name": "detayNot",
+            "props": { "text": "Bu ekran salt okunurdur. Stok hareketleri ilgili stok ve ambar ekranından yönetilir.",
+                       "visibleWhen": "liste.seciliSatir.trackingCode != null" } }
+        ] },
+      { "id": "sinirNotu", "type": "alert", "name": "sinirNotu",
+        "props": { "title": "Bakiye yalnız iz kodu bulunan stok hareketlerinden hesaplanır.", "variant": "info", "width": 12, "icon": "shield",
+                   "text": "Geçmişte konum veya iz kodu kaydedilmemiş hareketler geriye dönük atanmaz." } }
+    ],
+    "queries": [
+      { "id": "bakiye", "name": "bakiye", "kind": "read", "operation": "stok.izleme.bakiyeler", "runOn": "load",
+        "parameters": [
+          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
+          { "name": "warehouseId", "binding": "{{suzgec.warehouseId}}", "type": "guid" },
+          { "name": "trackingMode", "binding": "{{suzgec.trackingMode}}", "type": "text" },
+          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
+          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
+      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] }
+    ]
+  }
+}
