@@ -166,3 +166,64 @@
 .pd-panel-tabs button[role=tab]{padding:7px 8px;border:0;border-bottom:2px solid transparent;background:transparent;color:#667085;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
 .pd-panel-tabs button[role=tab].active{color:#5b3df5;border-bottom-color:#5b3df5}
 .pd-panel-tabs .pd-panel-expand{margin-left:auto}
+/* İşlem Çubuğu görünümü (barLook) tuval önizlemesi: varsayılan değerler öznitelik yazmaz, çubuk bugünkü gibi çizilir. */
+.pd-frame .pd-actionbar-wrap .pd-actionbar{background:var(--pd-bar-bg,#fafbfc)}
+.pd-frame .pd-actionbar-wrap .pd-bar-btn.is-primary{background:var(--pd-bar-accent,var(--dl-primary))}
+.pd-actionbar-wrap[data-align=center] .pd-actionbar{justify-content:center}
+.pd-actionbar-wrap[data-align=end] .pd-actionbar{justify-content:flex-end}
+.pd-actionbar-wrap:is([data-align=center],[data-align=end]) .pd-bar-grow{display:none}
+.pd-actionbar-wrap[data-density=compact] .pd-actionbar{gap:0;padding:3px 8px}
+.pd-actionbar-wrap[data-density=wide] .pd-actionbar{gap:6px;padding:10px 16px}
+.pd-actionbar-wrap[data-size=sm] .pd-bar-btn{padding:3px 7px;font-size:11.5px}
+.pd-actionbar-wrap[data-size=lg] .pd-bar-btn{padding:7px 12px;font-size:14px}
+.pd-actionbar-wrap[data-style=solid] .pd-bar-btn:not(.is-primary){background:#eef0f5}
+.pd-actionbar-wrap[data-style=plain] .pd-bar-btn.is-primary{background:transparent;color:var(--pd-bar-accent,var(--dl-primary));font-weight:700}
+.pd-actionbar-wrap[data-style=plain] .pd-bar-btn.is-more{border-color:transparent;background:transparent}
+.pd-actionbar-wrap[data-content=icon] .pd-bar-btn{justify-content:center;min-width:28px;font-size:14px}
+.pd-actionbar-wrap[data-separators=false] .pd-bar-sep{display:none}
+.pd-actionbar-wrap[data-border=none] .pd-actionbar{border-color:transparent}
+.pd-actionbar-wrap[data-border=box] .pd-actionbar{border-color:#cfd5e1;box-shadow:0 1px 3px #18244714}
+.pd-actionbar-wrap[data-radius=sharp] :is(.pd-actionbar,.pd-bar-btn){border-radius:0}
+.pd-actionbar-wrap[data-radius=round] .pd-actionbar{border-radius:12px}
+.pd-actionbar-wrap[data-radius=round] .pd-bar-btn{border-radius:999px}
+/* İşlem Çubuğu penceresi: Görünüm sekmesi ve renk seçici */
+.pd-bar-look{display:grid;gap:10px}
+.pd-bar-look .pd-bar-group{display:grid;gap:10px}
+.pd-bar-look .pd-check small{color:#8a96aa;font-weight:500}
+.pd-bar-color{display:flex;align-items:center;gap:8px}
+.pd-bar-color input[type=color]{width:34px;height:28px;padding:2px;border:1px solid var(--pd-line,#dfe5ef);border-radius:6px;background:#fff}
+.pd-bar-color-value{flex:1;color:#66758c;font:11.5px Consolas,monospace}
+/* Komutlar sekmesi: komut satırları */
+.pd-cmd-rows{display:grid;border:1px solid #e3e1ee;border-radius:10px;overflow:hidden}
+.pd-cmd-row{border-bottom:1px solid #f0eff6}
+.pd-cmd-row:last-child{border-bottom:0}
+.pd-cmd-row.is-open{background:#fcfbff}
+.pd-cmd-row-head{display:flex;align-items:stretch}
+.pd-cmd-eye{display:grid;place-items:center;flex:none;width:38px;border:0;background:transparent;color:#667085;cursor:pointer}
+.pd-cmd-eye:hover:not(:disabled){color:#5132c7;background:#f3f0ff}
+.pd-cmd-eye.is-none{cursor:default}
+.pd-cmd-row.is-hidden .pd-cmd-eye{color:#b42318}
+.pd-cmd-row-main{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 8px;flex:1;min-width:0;padding:8px 10px 8px 2px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.pd-cmd-row-title{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;font-size:12.5px}
+.pd-cmd-row-title .pd-action-key{margin-left:0}
+.pd-cmd-row.is-hidden .pd-cmd-name{text-decoration:line-through;color:#8a96aa}
+.pd-cmd-hidden-note{color:#b42318;font-size:11px;font-weight:600}
+.pd-cmd-chip{padding:0 6px;border:1px solid var(--pd-accent-line,#d9d0fb);border-radius:999px;background:var(--pd-accent-soft,#f3f0ff);color:#5132c7;font-size:10.5px;font-weight:600;line-height:16px}
+.pd-cmd-summary{grid-column:1;overflow:hidden;color:#66758c;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}
+.pd-cmd-chevron{grid-column:2;grid-row:1/span 2;color:#8a96aa}
+.pd-cmd-row-detail{display:grid;gap:10px;padding:4px 12px 12px 38px}
+/* Koşul kural kurucusu */
+.pd-cond-builder{display:grid;gap:6px;min-width:0}
+.pd-cond-rule-wrap{display:grid;gap:6px}
+.pd-cond-rule{display:grid;grid-template-columns:38px minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) 24px;align-items:center;gap:6px}
+.pd-cond-rule :is(select,input){min-width:0}
+.pd-cond-if{color:#45536b;font-size:12px;font-weight:700}
+.pd-cond-joiner{justify-self:start;margin-left:44px}
+.pd-cond-joiner button{min-width:44px}
+.pd-cond-remove{width:24px;height:24px;padding:0;border:0;border-radius:50%;background:transparent;color:#667085;font-size:15px;cursor:pointer}
+.pd-cond-remove:hover:not(:disabled){background:#fdecea;color:#b42318}
+.pd-cond-builder-foot{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.pd-cond-link{padding:0;border:0;background:transparent;color:#5132c7;font-size:12px;font-weight:600;cursor:pointer}
+.pd-cond-link:disabled{color:#a3abba;cursor:default}
+.pd-cond-summary{color:#45536b;font-size:11.5px;font-weight:500}
+.pd-cond-note{color:#8a96aa;font-size:11px}
