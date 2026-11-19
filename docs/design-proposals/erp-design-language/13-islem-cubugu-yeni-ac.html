@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>İşlem çubuğu Yeni ve Aç</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1000px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.panel{width:330px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 4px 18px rgba(15,27,45,.08)}
+.panel h4{margin:0 0 4px;font-size:13px}.panel .h{color:var(--mut);margin:0 0 12px;font-size:11.5px}
+.grp{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+.grp b{display:flex;align-items:center;gap:6px;margin-bottom:8px}.grp b kbd{margin-left:auto;font:11px Consolas;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:8px}.seg span{flex:1;text-align:center;padding:5px 4px;border-right:1px solid var(--line)}.seg span:last-child{border:0}.seg span.on{background:var(--st-soft);color:var(--st);font-weight:700}
+.f{margin-bottom:8px}.f label{display:block;font-weight:600;margin-bottom:4px;font-size:11.5px}
+.in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff}.in.sel::after{content:" ▾";float:right;color:var(--mut)}
+.code{font-family:Consolas,monospace;font-size:11.5px}
+small{display:block;color:var(--mut);margin-top:4px}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:600px}
+.bar{display:flex;gap:6px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px;width:520px}
+.bar span{padding:4px 9px;border-radius:6px;font-weight:600}.bar .p{background:#1f5fd1;color:#fff}
+.gone{width:520px;margin-top:10px;border:1px dashed #e8b4b0;border-radius:10px;padding:10px;color:#b42318;background:#fff7f6}
+</style></head><body>
+<h1>Yeni ve Aç doğrudan İşlem Çubuğu'ndan</h1>
+<p class="sub">Taslak · 2026-11-19 · Bugün "Yeni stok kartı" ve "Stok kartını aç" sayfada ayrı (görünmeyen) düğme bileşenleri; İşlem Çubuğu onları çağırıyor. Öneri: bu iki bileşen kalkar, ne yapılacağı İşlem Çubuğu'nun ayarlarında seçilir.</p>
+<div class="row">
+<div class="panel"><h4>İşlem Çubuğu</h4><p class="h">Yeni ve Aç ne yapsın?</p>
+  <div class="grp"><b>＋ Yeni <kbd>F2</kbd></b>
+    <div class="seg"><span>Kapalı</span><span>Formu temizle</span><span>Pencere aç</span><span class="on">Sayfa aç</span></div>
+    <div class="f"><label>Açılacak sayfa</label><div class="in sel">Yeni stok kartı · @inventory-stock-create</div></div>
+    <div class="f"><label>Nerede</label><div class="seg" style="margin:0"><span class="on">Yeni sekmede</span><span>Bu sekmede</span></div></div>
+  </div>
+  <div class="grp"><b>Aç <kbd>Enter · çift tıklama</kbd></b>
+    <div class="seg"><span>Kapalı</span><span>Pencere aç</span><span class="on">Sayfa aç</span></div>
+    <div class="f"><label>Açılacak sayfa</label><div class="in sel">Yeni stok kartı · @inventory-stock-create</div></div>
+    <div class="f"><label>Hangi liste</label><div class="in sel">liste (Stok kartları)</div><small>Satır seçili değilse Aç soluk görünür.</small></div>
+    <div class="f"><label>Gönderilecek değer</label><div class="in sel"><span class="code">id</span> = stockItem.id</div><small>Açılan sayfada <span class="code">{{sayfa.parametre.id}}</span> olarak okunur.</small></div>
+  </div>
+</div>
+<div>
+  <div class="lbl" style="margin-top:0">Tuvalde</div>
+  <div class="bar"><span class="p">+ Yeni</span><span>Aç</span><span style="color:#98a2b3">Kaydet</span><span>Sil</span><span>Yenile</span></div>
+  <div class="gone">✕ "Yeni stok kartı" ve "Stok kartını aç" düğme blokları tuvalden ve tanımdan kalkar.</div>
+  <p class="note">• Kayıt ekranındaki "kaydedince listeye dön" de aynı yerde seçilir: <b>Kaydettikten sonra</b> → Kapalı / Sayfa aç (liste, bu sekmede, yenile).<br>• Eski tanımlar (düğmeye bağlı Yeni/Aç) çalışmaya devam eder; Studio açınca "İşlem Çubuğu'na taşı" önerir.<br>• ERP davranışı aynı kalır: F2, Enter ve çift tıklama aynı sayfayı açar.</p>
+</div></div>
+</body></html>

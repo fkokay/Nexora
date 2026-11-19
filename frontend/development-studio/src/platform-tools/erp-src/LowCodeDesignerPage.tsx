@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, BarChart3, Database, FilePlus2, GitBranch, LayoutTemplate, Menu, PanelsTopLeft, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ChevronRight, FilePlus2, History, LayoutGrid, LayoutTemplate, List, MoreHorizontal, PanelsTopLeft, Search, Trash2, X } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomMenusPage from "./CustomMenusPage";
 import CustomPagesPage from "./CustomPagesPage";
@@ -8,34 +8,36 @@ import ReportsPage from "./ReportsPage";
 import BusinessRulesPage from "./BusinessRulesPage";
 import WorkflowPage from "./WorkflowPage";
 import CustomDataModelsPage from "./CustomDataModelsPage";
+import {
+  buildCatalogRows, byKind, filterCatalogRows, formatUpdatedAt, historyUrl, kindCounts, kindLabel, moduleOptions, NO_MODULE, paginate, PAGE_SIZE, readCatalogView, statusFilterOptions, writeCatalogView,
+  type CatalogFilter, type CatalogRow, type CatalogView, type CustomPageCatalogItem, type PageCatalogItem, type StatusFilter, type SystemPageItem,
+} from "./pageCatalogModel";
 import "./low-code-designer.css";
 
 type Section = "pages" | "reports" | "workflows" | "rules" | "menus" | "data";
-type PageCatalogItem = { key: string; label: string; fields: { key: string; label: string; defaultVisible: boolean }[] };
-type CustomPageCatalogItem = { id: string; code: string; name: string; description?: string | null; isPublished: boolean; revision: number; updatedAt?: string; screenKey?: string | null };
-type SystemPageItem = { screenKey: string; title: string; description?: string | null; module: string; version: number; stage: "preview" | "ready"; screenViewKeys: string[]; draftId?: string | null; publishedId?: string | null; standardVersion?: number | null; newItemCount: number; canEdit: boolean };
 type SystemPageDraft = { id: string; importNotes?: string[] };
+type RevisionItem = { id: string; revision: number; changeKind: string; createdAt: string };
+type HistoryState = { name: string; loading: boolean; items: RevisionItem[]; error: string };
+type MenuState = { key: string; top: number; right: number };
 type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
-const systemStatus = (page: SystemPageItem) => page.draftId ? { label: "Taslak var", tone: "draft" } : page.publishedId ? { label: "Firma tasarımı yayında", tone: "published" } : { label: "Standart", tone: "standard" };
-type CatalogFilter = "all" | "builtIn" | "custom";
 type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string };
 
-const sections: { id: Section; label: string; description: string; icon: typeof LayoutTemplate }[] = [
-  { id: "pages", label: "Sayfalar", description: "Yeni sayfalar tasarlayın", icon: LayoutTemplate },
-  { id: "reports", label: "Raporlar", description: "Veri kaynakları ve raporları tasarlayın", icon: BarChart3 },
-  { id: "workflows", label: "İş akışları", description: "Düğmelere ve süreçlere akış bağlayın", icon: GitBranch },
-  { id: "rules", label: "İş kuralları", description: "Koşullara bağlı otomasyonları tanımlayın", icon: ShieldCheck },
-  { id: "menus", label: "Menüler", description: "Çalışma alanı gezintisini düzenleyin", icon: Menu },
-  { id: "data", label: "Veri modelleri", description: "Özel kayıt türü ve alanlar tanımlayın", icon: Database },
-];
+// Araçlar arası geçiş artık Studio "Uyarlama araçları" girişinden yapılır (#tool-<id>); burada sekme şeridi yok.
+const sectionTitles: Record<Section, string> = {
+  pages: "Sayfa tasarımcısı", reports: "Rapor oluşturucu", workflows: "İş akışları", rules: "İş kuralları", menus: "Özel menüler", data: "Veri modelleri",
+};
 
 const sectionFor = (id?: string): Section =>
   id === "custom-forms" || id === "screen-views" || id === "custom-lists" ? "pages" : id === "reports" ? "reports" : id === "workflows" ? "workflows" : id === "business-rules" ? "rules" : id === "custom-menus" ? "menus" : id === "custom-data" ? "data" : "pages";
 
+const kindFilters: { value: CatalogFilter; label: string }[] = [
+  { value: "all", label: "Tümü" }, { value: "custom", label: "Özel" }, { value: "system", label: "Sistem" }, { value: "builtIn", label: "Yerleşik" },
+];
+
 export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin }: Props) {
-  const [active, setActive] = useState<Section>(() => sectionFor(initialSection));
+  const active = sectionFor(initialSection);
   const [editingCustomPage, setEditingCustomPage] = useState<EditingCustomPage | "new" | null>(null);
   const [editingScreenKey, setEditingScreenKey] = useState<string | null>(null);
   const [pageCatalog, setPageCatalog] = useState<PageCatalogItem[]>([]);
@@ -46,10 +48,16 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   const [pageCatalogError, setPageCatalogError] = useState("");
   const [pageSearch, setPageSearch] = useState("");
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [moduleFilter, setModuleFilter] = useState("all");
+  const [view, setView] = useState<CatalogView>(() => readCatalogView());
+  const [page, setPage] = useState(1);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [historyView, setHistoryView] = useState<HistoryState | null>(null);
+  const menuKey = menu?.key ?? null;
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [canDeletePages, setCanDeletePages] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  useEffect(() => { setActive(sectionFor(initialSection)); }, [initialSection]);
   useEffect(() => {
     let current = true;
     void authenticatedFetch("/api/low-code/capabilities", token)
@@ -80,29 +88,55 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         if (!current) return;
         if (screensResult.status === "fulfilled") { setPageCatalog(screensResult.value); setPageCatalogError(""); }
         else setPageCatalogError((screensResult.reason as Error).message);
-        setCustomPageCatalog(customPagesResult.status === "fulfilled" ? customPagesResult.value.filter((page) => !page.screenKey) : []);
-        // Sistem sayfaları alınamazsa kartlar bugünkü gibi kalır; hata gösterilmez.
+        setCustomPageCatalog(customPagesResult.status === "fulfilled" ? customPagesResult.value.filter((item) => !item.screenKey) : []);
+        // Sistem sayfaları alınamazsa liste yerleşik ve özel sayfalarla kalır; hata gösterilmez.
         setSystemPages(systemPagesResult.status === "fulfilled" && Array.isArray(systemPagesResult.value) ? systemPagesResult.value : []);
       })
       .finally(() => { if (current) setPageCatalogLoading(false); });
     return () => { current = false; };
   }, [active, editingScreenKey, editingCustomPage, token, catalogVersion]);
-  const deleteCustomPage = async (page: CustomPageCatalogItem) => {
-    if (!window.confirm(`“${page.name}” sayfası silinsin mi? Yayımlanmışsa ERP'den de kaldırılır.`)) return;
-    setDeletingId(page.id); setPageCatalogError("");
+  // ⋯ menüsü dışarı tıklanınca veya Esc ile kapanır.
+  useEffect(() => {
+    if (!menuKey) return;
+    // Menü sabit konumlu (tablo kaydırma kabına kırpılmaz); kaydırma veya yeniden boyutlanmada kapanır.
+    const close = (event: MouseEvent) => { if (!(event.target instanceof Element) || !event.target.closest(".lcp-row-menu, .lcp-menu")) setMenu(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    const dismiss = () => setMenu(null);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); window.removeEventListener("scroll", dismiss, true); window.removeEventListener("resize", dismiss); };
+  }, [menuKey]);
+  useEffect(() => { setPage(1); }, [pageSearch, catalogFilter, statusFilter, moduleFilter]);
+
+  const showHistory = async (row: CatalogRow) => {
+    const url = historyUrl(row);
+    if (!url) return;
+    setHistoryView({ name: row.name, loading: true, items: [], error: "" });
     try {
-      const response = await authenticatedFetch(`/api/custom-pages/${page.id}`, token, { method: "DELETE" });
+      const response = await authenticatedFetch(url, token);
+      if (!response.ok) throw new Error(`Geçmiş yüklenemedi (${response.status}).`);
+      const items = await response.json() as RevisionItem[];
+      setHistoryView((value) => value && { ...value, loading: false, items: Array.isArray(items) ? items : [] });
+    } catch (e) { setHistoryView((value) => value && { ...value, loading: false, error: (e as Error).message }); }
+  };
+  const deleteCustomPage = async (item: CustomPageCatalogItem) => {
+    if (!window.confirm(`“${item.name}” sayfası silinsin mi? Yayımlanmışsa ERP'den de kaldırılır.`)) return;
+    setDeletingId(item.id); setPageCatalogError("");
+    try {
+      const response = await authenticatedFetch(`/api/custom-pages/${item.id}`, token, { method: "DELETE" });
       if (!response.ok) throw new Error(`Sayfa silinemedi (${response.status}).`);
       setCatalogVersion((value) => value + 1);
     } catch (e) { setPageCatalogError((e as Error).message); }
     finally { setDeletingId(null); }
   };
-  const removeSystemFirmDesign = async (page: SystemPageItem) => {
-    if (!page.publishedId || !page.canEdit) return;
+  const removeSystemFirmDesign = async (system: SystemPageItem) => {
+    if (!system.publishedId || !system.canEdit) return;
     if (!window.confirm(SYSTEM_PAGE_REMOVE_CONFIRM)) return;
-    setDeletingId(page.publishedId); setPageCatalogError("");
+    setDeletingId(system.publishedId); setPageCatalogError("");
     try {
-      const response = await authenticatedFetch(`/api/custom-pages/${page.publishedId}`, token, { method: "DELETE" });
+      const response = await authenticatedFetch(`/api/custom-pages/${system.publishedId}`, token, { method: "DELETE" });
       if (!response.ok) {
         const body = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string } | null;
         throw new Error(body?.error || body?.detail || body?.title || `Firma tasarımı kaldırılamadı (${response.status}).`);
@@ -111,104 +145,150 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     } catch (e) { setPageCatalogError((e as Error).message); }
     finally { setDeletingId(null); }
   };
-  const openSystemPage = async (page: SystemPageItem) => {
-    if (!page.canEdit) return;
-    setOpeningSystemKey(page.screenKey); setPageCatalogError("");
+  const openSystemPage = async (system: SystemPageItem) => {
+    if (!system.canEdit) return;
+    setOpeningSystemKey(system.screenKey); setPageCatalogError("");
     try {
-      const response = await authenticatedFetch(`/api/system-pages/${encodeURIComponent(page.screenKey)}/draft`, token, { method: "POST" });
+      const response = await authenticatedFetch(`/api/system-pages/${encodeURIComponent(system.screenKey)}/draft`, token, { method: "POST" });
       if (!response.ok) {
         const body = await response.json().catch(() => null) as { error?: string; detail?: string; title?: string } | null;
         throw new Error(body?.error || body?.detail || body?.title || `Sistem sayfası açılamadı (${response.status}).`);
       }
       const detail = await response.json() as SystemPageDraft;
-      setEditingCustomPage({ id: detail.id, systemScreenKey: page.screenKey, importNotes: Array.isArray(detail.importNotes) ? detail.importNotes : [] });
+      setEditingCustomPage({ id: detail.id, systemScreenKey: system.screenKey, importNotes: Array.isArray(detail.importNotes) ? detail.importNotes : [] });
     } catch (e) { setPageCatalogError((e as Error).message); }
     finally { setOpeningSystemKey(null); }
   };
-  const systemPageFor = (screenKey: string) => systemPages.find((page) => page.screenViewKeys.includes(screenKey));
-  const unmatchedSystemPages = systemPages.filter((page) => !page.screenViewKeys.some((key) => pageCatalog.some((screen) => screen.key === key)));
-  const builtInCount = pageCatalog.length + unmatchedSystemPages.length;
-  const query = pageSearch.trim().toLocaleLowerCase("tr-TR");
-  const filteredPages = pageCatalog.filter((page) => page.label.toLocaleLowerCase("tr-TR").includes(query));
-  const filteredSystemPages = unmatchedSystemPages.filter((page) => page.title.toLocaleLowerCase("tr-TR").includes(query) || page.screenKey.includes(query));
-  const filteredCustomPages = customPageCatalog.filter((page) => page.name.toLocaleLowerCase("tr-TR").includes(query) || page.code.toLocaleLowerCase("tr-TR").includes(query));
+
+  const allRows = useMemo(() => buildCatalogRows(pageCatalog, customPageCatalog, systemPages), [pageCatalog, customPageCatalog, systemPages]);
+  const modules = useMemo(() => moduleOptions(allRows), [allRows]);
+  const hasModuleless = allRows.some((row) => !row.module);
+  const filtered = filterCatalogRows(allRows, { search: pageSearch, status: statusFilter, module: moduleFilter });
+  const counts = kindCounts(filtered);
+  const visibleRows = byKind(filtered, catalogFilter);
+  const paged = paginate(visibleRows, page, PAGE_SIZE);
+  const anyFilter = !!pageSearch.trim() || statusFilter !== "all" || moduleFilter !== "all";
   const editingPage = active === "pages" && !!editingCustomPage;
-  const showBuiltIn = catalogFilter !== "custom";
-  const showCustom = catalogFilter !== "builtIn";
-  const visibleCount = (showBuiltIn ? filteredPages.length + filteredSystemPages.length : 0) + (showCustom ? filteredCustomPages.length : 0);
-  const renderSystemCard = (system: SystemPageItem, title: string, key: string) => {
-    const status = systemStatus(system);
-    return <article key={key} className="lcp-card is-system">
-      <div className="lcp-card-top"><span className="lcp-card-icon system"><LayoutTemplate size={17}/></span><span className="lcp-status system">Sistem sayfası</span></div>
-      <b>{title}</b>
-      <small>{system.module} · @{system.screenKey}</small>
-      <div className="lcp-tags"><span className={`lcp-status ${status.tone}`}>{status.label}</span>{system.stage === "preview" && <span className="lcp-status preview">Önizleme</span>}{system.newItemCount > 0 && <span className="lcp-new-tag">{system.newItemCount} yeni</span>}</div>
-      {system.description && <p>{system.description}</p>}
-      <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={!system.canEdit || openingSystemKey !== null} title={system.canEdit ? undefined : SYSTEM_PAGE_ADMIN_ONLY} onClick={() => void openSystemPage(system)}>{openingSystemKey === system.screenKey ? "Açılıyor…" : "Tasarımcıda aç"}</button>{system.publishedId && system.canEdit && canDeletePages && <button type="button" className="lcp-delete" aria-label={`${title} için firma tasarımını kaldır`} title="Firma tasarımını kaldır" disabled={deletingId === system.publishedId} onClick={() => void removeSystemFirmDesign(system)}><Trash2 size={14}/></button>}</div>
-    </article>;
+
+  const changeView = (next: CatalogView) => { setView(next); writeCatalogView(next); };
+  type RowAction = { label: string; disabled: boolean; title?: string; run: () => void };
+  const primaryAction = (row: CatalogRow): RowAction => {
+    if (row.custom) { const item = row.custom; return { label: "Tasarımcıda aç", disabled: false, run: () => setEditingCustomPage(item) }; }
+    if (row.system) {
+      const system = row.system;
+      return { label: openingSystemKey === system.screenKey ? "Açılıyor…" : "Tasarımcıda aç", disabled: !system.canEdit || openingSystemKey !== null, title: system.canEdit ? undefined : SYSTEM_PAGE_ADMIN_ONLY, run: () => void openSystemPage(system) };
+    }
+    const key = row.screen?.key ?? "";
+    return { label: "Görünümü düzenle", disabled: !key, run: () => setEditingScreenKey(key) };
   };
+  // Katalog düzeyinde desteklenen ikincil eylemler: geçmiş (salt okunur), sil / firma tasarımını kaldır (yetkiye bağlı).
+  // Önizle ve Kopyala için katalogdan çağrılabilecek bir API yok; bunlar tasarımcının içinde kalır.
+  const menuActions = (row: CatalogRow): (RowAction & { danger?: boolean })[] => {
+    const actions: (RowAction & { danger?: boolean })[] = [];
+    if (historyUrl(row)) actions.push({ label: "Geçmiş", disabled: false, run: () => void showHistory(row) });
+    if (row.custom && canDeletePages) { const item = row.custom; actions.push({ label: "Sil", danger: true, disabled: deletingId === item.id, run: () => void deleteCustomPage(item) }); }
+    if (row.system?.publishedId && row.system.canEdit && canDeletePages) { const system = row.system; actions.push({ label: "Firma tasarımını kaldır", danger: true, disabled: deletingId === system.publishedId, run: () => void removeSystemFirmDesign(system) }); }
+    return actions;
+  };
+  const renderMenu = (row: CatalogRow) => {
+    const actions = menuActions(row);
+    if (!actions.length) return null;
+    const open = menuKey === row.key;
+    return <div className="lcp-row-menu" onClick={(event) => event.stopPropagation()}>
+      <button type="button" className="lcp-more" aria-label={`${row.name} için diğer eylemler`} aria-haspopup="menu" aria-expanded={open}
+        onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu(open ? null : { key: row.key, top: rect.bottom + 4, right: window.innerWidth - rect.right }); }}><MoreHorizontal size={15}/></button>
+      {open && menu && <div className="lcp-menu" role="menu" style={{ top: menu.top, right: menu.right }}>{actions.map((action) => <button type="button" role="menuitem" key={action.label} className={action.danger ? "danger" : ""} disabled={action.disabled} onClick={() => { setMenu(null); action.run(); }}>{action.danger ? <Trash2 size={13}/> : <History size={13}/>}{action.label}</button>)}</div>}
+    </div>;
+  };
+  const statusPills = (row: CatalogRow) => <span className="lcp-tags">
+    {row.statuses.map((status) => status.tone === "view" ? <span key={status.label} className="lcp-view-note">{status.label}</span> : <span key={status.label} className={`lcp-status ${status.tone}`}>{status.label}</span>)}
+    {row.newItemCount > 0 && <span className="lcp-new-tag">{row.newItemCount} yeni</span>}
+  </span>;
+  const rowIcon = (row: CatalogRow) => <span className={`lcp-card-icon ${row.kind === "custom" ? "custom" : row.kind === "system" ? "system" : ""}`}>{row.kind === "custom" ? <PanelsTopLeft size={16}/> : <LayoutTemplate size={16}/>}</span>;
+
+  const renderTable = () => <div className="lcp-table-wrap"><table className="lcp-table">
+    <thead><tr><th>Sayfa</th><th>Tür</th><th>Durum</th><th>Modül</th><th>Sürüm</th><th>Son değişiklik</th><th><span className="lcp-sr">Eylemler</span></th></tr></thead>
+    <tbody>{paged.items.map((row) => {
+      const primary = primaryAction(row);
+      return <tr key={row.key} className={primary.disabled ? "is-locked" : ""} title={primary.title} onClick={() => { if (!primary.disabled) primary.run(); }}>
+        <td><div className="lcp-name">{rowIcon(row)}<span><b>{row.name}</b><small>{row.code}</small></span></div></td>
+        <td><span className={`lcp-status ${row.kind === "system" ? "system" : "builtin"}`}>{kindLabel[row.kind]}</span></td>
+        <td>{statusPills(row)}</td>
+        <td>{row.module ?? "—"}</td>
+        <td title={row.versionIsStandard ? "Nexora standart ekran sürümü" : undefined}>{row.version != null ? `v${row.version}` : "—"}</td>
+        <td className="lcp-muted">{formatUpdatedAt(row.updatedAt)}</td>
+        <td><div className="lcp-row-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className={`lcp-open ${row.kind === "builtIn" ? "is-secondary" : ""}`} disabled={primary.disabled} title={primary.title} onClick={primary.run}>{primary.label}</button>
+          {renderMenu(row)}
+        </div></td>
+      </tr>;
+    })}</tbody>
+  </table></div>;
+
+  const renderCards = () => <div className="lcp-grid">{paged.items.map((row) => {
+    const primary = primaryAction(row);
+    return <article key={row.key} className={`lcp-card ${row.kind === "system" ? "is-system" : ""}`}>
+      <div className="lcp-card-top">{rowIcon(row)}<span className={`lcp-status ${row.kind === "system" ? "system" : "builtin"}`}>{kindLabel[row.kind]}</span></div>
+      <b>{row.name}</b>
+      <small>{[row.module, row.code, row.version != null ? `v${row.version}` : null, row.updatedAt ? formatUpdatedAt(row.updatedAt) : null].filter(Boolean).join(" · ")}</small>
+      {statusPills(row)}
+      {row.description && <p>{row.description}</p>}
+      <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={primary.disabled} title={primary.title} onClick={primary.run}>{primary.label}</button>{renderMenu(row)}</div>
+    </article>;
+  })}</div>;
+
   return (
     <main className={`low-code-designer ${editingPage ? "is-designing" : ""}`}>
-      {!editingPage && <header className="low-code-designer-header">
-        <div className="low-code-designer-mark"><LayoutTemplate size={24} /></div>
-        <div className="low-code-designer-title">
-          <span>LOW-CODE STUDIO</span>
-          <h1>{active === "pages" ? "Sayfa Tasarımcısı" : sections.find((item) => item.id === active)?.label ?? "Sayfa Tasarımcısı"}</h1>
-          <p>{active === "pages" ? "Özel sayfalar oluşturun, ızgaralar ekleyin ve veri kolonlarını düzenleyin." : sections.find((item) => item.id === active)?.description}</p>
+      {!editingPage && <header className="lcd-top">
+        <div className="lcd-top-title">
+          <a className="lcd-crumb" href="#adaptation">Uyarlama araçları <ChevronRight size={12} aria-hidden="true"/></a>
+          <h1>{sectionTitles[active]}</h1>
         </div>
-        <div className="low-code-designer-state"><i /> Taslaklar güvenle kaydedilir</div>
+        {active === "pages" && <span className="lcd-save-state"><i aria-hidden="true"/> Taslaklar güvenle kaydedilir</span>}
+        {active === "pages" && !editingScreenKey && <button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni sayfa</button>}
       </header>}
 
-      {!editingPage && <nav className="low-code-designer-tabs" aria-label="Sayfa tasarım araçları">
-        {sections.map((section) => {
-          const Icon = section.icon;
-          return <button type="button" key={section.id} className={active === section.id ? "active" : ""} aria-current={active === section.id ? "page" : undefined} onClick={() => setActive(section.id)}>
-            <Icon size={17} /><span><b>{section.label}</b><small>{section.description}</small></span>
-          </button>;
-        })}
-      </nav>}
-
-      <section className="low-code-designer-content" aria-label={sections.find((item) => item.id === active)?.label}>
+      <section className="low-code-designer-content" aria-label={sectionTitles[active]}>
         {active === "pages" && <div className="low-code-pages-shell">
           {editingCustomPage ? <CustomPagesPage key={editingCustomPage === "new" ? "new-custom-page" : editingCustomPage.id} token={token} role={role} platformOrigin={platformOrigin} initialPageId={editingCustomPage === "new" ? null : editingCustomPage.id} initialCreate={editingCustomPage === "new"}
             systemScreenKey={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.systemScreenKey : undefined}
             importNotes={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.importNotes : undefined}
             embedded onBack={() => setEditingCustomPage(null)} />
           : editingScreenKey ? <>
-            <div className="low-code-pages-actions"><div><h2>{pageCatalog.find((page) => page.key === editingScreenKey)?.label || "Sayfa düzenle"}</h2><p>Başlık, filtreleme ve grid widget’larını düzenleyip canlı önizlemede inceleyin.</p></div><button type="button" onClick={() => setEditingScreenKey(null)}><ArrowLeft size={15}/>Sayfa listesine dön</button></div>
+            <div className="low-code-pages-actions"><div><h2>{pageCatalog.find((item) => item.key === editingScreenKey)?.label || "Sayfa düzenle"}</h2><p>Başlık, filtreleme ve grid widget’larını düzenleyip canlı önizlemede inceleyin.</p></div><button type="button" onClick={() => setEditingScreenKey(null)}><ArrowLeft size={15}/>Sayfa listesine dön</button></div>
             <BuiltInScreenViewsPage token={token} role={role} initialScreenKey={editingScreenKey} showPageSelector={false} />
-          </> : <section className="lcp-catalog" aria-label="Mevcut sayfalar">
-            <div className="lcp-catalog-head">
-              <div><h2>Sayfalar</h2><p>{builtInCount} yerleşik · {customPageCatalog.length} özel sayfa. Bir sayfayı açıp tasarımcıda düzenleyin.</p></div>
-              <button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni özel sayfa</button>
-            </div>
-            <div className="lcp-catalog-tools">
-              <div className="lcp-filter" role="group" aria-label="Sayfa türü">
-                {([["all", "Tümü", builtInCount + customPageCatalog.length], ["custom", "Özel", customPageCatalog.length], ["builtIn", "Yerleşik", builtInCount]] as const).map(([value, label, count]) => <button type="button" key={value} className={catalogFilter === value ? "active" : ""} aria-pressed={catalogFilter === value} onClick={() => setCatalogFilter(value)}>{label}<span>{count}</span></button>)}
-              </div>
+          </> : <section className="lcp-catalog lcp-catalog-v2" aria-label="Sayfalar">
+            <div className="lcp-toolbar">
               <label className="lcp-search"><Search size={15}/><input value={pageSearch} onChange={(event) => setPageSearch(event.target.value)} placeholder="Sayfa adı veya kodu" aria-label="Sayfalarda ara" /></label>
+              <div className="lcp-filter" role="group" aria-label="Sayfa türü">
+                {kindFilters.map(({ value, label }) => <button type="button" key={value} className={catalogFilter === value ? "active" : ""} aria-pressed={catalogFilter === value} onClick={() => setCatalogFilter(value)}>{label}<span>{counts[value]}</span></button>)}
+              </div>
+              <label className="lcp-select"><span>Durum</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} aria-label="Duruma göre süz">
+                {statusFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select></label>
+              <label className="lcp-select"><span>Modül</span><select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} aria-label="Modüle göre süz">
+                <option value="all">Tümü</option>
+                {modules.map((module) => <option key={module} value={module}>{module}</option>)}
+                {hasModuleless && <option value={NO_MODULE}>Modülsüz</option>}
+              </select></label>
+              <div className="lcp-filter lcp-view-toggle" role="group" aria-label="Görünüm">
+                <button type="button" className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => changeView("list")}><List size={14}/>Liste</button>
+                <button type="button" className={view === "cards" ? "active" : ""} aria-pressed={view === "cards"} onClick={() => changeView("cards")}><LayoutGrid size={14}/>Kart</button>
+              </div>
             </div>
             {pageCatalogError && <p className="lcp-state error" role="alert">{pageCatalogError}</p>}
-            {pageCatalogLoading ? <p className="lcp-state">Sayfalar yükleniyor…</p> : visibleCount === 0 ? <div className="lcp-state">
-              {query ? <p>“{pageSearch}” ile eşleşen sayfa yok.</p> : catalogFilter === "custom" ? <><b>İlk özel sayfanızı oluşturun</b><p>Şablonla başlayıp bileşenleri sürükleyerek sayfanızı tasarlayın.</p><button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni özel sayfa</button></> : <p>Gösterilecek sayfa yok.</p>}
+            {pageCatalogLoading ? <p className="lcp-state">Sayfalar yükleniyor…</p> : visibleRows.length === 0 ? <div className="lcp-state">
+              {anyFilter ? <p>{pageSearch.trim() ? `“${pageSearch}” ile eşleşen sayfa yok.` : "Süzgeçlerle eşleşen sayfa yok."}</p> : catalogFilter === "custom" ? <><b>İlk özel sayfanızı oluşturun</b><p>Şablonla başlayıp bileşenleri sürükleyerek sayfanızı tasarlayın.</p><button type="button" className="lcp-primary" onClick={() => setEditingCustomPage("new")}><FilePlus2 size={15}/>Yeni sayfa</button></> : <p>Gösterilecek sayfa yok.</p>}
             </div> : <>
-              {showCustom && filteredCustomPages.length > 0 && <><h3 className="lcp-group-title">Özel sayfalar</h3><div className="lcp-grid">{filteredCustomPages.map((page) => <article key={`custom-${page.id}`} className="lcp-card">
-                <div className="lcp-card-top"><span className="lcp-card-icon custom"><PanelsTopLeft size={17}/></span><span className={`lcp-status ${page.isPublished ? "published" : "draft"}`}>{page.isPublished ? "Yayında" : "Taslak"}</span></div>
-                <b>{page.name}</b>
-                <small>/{page.code} · v{page.revision}{page.updatedAt ? ` · ${new Date(page.updatedAt).toLocaleDateString("tr-TR")}` : ""}</small>
-                {page.description && <p>{page.description}</p>}
-                <div className="lcp-card-actions"><button type="button" className="lcp-open" onClick={() => setEditingCustomPage(page)}>Tasarımcıda aç</button>{canDeletePages && <button type="button" className="lcp-delete" aria-label={`${page.name} sayfasını sil`} title="Sayfayı sil" disabled={deletingId === page.id} onClick={() => void deleteCustomPage(page)}><Trash2 size={14}/></button>}</div>
-              </article>)}</div></>}
-              {showBuiltIn && filteredPages.length + filteredSystemPages.length > 0 && <><h3 className="lcp-group-title">Yerleşik sayfalar</h3><div className="lcp-grid">{filteredPages.map((page) => {
-                const system = systemPageFor(page.key);
-                const title = page.key === "customers" ? "Cari Hesaplar" : page.label;
-                return system ? renderSystemCard(system, title, `screen-${page.key}`) : <article key={`screen-${page.key}`} className="lcp-card">
-                <div className="lcp-card-top"><span className="lcp-card-icon"><LayoutTemplate size={17}/></span><span className="lcp-status builtin">Yerleşik</span></div>
-                <b>{title}</b>
-                <small>{page.fields.length} düzenlenebilir alan</small>
-                <div className="lcp-card-actions"><button type="button" className="lcp-open" onClick={() => setEditingScreenKey(page.key)}>Görünümü düzenle</button></div>
-              </article>;
-              })}{filteredSystemPages.map((system) => renderSystemCard(system, system.title, `system-${system.screenKey}`))}</div></>}
+              {view === "list" ? renderTable() : renderCards()}
+              <div className="lcp-pager">
+                <span>{paged.from}–{paged.to} / {visibleRows.length}</span>
+                {paged.pageCount > 1 && <span className="lcp-pager-nav">
+                  <button type="button" disabled={paged.page <= 1} onClick={() => setPage(paged.page - 1)}>‹ Önceki</button>
+                  <span>Sayfa {paged.page} / {paged.pageCount}</span>
+                  <button type="button" disabled={paged.page >= paged.pageCount} onClick={() => setPage(paged.page + 1)}>Sonraki ›</button>
+                </span>}
+              </div>
             </>}
           </section>}
         </div>}
@@ -218,6 +298,14 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
         {active === "menus" && <CustomMenusPage token={token} role={role} />}
         {active === "data" && <CustomDataModelsPage token={token} />}
       </section>
+      {historyView && <div className="lcp-history-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryView(null); }}>
+        <section className="lcp-history" role="dialog" aria-modal="true" aria-label={`${historyView.name} geçmişi`}>
+          <header><div><b>Geçmiş</b><small>{historyView.name}</small></div><button type="button" aria-label="Kapat" onClick={() => setHistoryView(null)}><X size={15}/></button></header>
+          {historyView.loading ? <p className="lcp-state">Geçmiş yükleniyor…</p> : historyView.error ? <p className="lcp-state error" role="alert">{historyView.error}</p> : historyView.items.length === 0 ? <p className="lcp-state">Kayıtlı sürüm yok.</p>
+            : <ol>{historyView.items.map((item) => <li key={item.id}><b>v{item.revision}</b><span>{item.changeKind}</span><small>{new Date(item.createdAt).toLocaleString("tr-TR")}</small></li>)}</ol>}
+          <p className="lcp-history-note">Bir sürümü geri yüklemek için sayfayı tasarımcıda açıp Geçmiş panelini kullanın.</p>
+        </section>
+      </div>}
     </main>
   );
 }

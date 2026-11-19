@@ -57,6 +57,9 @@ internal static class TenantCustomPageSchema
       "href", "pageKey", "pageCode", "params", "queryText",
       // actionBar Yeni / Aç / after-save run a page button (e.g. open the record screen) instead of a record dialog.
       "newButton", "openButton", "afterSaveButton",
+      // actionBar Yeni / Aç / kaydettikten sonra as flat values (action, page, target, list, values to send).
+      "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
+      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh",
       // A heading that replaces the page header title while it is visible (e.g. "Stok kartı {{kart.rows[0].code}}").
       "pageTitle",
       // Süzgeç alanı (filterBar): tabloya bağlı arama kutusu ve sütun süzgeçleri (`table` bağlam paneliyle ortaktır).
@@ -64,12 +67,25 @@ internal static class TenantCustomPageSchema
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton" };
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
+      "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
+      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh" };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
     private const int MaxTitleCountLength = 200;
-    private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal) { "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert" };
+    // Gösterge simgeleri; Studio (page-designer/metricIcons.ts) ve ERP (custom-page/metricIcons.ts) aynı anahtarları çizer,
+    // erp-web metricIcons.test.ts üçünü karşılaştırır. İlk sekiz anahtar kayıtlı sayfalar için korunur.
+    private static readonly HashSet<string> MetricIcons = new(StringComparer.Ordinal)
+    {
+        "box", "users", "receipt", "wallet", "chart", "clock", "check", "alert",
+        "package", "boxes", "warehouse", "truck", "factory", "layers", "barcode", "scan", "tag", "shopping-cart", "shopping-bag",
+        "store", "building", "building-2", "landmark", "banknote", "credit-card", "coins", "piggy-bank", "calculator", "percent",
+        "trending-up", "trending-down", "line-chart", "pie-chart", "activity", "target", "calendar", "calendar-clock", "hourglass",
+        "timer", "file-text", "files", "clipboard-list", "inbox", "archive", "mail", "phone", "user", "user-check", "briefcase",
+        "handshake", "globe", "map-pin", "settings", "wrench", "shield", "lock", "bell", "star", "flag", "info", "x-circle", "ban",
+        "refresh-cw",
+    };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
     private const int MaxTotals = 12;
@@ -479,9 +495,9 @@ internal static class TenantCustomPageSchema
             { error = "Bileşen özellikleri izin verilen statik alanlarla sınırlıdır."; return false; }
             foreach (var prop in props.EnumerateObject())
             {
-                if (prop.Name == "params")
+                if (prop.Name is "params" or "openParams")
                 {
-                    if (!context.V2 || !ValidatePageParams(prop.Value, typeText, out error)) { error ??= "'params' geçersiz."; return false; }
+                    if (!context.V2 || !ValidatePageParams(prop.Value, typeText, prop.Name, out error)) { error ??= $"'{prop.Name}' geçersiz."; return false; }
                     continue;
                 }
                 if (prop.Name is "css" or "javascript")
@@ -595,7 +611,7 @@ internal static class TenantCustomPageSchema
         error = null;
         if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
             && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
-        { error = "Gösterge 'icon' değeri box, users, receipt, wallet, chart, clock, check veya alert olmalıdır."; return false; }
+        { error = "Gösterge 'icon' değeri tanımlı simgelerden biri olmalıdır (ör. box, users, wallet, warehouse, truck)."; return false; }
         // An alert's `icon`/`value` were never constrained, so saved pages keep validating: the ERP draws a status strip
         // only for the known strip icons (shield, shieldAlert, check, alert, info) and Studio offers only those.
         if (props.TryGetProperty("trendQuery", out var trendQuery)
@@ -754,7 +770,7 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
-        return ValidateSaveQueries(props, context, out error);
+        return ValidateBarCommands(props, context, out error) && ValidateSaveQueries(props, context, out error);
     }
 
     /// <summary>saveQuery (actionBar, dialog) and deleteQuery (actionBar): kinds; the ids are kept for the Faz B grid-iteration rule.</summary>
@@ -794,6 +810,8 @@ internal static class TenantCustomPageSchema
             if (expected == "actionButton" && !(context.ButtonActionTypes.TryGetValue(id, out var buttonAction)
                 && buttonAction is "query" or "sequence" or "openDialog" or "workflow" or "link" or "erpPage" or "page"))
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' düğmesinin bir eylemi olmalıdır."; return false; }
+            if (expected == "namedQueryTable" && !context.NamedQueryTables.Contains(id))
+            { error = $"İşlem Çubuğu '{property}' özelliği sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {id}."; return false; }
             if (expected == "queryTable" && !context.QueryTables.Contains(id))
             { error = $"İşlem Çubuğu 'exportTable' özelliği sorguya bağlı bir veri listesi olmalıdır: {id}."; return false; }
         }
@@ -931,12 +949,16 @@ internal static class TenantCustomPageSchema
         return !literal.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c == '\\');
     }
 
-    /// <summary><c>params</c> of a page action: up to 6 unique <c>ad=değer</c> items whose value may contain bindings.</summary>
-    private static bool ValidatePageParams(JsonElement value, string typeText, out string? error)
+    /// <summary>
+    /// <c>params</c> of a page action (button) or <c>openParams</c> of the actionBar's Aç: up to 6 unique <c>ad=değer</c>
+    /// items whose value may contain bindings.
+    /// </summary>
+    private static bool ValidatePageParams(JsonElement value, string typeText, string property, out string? error)
     {
         error = null;
-        const string format = "'params' en fazla 6 adet ad=değer öğesi içermelidir; ad küçük harfle başlar, en fazla 32 harf/rakamdır ve benzersizdir.";
-        if (typeText != "button") return Fail("'params' yalnız sayfa açan (page) eylemli düğmede kullanılabilir.", out error);
+        var format = $"'{property}' en fazla 6 adet ad=değer öğesi içermelidir; ad küçük harfle başlar, en fazla 32 harf/rakamdır ve benzersizdir.";
+        if (property == "params" && typeText != "button") return Fail("'params' yalnız sayfa açan (page) eylemli düğmede kullanılabilir.", out error);
+        if (property == "openParams" && typeText != "actionBar") return Fail("'openParams' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir.", out error);
         if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaxPageParams) return Fail(format, out error);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var item in value.EnumerateArray())
@@ -981,10 +1003,66 @@ internal static class TenantCustomPageSchema
             default:
                 var pageCode = StringOf(props, "pageCode");
                 if (string.IsNullOrEmpty(pageCode)) return Fail("Sayfa düğmesi için 'pageCode' gerekli.", out error);
-                var known = TenantCustomPageEndpoints.ValidCode(pageCode)
-                    || SystemPageCodes.ScreenKeyOf(pageCode) is { } screenKey && StandardMenuEndpoints.PageKeys.Contains(screenKey);
-                if (!known) return Fail($"'pageCode' bir özel sayfa kodu ya da @ekran-anahtarı olmalıdır: {pageCode}", out error);
+                if (!KnownPageCode(pageCode)) return Fail($"'pageCode' bir özel sayfa kodu ya da @ekran-anahtarı olmalıdır: {pageCode}", out error);
                 break;
+        }
+        return true;
+    }
+
+    /// <summary>A page a "Sayfa aç" action may open: a custom page code or <c>@ekran-anahtarı</c> of a system screen.</summary>
+    private static bool KnownPageCode(string pageCode) => TenantCustomPageEndpoints.ValidCode(pageCode)
+        || SystemPageCodes.ScreenKeyOf(pageCode) is { } screenKey && StandardMenuEndpoints.PageKeys.Contains(screenKey);
+
+    /// <summary>One actionBar command (Yeni, Aç, kaydettikten sonra) chosen by flat props; see <see cref="ValidateBarCommands"/>.</summary>
+    private sealed record BarCommand(string Label, string Action, string LegacyButton, string[] Choices, string PageCode, string Target, string[] PageOnly);
+
+    private static readonly BarCommand[] BarCommands =
+    [
+        new("Yeni", "newAction", "newButton", ["off", "clear", "dialog", "page"], "newPageCode", "newTarget", ["newPageCode", "newTarget"]),
+        new("Aç", "openAction", "openButton", ["off", "dialog", "page"], "openPageCode", "openTarget", ["openPageCode", "openTarget", "openTable", "openParams"]),
+        new("Kaydettikten sonra", "afterSaveAction", "afterSaveButton", ["off", "page"], "afterSavePageCode", "afterSaveTarget", ["afterSavePageCode", "afterSaveTarget", "afterSaveRefresh"]),
+    ];
+
+    /// <summary>
+    /// Yeni / Aç / kaydettikten sonra as flat actionBar props (the hidden-button props stay supported). <c>clear</c> uses
+    /// <c>newInputs</c>, <c>dialog</c> uses <c>formDialog</c>, <c>page</c> opens a page like a "Sayfa aç" button (same pageCode
+    /// rule); Aç's page reads the current row of <c>openTable</c>. A command set both ways is refused.
+    /// </summary>
+    private static bool ValidateBarCommands(JsonElement props, Context context, out string? error)
+    {
+        error = null;
+        foreach (var command in BarCommands)
+        {
+            var hasAction = props.TryGetProperty(command.Action, out var actionElement);
+            var action = hasAction && actionElement.ValueKind == JsonValueKind.String ? actionElement.GetString() : null;
+            if (hasAction && (action is null || !command.Choices.Contains(action)))
+                return Fail($"İşlem Çubuğu '{command.Action}' değeri {string.Join(", ", command.Choices)} olmalıdır.", out error);
+            if (hasAction && props.TryGetProperty(command.LegacyButton, out _))
+                return Fail($"İşlem Çubuğu {command.Label} komutu hem '{command.Action}' hem '{command.LegacyButton}' ile ayarlanamaz; Studio'da 'İşlem Çubuğu'na taşı' ile eski düğmeyi kaldırın.", out error);
+            var page = action == "page";
+            var misplaced = command.PageOnly.FirstOrDefault(x => props.TryGetProperty(x, out _));
+            if (!page && misplaced is not null)
+                return Fail($"'{misplaced}' yalnız İşlem Çubuğu '{command.Action}' değeri page (Sayfa aç) iken kullanılabilir.", out error);
+            if (action == "clear" && !props.TryGetProperty("newInputs", out _))
+                return Fail("İşlem Çubuğu Yeni 'clear' (Formu temizle) için temizlenecek girişler ('newInputs') gerekli.", out error);
+            if (action == "dialog" && !props.TryGetProperty("formDialog", out _))
+                return Fail($"İşlem Çubuğu {command.Label} 'dialog' (Pencere aç) için kayıt penceresi ('formDialog') gerekli.", out error);
+            if (!page) continue;
+            if (command.Action != "afterSaveAction" && props.TryGetProperty("formDialog", out _))
+                return Fail($"İşlem Çubuğu {command.Label} sayfa açarken kayıt penceresi ('formDialog') kullanılamaz; pencere için 'dialog' seçin.", out error);
+            var pageCode = StringOf(props, command.PageCode);
+            if (string.IsNullOrEmpty(pageCode)) return Fail($"İşlem Çubuğu {command.Label} sayfa açıyor; açılacak sayfa ('{command.PageCode}') gerekli.", out error);
+            if (!KnownPageCode(pageCode)) return Fail($"'{command.PageCode}' bir özel sayfa kodu ya da @ekran-anahtarı olmalıdır: {pageCode}", out error);
+            if (props.TryGetProperty(command.Target, out _) && StringOf(props, command.Target) is not ("newTab" or "sameTab"))
+                return Fail($"'{command.Target}' newTab veya sameTab olmalıdır.", out error);
+        }
+        if (props.TryGetProperty("afterSaveRefresh", out var refresh) && !IsBool(refresh))
+            return Fail("'afterSaveRefresh' true veya false olmalıdır.", out error);
+        if (StringOf(props, "openAction") == "page")
+        {
+            var table = StringOf(props, "openTable");
+            if (string.IsNullOrEmpty(table)) return Fail("İşlem Çubuğu Aç sayfa açıyor; satırı kullanılacak liste ('openTable') gerekli.", out error);
+            context.PendingActionRefs.Add(("openTable", table, "namedQueryTable"));
         }
         return true;
     }

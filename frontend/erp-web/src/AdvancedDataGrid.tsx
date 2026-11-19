@@ -1833,7 +1833,27 @@ export default function AdvancedDataGrid({
       </>,
     );
   });
-  const special = rows.length === 0 ? specialRows : [];
+  // A page's own message row (one spanning cell such as "kayıt bulunamadı") counts only the page's columns; stretch
+  // it over the grid's real width so the select column is covered too and the row's bottom line reaches the edge.
+  const fullSpan = Math.max(1, visibleColumns.length) + selectColumns;
+  const special =
+    rows.length === 0
+      ? specialRows.map((rowElement) => {
+          const cellCount = Children.toArray(rowElement.props.children).filter(
+            isCell,
+          ).length;
+          if (cellCount !== 1) return rowElement;
+          return cloneElement(
+            rowElement,
+            {},
+            Children.map(rowElement.props.children, (child) =>
+              isCell(child)
+                ? cloneElement(child as ReactElement<any>, { colSpan: fullSpan })
+                : child,
+            ),
+          );
+        })
+      : [];
   const bodyChildren: ReactNode[] = renderedRows.length
     ? [
         ...(virtualStart > 0

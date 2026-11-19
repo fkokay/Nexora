@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { actionBarOf, buildPageCommands, exportRows, movedButtonIds, type PageActionDeps } from './pageActions';
+import { actionBarOf, barCommandPlan, buildPageCommands, exportRows, movedButtonIds, type PageActionDeps } from './pageActions';
 
 const UNBOUND = 'Bu sayfada bağlanmadı';
 
@@ -52,7 +52,7 @@ describe('buildPageCommands', () => {
       expect(commands[id]?.run).toBeUndefined();
     }
     expect(commands.refresh?.run).toBeTypeOf('function');
-    expect(Object.values(commands).some((spec) => !Array.isArray(spec) && spec?.primary)).toBe(false);
+    expect(Object.values(commands).some((spec) => typeof spec === 'object' && !Array.isArray(spec) && spec?.primary)).toBe(false);
   });
 
   it('saveQuery insert + hak: birincil, run yazar', () => {
@@ -281,5 +281,56 @@ describe('Yeni / Aç düğmeleri (newButton, openButton)', () => {
     void both.open?.run?.();
     expect(startNew).toHaveBeenCalled();
     expect(open).toHaveBeenCalled();
+  });
+});
+
+describe('İşlem Çubuğu düz komutları (newAction, openAction, afterSaveAction)', () => {
+  const page = {
+    newAction: 'page', newPageCode: '@inventory-stock-create', newTarget: 'newTab',
+    openAction: 'page', openPageCode: '@inventory-stock-create', openTarget: 'newTab', openTable: 't1', openParams: ['id={{liste.seciliSatir.id}}'],
+    afterSaveAction: 'page', afterSavePageCode: '@inventory-stock', afterSaveTarget: 'sameTab', afterSaveRefresh: true,
+  };
+  it('plan: düz değerler sayfa gezinmesine dönüşür; eski özellikler eski kurala göre çözülür', () => {
+    expect(barCommandPlan(page)).toEqual({
+      new: { mode: 'page', page: { actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab' } },
+      open: { mode: 'page', table: 't1', page: { actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab', params: ['id={{liste.seciliSatir.id}}'] } },
+      afterSave: { mode: 'page', refresh: true, page: { actionType: 'page', pageCode: '@inventory-stock', target: 'sameTab' } },
+    });
+    expect(barCommandPlan({ newButton: 'yeni', openButton: 'ac', afterSaveButton: 'geri' })).toEqual({
+      new: { mode: 'button', button: 'yeni' }, open: { mode: 'button', button: 'ac' }, afterSave: { mode: 'button', button: 'geri', refresh: true },
+    });
+    expect(barCommandPlan({ formDialog: 'd1', newInputs: ['i1'] })).toMatchObject({ new: { mode: 'dialog' }, open: { mode: 'dialog' }, afterSave: { mode: 'off' } });
+    expect(barCommandPlan({ newInputs: ['i1'] }).new.mode).toBe('clear');
+    expect(barCommandPlan({}).new.mode).toBe('off');
+    expect(barCommandPlan({ formDialog: 'd1', newAction: 'off', openAction: 'off' })).toMatchObject({ new: { mode: 'off' }, open: { mode: 'off' } });
+  });
+  it('Yeni sayfayı açar; Aç listede satır seçilince açar, yoksa seçim bekler', () => {
+    const navigate = vi.fn();
+    let selected = false;
+    const { deps } = makeDeps({ tableSelected: (id) => id === 't1' && selected });
+    deps.run.navigate = navigate;
+    const none = buildPageCommands(page, deps);
+    expect(none.new?.primary).toBe(true);
+    void none.new?.run?.();
+    expect(navigate).toHaveBeenLastCalledWith({ actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab' });
+    expect(none.open).toEqual({ disabledReason: 'Önce bir kayıt seçin' });
+    selected = true;
+    const some = buildPageCommands(page, deps);
+    void some.open?.run?.();
+    expect(navigate).toHaveBeenLastCalledWith(expect.objectContaining({ params: ['id={{liste.seciliSatir.id}}'] }));
+    expect(buildPageCommands(page, { ...deps, busy: true }).open).toEqual({ disabledReason: 'İşlem sürüyor…' });
+    expect(buildPageCommands(page, { ...deps, rights: { view: false } }).new?.disabledReason).toBe('Bu işlem için yetkiniz yok');
+  });
+  it('clear ve dialog mevcut davranışı seçer; off kapatır', () => {
+    const { deps, run } = makeDeps();
+    const clear = buildPageCommands({ newAction: 'clear', newInputs: ['i1'] }, deps);
+    void clear.new?.run?.();
+    expect(run.clearInputs).toHaveBeenCalledWith(['i1']);
+    const startNew = vi.fn();
+    const open = vi.fn();
+    const dialog = buildPageCommands({ newAction: 'dialog', openAction: 'off', formDialog: 'd1' }, makeDeps({ formDialog: { open, startNew, hasRecord: true } }).deps);
+    void dialog.new?.run?.();
+    expect(startNew).toHaveBeenCalled();
+    expect(dialog.open?.disabledReason).toBe(UNBOUND);
   });
 });

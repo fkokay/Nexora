@@ -452,6 +452,12 @@ button.st-tenant-box:hover:not(:disabled) {
    çalışma alanıdır: geniş ekranlarda içerik sınırını kaldır, ekranın tamamını kullansın. */
 .st-content:has(.studio-native-tool) {
   max-width: none;
+  padding: 12px 12px 24px;
+}
+/* Araç kendi kenar boşluğunu eklemez: dış boşluk tek katmandır. */
+.studio-native-tool > .low-code-designer {
+  padding: 0;
+  background: transparent;
 }
 
 /* ---------- Sayfa başlığı, KPI, kart, tablo ---------- */

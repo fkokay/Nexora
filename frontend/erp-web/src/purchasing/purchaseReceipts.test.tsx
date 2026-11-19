@@ -215,8 +215,8 @@ describe('Mal kabulleri list', () => {
   it('Yeni opens the order-less receipt on its own screen in place of the list; the form owns Kaydet; Vazgeç goes back', async () => {
     renderScreen(receiptsScreen());
     await settle();
-    // The list has no form, so nothing on it gives the bar Kaydet / Temizle.
-    expect(enabled('save')).toBe(false);
+    // The list has no form, so nothing on it gives the bar Kaydet / Temizle: no Kaydet is drawn.
+    expect(command('save')).toBeNull();
     expect(menuItems()).not.toContain('Temizle');
     await act(async () => {
       fireEvent.click(command('new'));

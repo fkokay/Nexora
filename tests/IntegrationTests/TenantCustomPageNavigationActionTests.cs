@@ -164,6 +164,55 @@ public sealed class TenantCustomPageNavigationActionTests
     }
 
     [Fact]
+    public void Action_bar_flat_commands_open_pages_dialogs_or_clear()
+    {
+        object Bar(object props) => N("bar", "actionBar", "komutlar", props);
+        var page = new object[]
+        {
+            N("t1", "dataTable", "liste", new { query = "kargolar" }),
+            C("t2", "dataTable", new { query = "kargolar" }),
+            C("ara", "input", new { label = "Ara" }),
+            C("yeni", "button", new { label = "Yeni", actionType = "page", pageCode = "@inventory-stock-create" }),
+            C("d1", "dialog", new { title = "Kayıt", contains = new[] { "h1" } }),
+            C("h1", "heading", new { text = "x" }),
+        };
+        var full = new
+        {
+            newAction = "page", newPageCode = "@inventory-stock-create", newTarget = "newTab",
+            openAction = "page", openPageCode = "musteriKarti", openTarget = "sameTab", openTable = "t1", openParams = new[] { "id={{liste.seciliSatir.takipNo}}" },
+            afterSaveAction = "page", afterSavePageCode = "@inventory-stock", afterSaveTarget = "sameTab", afterSaveRefresh = true,
+        };
+        AssertAccepted(V2([Bar(full), .. page]));
+        AssertAccepted(V2([Bar(new { newAction = "clear", newInputs = new[] { "ara" }, openAction = "off", afterSaveAction = "off" }), .. page]));
+        AssertAccepted(V2([Bar(new { newAction = "dialog", openAction = "dialog", formDialog = "d1" }), .. page]));
+        AssertAccepted(V2([Bar(new { newAction = "off" }), .. page]));
+        // Per command: an old button for one command and a flat value for another may coexist.
+        AssertAccepted(V2([Bar(new { newButton = "yeni", afterSaveAction = "page", afterSavePageCode = "@inventory-stock" }), .. page]));
+
+        AssertRejected(V2([Bar(new { newAction = "popup" }), .. page]), "'newAction' değeri off, clear, dialog, page");
+        AssertRejected(V2([Bar(new { openAction = "clear" }), .. page]), "'openAction' değeri off, dialog, page");
+        AssertRejected(V2([Bar(new { newAction = "page", newPageCode = "@inventory-stock-create", newButton = "yeni" }), .. page]),
+            "hem 'newAction' hem 'newButton'");
+        AssertRejected(V2([Bar(new { afterSaveAction = "off", afterSaveButton = "yeni" }), .. page]), "hem 'afterSaveAction' hem 'afterSaveButton'");
+        AssertRejected(V2([Bar(new { newAction = "page" }), .. page]), "açılacak sayfa ('newPageCode') gerekli");
+        AssertRejected(V2([Bar(new { newAction = "page", newPageCode = "@yok-boyle-ekran" }), .. page]), "'newPageCode' bir özel sayfa kodu");
+        AssertRejected(V2([Bar(new { newAction = "page", newPageCode = "@inventory-stock", newTarget = "popup" }), .. page]), "'newTarget' newTab veya sameTab");
+        AssertRejected(V2([Bar(new { newAction = "off", newPageCode = "@inventory-stock" }), .. page]), "'newPageCode' yalnız");
+        AssertRejected(V2([Bar(new { newPageCode = "@inventory-stock" }), .. page]), "'newPageCode' yalnız");
+        AssertRejected(V2([Bar(new { openAction = "dialog", formDialog = "d1", openTable = "t1" }), .. page]), "'openTable' yalnız");
+        AssertRejected(V2([Bar(new { newAction = "clear" }), .. page]), "'newInputs'");
+        AssertRejected(V2([Bar(new { openAction = "dialog" }), .. page]), "'formDialog'");
+        AssertRejected(V2([Bar(new { openAction = "page", openPageCode = "@inventory-stock", formDialog = "d1" }), .. page]), "'formDialog') kullanılamaz");
+        AssertRejected(V2([Bar(new { openAction = "page", openPageCode = "@inventory-stock" }), .. page]), "('openTable') gerekli");
+        AssertRejected(V2([Bar(new { openAction = "page", openPageCode = "@inventory-stock", openTable = "t2" }), .. page]), "adlı ve sorguya bağlı");
+        AssertRejected(V2([Bar(new { openAction = "page", openPageCode = "@inventory-stock", openTable = "t1", openParams = new[] { "Id=1" } }), .. page]), "'openParams' en fazla 6");
+        AssertRejected(V2([Bar(new { afterSaveAction = "page", afterSavePageCode = "@inventory-stock", afterSaveRefresh = "evet" }), .. page]), "'afterSaveRefresh' true veya false");
+        // The flat props are actionBar-only.
+        AssertRejected(V2([C("b1", "button", new { label = "x", newAction = "off" })]), "'newAction' özelliği yalnızca İşlem Çubuğu");
+        AssertRejected(V2([C("h2", "heading", new { text = "x", openParams = new[] { "id=1" } })]), "'openParams' özelliği yalnızca İşlem Çubuğu");
+    }
+
+    [Fact]
     public void Page_title_is_a_heading_flag()
     {
         AssertAccepted(V2([C("h1", "heading", new { text = "Stok kartı {{sayfa.parametre.id}}", pageTitle = true, visibleWhen = "sayfa.parametre.id != ''" })]));

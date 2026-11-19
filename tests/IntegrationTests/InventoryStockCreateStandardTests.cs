@@ -30,7 +30,7 @@ public sealed class InventoryStockCreateStandardTests
         var standard = SystemPageStandards.All[Key];
         var components = AllComponents().ToArray();
         var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
-        Assert.Equal(55, components.Length);
+        Assert.Equal(54, components.Length);
         Assert.Equal(14, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
@@ -283,17 +283,18 @@ public sealed class InventoryStockCreateStandardTests
     {
         // Legacy create screen: a successful save closes the form and returns to Stok Kartları; Yeni clears for another card.
         var props = Props("komutlar");
-        Assert.Equal("listeyeDon", (string)props["afterSaveButton"]!);
+        // After save: the action bar itself returns to the list in this tab and refreshes it (no hidden button).
+        Assert.Null(props["afterSaveButton"]);
+        Assert.Equal(("page", "@inventory-stock", "sameTab", true),
+            ((string)props["afterSaveAction"]!, (string)props["afterSavePageCode"]!, (string)props["afterSaveTarget"]!, (bool)props["afterSaveRefresh"]!));
+        Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == "listeyeDon");
         Assert.Equal("yeniKartDugmesi", (string)props["newButton"]!);
         Assert.Null(props["openButton"]);
-        var back = Props("listeyeDon");
-        Assert.Equal(("page", "@inventory-stock", "sameTab"), ((string)back["actionType"]!, (string)back["pageCode"]!, (string)back["target"]!));
-        Assert.Null(back["params"]);
         var fresh = Props("yeniKartDugmesi");
         Assert.Equal(("page", "@inventory-stock-create", "sameTab"), ((string)fresh["actionType"]!, (string)fresh["pageCode"]!, (string)fresh["target"]!));
         Assert.Null(fresh["params"]);
         var requires = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar").Requires;
-        Assert.Contains("component:listeyeDon", requires);
+        Assert.DoesNotContain("component:listeyeDon", requires);
         Assert.Contains("component:yeniKartDugmesi", requires);
         Assert.Contains("component:kartSekmeleri", requires);
     }

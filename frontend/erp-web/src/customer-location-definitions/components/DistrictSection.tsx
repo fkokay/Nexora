@@ -179,7 +179,8 @@ export function DistrictGrid({
       <AdvancedDataGrid
         className="customer-table"
         gridId="customer-districts"
-        {...screenViewGridDefaults(visibleFields)}
+        // Without a saved width the İşlemler column fits both buttons (Düzenle + Pasife al / Etkinleştir).
+        {...screenViewGridDefaults(visibleFields, (field) => (field.key === "actions" ? 200 : undefined))}
         externalPagination
         hideSearch
         enableRowSelection={false}

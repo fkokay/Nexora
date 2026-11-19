@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { ChevronDown, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
 import { useActivePageCommands, useCommandRegistry } from '../commands/CommandProvider';
 import { formatShortcut, MORE_MENU_SHORTCUT, STANDARD_SHORTCUTS } from '../commands/shortcuts';
-import { ACTION_BAR_ORDER, type CommandSpec, type MenuCommand, type StandardCommandId } from '../commands/types';
+import { ACTION_BAR_ORDER, offersCommand, type CommandSpec, type MenuCommand, type PageCommands, type StandardCommandId } from '../commands/types';
 import { COMMAND_LABELS } from './labels';
 import { useActionBarTarget } from './ActionBarSlot';
 import { ShortcutHelpDialog } from './ShortcutHelpDialog';
@@ -61,6 +61,19 @@ function useCompaction(deps: unknown[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return { barRef, commandsRef, level };
+}
+
+/**
+ * The buttons the screen offers, in the fixed order, split into the separated groups (Yeni · Aç · Kaydet · Sil |
+ * Yenile · Filtre | Yazdır · Excel). A group with no button left is dropped, so no separator stands alone.
+ */
+function visibleGroups(commands: PageCommands | undefined): StandardCommandId[][] {
+  const groups: StandardCommandId[][] = [];
+  for (const id of ACTION_BAR_ORDER) {
+    if (!groups.length || SEPARATOR_BEFORE.has(id)) groups.push([]);
+    if (offersCommand(commands, id)) groups[groups.length - 1].push(id);
+  }
+  return groups.filter((group) => group.length > 0);
 }
 
 function stateOf(spec: CommandSpec | undefined): { enabled: boolean; reason?: string } {
@@ -226,10 +239,10 @@ export function ActionBar({ locale }: { locale: Locale }) {
     <div ref={barRef} className="nx-action-bar" data-nx-action-bar data-compact={level} role="toolbar" aria-label="İşlemler çubuğu">
       {/* The standard buttons compact, then scroll; İşlemler stays pinned at the right. */}
       <div ref={commandsRef} className="nx-action-bar__commands">
-        {ACTION_BAR_ORDER.map((id) => (
-          <Fragment key={id}>
-            {SEPARATOR_BEFORE.has(id) && <span className="nx-action-bar__sep" aria-hidden="true" />}
-            <CommandButton id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} />
+        {visibleGroups(commands).map((group, index) => (
+          <Fragment key={group[0]}>
+            {index > 0 && <span className="nx-action-bar__sep" aria-hidden="true" />}
+            {group.map((id) => <CommandButton key={id} id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} />)}
           </Fragment>
         ))}
       </div>

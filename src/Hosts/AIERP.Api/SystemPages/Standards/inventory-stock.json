@@ -5,7 +5,7 @@
   "items": {
     "component:komutlar": { "since": 1, "label": "İşlem çubuğu",
       "requires": ["component:devreDisiBirak", "component:etkinlestir", "query:kartSil", "component:aramaKutusu", "component:liste",
-                 "component:yeniDugme", "component:acDugme", "component:hareketlerDugmesi"] },
+                 "component:hareketlerDugmesi"] },
     "component:aramaKutusu": { "since": 1, "label": "Arama kutusu" },
     "component:suzgecKarti": { "since": 1, "label": "Süzgeçler",
       "requires": ["component:aramaKutusu", "component:depoSecimi", "component:minimumAlti", "component:detayPaneli", "component:pasifler"] },
@@ -46,8 +46,6 @@
     "query:kartSil": { "since": 1, "label": "Stok kartını sil" },
     "query:pasifeAl": { "since": 1, "label": "Stok kartını devre dışı bırak", "requires": ["query:kart"] },
     "query:aktifEt": { "since": 1, "label": "Stok kartını etkinleştir", "requires": ["query:kart"] },
-    "component:yeniDugme": { "since": 1, "label": "Yeni stok kartı düğmesi" },
-    "component:acDugme": { "since": 1, "label": "Stok kartını aç düğmesi", "requires": ["component:liste"] },
     "query:negatifStok": { "since": 1, "label": "Negatif stok kuralı" },
     "query:birimler": { "since": 1, "label": "Seçili kartın birimleri",
       "requires": ["query:kart"] },
@@ -91,7 +89,9 @@
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
         "props": { "deleteQuery": "kartSil", "focusInput": "aramaKutusu", "exportTable": "liste",
                    "moreButtons": ["devreDisiBirak", "etkinlestir", "hareketlerDugmesi"],
-                   "newButton": "yeniDugme", "openButton": "acDugme",
+                   "newAction": "page", "newPageCode": "@inventory-stock-create", "newTarget": "newTab",
+                   "openAction": "page", "openPageCode": "@inventory-stock-create", "openTarget": "newTab", "openTable": "liste",
+                   "openParams": ["id={{liste.seciliSatir.stockItem.id}}"],
                    "titleCount": "{{bakiye.meta.totalCount}}" } },
 
       { "id": "stokDegeriGostergesi", "type": "metric", "name": "stokDegeriGostergesi",
@@ -219,12 +219,6 @@
                    "confirmText": "“{{liste.seciliSatir.balance.name}}” yeniden etkinleştirilsin mi?",
                    "successMessage": "Stok kartı etkinleştirildi.", "refreshQueries": ["bakiye"],
                    "visibleWhen": "liste.seciliSatir.stockItem.isActive == false" } },
-
-      { "id": "yeniDugme", "type": "button", "name": "yeniDugme",
-        "props": { "text": "Yeni stok kartı", "actionType": "page", "pageCode": "@inventory-stock-create", "target": "newTab" } },
-      { "id": "acDugme", "type": "button", "name": "acDugme",
-        "props": { "text": "Stok kartını aç", "actionType": "page", "pageCode": "@inventory-stock-create", "target": "newTab",
-                   "params": ["id={{liste.seciliSatir.stockItem.id}}"], "visibleWhen": "liste.seciliSatir.stockItem.id != null" } },
 
       { "id": "hareketlerDugmesi", "type": "button", "name": "hareketlerDugmesi",
         "props": { "text": "Hareketler / ekle", "actionType": "openDialog", "dialogId": "hareketPenceresi",
