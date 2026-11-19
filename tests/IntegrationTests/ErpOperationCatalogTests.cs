@@ -65,7 +65,7 @@ public sealed class ErpOperationCatalogTests
     public void Depo_operations_use_depo_module()
     {
         var depo = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("depo.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(2, depo.Length);
+        Assert.Equal(14, depo.Length);
         Assert.All(depo, x => Assert.Equal("Depo", x.Module));
         Assert.All(Proje2FazAOperations, name => Assert.True(ErpOperationCatalog.TryGet(name, out _), name));
     }
@@ -77,7 +77,8 @@ public sealed class ErpOperationCatalogTests
         {
             foreach (var name in op.Result.Flatten)
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
-            if (Proje2FazAOperations.Contains(op.Name)) continue;
+            // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
+            if (Proje2FazAOperations.Contains(op.Name) || op.Name == "depo.ozelAlanKaydet") continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -182,6 +183,119 @@ public sealed class ErpOperationCatalogTests
         var adminOps = await GetOperationsAsync(client);
         Assert.True(adminOps["stok.kart.birimEkle"].GetProperty("allowed").GetBoolean());
         Assert.True(adminOps["stok.kart.birimSil"].GetProperty("allowed").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Warehouse_status_follows_create_and_location_writes_require_tenant_admin()
+    {
+        string[] all = ["depo.olustur", "depo.guncelle", "depo.pasifeAl", "depo.aktifEt", "depo.ozelAlanTanimlari", "depo.ozelAlanDegerleri",
+            "depo.ozelAlanKaydet", "depo.konum.olustur", "depo.konum.guncelle", "depo.konum.pasifeAl", "depo.konum.bakiyeleri", "depo.konumlandirmaDenetimi"];
+        async Task<Dictionary<string, bool>> AllowedAsync(string[] rules, Guid user, string role)
+        {
+            await using var factory = new ErpOperationApiFactory();
+            await SeedAsync(factory, platformDb =>
+            {
+                foreach (var code in rules) platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
+            });
+            using var client = factory.CreateClient();
+            SetIdentity(client, user, role);
+            var ops = await GetOperationsAsync(client);
+            return all.ToDictionary(x => x, x => ops[x].GetProperty("allowed").GetBoolean());
+        }
+
+        // Read and update only: POST …/status resolves to erp.warehouses.create, so the status changes stay closed.
+        var update = await AllowedAsync(["erp.custom-menus.read", "erp.warehouses.read", "erp.warehouses.update"], Writer, "TenantUser");
+        Assert.True(update["depo.guncelle"]);
+        Assert.True(update["depo.ozelAlanKaydet"]);
+        Assert.True(update["depo.ozelAlanTanimlari"] && update["depo.ozelAlanDegerleri"]);
+        Assert.True(update["depo.konum.bakiyeleri"] && update["depo.konumlandirmaDenetimi"]);
+        Assert.False(update["depo.olustur"]);
+        Assert.False(update["depo.pasifeAl"]);
+        Assert.False(update["depo.aktifEt"]);
+        // The location write handlers only accept TenantAdmin, whatever the rules say.
+        Assert.False(update["depo.konum.guncelle"]);
+        Assert.False(update["depo.konum.pasifeAl"]);
+
+        var create = await AllowedAsync(["erp.custom-menus.read", "erp.warehouses.read", "erp.warehouses.create", "erp.warehouses.update"], Writer, "TenantUser");
+        Assert.True(create["depo.olustur"] && create["depo.pasifeAl"] && create["depo.aktifEt"]);
+        Assert.False(create["depo.konum.olustur"]);
+        Assert.False(create["depo.konum.guncelle"]);
+        Assert.False(create["depo.konum.pasifeAl"]);
+
+        var admin = await AllowedAsync([], Admin, "TenantAdmin");
+        Assert.All(all, name => Assert.True(admin[name], name));
+    }
+
+    [Fact]
+    public void Warehouse_status_and_location_deactivation_fix_their_body()
+    {
+        Assert.True(ErpOperationCatalog.TryGet("depo.pasifeAl", out var deactivate));
+        Assert.True(ErpOperationCatalog.TryGet("depo.aktifEt", out var activate));
+        Assert.Equal("/api/warehouses/{warehouseId}/status", deactivate.Route);
+        Assert.Equal(activate.Route, deactivate.Route);
+        Assert.Equal(false, deactivate.FixedBody!["isActive"]);
+        Assert.Equal(true, activate.FixedBody!["isActive"]);
+        Assert.All(new[] { deactivate, activate }, op => Assert.Equal(true, op.FixedBody!["confirmation"]));
+        Assert.DoesNotContain(deactivate.Parameters, x => x.Name is "isActive" or "confirmation");
+
+        Assert.True(ErpOperationCatalog.TryGet("depo.konum.pasifeAl", out var location));
+        Assert.True(location.RequiresTenantAdmin);
+        Assert.Equal(false, location.FixedBody!["isActive"]);
+        Assert.DoesNotContain(location.Parameters, x => x.Name == "isActive");
+        Assert.True(ErpOperationCatalog.TryGet("depo.konum.guncelle", out var update));
+        Assert.Equal(update.Route, location.Route);
+        Assert.Null(update.FixedBody);
+        // No single-record read exists: the updates are not source-backed, so the page binds rowVersion from the list row.
+        Assert.True(ErpOperationCatalog.TryGet("depo.guncelle", out var warehouse));
+        Assert.Null(warehouse.SourceOperation);
+        Assert.Null(update.SourceOperation);
+        Assert.Contains(warehouse.Parameters, x => x.Name == "rowVersion" && x.In == "body");
+
+        Assert.True(ErpOperationCatalog.TryGet("depo.ozelAlanKaydet", out var save));
+        Assert.Equal(new ErpOperationBodyMap("values", "depo.ozelAlanDegerleri", "code", "value"), save.BodyMap);
+        Assert.True(ErpOperationCatalog.TryGet("depo.konum.bakiyeleri", out var balances));
+        Assert.Equal("items", balances.Result.RowsPath);
+        Assert.Equal(["stockItemId", "stockItemCode", "stockItemName", "unitCode", "quantity"], balances.Result.Columns.Select(x => x.Code));
+        Assert.True(ErpOperationCatalog.TryGet("depo.konumlandirmaDenetimi", out var reconciliation));
+        Assert.Equal("items", reconciliation.Result.RowsPath);
+        Assert.Equal("Konumu boş", reconciliation.Result.Columns.Single(x => x.Code == "unlocatedQuantity").Label);
+    }
+
+    [Fact]
+    public async Task Location_reads_match_catalog_columns()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        var item = new StockItem { TenantId = TenantA, Code = "STK-1", Name = "Vida", UnitCode = "EA", IsActive = true };
+        var warehouse = new Warehouse { TenantId = TenantA, Code = "A", Name = "Ana depo", IsActive = true };
+        var location = new WarehouseLocation { TenantId = TenantA, WarehouseId = warehouse.Id, Code = "R1", Name = "Raf 1" };
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            db.StockItems.Add(item);
+            db.Warehouses.Add(warehouse);
+            db.WarehouseLocations.Add(location);
+            db.InventoryTransactions.AddRange(
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouse.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 1),
+                    Direction = InventoryDirection.Receipt, Quantity = 5m, Description = "Konumlu", StorageLocationId = location.Id },
+                new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouse.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 1),
+                    Direction = InventoryDirection.Receipt, Quantity = 2m, Description = "Konumsuz" });
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        foreach (var (name, path) in new[] { ("depo.konum.bakiyeleri", $"/api/warehouses/{warehouse.Id:D}/locations/{location.Id:D}/balances"),
+                     ("depo.konumlandirmaDenetimi", $"/api/warehouses/{warehouse.Id:D}/location-reconciliation") })
+        {
+            using var response = await client.GetAsync(path);
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{path} {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+            Assert.True(ErpOperationCatalog.TryGet(name, out var op));
+            var rows = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty(op.Result.RowsPath!).EnumerateArray().ToArray();
+            var row = Assert.Single(rows);
+            Assert.All(op.Result.Columns, column => Assert.True(row.TryGetProperty(column.Code, out _), $"{name}: {column.Code}"));
+        }
     }
 
     [Fact]
@@ -391,7 +505,7 @@ public sealed class ErpOperationCatalogTests
     {
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
-        Assert.Equal(4, collections.Length);
+        Assert.Equal(6, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -430,6 +544,19 @@ public sealed class ErpOperationCatalogTests
         ["stok.hareket.ekle"] = "warehouseId,stockItemId,entryDate,direction,quantity,description,unitCostBase,unitCode,storageLocationId",
         ["stok.hareket.tersKayit"] = "warehouseId,stockItemId,entryId,reason",
         ["stok.kart.depoBakiyeleri"] = "id",
+        // Depo Yönetimi v2 and Raf ve Konumlar v1 (no single-record reads: rowVersion comes from the list row).
+        ["depo.olustur"] = "code,name",
+        ["depo.guncelle"] = "warehouseId,code,name,rowVersion",
+        ["depo.pasifeAl"] = "warehouseId",
+        ["depo.aktifEt"] = "warehouseId",
+        ["depo.ozelAlanTanimlari"] = "",
+        ["depo.ozelAlanDegerleri"] = "warehouseId",
+        ["depo.ozelAlanKaydet"] = "warehouseId",
+        ["depo.konum.olustur"] = "warehouseId,code,name,parentLocationId",
+        ["depo.konum.guncelle"] = "warehouseId,locationId,code,name,parentLocationId,isActive,rowVersion",
+        ["depo.konum.pasifeAl"] = "warehouseId,locationId,code,name,parentLocationId,rowVersion",
+        ["depo.konum.bakiyeleri"] = "warehouseId,locationId,asOfDate",
+        ["depo.konumlandirmaDenetimi"] = "warehouseId,asOfDate",
     };
 
     [Fact]
@@ -439,11 +566,13 @@ public sealed class ErpOperationCatalogTests
         {
             ["stok.kart.olustur"] = ["customFields", "variants"],
             ["stok.hareket.ekle"] = ["tracking"],
-            ["stok.kart.ozelAlanKaydet"] = ["values"]
+            ["stok.kart.ozelAlanKaydet"] = ["values"],
+            ["depo.olustur"] = ["customFields"],
+            ["depo.ozelAlanKaydet"] = ["values"]
         };
         foreach (var op in ErpOperationCatalog.All)
         {
-            var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',') : [])
+            var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);
             Assert.Equal(expected, op.Parameters.Select(x => x.Name));
         }

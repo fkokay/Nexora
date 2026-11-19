@@ -14,6 +14,7 @@ import type {
 import { DefinitionEmptyPane, DefinitionLayout } from "../list-page/DefinitionLayout";
 import type { BulkAction } from "../list-page/BulkActionBar";
 import { isInPopup, openDialogs, useWindowKeyDown } from "../record-form/recordFormKeys";
+import { setPageParams } from "../pageNavigation";
 import { requestLocations } from "../warehouse-locations/locationRequest";
 import { WarehouseDefinitionForm, type WarehouseDraft, type WarehouseFormField } from "./components/WarehouseDefinitionForm";
 import { WarehouseDefinitionList } from "./components/WarehouseDefinitionList";
@@ -378,6 +379,9 @@ export function useWarehouseDefinitionScreen(o: Options) {
   const handOff = (create: boolean) => {
     if (!current || !o.onNavigate) return;
     requestLocations({ warehouseId: current.id, create });
+    // Raf ve Konumlar may render as its system page, which reads the warehouse from the page parameters
+    // (`{{sayfa.parametre.warehouseId}}`); the legacy screen reads them too (system Depolar hands off only this way).
+    setPageParams("inventory-locations", { warehouseId: current.id });
     o.onNavigate("inventory-locations");
   };
   // Locations are created by TenantAdmin only and not in a passive warehouse.

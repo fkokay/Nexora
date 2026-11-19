@@ -101,7 +101,9 @@ internal static class ErpOperationCatalog
         ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
         ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",
         ["allowNegativeStock"] = "Negatif stoka izin ver", ["updatedByUserId"] = "Güncelleyen", ["updatedAt"] = "Güncellenme",
-        ["status"] = "Durum"
+        ["status"] = "Durum",
+        ["stockItemCode"] = "Stok kodu", ["stockItemName"] = "Stok adı", ["warehouseQuantity"] = "Depo bakiyesi",
+        ["locatedQuantity"] = "Konumlandırılmış", ["unlocatedQuantity"] = "Konumu boş", ["asOfDate"] = "Tarih itibarıyla"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -160,6 +162,7 @@ internal static class ErpOperationCatalog
         };
         operations.AddRange(BuildStockPilot(id, paging));
         operations.AddRange(BuildStockPilotV1());
+        operations.AddRange(BuildWarehouseStandard());
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -234,6 +237,57 @@ internal static class ErpOperationCatalog
             [new ErpOperationParameter("productStockItemId", "query", "guid", true)], List(Columns<BomView>(), null));
         yield return Read(SettingsModule, "ayar.negatifStok", "Negatif stok kuralı", "/api/tenant-settings/operations", [],
             Record(Columns<TenantOperationalSettingsView>()));
+    }
+
+    /// <summary>
+    /// Depo Yönetimi (standard v2) and Raf ve Konumlar (standard v1). There is no single warehouse or location read, so
+    /// the updates have no source operation: every body field, rowVersion included, is bound from the selected list row.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildWarehouseStandard()
+    {
+        const string warehouseRoute = "/api/warehouses/{warehouseId}";
+        const string locationRoute = warehouseRoute + "/locations/{locationId}";
+        var warehouseId = Route("warehouseId");
+        var locationId = Route("locationId");
+        var warehouseColumns = Columns<WarehouseView>();
+        var locationColumns = Columns<WarehouseLocationView>();
+        var valueColumns = Columns<WarehouseCustomFieldValueView>();
+        // Status changes are POST …/status (resolved as erp.warehouses.create); isActive and confirmation are fixed so a page
+        // can neither flip the direction nor skip the confirmation the endpoint requires.
+        Dictionary<string, object?> Status(bool isActive) => new(StringComparer.Ordinal) { ["isActive"] = isActive, ["confirmation"] = true };
+
+        yield return Write(WarehouseModule, "depo.olustur", "Depo oluştur", "insert", "POST", "/api/warehouses",
+            [.. BodyParameters<WarehouseWriteRequest>(sourceBacked: false), MapParameter("customFields")], Record(warehouseColumns), null, null);
+        yield return Write(WarehouseModule, "depo.guncelle", "Depo güncelle", "update", "PUT", warehouseRoute,
+            [warehouseId, .. BodyParameters<WarehouseUpdateRequest>(sourceBacked: false)], Record(warehouseColumns), null, null);
+        yield return Write(WarehouseModule, "depo.pasifeAl", "Depoyu pasife al", "update", "POST", warehouseRoute + "/status",
+            [warehouseId], Record(warehouseColumns), null, Status(false));
+        yield return Write(WarehouseModule, "depo.aktifEt", "Depoyu etkinleştir", "update", "POST", warehouseRoute + "/status",
+            [warehouseId], Record(warehouseColumns), null, Status(true));
+        yield return Read(WarehouseModule, "depo.ozelAlanTanimlari", "Depo özel alan tanımları", "/api/warehouses/custom-fields", [],
+            List(Columns<WarehouseCustomFieldDefinitionView>(), null));
+        yield return Read(WarehouseModule, "depo.ozelAlanDegerleri", "Depo özel alan değerleri", warehouseRoute + "/custom-fields", [warehouseId],
+            List(valueColumns, null));
+        // Same body map as stok.kart.ozelAlanKaydet: codes the page does not bind keep the values read by depo.ozelAlanDegerleri.
+        yield return Write(WarehouseModule, "depo.ozelAlanKaydet", "Depo özel alanlarını kaydet", "update", "PUT", warehouseRoute + "/custom-fields",
+            [warehouseId, MapParameter("values")], List(valueColumns, null), null, null)
+            with { BodyMap = new ErpOperationBodyMap("values", "depo.ozelAlanDegerleri", "code", "value") };
+        // The location write handlers themselves only accept TenantAdmin, whatever the permission rules say.
+        yield return Write(WarehouseModule, "depo.konum.olustur", "Depo konumu oluştur", "insert", "POST", warehouseRoute + "/locations",
+            [warehouseId, .. BodyParameters<WarehouseLocationWriteRequest>(sourceBacked: false)], Record(locationColumns), null, null,
+            requiresTenantAdmin: true);
+        yield return Write(WarehouseModule, "depo.konum.guncelle", "Depo konumu güncelle", "update", "PUT", locationRoute,
+            [warehouseId, locationId, .. BodyParameters<WarehouseLocationUpdateRequest>(sourceBacked: false)], Record(locationColumns), null, null,
+            requiresTenantAdmin: true);
+        // Sil → Pasife al: the same PUT with isActive fixed to false, the other fields bound from the row.
+        yield return Write(WarehouseModule, "depo.konum.pasifeAl", "Depo konumunu pasife al", "update", "PUT", locationRoute,
+            [warehouseId, locationId, .. BodyParameters<WarehouseLocationUpdateRequest>(sourceBacked: false, exclude: "isActive")],
+            Record(locationColumns), null, new Dictionary<string, object?>(StringComparer.Ordinal) { ["isActive"] = false },
+            requiresTenantAdmin: true);
+        yield return Read(WarehouseModule, "depo.konum.bakiyeleri", "Depo konumu stok bakiyeleri", locationRoute + "/balances",
+            [warehouseId, locationId, Query("asOfDate", "date")], List(Columns<WarehouseLocationBalanceView>(), "items"));
+        yield return Read(WarehouseModule, "depo.konumlandirmaDenetimi", "Konumlandırma denetimi", warehouseRoute + "/location-reconciliation",
+            [warehouseId, Query("asOfDate", "date")], List(Columns<WarehouseLocationReconciliationItemView>(), "items"));
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
