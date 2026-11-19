@@ -583,6 +583,39 @@ public sealed class ErpOperationCatalogTests
     }
 
     [Fact]
+    public async Task Tracking_balances_operation_reads_its_route_with_catalog_parameters()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        Guid warehouseId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.Tenants.Add(new Tenant { Id = TenantA, Name = "A", Slug = "tenant-a" });
+            var warehouse = new Warehouse { TenantId = TenantA, Code = "MRK", Name = "Merkez" };
+            var item = new StockItem { TenantId = TenantA, Code = "ILC", Name = "İlaç", UnitCode = "KUTU", IsActive = true, TrackingMode = InventoryTrackingMode.Lot };
+            var movement = new InventoryTransaction { TenantId = TenantA, WarehouseId = warehouse.Id, StockItemId = item.Id, EntryDate = new DateOnly(2026, 11, 1),
+                Direction = InventoryDirection.Receipt, Quantity = 5, Description = "Giriş" };
+            db.AddRange(warehouse, item, movement, new InventoryTransactionTrace { TenantId = TenantA, InventoryTransactionId = movement.Id, StockItemId = item.Id,
+                TrackingMode = InventoryTrackingMode.Lot, TrackingCode = "LOT-1", Quantity = 5, ExpiryDate = new DateOnly(2026, 12, 1) });
+            await db.SaveChangesAsync();
+            warehouseId = warehouse.Id;
+        }
+        Assert.True(ErpOperationCatalog.TryGet("stok.izleme.bakiyeler", out var op));
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        using var response = await client.GetAsync($"{op.Route}?warehouseId={warehouseId}&trackingMode=Lot&q=LOT&page=1&pageSize=50");
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"{response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        foreach (var meta in op.Result.MetaPaths) Assert.True(body.TryGetProperty(meta, out _), meta);
+        var row = Assert.Single(body.GetProperty(op.Result.RowsPath!).EnumerateArray());
+        foreach (var column in op.Result.Columns) Assert.True(row.TryGetProperty(column.Code, out _), column.Code);
+        Assert.Equal(("LOT-1", "Lot", "2026-12-01"), (row.GetProperty("trackingCode").GetString(), row.GetProperty("trackingMode").GetString(),
+            row.GetProperty("expiryDate").GetString()));
+    }
+
+    [Fact]
     public void Names_are_unique_and_well_formed()
     {
         var all = ErpOperationCatalog.All;

@@ -55,7 +55,7 @@
             "props": { "text": "Bir lot veya seri seçin; ayrıntıları burada görün.", "visibleWhen": "liste.seciliSatir.trackingCode == null" } },
           { "id": "detayMiktar", "type": "metric", "name": "detayMiktar",
             "props": { "title": "Mevcut miktar", "value": "{{liste.seciliSatir.quantityOnHand}}", "format": "number", "width": 12,
-                       "description": "{{liste.seciliSatir.unitCode}}", "icon": "box", "visibleWhen": "liste.seciliSatir.trackingCode != null" } },
+                       "description": "{{liste.seciliSatir.unitCode}}", "visibleWhen": "liste.seciliSatir.trackingCode != null" } },
           { "id": "detayBilgi", "type": "contextPanel", "name": "detayBilgi",
             "props": { "table": "liste", "width": 12, "visibleWhen": "liste.seciliSatir.trackingCode != null",
                        "fields": ["expiryDate=Son kullanma", "stockItemName=Stok", "warehouseCode=Depo kodu", "warehouseName=Depo",

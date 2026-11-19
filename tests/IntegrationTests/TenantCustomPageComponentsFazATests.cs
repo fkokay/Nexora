@@ -89,6 +89,17 @@ public sealed class TenantCustomPageComponentsFazATests
             Heading("h1", new { text = "x", visibleWhen = "<script>ad.value</script>" })]), "'visibleWhen' koşulu geçersiz: ");
         AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
             Heading("h1", new { text = "x", visibleWhen = "ad.value < 'javascript:x'" })]), "'visibleWhen'");
+        // Every condition prop is parsed after the text check: markup outside quotes is rejected in each of them.
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            Heading("h1", new { text = "x", widthWhen = "8=<img src=x>" })]), "'widthWhen' koşulu geçersiz: ");
+        AssertAccepted(V2(components: [Input("i1", "ad", new { inputType = "number" }),
+            Heading("h1", new { text = "x", widthWhen = "8=ad.value > 2" })]));
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text", requiredWhen = "<b>" })]), "'requiredWhen' koşulu geçersiz: ");
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            new { id = "k1", type = "card", props = new { title = "Kart" }, children = new object[]
+            {
+                new { id = "b1", type = "button", props = new { text = "Düğme", visibleWhen = "<img src=x onerror=1>", disabledWhen = "ad.value > 1" } }
+            } }]), "'visibleWhen' koşulu geçersiz: ");
     }
 
     [Fact]

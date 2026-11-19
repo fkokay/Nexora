@@ -191,6 +191,60 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     expect(tags()).toEqual(['Seri']);
   });
 
+  it('action bar offers only read commands: no new, save or delete', async () => {
+    setup();
+    await ready();
+    const bar = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+    await waitFor(() => expect(bar.querySelector('[data-command="export"]')?.getAttribute('aria-disabled')).not.toBe('true'), T);
+    const enabled = Array.from(bar.querySelectorAll<HTMLElement>('[data-command]'))
+      .filter((item) => item.getAttribute('aria-disabled') !== 'true').map((item) => item.dataset.command);
+    for (const write of ['new', 'save', 'delete']) expect(enabled).not.toContain(write);
+  });
+
+  it('a filter that drops the selected row returns the detail panel to its empty state', async () => {
+    setup();
+    await ready();
+    await pick('LOT-YAKIN');
+    // The next response no longer has the selected row (rows have no id; the selection follows the row key).
+    api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
+      if (endpoint === '/api/custom-pages/erp-operations') return { operations: catalog.operations };
+      const method = init?.method ?? 'GET';
+      calls.push({ url: endpoint, method });
+      if (endpoint.startsWith('/api/inventory-tracking/balances')) return { items: rows().filter((row) => row.trackingMode === 'Serial'), page: 1, pageSize: 50, totalCount: 1 };
+      return respond(endpoint, method);
+    });
+    fireEvent.change(within(filters()).getByLabelText('İz türü'), { target: { value: 'Serial' } });
+    await waitFor(() => expect(screen.queryByText('LOT-YAKIN', { selector: '.tenant-page-data-grid td' })).toBeNull(), T);
+    await waitFor(() => expect(within(detail()).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy(), T);
+    expect(tags()).toEqual([]);
+  });
+
+  it('the list still loads when the warehouse options are forbidden (no erp.warehouses.read rule)', async () => {
+    setup('TenantUser');
+    const allowed = api.getMockImplementation()!;
+    api.mockImplementation(async (endpoint: string, token: string, init?: RequestInit) => {
+      if (endpoint === '/api/warehouses') {
+        calls.push({ url: endpoint, method: 'GET' });
+        throw Object.assign(new Error('Bu işlem için yetkiniz yok.'), { status: 403, serverError: 'Bu işlem için yetkiniz yok.' });
+      }
+      return allowed(endpoint, token, init);
+    });
+    cleanup();
+    calls = [];
+    render(
+      <CommandProvider>
+        <ActionBarSlotProvider breadcrumb={<nav aria-label="Konum">Ana Sayfa › Lot / Seri İzleme</nav>}>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage systemScreenKey="inventory-tracking" token={jwt('TenantUser')} onOpenLegacy={() => {}} /></KeepAliveViews>
+        </ActionBarSlotProvider>
+      </CommandProvider>,
+    );
+    await ready();
+    expect(gets('/api/warehouses').length).toBeGreaterThan(0);
+    await pick('SN-1');
+    expect(tags()).toEqual(['Seri']);
+  });
+
   it('TenantUser sees the same read-only page', async () => {
     setup('TenantUser');
     await ready();
