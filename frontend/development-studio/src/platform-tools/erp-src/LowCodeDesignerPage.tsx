@@ -36,9 +36,26 @@ const kindFilters: { value: CatalogFilter; label: string }[] = [
   { value: "all", label: "Tümü" }, { value: "custom", label: "Özel" }, { value: "system", label: "Sistem" }, { value: "builtIn", label: "Yerleşik" },
 ];
 
+const EDITING_PAGE_KEY = "nexora.studio.editingPage";
+function readEditingPage(): EditingCustomPage | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(EDITING_PAGE_KEY) ?? "null") as unknown;
+    return value && typeof value === "object" && typeof (value as { id?: unknown }).id === "string" ? value as EditingCustomPage : null;
+  } catch { return null; }
+}
+
 export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin }: Props) {
   const active = sectionFor(initialSection);
-  const [editingCustomPage, setEditingCustomPage] = useState<EditingCustomPage | "new" | null>(null);
+  // Düzenlenen sayfa sekmenin oturum deposunda tutulur: sayfa yenilenince tasarımcı aynı sayfayla açılır (liste ekranına düşmez).
+  // Kaydedilmemiş yeni sayfa saklanmaz.
+  const [editingCustomPage, setEditingCustomPageState] = useState<EditingCustomPage | "new" | null>(readEditingPage);
+  const setEditingCustomPage = (value: EditingCustomPage | "new" | null) => {
+    setEditingCustomPageState(value);
+    try {
+      if (value && value !== "new") sessionStorage.setItem(EDITING_PAGE_KEY, JSON.stringify(value));
+      else sessionStorage.removeItem(EDITING_PAGE_KEY);
+    } catch { /* depolama kapalı olabilir */ }
+  };
   const [editingScreenKey, setEditingScreenKey] = useState<string | null>(null);
   const [pageCatalog, setPageCatalog] = useState<PageCatalogItem[]>([]);
   const [customPageCatalog, setCustomPageCatalog] = useState<CustomPageCatalogItem[]>([]);
