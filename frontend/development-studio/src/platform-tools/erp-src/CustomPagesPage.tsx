@@ -266,7 +266,7 @@ type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; query
 /** `disabledWhen` / `disabledReason` alabilen türler (sunucu kuralı). */
 const DISABLEABLE_TYPES: ComponentType[] = ["button", "input", "editableGrid", "customFieldsBlock"];
 /** Izgaranın ayar penceresi sekmeleri (pencere kapalıyken Gelişmiş panelde hepsi alt alta çizilir). */
-const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "columns", label: "Sütunlar" }, { key: "data", label: "Veri" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
+const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "data", label: "Veri" }, { key: "columns", label: "Sütunlar" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
 /** Satır işlemi olabilen düğme eylem türleri. */
 const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
 /**
@@ -912,7 +912,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Özellikler paneli kipi (bileşen türü başına hatırlanır) ve "Tüm ayarlar" penceresinde açık bileşen.
   const [inspectorModes, setInspectorModes] = useState<Record<string, InspectorMode>>({});
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [settingsTab, setSettingsTab] = useState("columns");
+  const [settingsTab, setSettingsTab] = useState("data");
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
   const [focusId, setFocusId] = useState<string | null>(null);
   const suggestionsRef = useRef<BindingSuggestion[]>([]);
@@ -1613,6 +1613,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Tek geri alma adımında birden çok özelliği değiştirir; undefined değer özelliği siler (boş dize sunucuda geçersiz olabilir).
   // İşlem Çubuğu'nun İşlemler menüsüne yeni düğme: düğme oluşturulur ve tek geri alma adımında menüye eklenir; eylemi
   // düğmenin kendi ayarlarından seçilir (seçim yeni düğmeye geçer).
+  // Izgaranın satır düğmesi: "Sayfa aç" düğmesi oluşturulur ve tek geri alma adımında satır işlemlerine eklenir; açılacak
+  // sayfa düğmenin kendi ayarlarından seçilir (seçim yeni düğmeye geçer).
+  const addRowButton = (tableId: string) => {
+    if (!canEdit) return;
+    const table = definitionRef.current.components.find((component) => component.id === tableId);
+    if (!table || idList(table.props.rowActions, MAX_ROW_ACTIONS).length >= MAX_ROW_ACTIONS) return;
+    const id = newId("button");
+    commit((value) => ({ ...value, components: [
+      ...value.components.map((component) => component.id === tableId ? { ...component, props: { ...component.props, rowActions: [...idList(component.props.rowActions, MAX_ROW_ACTIONS), id] } } : component),
+      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page" } },
+    ] }));
+    setSettingsId(null);
+    setSelectedComponentId(id);
+  };
   const addMenuButton = (barId: string) => {
     if (!canEdit) return;
     const bar = definitionRef.current.components.find((component) => component.id === barId);
@@ -3364,8 +3378,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <OpenRowField table={selected} components={definition.components} labelOf={(component) => String(component.props.label || component.name || summaryOf(component as PageComponent))} disabled={!canEdit}
                 onPatchBar={(barId, patch) => patchComponent(barId, patch)}/>
               {selectedQueryRef ? <RowActionsFields table={selected} components={definition.components} parts={["actions"]}
-                labelOf={(component) => String(component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
-                onPatch={(patch) => patchComponent(selected.id, patch)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
+                labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
+                onPatch={(patch) => patchComponent(selected.id, patch)} onAddButton={() => addRowButton(selected.id)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
               <div className="pd-rowact-item"><span className="pd-rowact-kind">İş akışı</span>
                 <label className="pd-check"><input type="checkbox" checked={selected.props.rowActionsEnabled === true} onChange={(event) => updateComponent(selected.id, "rowActionsEnabled", event.target.checked)}/>İş akışı başlatan “İşlemler” kolonunu göster</label>
                 {selected.props.rowActionsEnabled === true && <>
