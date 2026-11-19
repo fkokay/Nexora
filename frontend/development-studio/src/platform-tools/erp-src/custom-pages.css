@@ -822,3 +822,4 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-detail .pd-card-child{display:inline-flex}
 .pd-frame .pd-detail-body>.pd-card-child{display:block}
 .pd-frame .pd-detail-actions .is-cond-off .custom-page-preview-button{opacity:.45}
+.pd-frame .pd-card-child.is-badge .pd-cond-chip{display:none}
