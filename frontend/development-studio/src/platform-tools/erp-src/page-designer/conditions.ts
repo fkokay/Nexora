@@ -5,15 +5,20 @@
 //   expr    := and ( "||" and )*
 //   and     := unary ( "&&" unary )*
 //   unary   := "!" unary | cmp
-//   cmp     := operand [ ( "==" | "!=" ) operand | "in" "[" literal ( "," literal )* "]" ]
+//   cmp     := add [ ( "==" | "!=" | "<" | "<=" | ">" | ">=" ) add | "in" "[" literal ( "," literal )* "]" ]
+//   add     := operand [ "+" sayı ]
 //   operand := path | literal | "(" expr ")"
 //   literal := 'metin' | "metin" | sayı | true | false | null
 
 import { resolvePath, type PageScope } from "./pageBindings";
 
+export type CompareOp = "==" | "!=" | "<" | "<=" | ">" | ">=";
+const COMPARE_OPS: readonly string[] = ["==", "!=", "<", "<=", ">", ">="];
+
 export type ConditionNode =
   | { kind: "or" | "and"; items: ConditionNode[] } | { kind: "not"; item: ConditionNode }
-  | { kind: "cmp"; op: "==" | "!="; left: ConditionNode; right: ConditionNode } | { kind: "in"; item: ConditionNode; list: ConditionNode[] }
+  | { kind: "cmp"; op: CompareOp; left: ConditionNode; right: ConditionNode }
+  | { kind: "add"; item: ConditionNode; amount: number } | { kind: "in"; item: ConditionNode; list: ConditionNode[] }
   | { kind: "path"; path: string } | { kind: "literal"; value: string | number | boolean | null };
 
 export const CONDITION_MAX_LENGTH = 300;
@@ -24,7 +29,7 @@ const PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d{1,4}\])*/;
 const NUMBER = /^-?\d+(?:\.\d+)?/;
 
 type Token =
-  | { type: "op"; value: "||" | "&&" | "!" | "==" | "!=" | "(" | ")" | "[" | "]" | "," }
+  | { type: "op"; value: "||" | "&&" | "!" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "+" | "(" | ")" | "[" | "]" | "," }
   | { type: "keyword"; value: "true" | "false" | "null" | "in" }
   | { type: "path"; value: string }
   | { type: "string"; value: string }
@@ -39,8 +44,8 @@ function tokenize(text: string): Token[] {
     const char = text[index];
     if (char === " " || char === "\t" || char === "\n" || char === "\r") { index++; continue; }
     const two = text.slice(index, index + 2);
-    if (two === "||" || two === "&&" || two === "==" || two === "!=") { tokens.push({ type: "op", value: two }); index += 2; continue; }
-    if (char === "!" || char === "(" || char === ")" || char === "[" || char === "]" || char === ",") { tokens.push({ type: "op", value: char }); index++; continue; }
+    if (two === "||" || two === "&&" || two === "==" || two === "!=" || two === "<=" || two === ">=") { tokens.push({ type: "op", value: two }); index += 2; continue; }
+    if (char === "!" || char === "<" || char === ">" || char === "+" || char === "(" || char === ")" || char === "[" || char === "]" || char === ",") { tokens.push({ type: "op", value: char }); index++; continue; }
     if (char === "'" || char === "\"") {
       const end = text.indexOf(char, index + 1);
       if (end < 0) throw new ConditionError("kapanmamış metin");
@@ -122,12 +127,23 @@ export function parseCondition(text: string): { ok: true; node: ConditionNode; r
       if (value) return value;
       throw new ConditionError(describe(token));
     };
+    // add := operand [ "+" sayı ]  (tarihe gün, sayıya değer ekler; çıkarma için eksi sayı: bugun + -7)
+    const add = (): ConditionNode => {
+      const item = operand();
+      if (!isOp("+")) return item;
+      position++;
+      const token = peek();
+      if (token?.type !== "number") throw new ConditionError("'+' sonrasında sayı bekleniyordu");
+      position++;
+      return { kind: "add", item, amount: token.value };
+    };
     const cmp = (): ConditionNode => {
-      const left = operand();
-      if (isOp("==") || isOp("!=")) {
-        const op = (peek() as { value: "==" | "!=" }).value;
+      const left = add();
+      const next = peek();
+      if (next?.type === "op" && COMPARE_OPS.includes(next.value)) {
+        const op = next.value as CompareOp;
         position++;
-        return { kind: "cmp", op, left, right: operand() };
+        return { kind: "cmp", op, left, right: add() };
       }
       const token = peek();
       if (token?.type === "keyword" && token.value === "in") {
@@ -201,9 +217,31 @@ function normalize(value: unknown): Normalized {
 
 const truthy = (value: Normalized) => value !== null && value !== false && value !== 0;
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** `yol + n`: sayıya n eklenir; YYYY-MM-DD ile başlayan tarihe n gün eklenir (takvim günü); başka değer null olur. */
+function shifted(base: Normalized, amount: number): Normalized {
+  if (typeof base === "number") return base + amount;
+  if (typeof base !== "string" || !ISO_DATE.test(base) || !Number.isInteger(amount)) return null;
+  const [year, month, day] = base.slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount));
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+/** Sıralama: yalnız sayı–sayı ve tarih–tarih (YYYY-MM-DD, ilk 10 karakter) karşılaştırılır; diğer her durum (null dahil) false. */
+function ordered(op: "<" | "<=" | ">" | ">=", left: Normalized, right: Normalized): boolean {
+  let a: number | string, b: number | string;
+  if (typeof left === "number" && typeof right === "number") { a = left; b = right; }
+  else if (typeof left === "string" && typeof right === "string" && ISO_DATE.test(left) && ISO_DATE.test(right)) { a = left.slice(0, 10); b = right.slice(0, 10); }
+  else return false;
+  return op === "<" ? a < b : op === "<=" ? a <= b : op === ">" ? a > b : a >= b;
+}
+
 function operandValue(node: ConditionNode, scope: PageScope): Normalized {
   if (node.kind === "path") return normalize(resolvePath(scope, node.path));
   if (node.kind === "literal") return normalize(node.value);
+  if (node.kind === "add") return shifted(operandValue(node.item, scope), node.amount);
   return evaluateCondition(node, scope);
 }
 
@@ -214,8 +252,10 @@ export function evaluateCondition(node: ConditionNode, scope: PageScope): boolea
     case "and": return node.items.every((item) => evaluateCondition(item, scope));
     case "not": return !evaluateCondition(node.item, scope);
     case "cmp": {
-      const equal = operandValue(node.left, scope) === operandValue(node.right, scope);
-      return node.op === "==" ? equal : !equal;
+      const left = operandValue(node.left, scope), right = operandValue(node.right, scope);
+      if (node.op === "==") return left === right;
+      if (node.op === "!=") return left !== right;
+      return ordered(node.op, left, right);
     }
     case "in": {
       const value = operandValue(node.item, scope);

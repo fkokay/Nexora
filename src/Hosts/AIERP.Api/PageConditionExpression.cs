@@ -99,9 +99,9 @@ internal static class PageConditionExpression
             if (index + 1 < text.Length)
             {
                 var two = text.Substring(index, 2);
-                if (two is "||" or "&&" or "==" or "!=") { tokens.Add(new Token(TokenType.Op, two)); index += 2; continue; }
+                if (two is "||" or "&&" or "==" or "!=" or "<=" or ">=") { tokens.Add(new Token(TokenType.Op, two)); index += 2; continue; }
             }
-            if (c is '!' or '(' or ')' or '[' or ']' or ',') { tokens.Add(new Token(TokenType.Op, c.ToString())); index++; continue; }
+            if (c is '!' or '<' or '>' or '+' or '(' or ')' or '[' or ']' or ',') { tokens.Add(new Token(TokenType.Op, c.ToString())); index++; continue; }
             if (c is '\'' or '"')
             {
                 var end = text.IndexOf(c, index + 1);
@@ -192,13 +192,23 @@ internal static class PageConditionExpression
             throw new ConditionException("işlenen bekleniyordu");
         }
 
-        private void Cmp()
+        // add := operand [ "+" number ]: a day offset for a date, an amount for a number.
+        private void Add()
         {
             Operand();
-            if (IsOp("==") || IsOp("!="))
+            if (!IsOp("+")) return;
+            position++;
+            if (Peek is not { Type: TokenType.Number }) throw new ConditionException("'+' sonrasında sayı bekleniyordu");
+            position++;
+        }
+
+        private void Cmp()
+        {
+            Add();
+            if (Peek is { Type: TokenType.Op, Value: "==" or "!=" or "<" or "<=" or ">" or ">=" })
             {
                 position++;
-                Operand();
+                Add();
                 return;
             }
             if (Peek is { Type: TokenType.Keyword, Value: "in" })
