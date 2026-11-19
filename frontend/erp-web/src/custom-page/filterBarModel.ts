@@ -257,6 +257,25 @@ export function loadFilterValues(key: string, filters: FilterSpec[]): FilterBarV
   return { search: typeof stored.search === "string" ? stored.search.slice(0, 200) : "", values };
 }
 
+/**
+ * "Sayfa aç" parametreleri (`{{sayfa.parametre.<ad>}}`) aynı adlı sorgu parametresine bağlı süzgeci doldurur: sayfa başka bir
+ * ekrandan bir kayıtla açıldıysa (ör. Depolar → Raf ve Konumlar, `warehouseId`) süzgeç o değerle başlar ve saklanan değerin
+ * önüne geçer. Yalnız tek değerli (`param` taşıyan) süzgeçler dolar; aç/kapa "true"/"false" metnini alır, boş parametre yok sayılır.
+ */
+export function presetFromPageParams(values: FilterBarValues, filters: FilterSpec[], params: Readonly<Record<string, string>>): FilterBarValues {
+  let next: Record<string, FilterValue> | null = null;
+  for (const filter of filters) {
+    if (!filter.param || !Object.prototype.hasOwnProperty.call(params, filter.param)) continue;
+    const raw = params[filter.param].trim();
+    if (raw === "") continue;
+    const value: FilterValue = filter.kind === "toggle" ? /^(true|1|evet)$/i.test(raw) : raw.slice(0, MAX_PRESET_LENGTH);
+    next ??= { ...values.values };
+    next[filter.key] = value;
+  }
+  return next ? { ...values, values: next } : values;
+}
+const MAX_PRESET_LENGTH = 200;
+
 export function saveFilterValues(key: string, values: FilterBarValues) {
   try {
     const kept = Object.fromEntries(Object.entries(values.values).filter(([, value]) => !isEmptyFilterValue(value)));

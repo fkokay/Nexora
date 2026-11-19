@@ -654,7 +654,7 @@ public sealed class SystemPageEndpointsIntegrationTests
         Assert.Empty((await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime")).GetProperty("screens").EnumerateObject());
     }
 
-    private static string StandardV1Json() => SystemPageStandards.All[ScreenKey].DefinitionJson;
+    private static string StandardV1Json() => WarehouseStandardV1.Standard.DefinitionJson;
 
     private static string StaticJson() => JsonSerializer.Serialize(new
     {
@@ -764,7 +764,8 @@ public sealed class SystemPageEndpointsIntegrationTests
         else builder.Services.AddSingleton<IPlatformPermissionAuthorizer, CustomizationTestPermissionAuthorizer>();
         // The same registration as Program.cs; a test standard set registered afterwards replaces the embedded one.
         builder.Services.AddSystemPages();
-        if (standards is not null) builder.Services.AddSingleton(standards);
+        // Default: the embedded standards with Depo Yönetimi frozen at version 1 (the fixture these tests assert against).
+        builder.Services.AddSingleton(standards ?? WarehouseStandardV1.Set);
         builder.Services.AddSingleton<ITenantQueryConnectionFactory, UnusedQueryConnectionFactory>();
         builder.Services.AddAuthorization();
         builder.Services.AddRateLimiter(CustomPageQueryEndpoints.ConfigureRateLimiting);
@@ -804,7 +805,7 @@ public sealed class SystemPageEndpointsIntegrationTests
     {
         public VersionTwoStandardSet()
         {
-            var v1 = SystemPageStandards.All[ScreenKey];
+            var v1 = WarehouseStandardV1.Standard;
             var definition = JsonNode.Parse(v1.DefinitionJson)!.AsObject();
             definition["components"]!.AsArray().Add(JsonNode.Parse("""{"id":"depoNotu","type":"text","name":"depoNotu","props":{"text":"Depo notu"}}"""));
             definition["components"]!.AsArray().Add(JsonNode.Parse("""{"id":"ikinciTablo","type":"dataTable","name":"ikinciTablo","props":{"title":"Aktif depolar","query":"depolar","columns":["code"]}}"""));

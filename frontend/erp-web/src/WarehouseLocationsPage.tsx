@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import { authenticatedFetch } from "./authApi";
+import { usePageParams } from "./pageNavigation";
 import type { GridExportActions } from "./AdvancedDataGrid";
 import { usePageCommands } from "./commands/CommandProvider";
 import { csvExportCommand } from "./commands/gridCommands";
@@ -84,8 +85,10 @@ export default function WarehouseLocationsPage({
   // A hand-off from Depolar ("Lokasyon ekle" / "Tümünü yönet") picks the warehouse and may open the create form.
   const [initialRequest] = useState(() => peekLocationRequest());
   useEffect(() => clearLocationRequest(), []);
+  // The system Depolar page hands off through the page parameters only (`warehouseId`); legacy Depolar sets both.
+  const paramWarehouseId = usePageParams("inventory-locations").warehouseId ?? "";
   const [warehouses, setWarehouses] = useState<WarehouseRow[]>([]);
-  const [warehouseId, setWarehouseId] = useState(initialRequest?.warehouseId ?? "");
+  const [warehouseId, setWarehouseId] = useState(initialRequest?.warehouseId || paramWarehouseId);
   const [locations, setLocations] = useState<Location[]>([]);
   // Definition screen: the location open in the form (none until a row is chosen), or a new one.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -496,7 +499,9 @@ export default function WarehouseLocationsPage({
   }, [selected?.rowVersion, hasChanges]);
   // A hand-off while this screen is already open (kept alive).
   const requestRef = useRef<(request: LocationRequest) => void>(() => {});
+  const lastHandOff = useRef(initialRequest?.warehouseId ?? "");
   requestRef.current = (request) => {
+    lastHandOff.current = request.warehouseId;
     // The stored copy is for a fresh mount only; a declined hand-off is not replayed later.
     clearLocationRequest();
     void (async () => {
@@ -512,6 +517,18 @@ export default function WarehouseLocationsPage({
       if (request.create && isAdmin) setMode("create");
     })();
   };
+  // A new warehouse in the page parameters while this screen is open (kept alive) is a hand-off too.
+  const warehouseIdRef = useRef(warehouseId);
+  warehouseIdRef.current = warehouseId;
+  const appliedParam = useRef(paramWarehouseId);
+  useEffect(() => {
+    if (!paramWarehouseId || paramWarehouseId === appliedParam.current) return;
+    appliedParam.current = paramWarehouseId;
+    // Legacy Depolar sends the same hand-off as a stored request and an event as well: that one is applied (with its
+    // create mode), not this.
+    if (paramWarehouseId === peekLocationRequest()?.warehouseId || paramWarehouseId === lastHandOff.current) return;
+    if (paramWarehouseId !== warehouseIdRef.current) requestRef.current({ warehouseId: paramWarehouseId, create: false });
+  }, [paramWarehouseId]);
   useEffect(() => {
     const onRequest = (event: Event) => {
       const detail = (event as CustomEvent<LocationRequest>).detail;
