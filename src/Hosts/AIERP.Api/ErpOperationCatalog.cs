@@ -101,7 +101,8 @@ internal static class ErpOperationCatalog
         ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
         ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",
         ["allowNegativeStock"] = "Negatif stoka izin ver", ["updatedByUserId"] = "Güncelleyen", ["updatedAt"] = "Güncellenme",
-        ["status"] = "Durum"
+        ["status"] = "Durum",
+        ["stockItemCode"] = "Stok kodu", ["stockItemName"] = "Stok adı", ["lastMovementDate"] = "Son hareket tarihi"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -160,6 +161,7 @@ internal static class ErpOperationCatalog
         };
         operations.AddRange(BuildStockPilot(id, paging));
         operations.AddRange(BuildStockPilotV1());
+        operations.AddRange(BuildStockScreens(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -234,6 +236,15 @@ internal static class ErpOperationCatalog
             [new ErpOperationParameter("productStockItemId", "query", "guid", true)], List(Columns<BomView>(), null));
         yield return Read(SettingsModule, "ayar.negatifStok", "Negatif stok kuralı", "/api/tenant-settings/operations", [],
             Record(Columns<TenantOperationalSettingsView>()));
+    }
+
+    /// <summary>Stok &amp; Depo screen standards: Lot / Seri İzleme (read only).</summary>
+    private static IEnumerable<ErpOperation> BuildStockScreens(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        // Lot/serial balances computed from traced movements; the endpoint accepts trackingMode Lot or Serial only.
+        yield return Read(StockModule, "stok.izleme.bakiyeler", "Lot / seri bakiyeleri (sayfalı)", "/api/inventory-tracking/balances",
+            [Query("q", "text"), Query("warehouseId", "guid"), Query("trackingMode", "text"), .. paging],
+            List(Columns<InventoryTrackingBalanceView>(), "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.

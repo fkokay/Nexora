@@ -36,6 +36,7 @@ stok.bakiye.sayfa
 stok.hareket.ekle
 stok.hareket.listele
 stok.hareket.tersKayit
+stok.izleme.bakiyeler
 stok.kart.aktifEt
 stok.kart.birimEkle
 stok.kart.birimSil

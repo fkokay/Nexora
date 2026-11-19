@@ -61,6 +61,9 @@ public sealed class ErpOperationCatalogTests
         "stok.kart.birimEkle", "stok.kart.birimSil", "stok.kart.birimleri", "stok.kart.depoBakiyeleri", "stok.kart.ozelAlanKaydet"
     ];
 
+    // Stok & Depo screen standards (after the stock pilot): paged reads with meta.
+    private static readonly string[] StockScreenOperations = ["stok.izleme.bakiyeler"];
+
     [Fact]
     public void Depo_operations_use_depo_module()
     {
@@ -77,7 +80,7 @@ public sealed class ErpOperationCatalogTests
         {
             foreach (var name in op.Result.Flatten)
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
-            if (Proje2FazAOperations.Contains(op.Name)) continue;
+            if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -96,6 +99,12 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("Eldeki miktar", page.Result.Columns.Single(x => x.Code == "balance.quantityOnHand").Label);
         Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverse));
         Assert.True(reverse.Parameters.Single(x => x.Name == "reason").Required);
+        Assert.True(ErpOperationCatalog.TryGet("stok.izleme.bakiyeler", out var tracking));
+        Assert.Equal(new[] { "page", "pageSize", "totalCount" }, tracking.Result.MetaPaths);
+        Assert.Equal("items", tracking.Result.RowsPath);
+        Assert.Empty(tracking.Result.Flatten);
+        Assert.Equal(new[] { "stockItemId", "stockItemCode", "stockItemName", "unitCode", "trackingMode", "warehouseId", "warehouseCode",
+            "warehouseName", "trackingCode", "expiryDate", "quantityOnHand", "lastMovementDate" }, tracking.Result.Columns.Select(x => x.Code));
     }
 
     [Fact]
@@ -149,6 +158,7 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("Depo", ops["depo.listele"].GetProperty("module").GetString());
         // Every new operation resolves to a registered endpoint and permission for an admin.
         Assert.All(Proje2FazAOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
+        Assert.All(StockScreenOperations, name => Assert.True(ops[name].GetProperty("allowed").GetBoolean(), name));
         // Proje 4: both new operations resolve to an endpoint and a permission for an admin.
         Assert.True(ops["uretim.recete.listele"].GetProperty("allowed").GetBoolean());
         Assert.True(ops["ayar.negatifStok"].GetProperty("allowed").GetBoolean());
@@ -430,6 +440,7 @@ public sealed class ErpOperationCatalogTests
         ["stok.hareket.ekle"] = "warehouseId,stockItemId,entryDate,direction,quantity,description,unitCostBase,unitCode,storageLocationId",
         ["stok.hareket.tersKayit"] = "warehouseId,stockItemId,entryId,reason",
         ["stok.kart.depoBakiyeleri"] = "id",
+        ["stok.izleme.bakiyeler"] = "q,warehouseId,trackingMode,page,pageSize",
     };
 
     [Fact]
