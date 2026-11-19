@@ -18,13 +18,15 @@ type Props = {
   onDragOver: (event: DragEvent<HTMLElement>) => void;
   onDragLeave: (event: DragEvent<HTMLDivElement>) => void;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  /** Izgaraya eklenen sınıf (ör. form kartının sütun ızgarası). */
+  className?: string;
 };
 
 /**
  * Tuval ızgarası: sürükleme durumuna abone olan tek parça. Dragover'da yalnız bu bileşen yeniden çizilir; bloklar hazır
  * (önbellekli) öğeler olduğundan React onları atlar, yalnız yer tutucu ve sürüklenen bloğun sınıfı değişir.
  */
-export const CanvasGrid = memo(function CanvasGrid({ store, gridRef, blocks, layoutKey, guides, empty, placeholderFor, onDragOver, onDragLeave, onDrop }: Props) {
+export const CanvasGrid = memo(function CanvasGrid({ store, gridRef, blocks, layoutKey, guides, empty, placeholderFor, onDragOver, onDragLeave, onDrop, className }: Props) {
   const dragging = useDragSelect(store, (state) => state.dragging);
   const canvasDrop = useDragSelect(store, (state) => state.canvasDrop);
   const placeholder = placeholderFor(dragging, canvasDrop);
@@ -41,7 +43,7 @@ export const CanvasGrid = memo(function CanvasGrid({ store, gridRef, blocks, lay
     if (at !== null && at >= blocks.length) list.push(node);
     return list;
   }, [blocks, dragging, at, span]);
-  return <div ref={gridRef} className={`pd-grid ${dragging ? "is-dragging" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+  return <div ref={gridRef} className={`pd-grid ${className ?? ""} ${dragging ? "is-dragging" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
     {guides}
     {blocks.length === 0 && at === null && empty}
     {children}

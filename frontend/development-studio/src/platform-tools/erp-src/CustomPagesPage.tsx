@@ -1,5 +1,5 @@
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
@@ -10,7 +10,7 @@ import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetPanelPreview, FilterBarPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetGroupPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup, FilterBarPreview } from "./page-designer/CanvasPreviews";
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -42,6 +42,7 @@ import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
 import * as cardTree from "./page-designer/cardChildren";
+import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
@@ -692,6 +693,15 @@ const cardLabelOf = (component: PageComponent) => {
   const summary = summaryOf(component);
   return summary.includes("{{") ? component.name || titleFor(component.type) : summary;
 };
+/**
+ * İçi kendi ekranında tasarlanan bileşenler: bilgi kartı / bölüm (`children`), Pencere (`contains`), Form kartı ve Yan filtre
+ * paneli (`inputs`). Kartın üyeleri kartın içindedir; diğerlerinin üyeleri sayfadaki üst düzey bileşenlerdir (kimlikle).
+ */
+const isFocusOwnerType = (type: string) => cardTree.isCardType(type) || refTree.isRefOwnerType(type);
+const focusMembersOf = (owner: PageComponent, components: PageComponent[]): PageComponent[] => cardTree.isCardType(owner.type) ? childComponentsOf(owner)
+  : refTree.refIds(owner).map((id) => components.find((component) => component.id === id)).filter((component): component is PageComponent => !!component);
+const focusKindText = (type: string) => type === "dialog" ? "pencerenin içi" : type === "formCard" ? "form kartının içi" : type === "facetPanel" ? "yan panelin içi" : "kartın içi";
+const ejectText = (type: string) => type === "dialog" ? "Pencereden çıkar" : type === "formCard" ? "Form kartından çıkar" : type === "facetPanel" ? "Yan panelden çıkar" : "Karttan çıkar";
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
 const FULLSCREEN_STORAGE_KEY = "nexora.pageDesigner.fullscreen";
 const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
@@ -888,7 +898,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [settingsTab, setSettingsTab] = useState("columns");
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
-  const [focusCardId, setFocusCardId] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
   const suggestionsRef = useRef<BindingSuggestion[]>([]);
   const runQueryPreviewRef = useRef<(id: string, confirmWrite: boolean) => Promise<number | null>>(async () => null);
   const parameterMemory = useRef(new Map<string, PageQuery["parameters"][number]>());
@@ -926,7 +936,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const allNewItemsAdded = !!newItems && newItems.items.length > 0 && pendingNewItems.length === 0 && newItems.standardVersion > newItems.baseVersion;
   const selected = selectedComponentId ? cardTree.findComponent(definition.components, selectedComponentId) : null;
   // Tanımdan türetilir: geri alma, silme ya da başka sayfa açılınca kart ortadan kalkarsa sayfa görünümüne dönülür.
-  const focusCard = focusCardId ? definition.components.find((component) => component.id === focusCardId && cardTree.isCardType(component.type)) ?? null : null;
+  const focusOwner = focusId ? definition.components.find((component) => component.id === focusId && isFocusOwnerType(component.type)) ?? null : null;
+  const focusCard = focusOwner && cardTree.isCardType(focusOwner.type) ? focusOwner : null;
+  const focusMembers = useMemo(() => focusOwner ? focusMembersOf(focusOwner, definition.components) : [], [focusOwner, definition]);
+  // Pencerenin içindeki form kartı / kart açıkken kırıntıda ve Esc ile dönülecek üst sahip (pencere).
+  const focusParent = focusOwner ? definition.components.find((component) => component.id === refTree.refLocation(definition.components, focusOwner.id)?.ownerId) ?? null : null;
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await authenticatedFetch(url, token, {
@@ -1111,11 +1125,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   useEffect(() => {
     if (selectedComponentId && !cardTree.findComponent(definition.components, selectedComponentId)) setSelectedComponentId(null);
   }, [definition, selectedComponentId]);
-  useEffect(() => { if (focusCardId && !focusCard) setFocusCardId(null); }, [focusCardId, focusCard]);
+  useEffect(() => { if (focusId && !focusOwner) setFocusId(null); }, [focusId, focusOwner]);
 
   const resetUndo = () => { undoStack.current = []; redoStack.current = []; lastCommit.current = null; setUndoTick((tick) => tick + 1); };
   const loadEditor = (pageName: string, pageCode: string, pageDescription: string, pageDefinition: PageDefinition) => {
-    setName(pageName); setCode(pageCode); setDescription(pageDescription); setDefinition(pageDefinition); definitionRef.current = pageDefinition; setFocusCardId(null);
+    setName(pageName); setCode(pageCode); setDescription(pageDescription); setDefinition(pageDefinition); definitionRef.current = pageDefinition; setFocusId(null);
     setSavedSnapshot(snapshotOf(pageName, pageDescription, pageDefinition));
     setQueryPreviews({}); setSelectedQueryId(pageDefinition.queries[0]?.id ?? null);
     resetUndo();
@@ -1311,13 +1325,25 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const index = definition.components.findIndex((component) => component.id === selectedComponentId);
     return index < 0 ? definition.components.length : index + 1;
   };
-  const addComponent = (item: PaletteItem, at?: number, tab?: { tabsId: string; tabIndex: number; position: number }, card?: { cardId: string; at: number }) => {
+  // Yan filtre paneline eklenen giriş seçenek sorgulu seçim girişi olarak başlar (sayfanın ilk okuma sorgusu); sorgu yoksa
+  // sunucu kuralı gereği eklenemez (neden gösterilir).
+  const newRefProps = (ownerId: string, type: string): Record<string, PropValue> => {
+    const owner = definitionRef.current.components.find((component) => component.id === ownerId);
+    if (owner?.type !== "facetPanel" || type !== "input") return {};
+    const query = definitionRef.current.queries.find((item) => !isWriteKind(item.kind));
+    return query ? { inputType: "select", label: "Seçim", optionsQuery: query.id } : { inputType: "select" };
+  };
+  const addComponent = (item: PaletteItem, at?: number, tab?: { tabsId: string; tabIndex: number; position: number }, card?: { cardId: string; at: number }, ref?: { ownerId: string; at: number }) => {
     if (!canEdit) return;
     if (tab && tabPlacementProblem(cardTree.flatWithCardTabs(definitionRef.current.components), tab.tabsId, tab.tabIndex, { type: item.type })) return;
     if (card && !cardTree.canBeCardChild(item.type)) return;
     if (item.type === "actionBar" && actionBarOf(definitionRef.current.components)) return; // sayfada en çok bir İşlem Çubuğu
     const id = newId(item.type);
-    const props = Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value]));
+    const props = { ...Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])), ...(ref ? newRefProps(ref.ownerId, item.type) : {}) };
+    if (ref) {
+      const problem = refTree.refPlacementProblem(definitionRef.current.components, ref.ownerId, { type: item.type, props });
+      if (problem) { setError(problem); return; }
+    }
     // Düzenlenebilir tablo ve özel alanlar bloğu adsız olamaz: ilk boş ad (tablo1, ozelAlanlar1…) verilir.
     const autoName = requiredNameBase(item.type);
     const name = autoName ? freeName(autoName) : undefined;
@@ -1330,6 +1356,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const created: PageComponent = { id, type: item.type, ...(name ? { name } : {}), props };
       // Kartın içine bırakılan yeni bileşen kartın `children` dizisine girer.
       if (card) return { ...value, components: cardTree.insertCardChild(components, card.cardId, created, card.at) };
+      // Pencereye / form kartına bırakılan yeni bileşen sayfada sahibinin hemen arkasına girer ve sahibin kimlik dizisine yazılır.
+      if (ref) {
+        const ownerAt = components.findIndex((component) => component.id === ref.ownerId);
+        if (ownerAt < 0) return value;
+        components.splice(ownerAt + 1, 0, created);
+        return { ...value, components: refTree.insertRef(components, ref.ownerId, id, ref.at) };
+      }
       // Kartın içindeki Sekmeler'in üyeleri de üst düzeydedir (sunucu kuralı): yeni bileşen kartın arkasına girer.
       const ownerIndex = tab ? components.findIndex((component) => component.id === tab.tabsId
         || (cardTree.isCardType(component.type) && childComponentsOf(component).some((child) => child.id === tab.tabsId))) : -1;
@@ -1458,19 +1491,33 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     });
   };
   useEffect(() => () => cancelAnimationFrame(canvasFrame.current), []);
-  // Kart tasarım ekranı: kartın 12 sütunlu ızgarasına bırakılabilen şeyler. Paletten karta eklenebilen bir tür, kartın kendi
-  // çocuğu (sıralama) ya da sayfadaki (ör. kartın Sekmeler'inden ya da Katmanlar'dan sürüklenen) karta eklenebilen bir bileşen.
-  const cardDragAccepts = (dragging: string) => {
-    const components = definitionRef.current.components;
-    if (cardTree.cardLocation(components, dragging)) return true;
-    const root = components.find((component) => component.id === dragging);
-    if (root) return cardTree.canBeCardChild(root.type);
-    return palette.some((item) => item.type === dragging) && cardTree.canBeCardChild(dragging);
+  // İç tasarım ekranı (kart, pencere, form kartı, yan filtre paneli): sahibin ızgarasına bırakılabilen şeyler. Kartta: paletten
+  // karta eklenebilen bir tür, kartın kendi çocuğu (sıralama) ya da sayfadaki karta eklenebilen bir bileşen. Pencere ve form
+  // kartında: sahibin üyesi (sıralama), sunucu kuralına göre alınabilen sayfa bileşeni ya da paletten alınabilen bir tür.
+  const focusAccepts = (owner: PageComponent, components: PageComponent[], dragging: string) => {
+    if (cardTree.isCardType(owner.type)) {
+      const location = cardTree.cardLocation(components, dragging);
+      if (location) return location.cardId === owner.id;
+      const root = components.find((component) => component.id === dragging);
+      if (root) return root.id !== owner.id && cardTree.canBeCardChild(root.type);
+      return palette.some((item) => item.type === dragging) && cardTree.canBeCardChild(dragging);
+    }
+    const existing = components.find((component) => component.id === dragging);
+    if (existing) return !refTree.refPlacementProblem(components, owner.id, { id: existing.id, type: existing.type });
+    if (cardTree.cardLocation(components, dragging)) return false;
+    return palette.some((item) => item.type === dragging) && !refTree.refPlacementProblem(components, owner.id, { type: dragging, props: newRefProps(owner.id, dragging) });
   };
-  const focusedCardNow = () => focusCardId ? definitionRef.current.components.find((component) => component.id === focusCardId && cardTree.isCardType(component.type)) : undefined;
-  const dragOverCard = (event: DragEvent<HTMLElement>) => {
+  const focusedOwnerNow = () => focusId ? definitionRef.current.components.find((component) => component.id === focusId && isFocusOwnerType(component.type)) : undefined;
+  /** Üyenin iç ekrandaki genişliği: kart ve pencerede kendi genişliği; form kartında sütun sayısı, yan panelde tam satır. */
+  const memberSpan = (owner: PageComponent, member: PageComponent | undefined, type?: ComponentType) => {
+    if (owner.type === "formCard") return deviceSpan(owner.props.layout === "inline" ? 3 : 12 / (owner.props.columns === 1 || owner.props.columns === 3 ? owner.props.columns : 2), device);
+    if (owner.type === "facetPanel") return 12;
+    return deviceSpan(member ? spanOf(member) : type ? defaultSpan(type) : 12, device);
+  };
+  const dragOverFocus = (event: DragEvent<HTMLElement>) => {
     const dragging = dragStore.get().dragging;
-    if (!canEdit || !dragging || !cardDragAccepts(dragging)) return;
+    const owner = focusedOwnerNow();
+    if (!canEdit || !dragging || !owner || !focusAccepts(owner, definitionRef.current.components, dragging)) return;
     event.preventDefault();
     canvasHit.current = { target: event.target as Element | null, x: event.clientX, y: event.clientY };
     if (canvasFrame.current) return;
@@ -1479,59 +1526,61 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const hit = canvasHit.current;
       canvasHit.current = null;
       const grid = cardGridRef.current;
-      const card = focusedCardNow();
-      if (!hit || !grid || !card) return;
-      const children = childComponentsOf(card);
+      const current = focusedOwnerNow();
+      if (!hit || !grid || !current) return;
+      const members = focusMembersOf(current, definitionRef.current.components);
       const element = hit.target instanceof Element ? hit.target.closest<HTMLElement>("[data-card-index], [data-page-placeholder]") : null;
       if (!element || element.parentElement !== grid) {
         const blocks = Array.from(grid.querySelectorAll<HTMLElement>(":scope > [data-card-index]"));
         const lastBlock = blocks[blocks.length - 1];
-        if (!lastBlock || hit.y > lastBlock.getBoundingClientRect().bottom) dragStore.set({ canvasDrop: children.length });
+        if (!lastBlock || hit.y > lastBlock.getBoundingClientRect().bottom) dragStore.set({ canvasDrop: members.length });
         return;
       }
       if (element.dataset.pagePlaceholder !== undefined) return;
       const index = Number(element.dataset.cardIndex);
-      const child = children[index];
-      if (!child) return;
+      const member = members[index];
+      if (!member) return;
       const rect = element.getBoundingClientRect();
-      const horizontal = deviceSpan(spanOf(child), device) < 12;
+      const horizontal = memberSpan(current, member) < 12;
       const before = horizontal ? hit.x < rect.left + rect.width / 2 : hit.y < rect.top + rect.height / 2;
       dragStore.set({ canvasDrop: before ? index : index + 1 });
     });
   };
-  const dropInCard = (target: number, event: DragEvent) => {
+  const dropInFocus = (target: number, event: DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
     clearDrag();
-    const card = focusedCardNow();
-    if (!canEdit || !card) return;
+    const owner = focusedOwnerNow();
+    if (!canEdit || !owner) return;
+    const isCard = cardTree.isCardType(owner.type);
     const type = event.dataTransfer.getData("application/x-nexora-component");
     const childId = event.dataTransfer.getData(CARD_CHILD_MIME);
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
       const item = palette.find((entry) => entry.type === type);
-      if (item) addComponent(item, undefined, undefined, { cardId: card.id, at: target });
+      if (item) { if (isCard) addComponent(item, undefined, undefined, { cardId: owner.id, at: target }); else addComponent(item, undefined, undefined, undefined, { ownerId: owner.id, at: target }); }
       return;
     }
     if (childId) {
       commit((state) => {
-        const moved = cardTree.moveCardChild(state.components, childId, target);
+        const moved = isCard ? cardTree.moveCardChild(state.components, childId, target) : refTree.moveRef(state.components, owner.id, childId, target);
         return moved === state.components ? state : { ...state, components: moved };
       });
       return;
     }
-    // Sayfadaki bileşen karta alınır: sekmesinden çıkar, sayfadan kartın `children` dizisine geçer (tek geri alma adımı).
+    // Sayfadaki bileşen sahibe alınır: sekmesinden çıkar; kartta sayfadan kartın `children` dizisine geçer, pencere ve form
+    // kartında sayfada kalır ve kimliği sahibin dizisine yazılır (tek geri alma adımı).
     const moved = Number.isInteger(from) ? definitionRef.current.components[from] : undefined;
-    if (!moved || !cardTree.canBeCardChild(moved.type)) return;
+    if (!moved || !focusAccepts(owner, definitionRef.current.components, moved.id)) return;
     commit((state) => {
       const detached = cardTree.withCardTabs(state.components, (flat) => removeFromTabs(flat, moved.id)) ?? state.components;
-      const adopted = cardTree.adoptIntoCard(detached, card.id, moved.id, target);
-      return adopted === state.components ? state : { ...state, components: adopted };
+      const adopted = isCard ? cardTree.adoptIntoCard(detached, owner.id, moved.id, target) : refTree.adoptRef(detached, owner.id, moved.id, target);
+      return adopted === detached ? state : { ...state, components: adopted };
     });
     setSelectedComponentId(moved.id);
   };
-  const openCardFocus = (id: string) => { clearDrag(); setSettingsId(null); setFocusCardId(id); setSelectedComponentId(id); };
+  const openFocus = (id: string) => { clearDrag(); setSettingsId(null); setFocusId(id); setSelectedComponentId(id); };
   const updateComponent = (id: string, key: string, value: PropValue) => commit((state) => ({
     ...state,
     components: cardTree.updateComponent(state.components, id, (component) => ({ ...component, props: { ...component.props, [key]: numericKeys.includes(key) ? Number(value) : value } })),
@@ -1726,7 +1775,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // Sekmedeki bileşenin kopyası aynı sekmede, aslının hemen arkasında başlar (sekme doluysa sayfaya düşer).
       const location = tabLocation(cardTree.flatWithCardTabs(state.components), id);
       const placed = location ? cardTree.withCardTabs(components, (flat) => placeInTab(flat, location.tabsId, location.tabIndex, copyId, location.position + 1)) : null;
-      return { ...state, components: placed ?? components };
+      if (placed) return { ...state, components: placed };
+      // Pencere / form kartı / yan panel üyesinin kopyası aynı sahipte, aslının arkasında başlar (sahip doluysa sayfaya düşer).
+      const owner = refTree.refLocation(state.components, id);
+      return { ...state, components: owner ? refTree.insertRef(components, owner.ownerId, copyId, owner.index + 1) : components };
     });
     setSelectedComponentId(copyId);
   };
@@ -1746,10 +1798,29 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const ejected = cardTree.ejectCardChild(state.components, id);
       return ejected === state.components ? state : { ...state, components: ejected };
     });
-    setFocusCardId(null);
+    setFocusId(null);
     setSelectedComponentId(id);
   };
-  const moveComponent = (index: number, delta: number) => commit((state) => {
+  // Pencere / form kartı / yan panel üyesi sahibinde ±1 taşınır; "…çıkar" kimliği sahibin dizisinden kaldırır (bileşen
+  // sayfada kendi yerinde kalır; ekran sayfaya döner ve bileşen seçili kalır).
+  const stepInOwner = (id: string, delta: -1 | 1) => commit((state) => {
+    const moved = refTree.stepRef(state.components, id, delta);
+    return moved === state.components ? state : { ...state, components: moved };
+  });
+  const ejectFromOwner = (id: string) => {
+    const location = refTree.refLocation(definitionRef.current.components, id);
+    if (!location) return;
+    commit((state) => {
+      const removed = refTree.removeRef(state.components, location.ownerId, id);
+      return removed === state.components ? state : { ...state, components: removed };
+    });
+    // Pencerenin içindeki form kartından çıkan giriş sayfaya döner; pencere ekranı açık kalmaz.
+    setFocusId(null);
+    setSelectedComponentId(id);
+  };
+  const stepMember = (id: string, delta: -1 | 1) => { if (cardTree.cardLocation(definitionRef.current.components, id)) stepInCard(id, delta); else stepInOwner(id, delta); };
+  const ejectMember = (id: string) => { if (cardTree.cardLocation(definitionRef.current.components, id)) ejectFromCard(id); else ejectFromOwner(id); };
+  const moveComponent =(index: number, delta: number) => commit((state) => {
     const next = [...state.components]; const target = index + delta;
     if (target < 0 || target >= next.length) return state;
     [next[index], next[target]] = [next[target], next[index]];
@@ -1988,12 +2059,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     else if (mod && (keyName === "y" || (keyName === "z" && event.shiftKey))) { event.preventDefault(); redo(); }
     else if (mod && keyName === "d" && selectedComponentId) { event.preventDefault(); duplicateComponent(selectedComponentId); }
     else if ((event.key === "Delete" || event.key === "Backspace") && selectedComponentId && canEdit) { event.preventDefault(); removeComponent(selectedComponentId); }
-    else if (event.key === "Escape") { if (selectedComponentId) setSelectedComponentId(null); else if (focusCard) setFocusCardId(null); else if (fullscreen) setFullscreen(false); }
+    else if (event.key === "Escape") { if (selectedComponentId) setSelectedComponentId(null); else if (focusOwner) setFocusId(focusParent?.id ?? null); else if (fullscreen) setFullscreen(false); }
     else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && event.altKey && selectedComponentId) {
       event.preventDefault();
       const index = definition.components.findIndex((component) => component.id === selectedComponentId);
       if (tabLocation(cardTree.flatWithCardTabs(definition.components), selectedComponentId)) moveInTab(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
       else if (cardTree.cardLocation(definition.components, selectedComponentId)) stepInCard(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
+      else if (focusOwner && refTree.refLocation(definition.components, selectedComponentId)?.ownerId === focusOwner.id) stepInOwner(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
       else if (index >= 0) moveComponent(index, event.key === "ArrowUp" ? -1 : 1);
     }
   };
@@ -2103,6 +2175,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (inline && inputType === "text" && props.placeholder) return <div key={component.id} className="pd-binding-preview-input is-search" style={style}><span className="pd-inline-search"><Search size={13} aria-hidden="true"/><input tabIndex={-1} readOnly placeholder={String(props.placeholder)} value={String(props.defaultValue ?? "")}/></span></div>;
     return <div key={component.id} className={`pd-binding-preview-input is-${inputType}`} style={style}><label>{props.label ? <span>{String(props.label)}</span> : null}{control}</label></div>;
   };
+  /** Yan filtre panelinin grupları (seçim girişleri ve seçenek sorgusunun önizleme satırları, varsa sayıları). */
+  const facetGroupsOf = (panelProps: Record<string, PropValue>) => {
+    const countColumns = Object.fromEntries(parseFieldList(panelProps.facetCounts).map((entry) => [entry.code, entry.label]));
+    return idList(panelProps.inputs).flatMap((id): FacetPreviewGroup[] => {
+      const input = inputById.get(id);
+      if (!input || input.props.inputType !== "select") return [];
+      const { ready, rows } = optionRows(input.props);
+      const countColumn = countColumns[id];
+      return [{ id, label: String(input.props.label || input.name || id), ready, options: rows.map(({ label, row }) => {
+        const cell = countColumn ? row[countColumn] : undefined;
+        const count = cell == null || cell === "" ? Number.NaN : Number(cell);
+        return { label, count: Number.isFinite(count) ? count : undefined };
+      }) }];
+    });
+  };
   const byComponentId = new Map(definition.components.map((item) => [item.id, item]));
   const rowActionLabelsOf = (tableProps: Record<string, PropValue>) => idList(tableProps.rowActions, MAX_ROW_ACTIONS)
     .map((id) => byComponentId.get(id)).filter((item): item is PageComponent => !!item).map((item) => String(item.props.label || item.name || "İşlem"));
@@ -2196,21 +2283,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         });
         return <FilterChipsPreview key={component.id} chips={chips} style={style} />;
       }
-      case "facetPanel": {
-        const countColumns = Object.fromEntries(parseFieldList(props.facetCounts).map((entry) => [entry.code, entry.label]));
-        const groups = idList(props.inputs).flatMap((id): FacetPreviewGroup[] => {
-          const input = inputById.get(id);
-          if (!input || input.props.inputType !== "select") return [];
-          const { ready, rows } = optionRows(input.props);
-          const countColumn = countColumns[id];
-          return [{ id, label: String(input.props.label || input.name || id), ready, options: rows.map(({ label, row }) => {
-            const cell = countColumn ? row[countColumn] : undefined;
-            const count = cell == null || cell === "" ? Number.NaN : Number(cell);
-            return { label, count: Number.isFinite(count) ? count : undefined };
-          }) }];
-        });
-        return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={groups} style={style} />;
-      }
+      case "facetPanel": return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={facetGroupsOf(props)} style={style} />;
       case "filterBar": {
         // ERP ile aynı tek satır: arama kutusu, satırdaki süzgeçler (tür sütun biçiminden), fazlası "Daha fazla süzgeç".
         const table = typeof props.table === "string" ? definition.components.find((item) => item.id === props.table && item.type === "dataTable") : undefined;
@@ -2268,7 +2341,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const hasSave = (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0;
         // Pencere Sekmeler içerebilir (sekmeler pencere içeremez); özyineleme en çok iki düzeydir.
         return <DialogPreview key={component.id} style={style} title={String(props.title || "")} presentation={props.presentation === "drawer" ? "drawer" : "dialog"} ids={ids}
-          saveLabel={hasSave ? String(props.saveLabel || "") : null} onSelect={setSelectedComponentId}
+          saveLabel={hasSave ? String(props.saveLabel || "") : null} onSelect={setSelectedComponentId} onDesign={() => live.current.openFocus(component.id)}
           spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
           renderOwned={(id) => {
             const child = byComponentId.get(id);
@@ -2310,7 +2383,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kart tasarım ekranındaki bloklar: kartların çocukları (Sekmeler kap olarak ayrıca çizilir).
   const cardChildNodes = new Map<string, ReactNode>();
   for (const child of cardInner) if (child.type !== "tabs") cardChildNodes.set(child.id, renderOne(child));
-  return { list, tabChildren, cardChildNodes };
+  // Pencere / form kartı / yan panel tasarım ekranındaki bloklar: üyelerin önizlemesi (pencerenin Sekmeler'i kap olarak ayrıca
+  // çizilir). Form kartının girişi ERP'deki gibi (satır içi düzende kompakt), yan panelin girişi süzgeç grubu olarak çizilir.
+  const refNodes = new Map<string, ReactNode>();
+  for (const owner of definition.components) {
+    if (owner.type === "dialog") for (const id of idList(owner.props.contains, MAX_DIALOG_IDS)) {
+      const child = byComponentId.get(id);
+      if (child && child.type !== "tabs" && child.type !== "dialog" && !refNodes.has(id)) refNodes.set(id, renderOne(child));
+    }
+    if (owner.type === "formCard") for (const id of idList(owner.props.inputs)) {
+      const input = inputById.get(id);
+      if (input && !refNodes.has(id)) refNodes.set(id, renderInput(input, {}, owner.props.layout === "inline"));
+    }
+    if (owner.type === "facetPanel") for (const group of facetGroupsOf(owner.props)) if (!refNodes.has(group.id)) refNodes.set(group.id, <FacetGroupPreview group={group}/>);
+  }
+  return { list, tabChildren, cardChildNodes, refNodes };
   }, [definition, forms, sources, previewData, queryPreviews, counts, token, role, device, sampleHintKey]);
 
   // Canlı yeniden yerleşim: sürüklenen bloğun genişliğinde yer tutucu; bileşen yerinden oynamıyorsa (kendi önü/arkası)
@@ -2350,7 +2437,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   });
   // Tuval blokları sürükleme boyunca önbellekte kalır; içlerindeki olay işleyicileri her zaman güncel işlevleri çağırır.
   const liveActions = { moveInTab, detachFromTab, duplicateComponent, removeComponent, startResize, moveComponent, dropIntoTab, writeTabs, clearDrag, cancelCanvasHit, dropAt, dragOverCanvas,
-    stepInCard, ejectFromCard, dropInCard, dragOverCard, openCardFocus };
+    stepMember, ejectMember, dropInFocus, dragOverFocus, openFocus };
   const live = useRef(liveActions);
   live.current = liveActions;
   const renderTabsContainer = (component: PageComponent) => {
@@ -2412,7 +2499,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
-      onDoubleClick={cardTree.isCardType(component.type) ? (event) => { event.stopPropagation(); live.current.openCardFocus(component.id); } : undefined}
+      onDoubleClick={isFocusOwnerType(component.type) ? (event) => { event.stopPropagation(); live.current.openFocus(component.id); } : undefined}
       onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: component.id }); }}
       onDragEnd={() => live.current.clearDrag()}>
       <span className="pd-block-label">{titleFor(component.type)} · {spanOf(component)}/12</span>
@@ -2421,7 +2508,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {!owned && samples.badge(component.type === "dataTable" || component.type === "metric" ? (typeof component.props.query === "string" ? component.props.query : null) : component.type === "input" && typeof component.props.optionsQuery === "string" ? component.props.optionsQuery : null)}
       {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="pd-block-edit" title="Tüm ayarlar" aria-label="Tüm ayarlar" onClick={() => { setRightMode("inspector"); setSettingsId(component.id); }}>✎ Düzenle</button>
-        {cardTree.isCardType(component.type) && <button type="button" className="pd-block-edit" title="Kartın içini tasarla (çift tıklama)" onClick={() => live.current.openCardFocus(component.id)}>✎ Kartın içini tasarla</button>}
+        {isFocusOwnerType(component.type) && <button type="button" className="pd-block-edit" title="İçini tasarla (çift tıklama)" onClick={() => live.current.openFocus(component.id)}>{cardTree.isCardType(component.type) ? "✎ Kartın içini tasarla" : "✎ İçini tasarla"}</button>}
         <button type="button" title="Yukarı taşı (Alt+↑)" aria-label="Yukarı taşı" disabled={index === 0} onClick={() => live.current.moveComponent(index, -1)}><ArrowUp size={13}/></button>
         <button type="button" title="Aşağı taşı (Alt+↓)" aria-label="Aşağı taşı" disabled={index === definition.components.length - 1} onClick={() => live.current.moveComponent(index, 1)}><ArrowDown size={13}/></button>
         <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" disabled={component.type === "actionBar"} onClick={() => live.current.duplicateComponent(component.id)}><Copy size={13}/></button>
@@ -2450,62 +2537,74 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     onDrop: (event: DragEvent<HTMLDivElement>) => live.current.dropAt(dragStore.get().canvasDrop ?? definitionRef.current.components.length, event, true),
   }), [dragStore]);
 
-  // Kart tasarım ekranının blokları: kartın `children` dizisi, sayfa tuvaliyle aynı sürükle-bırak deposu ve FLIP.
-  const cardBlocks = useMemo<CanvasBlock[]>(() => !focusCard ? [] : childComponentsOf(focusCard).map((child, index, all) => {
+  // İç tasarım ekranının blokları (kartın `children` dizisi; pencerenin, form kartının, yan panelin kimlik dizisindeki üst düzey
+  // bileşenler): sayfa tuvaliyle aynı sürükle-bırak deposu ve FLIP. Pencerenin içindeki kart / form kartı da kendi ekranında açılır.
+  const focusBlocks = useMemo<CanvasBlock[]>(() => !focusOwner ? [] : focusMembers.map((child, index, all) => {
     const isSelected = selectedComponentId === child.id;
+    const isCard = cardTree.isCardType(focusOwner.type);
+    const resizable = isCard || focusOwner.type === "dialog";
+    const nestedFocus = !isCard && isFocusOwnerType(child.type);
     const element = <div key={child.id} data-flip={child.id} data-card-index={index}
       className={`pd-block ${child.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}`}
-      style={{ gridColumn: `span ${deviceSpan(spanOf(child), device)}` }}
+      style={{ gridColumn: `span ${memberSpan(focusOwner, child)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(child.id); }}
+      onDoubleClick={nestedFocus ? (event) => { event.stopPropagation(); live.current.openFocus(child.id); } : undefined}
       onDragStart={(event) => { if (resizing.current) { event.preventDefault(); return; } event.stopPropagation(); event.dataTransfer.setData(CARD_CHILD_MIME, child.id); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: child.id }); }}
       onDragEnd={() => live.current.clearDrag()}>
-      <span className="pd-block-label">{titleFor(child.type)} · {spanOf(child)}/12</span>
+      <span className="pd-block-label">{titleFor(child.type)}{resizable ? ` · ${spanOf(child)}/12` : ""}</span>
       {isConditional(child) && <span className="pd-cond-chip" title={String(child.props.visibleWhen)}>Koşullu</span>}
       {isSelected && canEdit && <div className="pd-block-toolbar" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="pd-block-edit" title="Tüm ayarlar" aria-label="Tüm ayarlar" onClick={() => { setRightMode("inspector"); setSettingsId(child.id); }}>✎ Düzenle</button>
-        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Kartta öne taşı" disabled={index === 0} onClick={() => live.current.stepInCard(child.id, -1)}><ArrowUp size={13}/></button>
-        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Kartta arkaya taşı" disabled={index === all.length - 1} onClick={() => live.current.stepInCard(child.id, 1)}><ArrowDown size={13}/></button>
-        <button type="button" title="Karttan çıkar" aria-label="Karttan çıkar" onClick={() => live.current.ejectFromCard(child.id)}><ArrowUpFromLine size={13}/></button>
+        {nestedFocus && <button type="button" className="pd-block-edit" title="İçini tasarla (çift tıklama)" onClick={() => live.current.openFocus(child.id)}>✎ İçini tasarla</button>}
+        <button type="button" title="Öne taşı (Alt+↑)" aria-label="Öne taşı" disabled={index === 0} onClick={() => live.current.stepMember(child.id, -1)}><ArrowUp size={13}/></button>
+        <button type="button" title="Arkaya taşı (Alt+↓)" aria-label="Arkaya taşı" disabled={index === all.length - 1} onClick={() => live.current.stepMember(child.id, 1)}><ArrowDown size={13}/></button>
+        <button type="button" title={ejectText(focusOwner.type)} aria-label={ejectText(focusOwner.type)} onClick={() => live.current.ejectMember(child.id)}><ArrowUpFromLine size={13}/></button>
         <button type="button" title="Kopyala (Ctrl+D)" aria-label="Kopyala" onClick={() => live.current.duplicateComponent(child.id)}><Copy size={13}/></button>
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(child.id)}><Trash2 size={13}/></button>
       </div>}
-      <div className="pd-block-render">{child.type === "tabs" ? renderTabsContainer(child) : rendered.cardChildNodes.get(child.id)}</div>
-      {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
+      <div className="pd-block-render">{child.type === "tabs" ? renderTabsContainer(child) : isCard ? rendered.cardChildNodes.get(child.id) : rendered.refNodes.get(child.id)}</div>
+      {isSelected && canEdit && resizable && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
     </div>;
     return { id: child.id, element };
-  }), [focusCard, definition, selectedComponentId, device, canEdit, rendered, activeTabs, dragStore]);
-  const cardLayoutKey = useMemo(() => `${device}|card|${focusCard ? childComponentsOf(focusCard).map((child) => child.id).join(",") : ""}`, [device, focusCard]);
+  }), [focusOwner, focusMembers, definition, selectedComponentId, device, canEdit, rendered, activeTabs, dragStore]);
+  const cardLayoutKey = useMemo(() => `${device}|focus|${focusOwner?.id ?? ""}|${focusMembers.map((child) => child.id).join(",")}`, [device, focusOwner, focusMembers]);
   const cardPlaceholderFor = useCallback((dragging: string | null, canvasDrop: number | null) => {
-    if (!canEdit || !dragging || canvasDrop === null || !focusCard) return null;
-    const children = childComponentsOf(focusCard);
-    const own = children.findIndex((child) => child.id === dragging);
+    if (!canEdit || !dragging || canvasDrop === null || !focusOwner) return null;
+    const own = focusMembers.findIndex((child) => child.id === dragging);
     if (own >= 0 && (canvasDrop === own || canvasDrop === own + 1)) return null;
-    const moving = own >= 0 ? children[own] : definition.components.find((component) => component.id === dragging);
-    const type = moving?.type ?? (palette.some((item) => item.type === dragging) ? dragging as ComponentType : null);
-    if (!type || !cardTree.canBeCardChild(type)) return null;
-    return { at: canvasDrop, span: deviceSpan(moving ? spanOf(moving) : defaultSpan(type), device) };
-  }, [canEdit, focusCard, definition, device]);
+    if (!focusAccepts(focusOwner, definition.components, dragging)) return null;
+    const moving = own >= 0 ? focusMembers[own] : cardTree.findComponent(definition.components, dragging) ?? undefined;
+    return { at: canvasDrop, span: memberSpan(focusOwner, moving, moving ? undefined : dragging as ComponentType) };
+  }, [canEdit, focusOwner, focusMembers, definition, device]);
   const cardHandlers = useMemo(() => ({
-    onDragOver: (event: DragEvent<HTMLElement>) => live.current.dragOverCard(event),
+    onDragOver: (event: DragEvent<HTMLElement>) => live.current.dragOverFocus(event),
     onDragLeave: (event: DragEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { live.current.cancelCanvasHit(); dragStore.set({ canvasDrop: null }); } },
-    onDrop: (event: DragEvent<HTMLDivElement>) => live.current.dropInCard(dragStore.get().canvasDrop ?? Number.MAX_SAFE_INTEGER, event),
+    onDrop: (event: DragEvent<HTMLDivElement>) => live.current.dropInFocus(dragStore.get().canvasDrop ?? Number.MAX_SAFE_INTEGER, event),
   }), [dragStore]);
-  const cardEmpty = <div className="pd-canvas-empty"><SquareStack size={24}/><b>Kartın içi boş</b><span>Soldan karta eklenebilen bir bileşeni buraya sürükleyin ya da tıklayarak ekleyin.</span></div>;
+  const focusEmptyText = !focusOwner ? "" : focusOwner.type === "dialog" ? "Pencerenin içi boş" : focusOwner.type === "formCard" ? "Form kartında giriş yok" : focusOwner.type === "facetPanel" ? "Yan panelde giriş yok" : "Kartın içi boş";
+  const focusEmptyHint = !focusOwner ? "" : focusOwner.type === "dialog" ? "Soldan bir bileşen sürükleyin ya da tıklayarak ekleyin; kaydetmek için pencerede en az bir bileşen olmalıdır."
+    : focusOwner.type === "formCard" ? "Soldan bir giriş kutusu sürükleyin ya da tıklayarak ekleyin; kaydetmek için en az bir giriş gerekir."
+      : focusOwner.type === "facetPanel" ? "Soldan bir giriş kutusu sürükleyin: seçenek sorgulu seçim girişi olarak eklenir."
+        : "Soldan karta eklenebilen bir bileşeni buraya sürükleyin ya da tıklayarak ekleyin.";
+  const cardEmpty = <div className="pd-canvas-empty"><SquareStack size={24}/><b>{focusEmptyText}</b><span>{focusEmptyHint}</span></div>;
 
   // Katmanlar: üst düzey bileşenler (sırası kök sırasıdır), arkalarından kartların çocukları; kart açılır bir daldır
   // (kart › çocuklar › sekmeler › üyeler). Kartın içindeki bir bileşene tıklamak kart tasarım ekranını açar.
   const layerOf = (component: PageComponent) => ({ id: component.id, name: component.name, label: summaryOf(component), typeLabel: titleFor(component.type), span: spanOf(component), icon: iconFor(component.type),
     children: component.type === "tabs" ? parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids }))
       : component.type === "dialog" ? [{ label: component.props.presentation === "drawer" ? "çekmece" : "pencere", ids: idList(component.props.contains, MAX_DIALOG_IDS) }]
+        : component.type === "formCard" || component.type === "facetPanel" ? [{ ids: refTree.refIds(component) }]
         : cardTree.isCardType(component.type) ? [{ ids: childComponentsOf(component).map((child) => child.id) }] : [] });
   const layerItems = [...definition.components.map(layerOf),
     ...definition.components.flatMap((component) => cardTree.isCardType(component.type) ? childComponentsOf(component).map(layerOf) : [])];
   const selectFromLayers = (id: string) => {
     const components = definitionRef.current.components;
     const tabsAt = tabLocation(cardTree.flatWithCardTabs(components), id);
-    const cardId = cardTree.cardLocation(components, id)?.cardId ?? (tabsAt ? cardTree.cardLocation(components, tabsAt.tabsId)?.cardId : undefined);
-    if (cardId) setFocusCardId(cardId); else if (id !== focusCardId) setFocusCardId(null);
+    // İçinde çizildiği en içteki sahip: kart, pencere, form kartı ya da yan panel (sekme üyesinde sekmenin sahibi).
+    const ownerOf = (target: string) => cardTree.cardLocation(components, target)?.cardId ?? refTree.refLocation(components, target)?.ownerId;
+    const ownerId = ownerOf(id) ?? (tabsAt ? ownerOf(tabsAt.tabsId) : undefined);
+    if (ownerId) setFocusId(ownerId); else if (id !== focusId) setFocusId(null);
     setSelectedComponentId(id);
   };
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
@@ -2820,6 +2919,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Seçili bileşen bir kartın içindeyse müfettişte kartı ve "Karttan çıkar" gösterilir.
   const selectedCardLocation = selected ? cardTree.cardLocation(definition.components, selected.id) : null;
   const selectedCard = selectedCardLocation ? definition.components.find((component) => component.id === selectedCardLocation.cardId) : undefined;
+  // Seçili bileşen bir pencerenin, form kartının ya da yan panelin üyesiyse müfettişte sahibi ve "…çıkar" gösterilir.
+  const selectedRefLocation = selected && !selectedCardLocation ? refTree.refLocation(definition.components, selected.id) : null;
+  // Açık iç ekranın üyesi: müfettişteki "Yukarı" sahibin içinde taşır.
+  const selectedInFocusOwner = !!selectedRefLocation && selectedRefLocation.ownerId === focusOwner?.id;
+  const selectedRefOwner = selectedRefLocation ? definition.components.find((component) => component.id === selectedRefLocation.ownerId) : undefined;
   const selectedTabLabel = selectedTabOwner && selectedTabLocation ? parseTabs(selectedTabOwner.props.tabs)[selectedTabLocation.tabIndex]?.label ?? "" : "";
   const setTabs = (id: string, tabs: TabEntry[], defaultTab: number) => patchComponent(id, { tabs: tabsValue(tabs), defaultTab: tabs.length > 0 ? defaultTab : undefined });
   // "Sayfalama" bölümü (veri listesi): sunucu sayfalaması adlı, ERP işlemine bağlı ve işlemi page/pageSize alan listede açılabilir.
@@ -2911,16 +3015,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
       <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
-        palette={palette.filter((item) => !focusCard || cardTree.canBeCardChild(item.type)).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        palette={palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => {
           const item = palette.find((entry) => entry.type === type);
           if (!item) return;
-          if (!focusCard) { addComponent(item, insertIndex()); return; }
-          // Kart tasarım ekranında: seçili çocuğun arkasına, yoksa kartın sonuna.
-          const location = selectedComponentId ? cardTree.cardLocation(definition.components, selectedComponentId) : null;
-          addComponent(item, undefined, undefined, { cardId: focusCard.id, at: location && location.cardId === focusCard.id ? location.index + 1 : Number.MAX_SAFE_INTEGER });
+          if (!focusOwner) { addComponent(item, insertIndex()); return; }
+          // İç tasarım ekranında: seçili üyenin arkasına, yoksa sahibin sonuna.
+          const at = selectedComponentId ? focusMembers.findIndex((member) => member.id === selectedComponentId) : -1;
+          const position = at >= 0 ? at + 1 : Number.MAX_SAFE_INTEGER;
+          if (focusCard) addComponent(item, undefined, undefined, { cardId: focusCard.id, at: position });
+          else addComponent(item, undefined, undefined, undefined, { ownerId: focusOwner.id, at: position });
         }}
         layers={layerItems}
         selectedComponentId={selectedComponentId} onSelectComponent={selectFromLayers} dropTarget={dropTarget}
@@ -2940,7 +3046,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {([["desktop", Monitor, "Masaüstü"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Mobil"]] as const).map(([value, Icon, label]) => <button type="button" key={value} className={`pd-icon-button ${device === value ? "active" : ""}`} aria-pressed={device === value} title={label} aria-label={label} onClick={() => setDevice(value)}><Icon size={15}/></button>)}
           </div>
           <button type="button" className={`pd-button ${showGrid ? "active" : ""}`} aria-pressed={showGrid} onClick={() => setShowGrid((value) => !value)}><Grid3X3 size={14}/>Izgara</button>
-          <span className="pd-canvas-meta">{focusCard ? `${childComponentsOf(focusCard).length} bileşen · kartın içi · ` : `${definition.components.length} bileşen · `}{device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
+          <span className="pd-canvas-meta">{focusOwner ? `${focusMembers.length} ${focusOwner.type === "formCard" || focusOwner.type === "facetPanel" ? "giriş" : "bileşen"} · ${focusKindText(focusOwner.type)} · ` : `${definition.components.length} bileşen · `}{device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
           <div className={`pd-frame device-${device}`}>
@@ -2953,26 +3059,68 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               const count = titleCountSample(bar.props.titleCount);
               return <div className="pd-page-title"><h1>{name || "Yeni sayfa"}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>;
             })()}
-            {focusCard ? <div className="pd-card-focus">
+            {focusOwner ? <div className="pd-card-focus">
               <div className="pd-card-focus-crumb">
-                <button type="button" className="pd-link-button" onClick={(event) => { event.stopPropagation(); setFocusCardId(null); }} title="Sayfaya dön (Esc)">{name || "Yeni sayfa"}</button>
-                <span aria-hidden="true">›</span><b>{cardLabelOf(focusCard)}</b>
-                <button type="button" className="pd-card-focus-back" onClick={(event) => { event.stopPropagation(); setFocusCardId(null); }} title="Sayfaya dön (Esc)"><ArrowLeft size={13}/>Sayfaya dön</button>
+                <button type="button" className="pd-link-button" onClick={(event) => { event.stopPropagation(); setFocusId(null); }} title="Sayfaya dön (Esc)">{name || "Yeni sayfa"}</button>
+                {focusParent && <><span aria-hidden="true">›</span><button type="button" className="pd-link-button" onClick={(event) => { event.stopPropagation(); openFocus(focusParent.id); }} title="Pencereye dön (Esc)">{cardLabelOf(focusParent)}</button></>}
+                <span aria-hidden="true">›</span><b>{cardLabelOf(focusOwner)}</b>
+                <button type="button" className="pd-card-focus-back" onClick={(event) => { event.stopPropagation(); setFocusId(null); }} title="Sayfaya dön"><ArrowLeft size={13}/>Sayfaya dön</button>
               </div>
               {/* Sayfanın geri kalanı soluk ve etkileşimsiz arka plandır. */}
               <div className="pd-card-focus-ghost" aria-hidden="true" inert>
-                <div className="pd-grid">{definition.components.map((component, index) => component.id === focusCard.id || !rendered.list[index] || (component.type === "button" && movedIds.has(component.id)) ? null
+                <div className="pd-grid">{definition.components.map((component, index) => component.id === focusOwner.id || component.id === focusParent?.id || !rendered.list[index] || (component.type === "button" && movedIds.has(component.id)) ? null
                   : <div key={component.id} className="pd-card-focus-ghost-block" style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}>{rendered.list[index]}</div>)}</div>
               </div>
-              <p className="pd-card-focus-hint">Sayfanın geri kalanı düzenlenmez. Kartın sayfadaki yeri, genişliği ve koşulları sayfa tuvalinde düzenlenir.</p>
-              <div className={`pd-card-focus-card${selectedComponentId === focusCard.id ? " is-selected" : ""}`} onClick={(event) => { event.stopPropagation(); setSelectedComponentId(focusCard.id); }}>
-                <span className="pd-card-focus-chip">{cardLabelOf(focusCard)} · {spanOf(focusCard)}/12</span>
-                {(focusCard.props.title || focusCard.props.description) && <div className="pd-card-focus-head">
-                  {focusCard.props.title && <b>{String(focusCard.props.title)}</b>}{focusCard.props.description && <small>{String(focusCard.props.description)}</small>}
-                </div>}
-                <CanvasGrid store={dragStore} gridRef={cardGridRef} blocks={cardBlocks} layoutKey={cardLayoutKey} guides={canvasGuides} empty={cardEmpty}
-                  placeholderFor={cardPlaceholderFor} onDragOver={cardHandlers.onDragOver} onDragLeave={cardHandlers.onDragLeave} onDrop={cardHandlers.onDrop}/>
-              </div>
+              <p className="pd-card-focus-hint">{focusOwner.type === "dialog" ? "Sayfanın geri kalanı düzenlenmez. Pencerenin içindekiler sayfanın bileşenleridir; sırası ve genişliği burada, başlığı, kaydetme sorgusu ve düğmeleri Özellikler'de düzenlenir."
+                : focusOwner.type === "formCard" ? "Sayfanın geri kalanı düzenlenmez. Girişler form kartının sütunlarına sırayla yerleşir; sütun sayısı ve düzen Özellikler'de seçilir."
+                  : focusOwner.type === "facetPanel" ? "Sayfanın geri kalanı düzenlenmez. Yan panelde her seçim girişi bir süzgeç grubudur; sırası burada düzenlenir."
+                    : "Sayfanın geri kalanı düzenlenmez. Kartın sayfadaki yeri, genişliği ve koşulları sayfa tuvalinde düzenlenir."}</p>
+              {(() => {
+                const ownerSelected = selectedComponentId === focusOwner.id;
+                const selectOwner = (event: ReactMouseEvent) => { event.stopPropagation(); setSelectedComponentId(focusOwner.id); };
+                const grid = (className?: string, guides: ReactNode = canvasGuides) => <CanvasGrid store={dragStore} gridRef={cardGridRef} blocks={focusBlocks} layoutKey={cardLayoutKey} guides={guides} empty={cardEmpty}
+                  placeholderFor={cardPlaceholderFor} onDragOver={cardHandlers.onDragOver} onDragLeave={cardHandlers.onDragLeave} onDrop={cardHandlers.onDrop} className={className}/>;
+                const props = focusOwner.props;
+                if (focusOwner.type === "dialog") {
+                  // ERP'deki pencere / çekmece çerçevesi: başlık çubuğu, 12 sütunlu gövde, Vazgeç / Kaydet altbilgisi.
+                  const hasSave = (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0;
+                  const rawTitle = String(props.title || "");
+                  const title = rawTitle.includes("{{") ? interpolate(rawTitle, designScope()) || rawTitle : rawTitle;
+                  const drawer = props.presentation === "drawer";
+                  return <div className={`pd-focus-dialog${drawer ? " is-drawer" : ""}${ownerSelected ? " is-selected" : ""}`} onClick={selectOwner}>
+                    <span className="pd-card-focus-chip">{drawer ? "Çekmece" : "Pencere"} · {focusMembers.length}/{MAX_DIALOG_IDS}</span>
+                    <header className="pd-focus-dialog-head"><b>{title || "Başlıksız"}</b><span className="pd-focus-dialog-x" aria-hidden="true">✕</span></header>
+                    {grid()}
+                    <footer className="pd-focus-dialog-foot">
+                      <span className="pd-focus-dialog-button is-secondary">{hasSave ? "Vazgeç" : "Kapat"}</span>
+                      {hasSave && <span className="pd-focus-dialog-button">{String(props.saveLabel || "") || "Kaydet"}</span>}
+                    </footer>
+                  </div>;
+                }
+                if (focusOwner.type === "formCard") {
+                  const inline = props.layout === "inline";
+                  const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
+                  return <section className={`pd-focus-form${inline ? " is-inline" : ""}${ownerSelected ? " is-selected" : ""}`} onClick={selectOwner}>
+                    <span className="pd-card-focus-chip">Form kartı · {inline ? "tek satır" : `${columns} sütun`} · {focusMembers.length}/12</span>
+                    {!inline && props.title && <h3 className="pd-focus-form-title">{String(props.title)}</h3>}
+                    {grid(`pd-focus-form-grid${inline ? " is-inline" : ""}`, null)}
+                  </section>;
+                }
+                if (focusOwner.type === "facetPanel") {
+                  return <aside className={`pd-focus-facet pd-facet${ownerSelected ? " is-selected" : ""}`} onClick={selectOwner}>
+                    <span className="pd-card-focus-chip">Yan filtre paneli · {focusMembers.length}/12</span>
+                    <div className="pd-facet-head"><h3>{String(props.title || "")}</h3><span className="pd-facet-clear">Temizle</span></div>
+                    {grid("pd-focus-facet-grid", null)}
+                  </aside>;
+                }
+                return <div className={`pd-card-focus-card${ownerSelected ? " is-selected" : ""}`} onClick={selectOwner}>
+                  <span className="pd-card-focus-chip">{cardLabelOf(focusOwner)} · {spanOf(focusOwner)}/12</span>
+                  {(props.title || props.description) && <div className="pd-card-focus-head">
+                    {props.title && <b>{String(props.title)}</b>}{props.description && <small>{String(props.description)}</small>}
+                  </div>}
+                  {grid()}
+                </div>;
+              })()}
             </div>
             : <CanvasGrid store={dragStore} gridRef={gridRef} blocks={canvasBlocks} layoutKey={canvasLayoutKey} guides={canvasGuides} empty={canvasEmpty}
               placeholderFor={placeholderFor} onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}/>}
@@ -2996,6 +3144,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <small>Konum: <button type="button" className="pd-link-button" onClick={() => setSelectedComponentId(selectedCard.id)} title="Kartı seç">{cardLabelOf(selectedCard)}</button></small>
             {canEdit && <button type="button" className="pd-button small" onClick={() => ejectFromCard(selected.id)} title="Bileşen sayfaya, kartın arkasına taşınır"><ArrowUpFromLine size={13}/>Karttan çıkar</button>}
             {canEdit && <small className="pd-tab-list-hint">"Karttan çıkar" ile bileşen sayfaya, kartın arkasına taşınır.</small>}
+          </div>}
+          {selectedRefLocation && selectedRefOwner && <div className="pd-tab-location pd-card-location">
+            <small>Konum: <button type="button" className="pd-link-button" onClick={() => openFocus(selectedRefOwner.id)} title="İçini tasarla">{cardLabelOf(selectedRefOwner)}</button></small>
+            {canEdit && <button type="button" className="pd-button small" onClick={() => ejectFromOwner(selected.id)} title="Bileşen sayfada kendi yerinde kalır"><ArrowUpFromLine size={13}/>{ejectText(selectedRefOwner.type)}</button>}
+            {canEdit && <small className="pd-tab-list-hint">"{ejectText(selectedRefOwner.type)}" ile bileşen sayfada kendi yerinde görünür.</small>}
           </div>}
           <InspectorModeToggle mode={inspectorMode} onChange={setInspectorMode}/>
           {inspectorMode === "basic" && !settingsOpen && <fieldset className="pd-fieldset" disabled={!canEdit}>
@@ -3398,8 +3551,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           </SettingsHost>
           <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
           {canEdit && <div className="pd-inspector-footer">
-            <button type="button" className="pd-button small" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedIndex <= 0}
-              onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
+            <button type="button" className="pd-button small" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
+              onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
             <button type="button" className="pd-button small" disabled={selected.type === "actionBar"} title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : undefined} onClick={() => duplicateComponent(selected.id)}><Copy size={13}/>Kopyala</button>
             <button type="button" className="pd-button small danger" onClick={() => removeComponent(selected.id)}><Trash2 size={13}/>Sil</button>
           </div>}
