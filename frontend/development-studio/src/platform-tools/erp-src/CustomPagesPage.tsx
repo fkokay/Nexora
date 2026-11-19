@@ -2131,10 +2131,27 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     onAddSourceQuery: addSourceQuery,
   });
   // Tuvalde otomatik örnek veri (yalnız okuma; taslakta; SQL için tenant yöneticisi ve kayıtlı taslak).
+  /**
+   * Örnek veri kapsamı: tasarım kapsamıyla aynı, ama değeri boş arama kutusu (ör. "Tüm depolar") örnek için ilk seçeneğini
+   * alır. Böylece seçim isteyen sorgular (ör. depo hareketleri) tuvalde örnek veri gösterir; tuvaldeki görünür değerler değişmez.
+   */
+  const sampleScope = (): PageScope => {
+    const scope = designScope();
+    for (const component of definitionRef.current.components) {
+      if (!component.name || component.type !== "input" || component.props.inputType !== "lookup") continue;
+      const current = scope[component.name] as { value?: unknown } | undefined;
+      if (current && current.value !== null && current.value !== undefined) continue;
+      const preview = typeof component.props.optionsQuery === "string" ? queryPreviews[component.props.optionsQuery] : undefined;
+      const valueColumn = String(component.props.optionValueColumn || "") || preview?.columns[0]?.code || "";
+      const row = valueColumn ? preview?.rows.find((item) => item[valueColumn] != null && item[valueColumn] !== "") : undefined;
+      if (row) scope[component.name] = { value: row[valueColumn], search: null, seciliSatir: row };
+    }
+    return scope;
+  };
   const samples = useCanvasSamples({
     pageId: current?.id ?? null, queries: definition.queries, components: allComponents, previews: queryPreviews, setPreviews: setQueryPreviews,
     enabled: !current?.isPublished, sqlAllowed: isAdmin && !!current && !current.isPublished,
-    storedDefinitionJson: current?.definitionJson ?? null, catalog: erpCatalog, scope: designScope, fetchJson: request,
+    storedDefinitionJson: current?.definitionJson ?? null, catalog: erpCatalog, scope: sampleScope, fetchJson: request,
     manualRun: (queryId) => runQueryPreview(queryId, false),
     whenIdle: dragStore.whenIdle,
   });
