@@ -18,13 +18,14 @@ const GROUPS: { key: string; title: string; empty: string }[] = [
   { key: "Kayıt dizisi", title: "Kayıt dizisi", empty: "Bir kayıt dizisi adımının parametresinde {{onceki.sonuc.X}} bir önceki adımın sonucudur." },
 ];
 
-type Props = { suggestions: BindingSuggestion[]; disabled?: boolean };
+/** `embedded`: sol paneldeki bölümün içinde başlıksız çizilir (bölüm başlığı ve sayısı panelindir). */
+type Props = { suggestions: BindingSuggestion[]; disabled?: boolean; embedded?: boolean };
 
 /**
  * Sayfada kullanılabilen tüm {{değişken}} ifadelerinin görünür listesi. Tıklanan ifade son odaklanılan
  * metin alanına imlecin olduğu yere eklenir; düzenlenebilir bir alan yoksa panoya kopyalanır.
  */
-export default function VariablesPanel({ suggestions, disabled = false }: Props) {
+export default function VariablesPanel({ suggestions, disabled = false, embedded = false }: Props) {
   const [open, setOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [closed, setClosed] = useState<Record<string, boolean>>({ "Sayılar": true });
@@ -39,11 +40,7 @@ export default function VariablesPanel({ suggestions, disabled = false }: Props)
     catch { setNotice(`Bir metin alanına ${expression} yazın.`); }
   };
 
-  return <section className="pd-inspector-section pd-variables">
-    <button type="button" className="pd-inspector-section-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-      {open ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}Kullanılabilir değişkenler<span className="pd-count">{suggestions.length}</span>
-    </button>
-    {open && <div className="pd-variables-body">
+  const content = <>
       <p className="pd-binding-note">Tıklayınca son tıkladığınız metin alanına eklenir. Alan seçili değilse panoya kopyalanır.</p>
       <label className="pd-search"><Search size={13}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Değişken ara" aria-label="Değişken ara"/></label>
       {GROUPS.map((group) => {
@@ -64,6 +61,12 @@ export default function VariablesPanel({ suggestions, disabled = false }: Props)
         </div>;
       })}
       {notice && <p className="pd-variable-notice" role="status">{notice}</p>}
-    </div>}
+  </>;
+  if (embedded) return <div className="pd-variables pd-variables-body is-embedded">{content}</div>;
+  return <section className="pd-inspector-section pd-variables">
+    <button type="button" className="pd-inspector-section-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      {open ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}Kullanılabilir değişkenler<span className="pd-count">{suggestions.length}</span>
+    </button>
+    {open && <div className="pd-variables-body">{content}</div>}
   </section>;
 }

@@ -86,14 +86,14 @@ export function filterLayerTree(nodes: LayerNode[], matches: (id: string) => boo
 
 // ---- Bölümler ve ayırıcılar -----------------------------------------------------------------------------------------
 
-export const LEFT_PANEL_SECTIONS = ["components", "layers", "queries"] as const;
+export const LEFT_PANEL_SECTIONS = ["components", "layers", "queries", "variables"] as const;
 export type LeftPanelSection = (typeof LEFT_PANEL_SECTIONS)[number];
 export type LeftPanelState = { open: Record<LeftPanelSection, boolean>; weights: Record<LeftPanelSection, number> };
 export const LEFT_PANEL_STORAGE_KEY = "nexora.studio.leftPanel";
 export const MIN_SECTION_PX = 64;
 export const defaultLeftPanelState = (): LeftPanelState => ({
-  open: { components: true, layers: true, queries: false },
-  weights: { components: 2, layers: 1, queries: 1 },
+  open: { components: true, layers: true, queries: false, variables: false },
+  weights: { components: 2, layers: 1, queries: 1, variables: 1 },
 });
 
 /** Saklanan değeri doğrular; bozuk ya da eksik alanlar varsayılana döner. */

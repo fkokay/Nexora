@@ -3104,6 +3104,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
       <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+        variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
         palette={palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
@@ -3642,7 +3643,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
           </fieldset>
           </SettingsHost>
-          <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
           {canEdit && <div className="pd-inspector-footer">
             <button type="button" className="pd-button small" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
               onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
@@ -3658,7 +3658,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}
             <label className="pd-field">Açıklama<textarea rows={3} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Bu sayfanın amacı"/></label>
           </fieldset>
-          <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
           <dl className="pd-facts">
             <div><dt>Durum</dt><dd>{status.label}</dd></div>
             <div><dt>Sürüm</dt><dd>{current ? current.revision : "—"}</dd></div>

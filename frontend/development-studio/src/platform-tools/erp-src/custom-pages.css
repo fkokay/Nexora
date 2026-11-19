@@ -386,6 +386,7 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-variables .pd-inspector-section-toggle .pd-count{margin-left:auto}
 .pd-variables-body{display:grid;gap:8px;padding:0 0 12px}
 .pd-variables-body .pd-binding-note{margin:0}
+.pd-variables.is-embedded{margin-top:0;border-top:0;padding:4px 10px 10px}
 .pd-variable-group{display:grid;gap:2px}
 .pd-variable-group-head{display:flex;align-items:center;gap:5px;width:100%;padding:5px 2px;border:0;background:transparent;color:var(--pd-faint);font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-align:left}
 .pd-variable-group-head span{margin-left:auto;color:var(--pd-faint);font-weight:600}
