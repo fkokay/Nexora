@@ -49,13 +49,11 @@ import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemI
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
-import { BasicInspector, InspectorModeToggle } from "./page-designer/BasicInspector";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
 import { conditionTerms, stringEntries } from "./page-designer/gridColumnSettings";
 import { ColumnsEditor } from "./page-designer/ColumnsEditor";
 import { designerShortcutsBlocked } from "./page-designer/designerModals";
-import { readInspectorMode, writeInspectorMode, type InspectorMode } from "./page-designer/inspectorBasicFields";
 import { proposeColumns } from "./page-designer/columnEditing";
 import { FilterBarFields } from "./page-designer/FilterBarFields";
 import { filterBarParams, filterBarProblem, keptFilterBindings, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings, withoutFilterBindings, withoutStaleParams } from "./page-designer/filterBarSettings";
@@ -266,6 +264,19 @@ type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; query
 /** `disabledWhen` / `disabledReason` alabilen türler (sunucu kuralı). */
 const DISABLEABLE_TYPES: ComponentType[] = ["button", "input", "editableGrid", "customFieldsBlock"];
 /** Izgaranın ayar penceresi sekmeleri (pencere kapalıyken Gelişmiş panelde hepsi alt alta çizilir). */
+/** Izgara dışındaki bileşenlerin ayar sekmeleri: İçerik, türe özel ana bölüm, Koşul, Görünüm (boş sekme çizilmez). */
+const MAIN_TAB_LABEL: Partial<Record<string, string>> = {
+  button: "Eylem", form: "Form", code: "Kod", formCard: "Form kartı", filterChips: "Filtre çipleri", facetPanel: "Yan filtre paneli",
+  actionBar: "Komutlar", contextPanel: "Bağlam paneli", heading: "Sayfa başlığı", tabs: "Sekmeler", editableGrid: "Tablo",
+  customFieldsBlock: "Özel alanlar", dialog: "Pencere", image: "Görsel", input: "Doğrulama", metric: "Veri", filterBar: "Alanlar",
+};
+const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
+  ...(hasContent ? [{ key: "content", label: "İçerik" }] : []),
+  ...(MAIN_TAB_LABEL[type] ? [{ key: "main", label: MAIN_TAB_LABEL[type]! }] : []),
+  { key: "cond", label: "Koşul" }, { key: "view", label: "Görünüm" },
+];
+/** Bölüm anahtarının sekmesi (ızgara kendi sekmelerini `pane` ile verir). */
+const tabOfSection = (key: string) => key === "content" ? "content" : key === "conditions" ? "cond" : key === "style" ? "view" : "main";
 const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "data", label: "Veri" }, { key: "columns", label: "Sütunlar" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
 /** Satır işlemi olabilen düğme eylem türleri. */
 const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
@@ -910,7 +921,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [barSaveChoice, setBarSaveChoice] = useState<{ id: string; mode: "query" | "sequence" } | null>(null);
   const [sqlSchema, setSqlSchema] = useState<SqlSchemaTable[]>([]);
   // Özellikler paneli kipi (bileşen türü başına hatırlanır) ve "Tüm ayarlar" penceresinde açık bileşen.
-  const [inspectorModes, setInspectorModes] = useState<Record<string, InspectorMode>>({});
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [settingsTab, setSettingsTab] = useState("data");
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
@@ -2712,15 +2722,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const settingsOpen = !!selected && settingsId === selected.id;
-  const inspectorMode: InspectorMode = selected ? inspectorModes[selected.type] ?? readInspectorMode(selected.type) : "advanced";
-  const setInspectorMode = (mode: InspectorMode) => { if (!selected) return; writeInspectorMode(selected.type, mode); setInspectorModes((current) => ({ ...current, [selected.type]: mode })); };
   const toggleSection = (key: string) => setCollapsed((value) => ({ ...value, [key]: !value[key] }));
-  const section = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
+  const section = (key: string, title: string, body: ReactNode) => selected && selected.type !== "dataTable" ? <SettingsPane key={key} tab={tabOfSection(key)}>{sectionBlock(key, title, body)}</SettingsPane> : sectionBlock(key, title, body);
+  const sectionBlock = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
     <button type="button" className="pd-inspector-section-toggle" aria-expanded={!collapsed[key]} onClick={() => toggleSection(key)}>{collapsed[key] ? <ChevronRight size={14}/> : <ChevronDown size={14}/>}<span>{title}</span></button>
     {(!collapsed[key] || settingsOpen) && <div className="pd-inspector-section-body">{body}</div>}
   </section>;
   // Izgara ayar penceresi sekmelidir: her parça kendi sekmesinde çizilir; diğer bileşenlerde ve panelde etkisizdir.
-  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab}>{node}</SettingsPane> : node;
+  // Izgarada sekme verilen anahtardır; diğer bileşenlerde "data" (Ad alanı) ilk sekmeye düşer, bölümler sekmesini
+  // `section` içinde kendisi seçer (dış sarmalama gerekmez).
+  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab}>{node}</SettingsPane>
+    : tab === "data" ? <SettingsPane tab={firstTab}>{node}</SettingsPane> : tab === "main" ? <SettingsPane tab="main">{node}</SettingsPane> : node;
+  const hasContentTab = !!selected && (contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key)));
+  const componentTabs = selected ? selected.type === "dataTable" ? GRID_SETTINGS_TABS : settingsTabsFor(selected.type, hasContentTab) : [];
+  const firstTab = componentTabs[0]?.key ?? "content";
 
   if (!current && !creating) {
     const notFound = !loading && !saving && !!initialPageId && !pages.some((page) => page.id === initialPageId);
@@ -2856,11 +2871,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const steps = selected ? idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS) : [];
     return steps.includes(query.id) || steps.length >= MAX_SEQUENCE_STEPS ? {} : { saveSequence: [...steps, query.id], saveQuery: undefined };
   };
-  const setInputType = (component: PageComponent, value: string) => patchComponent(component.id, {
-    ...(value === "select" || value === "lookup" ? { inputType: value } : { inputType: value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
-    ...(value !== "lookup" ? lookupReset : {}),
-    ...(value !== String(component.props.inputType || "text") ? validationReset : {}),
-  });
   // Göstergenin "Değer" modu: sorgu ve rapor kaynağı yok, değer metni (sabit sayı ya da {{değişken}}) var.
   const metricValueMode = !!selected && selected.type === "metric" && !selectedQueryRef && !selected.props.source && typeof selected.props.value === "string";
   const filterInputId = selected && typeof selected.props.filterInput === "string" ? selected.props.filterInput : "";
@@ -3255,19 +3265,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {canEdit && <button type="button" className="pd-button small" onClick={() => ejectFromOwner(selected.id)} title="Bileşen sayfada kendi yerinde kalır"><ArrowUpFromLine size={13}/>{ejectText(selectedRefOwner.type)}</button>}
             {canEdit && <small className="pd-tab-list-hint">"{ejectText(selectedRefOwner.type)}" ile bileşen sayfada kendi yerinde görünür.</small>}
           </div>}
-          <InspectorModeToggle mode={inspectorMode} onChange={setInspectorMode}/>
-          {inspectorMode === "basic" && !settingsOpen && <fieldset className="pd-fieldset" disabled={!canEdit}>
-            <BasicInspector component={selected} contentKeys={contentFields[selected.type].map((field) => field.key)} readQueries={readQueries} queries={definition.queries}
-              resultColumns={selectedQueryRef ? queryColumns(selectedQueryRef) : []} sourceLabel={selectedSource?.label} suggestions={bindingSuggestions} disabled={!canEdit} span={spanOf(selected)}
-              inputTypeOptions={inputTypeOptions} onSetInputType={(value) => setInputType(selected, value)} buttonActionTypes={buttonActionTypes} buttonAction={buttonAction}
-              workflows={workflows} dialogs={pageDialogs.map((dialog) => ({ id: dialog.id, label: `${summaryOf(dialog)}${dialog.name ? ` (${dialog.name})` : ""}` }))}
-              bindTable={bindDataQuery} bindMetric={bindDataQuery} bindButton={bindButtonQuery}
-              onUpdate={(key, value) => updateComponent(selected.id, key, value)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
-              onAdvanced={() => setInspectorMode("advanced")} onOpenSettings={() => setSettingsId(selected.id)}/>
-            {barCommandFields}
-          </fieldset>}
-          <SettingsHost open={settingsOpen} hidden={inspectorMode === "basic"} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
-            tabs={selected.type === "dataTable" ? GRID_SETTINGS_TABS : undefined} tab={settingsTab} onTab={setSettingsTab}
+          <SettingsHost open={settingsOpen} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
+            tabs={componentTabs} tab={settingsTab} onTab={setSettingsTab} onOpen={() => setSettingsId(selected.id)}
             extra={selected.type === "dataTable" ? <SettingsPane tab="columns"><section className="pd-inspector-section pd-settings-wide" data-settings-section="Sütunlar"><div className="pd-inspector-section-body">
               {selectedQueryRef || selectedSource ? <ColumnsEditor available={selectedQueryRef ? queryColumns(selectedQueryRef) : selectedSource?.columns ?? []} selected={selectedColumns} formats={columnFormatEntries} totals={totalsSelected}
                 totalsAllowed={!!selectedQueryRef} labels={stringEntries(selected.props.columnLabels)} units={stringEntries(selected.props.columnUnits)} valueLabels={stringEntries(selected.props.valueLabels)} toneMap={toneMapEntries}
@@ -3279,6 +3278,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
             </label>)}
             {(contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key))) && pane("view", section("content", "İçerik", <>
+              {selected.type === "input" && <>
+              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
+                ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
+                // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
+                // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
+                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
+                // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
+                ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
+              })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+              </>}
               {contentFields[selected.type].map((field) => {
                 const value = selected.props[field.key];
                 if (field.kind === "variant") return <label key={field.key} className="pd-field">{field.label}<div className="pd-segment">{variantOptions.map((option) => <button type="button" key={option.value} className={`tone-${option.value} ${String(value ?? "info") === option.value ? "active" : ""}`} onClick={() => updateComponent(selected.id, field.key, option.value)}>{option.label}</button>)}</div></label>;
@@ -3293,14 +3302,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selected.type === "list" && <label className="pd-field">Liste öğeleri<small>Her satıra bir madde yazın.</small><textarea rows={5} value={Array.isArray(selected.props.items) ? selected.props.items.join("\n") : ""} onChange={(event) => updateComponent(selected.id, "items", event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}/></label>}
             </>))}
             {selected.type === "input" && section("input", "Giriş", <>
-              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
-                ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
-                // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
-                // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
-                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
-                // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
-                ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
-              })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               {selected.props.inputType === "select" && <>
                 <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined })}/>
@@ -3556,13 +3557,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               const all = queryId ? queryColumns(queryId) : [];
               // Listede seçilen sütunlar seçim sırasıyla (başlıklarıyla); seçim yoksa sorgunun tüm sütunları.
               const columns = (chosen.length > 0 ? chosen.flatMap((code) => all.filter((column) => column.code === code)) : all).map((column) => labels[column.code] ? { ...column, label: labels[column.code] } : column);
-              return <section className="pd-inspector-section pd-settings-wide" data-settings-section="Süzgeç alanı"><div className="pd-inspector-section-body">
+              return pane("main", <section className="pd-inspector-section pd-settings-wide" data-settings-section="Süzgeç alanı"><div className="pd-inspector-section-body">
                 <FilterBarFields name={selected.name} props={selected.props} tables={queryTables.map((item) => ({ id: item.id, label: item.name || summaryOf(item) }))} tableId={table?.id ?? ""}
                   columns={columns} formats={parseColumnFormats(table?.props.columnFormats) as Record<string, string>} query={query}
                   queryParams={filterableParams(query, op ? op.parameters : null, paging)} paged={paged} readQueries={readQueries}
                   columnsOf={(id) => queryColumns(id)} queryEditable={queryEditable} disabled={!canEdit}
                   onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>
-              </div></section>;
+              </div></section>);
             })()}
             {selected.type === "contextPanel" && section("layout", "Bağlam paneli", <>
               <label className="pd-field">Tablo<small>Seçili satırı gösterilecek ızgara; adlı ve sorgulu olmalı.</small>

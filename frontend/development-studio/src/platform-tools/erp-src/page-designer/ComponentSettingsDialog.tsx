@@ -1,6 +1,6 @@
 import { createContext, useContext, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import { useDesignerModal } from "./designerModals";
 import "./page-designer-extras.css";
 
@@ -25,8 +25,10 @@ export function SettingsPane({ tab, children }: { tab: string; children: ReactNo
  * Kapalıyken `children` panelde yerinde çizilir (`hidden` ise hiç çizilmez: Basit kip).
  * `tabs` verilirse pencere sekmelidir: aynı anda tek sekme görünür (`SettingsPane`), sol bölüm listesi çizilmez.
  */
-export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onClose, children }: {
-  open: boolean; hidden?: boolean; title: string; extra?: ReactNode; tabs?: SettingsTab[]; tab?: string; onTab?: (tab: string) => void; onClose: () => void; children: ReactNode;
+export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onClose, onOpen, children }: {
+  open: boolean; hidden?: boolean; title: string; extra?: ReactNode; tabs?: SettingsTab[]; tab?: string; onTab?: (tab: string) => void; onClose: () => void;
+  /** Panelde "Pencerede aç": aynı ayarları geniş pencerede açar. */
+  onOpen?: () => void; children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,14 @@ export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onC
     });
     if (JSON.stringify(next) !== JSON.stringify(nav)) setNav(next);
   });
-  if (!open) return hidden ? null : <>{children}</>;
+  // Panelde (pencere kapalı) de aynı sekmeler çizilir; aynı anda tek sekme görünür.
+  if (!open) return hidden ? null : tabbed ? <div className="pd-panel-settings">
+    <div className="pd-panel-tabs" role="tablist" aria-label="Ayar sekmeleri">
+      {tabs.map((item) => <button type="button" role="tab" key={item.key} aria-selected={item.key === active} className={item.key === active ? "active" : ""} onClick={() => onTab?.(item.key)}>{item.label}</button>)}
+      {onOpen && <button type="button" className="pd-icon-button pd-panel-expand" aria-label="Pencerede aç" title="Pencerede aç" onClick={onOpen}><Maximize2 size={13}/></button>}
+    </div>
+    <ActiveTabContext.Provider value={active}>{extra}{children}</ActiveTabContext.Provider>
+  </div> : <>{children}</>;
   const jump = (index: number) => contentRef.current?.querySelector<HTMLElement>(`[data-nav-index="${index}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" });
   const tabKeys = (event: KeyboardEvent, index: number) => {
     if (!tabs || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
@@ -69,7 +78,7 @@ export function SettingsHost({ open, hidden, title, extra, tabs, tab, onTab, onC
             <nav className="pd-settings-nav" aria-label="Ayar bölümleri">{nav.map((item) => <button type="button" key={item.index} onClick={() => jump(item.index)}>{item.label}</button>)}</nav>
             <div className="pd-settings-content" ref={contentRef}>{extra}{children}</div>
           </div>}
-        <footer className="pd-modal-foot"><small className="pd-modal-foot-note">Değişiklikler tuvale hemen uygulanır; Ctrl+Z ile geri alabilirsiniz.</small><button type="button" className="pd-button small primary" data-autofocus onClick={onClose}>Kapat</button></footer>
+        <footer className="pd-modal-foot"><button type="button" className="pd-button small primary" data-autofocus onClick={onClose}>Kapat</button></footer>
       </section>
     </div>, document.body)}
   </>;
