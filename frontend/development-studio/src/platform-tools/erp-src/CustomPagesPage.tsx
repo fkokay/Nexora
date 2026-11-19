@@ -81,7 +81,7 @@ function childComponentsOf(component: PageComponent): PageComponent[] {
 type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
 type Device = "desktop" | "tablet" | "mobile";
-type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" };
+type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" | "choice"; options?: readonly (readonly [string, string])[] };
 
 const palette: PaletteItem[] = [
   { type: "actionBar", label: "İşlem Çubuğu", group: "Tasarım dili", icon: PanelTop, sample: {} },
@@ -120,7 +120,8 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   text: [{ key: "text", label: "Metin", kind: "textarea" }],
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
   input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" }],
-  metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" }],
+  metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
+    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["text", "Metin"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   section: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   divider: [],
@@ -147,7 +148,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -3290,6 +3291,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </>}
               {contentFields[selected.type].map((field) => {
                 const value = selected.props[field.key];
+                if (field.kind === "choice") return <div key={field.key} className="pd-field">{field.label}<div className="pd-segment">{(field.options ?? []).map(([option, title]) => <button type="button" key={option} disabled={!canEdit}
+                  className={String(value ?? field.options?.[field.options.length - 1]?.[0] ?? "") === option ? "active" : ""} onClick={() => updateComponent(selected.id, field.key, option)}>{title}</button>)}</div></div>;
                 if (field.kind === "variant") return <label key={field.key} className="pd-field">{field.label}<div className="pd-segment">{variantOptions.map((option) => <button type="button" key={option.value} className={`tone-${option.value} ${String(value ?? "info") === option.value ? "active" : ""}`} onClick={() => updateComponent(selected.id, field.key, option.value)}>{option.label}</button>)}</div></label>;
                 if ((field.kind === "text" || field.kind === "textarea") && bindableKeys.has(field.key)) return <label key={field.key} className="pd-field">{field.label}<BindingInput value={String(value ?? "")} multiline={field.kind === "textarea"} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel={field.label} onChange={(next) => updateComponent(selected.id, field.key, next)}/></label>;
                 if (field.kind === "textarea") return <label key={field.key} className="pd-field">{field.label}<textarea rows={3} value={String(value ?? "")} onChange={(event) => updateComponent(selected.id, field.key, event.target.value)}/></label>;
