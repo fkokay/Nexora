@@ -26,14 +26,14 @@ const stockComponents = () => {
   return componentLists(JSON.parse(text)).find((list) => list.some((component) => component.id === "hareketPenceresi"));
 };
 
-test("Stok Kartları: hareketPenceresi ve suzgecKarti değişmeden döner", () => {
+test("Stok Kartları: hareketPenceresi ve gorunumKarti değişmeden döner", () => {
   const components = stockComponents();
   assert.ok(components, "hareketPenceresi içeren tanım bulunmalı");
   const before = JSON.stringify(components);
   const dialog = components.find((component) => component.id === "hareketPenceresi");
-  const filter = components.find((component) => component.id === "suzgecKarti");
+  const filter = components.find((component) => component.id === "gorunumKarti");
   assert.deepEqual(refIds(dialog), ["hareketFormu", "izlemeSatirlari", "hareketTablosu"]);
-  assert.deepEqual(refIds(filter), ["aramaKutusu", "depoSecimi", "minimumAlti", "detayPaneli", "pasifler"]);
+  assert.deepEqual(refIds(filter), ["minimumAlti", "detayPaneli"]);
   for (const owner of [dialog, filter]) {
     const ids = refIds(owner);
     for (const [index, id] of ids.entries()) {

@@ -85,6 +85,8 @@ export type PageActionDeps = {
   busy: boolean;
   queryKind: (id: string) => string | undefined;
   inputIds: Set<string>;
+  /** Arama kutulu süzgeç alanları: Filtre komutu (focusInput) girişe ya da bunların arama kutusuna odaklanır. */
+  searchBarIds?: Set<string>;
   tableState: (tableId: string) => { loading: boolean; error?: string; rowCount: number } | undefined;
   buttonLabel: (id: string) => string | undefined;
   /** moreButtons düğmesinin koşul durumu: `visibleWhen` yanlışsa gizli (menüye girmez), `disabledWhen` doğruysa nedenli pasif. */
@@ -195,7 +197,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }
       : gated("delete", () => deps.run.write(deleteId, "delete")),
     refresh: { run: () => deps.run.refresh() },
-    filter: focusId && deps.inputIds.has(focusId) ? { run: () => deps.run.focus(focusId) } : unbound,
+    filter: focusId && (deps.inputIds.has(focusId) || deps.searchBarIds?.has(focusId)) ? { run: () => deps.run.focus(focusId) } : unbound,
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,
     export: !exportState ? unbound
       : exportState.loading ? { disabledReason: TABLE_LOADING }

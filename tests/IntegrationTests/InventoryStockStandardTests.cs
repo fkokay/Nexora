@@ -31,7 +31,7 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("bakiye", (string)props["query"]!);
         Assert.Equal("server", (string)props["paging"]!);
         Assert.Equal(25, (int)props["pageSize"]!);
-        // The search box sits in the toolbar row (inline formCard), not in the list header.
+        // The search box sits in the toolbar row (the list's filterBar), not in the list header.
         Assert.Null(props["searchInput"]);
         Assert.Equal("Stok kartları", (string)props["title"]!);
         // Full width; narrows to 8 only while the right-side detail panel is shown.
@@ -43,16 +43,18 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("load", (string)Query("bakiye")["runOn"]!);
         var expected = new Dictionary<string, string>
         {
-            ["warehouseId"] = "{{depoSecimi.value}}", ["q"] = "{{aramaKutusu.value}}", ["belowMinimumOnly"] = "{{minimumAlti.value}}",
-            ["includeInactive"] = "{{pasifler.value}}", ["page"] = "{{liste.sayfa}}", ["pageSize"] = "{{liste.sayfaBoyutu}}"
+            ["warehouseId"] = "{{suzgec.warehouseId}}", ["q"] = "{{suzgec.q}}", ["belowMinimumOnly"] = "{{minimumAlti.value}}",
+            ["includeInactive"] = "{{suzgec.includeInactive}}", ["page"] = "{{liste.sayfa}}", ["pageSize"] = "{{liste.sayfaBoyutu}}"
         };
         Assert.Equal(expected.Count, Query("bakiye")["parameters"]!.AsArray().Count);
         foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("bakiye", parameter));
 
-        var search = Props("aramaKutusu");
-        Assert.Equal("text", (string)search["inputType"]!);
-        Assert.Equal("Ara", (string)search["label"]!);
-        Assert.Equal("Kod veya stok adıyla ara", (string)search["placeholder"]!);
+        var bar = Props("suzgec");
+        Assert.Equal("filterBar", (string)Component("suzgec")["type"]!);
+        Assert.Equal(("liste", true, "q"), ((string)bar["table"]!, (bool)bar["search"]!, (string)bar["searchParam"]!));
+        Assert.Equal("Kod veya stok adıyla ara", (string)bar["searchPlaceholder"]!);
+        // Server-side search: no client-side search columns.
+        Assert.Null(bar["searchColumns"]);
     }
 
     [Fact]
@@ -98,35 +100,33 @@ public sealed class InventoryStockStandardTests
     }
 
     [Fact]
-    public void Warehouse_lookup_offers_all_warehouses()
+    public void Filter_bar_offers_warehouses_and_inactive_cards()
     {
-        var props = Props("depoSecimi");
-        Assert.Equal("lookup", (string)props["inputType"]!);
-        Assert.Equal(new[] { "=Tüm depolar" }, Strings(props["staticOptions"]));
-        Assert.Equal("depolar", (string)props["optionsQuery"]!);
-        Assert.Equal("id", (string)props["optionValueColumn"]!);
-        Assert.Equal("name", (string)props["optionLabelColumn"]!);
-        Assert.Equal("code", (string)props["optionDescriptionColumn"]!);
-        Assert.Equal(0, (int)props["minChars"]!);
-        Assert.True((bool)props["allowClear"]!);
+        var bar = Props("suzgec");
+        // Legacy row: search, Depo (server param warehouseId, options from depolar) and Pasif kartları da göster (server toggle).
+        Assert.Equal(new[] { "warehouseId|select|row|warehouseId|Depo|depolar:id:name", "includeInactive|toggle|row|includeInactive|Pasif kartları da göster" },
+            Strings(bar["filters"]));
         Assert.Equal("depo.listele", (string)Query("depolar")["operation"]!);
-        var toolbar = Props("suzgecKarti");
-        // Legacy row: search, Depo, Minimum altı chip, Detay paneli; the new Pasif toggle sits last (right end, where legacy has its list tools).
-        Assert.Equal(new[] { "aramaKutusu", "depoSecimi", "minimumAlti", "detayPaneli", "pasifler" }, Strings(toolbar["inputs"]));
-        Assert.Equal("inline", (string)toolbar["layout"]!);
-        Assert.Null(toolbar["columns"]);
+        Assert.Equal(8, (int)bar["width"]!);
+        // Minimum altı (live count chip, metric click target) and Detay paneli (not a filter) stay inputs, right of the bar.
+        var side = Props("gorunumKarti");
+        Assert.Equal(new[] { "minimumAlti", "detayPaneli" }, Strings(side["inputs"]));
+        Assert.Equal(("inline", 4), ((string)side["layout"]!, (int)side["width"]!));
+        Assert.Null(side["columns"]);
         Assert.Equal(("Minimum altı", "{{bakiye.meta.belowMinimumCount}}"), ((string)Props("minimumAlti")["label"]!, (string)Props("minimumAlti")["description"]!));
-        Assert.Equal(("checkbox", "archive"), ((string)Props("pasifler")["inputType"]!, (string)Props("pasifler")["icon"]!));
         Assert.Equal("panel", (string)Props("detayPaneli")["icon"]!);
         var detail = Props("detayPaneli");
         // Legacy: the panel opens by itself only on a wide list area (DETAIL_ROOM 1440); the toggle overrides it.
         Assert.Equal(("checkbox", "Detay paneli", "sayfa.genis == true"), ((string)detail["inputType"]!, (string)detail["label"]!, (string)detail["defaultWhen"]!));
         Assert.Null(detail["defaultValue"]);
-        // Legacy order: action bar → metrics → toolbar row → list.
+        // The old inputs and their inline form card are gone.
+        foreach (var id in new[] { "suzgecKarti", "aramaKutusu", "depoSecimi", "pasifler" })
+            Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == id);
+        // Legacy order: action bar -> metrics -> toolbar row (bar, then the side toggles) -> list.
         var order = AllComponents().Select(x => (string)x["id"]!).ToList();
-        Assert.True(order.IndexOf("maliyetsizGostergesi") < order.IndexOf("suzgecKarti"));
-        Assert.Equal(order.IndexOf("suzgecKarti") + 1, order.IndexOf("aramaKutusu"));
-        Assert.True(order.IndexOf("suzgecKarti") < order.IndexOf("liste"));
+        Assert.True(order.IndexOf("maliyetsizGostergesi") < order.IndexOf("suzgec"));
+        Assert.Equal(order.IndexOf("suzgec") + 1, order.IndexOf("gorunumKarti"));
+        Assert.True(order.IndexOf("gorunumKarti") < order.IndexOf("liste"));
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public sealed class InventoryStockStandardTests
         {
             "balance.valuationAmountBase=Stok değeri", "balance.unvaluedQuantity=Maliyetsiz miktar", "stockItem.category=Kategori", "balance.unitCode=Birim"
         }, Strings(panel["fields"]));
-        Assert.Equal(("hareketPenceresi", "depoSecimi.value == null", "Hareket için önce bir depo seçin."),
+        Assert.Equal(("hareketPenceresi", "suzgec.warehouseId == null", "Hareket için önce bir depo seçin."),
             ((string)Props("ozetHareketler")["dialogId"]!, (string)Props("ozetHareketler")["disabledWhen"]!, (string)Props("ozetHareketler")["disabledReason"]!));
 
         var warehouses = Props("kartDepoTablosu");
@@ -263,7 +263,7 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("actionBar", (string)Component("komutlar")["type"]!);
         Assert.Equal("kartSil", (string)props["deleteQuery"]!);
         Assert.Equal("liste", (string)props["exportTable"]!);
-        Assert.Equal("aramaKutusu", (string)props["focusInput"]!);
+        Assert.Equal("suzgec", (string)props["focusInput"]!); // Ctrl+F focuses the filter bar's search box.
         Assert.Equal("stok.kart.sil", (string)Query("kartSil")["operation"]!);
         Assert.Equal("delete", (string)Query("kartSil")["kind"]!);
         Assert.Equal("{{liste.seciliSatir.stockItem.id}}", Binding("kartSil", "id"));
@@ -299,7 +299,7 @@ public sealed class InventoryStockStandardTests
         Assert.True(components.Length <= 100, $"Bileşen sayısı {components.Length} > 100");
         Assert.True(queries.Length <= 26, $"Sorgu sayısı {queries.Length} > 26");
         // The card form moved to inventory-stock-create (51 components, 11 queries); the action bar opens it for Yeni and Aç.
-        Assert.Equal(45, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
+        Assert.Equal(43, components.Length); // + legacy detail panel (CompactList views, tags, Aç opens the card screen)
         Assert.Equal(14, queries.Length);
         var size = Encoding.UTF8.GetByteCount(standard.DefinitionJson);
         Assert.True(size <= 100 * 1024, $"Tanım boyutu {size} bayt > 100 KiB");
@@ -374,7 +374,7 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("dialog", (string)Component("hareketPenceresi")["type"]!);
         var props = Props("hareketPenceresi");
         Assert.Equal("dialog", (string)props["presentation"]!);
-        Assert.Equal("Stok hareketleri · {{liste.seciliSatir.balance.code}} · {{depoSecimi.seciliSatir.name}}", (string)props["title"]!);
+        Assert.Equal("Stok hareketleri · {{liste.seciliSatir.balance.code}} · {{suzgec.seciliSatir.warehouseId.name}}", (string)props["title"]!);
         Assert.Equal(new[] { "hareketFormu", "izlemeSatirlari", "hareketTablosu" }, Strings(props["contains"]));
         Assert.Equal("hareketEkle", (string)props["saveQuery"]!);
         Assert.Null(props["saveSequence"]);
@@ -412,7 +412,7 @@ public sealed class InventoryStockStandardTests
     {
         var expected = new Dictionary<string, string>
         {
-            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["warehouseId"] = "{{suzgec.warehouseId}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
             ["entryDate"] = "{{hareketTarihi.value}}", ["direction"] = "{{hareketYonu.value}}", ["quantity"] = "{{hareketMiktari.value}}",
             ["description"] = "{{hareketAciklamasi.value}}", ["unitCostBase"] = "{{birimMaliyet.value}}", ["unitCode"] = "{{hareketBirimi.value}}",
             ["storageLocationId"] = "{{hareketKonumu.value}}", ["tracking"] = "{{izlemeSatirlari.satirlar}}"
@@ -427,7 +427,7 @@ public sealed class InventoryStockStandardTests
 
         var reversal = new Dictionary<string, string>
         {
-            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["warehouseId"] = "{{suzgec.warehouseId}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
             ["entryId"] = "{{hareketTablosu.seciliSatir.id}}", ["reason"] = "{{tersKayitDugmesi.yanit}}"
         };
         var reverse = Query("tersKayit");
@@ -439,7 +439,7 @@ public sealed class InventoryStockStandardTests
 
         Assert.Equal("depo.konumlari", (string)Query("konumlar")["operation"]!);
         Assert.Equal("load", (string)Query("konumlar")["runOn"]!);
-        Assert.Equal("{{depoSecimi.value}}", Binding("konumlar", "warehouseId"));
+        Assert.Equal("{{suzgec.warehouseId}}", Binding("konumlar", "warehouseId"));
         Assert.Single(Query("konumlar")["parameters"]!.AsArray());
     }
 
@@ -514,7 +514,7 @@ public sealed class InventoryStockStandardTests
 
         var expected = new Dictionary<string, string>
         {
-            ["warehouseId"] = "{{depoSecimi.value}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
+            ["warehouseId"] = "{{suzgec.warehouseId}}", ["stockItemId"] = "{{liste.seciliSatir.stockItem.id}}",
             ["page"] = "{{hareketTablosu.sayfa}}", ["pageSize"] = "{{hareketTablosu.sayfaBoyutu}}"
         };
         Assert.Equal(("stok.hareket.listele", "read", "load"),
@@ -549,7 +549,7 @@ public sealed class InventoryStockStandardTests
         Assert.Equal("openDialog", (string)button["actionType"]!);
         Assert.Equal("hareketPenceresi", (string)button["dialogId"]!);
         Assert.Equal("liste.seciliSatir.stockItem.id != null", (string)button["visibleWhen"]!);
-        Assert.Equal("depoSecimi.value == null", (string)button["disabledWhen"]!);
+        Assert.Equal("suzgec.warehouseId == null", (string)button["disabledWhen"]!);
         Assert.Equal("Hareket için önce bir depo seçin.", (string)button["disabledReason"]!);
         Assert.Contains("hareketlerDugmesi", Strings(Props("komutlar")["moreButtons"]));
         var item = SystemPageStandards.All[Key].Items.Single(x => x.Key == "component:komutlar");

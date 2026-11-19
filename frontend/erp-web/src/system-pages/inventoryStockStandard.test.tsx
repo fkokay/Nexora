@@ -163,10 +163,11 @@ const selectCard = async (name = 'Kalem', id = S1) => {
   await waitFor(() => expect(gets(`/api/stock/items/${id}`).length).toBeGreaterThan(0), T);
   await ready('open');
 };
+/** Süzgeç alanının (suzgec) Depo seçimi: depolar sorgusunun seçenekleri gelince Merkez seçilir. */
+const warehouseSelect = () => within(screen.getByRole('region', { name: 'Süzgeçler' })).getByLabelText('Depo') as HTMLSelectElement;
 const chooseWarehouse = async () => {
-  await waitFor(() => expect(input('depoSecimi')).toBeTruthy(), T);
-  fireEvent.click(input('depoSecimi'));
-  fireEvent.click(await screen.findByRole('option', { name: /Merkez/ }));
+  await waitFor(() => expect(within(warehouseSelect()).getByRole('option', { name: 'Merkez' })).toBeTruthy(), T);
+  fireEvent.change(warehouseSelect(), { target: { value: W } });
 };
 
 /**
@@ -190,6 +191,8 @@ let definition: Definition = standard.definition;
 beforeEach(() => {
   definition = standard.definition;
   calls = []; failures = []; valuesGate = null; operations = catalog.operations; navigations = []; api.mockReset();
+  // Süzgeç alanı değerlerini sayfa başına tarayıcıda saklar; testler birbirine taşımasın.
+  localStorage.clear();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
 afterEach(() => {
@@ -210,10 +213,31 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     const first = gets('/api/warehouses/balances/page')[0];
     expect(query(first.url).get('page')).toBe('1');
     expect(query(first.url).get('pageSize')).toBe('25');
+    expect(query(first.url).get('q')).toBeNull();
     await chooseWarehouse();
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
+    // Seçili depo süzgeç çipinde adıyla görünür.
+    expect(screen.getByRole('group', { name: 'Etkin süzgeçler' }).textContent).toContain('Merkez');
     fireEvent.click(screen.getByLabelText('Pasif kartları da göster'));
     await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('includeInactive') === 'true')).toBe(true), T);
+    // Arama sunucuya q ile gider; liste 1. sayfadan okunur.
+    fireEvent.change(input('suzgec'), { target: { value: 'kal' } });
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal')).toBe(true), T);
+    const searched = calls.filter((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal');
+    expect(searched.every((call) => query(call.url).get('page') === '1' && query(call.url).get('includeInactive') === 'true')).toBe(true);
+    // "Tümü" depo süzgecini kaldırır: tüm depoların bakiyesi okunur.
+    const before = gets('/api/warehouses/balances/page').length;
+    fireEvent.change(warehouseSelect(), { target: { value: '' } });
+    await waitFor(() => expect(gets('/api/warehouses/balances/page').length).toBeGreaterThan(before), T);
+  });
+
+  it('Filtre komutu (Ctrl+F) süzgeç alanının arama kutusuna odaklanır', async () => {
+    setup();
+    await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
+    await ready('filter');
+    fireEvent.click(command('filter'));
+    await waitFor(() => expect(document.activeElement).toBe(input('suzgec')), T);
+    expect(input('suzgec').placeholder).toBe('Kod veya stok adıyla ara');
   });
 
   it('metrics show formatted page meta and minimum filter toggles', async () => {
@@ -261,11 +285,21 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
   it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
     const { container } = setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
-    // One compact toolbar row (no card heading) holding search, Depo, Minimum altı, Pasif and Detay paneli.
+    // One compact toolbar row (no card heading): the Süzgeç alanı (search, Depo, Pasif) and, right of it, Minimum altı and Detay paneli.
     const toolbar = screen.getByRole('region', { name: 'Süzgeçler' });
+    expect(toolbar.classList.contains('tenant-page-filter-bar')).toBe(true);
     expect(toolbar.classList.contains('is-inline')).toBe(true);
     expect(toolbar.querySelector('h3')).toBeNull();
-    for (const id of ['aramaKutusu', 'depoSecimi', 'minimumAlti', 'pasifler', 'detayPaneli']) expect(toolbar.contains(input(id))).toBe(true);
+    expect(toolbar.contains(input('suzgec'))).toBe(true);
+    expect(within(toolbar).getByLabelText('Depo').tagName).toBe('SELECT');
+    expect(within(toolbar).getByLabelText('Pasif kartları da göster')).toBeTruthy();
+    expect(toolbar.style.gridColumn).toBe('span 8');
+    const side = input('detayPaneli').closest('.tenant-page-form-card') as HTMLElement;
+    expect(side.classList.contains('is-inline')).toBe(true);
+    expect(side.querySelector('h3')).toBeNull();
+    expect(side.contains(input('minimumAlti'))).toBe(true);
+    expect(side.style.gridColumn).toBe('span 4');
+    expect(toolbar.compareDocumentPosition(side) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector('.tenant-page-table-search')).toBeNull();
     const list = container.querySelector('.tenant-page-data-grid') as HTMLElement;
     expect(list.style.gridColumn).toBe('span 12');

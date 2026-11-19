@@ -57,7 +57,7 @@ import { designerShortcutsBlocked } from "./page-designer/designerModals";
 import { readInspectorMode, writeInspectorMode, type InspectorMode } from "./page-designer/inspectorBasicFields";
 import { proposeColumns } from "./page-designer/columnEditing";
 import { FilterBarFields } from "./page-designer/FilterBarFields";
-import { filterBarParams, filterBarProblem, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings, withoutFilterBindings, withoutStaleParams } from "./page-designer/filterBarSettings";
+import { filterBarParams, filterBarProblem, keptFilterBindings, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings, withoutFilterBindings, withoutStaleParams } from "./page-designer/filterBarSettings";
 import "./custom-pages.css";
 
 type PageSummary = { id: string; code: string; name: string; description: string | null; revision: number; isPublished: boolean; updatedAt: string; screenKey?: string | null };
@@ -549,7 +549,8 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       list("newInputs", 12, isInput);
       // Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz (liste sahipliği önce gelir).
       list("moreButtons", 10, (id) => anyById.get(id)?.type === "button" && !rowActionOwned.has(id));
-      single("focusInput", isInput);
+      // Filtre (Ctrl+F): giriş kutusu ya da arama kutulu süzgeç alanı.
+      single("focusInput", (id) => isInput(id) || (anyById.get(id)?.type === "filterBar" && anyById.get(id)?.props.search === true));
       // Kayıt penceresi: pencere silinince bağ da kalkar.
       single("formDialog", (id) => dialogIds.has(id));
       // Yeni / Aç / kayıttan sonra çalışan düğmeler: düğme silinince bağ kalkar; Yeni ve Aç kayıt penceresiyle birlikte kullanılamaz.
@@ -604,12 +605,19 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   // Süzgeç alanının parametreleri listenin sorgusuna {{<ad>.<parametre>}} ile bağlanır (sunucu kuralı). SQL sorgusunda yalnız
   // tanımlı parametreler, ERP işleminde yalnız işlemin parametreleri bağlanır. Önce süzgeç alanına artık ait olmayan
   // {{<ad>.<x>}} bağlamaları (kaldırılan süzgeç, silinen ya da başka tabloya bağlanan alan) ERP işlemi sorgularından kalkar.
+  // Başka sorguların süzgeç alanının güncel parametresine bağlaması (ör. hareket sorgusunun {{suzgec.warehouseId}} değeri) kalır;
+  // alan başka tabloya taşındıysa eski listenin sorgusundaki bağlamalar kalkar.
   const barNames = new Set([...components, ...(options.previous?.components ?? [])].filter((item) => item.type === "filterBar" && !!item.name).map((item) => item.name!));
+  const barQuery = (list: PageComponent[], barName: string) => {
+    const bar = list.find((item) => item.type === "filterBar" && item.name === barName);
+    const table = bar && typeof bar.props.table === "string" ? list.find((item) => item.id === bar.props.table) : undefined;
+    return { bar, query: table && typeof table.props.query === "string" ? table.props.query : undefined };
+  };
   for (const barName of barNames) {
-    const current = components.find((item) => item.type === "filterBar" && item.name === barName);
-    const currentTable = current && typeof current.props.table === "string" ? components.find((item) => item.id === current.props.table) : undefined;
-    const currentQuery = currentTable && typeof currentTable.props.query === "string" ? currentTable.props.query : undefined;
-    queries = queries.map((query) => withoutFilterBindings(query, barName, current && query.id === currentQuery ? filterBarParams(current.props) : []));
+    const { bar: current, query: currentQuery } = barQuery(components, barName);
+    const previousQuery = barQuery(options.previous?.components ?? [], barName).query;
+    const params = current ? filterBarParams(current.props) : null;
+    queries = queries.map((query) => withoutFilterBindings(query, barName, keptFilterBindings(query.id, params, currentQuery, previousQuery)));
   }
   for (const component of components) {
     if (component.type !== "filterBar" || !component.name || typeof component.props.table !== "string") continue;
@@ -3419,6 +3427,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {pageInputs.map((input) => <option key={input.id} value={input.id}>{input.label}{input.name ? ` (${input.name})` : ""}</option>)}
+                  {definition.components.filter((component) => component.type === "filterBar" && component.props.search === true).map((component) =>
+                    <option key={component.id} value={component.id}>Süzgeç alanı araması{component.name ? ` (${component.name})` : ""}</option>)}
                 </select>
               </label>
               <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key" aria-hidden="true">Ctrl+P</span></label>

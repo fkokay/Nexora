@@ -8,8 +8,10 @@ import { filterChips, isRange, type FilterBarValues, type FilterValue, type Reso
  * "＋ Daha fazla süzgeç (n)" açılır panelinde; altında etkin süzgeç çipleri ve "Tümünü temizle". Form kartının tek satır
  * diziliminin sınıflarını (`list-v2-*`) kullanır, böylece aynı görünür.
  */
-export function FilterBar({ search, values, filters, style, onSearch, onChange, onClearAll }: {
+export function FilterBar({ search, values, filters, style, searchInputId, onSearch, onChange, onClearAll }: {
   search: { placeholder: string; hint: string } | null;
+  /** Arama kutusunun sabit kimliği (İşlem Çubuğu'nun Filtre komutu odaklanır); verilmezse üretilir. */
+  searchInputId?: string;
   values: FilterBarValues; filters: ResolvedFilter[]; style: CSSProperties;
   onSearch: (text: string) => void;
   onChange: (key: string, value: FilterValue | undefined) => void;
@@ -73,12 +75,13 @@ export function FilterBar({ search, values, filters, style, onSearch, onChange, 
     </div>;
   };
   const hintId = `${baseId}-hint`;
+  const searchId = searchInputId || `${baseId}-search`;
   return <section className="tenant-page-block tenant-page-form-card is-inline list-v2 tenant-page-filter-bar" style={style} aria-label="Süzgeçler">
     <div className="tenant-page-form-card-grid is-inline list-v2-toolbar">
       {search && <div className="tenant-page-form-card-cell tenant-page-filter-search">
         <div className="tenant-page-input tenant-page-input-text">
-          <label htmlFor={`${baseId}-search`} className="list-v2-search" title={search.hint || undefined}><Search size={16} aria-hidden="true" /><span>Ara</span>
-            <input id={`${baseId}-search`} type="text" placeholder={search.placeholder} value={values.search} aria-describedby={search.hint ? hintId : undefined}
+          <label htmlFor={searchId} className="list-v2-search" title={search.hint || undefined}><Search size={16} aria-hidden="true" /><span>Ara</span>
+            <input id={searchId} type="text" placeholder={search.placeholder} value={values.search} aria-describedby={search.hint ? hintId : undefined}
               onChange={(event) => onSearch(event.target.value)} />
           </label>
           {search.hint && <span id={hintId} className="tenant-page-filter-hint">{search.hint}</span>}

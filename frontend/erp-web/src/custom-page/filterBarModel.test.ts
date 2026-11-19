@@ -58,6 +58,16 @@ describe('süzgeç alanı modeli', () => {
     expect(filterScope(filters, { search: '', values: { inactive: true } }, 'q')).toMatchObject({ q: null, warehouseId: null, includeInactive: true });
   });
 
+  it('sorgudan seçenekli seçim süzgecinin seçili satırı seciliSatir altında, değer düz kalır', () => {
+    const spec = parseFilterEntries(['warehouseId|select|row|warehouseId|Depo|depolar:id:name'])[0];
+    const merkez = { id: 'w1', code: 'MRK', name: 'Merkez' };
+    const filters: ResolvedFilter[] = [{ ...spec, kind: 'select', label: 'Depo', choices: filterChoices(spec, { optionRows: [merkez], rows: [] }) }, resolved('inactive|toggle|row|includeInactive', 'toggle')];
+    expect(filterScope(filters, { search: '', values: { warehouseId: 'w1' } })).toEqual({ arama: '', warehouseId: 'w1', includeInactive: false, seciliSatir: { warehouseId: merkez } });
+    expect(filterScope(filters, { search: '', values: {} })).toMatchObject({ warehouseId: null, seciliSatir: { warehouseId: null } });
+    // Seçeneklerde olmayan (silinmiş) değer: değer korunur, seçili satır yoktur.
+    expect(filterScope(filters, { search: '', values: { warehouseId: 'eski' } })).toMatchObject({ warehouseId: 'eski', seciliSatir: { warehouseId: null } });
+  });
+
   it('çipler seçenek etiketini, aralığı ve aç/kapa etiketini gösterir', () => {
     const filters = [resolved('type|select|row', 'select', 'Durum', [{ value: 'R', label: 'Minimum altı' }]), resolved('qty|range|more', 'range', 'Depo bakiyesi'), resolved('inactive|toggle|row', 'toggle', 'Pasifler dahil')];
     expect(filterChips(filters, { search: '', values: { type: 'R', qty: { min: '10', max: '500' }, inactive: true } })).toEqual([
@@ -67,7 +77,7 @@ describe('süzgeç alanı modeli', () => {
 
   it('seçenekler kaynak sorgudan, değer etiketlerinden ya da satırlardaki farklı değerlerden gelir', () => {
     const spec = parseFilterEntries(['w|select|row|||depolar:id:name'])[0];
-    expect(filterChoices(spec, { optionRows: [{ id: '1', name: 'Merkez' }], rows: [] })).toEqual([{ value: '1', label: 'Merkez' }]);
+    expect(filterChoices(spec, { optionRows: [{ id: '1', name: 'Merkez' }], rows: [] })).toEqual([{ value: '1', label: 'Merkez', row: { id: '1', name: 'Merkez' } }]);
     expect(filterChoices(parseFilterEntries(['t|select|row'])[0], { valueLabels: { R: 'Giriş', I: 'Çıkış' }, rows: [] })).toEqual([{ value: 'R', label: 'Giriş' }, { value: 'I', label: 'Çıkış' }]);
     expect(filterChoices(parseFilterEntries(['t|select|row'])[0], { rows: [{ t: 'b' }, { t: 'a' }, { t: 'b' }, { t: null }] })).toEqual([{ value: 'a', label: 'a' }, { value: 'b', label: 'b' }]);
   });

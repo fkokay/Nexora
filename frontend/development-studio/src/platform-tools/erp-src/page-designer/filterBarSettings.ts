@@ -109,6 +109,16 @@ export function withoutFilterBindings(query: PageQuery, barName: string, keep: s
   return touched ? { ...query, parameters } : query;
 }
 
+/**
+ * Bir sorguda kalacak `{{<ad>.<parametre>}}` bağlamaları: süzgeç alanı silindiyse (`params` null) hiçbiri; alan başka tabloya
+ * taşındıysa eski listenin sorgusunda hiçbiri; diğer sorgularda alanın güncel parametreleri (ör. hareket sorgusunun
+ * `{{suzgec.warehouseId}}` bağlaması süzgecin seçili deposunu okur).
+ */
+export function keptFilterBindings(queryId: string, params: string[] | null, currentQuery: string | undefined, previousQuery: string | undefined): string[] {
+  if (!params) return [];
+  return queryId !== currentQuery && queryId === previousQuery ? [] : params;
+}
+
 /** Sütuna denk gelen sorgu parametresi: aynı ad ya da noktalı kodun son bölümü (ör. stockItem.category → @category). */
 export function paramForColumn(code: string, params: QueryParam[]): QueryParam | undefined {
   return params.find((param) => param.name === code) ?? params.find((param) => param.name === code.split(".").pop());

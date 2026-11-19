@@ -189,6 +189,8 @@ type PageRuntime = {
 };
 type FilterBarView = {
   search: { placeholder: string; hint: string } | null; values: FilterBarValues; filters: ResolvedFilter[];
+  /** Arama kutusunun kimliği (`page-input-<bileşen>`): İşlem Çubuğu'nun Filtre komutu (focusInput) buna odaklanır. */
+  searchInputId: string;
   onSearch: (text: string) => void; onChange: (key: string, value: FilterValue | undefined) => void; onClearAll: () => void;
 };
 type GridView = {
@@ -1291,6 +1293,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     rights: runtime.rights, busy,
     queryKind: (id) => runtime.queryById[id]?.kind,
     inputIds: new Set(Object.keys(runtime.inputById)),
+    searchBarIds: new Set(flat.filter((component) => component.type === "filterBar" && component.props?.search === true).map((component) => component.id)),
     tableState: (tableId) => {
       const table = runtime.tableById[tableId];
       const state = table && typeof table.props?.query === "string" ? runtime.states[runtime.queryNames[table.props.query]] : undefined;
@@ -2609,7 +2612,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         setFilterValues((previous) => ({ ...previous, [filterBar.id]: change(previous[filterBar.id] ?? EMPTY_FILTER_VALUES) }));
       return {
         search: model.search ? { placeholder: textValue(filterBar.props?.searchPlaceholder) || "Ara", hint: model.hint } : null,
-        values: model.values, filters: model.filters,
+        values: model.values, filters: model.filters, searchInputId: `page-input-${filterBar.id}`,
         onSearch: (text) => update((current) => ({ ...current, search: text })),
         onChange: (key, value) => update((current) => {
           const values = { ...current.values };
