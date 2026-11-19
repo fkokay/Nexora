@@ -61,6 +61,91 @@ public sealed class ErpOperationCatalogTests
         "stok.kart.birimEkle", "stok.kart.birimSil", "stok.kart.birimleri", "stok.kart.depoBakiyeleri", "stok.kart.ozelAlanKaydet"
     ];
 
+    private const string MovementHistory = "stok.hareket.gecmisi";
+
+    [Fact]
+    public void Movement_history_reads_card_route_with_warehouse_variant()
+    {
+        Assert.True(ErpOperationCatalog.TryGet(MovementHistory, out var op));
+        Assert.Equal(("read", "GET", "/api/stock/items/{stockItemId}/transactions", "Stok"), (op.Kind, op.Method, op.Route, op.Module));
+        var variant = Assert.Single(op.RouteVariants);
+        Assert.Equal(("/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions", "warehouseId"), (variant.Route, variant.When));
+        Assert.Equal(new[] { "stockItemId:route:True", "warehouseId:route:False", "page:query:False", "pageSize:query:False" },
+            op.Parameters.Select(x => $"{x.Name}:{x.In}:{x.Required}"));
+        Assert.Equal(("list", "items"), (op.Result.Shape, op.Result.RowsPath));
+        Assert.Equal(new[] { "page", "pageSize", "totalCount" }, op.Result.MetaPaths);
+        Assert.Empty(op.Result.Flatten);
+        var codes = op.Result.Columns.Select(x => x.Code).ToArray();
+        foreach (var code in new[] { "entryDate", "direction", "isReversal", "warehouseCode", "warehouseName", "storageLocationName", "description", "unitCostBase" })
+            Assert.Contains(code, codes);
+        Assert.Equal(("Miktar", "decimal"), Column(op, "displayQuantity"));
+        Assert.Equal(("Birim", "text"), Column(op, "displayUnitCode"));
+        Assert.Equal(("Lot / seri", "text"), Column(op, "trackingText"));
+        // The older transaction operations keep their frozen columns: the display members are not constructor parameters.
+        foreach (var name in new[] { "stok.kart.hareketleri", "stok.hareket.listele", "stok.hareket.ekle", "stok.hareket.tersKayit" })
+        {
+            Assert.True(ErpOperationCatalog.TryGet(name, out var older));
+            Assert.DoesNotContain(older.Result.Columns, x => x.Code is "displayQuantity" or "displayUnitCode" or "trackingText" or "baseUnitCode");
+            Assert.Equal(codes.Take(older.Result.Columns.Count), older.Result.Columns.Select(x => x.Code));
+        }
+    }
+
+    private static (string Label, string DataType) Column(ErpOperation op, string code)
+    {
+        var column = Assert.Single(op.Result.Columns, x => x.Code == code);
+        return (column.Label, column.DataType);
+    }
+
+    [Fact]
+    public async Task Movement_history_needs_both_route_permissions()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, platformDb =>
+        {
+            foreach (var code in new[] { "erp.custom-menus.read", "erp.stock-items.read", "erp.warehouses.read" })
+                platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
+            platformDb.TenantPermissionRules.Add(Rule("erp.warehouses.read", TenantPermissionEffect.Deny, Reader));
+        });
+        using var client = factory.CreateClient();
+
+        // The reader may run the all-warehouses route but not the per-warehouse one, so the operation is not allowed.
+        SetIdentity(client, Reader, "TenantUser");
+        var readerOps = await GetOperationsAsync(client);
+        Assert.True(readerOps["stok.kart.hareketleri"].GetProperty("allowed").GetBoolean());
+        Assert.False(readerOps[MovementHistory].GetProperty("allowed").GetBoolean());
+        var variant = Assert.Single(readerOps[MovementHistory].GetProperty("routeVariants").EnumerateArray());
+        Assert.Equal("warehouseId", variant.GetProperty("when").GetString());
+
+        SetIdentity(client, Writer, "TenantUser");
+        Assert.True((await GetOperationsAsync(client))[MovementHistory].GetProperty("allowed").GetBoolean());
+        SetIdentity(client, Admin, "TenantAdmin");
+        Assert.True((await GetOperationsAsync(client))[MovementHistory].GetProperty("allowed").GetBoolean());
+    }
+
+    /// <summary>
+    /// The display members the history reads add (the routes themselves need SQL Server: InMemory cannot translate their grouped
+    /// lot / serial read, see <c>InventoryStockMovementsSqlAcceptanceTests</c>).
+    /// </summary>
+    [Fact]
+    public void Movement_view_display_members()
+    {
+        var view = new InventoryTransactionView(Guid.NewGuid(), new DateOnly(2026, 11, 2), InventoryDirection.Receipt, 1250, "Lot girişi", null, false, false,
+            Tracking: [new InventoryTrackingAllocationView("LOT-1", 1000.5m, null), new InventoryTrackingAllocationView("LOT-2", 249.5m, null)]);
+        Assert.Equal("LOT-1 (1.000,5), LOT-2 (249,5)", view.TrackingText);
+        Assert.Null((view with { Tracking = [] }).TrackingText);
+        Assert.Null((view with { Tracking = null }).TrackingText);
+        // Without an entered unit: the base quantity in the card's base unit (known only to the history reads).
+        Assert.Equal((1250m, (string?)null), (view.DisplayQuantity, view.DisplayUnitCode));
+        Assert.Equal("ADET", (view with { BaseUnitCode = "ADET" }).DisplayUnitCode);
+        var entered = view with { EnteredQuantity = 3, EnteredUnitCode = "KOLI", BaseUnitCode = "ADET" };
+        Assert.Equal((3m, "KOLI"), (entered.DisplayQuantity, entered.DisplayUnitCode));
+        // The API's web serializer writes the display members.
+        var json = JsonSerializer.SerializeToElement(view with { BaseUnitCode = "ADET" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(("ADET", 1250m, "ADET"), (json.GetProperty("baseUnitCode").GetString(), json.GetProperty("displayQuantity").GetDecimal(),
+            json.GetProperty("displayUnitCode").GetString()));
+        Assert.Equal("LOT-1 (1.000,5), LOT-2 (249,5)", json.GetProperty("trackingText").GetString());
+    }
+
     [Fact]
     public void Depo_operations_use_depo_module()
     {
@@ -77,7 +162,7 @@ public sealed class ErpOperationCatalogTests
         {
             foreach (var name in op.Result.Flatten)
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
-            if (Proje2FazAOperations.Contains(op.Name)) continue;
+            if (Proje2FazAOperations.Contains(op.Name) || op.Name == MovementHistory) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -410,6 +495,7 @@ public sealed class ErpOperationCatalogTests
     {
         ["stok.kart.listele"] = "q,page,pageSize",
         ["stok.kart.getir"] = "id",
+        ["stok.hareket.gecmisi"] = "stockItemId,warehouseId,page,pageSize",
         ["stok.kart.olustur"] = "code,name,barcode,unitCode,category,minimumStock,isActive,trackingMode,procurementLeadTimeDays,manufacturingLeadTimeDays,purchaseListPrice,salesListPrice,priceCurrencyCode,purchaseVatPercent,salesVatPercent,exciseTaxPercent,communicationTaxPercent,purchaseDiscountPercent,salesDiscountPercent,maximumStock,reorderPoint,safetyStock,netWeight,grossWeight,length,width,height,productImageUrl,purchaseAccountCode,salesAccountCode,costAccountCode,marketplaceProductId,withholdingTaxPercent,stampTaxPercent",
         ["stok.kart.guncelle"] = "id,code,name,barcode,unitCode,category,minimumStock,rowVersion,trackingMode,procurementLeadTimeDays,manufacturingLeadTimeDays,purchaseListPrice,salesListPrice,priceCurrencyCode,purchaseVatPercent,salesVatPercent,exciseTaxPercent,communicationTaxPercent,purchaseDiscountPercent,salesDiscountPercent,maximumStock,reorderPoint,safetyStock,netWeight,grossWeight,length,width,height,productImageUrl,purchaseAccountCode,salesAccountCode,costAccountCode,marketplaceProductId,withholdingTaxPercent,stampTaxPercent",
         ["stok.kart.sil"] = "id",

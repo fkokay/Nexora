@@ -1825,7 +1825,8 @@ stockItems.MapStockBulkImportEndpoint();
 stockItems.MapGet("/{stockItemId:guid}/transactions", async (Guid stockItemId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (!await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id == stockItemId)) return Results.NotFound();
+    var baseUnitCode = await db.StockItems.Where(x => x.TenantId == tenantId && x.Id == stockItemId).Select(x => x.UnitCode).SingleOrDefaultAsync();
+    if (baseUnitCode is null) return Results.NotFound();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId);
     var total = await query.CountAsync();
@@ -1851,7 +1852,7 @@ stockItems.MapGet("/{stockItemId:guid}/transactions", async (Guid stockItemId, C
         x.StorageLocationId is { } locationId && locations.TryGetValue(locationId, out var location) ? location.Code : null,
         x.StorageLocationId is { } selectedLocationId && locations.TryGetValue(selectedLocationId, out var selectedLocation) ? selectedLocation.Name : null,
         x.WarehouseId, warehouses.TryGetValue(x.WarehouseId, out var warehouse) ? warehouse.Code : null,
-        warehouses.TryGetValue(x.WarehouseId, out var selectedWarehouse) ? selectedWarehouse.Name : null)).ToList();
+        warehouses.TryGetValue(x.WarehouseId, out var selectedWarehouse) ? selectedWarehouse.Name : null) { BaseUnitCode = baseUnitCode }).ToList();
     return Results.Ok(new InventoryTransactionPage(rows, page, pageSize, total));
 });
 stockItems.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
@@ -3063,7 +3064,9 @@ warehouses.MapGet("/{warehouseId:guid}/balances", async (Guid warehouseId, Claim
 warehouses.MapGet("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId) || !await db.StockItems.AnyAsync(x => x.TenantId == tenantId && x.Id == stockItemId)) return Results.NotFound();
+    var selectedWarehouse = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == warehouseId).Select(x => new { x.Code, x.Name }).SingleOrDefaultAsync();
+    var baseUnitCode = await db.StockItems.Where(x => x.TenantId == tenantId && x.Id == stockItemId).Select(x => x.UnitCode).SingleOrDefaultAsync();
+    if (selectedWarehouse is null || baseUnitCode is null) return Results.NotFound();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.WarehouseId == warehouseId && x.StockItemId == stockItemId);
     var total = await query.CountAsync();
@@ -3079,7 +3082,8 @@ warehouses.MapGet("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", a
         db.InventoryTransactions.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id), x.UnitCostBase, x.EnteredQuantity, x.EnteredUnitCode,
         allocations.GetValueOrDefault(x.Id), x.StorageLocationId,
         x.StorageLocationId is { } locationId && locations.TryGetValue(locationId, out var location) ? location.Code : null,
-        x.StorageLocationId is { } selectedLocationId && locations.TryGetValue(selectedLocationId, out var selectedLocation) ? selectedLocation.Name : null)).ToList();
+        x.StorageLocationId is { } selectedLocationId && locations.TryGetValue(selectedLocationId, out var selectedLocation) ? selectedLocation.Name : null,
+        x.WarehouseId, selectedWarehouse.Code, selectedWarehouse.Name) { BaseUnitCode = baseUnitCode }).ToList();
     return Results.Ok(new InventoryTransactionPage(rows, page, pageSize, total));
 });
 warehouses.MapPost("/{warehouseId:guid}/stock/{stockItemId:guid}/transactions", async (Guid warehouseId, Guid stockItemId, InventoryTransactionWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>

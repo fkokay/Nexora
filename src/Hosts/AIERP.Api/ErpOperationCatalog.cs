@@ -101,7 +101,8 @@ internal static class ErpOperationCatalog
         ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
         ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",
         ["allowNegativeStock"] = "Negatif stoka izin ver", ["updatedByUserId"] = "Güncelleyen", ["updatedAt"] = "Güncellenme",
-        ["status"] = "Durum"
+        ["status"] = "Durum",
+        ["displayQuantity"] = "Miktar", ["displayUnitCode"] = "Birim", ["trackingText"] = "Lot / seri"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -160,6 +161,7 @@ internal static class ErpOperationCatalog
         };
         operations.AddRange(BuildStockPilot(id, paging));
         operations.AddRange(BuildStockPilotV1());
+        operations.Add(BuildStockMovementHistory(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -234,6 +236,24 @@ internal static class ErpOperationCatalog
             [new ErpOperationParameter("productStockItemId", "query", "guid", true)], List(Columns<BomView>(), null));
         yield return Read(SettingsModule, "ayar.negatifStok", "Negatif stok kuralı", "/api/tenant-settings/operations", [],
             Record(Columns<TenantOperationalSettingsView>()));
+    }
+
+    /// <summary>
+    /// Stok Hareketleri standard: one stock card's movements in every warehouse, or in one warehouse when warehouseId is set
+    /// (the per-warehouse route, as the legacy screen does). The caller needs both routes' read permissions. The display
+    /// columns (entered quantity with its unit, else the base quantity and unit; lot / serial allocations as one line) are
+    /// computed members of the view outside its constructor, so the older transaction operations keep their columns.
+    /// </summary>
+    private static ErpOperation BuildStockMovementHistory(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        var columns = Columns<InventoryTransactionView>()
+            .Append(new ErpOperationColumn("displayQuantity", Label("displayQuantity"), "decimal"))
+            .Append(new ErpOperationColumn("displayUnitCode", Label("displayUnitCode"), "text"))
+            .Append(new ErpOperationColumn("trackingText", Label("trackingText"), "text")).ToArray();
+        return Read(StockModule, "stok.hareket.gecmisi", "Stok hareket geçmişi", "/api/stock/items/{stockItemId}/transactions",
+                [Route("stockItemId"), new ErpOperationParameter("warehouseId", "route", "guid", false), .. paging],
+                List(columns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] })
+            with { RouteVariants = [new ErpOperationRouteVariant("/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions", "warehouseId")] };
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.

@@ -34,6 +34,7 @@ rapor.warehouseStock
 rapor.workflowInstances
 stok.bakiye.sayfa
 stok.hareket.ekle
+stok.hareket.gecmisi
 stok.hareket.listele
 stok.hareket.tersKayit
 stok.kart.aktifEt

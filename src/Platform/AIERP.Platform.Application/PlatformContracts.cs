@@ -143,7 +143,26 @@ public sealed record InventoryTransactionView(Guid Id, DateOnly EntryDate, Inven
     decimal Quantity, string Description, Guid? ReversalOfId, bool IsReversal, bool HasReversal, decimal? UnitCostBase = null,
     decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,
     Guid? StorageLocationId = null, string? StorageLocationCode = null, string? StorageLocationName = null,
-    Guid? WarehouseId = null, string? WarehouseCode = null, string? WarehouseName = null);
+    Guid? WarehouseId = null, string? WarehouseCode = null, string? WarehouseName = null)
+{
+    // Display members are deliberately not constructor parameters: the ERP operation catalog derives result columns from the
+    // constructor, so existing operations keep their frozen columns and only stok.hareket.gecmisi declares these.
+    private static readonly System.Globalization.CultureInfo DisplayCulture = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+
+    /// <summary>Base unit of the stock card; set by the movement history reads, null elsewhere.</summary>
+    public string? BaseUnitCode { get; init; }
+
+    /// <summary>The quantity as entered (in the entered unit), else the base quantity.</summary>
+    public decimal DisplayQuantity => EnteredQuantity ?? Quantity;
+
+    /// <summary>The unit of <see cref="DisplayQuantity"/>: the entered unit, else the card's base unit.</summary>
+    public string? DisplayUnitCode => string.IsNullOrEmpty(EnteredUnitCode) ? BaseUnitCode : EnteredUnitCode;
+
+    /// <summary>Lot / serial allocations as one line, e.g. "LOT-1 (2,5), LOT-2 (1)"; null without allocations.</summary>
+    public string? TrackingText => Tracking is { Count: > 0 } tracking
+        ? string.Join(", ", tracking.Select(x => $"{x.TrackingCode} ({x.Quantity.ToString("#,##0.###", DisplayCulture)})"))
+        : null;
+}
 public sealed record InventoryTransactionWriteRequest(DateOnly EntryDate, InventoryDirection Direction,
     decimal Quantity, string Description, decimal? UnitCostBase = null, string? UnitCode = null,
     IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
