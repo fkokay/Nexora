@@ -2247,14 +2247,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const preview = queryPreviews[String(props.query)];
         const first = preview?.columns[0]?.code;
         const value = preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
-        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
       } else if (!props.source && typeof props.value === "string") {
-        const shown = interpolate(props.value, designScope());
+        const metricValue = interpolate(props.value, designScope());
         // Açıklamadaki bağlama da örnek veriyle çözülür (ör. birim "EA"); çözülemezse ham metin kalır.
         const rawDescription = String(props.description || "");
         const description = rawDescription.includes("{{") ? interpolate(rawDescription, designScope()) || rawDescription : rawDescription;
-        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={shown || "Değer girin"} description={description} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
-      } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
+        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={metricValue || "Değer girin"} description={description} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+      } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
       case "card": case "section": {
         // Kartın içindeki bileşenler (düğme, etiket, sekmeler…) ERP'deki gibi kartın içinde çizilir. Örnek veride koşulu
         // tutmayan çocuk (ör. Lot/Seri etiketi) gizlenmez; soluk ve "Koşullu" işaretlidir.
@@ -2310,7 +2310,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
         // Arama girişi üst düzeyde çizilmez; önizleme yokken de listenin başlığında görünür.
         const searchInput = isPagedTable(component) && typeof props.searchInput === "string" ? inputById.get(props.searchInput) : undefined;
-        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
+        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
           {rowActionLabelsOf(props).length > 0 && <p>İşlemler: {rowActionLabelsOf(props).map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</p>}</article>;
         const shownRows = preview.rows.slice(0, 5);
         const paging = isPagedTable(component) ? {
@@ -2319,7 +2319,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           search: searchInput ? renderInput(searchInput, {}) : undefined,
         } : undefined;
         const limited = typeof props.limit === "number" && props.limit > 0 ? shownRows.slice(0, props.limit) : shownRows;
-        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={limited} truncated={!paging && (preview.truncated || limited.length < preview.rows.length)} props={props}
+        return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={limited} truncated={!paging && (preview.truncated || limited.length < preview.rows.length)} props={props}
           emptyText={typeof props.emptyText === "string" && props.emptyText ? props.emptyText : "Sorgu kayıt döndürmedi."} showTotals paging={paging} rowActionLabels={rowActionLabelsOf(props)} style={style} advanced />;
       } else {
         const source = sources.find((item) => item.code === props.source);
@@ -2327,21 +2327,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const data = previewData[component.id];
         const visibleColumns = columns.map((column) => source?.columns.find((field) => field.code === column) ?? { code: column, label: column, dataType: "text" });
         const hasRowAction = props.rowActionsEnabled === true;
-        if (!props.source || !data) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{source?.label || "Veri kaynağı seçilmedi"}</small></div>{!props.source ? <p>Önizleme için veri kaynağı seçin.</p> : <p role="status">Örnek kayıtlar yükleniyor…</p>}</article>;
-        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
+        if (!props.source || !data) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{source?.label || "Veri kaynağı seçilmedi"}</small></div>{!props.source ? <p>Önizleme için veri kaynağı seçin.</p> : <p role="status">Örnek kayıtlar yükleniyor…</p>}</article>;
+        return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
       }
-      case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
+      case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{shown(props.title, "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
       case "code": return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
       case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info";
-        return <AlertPreview key={component.id} variant={variant} title={String(props.title || "")} text={String(props.text || "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
+        return <AlertPreview key={component.id} variant={variant} title={shown(props.title, "")} text={shown(props.text, "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
       // Etiket metni bağlama içerebilir ({{liste.seciliSatir.status}}): örnek veriyle çözülür, çözülemezse "Durum".
       case "badge": return <BadgePreview key={component.id} text={interpolate(String(props.text || props.label || ""), view) || String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
-      case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
-      case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
+      case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{shown(props.title, "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
+      case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{shown(props.title, "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
       case "formCard": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
-        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}, props.layout === "inline"))}</FormCardPreview>;
+        return <FormCardPreview key={component.id} title={shown(props.title, "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}, props.layout === "inline"))}</FormCardPreview>;
       }
       case "filterChips": {
         const chips = idList(props.inputs).flatMap((id) => {
@@ -2354,7 +2354,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         });
         return <FilterChipsPreview key={component.id} chips={chips} style={style} />;
       }
-      case "facetPanel": return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={facetGroupsOf(props)} style={style} />;
+      case "facetPanel": return <FacetPanelPreview key={component.id} title={shown(props.title, "")} groups={facetGroupsOf(props)} style={style} />;
       case "filterBar": {
         // ERP ile aynı tek satır: arama kutusu, satırdaki süzgeçler (tür sütun biçiminden), fazlası "Daha fazla süzgeç".
         const table = typeof props.table === "string" ? definition.components.find((item) => item.id === props.table && item.type === "dataTable") : undefined;
@@ -2392,7 +2392,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           title: String(props.relatedTitle || "İlgili kayıtlar"),
           rows: (relatedPreview?.rows ?? []).map((relatedRow) => relatedCodes.map((code) => relatedRow[code] == null ? "" : String(relatedRow[code])).filter(Boolean).join(" · ")),
         } : undefined;
-        return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
+        return <ContextPanelPreview key={component.id} title={shown(props.title, "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
         new: barBound(props).new,
@@ -2411,7 +2411,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const ids = idList(props.contains, MAX_DIALOG_IDS);
         const hasSave = (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0;
         // Pencere Sekmeler içerebilir (sekmeler pencere içeremez); özyineleme en çok iki düzeydir.
-        return <DialogPreview key={component.id} style={style} title={String(props.title || "")} presentation={props.presentation === "drawer" ? "drawer" : "dialog"} ids={ids}
+        return <DialogPreview key={component.id} style={style} title={shown(props.title, "")} presentation={props.presentation === "drawer" ? "drawer" : "dialog"} ids={ids}
           saveLabel={hasSave ? String(props.saveLabel || "") : null} onSelect={setSelectedComponentId} onDesign={() => live.current.openFocus(component.id)}
           spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
           renderOwned={(id) => {
@@ -2422,17 +2422,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       }
       case "editableGrid": {
         const mode = props.gridMode === "stage" || props.gridMode === "matrix" ? props.gridMode : "list";
-        return <EditableGridPreview key={component.id} style={style} title={String(props.title || "")} mode={mode} columns={parseGridColumns(props.gridColumns)}
+        return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={parseGridColumns(props.gridColumns)}
           fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} />;
       }
       case "customFieldsBlock": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const preview = typeof props.definitionsQuery === "string" ? queryPreviews[props.definitionsQuery] : undefined;
-        return <CustomFieldsPreview key={component.id} style={style} title={String(props.title || "")} columns={columns} definitions={preview ? preview.rows : null} />;
+        return <CustomFieldsPreview key={component.id} style={style} title={shown(props.title, "")} columns={columns} definitions={preview ? preview.rows : null} />;
       }
       case "image": {
         const height = typeof props.height === "number" ? Math.max(40, Math.min(400, props.height)) : 160;
-        return <ImagePreview key={component.id} style={style} title={String(props.title || "")} value={String(props.value || "")} height={height} />;
+        return <ImagePreview key={component.id} style={style} title={shown(props.title, "")} value={String(props.value || "")} height={height} />;
       }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }

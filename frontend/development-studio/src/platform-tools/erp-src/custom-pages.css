@@ -549,7 +549,6 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-bar-btn.is-primary .pd-bar-key{border-color:#7fa3e8;background:transparent;color:#fff}
 .pd-frame .pd-bar-sep{width:1px;height:20px;margin:0 6px;background:var(--dl-line)}
 .pd-frame .pd-bar-grow{flex:1}
-.pd-frame .pd-actionbar-note{margin:0;color:var(--dl-muted);font-size:11px}
 .pd-action-key{margin-left:6px;padding:0 4px;border:1px solid var(--pd-line);border-radius:3px;background:#fff;color:#667085;font:10px Consolas,monospace}
 /* Koşullu bileşen işareti: tasarımcıda koşullu bileşen gizlenmez, bu çiple gösterilir */
 .pd-cond-chip{position:absolute;top:4px;right:4px;z-index:3;padding:1px 7px;border:1px solid var(--pd-accent-line);border-radius:999px;background:var(--pd-accent-soft);color:#5132c7;font-size:10.5px;font-weight:600;pointer-events:none}

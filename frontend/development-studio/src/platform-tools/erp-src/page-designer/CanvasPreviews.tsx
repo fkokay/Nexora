@@ -384,7 +384,6 @@ export function ActionBarPreview({ bound, moreCount, style, title, count }: { bo
       <span className="pd-bar-grow" />
       <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={`${moreCount > 0 ? "İşlemler" : "Bu sayfada bağlanmadı"} · Alt+İ`} data-shortcut="Alt+İ">İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾</span>
     </div>
-    <p className="pd-actionbar-note">Bu çubuk ERP'de sayfanın üstündeki İşlem Çubuğu'nda görünür.</p>
   </div>;
 }
 
