@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createCommandRegistry, RESERVED_BROWSER_CHORDS } from './registry';
+import { offersCommand } from './types';
 
 function key(init: KeyboardEventInit & { key: string }): KeyboardEvent {
   return new KeyboardEvent('keydown', { cancelable: true, ...init });
@@ -348,5 +349,82 @@ describe('command registry', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(r.getActive()).not.toBe(before);
     expect(r.getActive()).toBe(r.getActive());
+  });
+
+  describe('hidden commands (İşlem Çubuğu hiddenCommands / commandWhen)', () => {
+    it('a hidden page spec stops the page > list > grid fallback', () => {
+      const r = createCommandRegistry();
+      const gridExport = vi.fn();
+      const listRefresh = vi.fn();
+      r.register('v', 'grid', { export: { run: gridExport } });
+      r.register('v', 'list', { refresh: { run: listRefresh }, filter: { run: vi.fn() } });
+      r.register('v', 'page', { export: { hidden: true }, refresh: { hidden: true } });
+      r.setActiveView('v');
+      const active = r.getActive()!;
+      expect(active.export).toEqual({ hidden: true });
+      expect(active.refresh).toEqual({ hidden: true });
+      expect(offersCommand(active, 'export')).toBe(false);
+      expect(offersCommand(active, 'refresh')).toBe(false);
+      expect(offersCommand(active, 'filter')).toBe(true);
+    });
+
+    it("a hidden command's shortcut does nothing and its browser chord stays prevented", () => {
+      const r = createCommandRegistry();
+      const listRefresh = vi.fn();
+      const gridExport = vi.fn();
+      const print = vi.fn();
+      r.register('v', 'grid', { export: { run: gridExport } });
+      r.register('v', 'list', { refresh: { run: listRefresh } });
+      r.register('v', 'page', { refresh: { hidden: true }, print: { hidden: true, run: print }, export: { hidden: true } });
+      r.setActiveView('v');
+      for (const init of [{ key: 'F5' }, { key: 'p', ctrlKey: true }, { key: 'e', ctrlKey: true }]) {
+        const event = key(init);
+        expect(r.handleKeyDown(event, idle)).toBe(true);
+        expect(event.defaultPrevented).toBe(true);
+      }
+      expect(listRefresh).not.toHaveBeenCalled();
+      expect(gridExport).not.toHaveBeenCalled();
+      expect(print).not.toHaveBeenCalled();
+    });
+
+    it('a hidden Kaydet does not save from a page dialog either', () => {
+      const r = createCommandRegistry();
+      const save = vi.fn();
+      r.register('v', 'page', { save: { hidden: true, run: save } });
+      r.setActiveView('v');
+      const event = key({ key: 's', ctrlKey: true });
+      expect(r.handleKeyDown(event, { typing: false, modalOpen: true, modalInActiveView: true })).toBe(true);
+      expect(event.defaultPrevented).toBe(true);
+      expect(save).not.toHaveBeenCalled();
+    });
+
+    it("a record form's own spec still outranks the page's hidden one; commands the form leaves out stay hidden", () => {
+      const r = createCommandRegistry();
+      const formSave = vi.fn();
+      r.register('v', 'grid', { export: { run: vi.fn() } });
+      r.register('v', 'page', { save: { hidden: true }, export: { hidden: true }, moreHidden: true });
+      r.register('v', 'form', { save: { run: formSave, primary: true }, besideList: true });
+      r.setActiveView('v');
+      const active = r.getActive()!;
+      expect(active.save?.run).toBe(formSave);
+      expect(offersCommand(active, 'save')).toBe(true);
+      expect(active.export).toEqual({ hidden: true });
+      expect(active.moreHidden).toBe(true);
+      r.register('v', 'form', { more: [{ id: 'f', label: 'F' }] });
+      // A form that brings its own İşlemler items keeps the menu.
+      expect(r.getActive()!.moreHidden).toBeUndefined();
+    });
+
+    it('moreHidden and look come only from the effective page source of the active view', () => {
+      const r = createCommandRegistry();
+      r.register('v', 'list', { refresh: { run: vi.fn() }, moreHidden: true, look: { align: 'end' } });
+      r.register('w', 'page', { refresh: { run: vi.fn() }, moreHidden: true, look: { align: 'center', size: 'lg' } });
+      r.setActiveView('v');
+      expect(r.getActive()!.moreHidden).toBeUndefined();
+      expect(r.getActive()!.look).toBeUndefined();
+      r.setActiveView('w');
+      expect(r.getActive()!.moreHidden).toBe(true);
+      expect(r.getActive()!.look).toEqual({ align: 'center', size: 'lg' });
+    });
   });
 });

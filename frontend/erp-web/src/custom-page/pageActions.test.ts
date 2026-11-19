@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { actionBarOf, barCommandPlan, buildPageCommands, exportRows, movedButtonIds, type PageActionDeps } from './pageActions';
+import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, type PageActionDeps } from './pageActions';
 
 const UNBOUND = 'Bu sayfada bağlanmadı';
 
@@ -52,7 +52,7 @@ describe('buildPageCommands', () => {
       expect(commands[id]?.run).toBeUndefined();
     }
     expect(commands.refresh?.run).toBeTypeOf('function');
-    expect(Object.values(commands).some((spec) => typeof spec === 'object' && !Array.isArray(spec) && spec?.primary)).toBe(false);
+    expect(Object.values(commands).some((spec) => typeof spec === 'object' && !Array.isArray(spec) && (spec as { primary?: boolean } | null)?.primary)).toBe(false);
   });
 
   it('saveQuery insert + hak: birincil, run yazar', () => {
@@ -339,5 +339,70 @@ describe('İşlem Çubuğu düz komutları (newAction, openAction, afterSaveActi
     void dialog.new?.run?.();
     expect(startNew).toHaveBeenCalled();
     expect(dialog.open?.disabledReason).toBe(UNBOUND);
+  });
+});
+
+describe('İşlem Çubuğu görünürlüğü (hiddenCommands, commandWhen, barLook)', () => {
+  const HIDDEN = { hidden: true };
+  it('hiddenCommands komutları yalın gizli belirtime çevirir (run yok, kısayolu çalışmaz)', () => {
+    const { deps } = makeDeps();
+    const commands = buildPageCommands({ saveQuery: 'q1', exportTable: 't1', hiddenCommands: ['save', 'export', 'refresh'] }, deps);
+    expect(commands.save).toEqual(HIDDEN);
+    expect(commands.export).toEqual(HIDDEN);
+    expect(commands.refresh).toEqual(HIDDEN);
+    expect(commands.new?.hidden).toBeUndefined();
+    expect(commands.moreHidden).toBeUndefined();
+  });
+  it('commandWhen: koşul yanlışsa gizli, doğruysa olduğu gibi; her çağrıda yeniden değerlendirilir', () => {
+    const props = { deleteQuery: 'q3', commandWhen: ['delete=kayit.durum = "A"', 'more=x'] };
+    expect(commandWhenOf(props)).toEqual({ delete: 'kayit.durum = "A"', more: 'x' });
+    let visible = false;
+    const commandVisible = vi.fn((id: string) => (id === 'delete' ? visible : true));
+    expect(buildPageCommands(props, makeDeps({ commandVisible }).deps).delete).toEqual(HIDDEN);
+    visible = true;
+    expect(buildPageCommands(props, makeDeps({ commandVisible }).deps).delete?.run).toBeTypeOf('function');
+    expect(commandVisible).toHaveBeenCalledWith('delete');
+  });
+  it('commandWhen öğesi ilk = işaretinden bölünür; bilinmeyen komut ve tekrar yok sayılır', () => {
+    expect(commandWhenOf({ commandWhen: ['save=a == b', 'save=c', 'undo=d', '=e', 'yok', 7] })).toEqual({ save: 'a == b' });
+  });
+  it('unbound=hide: bağlanmamış komutlar ve boş İşlemler gizlenir; bağlı olanlar kalır', () => {
+    const { deps } = makeDeps();
+    const commands = buildPageCommands({ saveQuery: 'q1', barLook: ['unbound=hide'] }, deps);
+    expect(commands.save?.run).toBeTypeOf('function');
+    expect(commands.refresh?.run).toBeTypeOf('function');
+    for (const id of ['new', 'open', 'delete', 'filter', 'print', 'export'] as const) expect(commands[id]).toEqual(HIDDEN);
+    expect(commands.moreHidden).toBe(true);
+    // Varsayılan (dim) bugünkü gibi soluk çizer.
+    expect(buildPageCommands({ saveQuery: 'q1', barLook: ['unbound=dim'] }, deps).print?.disabledReason).toBe(UNBOUND);
+    // Menüsü dolu İşlemler unbound=hide ile kalır.
+    expect(buildPageCommands({ moreButtons: ['b1'], barLook: ['unbound=hide'] }, deps).moreHidden).toBeUndefined();
+  });
+  it('İşlemler gizliyse menü öğeleri verilmez ve menü düğmeleri sayfada kalır; Yeni/Aç düğmeleri yine taşınır', () => {
+    const { deps } = makeDeps();
+    const props = { moreButtons: ['b1'], hiddenCommands: ['more'] };
+    const commands = buildPageCommands(props, deps);
+    expect(commands.moreHidden).toBe(true);
+    expect(commands.more).toBeUndefined();
+    const viaWhen = buildPageCommands({ moreButtons: ['b1'], commandWhen: ['more=false'] }, makeDeps({ commandVisible: (id) => id !== 'more' }).deps);
+    expect(viaWhen.moreHidden).toBe(true);
+    const barProps = { ...props, newButton: 'yeni', openButton: 'ac', afterSaveButton: 'geri' };
+    const components = [
+      { id: 'bar', type: 'actionBar', props: barProps },
+      { id: 'yeni', type: 'button' }, { id: 'ac', type: 'button' }, { id: 'geri', type: 'button' }, { id: 'b1', type: 'button' },
+    ];
+    expect(barCommandHidden(barProps, 'more')).toBe(true);
+    expect([...movedButtonIds(components, () => true, barCommandHidden(barProps, 'more'))].sort()).toEqual(['ac', 'geri', 'yeni']);
+    expect([...movedButtonIds(components)].sort()).toEqual(['ac', 'b1', 'geri', 'yeni']);
+  });
+  it('barLook ayrıştırma: ilk = işareti, izinli değerler, #RRGGBB renk, ilk anahtar geçerli; yoksa undefined', () => {
+    expect(parseBarLook(undefined)).toBeUndefined();
+    expect(parseBarLook([])).toBeUndefined();
+    expect(parseBarLook(['align=middle', 'accent=red', 'yok=1'])).toBeUndefined();
+    expect(parseBarLook(['align=center', 'align=end', 'sticky=true', 'hints=false', 'title=false', 'accent=#12aBef', 'background=#FFFFFF', 'size=lg']))
+      .toEqual({ align: 'center', sticky: true, hints: false, title: false, accent: '#12aBef', background: '#FFFFFF', size: 'lg' });
+    const { deps } = makeDeps();
+    expect(buildPageCommands({ barLook: ['density=compact'] }, deps).look).toEqual({ density: 'compact' });
+    expect(buildPageCommands({}, deps).look).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import type { MenuCommand, PageCommands } from "../commands/types";
+import type { BarLook, CommandSpec, MenuCommand, PageCommands, StandardCommandId } from "../commands/types";
 import { idList } from "./layoutRefs";
 import { RECORD_LOADING, RECORD_UNREADABLE } from "./recordMessages";
 
@@ -21,13 +21,77 @@ export function actionBarOf(components: Component[]): { id: string; props: Recor
   return bar ? { id: bar.id, props: bar.props ?? {} } : null;
 }
 
-/** `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğme kimlikleri (sayfada ayrıca çizilmez). */
-export function movedButtonIds(components: Component[], hasAction: (button: Component) => boolean = () => true): Set<string> {
+/** İşlem Çubuğu'nda gizlenebilen komutlar (`hiddenCommands`, `commandWhen`): sekiz standart komut ve İşlemler menüsü. */
+export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"] as const;
+export type BarCommandId = (typeof BAR_COMMAND_IDS)[number];
+const STANDARD_BAR_IDS = BAR_COMMAND_IDS.filter((id) => id !== "more") as StandardCommandId[];
+
+const LOOK_VALUES: Record<keyof BarLook, readonly string[] | null> = {
+  align: ["start", "center", "end"], density: ["compact", "normal", "wide"], sticky: ["true", "false"],
+  separators: ["true", "false"], size: ["sm", "md", "lg"], style: ["outline", "solid", "plain"],
+  content: ["both", "text", "icon"], unbound: ["dim", "hide"], hints: ["true", "false"],
+  border: ["none", "bottom", "box"], radius: ["sharp", "soft", "round"], title: ["true", "false"],
+  accent: null, background: null,
+};
+const BOOLEAN_LOOK = new Set<keyof BarLook>(["sticky", "separators", "hints", "title"]);
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
+
+/** "anahtar=değer" / "komut=koşul" öğesini ilk `=` işaretinden böler (koşulun kendisi `=` içerebilir). */
+const splitItem = (item: string): [string, string] | null => {
+  const at = item.indexOf("=");
+  return at > 0 ? [item.slice(0, at), item.slice(at + 1)] : null;
+};
+const stringItems = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string") : []);
+
+/**
+ * `actionBar.barLook` ("anahtar=değer" dizisi) → görünüm nesnesi. Bilinmeyen anahtar, izin verilmeyen değer ve tekrar
+ * eden anahtar (ilki geçerli) yok sayılır; renkler yalnız #RRGGBB. Geçerli öğe yoksa undefined (bugünkü görünüm).
+ */
+export function parseBarLook(raw: unknown): BarLook | undefined {
+  const look: Record<string, string | boolean> = {};
+  for (const item of stringItems(raw)) {
+    const pair = splitItem(item);
+    if (!pair) continue;
+    const key = pair[0] as keyof BarLook;
+    const value = pair[1];
+    if (!Object.prototype.hasOwnProperty.call(LOOK_VALUES, key) || key in look) continue;
+    const allowed = LOOK_VALUES[key];
+    if (allowed ? !allowed.includes(value) : !HEX_COLOR.test(value)) continue;
+    look[key] = BOOLEAN_LOOK.has(key) ? value === "true" : value;
+  }
+  return Object.keys(look).length > 0 ? look as BarLook : undefined;
+}
+
+/** `actionBar.commandWhen` ("komut=koşul" dizisi) → komut başına koşul metni; bilinmeyen komut ve tekrar (ilki geçerli) yok sayılır. */
+export function commandWhenOf(props: Record<string, unknown>): Partial<Record<BarCommandId, string>> {
+  const result: Partial<Record<BarCommandId, string>> = {};
+  for (const item of stringItems(props.commandWhen)) {
+    const pair = splitItem(item);
+    if (!pair || !(BAR_COMMAND_IDS as readonly string[]).includes(pair[0]) || pair[0] in result) continue;
+    result[pair[0] as BarCommandId] = pair[1];
+  }
+  return result;
+}
+
+/**
+ * Komut sayfada gizli mi: `hiddenCommands` içinde ya da `commandWhen` koşulu yanlış (`commandVisible` false döner; koşulu
+ * sayfa kapsamında `visibleWhen` ile aynı değerlendirici çözer, ayrıştırılamayan koşul görünür sayılır).
+ */
+export function barCommandHidden(props: Record<string, unknown>, id: BarCommandId, commandVisible?: (id: BarCommandId) => boolean): boolean {
+  return stringItems(props.hiddenCommands).includes(id) || commandVisible?.(id) === false;
+}
+
+/**
+ * `actionBar.moreButtons` ile İşlemler menüsüne taşınan düğme kimlikleri (sayfada ayrıca çizilmez). İşlemler menüsü gizliyse
+ * (`moreHidden`: `barCommandHidden(props, "more", …)`) menü düğmeleri sayfada kalır, erişilebilir kalsınlar; Yeni / Aç /
+ * kayıttan sonra düğmeleri yine taşınır.
+ */
+export function movedButtonIds(components: Component[], hasAction: (button: Component) => boolean = () => true, moreHidden = false): Set<string> {
   const bar = actionBarOf(components);
   if (!bar) return new Set();
   // Kullanılabilir eylemi olmayan düğme (sorgu yok / iş akışı boş) menüye de girmez; sayfada kalır, kaybolmaz.
   const buttons = new Map(components.filter((component) => component.type === "button").map((component) => [component.id, component]));
-  const moved = idList(bar.props.moreButtons, 10).filter((id) => { const button = buttons.get(id); return !button || hasAction(button); });
+  const moved = moreHidden ? [] : idList(bar.props.moreButtons, 10).filter((id) => { const button = buttons.get(id); return !button || hasAction(button); });
   // Yeni / Aç / kayıttan sonra çalışan düğmeler komutun kendisidir: sayfada ayrıca çizilmezler.
   for (const key of BAR_BUTTON_KEYS) {
     const id = str(bar.props[key]);
@@ -104,6 +168,8 @@ export type PageActionDeps = {
     recordFailed?: boolean };
   /** Aç sayfa açıyorsa (`openTable`): listenin bir satırı seçili mi. */
   tableSelected?: (tableId: string) => boolean;
+  /** `commandWhen` koşulu sayfa kapsamında doğru mu (koşulsuz komut için true); her çizimde yeniden hesaplanır. */
+  commandVisible?: (id: BarCommandId) => boolean;
   run: {
     /** Yeni / Aç'ın açtığı sayfa: "Sayfa aç" düğmesiyle aynı gezinme yolu. */
     navigate?(page: BarPageNavigation): void;
@@ -187,7 +253,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     return [{ id, label, run: () => deps.run.button(id) }];
   });
 
-  return {
+  const built: PageCommands = {
     new: newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound },
     open: openCommand,
     save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
@@ -205,6 +271,31 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
       : { run: () => deps.run.exportTable(exportId) },
     ...(more.length > 0 ? { more } : {}),
   };
+  return applyBarVisibility(props, built, deps.commandVisible);
+}
+
+/**
+ * `hiddenCommands`, `commandWhen` ve `barLook` uygulanır. Gizli komut yalın `{ hidden: true }` olur: çubukta çizilmez, kısayolu
+ * çalışmaz ve liste / ızgara kaynağı onu geri getiremez. Aç gizliyse satıra çift tıklama ve Enter da bir şey yapmaz
+ * (`runtime.openCommand` yalnız etkin Aç'ı çalıştırır); Yeni gizliyse kayıt penceresindeki F2 de çalışmaz. `unbound=hide`:
+ * bağlanmamış komut ("Bu sayfada bağlanmadı") soluk çizilmek yerine gizlenir; menüsü boş İşlemler de gizlenir. İşlemler
+ * gizliyse menü öğeleri verilmez (düğmeleri sayfada kalır, bkz. `movedButtonIds`).
+ */
+function applyBarVisibility(props: Record<string, unknown>, built: PageCommands, commandVisible?: (id: BarCommandId) => boolean): PageCommands {
+  const look = parseBarLook(props.barLook);
+  const hideUnbound = look?.unbound === "hide";
+  const result: PageCommands = { ...built };
+  for (const id of STANDARD_BAR_IDS) {
+    if (barCommandHidden(props, id as BarCommandId, commandVisible) || (hideUnbound && result[id]?.disabledReason === UNBOUND)) {
+      result[id] = { hidden: true } satisfies CommandSpec;
+    }
+  }
+  if (barCommandHidden(props, "more", commandVisible) || (hideUnbound && !result.more?.length)) {
+    result.moreHidden = true;
+    delete result.more;
+  }
+  if (look) result.look = look;
+  return result;
 }
 
 const exportValue = (value: unknown): string | number | null => {

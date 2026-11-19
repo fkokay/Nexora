@@ -86,6 +86,45 @@
 .nx-action-bar[data-compact="icons"] .nx-action-bar__sep { margin: 0 3px; }
 .nx-action-bar__more { border-color: var(--nx-line); background: var(--nx-surface); }
 
+/* Page bar look (İşlem Çubuğu barLook → PageCommands.look). Every rule keys on an attribute the bar carries only while the
+   active page set that key, so without a look the bar is exactly the default above. */
+/* Auto margins (not justify-content) so an overflowing button area still scrolls from its first button. */
+.nx-action-bar[data-align="center"] .nx-action-bar__commands > :first-child { margin-left: auto; }
+.nx-action-bar[data-align="center"] .nx-action-bar__commands > :last-child { margin-right: auto; }
+.nx-action-bar[data-align="end"] .nx-action-bar__commands > :first-child { margin-left: auto; }
+.nx-action-bar[data-density="compact"] { gap: 0; padding: 3px 8px; }
+.nx-action-bar[data-density="compact"] .nx-action-bar__commands { gap: 0; }
+.nx-action-bar[data-density="compact"] .nx-action-bar__button { padding: 3px 6px; gap: 4px; }
+.nx-action-bar[data-density="wide"] { gap: 6px; padding: 8px 16px; }
+.nx-action-bar[data-density="wide"] .nx-action-bar__commands { gap: 6px; }
+.nx-action-bar[data-density="wide"] .nx-action-bar__button { padding: 6px 12px; }
+/* Sticky: in a page slot the slot (exactly as tall as the bar) is what sticks; at the shell position the bar itself. */
+.nx-action-bar[data-sticky="true"] { position: sticky; top: 0; z-index: 20; }
+.nx-action-bar-slot:has(> .nx-action-bar[data-sticky="true"]) { position: sticky; top: 0; z-index: 20; }
+.nx-action-bar[data-separators="false"] .nx-action-bar__sep { display: none; }
+.nx-action-bar[data-size="sm"] { font-size: 12px; }
+.nx-action-bar[data-size="sm"] .nx-action-bar__button { min-height: 26px; padding-block: 2px; }
+.nx-action-bar[data-size="lg"] { font-size: 14px; }
+.nx-action-bar[data-size="lg"] .nx-action-bar__button { min-height: 38px; }
+.nx-action-bar[data-size="lg"] .nx-action-bar__button > svg { width: 17px; height: 17px; }
+.nx-action-bar[data-style="outline"] .nx-action-bar__button { border-color: var(--nx-line); }
+.nx-action-bar[data-style="solid"] .nx-action-bar__button:not([data-primary="true"]) { border-color: var(--nx-line-soft); background: var(--nx-canvas); }
+.nx-action-bar[data-style="plain"] .nx-action-bar__more { border-color: transparent; background: transparent; }
+/* content=text drops the icons, but the 'icons' compaction level hides the labels: there the icon comes back, so a
+   button is never empty. content=icon always shows icons only (the label stays aria-label and tooltip). */
+.nx-action-bar[data-content="text"]:not([data-compact="icons"]) .nx-action-bar__button:not(.nx-action-bar__more) > svg { display: none; }
+.nx-action-bar[data-content="icon"] .nx-action-bar__button:not(.nx-action-bar__more) > span:not(.nx-action-bar__sr) { display: none; }
+.nx-action-bar[data-content="icon"] .nx-action-bar__button:not(.nx-action-bar__more) { padding-inline: 7px; }
+.nx-action-bar[data-border="none"] { border-color: transparent; }
+.nx-action-bar[data-border="bottom"] { border-color: transparent transparent var(--nx-line); border-radius: 0; }
+.nx-action-bar[data-radius="sharp"],
+.nx-action-bar[data-radius="sharp"] .nx-action-bar__button { border-radius: 0; }
+.nx-action-bar[data-radius="round"] { border-radius: 14px; }
+.nx-action-bar[data-radius="round"] .nx-action-bar__button { border-radius: 999px; }
+.nx-action-bar[data-accent] .nx-action-bar__button[data-primary="true"] { background: var(--nx-bar-accent); border-color: var(--nx-bar-accent); }
+.nx-action-bar[data-accent] .nx-action-bar__button[data-primary="true"]:hover:not([aria-disabled="true"]) { background: var(--nx-bar-accent); filter: brightness(0.92); }
+.nx-action-bar[data-background] { background: var(--nx-bar-background); }
+
 .nx-action-bar__sr {
   position: absolute;
   width: 1px;

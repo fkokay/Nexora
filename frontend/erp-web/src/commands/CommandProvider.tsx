@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { createCommandRegistry, type CommandRegistry, type CommandSlot } from './registry';
-import type { CommandSource, MenuCommand, PageCommands, StandardCommandId } from './types';
+import { BAR_LOOK_KEYS, type CommandSource, type MenuCommand, type PageCommands, type StandardCommandId } from './types';
 import { STANDARD_SHORTCUTS } from './shortcuts';
 import { openModals } from './modals';
 
@@ -67,9 +67,10 @@ function moreSignature(more: MenuCommand[] | undefined) {
 function structureSignature(commands: PageCommands): string {
   const specs = STANDARD_IDS.flatMap((id) => {
     const spec = commands[id];
-    return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary)]] : [];
+    return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden)]] : [];
   });
-  return JSON.stringify([specs, moreSignature(commands.more), Boolean(commands.besideList)]);
+  const look = commands.look ? BAR_LOOK_KEYS.map((key) => commands.look![key] ?? null) : null;
+  return JSON.stringify([specs, moreSignature(commands.more), Boolean(commands.besideList), Boolean(commands.moreHidden), look]);
 }
 
 // The registered `run` functions are stable wrappers that call through `ref`, so handlers may change every render.
@@ -83,6 +84,7 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
       run: spec.run ? () => ref.current[id]?.run?.() : undefined,
       disabledReason: spec.disabledReason,
       primary: spec.primary,
+      ...(spec.hidden ? { hidden: true } : {}),
     };
   }
   if (latest.more) {
@@ -95,6 +97,8 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
     }));
   }
   if (latest.besideList) built.besideList = true;
+  if (latest.moreHidden) built.moreHidden = true;
+  if (latest.look) built.look = { ...latest.look };
   return built;
 }
 
