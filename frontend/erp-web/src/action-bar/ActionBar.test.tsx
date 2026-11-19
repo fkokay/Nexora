@@ -5,6 +5,10 @@ import { ACTION_BAR_ORDER, type CommandSource, type PageCommands } from '../comm
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ActionBar, pickCompaction } from './ActionBar';
 import { TOOLTIP_DELAY_MS } from './ActionTooltip';
+import { readFileSync } from 'node:fs';
+
+// Vitest runs from the package root (jsdom gives import.meta.url a non-file scheme).
+const barCss = readFileSync('src/action-bar/action-bar.css', 'utf8');
 
 afterEach(cleanup);
 
@@ -307,5 +311,102 @@ describe('ActionBar compaction (narrow bar)', () => {
     } finally {
       restoreWide();
     }
+  });
+
+  describe('page look (barLook) and hidden commands', () => {
+    const layout = () => Array.from(bar().querySelectorAll('.nx-action-bar__commands > *')).map((el) =>
+      el.classList.contains('nx-action-bar__sep') ? '|' : el.getAttribute('data-command'));
+    const LOOK_ATTRIBUTES = ['data-align', 'data-density', 'data-sticky', 'data-separators', 'data-size', 'data-style', 'data-content', 'data-border', 'data-radius', 'data-accent', 'data-background', 'style'];
+
+    it('without a look the bar carries none of the look attributes', () => {
+      setup(all());
+      for (const name of LOOK_ATTRIBUTES) expect(bar().hasAttribute(name)).toBe(false);
+    });
+
+    it('applies the look as data attributes and CSS variables', () => {
+      setup({ ...all(), look: { align: 'center', density: 'wide', sticky: true, separators: false, size: 'lg', style: 'outline', content: 'text', border: 'bottom', radius: 'round', accent: '#112233', background: '#FAFAFA' } });
+      expect(bar().getAttribute('data-align')).toBe('center');
+      expect(bar().getAttribute('data-density')).toBe('wide');
+      expect(bar().getAttribute('data-sticky')).toBe('true');
+      expect(bar().getAttribute('data-separators')).toBe('false');
+      expect(bar().getAttribute('data-size')).toBe('lg');
+      expect(bar().getAttribute('data-style')).toBe('outline');
+      expect(bar().getAttribute('data-content')).toBe('text');
+      expect(bar().getAttribute('data-border')).toBe('bottom');
+      expect(bar().getAttribute('data-radius')).toBe('round');
+      expect(bar().style.getPropertyValue('--nx-bar-accent')).toBe('#112233');
+      expect(bar().style.getPropertyValue('--nx-bar-background')).toBe('#FAFAFA');
+      // Labels stay in the DOM (aria-label too); CSS decides what shows.
+      expect(button('save').getAttribute('aria-label')).toBe('Kaydet');
+    });
+
+    it('content=text never empties a button at the icons compaction level (the icon comes back)', () => {
+      // jsdom applies no stylesheet: the rule that hides the icons must exclude the icons level, where labels are hidden.
+      expect(barCss).toContain('.nx-action-bar[data-content="text"]:not([data-compact="icons"]) .nx-action-bar__button:not(.nx-action-bar__more) > svg { display: none; }');
+      const restore = fakeLayout(700, { full: 900, 'no-keys': 760, icons: 420 });
+      try {
+        setup({ save: { run: () => undefined }, look: { content: 'text' } });
+        expect(bar().getAttribute('data-compact')).toBe('icons');
+        expect(button('save').querySelector('svg')).not.toBeNull();
+      } finally {
+        restore();
+      }
+    });
+
+    it('hints=false drops the shortcut from the tooltips', () => {
+      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' }, look: { hints: false } });
+      expect(tooltipOf(button('save'))).toBe('Kaydet');
+      act(() => (document.activeElement as HTMLElement).blur());
+      expect(tooltipOf(button('delete'))).toBe('Önce bir kayıt seçin');
+      act(() => (document.activeElement as HTMLElement).blur());
+      expect(tooltipOf(button('more'))).toBe('İşlemler');
+      // The shortcut itself still works and stays announced.
+      expect(button('save').getAttribute('aria-keyshortcuts')).toBe('Ctrl+S');
+    });
+
+    it('hidden commands are not drawn and their shortcuts do nothing', () => {
+      const save = vi.fn();
+      setup({ ...all(), save: { hidden: true }, export: { hidden: true }, refresh: { hidden: true, run: save } });
+      expect(button('save')).toBeNull();
+      expect(button('export')).toBeNull();
+      expect(button('refresh')).toBeNull();
+      expect(layout()).toEqual(['new', 'open', 'delete', '|', 'filter', '|', 'print']);
+      const event = new KeyboardEvent('keydown', { key: 'F5', bubbles: true, cancelable: true });
+      document.body.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(save).not.toHaveBeenCalled();
+    });
+
+    it('moreHidden removes İşlemler and makes Alt+İ a no-op', () => {
+      setup({ ...all(), more: [{ id: 'x', label: 'X', run: vi.fn() }], moreHidden: true });
+      expect(button('more')).toBeNull();
+      fireEvent.keyDown(document.body, { key: 'İ', altKey: true });
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('the shared bar resets its look and İşlemler on a view without them', () => {
+      const view = (key: string) => render(
+        <CommandProvider>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey={key} openKeys={['styled', 'plain']}>
+            {key === 'styled' ? <Page commands={{ refresh: { run: vi.fn() }, moreHidden: true, look: { size: 'sm', accent: '#000000' } }} />
+              : <Page commands={{ refresh: { run: vi.fn() } }} />}
+          </KeepAliveViews>
+        </CommandProvider>,
+      );
+      const { rerender } = view('styled');
+      expect(bar().getAttribute('data-size')).toBe('sm');
+      expect(button('more')).toBeNull();
+      rerender(
+        <CommandProvider>
+          <ActionBar locale="tr" />
+          <KeepAliveViews activeKey="plain" openKeys={['styled', 'plain']}><Page commands={{ refresh: { run: vi.fn() } }} /></KeepAliveViews>
+        </CommandProvider>,
+      );
+      // React leaves an empty style attribute behind once the variables are removed.
+      for (const name of LOOK_ATTRIBUTES.filter((attribute) => attribute !== 'style')) expect(bar().hasAttribute(name)).toBe(false);
+      expect(bar().getAttribute('style') ?? '').toBe('');
+      expect(button('more')).not.toBeNull();
+    });
   });
 });

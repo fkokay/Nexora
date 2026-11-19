@@ -60,7 +60,7 @@ const RESERVED = RESERVED_BROWSER_CHORDS.map(parseShortcut);
 const STANDARD_CHORDS = STANDARD_IDS.map((id) => ({ id, chord: parseShortcut(STANDARD_SHORTCUTS[id]) }));
 
 function isEnabled(spec: CommandSpec | undefined): spec is CommandSpec & { run: () => void | Promise<void> } {
-  return !!spec && typeof spec.run === 'function' && !spec.disabledReason;
+  return !!spec && !spec.hidden && typeof spec.run === 'function' && !spec.disabledReason;
 }
 
 function isFunctionKey(key: string): boolean {
@@ -99,6 +99,9 @@ export function createCommandRegistry(): CommandRegistry {
       return slots?.reduce<Slot | undefined>((best, slot) => (!best || slot.activity > best.activity ? slot : best), undefined)?.commands;
     };
     const merged: PageCommands = {};
+    // A hidden spec (the page removed the command) is effective like any other: it stops the page > list > grid fallback,
+    // so a list or grid source cannot bring back e.g. Excel. A record form's own spec still outranks it (form screens are
+    // separate screens with their own commands); a form that does not register the command leaves it hidden.
     for (const id of STANDARD_IDS) {
       for (const source of SOURCE_PRECEDENCE) {
         const spec = effective(source)?.[id];
@@ -109,8 +112,13 @@ export function createCommandRegistry(): CommandRegistry {
       }
     }
     const formCommands = effective('form');
-    const more = [...(formCommands?.more ?? []), ...(effective('page')?.more ?? [])];
-    if (formCommands?.more || effective('page')?.more) merged.more = more;
+    const pageCommands = effective('page');
+    const more = [...(formCommands?.more ?? []), ...(pageCommands?.more ?? [])];
+    if (formCommands?.more || pageCommands?.more) merged.more = more;
+    // The page's İşlemler visibility and bar look come only from the effective page source, so another view (or a page
+    // without them) gets today's bar. An open form with its own İşlemler items keeps the menu (form wins, as above).
+    if (pageCommands?.moreHidden && !formCommands?.more?.length) merged.moreHidden = true;
+    if (pageCommands?.look) merged.look = pageCommands.look;
     // An open record form that owns the primary Kaydet makes this a form screen (the bar drops Aç, Filtre, Excel);
     // a form that sits on a list screen (`besideList`) leaves it a list screen.
     if (formCommands?.save?.primary && !formCommands.besideList) merged.screen = 'form';
@@ -225,8 +233,9 @@ export function createCommandRegistry(): CommandRegistry {
         }
         // A dialog of the active page itself (not a document-level one) still saves with Ctrl+S.
         if (env.modalInActiveView && matchesShortcut(event, SAVE_CHORD)) {
-          const save = getActive()?.save;
-          if (isEnabled(save)) runCommand(event, save.run);
+          const active = getActive();
+          const save = active?.save;
+          if (offersCommand(active, 'save') && isEnabled(save)) runCommand(event, save.run);
           else event.preventDefault();
           return true;
         }
