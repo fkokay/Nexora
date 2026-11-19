@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { Search } from "lucide-react";
+import "../list-page/list-page-v2.css";
 import { filterChips, isRange, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./filterBarModel";
 
 /**
@@ -33,7 +34,7 @@ export function FilterBar({ search, values, filters, style, onSearch, onChange, 
     if (filter.kind === "toggle") {
       const active = value === true;
       return <div className="tenant-page-input tenant-page-input-checkbox">
-        <label htmlFor={id} className={`list-v2-chip${active ? " is-active" : ""}`}>
+        <label htmlFor={id} className={`tenant-page-filter-toggle${active ? " is-active" : ""}`}>
           <input id={id} type="checkbox" checked={active} onChange={(event) => onChange(filter.key, event.target.checked || undefined)} /><span>{filter.label}</span>
         </label>
       </div>;
