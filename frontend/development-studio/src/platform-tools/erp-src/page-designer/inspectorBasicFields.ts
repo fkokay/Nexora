@@ -22,6 +22,7 @@ export const MORE_SETTINGS: Readonly<Record<string, readonly string[]>> = {
   metric: ["Açıklama", "Eğilim", "Tıklayınca süz", "Koşullar"],
   input: ["Yer tutucu", "Varsayılan değer", "Doğrulama", "Koşullar"],
   button: ["Onay", "Sonra yenile", "Mesajlar", "Koşullar"],
+  filterBar: ["Bağlı tablo", "Arama kutusu", "Süzgeçler", "Koşullar"],
 };
 const DEFAULT_MORE = ["Koşullar", "Görünüm"];
 

@@ -271,6 +271,47 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 #root .app-shell .tenant-page-form-card-grid.is-inline label.tenant-page-toggle.is-active {
   border-color: color-mix(in srgb, var(--nx-primary) 35%, var(--nx-surface)); color: var(--nx-primary-strong) !important;
 }
+/* Süzgeç alanı (filterBar, taslak 14): form kartının tek satır diziliminin üstüne "Daha fazla süzgeç" paneli, aralık kutuları ve çipler. */
+#root .app-shell .tenant-page-form-card.is-inline.tenant-page-filter-bar { flex-direction: column; align-items: stretch; gap: 10px; overflow: visible !important; }
+.tenant-page-filter-bar .tenant-page-form-card-grid.is-inline { flex-wrap: wrap; overflow: visible; }
+#root .app-shell .tenant-page-filter-bar .tenant-page-form-card-grid.is-inline > .tenant-page-filter-search { flex: 1 1 180px; min-width: 160px; max-width: 340px; }
+#root .app-shell .tenant-page-filter-bar .tenant-page-filter-search label.list-v2-search { width: 100%; max-width: 340px; }
+.tenant-page-filter-hint { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tenant-page-filter-chips { justify-content: flex-start; }
+/* Seçim süzgeci eski depo seçicisi gibi: etiket solda, 180×32 tetikleyici, sağda ⌄ (işletim sistemi görünümü değil). */
+#root .app-shell .tenant-page-filter-bar label.list-v2-filter { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
+#root .app-shell .tenant-page-filter-bar label.list-v2-filter > span { margin: 0; color: var(--lv2-muted, var(--nx-muted)) !important; font-size: 12px !important; font-weight: 600 !important; }
+#root .app-shell .tenant-page-filter-bar :is(label.list-v2-filter select, label.list-v2-filter input, .tenant-page-filter-popover select) {
+  box-sizing: border-box; width: 160px; min-width: 0; height: 32px; min-height: 32px; margin: 0; padding: 0 30px 0 10px; border: 1px solid #d8e2ec !important; border-radius: 5px !important;
+  background-color: var(--erp-color-surface) !important; color: #26384c !important; font: 600 13px var(--nx-font) !important; box-shadow: none;
+}
+#root .app-shell .tenant-page-filter-bar :is(label.list-v2-filter select, .tenant-page-filter-popover select) {
+  appearance: none; -webkit-appearance: none; text-overflow: ellipsis; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231b2430' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-position: right 9px center !important;
+}
+#root .app-shell .tenant-page-filter-bar label.list-v2-filter input { padding-right: 10px; font-weight: 400 !important; }
+/* Aç/kapa: taslağın `.tg` düğmesi (30px, basılıyken mavi). */
+#root .app-shell .tenant-page-filter-bar label.tenant-page-filter-toggle {
+  display: inline-flex; align-items: center; box-sizing: border-box; height: 30px; min-height: 30px; margin: 0; padding: 0 10px; border: 1px solid #d8e2ec; border-radius: 6px;
+  background: var(--erp-color-surface) !important; color: #344054 !important; font: 600 12.5px var(--nx-font) !important; white-space: nowrap; cursor: pointer; position: relative;
+}
+#root .app-shell .tenant-page-filter-bar label.tenant-page-filter-toggle.is-active { border-color: #b9cff5; background: var(--nx-primary-soft) !important; color: var(--nx-primary-strong) !important; }
+.tenant-page-filter-bar label.tenant-page-filter-toggle input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.tenant-page-filter-bar label.tenant-page-filter-toggle:has(input:focus-visible) { outline: 2px solid var(--nx-primary); outline-offset: 2px; }
+.tenant-page-filter-range { display: inline-flex; align-items: center; gap: 6px; }
+.tenant-page-filter-range-label { color: var(--lv2-muted, var(--nx-muted)); font-size: 12px; font-weight: 600; white-space: nowrap; }
+#root .app-shell .tenant-page-filter-bar .tenant-page-filter-range input { box-sizing: border-box; width: 84px; height: 30px; min-height: 30px; margin: 0; padding: 0 7px; border: 1px solid #d8e2ec !important; border-radius: 6px !important; background: var(--erp-color-surface) !important; color: var(--nx-text) !important; font: 400 12.5px var(--nx-font) !important; }
+#root .app-shell .tenant-page-filter-bar .tenant-page-filter-range input[type="date"] { width: 128px; }
+.tenant-page-filter-more-cell { position: relative; }
+.app-shell .tenant-custom-page .tenant-page-filter-more { display: inline-flex; align-items: center; height: 30px; min-height: 0; padding: 0 10px; border: 1px dashed color-mix(in srgb, var(--nx-muted) 45%, var(--nx-surface)); border-radius: var(--nx-radius-control); color: var(--nx-primary-strong); background: transparent; box-shadow: none; font: 600 12.5px var(--nx-font); white-space: nowrap; cursor: pointer; }
+.app-shell .tenant-custom-page .tenant-page-filter-more:hover, .app-shell .tenant-custom-page .tenant-page-filter-more[aria-expanded="true"] { background: var(--nx-primary-soft); }
+.tenant-page-filter-popover { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; display: grid; gap: 4px; width: 360px; max-width: calc(100vw - 32px); padding: 10px; border: 1px solid var(--nx-line); border-radius: 10px; background: var(--nx-surface); box-shadow: 0 10px 30px rgba(15, 27, 45, .14); }
+.tenant-page-filter-popover > b { font-size: 12.5px; }
+.tenant-page-filter-popover-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 2px; font-size: 12.5px; }
+.tenant-page-filter-popover-row > span { color: var(--nx-text); }
+.tenant-page-filter-popover-row .tenant-page-filter-range input { width: 80px; }
+.tenant-page-filter-chips .tenant-page-chip strong + button, .tenant-page-filter-chips .tenant-page-chip > strong:first-child { margin-left: 0; }
 /* Zorunlu giriş işareti: etiketten sonra "*" (erişilebilir ad değişmez; zorunluluk `required`/aria ile bildirilir). */
 .tenant-page-input.is-required > label > span::after,
 .tenant-page-input.is-required .tenant-page-lookup > label > span::after { content: " *"; color: var(--nx-bad); font-weight: 600; }

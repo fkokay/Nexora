@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Süzgeç alanı bileşeni</title>
+<style>
+:root{--st:#5b3df5;--st-soft:#f1edff;--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:22px 0 8px}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.srch{flex:1 1 260px;max-width:340px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.f{display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-weight:600;font-size:12px}
+.sel{height:32px;min-width:150px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:inline-flex;align-items:center;justify-content:space-between;padding:0 10px;color:var(--tx);font-weight:400;font-size:13px}
+.tg{height:30px;padding:0 10px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:inline-flex;align-items:center;font-weight:600;color:#344054}
+.tg.on{background:var(--pri-soft);border-color:#b9cff5;color:var(--pri)}
+.more{height:30px;padding:0 10px;border:1px dashed #b9c3d3;border-radius:6px;display:inline-flex;align-items:center;color:var(--pri);font-weight:600}
+.right{margin-left:auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.chip{display:inline-flex;gap:5px;align-items:center;border:1px solid #c9d8f2;background:#fff;border-radius:999px;padding:2px 6px 2px 10px}.chip b{font-weight:600}.chip i{font-style:normal;color:var(--mut)}
+.clear{color:var(--pri);font-weight:600;margin-left:4px}
+.grid{margin-top:10px;height:120px;border:1px solid #dfe5ee;border-radius:9px;background:repeating-linear-gradient(0deg,#f6f7fb 0 26px,#fff 26px 34px)}
+.pop{width:300px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:10px;margin-top:8px}
+.pop .r{display:flex;justify-content:space-between;align-items:center;padding:5px 2px}
+.range{display:flex;gap:6px}.range span{width:80px;height:28px;border:1px solid #d8e2ec;border-radius:6px;display:inline-flex;align-items:center;padding:0 7px;color:#98a2b3}
+.panel{width:520px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 4px 18px rgba(15,27,45,.08)}
+.panel h4{margin:0 0 4px;font-size:13px}.panel .h{color:var(--mut);margin:0 0 10px;font-size:11.5px}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;padding:6px;border-bottom:1px solid var(--line);background:#fbfbfe}
+td{padding:6px;border-bottom:1px solid #f0eff6}.code{font-family:Consolas,monospace;font-size:11px;color:var(--mut)}
+.sw{display:inline-block;width:28px;height:16px;border-radius:999px;background:#d0d5dd;position:relative;vertical-align:middle}.sw::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.sw.on{background:var(--st)}.sw.on::after{left:14px}
+.s2{border:1px solid var(--line);border-radius:6px;padding:3px 7px;font-size:11.5px;display:inline-block}
+.row{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.note{font-size:12.5px;color:#475467;margin:8px 0 0;max-width:1100px}
+.tag{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:999px;background:#eef2f7;color:#45566d;margin-left:4px}
+</style></head><body>
+<h1>Süzgeç alanı: tabloya bağlı standart bileşen</h1>
+<p class="sub">Taslak · 2026-11-19 · Bugün süzgeç satırı elle kurulan bir "Form kartı + girişler" dizilimi (arama kutusu, depo seçimi, onay kutuları). Öneri: yeni <b>Süzgeç alanı</b> bileşeni bir tabloya bağlanır; tablonun sütunları listelenir, hangi sütunun süzgeçte görüneceği aç/kapa ile seçilir. Süzgeç türü sütunun biçiminden kendiliğinden gelir.</p>
+
+<div class="lbl">1 · ERP'de: tek satır, fazlası "Daha fazla süzgeç"te, etkin süzgeçler çip olarak</div>
+<div class="erp">
+  <div class="fbar">
+    <span class="srch">⌕ Kod veya stok adıyla ara</span>
+    <span class="f">Depo <span class="sel">Tüm depolar <span>⌄</span></span></span>
+    <span class="f">Durum <span class="sel">Minimum altı <span>⌄</span></span></span>
+    <span class="tg on">Pasifler dahil</span>
+    <span class="more">＋ Daha fazla süzgeç (3)</span>
+    <span class="tg right">Detay paneli</span>
+  </div>
+  <div class="chips"><span class="chip"><i>Durum:</i><b>Minimum altı</b> ✕</span><span class="chip"><i>Depo bakiyesi:</i><b>10 – 500</b> ✕</span><span class="chip"><i>Pasifler dahil</i> ✕</span><span class="clear">Tümünü temizle</span></div>
+  <div class="pop"><b>Daha fazla süzgeç</b>
+    <div class="r">Kategori <span class="s2">Seçin ⌄</span></div>
+    <div class="r">Depo bakiyesi <span class="range"><span>en az</span><span>en çok</span></span></div>
+    <div class="r">Oluşturma tarihi <span class="range"><span>başlangıç</span><span>bitiş</span></span></div></div>
+  <div class="grid"></div>
+</div>
+<p class="note">• Metin sütunu → "içerir" kutusu; sayı/tutar → en az–en çok; tarih → tarih aralığı; durum ya da değer etiketli sütun → seçim listesi; evet/hayır → aç/kapa düğmesi. • Seçilen süzgeçler kullanıcının görünümünde hatırlanır. • "Detay paneli" gibi süzgeç olmayan anahtarlar sağda kalabilir (sayfa girişi olarak).</p>
+
+<div class="lbl">2 · Studio'da: süzgeç alanının ayarları</div>
+<div class="row">
+<div class="panel"><h4>Süzgeç alanı · stokSuzgec</h4><p class="h">Bağlı tablo: <b>liste (Stok kartları)</b></p>
+  <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>Arama kutusu</b><span class="sw on"></span><span style="margin-left:auto" class="s2">Yer tutucu: Kod veya stok adıyla ara</span></div>
+    <div style="color:var(--mut);font-size:11.5px;margin-bottom:6px">Aranacak sütunlar (yazılan metin bu sütunlardan birinde geçerse satır kalır):</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px"><span class="chip"><b>Stok kodu</b> ✕</span><span class="chip"><b>Stok adı</b> ✕</span><span class="chip"><b>Barkod</b> ✕</span><span class="more" style="height:24px">＋ Sütun ekle</span></div>
+    <div style="margin-top:8px;font-size:11.5px">Uygulama: <b>Sunucu</b><span class="tag">@arama parametresi</span> <span style="color:var(--mut)">— sorguda parametre yoksa seçili sütunlarda bu sayfada aranır.</span></div>
+  </div>
+  <table>
+    <tr><th>Süzgeçte</th><th>Aramada</th><th>Sütun</th><th>Tür</th><th>Yer</th><th>Uygulama</th></tr>
+    <tr><td><span class="sw on"></span></td><td>—</td><td>Depo<br><span class="code">@depo (sorgu parametresi)</span></td><td><span class="s2">Seçim · depolar</span></td><td><span class="s2">Satırda</span></td><td>Sunucu<span class="tag">parametre</span></td></tr>
+    <tr><td><span class="sw on"></span></td><td>☐</td><td>Durum<br><span class="code">status</span></td><td><span class="s2">Seçim</span></td><td><span class="s2">Satırda</span></td><td>Sunucu<span class="tag">parametre</span></td></tr>
+    <tr><td><span class="sw on"></span></td><td>—</td><td>Pasif kartlar<br><span class="code">@pasifler</span></td><td><span class="s2">Aç/kapa</span></td><td><span class="s2">Satırda</span></td><td>Sunucu<span class="tag">parametre</span></td></tr>
+    <tr><td><span class="sw on"></span></td><td>☐</td><td>Kategori<br><span class="code">stockItem.category</span></td><td><span class="s2">Seçim</span></td><td><span class="s2">Daha fazla</span></td><td>Bu sayfada</td></tr>
+    <tr><td><span class="sw on"></span></td><td>—</td><td>Depo bakiyesi<br><span class="code">balance.quantityOnHand</span></td><td><span class="s2">Aralık</span></td><td><span class="s2">Daha fazla</span></td><td>Bu sayfada</td></tr>
+    <tr><td><span class="sw"></span></td><td>—</td><td>Rezerve<br><span class="code">balance.reservedQuantity</span></td><td class="code">—</td><td></td><td></td></tr>
+    <tr><td><span class="sw"></span></td><td>—</td><td>Stok değeri<br><span class="code">balance.valuationAmountBase</span></td><td class="code">—</td><td></td><td></td></tr>
+  </table>
+</div>
+<div style="max-width:520px">
+  <p class="note" style="margin-top:0"><b>Arama kutusu</b></p>
+  <p class="note">• Hangi sütunlarda aranacağı seçilir (çip listesi ya da tablodaki "Aramada" kutusu; ikisi aynı ayar). Yalnız metin ve kod sütunları seçilebilir; sayı/tutar/tarih sütunlarında "—".</p>
+  <p class="note">• Sorguda <code>@arama</code> parametresi varsa metin sunucuya gider (sorgu hangi sütunlarda arayacağını kendisi bilir; seçim ERP'de yer tutucuyu ve yardım metnini belirler). Yoksa seçili sütunlarda görünen sayfada aranır.</p>
+  <p class="note">• ERP'de arama kutusunun ipucu: "Stok kodu, Stok adı, Barkod içinde arar".</p>
+  <p class="note" style="margin-top:14px"><b>Nasıl uygulanır?</b></p>
+  <p class="note">• Tablonun sorgusunda aynı adlı bir parametre varsa (ör. <code>@depo</code>, <code>@durum</code>) süzgeç değeri sorguya gider: <b>sunucuda</b> süzülür, sayfalama doğru kalır.</p>
+  <p class="note">• Parametre yoksa süzgeç <b>yüklenen sayfadaki</b> satırlara uygulanır; ayarlarda "Bu sayfada" diye işaretlenir ve sayfalı tabloda uyarı gösterilir ("Süzgeç yalnız görünen sayfaya uygulanır; sunucuda süzmek için sorguya @kategori parametresi ekleyin").</p>
+  <p class="note">• Tablonun kendi "Sütun süzgeçleri" aracı ayrı kalır (kullanıcının anlık süzgeci); süzgeç alanı tasarımcının standart süzgecidir. İstenirse Görünüm'den tablo aracı kapatılır.</p>
+  <p class="note">• Stok Kartları standardında bugünkü süzgeç satırı (arama, depo, minimum altı, pasifler) bu bileşenle yeniden kurulur; firma tasarımları etkilenmez, "Yeni" öğe olarak önerilir.</p>
+</div></div>
+</body></html>
