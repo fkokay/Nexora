@@ -153,12 +153,12 @@ const pageResponse = (url: string) => {
   };
 };
 
-function setupPaged(components: unknown[]) {
+function setupPaged(components: unknown[], queries: unknown[] = [pagedQuery]) {
   api.mockImplementation(async (endpoint: string) => {
     if (endpoint.endsWith('/published')) {
       return {
         id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
-        definitionJson: JSON.stringify({ schemaVersion: 2, components, queries: [pagedQuery] }),
+        definitionJson: JSON.stringify({ schemaVersion: 2, components, queries }),
       };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations: [pagedOp] };
@@ -224,6 +224,29 @@ describe('Sunucu sayfalı liste', () => {
     fireEvent.change(screen.getByLabelText('Ara'), { target: { value: '' } });
     await waitFor(() => expect(firstCell()).toBe('P1-1'));
     expect(urls.at(-1)).toBe('/api/warehouses/balances/page?page=1&pageSize=25');
+  });
+
+  it('süzgeç alanının arama parametresi ERP işlemine gider ve sayfayı 1e döndürür; sayfada uygulanan süzgeç seçimi korur', async () => {
+    localStorage.clear();
+    const query = { ...pagedQuery, parameters: [...pagedQuery.parameters.slice(0, 2), { name: 'search', binding: '{{suzgec.search}}', type: 'text' }] };
+    const bar = { id: 'f1', type: 'filterBar', name: 'suzgec', props: { table: 't', search: true, searchParam: 'search', searchPlaceholder: 'Kodla ara', filters: ['kod|text|row||Kod'] } };
+    setupPaged([bar, pagedTable({ searchInput: undefined, footerMeta: undefined })], [query]);
+    await waitFor(() => expect(firstCell()).toBe('P1-1'));
+    fireEvent.click(pagerButton('Sonraki'));
+    await waitFor(() => expect(firstCell()).toBe('P2-1'));
+    fireEvent.change(screen.getByPlaceholderText('Kodla ara'), { target: { value: 'x' } });
+    await waitFor(() => expect(firstCell()).toBe('x1-1'));
+    expect(urls.at(-1)).toBe('/api/warehouses/balances/page?page=1&pageSize=25&search=x');
+    expect(screen.getByText('Sayfa 1 / 1')).toBeTruthy();
+    // Kod süzgeci (parametresiz) görünen satırlarda: seçili satır süzgeçte kalırsa seçimi korunur, istek gitmez.
+    const requests = urls.length;
+    fireEvent.click(screen.getByText('x1-2').closest('tr')!);
+    await waitFor(() => expect(document.querySelector('.tenant-page-data-grid tr[aria-current="true"]')?.textContent).toContain('x1-2'));
+    fireEvent.change(within(screen.getByRole('region', { name: 'Süzgeçler' })).getByLabelText('Kod'), { target: { value: '-2' } });
+    await waitFor(() => expect(firstCell()).toBe('x1-2'));
+    expect(document.querySelectorAll('.tenant-page-data-grid tbody tr')).toHaveLength(1);
+    expect(document.querySelector('.tenant-page-data-grid tr[aria-current="true"]')?.textContent).toContain('x1-2');
+    expect(urls).toHaveLength(requests);
   });
 
   it('footerMeta renders meta values', async () => {

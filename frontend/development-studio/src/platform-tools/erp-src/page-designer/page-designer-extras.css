@@ -116,3 +116,39 @@
 .pd-coled-row input[type=checkbox]{width:15px;height:15px;margin:0;accent-color:#5b3df5;cursor:pointer}
 .pd-coled-tools input[type=search]{height:32px;border-color:#dfe5ee}
 .pd-coled-value input,.pd-coled-add input,.pd-coled-value select,.pd-coled-add select{height:28px;border:1px solid #dfe5ee;border-radius:6px;font:inherit;font-size:12px}
+
+/* Süzgeç alanı (filterBar, taslak 14): tuval önizlemesi ve ayarlardaki sütun tablosu. */
+.pd-frame .pd-filterbar-preview .pd-form-card-cell.is-search{flex:1 1 220px;max-width:340px}
+.pd-filterbar-field{display:inline-flex;align-items:center;gap:6px;color:#667085;font-size:12px;font-weight:600;white-space:nowrap}
+.pd-filterbar-field>input{box-sizing:border-box;width:120px;height:32px;padding:0 8px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;font-size:12.5px}
+.pd-filterbar-field .pd-lookup-select{width:160px}
+.pd-filterbar-range{display:inline-flex;gap:6px}
+.pd-filterbar-range i{display:inline-flex;align-items:center;width:72px;height:30px;padding:0 7px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;color:#98a2b3;font-style:normal;font-weight:400}
+.pd-filterbar-more{display:inline-flex;align-items:center;height:30px;padding:0 10px;border:1px dashed #b9c3d3;border-radius:6px;color:#1f5fd1;font-size:12px;font-weight:600;white-space:nowrap}
+.pd-filterbar-empty{color:#98a2b3;font-size:12px}
+.pd-filterbar-search{display:grid;gap:8px;padding:10px;border:1px solid #e3e1ee;border-radius:10px}
+.pd-filterbar-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pd-filterbar-chips .pd-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 6px 2px 10px;border:1px solid #c9d8f2;border-radius:999px;background:#fff;font-size:12px}
+.pd-filterbar-chips .pd-chip strong{font-weight:600}
+.pd-filterbar-chips .pd-chip-x{border:0;background:transparent;color:#667085;cursor:pointer;padding:0 2px}
+.pd-filterbar-chips select{height:26px;border:1px dashed #b9c3d3;border-radius:6px;background:#fff;color:#1f5fd1;font:inherit;font-size:12px;font-weight:600}
+.pd-filterbar-table{display:grid;border:1px solid #e3e1ee;border-radius:8px;overflow:auto;max-height:max(260px,calc(100dvh - 420px))}
+.pd-filterbar-row{display:grid;grid-template-columns:64px 64px minmax(160px,1.4fr) minmax(130px,1fr) 110px minmax(120px,1fr);align-items:start;gap:8px;padding:6px 8px;border-bottom:1px solid #f0eff6;font-size:12.5px}
+.pd-filterbar-row.is-head{position:sticky;top:0;z-index:1;background:#fbfbfe;color:#667085;font-size:11px;font-weight:700}
+.pd-filterbar-row.is-off .pd-filterbar-name b{color:#98a2b3}
+.pd-filterbar-row input[type=checkbox]{width:15px;height:15px;margin:6px 0 0;accent-color:#5b3df5}
+.pd-filterbar-name{display:grid;gap:3px;min-width:0}
+.pd-filterbar-name code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#667085}
+.pd-filterbar-row select,.pd-filterbar-name input{box-sizing:border-box;width:100%;height:28px;padding:0 6px;border:1px solid #dfe5ee;border-radius:6px;background:#fff;font:inherit;font-size:12px}
+.pd-filterbar-options{display:grid;gap:4px;margin-top:4px}
+.pd-filterbar-apply{display:grid;gap:4px;align-items:center;padding-top:5px}
+.pd-filterbar-apply .pd-tag{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:999px;background:#eef2f7;color:#45566d;font-size:10.5px;font-weight:600}
+.pd-filterbar-row .pd-muted{display:inline-block;padding-top:5px;color:#98a2b3}
+@media (max-width:820px){.pd-filterbar-row{grid-template-columns:48px 48px minmax(120px,1fr) 110px 90px 100px}}
+/* Ayarlar penceresindeki tüm açılır kutular ve metin alanları tek tip (işletim sistemi varsayılanı değil). */
+.pd-settings-modal select,.pd-settings-modal input:not([type=checkbox]):not([type=radio]):not([type=range]),.pd-settings-modal textarea{box-sizing:border-box;min-height:32px;border:1px solid #dfe5ee;border-radius:7px;background-color:#fff;color:#1b2430;font:inherit;font-size:12.5px}
+.pd-settings-modal input:not([type=checkbox]):not([type=radio]):not([type=range]),.pd-settings-modal textarea{padding:6px 9px}
+.pd-settings-modal select{appearance:none;-webkit-appearance:none;max-width:100%;padding:0 28px 0 9px;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
+.pd-settings-modal :is(select,input,textarea):hover:not(:disabled){border-color:#c9cfdb}
+.pd-settings-modal :is(select,input,textarea):focus{outline:0;border-color:#7c5cf0;box-shadow:0 0 0 3px #7c5cf01f}
+.pd-settings-modal input[type=checkbox]{width:15px;height:15px;accent-color:#5b3df5}
