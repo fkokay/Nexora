@@ -153,7 +153,7 @@ public sealed record InventoryCostAdjustmentLineView(Guid Id, Guid StockItemId, 
     Guid? PurchaseReceiptLineId);
 public sealed record InventoryCostAdjustmentView(Guid Id, string Code, DateOnly EntryDate, InventoryCostAdjustmentKind Kind,
     Guid? PurchaseReceiptId, string Description, Guid? ReversalOfId, DateTimeOffset CreatedAt, decimal TotalAmountBase,
-    IReadOnlyList<InventoryCostAdjustmentLineView> Lines);
+    IReadOnlyList<InventoryCostAdjustmentLineView> Lines, bool HasReversal = false);
 public sealed record LandedCostWriteRequest(DateOnly EntryDate, decimal AmountBase, string AllocationMethod, string Description);
 public sealed record InventoryReverseRequest(string Reason);
 public sealed record InventoryTransferLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null,

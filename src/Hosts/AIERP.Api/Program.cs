@@ -9044,8 +9044,10 @@ static async Task<InventoryCostAdjustmentView> BuildInventoryCostAdjustmentViewA
                        orderby item.Code, warehouse.Code
                        select new InventoryCostAdjustmentLineView(line.Id, item.Id, item.Code, item.Name, warehouse.Id, warehouse.Code,
                            line.QuantitySnapshot, line.UnitCostSnapshotBase, line.AmountBase, line.PurchaseReceiptLineId)).ToListAsync();
+    // A cost adjustment is reversed at most once (the reverse handlers reject a second one); the page hides "Ters kayıt" by it.
+    var hasReversal = await db.InventoryCostAdjustments.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.ReversalOfId == header.Id);
     return new InventoryCostAdjustmentView(header.Id, header.Code, header.EntryDate, header.Kind, header.PurchaseReceiptId,
-        header.Description, header.ReversalOfId, header.CreatedAt, lines.Sum(x => x.AmountBase), lines);
+        header.Description, header.ReversalOfId, header.CreatedAt, lines.Sum(x => x.AmountBase), lines, hasReversal);
 }
 static async Task<decimal?> GetTenantRateAsync(TenantDbContext db, Guid tenantId, string currencyCode, DateOnly rateDate)
 {

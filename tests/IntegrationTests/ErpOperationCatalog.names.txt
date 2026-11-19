@@ -32,6 +32,10 @@ rapor.supplierPayments
 rapor.supplierReturns
 rapor.warehouseStock
 rapor.workflowInstances
+satinalma.malKabul.ekMaliyetDagit
+satinalma.malKabul.ekMaliyetTersKayit
+satinalma.malKabul.ekMaliyetler
+satinalma.malKabul.listele
 stok.bakiye.sayfa
 stok.hareket.ekle
 stok.hareket.listele
@@ -52,5 +56,8 @@ stok.kart.pasifeAl
 stok.kart.sil
 stok.kart.varyantlari
 stok.kategoriler
+stok.maliyet.kayitlari
+stok.maliyet.tersKayit
+stok.maliyet.yenidenDegerle
 stok.ozelAlanTanimlari
 uretim.recete.listele
