@@ -827,3 +827,8 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-block.is-cond-hidden{display:none}
 .pd-cond-toggle{margin-left:8px;border:1px solid #d8d0fb;background:#fff;color:#5b3df5;border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:600;cursor:pointer}
 .pd-cond-toggle.is-on{background:#f1edff}
+/* ERP'deki gibi: tek satırlık form kartının dolgusu yok (tenant-page-form-card.is-inline padding:0 !important), böylece
+   yanındaki Süzgeç alanıyla aynı hizada durur; dar sütunda düğmeler üst üste binmez, alt satıra geçer. */
+.pd-frame .pd-form-card.is-inline{padding:0 !important}
+.pd-frame .pd-form-card.is-inline:not(.pd-filterbar-preview)>.pd-form-card-grid.is-inline{flex-wrap:wrap}
+.pd-frame .pd-form-card.is-inline:not(.pd-filterbar-preview)>.pd-form-card-grid.is-inline>.pd-form-card-cell{flex:0 0 auto}
