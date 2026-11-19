@@ -26,7 +26,7 @@ export type BarLookKey = BarLookEnumKey | BarLookColorKey;
 
 export const BAR_LOOK_DEFAULTS: Record<BarLookEnumKey, string> = {
   align: "start", density: "normal", sticky: "false", separators: "true", size: "md", style: "outline", content: "both",
-  unbound: "dim", hints: "true", border: "bottom", radius: "soft", title: "true",
+  unbound: "dim", hints: "true", border: "box", radius: "soft", title: "true",
 };
 
 const COLOR = /^#[0-9A-Fa-f]{6}$/;

@@ -182,7 +182,7 @@
 .pd-actionbar-wrap[data-content=icon] .pd-bar-btn{justify-content:center;min-width:28px;font-size:14px}
 .pd-actionbar-wrap[data-separators=false] .pd-bar-sep{display:none}
 .pd-actionbar-wrap[data-border=none] .pd-actionbar{border-color:transparent}
-.pd-actionbar-wrap[data-border=box] .pd-actionbar{border-color:#cfd5e1;box-shadow:0 1px 3px #18244714}
+.pd-actionbar-wrap[data-border=bottom] .pd-actionbar{border-color:transparent transparent #e3e1ee;border-radius:0}
 .pd-actionbar-wrap[data-radius=sharp] :is(.pd-actionbar,.pd-bar-btn){border-radius:0}
 .pd-actionbar-wrap[data-radius=round] .pd-actionbar{border-radius:12px}
 .pd-actionbar-wrap[data-radius=round] .pd-bar-btn{border-radius:999px}
