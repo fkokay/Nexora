@@ -12,5 +12,7 @@ export function actionBarOf(components: ActionComponent[]): { id: string; props:
 /** İşlem Çubuğunun "İşlemler" menüsüne taşınan düğme kimlikleri: bunlar sayfada kendi yerinde çizilmez. */
 export function movedButtonIds(components: ActionComponent[]): Set<string> {
   const bar = actionBarOf(components);
-  return new Set(bar ? idList(bar.props.moreButtons, 10) : []);
+  // İşlemler menüsü gizliyse (hiddenCommands "more") düğmeler ERP'de olduğu gibi sayfada kendi yerinde çizilir.
+  const moreHidden = !!bar && Array.isArray(bar.props.hiddenCommands) && bar.props.hiddenCommands.includes("more");
+  return new Set(bar && !moreHidden ? idList(bar.props.moreButtons, 10) : []);
 }

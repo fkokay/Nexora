@@ -10,11 +10,42 @@ export const HIDDEN_ON_FORM: ReadonlySet<StandardCommandId> = new Set(['open', '
  * unavailable right now is drawn dimmed with its reason), and never a list command on a form screen.
  */
 export function offersCommand(commands: PageCommands | undefined, id: StandardCommandId): boolean {
-  if (!commands?.[id]) return false;
+  if (!commands?.[id] || commands[id]!.hidden) return false;
   return !(commands.screen === 'form' && HIDDEN_ON_FORM.has(id));
 }
 
-export type CommandSpec = { run?: () => void | Promise<void>; disabledReason?: string; primary?: boolean };
+/**
+ * `hidden`: the page removed the command (İşlem Çubuğu `hiddenCommands` / `commandWhen`). The bar does not draw it, its
+ * shortcut does nothing (a reserved browser chord stays prevented) and a lower-precedence source cannot re-add it.
+ * A hidden spec carries nothing else.
+ */
+export type CommandSpec = { run?: () => void | Promise<void>; disabledReason?: string; primary?: boolean; hidden?: boolean };
+
+/**
+ * Look of the action bar a page chose (İşlem Çubuğu `barLook`). A missing key keeps today's look; `title` (the page title
+ * row) and `unbound` (hide unbound commands) are applied by the page itself.
+ */
+export type BarLook = {
+  align?: 'start' | 'center' | 'end';
+  density?: 'compact' | 'normal' | 'wide';
+  sticky?: boolean;
+  separators?: boolean;
+  size?: 'sm' | 'md' | 'lg';
+  style?: 'outline' | 'solid' | 'plain';
+  content?: 'both' | 'text' | 'icon';
+  unbound?: 'dim' | 'hide';
+  hints?: boolean;
+  border?: 'none' | 'bottom' | 'box';
+  radius?: 'sharp' | 'soft' | 'round';
+  title?: boolean;
+  /** #RRGGBB */
+  accent?: string;
+  /** #RRGGBB */
+  background?: string;
+};
+
+/** BarLook keys in a fixed order (stable signatures). */
+export const BAR_LOOK_KEYS = ['align', 'density', 'sticky', 'separators', 'size', 'style', 'content', 'unbound', 'hints', 'border', 'radius', 'title', 'accent', 'background'] as const satisfies readonly (keyof BarLook)[];
 
 export type MenuCommand = { id: string; label: string; shortcut?: string; run?: () => void | Promise<void>; disabledReason?: string };
 
@@ -26,6 +57,10 @@ export type PageCommands = Partial<Record<StandardCommandId, CommandSpec>> & {
   more?: MenuCommand[];
   besideList?: boolean;
   screen?: 'list' | 'form';
+  /** The page removed the İşlemler menu: the bar does not draw it and Alt+İ does nothing. */
+  moreHidden?: boolean;
+  /** The page's bar look (from the effective `page` source only); absent = today's look. */
+  look?: BarLook;
 };
 
 /**

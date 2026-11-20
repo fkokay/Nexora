@@ -62,12 +62,14 @@ function ParamRows({ value, table, suggestions, disabled, onChange }: {
 }
 
 /** Komutlar bölümünün Yeni / Aç / Kaydettikten sonra grupları. `onPatch` undefined değeri siler (tek geri alma adımı). */
-export function BarCommandFields({ props, pages, screens, tables, dialogs, buttonLabel, newInputsField, suggestions, disabled, onPatch, canMigrate, onMigrate }: {
+export function BarCommandFields({ props, pages, screens, tables, dialogs, buttonLabel, newInputsField, suggestions, disabled, onPatch, canMigrate, onMigrate, only }: {
   props: Record<string, Value>; pages: PageOption[]; screens: ScreenOption[]; tables: TableOption[];
   dialogs: { id: string; label: string }[]; buttonLabel: (id: string) => string; newInputsField: ReactNode;
   suggestions: BindingSuggestion[]; disabled?: boolean; onPatch: (patch: Patch) => void;
   /** En az bir eski düğme bağı taşınabilir mi. */
   canMigrate: boolean; onMigrate: () => void;
+  /** Yalnız tek komutun grubu (Komutlar sekmesindeki açılan satır); verilmezse hepsi. */
+  only?: "new" | "open" | "afterSave";
 }) {
   const modes = barModes(props);
   const legacy = LEGACY_KEYS.filter((key) => text(props[key]) !== "");
@@ -105,12 +107,12 @@ export function BarCommandFields({ props, pages, screens, tables, dialogs, butto
   const problem = barCommandProblem(props);
 
   return <div className="pd-bar-commands">
-    {legacy.length > 0 && <div className="pd-bar-legacy" role="note">
+    {!only && legacy.length > 0 && <div className="pd-bar-legacy" role="note">
       <small>Bu sayfada {legacy.map((key) => key === "newButton" ? "Yeni" : key === "openButton" ? "Aç" : "Kaydettikten sonra").join(", ")} gizli bir düğmeye bağlı. İşlem Çubuğu'na taşıyınca ayar burada yapılır, kullanılmayan düğme kalkar.</small>
       <button type="button" className="pd-button small" disabled={disabled || !canMigrate} onClick={onMigrate}>İşlem Çubuğu'na taşı</button>
       {!canMigrate && <small>Düğme onay, koşul ya da sayfa dışı bir eylem kullanıyor; otomatik taşınamaz. Aşağıdan yeni seçimi yapın.</small>}
     </div>}
-    <fieldset className="pd-bar-group" aria-label="Yeni">
+    {(!only || only === "new") && <fieldset className="pd-bar-group" aria-label="Yeni">
       <legend>＋ Yeni<span className="pd-action-key" aria-hidden="true">F2</span></legend>
       <Segment label="Yeni ne yapsın" value={modes.new} disabled={disabled} onChange={setNew}
         options={[["off", "Kapalı"], ["clear", "Formu temizle"], ["dialog", "Pencere aç"], ["page", "Sayfa aç"]]}/>
@@ -122,8 +124,8 @@ export function BarCommandFields({ props, pages, screens, tables, dialogs, butto
         <PagePicker label="Yeni: açılacak sayfa" value={text(props.newPageCode)} pages={pages} screens={screens} disabled={disabled} onChange={(code) => onPatch({ newPageCode: code })}/>
         {targetField("newTarget")}
       </>}
-    </fieldset>
-    <fieldset className="pd-bar-group" aria-label="Aç">
+    </fieldset>}
+    {(!only || only === "open") && <fieldset className="pd-bar-group" aria-label="Aç">
       <legend>Aç<span className="pd-action-key" aria-hidden="true">Enter · çift tıklama</span></legend>
       <Segment label="Aç ne yapsın" value={modes.open} disabled={disabled} onChange={setOpen}
         options={[["off", "Kapalı"], ["dialog", "Pencere aç"], ["page", "Sayfa aç"]]}/>
@@ -144,8 +146,8 @@ export function BarCommandFields({ props, pages, screens, tables, dialogs, butto
         <ParamRows value={list(props.openParams)} table={openTable} suggestions={suggestions} disabled={disabled}
           onChange={(next) => onPatch({ openParams: next.length > 0 ? next : undefined })}/>
       </>}
-    </fieldset>
-    <fieldset className="pd-bar-group" aria-label="Kaydettikten sonra">
+    </fieldset>}
+    {(!only || only === "afterSave") && <fieldset className="pd-bar-group" aria-label="Kaydettikten sonra">
       <legend>Kaydettikten sonra</legend>
       <Segment label="Kaydettikten sonra ne yapılsın" value={modes.afterSave} disabled={disabled} onChange={setAfterSave}
         options={[["off", "Kapalı"], ["page", "Sayfa aç"]]}/>
@@ -157,7 +159,7 @@ export function BarCommandFields({ props, pages, screens, tables, dialogs, butto
         <label className="pd-check"><input type="checkbox" checked={props.afterSaveRefresh === true} disabled={disabled}
           onChange={(event) => onPatch({ afterSaveRefresh: event.target.checked ? true : undefined })}/>Açılan sayfayı yenile</label>
       </>}
-    </fieldset>
-    {problem && <small className="pd-query-warning">{problem}</small>}
+    </fieldset>}
+    {(!only || only === "new" || only === "open") && problem && <small className="pd-query-warning">{problem}</small>}
   </div>;
 }

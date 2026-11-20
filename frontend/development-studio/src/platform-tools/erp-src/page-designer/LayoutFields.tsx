@@ -30,27 +30,26 @@ export function InputPicker({ inputs, value, onChange, owned, filter, disabled, 
     const base = input.label || input.id;
     return base === "Giriş" || (labelCount.get(base) ?? 0) > 1 ? `${base} (${input.name || input.id})` : base;
   };
-  const row = (input: PickerInput, index: number) => {
-    const isOn = index >= 0;
-    const taken = !isOn ? owned?.[input.id] : undefined;
-    return <li key={input.id} className={`${isOn ? "is-on" : ""}${taken ? " is-taken" : ""}`} title={taken ? `${takenLabel}: ${taken}` : undefined}>
-      <label>
-        <input type="checkbox" checked={isOn} disabled={disabled || !!taken || (!isOn && selected.length >= max)}
-          onChange={(event) => onChange(event.target.checked ? [...selected, input.id] : selected.filter((id) => id !== input.id))}/>
-        <span>{nameOf(input)}</span>
-        {taken && <small className="pd-taken-hint">{takenLabel}</small>}
-      </label>
-      {isOn && <>
-        <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} yukarı taşı`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ArrowUp size={12}/></button>
-        <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} aşağı taşı`} disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)}><ArrowDown size={12}/></button>
-      </>}
-    </li>;
-  };
+  // Seçilenler sıralı satırlar (yukarı / aşağı / kaldır); seçilmeyenler "+ Ekle" açılır listesinde. Başka sahibe ait
+  // girişler listede gösterilmez, altta sayısı yazılır.
+  const row = (input: PickerInput, index: number) => <li key={input.id} className="is-on">
+    <span className="pd-picker-label">{nameOf(input)}</span>
+    <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} yukarı taşı`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ArrowUp size={12}/></button>
+    <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} aşağı taşı`} disabled={disabled || index === selected.length - 1} onClick={() => move(index, 1)}><ArrowDown size={12}/></button>
+    <button type="button" className="pd-icon-button" aria-label={`${nameOf(input)} kaldır`} disabled={disabled} onClick={() => onChange(selected.filter((id) => id !== input.id))}><X size={12}/></button>
+  </li>;
+  const free = rest.filter((input) => !owned?.[input.id]);
+  const takenCount = rest.length - free.length;
   if (selected.length === 0 && rest.length === 0) return null;
-  return <ul className="pd-columns pd-input-picker">
-    {selected.map((id, index) => row(byId.get(id) as PickerInput, index))}
-    {rest.map((input) => row(input, -1))}
-  </ul>;
+  return <>
+    {selected.length > 0 && <ul className="pd-columns pd-input-picker">{selected.map((id, index) => row(byId.get(id) as PickerInput, index))}</ul>}
+    {free.length > 0 && <select className="pd-picker-add" value="" disabled={disabled || selected.length >= max} aria-label="Ekle"
+      onChange={(event) => { if (event.target.value) onChange([...selected, event.target.value]); }}>
+      <option value="">{selected.length >= max ? `En fazla ${max}` : "＋ Ekle…"}</option>
+      {free.map((input) => <option key={input.id} value={input.id}>{nameOf(input)}</option>)}
+    </select>}
+    {takenCount > 0 && <small className="pd-picker-taken-note">{takenLabel}: {takenCount} öğe listede gösterilmez.</small>}
+  </>;
 }
 
 /** "sütun=Etiket" listesi: sütun seçimi ve etiket metni; "=" ve SafeValue'nun reddettiği parçalar temizlenir. */

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
+import { SettingsPane } from "./ComponentSettingsDialog";
 import { X } from "lucide-react";
 import { sanitizeSafeValue } from "./DesignLanguageFields";
 import { InputPicker, type PickerInput } from "./LayoutFields";
@@ -28,9 +30,11 @@ export const sequencePatch = (next: SequenceValue): Patch => ({
  * kaydetme yolu (yok, tek yazma sorgusu ya da kayıt dizisi; ikisi birlikte olamaz), kaydet metni, kayıtta kapan,
  * açılışta sıfırla ve kayıttan sonra yenilenecek okuma sorguları. `onPatch` undefined değeri siler.
  */
-export function DialogFields({ dialog, components, labelOf = defaultLabel, writeQueries, readQueries, pageNames, disabled, onPatch }: {
+export function DialogFields({ dialog, components, labelOf = defaultLabel, writeQueries, readQueries, pageNames, disabled, onPatch, viewExtra }: {
   dialog: DialogComponent; components: DialogComponent[]; labelOf?: (component: DialogComponent) => string;
   writeQueries: PageQuery[]; readQueries: { id: string; name: string }[]; pageNames: string[]; disabled?: boolean; onPatch: (patch: Patch) => void;
+  /** Görünüm sekmesine eklenecek alanlar (boyut, dışarı tıklama). */
+  viewExtra?: ReactNode;
 }) {
   const props = dialog.props;
   const contains = idList(props.contains, MAX_DIALOG_IDS);
@@ -63,18 +67,17 @@ export function DialogFields({ dialog, components, labelOf = defaultLabel, write
   const refreshOptions = readQueries.filter((query) => !refreshIds.includes(query.id));
   const queryName = (id: string) => readQueries.find((query) => query.id === id)?.name ?? id;
   return <>
+    <SettingsPane tab="main">
     <div className="pd-field">İçerik<small>Pencere açıkken içinde çizilen üst düzey bileşenler (en çok {MAX_DIALOG_IDS}); pencere kapalıyken bu bileşenler gizlidir ve doğrulanmaz.</small>
       {contains.length === 0 && <small className="pd-query-warning">Pencerede gösterilecek en az bir bileşen seçin.</small>}
       <InputPicker inputs={candidates} value={contains} owned={owners} max={MAX_DIALOG_IDS} takenLabel="Başka yerde" disabled={disabled}
         onChange={(next) => onPatch({ contains: next })}/>
       {candidates.length === 0 && <small>Pencereye yalnız sayfanın üst düzey bileşenleri eklenebilir (Pencere ve İşlem Çubuğu hariç; form kartındaki girişler ve satır işlemi düğmeleri de eklenemez).</small>}
     </div>
-    <div className="pd-field">Sunum
-      <div className="pd-segment" role="group" aria-label="Pencere sunumu">
-        <button type="button" aria-pressed={presentation === "dialog"} className={presentation === "dialog" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "dialog" })}>Pencere</button>
-        <button type="button" aria-pressed={presentation === "drawer"} className={presentation === "drawer" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "drawer" })}>Çekmece</button>
-      </div>
-    </div>
+    <label className="pd-check"><input type="checkbox" checked={props.resetOnOpen !== false} disabled={disabled}
+      onChange={(event) => onPatch({ resetOnOpen: event.target.checked ? undefined : false })}/>Açılışta alanları temizle</label>
+    </SettingsPane>
+    <SettingsPane tab="save">
     <div className="pd-field">Kaydetme<small>Kaydetme yolu yoksa pencerede yalnız “Kapat” düğmesi olur. Pencere açıkken Ctrl+S pencereyi kaydeder.</small>
       <div className="pd-segment" role="group" aria-label="Kaydetme yolu">
         {(Object.keys(saveModeLabels) as SaveMode[]).map((item) => <button type="button" key={item} aria-pressed={mode === item} className={mode === item ? "active" : ""}
@@ -106,7 +109,15 @@ export function DialogFields({ dialog, components, labelOf = defaultLabel, write
         </select>
       </div>
     </>}
-    <label className="pd-check"><input type="checkbox" checked={props.resetOnOpen !== false} disabled={disabled}
-      onChange={(event) => onPatch({ resetOnOpen: event.target.checked ? undefined : false })}/>Açılışta alanları temizle</label>
+    </SettingsPane>
+    <SettingsPane tab="view">
+    <div className="pd-field">Sunum
+      <div className="pd-segment" role="group" aria-label="Pencere sunumu">
+        <button type="button" aria-pressed={presentation === "dialog"} className={presentation === "dialog" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "dialog" })}>Pencere</button>
+        <button type="button" aria-pressed={presentation === "drawer"} className={presentation === "drawer" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "drawer" })}>Çekmece</button>
+      </div>
+    </div>
+    {viewExtra}
+    </SettingsPane>
   </>;
 }

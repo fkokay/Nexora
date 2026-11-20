@@ -1,8 +1,10 @@
-import { Fragment, type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef } from "react";
+import { Fragment, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { usePageCommands } from "../commands/CommandProvider";
 
 export type ActionStatus = { tone: "success" | "error" | "warning"; text: string };
 export type DialogSave = { label: string; busy: boolean; run: () => void };
+/** Pencere genişliği (`dialog.size`); `md` bugünkü genişliktir ve DOM'a yazılmaz. */
+export type DialogSize = "sm" | "md" | "lg" | "full";
 
 const FIELD_SELECTOR = "input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])";
 const BUSY_TEXT = "Kaydediliyor…";
@@ -17,8 +19,10 @@ function DialogSaveCommands({ save, root }: { save?: DialogSave; root: RefObject
   return null;
 }
 
-function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, status, returnFocus, onNew }:Omit<PageDialogProps, "open">) {
+function OpenDialog({ id, title, presentation, size, backdropClose, onClose, renderOwned, ids, save, status, returnFocus, onNew }:Omit<PageDialogProps, "open">) {
   const ref = useRef<HTMLDivElement>(null);
+  // Dışarı tıklama yalnız basma ve bırakma ikisi de arka planda olursa kapatır (pencere içinden sürükleyip dışarıda bırakmak kapatmaz).
+  const backdropDown = useRef(false);
   const focusBack = useRef(returnFocus);
   focusBack.current = returnFocus;
   useEffect(() => {
@@ -41,9 +45,18 @@ function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, 
     event.preventDefault();
     onClose();
   };
+  const onBackdropMouseDown = (event: MouseEvent<HTMLDivElement>) => { backdropDown.current = event.target === event.currentTarget; };
+  const onBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+    const startedOnBackdrop = backdropDown.current;
+    backdropDown.current = false;
+    // Kayıt sürerken pencere dışarı tıklamayla kapanmaz.
+    if (!startedOnBackdrop || event.target !== event.currentTarget || save?.busy) return;
+    onClose();
+  };
   const titleId = `page-dialog-${id}-title`;
-  return <div className="tenant-page-dialog-backdrop">
-    <div ref={ref} className={`tenant-page-dialog${presentation === "drawer" ? " is-drawer" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={onKeyDown}>
+  const sizeAttr = size && size !== "md" ? size : undefined;
+  return <div className="tenant-page-dialog-backdrop" onMouseDown={backdropClose ? onBackdropMouseDown : undefined} onClick={backdropClose ? onBackdropClick : undefined}>
+    <div ref={ref} className={`tenant-page-dialog${presentation === "drawer" ? " is-drawer" : ""}`} data-size={sizeAttr} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={onKeyDown}>
       <header className="tenant-page-dialog-header"><h2 id={titleId}>{title}</h2></header>
       <div className="tenant-page-dialog-body">{ids.map((owned) => <Fragment key={owned}>{renderOwned(owned)}</Fragment>)}</div>
       {status && <p className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
@@ -60,6 +73,10 @@ function OpenDialog({ id, title, presentation, onClose, renderOwned, ids, save, 
 
 type PageDialogProps = {
   id: string; title: string; presentation: "dialog" | "drawer"; open: boolean;
+  /** Genişlik; verilmezse `md` (bugünkü genişlik). Çekmecede çekmece genişliğini belirler. */
+  size?: DialogSize;
+  /** true: arka plana tıklamak pencereyi kapatır (kayıt sürerken kapatmaz). */
+  backdropClose?: boolean;
   onClose: () => void; renderOwned: (id: string) => ReactNode; ids: string[];
   save?: DialogSave; status: ActionStatus | null; returnFocus: HTMLElement | null;
   /** Kayıt penceresinde F2 (Yeni). */

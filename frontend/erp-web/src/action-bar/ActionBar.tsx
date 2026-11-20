@@ -1,9 +1,9 @@
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
 import { useActivePageCommands, useCommandRegistry } from '../commands/CommandProvider';
 import { formatShortcut, MORE_MENU_SHORTCUT, STANDARD_SHORTCUTS } from '../commands/shortcuts';
-import { ACTION_BAR_ORDER, offersCommand, type CommandSpec, type MenuCommand, type PageCommands, type StandardCommandId } from '../commands/types';
+import { ACTION_BAR_ORDER, offersCommand, type BarLook, type CommandSpec, type MenuCommand, type PageCommands, type StandardCommandId } from '../commands/types';
 import { COMMAND_LABELS } from './labels';
 import { useActionBarTarget } from './ActionBarSlot';
 import { ShortcutHelpDialog } from './ShortcutHelpDialog';
@@ -76,6 +76,36 @@ function visibleGroups(commands: PageCommands | undefined): StandardCommandId[][
   return groups.filter((group) => group.length > 0);
 }
 
+/**
+ * The page's bar look (`PageCommands.look`) as data attributes and CSS variables on `.nx-action-bar` (see action-bar.css).
+ * Only the keys the page set are emitted, so a page without a look renders exactly today's bar.
+ */
+function lookAttributes(look: BarLook | undefined): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  if (!look) return attributes;
+  for (const key of ['align', 'density', 'size', 'style', 'content', 'border', 'radius'] as const) {
+    if (look[key]) attributes[`data-${key}`] = look[key]!;
+  }
+  for (const key of ['sticky', 'separators'] as const) {
+    if (look[key] !== undefined) attributes[`data-${key}`] = String(look[key]);
+  }
+  if (look.accent) attributes['data-accent'] = 'true';
+  if (look.background) attributes['data-background'] = 'true';
+  return attributes;
+}
+
+function lookStyle(look: BarLook | undefined): CSSProperties | undefined {
+  if (!look?.accent && !look?.background) return undefined;
+  return {
+    ...(look.accent ? { '--nx-bar-accent': look.accent } : {}),
+    ...(look.background ? { '--nx-bar-background': look.background } : {}),
+  } as CSSProperties;
+}
+
+/** The tooltip text; `hints=false` (barLook) drops the shortcut and keeps the label (or the reason while disabled). */
+const tipText = (hints: boolean, label: string, shortcut: string, reason?: string) =>
+  hints ? tooltipText(label, shortcut, reason) : reason ?? label;
+
 function stateOf(spec: CommandSpec | undefined): { enabled: boolean; reason?: string } {
   if (spec?.run && !spec.disabledReason) return { enabled: true };
   return { enabled: false, reason: spec?.disabledReason ?? UNAVAILABLE };
@@ -84,13 +114,13 @@ function stateOf(spec: CommandSpec | undefined): { enabled: boolean; reason?: st
 /** aria-describedby of a button: the shown tooltip and, while disabled, the (screen-reader) reason. */
 const describedBy = (...ids: (string | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
 
-function CommandButton({ id, spec, locale }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale; iconOnly?: boolean }) {
+function CommandButton({ id, spec, locale, hints = true }: { id: StandardCommandId; spec: CommandSpec | undefined; locale: Locale; iconOnly?: boolean; hints?: boolean }) {
   const reasonId = useId();
   const { enabled, reason } = stateOf(spec);
   const Icon = ICONS[id];
   const label = COMMAND_LABELS[id];
   // The shortcut is no longer a badge on the button: it shows in the hover/focus tooltip ("Kaydet · Ctrl+S").
-  const tip = useActionTooltip<HTMLButtonElement>(tooltipText(label, formatShortcut(STANDARD_SHORTCUTS[id], locale), enabled ? undefined : reason));
+  const tip = useActionTooltip<HTMLButtonElement>(tipText(hints, label, formatShortcut(STANDARD_SHORTCUTS[id], locale), enabled ? undefined : reason));
   return (
     <>
       <button
@@ -115,11 +145,11 @@ function CommandButton({ id, spec, locale }: { id: StandardCommandId; spec: Comm
   );
 }
 
-function ActionsMenu({ items, locale, open, onOpenChange }: { items: MenuCommand[]; locale: Locale; open: boolean; onOpenChange: (open: boolean) => void }) {
+function ActionsMenu({ items, locale, open, onOpenChange, hints = true }: { items: MenuCommand[]; locale: Locale; open: boolean; onOpenChange: (open: boolean) => void; hints?: boolean }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, right: 0 });
-  const tip = useActionTooltip<HTMLButtonElement>(open ? '' : tooltipText('İşlemler', formatShortcut(MORE_MENU_SHORTCUT, locale)));
+  const tip = useActionTooltip<HTMLButtonElement>(open ? '' : tipText(hints, 'İşlemler', formatShortcut(MORE_MENU_SHORTCUT, locale)));
   const setTrigger = useCallback((node: HTMLButtonElement | null) => {
     triggerRef.current = node;
     tip.anchorRef.current = node;
@@ -224,31 +254,40 @@ export function ActionBar({ locale }: { locale: Locale }) {
   const closeHelp = useCallback(() => setHelpOpen(false), []);
   // Record forms keep their own Kaydet only while no bar is mounted.
   useLayoutEffect(() => registry.attachActionBar(), [registry]);
+  // The page removed İşlemler (`moreHidden`): no menu, Alt+İ does nothing, and an open menu closes.
+  const moreHidden = !!commands?.moreHidden;
+  const moreHiddenRef = useRef(moreHidden);
+  moreHiddenRef.current = moreHidden;
+  useEffect(() => { if (moreHidden) setMenuOpen(false); }, [moreHidden]);
 
   useEffect(() => {
     const disposers = [
-      registry.registerGlobal({ id: 'action-bar.more', shortcut: MORE_MENU_SHORTCUT, allowWhileTyping: true, run: () => setMenuOpen((open) => !open) }),
+      registry.registerGlobal({ id: 'action-bar.more', shortcut: MORE_MENU_SHORTCUT, allowWhileTyping: true, run: () => { if (!moreHiddenRef.current) setMenuOpen((open) => !open); } }),
       registry.registerGlobal({ id: 'action-bar.help', shortcut: 'F1', allowWhileTyping: true, run: () => setHelpOpen(true) }),
     ];
     return () => disposers.forEach((dispose) => dispose());
   }, [registry]);
 
-  const { barRef, commandsRef, level } = useCompaction([slotTarget, commands, locale]);
+  // The look comes only from the active page's commands, so the one shared bar resets on every other screen.
+  const look = commands?.look;
+  const hints = look?.hints !== false;
+  const { barRef, commandsRef, level } = useCompaction([slotTarget, commands, locale, look]);
   const iconOnly = level === 'icons';
   const bar = (
-    <div ref={barRef} className="nx-action-bar" data-nx-action-bar data-compact={level} role="toolbar" aria-label="İşlemler çubuğu">
+    <div ref={barRef} className="nx-action-bar" data-nx-action-bar data-compact={level} role="toolbar" aria-label="İşlemler çubuğu"
+      {...lookAttributes(look)} style={lookStyle(look)}>
       {/* The standard buttons compact, then scroll; İşlemler stays pinned at the right. */}
       <div ref={commandsRef} className="nx-action-bar__commands">
         {visibleGroups(commands).map((group, index) => (
           <Fragment key={group[0]}>
             {index > 0 && <span className="nx-action-bar__sep" aria-hidden="true" />}
-            {group.map((id) => <CommandButton key={id} id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} />)}
+            {group.map((id) => <CommandButton key={id} id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} hints={hints} />)}
           </Fragment>
         ))}
       </div>
       <div className="nx-action-bar__end">
-        {commands?.undo && <CommandButton id="undo" spec={commands.undo} locale={locale} iconOnly={iconOnly} />}
-        <ActionsMenu items={commands?.more ?? []} locale={locale} open={menuOpen} onOpenChange={setMenuOpen} />
+        {commands?.undo && <CommandButton id="undo" spec={commands.undo} locale={locale} iconOnly={iconOnly} hints={hints} />}
+        {!moreHidden && <ActionsMenu items={commands?.more ?? []} locale={locale} open={menuOpen} onOpenChange={setMenuOpen} hints={hints} />}
       </div>
       {helpOpen && <ShortcutHelpDialog locale={locale} onClose={closeHelp} />}
     </div>

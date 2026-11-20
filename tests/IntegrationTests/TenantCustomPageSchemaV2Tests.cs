@@ -592,6 +592,36 @@ public sealed class TenantCustomPageSchemaV2Tests
     }
 
     [Fact]
+    public void Accepts_action_bar_hidden_commands_conditions_and_look()
+    {
+        var bar = Bar(new
+        {
+            hiddenCommands = new[] { "print", "more" },
+            commandWhen = new[] { "delete=kullanici.rol == 'TenantAdmin'", "export=kullanici.rol in ['TenantAdmin', 'Muhasebe']" },
+            barLook = new[] { "align=end", "size=lg", "style=plain", "content=icon", "unbound=hide", "sticky=true", "accent=#534AB7", "background=#FFFFFF", "title=false" },
+        });
+        Assert.True(TenantCustomPageSchema.Validate(V2(ActionQueries, [bar]), out var error), error);
+    }
+
+    [Fact]
+    public void Rejects_invalid_action_bar_hidden_commands_conditions_and_look()
+    {
+        string P(object props) => V2(ActionQueries, [Bar(props)]);
+        AssertRejected(P(new { hiddenCommands = new[] { "undo" } }), "hiddenCommands");
+        AssertRejected(P(new { hiddenCommands = new[] { "print", "print" } }), "hiddenCommands");
+        AssertRejected(P(new { hiddenCommands = Array.Empty<string>() }), "hiddenCommands");
+        AssertRejected(P(new { commandWhen = new[] { "delete" } }), "commandWhen");
+        AssertRejected(P(new { commandWhen = new[] { "yok=kullanici.rol == 'A'" } }), "commandWhen");
+        AssertRejected(P(new { commandWhen = new[] { "delete=kullanici.rol == 'A'", "delete=kullanici.rol == 'B'" } }), "commandWhen");
+        AssertRejected(P(new { commandWhen = new[] { "delete=kullanici.rol ==" } }), "commandWhen");
+        AssertRejected(P(new { commandWhen = new[] { "delete=bilinmeyen.alan == 1" } }));
+        AssertRejected(P(new { barLook = new[] { "size=xl" } }), "barLook");
+        AssertRejected(P(new { barLook = new[] { "accent=red" } }), "barLook");
+        AssertRejected(P(new { barLook = new[] { "align=end", "align=start" } }), "barLook");
+        AssertRejected(V2(ActionQueries, [new { id = "h1", type = "heading", props = new { hiddenCommands = new[] { "print" } } }]), "yalnızca İşlem Çubuğu");
+    }
+
+    [Fact]
     public void Rejects_invalid_action_bar()
     {
         string P(params object[] components) => V2(ActionQueries, components);

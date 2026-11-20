@@ -364,27 +364,55 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
 
 type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
+// Yalnız simge kipinde (`content=icon`) düğmede metin yerine çizilen işaretler.
+const BAR_GLYPHS: Record<string, string> = { new: "+", open: "↗", save: "✓", delete: "✕", refresh: "↻", filter: "▽", print: "⎙", export: "⇩", more: "⋯" };
+// Önizlemenin `look` öznitelikleri: varsayılana eşit değer hiç yazılmaz, böylece varsayılan çubuk bugünkü gibi çizilir.
+const BAR_LOOK_ATTRS = ["align", "density", "size", "style", "content", "separators", "border", "radius"] as const;
+const BAR_LOOK_DEFAULT: Record<string, string> = { align: "start", density: "normal", size: "md", style: "outline", content: "both", separators: "true", border: "bottom", radius: "soft" };
+
 /** ERP'deki İşlem Çubuğu: sıra ve kısayollar sabittir; bağlanmamış komutlar soluk. Yenile her zaman etkindir; Aç özel sayfalarda kullanılmaz (hep soluk). */
 /** `title`: ERP'deki gibi işlem çubuğunun üstündeki başlık satırı (sayfa adı ve `titleCount` varsa "N kayıt"). */
-export function ActionBarPreview({ bound, moreCount, style, title, count }: { bound: ActionBarBound; moreCount: number; style: CSSProperties; title?: string; count?: string | null }) {
-  // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk düğme asla birincil çizilmez.
-  const primary = bound.save ? "save" : bound.new ? "new" : "";
+/**
+ * `hidden`: `hiddenCommands` (gizli düğme çizilmez; boşalan grubun ayırıcısı düşer). `look`: `barLook` sözlüğü (barLook.ts barLookMap);
+ * `unbound=hide` bağlanmamış düğmeleri, `title=false` başlık satırını gizler.
+ */
+export function ActionBarPreview({ bound, moreCount, style, title, count, hidden, look }: {
+  bound: ActionBarBound; moreCount: number; style: CSSProperties; title?: string; count?: string | null; hidden?: string[]; look?: Record<string, string>;
+}) {
+  const lookOf = (key: string, fallback: string) => look?.[key] ?? fallback;
+  const hideUnbound = lookOf("unbound", "dim") === "hide";
+  const hints = lookOf("hints", "true") !== "false";
+  const content = lookOf("content", "both");
+  const shown = (id: string, on: boolean) => !hidden?.includes(id) && (on || !hideUnbound);
+  // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk ya da gizli düğme asla birincil çizilmez.
+  const primary = bound.save && shown("save", true) ? "save" : bound.new && shown("new", true) ? "new" : "";
+  const face = (id: string, label: string) => content === "icon" ? <span aria-label={label}>{BAR_GLYPHS[id]}</span>
+    : content === "text" ? label : <>{id === "new" ? "+ " : ""}{label}</>;
   const button = (id: string, label: string, key: string, on: boolean) =>
     // ERP'deki gibi kısayol düğmede rozet değil, üstüne gelince ipucudur: "Kaydet · Ctrl+S" / "Bu sayfada bağlanmadı · Ctrl+S".
-    <span className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"} · ${key}`} data-shortcut={key}>{id === "new" ? "+ " : ""}{label}</span>;
-  const active = [bound.new && "Yeni", bound.save && "Kaydet", bound.remove && "Sil", "Yenile", bound.filter && "Filtre", bound.print && "Yazdır", bound.excel && "Excel", moreCount > 0 && "İşlemler"].filter(Boolean).join(", ");
-  return <div className="pd-actionbar-wrap" style={style}>
-    {title && <div className="pd-page-title"><h1>{title}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>}
+    <span key={id} className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"}${hints ? ` · ${key}` : ""}`} data-shortcut={key}>{face(id, label)}</span>;
+  const groups: [string, string, string, boolean][][] = [
+    [["new", "Yeni", "F2", bound.new], ["open", "Aç", "Enter", bound.open === true], ["save", "Kaydet", "Ctrl+S", bound.save], ["delete", "Sil", "Ctrl+Del", bound.remove]],
+    [["refresh", "Yenile", "F5", true], ["filter", "Filtre", "Ctrl+F", bound.filter]],
+    [["print", "Yazdır", "Ctrl+P", bound.print], ["export", "Excel", "Ctrl+E", bound.excel]],
+  ];
+  const visible = groups.map((group) => group.filter(([id, , , on]) => shown(id, on))).filter((group) => group.length > 0);
+  const showMore = shown("more", moreCount > 0);
+  const active = [bound.new && shown("new", true) && "Yeni", bound.save && shown("save", true) && "Kaydet", bound.remove && shown("delete", true) && "Sil", shown("refresh", true) && "Yenile",
+    bound.filter && shown("filter", true) && "Filtre", bound.print && shown("print", true) && "Yazdır", bound.excel && shown("export", true) && "Excel", moreCount > 0 && showMore && "İşlemler"].filter(Boolean).join(", ");
+  const attrs: Record<string, string> = {};
+  for (const key of BAR_LOOK_ATTRS) if (look?.[key] && look[key] !== BAR_LOOK_DEFAULT[key]) attrs[`data-${key}`] = look[key];
+  const colors: Record<string, string> = {};
+  if (look?.accent) colors["--pd-bar-accent"] = look.accent;
+  if (look?.background) colors["--pd-bar-bg"] = look.background;
+  return <div className="pd-actionbar-wrap" style={{ ...style, ...colors }} {...attrs}>
+    {title && lookOf("title", "true") !== "false" && <div className="pd-page-title"><h1>{title}</h1>{count != null && <span className="pd-page-title-count">{count} kayıt</span>}</div>}
     <div className="pd-actionbar" role="img" aria-label={`İşlem Çubuğu önizlemesi: ${active} bağlı`}>
-      {button("new", "Yeni", "F2", bound.new)}{button("open", "Aç", "Enter", bound.open === true)}{button("save", "Kaydet", "Ctrl+S", bound.save)}{button("remove", "Sil", "Ctrl+Del", bound.remove)}
-      <span className="pd-bar-sep" />
-      {button("refresh", "Yenile", "F5", true)}{button("filter", "Filtre", "Ctrl+F", bound.filter)}
-      <span className="pd-bar-sep" />
-      {button("print", "Yazdır", "Ctrl+P", bound.print)}{button("excel", "Excel", "Ctrl+E", bound.excel)}
+      {visible.map((group, index) => [index > 0 && <span key={`sep${index}`} className="pd-bar-sep" />, ...group.map(([id, label, key, on]) => button(id, label, key, on))])}
       <span className="pd-bar-grow" />
-      <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={`${moreCount > 0 ? "İşlemler" : "Bu sayfada bağlanmadı"} · Alt+İ`} data-shortcut="Alt+İ">İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾</span>
+      {showMore && <span className={`pd-bar-btn is-more${moreCount > 0 ? "" : " is-off"}`} title={`${moreCount > 0 ? "İşlemler" : "Bu sayfada bağlanmadı"}${hints ? " · Alt+İ" : ""}`} data-shortcut="Alt+İ">
+        {content === "icon" ? <span aria-label="İşlemler">{BAR_GLYPHS.more}</span> : <>İşlemler{moreCount > 0 ? ` (${moreCount})` : ""} ▾</>}</span>}
     </div>
-    <p className="pd-actionbar-note">Bu çubuk ERP'de sayfanın üstündeki İşlem Çubuğu'nda görünür.</p>
   </div>;
 }
 

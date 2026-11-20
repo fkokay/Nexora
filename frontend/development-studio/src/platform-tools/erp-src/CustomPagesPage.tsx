@@ -1,10 +1,11 @@
 import { flushSync } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { cloneElement, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Activity, AlignLeft, AppWindow, ArrowDown, ArrowUpFromLine, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, ClipboardList, Code2, Copy, Database, Eye, FilePlus2, Filter, Gauge,
   Grid3X3, Heading1, History, ImageIcon, Info, Layers, LayoutTemplate, List, Lock, Maximize2, Minimize2, Minus, Monitor, MousePointerClick, MoveVertical, PanelRight, PanelTop, PanelsTopLeft, Redo2,
   RotateCcw, Rows3, Save, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, Shapes, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
   Search,
+  Plus,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
@@ -48,13 +49,17 @@ import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemI
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
-import { BasicInspector, InspectorModeToggle } from "./page-designer/BasicInspector";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
+import { barLookMap, hiddenForPreview } from "./page-designer/barLook";
+import { BindingSampleContext } from "./page-designer/bindingSample";
+import { ConditionBuilder } from "./page-designer/ConditionBuilder";
+import { DialogLookFields } from "./page-designer/DialogLookFields";
+import { BarLookFields } from "./page-designer/BarLookFields";
+import { BarCommandRows } from "./page-designer/BarCommandRows";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
 import { conditionTerms, stringEntries } from "./page-designer/gridColumnSettings";
 import { ColumnsEditor } from "./page-designer/ColumnsEditor";
 import { designerShortcutsBlocked } from "./page-designer/designerModals";
-import { readInspectorMode, writeInspectorMode, type InspectorMode } from "./page-designer/inspectorBasicFields";
 import { proposeColumns } from "./page-designer/columnEditing";
 import { FilterBarFields } from "./page-designer/FilterBarFields";
 import { filterBarParams, filterBarProblem, keptFilterBindings, filterableParams, formatFilterEntry, parseFilterEntries, withFilterBindings, withoutFilterBindings, withoutStaleParams } from "./page-designer/filterBarSettings";
@@ -82,7 +87,7 @@ function childComponentsOf(component: PageComponent): PageComponent[] {
 type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
 type Device = "desktop" | "tablet" | "mobile";
-type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" };
+type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" | "choice"; options?: readonly (readonly [string, string])[] };
 
 const palette: PaletteItem[] = [
   { type: "actionBar", label: "İşlem Çubuğu", group: "Tasarım dili", icon: PanelTop, sample: {} },
@@ -121,7 +126,8 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   text: [{ key: "text", label: "Metin", kind: "textarea" }],
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
   input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" }],
-  metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" }],
+  metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
+    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["text", "Metin"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   section: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   divider: [],
@@ -148,7 +154,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -229,6 +235,8 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   return { ...component, props };
 }
 /** Giriş türü değişince silinen, türe bağlı doğrulama özellikleri ("Zorunlu" türden bağımsızdır, kalır). */
+/** Doğrulama "Kod" biçimi: büyük harf, rakam ve tire. */
+const CODE_PATTERN = "[A-Z0-9-]+";
 const validationReset: Record<string, undefined> = { min: undefined, max: undefined, step: undefined, maxLength: undefined, pattern: undefined, patternMessage: undefined, upperCase: undefined };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** .NET'te olup ECMAScript'te olmayan yapılar (satır içi seçenekler `(?i)`, `\A`, `\Z`, `\z`); sunucudaki kuralın aynısı. */
@@ -265,7 +273,21 @@ type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; query
 /** `disabledWhen` / `disabledReason` alabilen türler (sunucu kuralı). */
 const DISABLEABLE_TYPES: ComponentType[] = ["button", "input", "editableGrid", "customFieldsBlock"];
 /** Izgaranın ayar penceresi sekmeleri (pencere kapalıyken Gelişmiş panelde hepsi alt alta çizilir). */
-const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "columns", label: "Sütunlar" }, { key: "data", label: "Veri" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
+/** Izgara dışındaki bileşenlerin ayar sekmeleri: İçerik, türe özel ana bölüm, Koşul, Görünüm (boş sekme çizilmez). */
+const MAIN_TAB_LABEL: Partial<Record<string, string>> = {
+  button: "Eylem", form: "Form", code: "Kod", formCard: "Form kartı", filterChips: "Filtre çipleri", facetPanel: "Yan filtre paneli",
+  actionBar: "Komutlar", contextPanel: "Bağlam paneli", heading: "Sayfa başlığı", tabs: "Sekmeler", editableGrid: "Tablo",
+  customFieldsBlock: "Özel alanlar", dialog: "Pencere", image: "Görsel", input: "Doğrulama", metric: "Veri", filterBar: "Alanlar",
+};
+const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
+  ...(hasContent ? [{ key: "content", label: "İçerik" }] : []),
+  ...(MAIN_TAB_LABEL[type] ? [{ key: "main", label: MAIN_TAB_LABEL[type]! }] : []),
+  ...(type === "dialog" ? [{ key: "save", label: "Kaydetme" }] : []),
+  { key: "cond", label: "Koşul" }, { key: "view", label: "Görünüm" },
+];
+/** Bölüm anahtarının sekmesi (ızgara kendi sekmelerini `pane` ile verir). */
+const tabOfSection = (key: string) => key === "content" ? "content" : key.startsWith("conditions") ? "cond" : key === "style" ? "view" : "main";
+const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "data", label: "Veri" }, { key: "columns", label: "Sütunlar" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
 /** Satır işlemi olabilen düğme eylem türleri. */
 const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
 /**
@@ -909,9 +931,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [barSaveChoice, setBarSaveChoice] = useState<{ id: string; mode: "query" | "sequence" } | null>(null);
   const [sqlSchema, setSqlSchema] = useState<SqlSchemaTable[]>([]);
   // Özellikler paneli kipi (bileşen türü başına hatırlanır) ve "Tüm ayarlar" penceresinde açık bileşen.
-  const [inspectorModes, setInspectorModes] = useState<Record<string, InspectorMode>>({});
   const [settingsId, setSettingsId] = useState<string | null>(null);
-  const [settingsTab, setSettingsTab] = useState("columns");
+  const [settingsTab, setSettingsTab] = useState("data");
+  // Başlıkta adı düzenlenen bileşen (kalem simgesi).
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  // Doğrulama sekmesinde henüz yazılmamış "Koşula göre" / "Özel desen" seçimi (değer yazılana kadar seçim kaybolmasın).
+  const [requiredWhenDraft, setRequiredWhenDraft] = useState<string | null>(null);
+  const [customPatternDraft, setCustomPatternDraft] = useState<string | null>(null);
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
   const [focusId, setFocusId] = useState<string | null>(null);
   const suggestionsRef = useRef<BindingSuggestion[]>([]);
@@ -1610,6 +1636,34 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }),
   }));
   // Tek geri alma adımında birden çok özelliği değiştirir; undefined değer özelliği siler (boş dize sunucuda geçersiz olabilir).
+  // İşlem Çubuğu'nun İşlemler menüsüne yeni düğme: düğme oluşturulur ve tek geri alma adımında menüye eklenir; eylemi
+  // düğmenin kendi ayarlarından seçilir (seçim yeni düğmeye geçer).
+  // Izgaranın satır düğmesi: "Sayfa aç" düğmesi oluşturulur ve tek geri alma adımında satır işlemlerine eklenir; açılacak
+  // sayfa düğmenin kendi ayarlarından seçilir (seçim yeni düğmeye geçer).
+  const addRowButton = (tableId: string) => {
+    if (!canEdit) return;
+    const table = definitionRef.current.components.find((component) => component.id === tableId);
+    if (!table || idList(table.props.rowActions, MAX_ROW_ACTIONS).length >= MAX_ROW_ACTIONS) return;
+    const id = newId("button");
+    commit((value) => ({ ...value, components: [
+      ...value.components.map((component) => component.id === tableId ? { ...component, props: { ...component.props, rowActions: [...idList(component.props.rowActions, MAX_ROW_ACTIONS), id] } } : component),
+      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page" } },
+    ] }));
+    setSettingsId(null);
+    setSelectedComponentId(id);
+  };
+  const addMenuButton = (barId: string) => {
+    if (!canEdit) return;
+    const bar = definitionRef.current.components.find((component) => component.id === barId);
+    if (!bar || idList(bar.props.moreButtons, 10).length >= 10) return;
+    const id = newId("button");
+    commit((value) => ({ ...value, components: [
+      ...value.components.map((component) => component.id === barId ? { ...component, props: { ...component.props, moreButtons: [...idList(component.props.moreButtons, 10), id] } } : component),
+      { id, type: "button", props: { label: "Yeni işlem", variant: "secondary", actionType: "workflow", workflowId: "" } },
+    ] }));
+    setSettingsId(null);
+    setSelectedComponentId(id);
+  };
   const patchComponent = (id: string, patch: Record<string, PropValue | undefined>) => commit((state) => ({
     ...state,
     components: cardTree.mapComponents(state.components, (component) => {
@@ -2247,14 +2301,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const preview = queryPreviews[String(props.query)];
         const first = preview?.columns[0]?.code;
         const value = preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
-        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
       } else if (!props.source && typeof props.value === "string") {
-        const shown = interpolate(props.value, designScope());
+        const metricValue = interpolate(props.value, designScope());
         // Açıklamadaki bağlama da örnek veriyle çözülür (ör. birim "EA"); çözülemezse ham metin kalır.
         const rawDescription = String(props.description || "");
         const description = rawDescription.includes("{{") ? interpolate(rawDescription, designScope()) || rawDescription : rawDescription;
-        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={shown || "Değer girin"} description={description} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
-      } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
+        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={metricValue || "Değer girin"} description={description} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+      } else { const data = previewData[component.id]; return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={!props.source ? "Veri kaynağı seçin" : data ? data.totalCount.toLocaleString("tr-TR") : "Yükleniyor…"} description={String(props.description || sources.find((source) => source.code === props.source)?.label || "")} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />; }
       case "card": case "section": {
         // Kartın içindeki bileşenler (düğme, etiket, sekmeler…) ERP'deki gibi kartın içinde çizilir. Örnek veride koşulu
         // tutmayan çocuk (ör. Lot/Seri etiketi) gizlenmez; soluk ve "Koşullu" işaretlidir.
@@ -2310,7 +2364,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
         // Arama girişi üst düzeyde çizilmez; önizleme yokken de listenin başlığında görünür.
         const searchInput = isPagedTable(component) && typeof props.searchInput === "string" ? inputById.get(props.searchInput) : undefined;
-        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
+        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
           {rowActionLabelsOf(props).length > 0 && <p>İşlemler: {rowActionLabelsOf(props).map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</p>}</article>;
         const shownRows = preview.rows.slice(0, 5);
         const paging = isPagedTable(component) ? {
@@ -2319,7 +2373,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           search: searchInput ? renderInput(searchInput, {}) : undefined,
         } : undefined;
         const limited = typeof props.limit === "number" && props.limit > 0 ? shownRows.slice(0, props.limit) : shownRows;
-        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={limited} truncated={!paging && (preview.truncated || limited.length < preview.rows.length)} props={props}
+        return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={limited} truncated={!paging && (preview.truncated || limited.length < preview.rows.length)} props={props}
           emptyText={typeof props.emptyText === "string" && props.emptyText ? props.emptyText : "Sorgu kayıt döndürmedi."} showTotals paging={paging} rowActionLabels={rowActionLabelsOf(props)} style={style} advanced />;
       } else {
         const source = sources.find((item) => item.code === props.source);
@@ -2327,21 +2381,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const data = previewData[component.id];
         const visibleColumns = columns.map((column) => source?.columns.find((field) => field.code === column) ?? { code: column, label: column, dataType: "text" });
         const hasRowAction = props.rowActionsEnabled === true;
-        if (!props.source || !data) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{String(props.title || "Liste")}</b><small>{source?.label || "Veri kaynağı seçilmedi"}</small></div>{!props.source ? <p>Önizleme için veri kaynağı seçin.</p> : <p role="status">Örnek kayıtlar yükleniyor…</p>}</article>;
-        return <GridPreview key={component.id} title={String(props.title || "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
+        if (!props.source || !data) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{source?.label || "Veri kaynağı seçilmedi"}</small></div>{!props.source ? <p>Önizleme için veri kaynağı seçin.</p> : <p role="status">Örnek kayıtlar yükleniyor…</p>}</article>;
+        return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
       }
-      case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
+      case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{shown(props.title, "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
       case "code": return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
       case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info";
-        return <AlertPreview key={component.id} variant={variant} title={String(props.title || "")} text={String(props.text || "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
+        return <AlertPreview key={component.id} variant={variant} title={shown(props.title, "")} text={shown(props.text, "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
       // Etiket metni bağlama içerebilir ({{liste.seciliSatir.status}}): örnek veriyle çözülür, çözülemezse "Durum".
       case "badge": return <BadgePreview key={component.id} text={interpolate(String(props.text || props.label || ""), view) || String(props.label || "Durum")} variant={props.variant} toneMap={props.toneMap} style={style} />;
-      case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String(props.title || "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
-      case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{String(props.title || "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
+      case "list": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{shown(props.title, "Liste")}</b><ul>{(Array.isArray(props.items) ? props.items : []).map((item, itemIndex) => <li key={itemIndex}>{String(item)}</li>)}</ul></article>;
+      case "progress": { const progress = Math.max(0, Math.min(100, Number(props.value) || 0)); return <article key={component.id} className="custom-page-preview-progress" style={style}><div><b>{shown(props.title, "İlerleme")}</b><span>{progress}%</span></div><progress max={100} value={progress} /></article>; }
       case "formCard": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const members = idList(props.inputs).map((id) => inputById.get(id)).filter((item): item is PageComponent => !!item);
-        return <FormCardPreview key={component.id} title={String(props.title || "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}, props.layout === "inline"))}</FormCardPreview>;
+        return <FormCardPreview key={component.id} title={shown(props.title, "")} columns={columns} inline={props.layout === "inline"} style={style}>{members.map((input) => renderInput(input, {}, props.layout === "inline"))}</FormCardPreview>;
       }
       case "filterChips": {
         const chips = idList(props.inputs).flatMap((id) => {
@@ -2354,7 +2408,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         });
         return <FilterChipsPreview key={component.id} chips={chips} style={style} />;
       }
-      case "facetPanel": return <FacetPanelPreview key={component.id} title={String(props.title || "")} groups={facetGroupsOf(props)} style={style} />;
+      case "facetPanel": return <FacetPanelPreview key={component.id} title={shown(props.title, "")} groups={facetGroupsOf(props)} style={style} />;
       case "filterBar": {
         // ERP ile aynı tek satır: arama kutusu, satırdaki süzgeçler (tür sütun biçiminden), fazlası "Daha fazla süzgeç".
         const table = typeof props.table === "string" ? definition.components.find((item) => item.id === props.table && item.type === "dataTable") : undefined;
@@ -2392,13 +2446,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           title: String(props.relatedTitle || "İlgili kayıtlar"),
           rows: (relatedPreview?.rows ?? []).map((relatedRow) => relatedCodes.map((code) => relatedRow[code] == null ? "" : String(relatedRow[code])).filter(Boolean).join(" · ")),
         } : undefined;
-        return <ContextPanelPreview key={component.id} title={String(props.title || "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
+        return <ContextPanelPreview key={component.id} title={shown(props.title, "")} row={row} fields={fields} related={row ? related : undefined} style={style} />;
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
         new: barBound(props).new,
         open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
-      }} moreCount={idList(props.moreButtons, 10).length} />;
+      }} moreCount={idList(props.moreButtons, 10).length} hidden={hiddenForPreview(props)} look={barLookMap(props.barLook)} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
         onSelect={setSelectedComponentId}
         spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
@@ -2411,7 +2465,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const ids = idList(props.contains, MAX_DIALOG_IDS);
         const hasSave = (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0;
         // Pencere Sekmeler içerebilir (sekmeler pencere içeremez); özyineleme en çok iki düzeydir.
-        return <DialogPreview key={component.id} style={style} title={String(props.title || "")} presentation={props.presentation === "drawer" ? "drawer" : "dialog"} ids={ids}
+        return <DialogPreview key={component.id} style={style} title={shown(props.title, "")} presentation={props.presentation === "drawer" ? "drawer" : "dialog"} ids={ids}
           saveLabel={hasSave ? String(props.saveLabel || "") : null} onSelect={setSelectedComponentId} onDesign={() => live.current.openFocus(component.id)}
           spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
           renderOwned={(id) => {
@@ -2422,17 +2476,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       }
       case "editableGrid": {
         const mode = props.gridMode === "stage" || props.gridMode === "matrix" ? props.gridMode : "list";
-        return <EditableGridPreview key={component.id} style={style} title={String(props.title || "")} mode={mode} columns={parseGridColumns(props.gridColumns)}
+        return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={parseGridColumns(props.gridColumns)}
           fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} />;
       }
       case "customFieldsBlock": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
         const preview = typeof props.definitionsQuery === "string" ? queryPreviews[props.definitionsQuery] : undefined;
-        return <CustomFieldsPreview key={component.id} style={style} title={String(props.title || "")} columns={columns} definitions={preview ? preview.rows : null} />;
+        return <CustomFieldsPreview key={component.id} style={style} title={shown(props.title, "")} columns={columns} definitions={preview ? preview.rows : null} />;
       }
       case "image": {
         const height = typeof props.height === "number" ? Math.max(40, Math.min(400, props.height)) : 160;
-        return <ImagePreview key={component.id} style={style} title={String(props.title || "")} value={String(props.value || "")} height={height} />;
+        return <ImagePreview key={component.id} style={style} title={shown(props.title, "")} value={String(props.value || "")} height={height} />;
       }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
@@ -2683,15 +2737,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const status = current?.isPublished ? { label: "Yayında", tone: "published" } : current ? { label: "Taslak", tone: "draft" } : { label: "Yeni", tone: "new" };
   const settingsOpen = !!selected && settingsId === selected.id;
-  const inspectorMode: InspectorMode = selected ? inspectorModes[selected.type] ?? readInspectorMode(selected.type) : "advanced";
-  const setInspectorMode = (mode: InspectorMode) => { if (!selected) return; writeInspectorMode(selected.type, mode); setInspectorModes((current) => ({ ...current, [selected.type]: mode })); };
   const toggleSection = (key: string) => setCollapsed((value) => ({ ...value, [key]: !value[key] }));
-  const section = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
+  const section = (key: string, title: string, body: ReactNode) => selected && selected.type !== "dataTable" ? <SettingsPane key={key} tab={tabOfSection(key)}>{sectionBlock(key, title, body)}</SettingsPane> : sectionBlock(key, title, body);
+  const sectionBlock = (key: string, title: string, body: ReactNode) => <section className="pd-inspector-section" key={key}>
     <button type="button" className="pd-inspector-section-toggle" aria-expanded={!collapsed[key]} onClick={() => toggleSection(key)}>{collapsed[key] ? <ChevronRight size={14}/> : <ChevronDown size={14}/>}<span>{title}</span></button>
-    {(!collapsed[key] || settingsOpen) && <div className="pd-inspector-section-body">{body}</div>}
+    <div className="pd-inspector-section-body">{body}</div>
   </section>;
   // Izgara ayar penceresi sekmelidir: her parça kendi sekmesinde çizilir; diğer bileşenlerde ve panelde etkisizdir.
-  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab}>{node}</SettingsPane> : node;
+  // Izgarada sekme verilen anahtardır; diğer bileşenlerde "data" (Ad alanı) ilk sekmeye düşer, bölümler sekmesini
+  // `section` içinde kendisi seçer (dış sarmalama gerekmez).
+  const pane = (tab: string, node: ReactNode) => selected?.type === "dataTable" ? <SettingsPane tab={tab === "name" ? "data" : tab}>{node}</SettingsPane>
+    : tab === "name" ? <SettingsPane tab={firstTab}>{node}</SettingsPane> : tab === "main" ? <SettingsPane tab="main">{node}</SettingsPane> : node;
+  const hasContentTab = !!selected && (contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key)));
+  const componentTabs = selected ? selected.type === "dataTable" ? GRID_SETTINGS_TABS : settingsTabsFor(selected.type, hasContentTab) : [];
+  const firstTab = componentTabs[0]?.key ?? "content";
 
   if (!current && !creating) {
     const notFound = !loading && !saving && !!initialPageId && !pages.some((page) => page.id === initialPageId);
@@ -2827,11 +2886,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const steps = selected ? idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS) : [];
     return steps.includes(query.id) || steps.length >= MAX_SEQUENCE_STEPS ? {} : { saveSequence: [...steps, query.id], saveQuery: undefined };
   };
-  const setInputType = (component: PageComponent, value: string) => patchComponent(component.id, {
-    ...(value === "select" || value === "lookup" ? { inputType: value } : { inputType: value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
-    ...(value !== "lookup" ? lookupReset : {}),
-    ...(value !== String(component.props.inputType || "text") ? validationReset : {}),
-  });
   // Göstergenin "Değer" modu: sorgu ve rapor kaynağı yok, değer metni (sabit sayı ya da {{değişken}}) var.
   const metricValueMode = !!selected && selected.type === "metric" && !selectedQueryRef && !selected.props.source && typeof selected.props.value === "string";
   const filterInputId = selected && typeof selected.props.filterInput === "string" ? selected.props.filterInput : "";
@@ -2859,7 +2913,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const layoutInputIds = selected ? idList(selected.props.inputs) : [];
   // İşlem Çubuğu müfettişi: bağlanabilir düğmeler, sorgulu ızgaralar ve seçili listeler.
   const pageButtons: PickerInput[] = definition.components.filter((component) => component.type === "button").map((component) => ({
-    id: component.id, name: component.name, label: String(component.props.label || component.name || "Düğme"), inputType: "button", hasOptions: false,
+    id: component.id, name: component.name, label: String(component.props.text || component.props.label || component.name || "Düğme"), inputType: "button", hasOptions: false,
   }));
   const queryTables = definition.components.filter((component) => component.type === "dataTable" && typeof component.props.query === "string" && component.props.query !== "");
   const barNewInputs = selected?.type === "actionBar" ? idList(selected.props.newInputs) : [];
@@ -2878,6 +2932,29 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const eligibleTables = definition.components.filter((component) => component.type === "dataTable" && !!component.name && typeof component.props.query === "string" && component.props.query !== "");
   // İşlem Çubuğu Yeni / Aç / kaydettikten sonra grupları: Basit ve Gelişmiş kipte aynı alanlar. Eski düğme bağını kaldıran seçim,
   // başka yerde kullanılmayan düğmeyi de aynı geri alma adımında siler.
+  // Komutlar sekmesindeki satır özetleri: komutun ne yaptığı tek satırda.
+  const barSummaries = (props: Record<string, PropValue>): Record<string, string> => {
+    const queryName = (id: unknown) => definition.queries.find((query) => query.id === id)?.name;
+    const modes = barBound(props);
+    const pageOf = (code: unknown) => typeof code === "string" && code ? (pages.find((page) => page.code === code)?.name ?? code) : "";
+    const plan = (action: unknown, page: unknown, fallback: boolean) => action === "page" ? `Sayfa aç → ${pageOf(page) || "seçilmedi"}`
+      : action === "dialog" ? "Pencere aç" : action === "clear" ? "Formu temizle" : action === "off" ? "Kapalı" : fallback ? "Bağlı" : "Bağlı değil";
+    const sequence = idList(props.saveSequence, MAX_SEQUENCE_STEPS).length;
+    const filterInput = pageInputs.find((input) => input.id === props.focusInput);
+    const exportTable = queryTables.find((table) => table.id === props.exportTable);
+    const more = idList(props.moreButtons, 10).length;
+    return {
+      new: plan(props.newAction, props.newPageCode, modes.new), open: plan(props.openAction, props.openPageCode, modes.open),
+      save: sequence > 0 ? `Kaydet dizisi · ${sequence} adım` : queryName(props.saveQuery) ? `Sorgu: ${queryName(props.saveQuery)}` : "Bağlı değil",
+      delete: queryName(props.deleteQuery) ? `Sorgu: ${queryName(props.deleteQuery)}` : "Bağlı değil",
+      refresh: "Sayfa sorgularını yeniler",
+      filter: filterInput ? `Odak: ${filterInput.label}` : typeof props.focusInput === "string" && props.focusInput ? "Süzgeç alanı araması" : "Bağlı değil",
+      print: props.printEnabled === true ? "Açık" : "Kapalı",
+      export: exportTable ? `Liste: ${exportTable.name || exportTable.id}` : "Bağlı değil",
+      more: more > 0 ? `${more} düğme` : "Boş",
+      afterSave: props.afterSaveAction === "page" ? `Sayfa aç → ${pageOf(props.afterSavePageCode) || "seçilmedi"}` : "Kapalı",
+    };
+  };
   const barCommandFields = selected?.type === "actionBar" ? <BarCommandFields props={selected.props} screens={erpScreens}
     pages={pages.filter((page) => !page.screenKey && page.code !== current?.code).map((page) => ({ code: page.code, name: page.name }))}
     tables={eligibleTables.map((table) => ({ id: table.id, name: table.name!,
@@ -2966,7 +3043,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       : <label className="pd-field">{label}<input type="number" value={typeof props[key] === "number" ? props[key] as number : ""} onChange={(event) => setOptionalProp(input.id, key, numberOf(event.target.value))}/></label>;
     return <div className="pd-validation">
       <div className="pd-field">Doğrulama<small>ERP'de kayıttan önce denetlenir; sunucudaki doğrulamanın yerini almaz.</small></div>
-      <label className="pd-check"><input type="checkbox" checked={props.required === true} onChange={(event) => patchComponent(input.id, { required: event.target.checked ? true : undefined })}/>Zorunlu</label>
+      <div className="pd-field">Zorunlu<div className="pd-segment" role="group" aria-label="Zorunlu">
+        {([["no", "Hayır"], ["yes", "Evet"], ["when", "Koşula göre"]] as const).map(([value, label]) => {
+          const current = props.required === true ? "yes" : typeof props.requiredWhen === "string" && props.requiredWhen !== "" || requiredWhenDraft === input.id ? "when" : "no";
+          return <button type="button" key={value} aria-pressed={current === value} className={current === value ? "active" : ""} onClick={() => {
+            setRequiredWhenDraft(value === "when" ? input.id : null);
+            patchComponent(input.id, value === "yes" ? { required: true, requiredWhen: undefined } : value === "no" ? { required: undefined, requiredWhen: undefined } : { required: undefined });
+          }}>{label}</button>;
+        })}</div>
+        {(typeof props.requiredWhen === "string" && props.requiredWhen !== "" || requiredWhenDraft === input.id) && props.required !== true
+          && <ConditionBuilder key={`${input.id}-requiredWhen`} prop="requiredWhen" value={typeof props.requiredWhen === "string" ? props.requiredWhen : undefined}
+            paths={bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }))}
+            pageNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => setOptionalProp(input.id, "requiredWhen", next)}/>}
+      </div>
       {(inputType === "number" || inputType === "date") && <div className="pd-field-row">{bound("min", "En az")}{bound("max", "En fazla")}</div>}
       {rangeProblem && <small className="pd-query-warning">{rangeProblem}</small>}
       {inputType === "number" && <label className="pd-field">Adım<small>Ör. 0.01 kuruş, 1 tam sayı.</small><input type="number" min={0} value={typeof step === "number" ? step : ""} onChange={(event) => setOptionalProp(input.id, "step", numberOf(event.target.value))}/>
@@ -2974,13 +3063,22 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {inputType === "text" && <>
         <label className="pd-field">En fazla karakter<input type="number" min={1} max={4000} value={typeof maxLength === "number" ? maxLength : ""} onChange={(event) => setOptionalProp(input.id, "maxLength", numberOf(event.target.value))}/>
           {lengthProblem && <small className="pd-query-warning">{lengthProblem}</small>}</label>
-        <label className="pd-field">Biçim (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
+        <div className="pd-field">Biçim<div className="pd-segment" role="group" aria-label="Biçim">
+          {([["free", "Serbest"], ["code", "Kod (A-Z, 0-9, -)"], ["custom", "Özel desen"]] as const).map(([value, label]) => {
+            const current = pattern === "" && customPatternDraft !== input.id ? "free" : pattern === CODE_PATTERN ? "code" : "custom";
+            return <button type="button" key={value} aria-pressed={current === value} className={current === value ? "active" : ""} onClick={() => {
+              setCustomPatternDraft(value === "custom" ? input.id : null);
+              if (value === "free") patchComponent(input.id, { pattern: undefined, patternMessage: undefined });
+              else if (value === "code") updateComponent(input.id, "pattern", CODE_PATTERN);
+            }}>{label}</button>;
+          })}</div></div>
+        {(customPatternDraft === input.id || pattern !== "" && pattern !== CODE_PATTERN) && <label className="pd-field">Özel desen (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
           <input className="pd-condition-input" value={pattern} maxLength={200} spellCheck={false} onChange={(event) => {
             const next = event.target.value;
             if (next === "") patchComponent(input.id, { pattern: undefined, patternMessage: undefined }); else updateComponent(input.id, "pattern", next);
           }}/>
-          {pattern && patternProblem(pattern) && <small className="pd-query-warning">{patternProblem(pattern)}</small>}</label>
-        {pattern && <label className="pd-field">Biçim hatası mesajı<small>Boşsa “Değer beklenen biçimde değil.” gösterilir.</small>
+          {pattern && patternProblem(pattern) && <small className="pd-query-warning">{patternProblem(pattern)}</small>}</label>}
+        {pattern && <label className="pd-field">Hata metni<small>Boşsa “Değer beklenen biçimde değil.” gösterilir.</small>
           <input value={typeof props.patternMessage === "string" ? props.patternMessage : ""} maxLength={120} onChange={(event) => setOptionalProp(input.id, "patternMessage", sanitizeSafeValue(event.target.value, false) || undefined)}/></label>}
         <label className="pd-check"><input type="checkbox" checked={props.upperCase === true} onChange={(event) => patchComponent(input.id, { upperCase: event.target.checked ? true : undefined })}/>Büyük harfe çevir</label>
       </>}
@@ -3089,6 +3187,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
       <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+        variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
         palette={palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
@@ -3209,7 +3308,26 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className="pd-right-head"><History size={16}/><div><b>Sürüm geçmişi</b><small>Geri yükleme yayımlanmış sayfada yeni taslak, açık taslakta yeni revizyon oluşturur.</small></div><button type="button" className="pd-icon-button" aria-label="Kapat" onClick={() => setRightMode("inspector")}><X size={15}/></button></div>
           {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && systemAdmin && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
         </div> : selected ? <div className="pd-right-body">
-          <div className="pd-right-head"><SelectedIcon size={16}/><div><b>{titleFor(selected.type)}</b><small>{selected.id}</small></div><button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
+          <div className="pd-right-head pd-right-head-tools"><SelectedIcon size={16}/>
+            <div className="pd-right-title">
+              {editingNameId === selected.id
+                ? <input className="pd-binding-name" autoFocus value={selected.name ?? ""} maxLength={64} spellCheck={false} aria-label="Bileşen adı" placeholder="Ad (bağlamada kullanılır)"
+                    onChange={(event) => setComponentName(selected.id, event.target.value.trim())} onBlur={() => setEditingNameId(null)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === "Escape") setEditingNameId(null); }}/>
+                : <span className="pd-right-name"><b>{selected.name || summaryOf(selected)}</b>
+                  {canEdit && <button type="button" className="pd-icon-button" aria-label="Adı düzenle" title={`Ad: bağlamada kullanılır${requiredNameBase(selected.type) ? " (zorunlu)" : ""}`} onClick={() => setEditingNameId(selected.id)}><SquarePen size={12}/></button>}</span>}
+              <small>{titleFor(selected.type)} · {spanOf(selected)}/12</small>
+              {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
+            </div>
+            {canEdit && <span className="pd-right-actions">
+              <button type="button" className="pd-icon-button" aria-label="Yukarı taşı" title="Yukarı" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
+                onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={14}/></button>
+              <button type="button" className="pd-icon-button" aria-label="Aşağı taşı" title="Aşağı" disabled={!selectedCardLocation && !selectedInFocusOwner && selectedIndex >= definition.components.length - 1}
+                onClick={() => selectedCardLocation ? stepInCard(selected.id, 1) : selectedInFocusOwner ? stepInOwner(selected.id, 1) : moveComponent(selectedIndex, 1)}><ArrowDown size={14}/></button>
+              <button type="button" className="pd-icon-button" aria-label="Kopyala" title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : "Kopyala (Ctrl+D)"} disabled={selected.type === "actionBar"} onClick={() => duplicateComponent(selected.id)}><Copy size={14}/></button>
+              <button type="button" className="pd-icon-button danger" aria-label="Sil" title="Sil" onClick={() => removeComponent(selected.id)}><Trash2 size={14}/></button>
+            </span>}
+            <button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
           {selectedTabLocation && selectedTabOwner && <div className="pd-tab-location">
             <small>Konum: <button type="button" className="pd-link-button" onClick={() => setSelectedComponentId(selectedTabOwner.id)} title="Sekmeler bileşenini seç">{summaryOf(selectedTabOwner)}</button> › {selectedTabLabel}</small>
             {canEdit && <button type="button" className="pd-button small" onClick={() => detachFromTab(selected.id)} title="Bileşen sayfaya, kendi yerine geri alınır"><ArrowUpFromLine size={13}/>Sekmeden çıkar</button>}
@@ -3225,32 +3343,31 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {canEdit && <button type="button" className="pd-button small" onClick={() => ejectFromOwner(selected.id)} title="Bileşen sayfada kendi yerinde kalır"><ArrowUpFromLine size={13}/>{ejectText(selectedRefOwner.type)}</button>}
             {canEdit && <small className="pd-tab-list-hint">"{ejectText(selectedRefOwner.type)}" ile bileşen sayfada kendi yerinde görünür.</small>}
           </div>}
-          <InspectorModeToggle mode={inspectorMode} onChange={setInspectorMode}/>
-          {inspectorMode === "basic" && !settingsOpen && <fieldset className="pd-fieldset" disabled={!canEdit}>
-            <BasicInspector component={selected} contentKeys={contentFields[selected.type].map((field) => field.key)} readQueries={readQueries} queries={definition.queries}
-              resultColumns={selectedQueryRef ? queryColumns(selectedQueryRef) : []} sourceLabel={selectedSource?.label} suggestions={bindingSuggestions} disabled={!canEdit} span={spanOf(selected)}
-              inputTypeOptions={inputTypeOptions} onSetInputType={(value) => setInputType(selected, value)} buttonActionTypes={buttonActionTypes} buttonAction={buttonAction}
-              workflows={workflows} dialogs={pageDialogs.map((dialog) => ({ id: dialog.id, label: `${summaryOf(dialog)}${dialog.name ? ` (${dialog.name})` : ""}` }))}
-              bindTable={bindDataQuery} bindMetric={bindDataQuery} bindButton={bindButtonQuery}
-              onUpdate={(key, value) => updateComponent(selected.id, key, value)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
-              onAdvanced={() => setInspectorMode("advanced")} onOpenSettings={() => setSettingsId(selected.id)}/>
-            {barCommandFields}
-          </fieldset>}
-          <SettingsHost open={settingsOpen} hidden={inspectorMode === "basic"} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
-            tabs={selected.type === "dataTable" ? GRID_SETTINGS_TABS : undefined} tab={settingsTab} onTab={setSettingsTab}
+          <BindingSampleContext.Provider value={(template) => sampleText(template, designScope())}>
+          <SettingsHost open={settingsOpen} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
+            tabs={componentTabs} tab={settingsTab} onTab={setSettingsTab} onOpen={() => setSettingsId(selected.id)}
+            panelExtra={selected.type === "dataTable" ? <SettingsPane tab="columns"><button type="button" className="pd-button small" onClick={() => { setSettingsTab("columns"); setSettingsId(selected.id); }}>Sütunları pencerede düzenle</button></SettingsPane> : null}
             extra={selected.type === "dataTable" ? <SettingsPane tab="columns"><section className="pd-inspector-section pd-settings-wide" data-settings-section="Sütunlar"><div className="pd-inspector-section-body">
               {selectedQueryRef || selectedSource ? <ColumnsEditor available={selectedQueryRef ? queryColumns(selectedQueryRef) : selectedSource?.columns ?? []} selected={selectedColumns} formats={columnFormatEntries} totals={totalsSelected}
                 totalsAllowed={!!selectedQueryRef} labels={stringEntries(selected.props.columnLabels)} units={stringEntries(selected.props.columnUnits)} valueLabels={stringEntries(selected.props.valueLabels)} toneMap={toneMapEntries}
                 disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
                 : <p className="pd-binding-note">Önce <button type="button" className="pd-link-button" onClick={() => setSettingsTab("data")}>Veri</button> sekmesinde listeyi bir sorguya ya da rapor kaynağına bağlayın.</p>}</div></section></SettingsPane> : null}>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {pane("data", <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>
-              <input className="pd-binding-name" value={selected.name ?? ""} maxLength={64} spellCheck={false} placeholder={selected.type === "input" ? "gunEsigi" : selected.type === "dataTable" ? "izgara" : selected.type === "editableGrid" ? "tablo1" : selected.type === "customFieldsBlock" ? "ozelAlanlar1" : ""} onChange={(event) => setComponentName(selected.id, event.target.value.trim())}/>
-              {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
-            </label>)}
             {(contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key))) && pane("view", section("content", "İçerik", <>
+              {selected.type === "input" && <>
+              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
+                ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
+                // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
+                // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
+                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
+                // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
+                ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
+              })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+              </>}
               {contentFields[selected.type].map((field) => {
                 const value = selected.props[field.key];
+                if (field.kind === "choice") return <div key={field.key} className="pd-field">{field.label}<div className="pd-segment">{(field.options ?? []).map(([option, title]) => <button type="button" key={option} disabled={!canEdit}
+                  className={String(value ?? field.options?.[field.options.length - 1]?.[0] ?? "") === option ? "active" : ""} onClick={() => updateComponent(selected.id, field.key, option)}>{title}</button>)}</div></div>;
                 if (field.kind === "variant") return <label key={field.key} className="pd-field">{field.label}<div className="pd-segment">{variantOptions.map((option) => <button type="button" key={option.value} className={`tone-${option.value} ${String(value ?? "info") === option.value ? "active" : ""}`} onClick={() => updateComponent(selected.id, field.key, option.value)}>{option.label}</button>)}</div></label>;
                 if ((field.kind === "text" || field.kind === "textarea") && bindableKeys.has(field.key)) return <label key={field.key} className="pd-field">{field.label}<BindingInput value={String(value ?? "")} multiline={field.kind === "textarea"} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel={field.label} onChange={(next) => updateComponent(selected.id, field.key, next)}/></label>;
                 if (field.kind === "textarea") return <label key={field.key} className="pd-field">{field.label}<textarea rows={3} value={String(value ?? "")} onChange={(event) => updateComponent(selected.id, field.key, event.target.value)}/></label>;
@@ -3263,14 +3380,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selected.type === "list" && <label className="pd-field">Liste öğeleri<small>Her satıra bir madde yazın.</small><textarea rows={5} value={Array.isArray(selected.props.items) ? selected.props.items.join("\n") : ""} onChange={(event) => updateComponent(selected.id, "items", event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}/></label>}
             </>))}
             {selected.type === "input" && section("input", "Giriş", <>
-              <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
-                ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
-                // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
-                // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
-                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
-                // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
-                ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
-              })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
               {selected.props.inputType === "select" && <>
                 <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined })}/>
@@ -3348,8 +3457,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <OpenRowField table={selected} components={definition.components} labelOf={(component) => String(component.props.label || component.name || summaryOf(component as PageComponent))} disabled={!canEdit}
                 onPatchBar={(barId, patch) => patchComponent(barId, patch)}/>
               {selectedQueryRef ? <RowActionsFields table={selected} components={definition.components} parts={["actions"]}
-                labelOf={(component) => String(component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
-                onPatch={(patch) => patchComponent(selected.id, patch)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
+                labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
+                onPatch={(patch) => patchComponent(selected.id, patch)} onAddButton={() => addRowButton(selected.id)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
               <div className="pd-rowact-item"><span className="pd-rowact-kind">İş akışı</span>
                 <label className="pd-check"><input type="checkbox" checked={selected.props.rowActionsEnabled === true} onChange={(event) => updateComponent(selected.id, "rowActionsEnabled", event.target.checked)}/>İş akışı başlatan “İşlemler” kolonunu göster</label>
                 {selected.props.rowActionsEnabled === true && <>
@@ -3463,9 +3572,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </label>;
               })}
             </>)}
-            {selected.type === "actionBar" && section("layout", "Komutlar", <>
-              <small>Sıra ve kısayollar sabittir; yalnız komutların neyi çalıştıracağını bağlarsınız. Bağlanmayan komut ERP'de soluk görünür. Yenile (F5) her zaman sayfadaki sorguları yeniden çalıştırır.</small>
-              {barCommandFields}
+            {selected.type === "actionBar" && section("layout", "Komutlar", <BarCommandRows props={selected.props} disabled={!canEdit}
+              paths={bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }))}
+              pageNames={pageNamesOf(definition)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
+              summaries={barSummaries(selected.props)}
+              renderDetail={(id) => id === "new" || id === "open" || id === "afterSave" ? (barCommandFields && cloneElement(barCommandFields, { only: id }))
+                : id === "save" ? <>
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}
                   aria-pressed={barSaveMode === value} className={barSaveMode === value ? "active" : ""} onClick={() => {
@@ -3483,6 +3595,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </label> : <SequenceFields value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS)} when={selected.props.sequenceWhen} stopOnError={selected.props.stopOnError}
                 writeQueries={writeQueries} componentsNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, sequencePatch(next) as Record<string, PropValue | undefined>)}/>}
               {barSaveMode === "sequence" && <QueryFieldActions kinds={WRITE_KINDS} target="Kaydet dizisi" value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS).at(-1) ?? null} componentId={selected.id} disabled={!canEdit} bind={bindSequenceStep}/>}
+                </> : id === "delete" ? <>
               <label className="pd-field">Sil<span className="pd-action-key" aria-hidden="true">Ctrl+Del</span>
                 <select value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { deleteQuery: event.target.value || undefined })}>
                   <option value="">Yok</option>
@@ -3490,6 +3603,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </select>
                 <QueryFieldActions kinds={["delete"]} target="Sil komutu" value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ deleteQuery: query.id })}/>
               </label>
+                </> : id === "filter" ? <>
               <label className="pd-field">Filtre<span className="pd-action-key" aria-hidden="true">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
                 <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
                   <option value="">Yok</option>
@@ -3498,18 +3612,22 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <option key={component.id} value={component.id}>Süzgeç alanı araması{component.name ? ` (${component.name})` : ""}</option>)}
                 </select>
               </label>
+                </> : id === "print" ? <>
               <label className="pd-check"><input type="checkbox" checked={selected.props.printEnabled === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { printEnabled: event.target.checked ? true : undefined })}/> Yazdır<span className="pd-action-key" aria-hidden="true">Ctrl+P</span></label>
+                </> : id === "export" ? <>
               <label className="pd-field">Excel<span className="pd-action-key" aria-hidden="true">Ctrl+E</span><small>Dışa aktarılacak ızgara; sorguya bağlı olmalı.</small>
                 <select value={typeof selected.props.exportTable === "string" ? selected.props.exportTable : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { exportTable: event.target.value || undefined })}>
                   <option value="">Yok</option>
                   {queryTables.map((table) => <option key={table.id} value={table.id}>{table.name || table.id}</option>)}
                 </select>
               </label>
+                </> : id === "more" ? <>
               <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
                 <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} owned={rowActionOwners} takenLabel="Satır işlemi" disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
-                {pageButtons.length === 0 && <small>Önce sayfaya bir eylem düğmesi ekleyin.</small>}
+                <button type="button" className="pd-button small" disabled={!canEdit || barMoreButtons.length >= 10} onClick={() => addMenuButton(selected.id)}><Plus size={13}/>Yeni menü düğmesi</button>
+                {barMoreButtons.length >= 10 && <small>Menüde en fazla 10 düğme olabilir.</small>}
               </div>
-            </>)}
+                </> : <small>Yenile (F5) sayfadaki sorguları yeniden çalıştırır; bağlanması gerekmez.</small>}/>)}
             {selected.type === "filterBar" && (() => {
               const table = queryTables.find((item) => item.id === selected.props.table);
               const queryId = table ? String(table.props.query) : "";
@@ -3525,13 +3643,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               const all = queryId ? queryColumns(queryId) : [];
               // Listede seçilen sütunlar seçim sırasıyla (başlıklarıyla); seçim yoksa sorgunun tüm sütunları.
               const columns = (chosen.length > 0 ? chosen.flatMap((code) => all.filter((column) => column.code === code)) : all).map((column) => labels[column.code] ? { ...column, label: labels[column.code] } : column);
-              return <section className="pd-inspector-section pd-settings-wide" data-settings-section="Süzgeç alanı"><div className="pd-inspector-section-body">
+              return pane("main", <section className="pd-inspector-section pd-settings-wide" data-settings-section="Süzgeç alanı"><div className="pd-inspector-section-body">
                 <FilterBarFields name={selected.name} props={selected.props} tables={queryTables.map((item) => ({ id: item.id, label: item.name || summaryOf(item) }))} tableId={table?.id ?? ""}
                   columns={columns} formats={parseColumnFormats(table?.props.columnFormats) as Record<string, string>} query={query}
                   queryParams={filterableParams(query, op ? op.parameters : null, paging)} paged={paged} readQueries={readQueries}
                   columnsOf={(id) => queryColumns(id)} queryEditable={queryEditable} disabled={!canEdit}
                   onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>
-              </div></section>;
+              </div></section>);
             })()}
             {selected.type === "contextPanel" && section("layout", "Bağlam paneli", <>
               <label className="pd-field">Tablo<small>Seçili satırı gösterilecek ızgara; adlı ve sorgulu olmalı.</small>
@@ -3572,10 +3690,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "customFieldsBlock" && section("customFields", "Özel alanlar", <CustomFieldsBlockFields name={selected.name} props={selected.props} readQueries={readQueries}
               columnsOf={(queryId) => { const columns = queryColumns(queryId); return columns.length > 0 ? columns.map((column) => column.code) : null; }}
               disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
-            {selected.type === "dialog" && section("dialog", "Pencere", <DialogFields dialog={selected} components={definition.components}
+            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components}
+              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               labelOf={(component) => { const summary = summaryOf(component as PageComponent); const title = titleFor(component.type as ComponentType); return summary === title ? title : `${title}: ${summary}`; }}
               writeQueries={writeQueries} readQueries={readQueries} pageNames={pageNamesOf(definition)} disabled={!canEdit}
-              onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>)}
+              onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
             {selected.type === "image" && section("image", "Görsel", <>
               <label className="pd-field">Görsel bağlantısı<small>Yalnız http:// ya da https:// ile başlayan tam adresler gösterilir; diğer değerlerde “Görsel yok” yazar.</small>
                 <BindingInput value={String(selected.props.value ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Görsel bağlantısı"
@@ -3597,6 +3716,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type !== "dataTable" && section("conditions", "Koşullar", <ConditionFields props={selected.props} allowDisabled={DISABLEABLE_TYPES.includes(selected.type)}
               pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit}
               onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>)}
+            {selected.type !== "dataTable" && section("conditions-width", "Koşullu genişlik", <>
+              <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
+                terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
+                onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+              <details className="pd-settings-advanced"><summary>Kod olarak yaz</summary>
+                <RawWidthWhenField value={selected.props.widthWhen} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+              </details>
+            </>)}
             {selected.type === "dataTable" && pane("view", section("style", "Görünüm", <>
               <WidthSegment span={spanOf(selected)} disabled={!canEdit} onChange={(width) => updateComponent(selected.id, "width", width)}/>
               <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
@@ -3613,26 +3740,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </details>
             </>))}
             {selected.type !== "dataTable" && section("style", "Görünüm", <>
+              {selected.type === "actionBar" && <BarLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               {selected.type === "metric" && <>
                 <div className="pd-field">Anlam<ToneSelect value={(["info", "success", "warning", "danger"] as const).find((tone) => tone === selected.props.variant)} disabled={!canEdit} onChange={(tone) => patchComponent(selected.id, { variant: tone })}/></div>
                 <div className="pd-field">İkon<IconSelect value={typeof selected.props.icon === "string" ? selected.props.icon : undefined} disabled={!canEdit} onChange={(icon) => patchComponent(selected.id, { icon })}/></div>
               </>}
               <div className="pd-field">Genişlik<small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small><div className="pd-segment">{[3, 4, 6, 8, 9, 12].map((width) => <button type="button" key={width} className={spanOf(selected) === width ? "active" : ""} onClick={() => updateComponent(selected.id, "width", width)}>{width}</button>)}{![3, 4, 6, 8, 9, 12].includes(spanOf(selected)) && <button type="button" className="active">{spanOf(selected)}</button>}</div></div>
-              <label className="pd-field">Koşullu genişlik<small>“genişlik=koşul” yazın; koşul tutunca bileşen bu genişlikte çizilir (ör. <code>{"8=liste.seciliSatir.id != null"}</code>: satır seçilince liste daralır, yan panele yer açılır).</small>
-                <input value={typeof selected.props.widthWhen === "string" ? selected.props.widthWhen : ""} maxLength={300} spellCheck={false} disabled={!canEdit} placeholder="8=liste.seciliSatir.id != null"
-                  onChange={(event) => patchComponent(selected.id, { widthWhen: event.target.value.trim() ? event.target.value : undefined })}/>
-                {typeof selected.props.widthWhen === "string" && !/^([1-9]|1[0-2])=.+$/.test(selected.props.widthWhen) && <small className="pd-query-warning">'widthWhen' genişlik=koşul biçiminde olmalıdır (genişlik 1–12).</small>}</label>
               {boxFields}
             </>)}
           </fieldset>
           </SettingsHost>
-          <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
-          {canEdit && <div className="pd-inspector-footer">
-            <button type="button" className="pd-button small" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
-              onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
-            <button type="button" className="pd-button small" disabled={selected.type === "actionBar"} title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : undefined} onClick={() => duplicateComponent(selected.id)}><Copy size={13}/>Kopyala</button>
-            <button type="button" className="pd-button small danger" onClick={() => removeComponent(selected.id)}><Trash2 size={13}/>Sil</button>
-          </div>}
+          </BindingSampleContext.Provider>
         </div> : <div className="pd-right-body">
           <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
@@ -3642,7 +3760,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}
             <label className="pd-field">Açıklama<textarea rows={3} maxLength={500} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Bu sayfanın amacı"/></label>
           </fieldset>
-          <VariablesPanel suggestions={bindingSuggestions} disabled={!canEdit}/>
           <dl className="pd-facts">
             <div><dt>Durum</dt><dd>{status.label}</dd></div>
             <div><dt>Sürüm</dt><dd>{current ? current.revision : "—"}</dd></div>

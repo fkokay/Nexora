@@ -2,8 +2,10 @@
    Renkler yalnız --nx-* token'larından gelir (koyu tema dahil); ölçüler: yazı 12,5px, kontrol 31px,
    köşe kontrol 6px / kart 8px, sayılar tabular-nums ve sağa hizalı. Studio tuvali aynı görünümü kopyalar
    (frontend/development-studio/.../custom-pages.css "custom-page-preview-*"). */
-.tenant-custom-page { --custom-page-gap: 12px; --custom-page-surface: var(--nx-surface); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-muted); --custom-page-accent: var(--nx-primary); max-width: 1720px; margin: 0 auto; padding: 14px 16px 24px; color: var(--nx-text); font-family: var(--nx-font); font-size: 12.5px; }
-.tenant-custom-page-header { display: flex; align-items: center; gap: 12px; padding: 0 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--nx-line); }
+/* Sayfa kenar boşluğunu ERP kabuğu verir (.content: 18px 14px 36px); normal liste ekranları gibi özel sayfa kendi dolgusunu,
+   genişlik sınırını ve ortalamasını eklemez (eskiden 14px 16px 24px + 1720px ile boşluk iki kat görünüyordu). */
+.tenant-custom-page { --custom-page-gap: 12px; --custom-page-surface: var(--nx-surface); --custom-page-line: var(--nx-line); --custom-page-muted: var(--nx-muted); --custom-page-accent: var(--nx-primary); max-width: none; margin: 0; padding: 0; color: var(--nx-text); font-family: var(--nx-font); font-size: 12.5px; }
+.tenant-custom-page-header { display: flex; align-items: center; gap: 12px; padding: 0 0 12px; margin-bottom: 12px; border-bottom: 1px solid var(--nx-line); }
 .tenant-custom-page-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: var(--nx-radius-card); color: var(--nx-primary-strong); background: var(--nx-primary-soft); }
 .tenant-custom-page-header h1 { margin: 0; font-size: 19px; font-weight: 650; line-height: 1.25; }
 .tenant-custom-page-header p { margin: 3px 0 0; color: var(--nx-muted); font-size: 12px; }
@@ -171,8 +173,8 @@ html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-sta
 .tenant-page-tabpanel > * { grid-column: span 12; min-width: 0; }
 .tenant-page-tabpanel[hidden] { display: none; }
 
-@media (max-width: 900px) { .tenant-custom-page { padding: 12px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 6 !important; } }
-@media (max-width: 560px) { .tenant-custom-page { padding: 10px; } .tenant-custom-page-content, .tenant-page-tabpanel { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 4 !important; } }
+@media (max-width: 900px) { .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 6 !important; } }
+@media (max-width: 560px) { .tenant-custom-page-content, .tenant-page-tabpanel { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; } .tenant-custom-page-content > *, .tenant-page-tabpanel > * { grid-column: span 4 !important; } }
 
 /* Durum etiketi, yoğunluk ve toplam satırı — eski kabuk tablo kuralları (.app-shell table … !important) için önekli */
 .tenant-page-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; color: var(--nx-muted); background: var(--nx-line-soft); font-size: 11px; font-weight: 600; line-height: 1.6; white-space: nowrap; }
@@ -397,6 +399,13 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-dialog { display: flex; flex-direction: column; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: hidden; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); box-shadow: 0 18px 48px color-mix(in srgb, var(--nx-text) 24%, transparent); }
 .tenant-page-dialog-backdrop:has(.tenant-page-dialog.is-drawer) { place-items: stretch end; padding: 0; }
 .tenant-page-dialog.is-drawer { width: min(560px, 100%); max-height: none; height: 100vh; border-radius: 0; }
+/* Pencere boyutu (dialog.size); md bugünkü genişliktir ve öznitelik yazılmaz. Çekmecede çekmece genişliğidir. */
+.tenant-page-dialog[data-size="sm"] { width: min(420px, 100%); }
+.tenant-page-dialog[data-size="lg"] { width: min(960px, 100%); }
+.tenant-page-dialog[data-size="full"] { width: 100%; height: calc(100vh - 40px); }
+.tenant-page-dialog.is-drawer[data-size="sm"] { width: min(380px, 100%); }
+.tenant-page-dialog.is-drawer[data-size="lg"] { width: min(860px, 100%); }
+.tenant-page-dialog.is-drawer[data-size="full"] { width: 100%; height: 100vh; }
 .tenant-page-dialog-header { padding: 12px 16px; border-bottom: 1px solid var(--nx-line); }
 .tenant-page-dialog-header h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .tenant-page-dialog-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: start; gap: var(--custom-page-gap, 12px); padding: 14px 16px; overflow-y: auto; }
@@ -408,7 +417,7 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-image { box-sizing: border-box; margin: 0; overflow: hidden; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
 .tenant-page-image img { display: block; width: 100%; height: 100%; }
 .tenant-page-image-placeholder { display: grid; place-items: center; height: 100%; color: var(--nx-muted); font-size: 12px; }
-@media (max-width: 560px) { .tenant-page-dialog-backdrop { padding: 0; place-items: stretch; } .tenant-page-dialog { width: 100%; max-height: none; border-radius: 0; } .tenant-page-dialog-body > * { grid-column: span 12 !important; } }
+@media (max-width: 560px) { .tenant-page-dialog-backdrop { padding: 0; place-items: stretch; } .tenant-page-dialog, .tenant-page-dialog[data-size] { width: 100%; max-height: none; border-radius: 0; } .tenant-page-dialog-body > * { grid-column: span 12 !important; } }
 
 /* ERP kabuğunun eski `.app-shell :is([class*="-card"], [class*="-panel"], [class*="-tag"], [class*="-chip"], …)` köşe kuralı
    (!important) özel sayfada etiketleri/çipleri köşeli, kartları 12px yapıyordu. Etiket ve çip tam yuvarlak; bloklar

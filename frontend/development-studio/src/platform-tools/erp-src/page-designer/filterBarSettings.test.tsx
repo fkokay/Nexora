@@ -45,6 +45,20 @@ describe("süzgeç alanı ayarları", () => {
     expect(filterableParams(undefined, null, [])).toEqual([]);
   });
 
+  it("katalogdaki isteğe bağlı rota parametresi (stok.bakiye.sayfa warehouseId) süzülebilir; zorunlu rota ve gövde parametresi değil", () => {
+    // ErpOperationCatalog.cs: warehouseId "route", zorunlu değil (verilince /api/warehouses/{warehouseId}/balances/page).
+    const catalog = [
+      { name: "warehouseId", in: "route", type: "guid", required: false }, { name: "q", in: "query", type: "text", required: false },
+      { name: "includeInactive", in: "query", type: "bool", required: false }, { name: "id", in: "route", type: "guid", required: true },
+      { name: "note", in: "body", type: "text", required: false }, { name: "page", in: "query", type: "int", required: false },
+    ];
+    const params = filterableParams(bakiye, catalog, ["page"]);
+    expect(params.map((param) => param.name)).toEqual(["warehouseId", "q", "includeInactive"]);
+    // Ayar penceresi kapanınca çalışan temizlik Depo süzgecini silmemeli.
+    const props = { table: "liste", filters: ["warehouseId|select|row|warehouseId|Depo|depolar:id:name", "includeInactive|toggle|row|includeInactive|Pasif kartları da göster"] };
+    expect(withoutStaleParams(props, params)).toBe(props);
+  });
+
   it("parametreleri {{<ad>.<parametre>}} ile bağlar; eksik parametreyi türüyle ekler, değişiklik yoksa aynı sorguyu döner", () => {
     const bound = withFilterBindings(bakiye, "stokSuzgec", [{ name: "q", type: "text" }, { name: "includeInactive", type: "bool" }]);
     expect(bound.parameters.find((parameter) => parameter.name === "q")?.binding).toBe("{{stokSuzgec.q}}");

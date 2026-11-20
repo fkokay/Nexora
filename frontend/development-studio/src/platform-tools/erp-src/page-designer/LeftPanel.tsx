@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Database, Layers, Plus, Search, Shapes, type LucideIcon } from "lucide-react";
+import { Braces, ChevronDown, ChevronRight, Database, Layers, Plus, Search, Shapes, type LucideIcon } from "lucide-react";
 import LayersTree, { type LayerItem } from "./LayersTree";
 import { LEFT_PANEL_SECTIONS, LEFT_PANEL_STORAGE_KEY, matchesTerm, parseLeftPanelState, resizeSectionPair, type LeftPanelSection, type LeftPanelState } from "./leftPanelModel";
 import "./left-panel.css";
@@ -30,16 +30,19 @@ type Props = {
   addQueryTitle?: string;
   onAddQuery: () => void;
   onOpenQuery: (id: string) => void;
+  /** Kullanılabilir değişkenler bölümünün içeriği ve sayısı. */
+  variables: ReactNode;
+  variableCount: number;
 };
 
-const titles: Record<LeftPanelSection, string> = { components: "Bileşenler", layers: "Katmanlar", queries: "Sorgular" };
-const icons: Record<LeftPanelSection, LucideIcon> = { components: Shapes, layers: Layers, queries: Database };
+const titles: Record<LeftPanelSection, string> = { components: "Bileşenler", layers: "Katmanlar", queries: "Sorgular", variables: "Değişkenler" };
+const icons: Record<LeftPanelSection, LucideIcon> = { components: Shapes, layers: Layers, queries: Database, variables: Braces };
 
 function loadState(): LeftPanelState {
   try { return parseLeftPanelState(localStorage.getItem(LEFT_PANEL_STORAGE_KEY)); } catch { return parseLeftPanelState(null); }
 }
 
-/** Sol panel: tek arama kutusu altında alt alta, açılır kapanır Bileşenler / Katmanlar / Sorgular bölümleri. */
+/** Sol panel: tek arama kutusu altında alt alta, açılır kapanır Bileşenler / Katmanlar / Sorgular / Değişkenler bölümleri. */
 export default function LeftPanel(props: Props) {
   const [state, setState] = useState<LeftPanelState>(loadState);
   const [search, setSearch] = useState("");
@@ -74,7 +77,7 @@ export default function LeftPanel(props: Props) {
 
   const palette = props.palette.filter((item) => matchesTerm(search, item.label, item.group));
   const queries = props.queries.filter((query) => matchesTerm(search, query.name, query.kindLabel));
-  const counts: Partial<Record<LeftPanelSection, number>> = { layers: props.componentCount, queries: props.queries.length };
+  const counts: Partial<Record<LeftPanelSection, number>> = { layers: props.componentCount, queries: props.queries.length, variables: props.variableCount };
 
   const body = (section: LeftPanelSection): ReactNode => {
     if (section === "components") return <>
@@ -93,6 +96,7 @@ export default function LeftPanel(props: Props) {
     </>;
     if (section === "layers") return <LayersTree items={props.layers} search={search} canEdit={props.canEdit} selectedId={props.selectedComponentId} onSelect={props.onSelectComponent}
       dropTarget={props.dropTarget} onDragStart={props.onLayerDragStart} onDragEnd={props.onLayerDragEnd} onDragOver={props.onLayerDragOver} onDrop={props.onLayerDrop} onMove={props.onLayerMove} rootCount={props.componentCount}/>;
+    if (section === "variables") return props.variables;
     return props.queries.length === 0 ? <p className="pd-empty-note">Bu sayfada henüz sorgu yok. “＋” ile yeni sorgu ekleyin.</p>
       : queries.length === 0 ? <p className="pd-empty-note">“{search.trim()}” ile eşleşen sorgu yok.</p>
       : <ul className="pd-lp-queries">{queries.map((query) => <li key={query.id}>

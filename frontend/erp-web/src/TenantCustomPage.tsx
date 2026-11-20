@@ -22,7 +22,7 @@ import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
 import { mapOperationResult, missingRequiredValue, type ErpOperation } from "./custom-page/erpOperations";
 import { CREATED_REOPEN, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
 import { useErpOperations } from "./custom-page/useErpOperations";
-import { actionBarOf, barCommandPlan, buildPageCommands, exportRows, movedButtonIds, type BarPageNavigation } from "./custom-page/pageActions";
+import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
@@ -320,6 +320,11 @@ const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime)
 const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
   !!runtime && (component.type === "button" || component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock")
   && conditionHolds(component.props?.disabledWhen, runtime.scope, false);
+/** İşlem Çubuğu `commandWhen`: komutun koşulu `visibleWhen` ile aynı değerlendiriciyle sayfa kapsamında; koşulsuz komut görünür. */
+const barCommandVisible = (barProps: Record<string, unknown>, scope: PageScope) => {
+  const when = commandWhenOf(barProps);
+  return (id: BarCommandId) => when[id] === undefined || conditionHolds(when[id], scope, true);
+};
 const BUTTON_UNAVAILABLE = "Bu işlem şu anda kullanılamaz.";
 
 const flattenComponents = (components: ComponentDefinition[]): ComponentDefinition[] =>
@@ -1054,6 +1059,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       // Kayıt penceresi açıkken (kısayollar pencere içinde çalışmaz) F2 İşlem Çubuğu'nun Yeni komutunu çalıştırır.
       const onNew = runtime.formDialog?.id === component.id ? () => { void runtime.newCommand.current?.(); } : undefined;
       return <PageDialog key={component.id} id={component.id} title={title || "Pencere"} presentation={props.presentation === "drawer" ? "drawer" : "dialog"}
+        size={props.size === "sm" || props.size === "lg" || props.size === "full" ? props.size : undefined} backdropClose={props.backdropClose === true}
         open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids} onNew={onNew}
         save={canSave ? { label: textValue(props.saveLabel).trim() || "Kaydet", busy: runtime.dialogBusy[component.id] === true, run: () => runtime.saveDialog(component.id) } : undefined}
         status={runtime.dialogStatus[component.id] ?? null} returnFocus={runtime.dialogOpener(component.id)} />;
@@ -1325,6 +1331,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       });
     })(),
     queryAllowed: (id) => runtime.queryAllowed(id),
+    commandVisible: barCommandVisible(barProps, runtime.scope),
     formDialog: runtime.formDialog ? {
       hasRecord: runtime.formDialog.hasRecord, recordLoading: runtime.formDialog.recordLoading, recordFailed: runtime.formDialog.recordFailed,
       open: () => latest.current.formDialog?.open(document.activeElement instanceof HTMLElement ? document.activeElement : null),
@@ -1368,7 +1375,8 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       },
     };
   }
-  // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır.
+  // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır. Gizli komutun (`hiddenCommands` / `commandWhen`)
+  // `run`'ı yoktur: gizli Aç'ta satıra çift tıklama / Enter, gizli Yeni'de pencere içi F2 bir şey yapmaz.
   runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
   runtime.openCommand.current = commands.open?.run && !commands.open.disabledReason ? commands.open.run : null;
   usePageCommands(commands);
@@ -1413,9 +1421,6 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
   const dialogById = useMemo(() => Object.fromEntries((isV2 ? components : []).filter((component) => component.type === "dialog").map((dialog) => [dialog.id, dialog])), [isV2, components]);
   const dialogIds = useMemo(() => new Set(Object.keys(dialogById)), [dialogById]);
-  // Eylemi olan düğme (sorgu, dizi, pencere, iş akışı) İşlemler menüsüne taşınır; eylemsiz düğme sayfada kalır.
-  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds) !== null)
-    : new Set<string>()), [bar, flat, queryById, dialogIds]);
   const dialogOwned = useMemo(() => (isV2 ? dialogOwnedIds(components) : new Set<string>()), [isV2, components]);
   const rowOwned = useMemo(() => (isV2 ? rowActionIds(flat) : new Set<string>()), [isV2, flat]);
   const buttonById = useMemo(() => Object.fromEntries(flat.filter((component) => component.type === "button").map((button) => [button.id, button])), [flat]);
@@ -1724,6 +1729,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const currentScope = () => scopeRef.current;
+  // Eylemi olan düğme (sorgu, dizi, pencere, iş akışı) İşlemler menüsüne taşınır; eylemsiz düğme sayfada kalır. İşlemler menüsü
+  // gizliyse (`hiddenCommands` / `commandWhen`, kapsama bağlı) menü düğmeleri de sayfada kalır.
+  const moreHidden = !!bar && barCommandHidden(bar.props, "more", barCommandVisible(bar.props, scope));
+  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds) !== null, moreHidden)
+    : new Set<string>()), [bar, flat, queryById, dialogIds, moreHidden]);
   const loadIds = useMemo(() => queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id), [queryDefinitions]);
 
   // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır. ERP kataloğu yüklenemediyse
@@ -2657,9 +2667,12 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
 
   // İşlem çubuklu sayfa eski liste ekranlarının başlık satırını kullanır: başlık (ve isteğe bağlı kayıt sayısı) işlem çubuğunun
   // üstünde, çubuk başlığın hemen altındaki yuvaya (ActionBarSlot) taşınır; açıklama başlığın ipucudur (eski ekranda satır yok).
+  // `barLook` `title=false`: başlık satırı (ve onun çubuk yuvası, "Eski ekranda aç" bağlantısı) çizilmez; çubuk kabuğun kendi
+  // yerinde (sayfanın üstünde) kalır, iz (breadcrumb) kabuğun satırında bir kez görünür.
   const titleCount = bar ? pageTitleCount(bar.props.titleCount, scope) : null;
+  const showTitle = !!bar && parseBarLook(bar.props.barLook)?.title !== false;
   return <div className="tenant-custom-page-content" ref={contentRef}>
-    {bar && <div className="list-v2 tenant-custom-page-title">
+    {showTitle && <div className="list-v2 tenant-custom-page-title">
       <ListPageHeader title={pageTitle || page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
     </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}

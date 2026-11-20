@@ -32,6 +32,7 @@ internal static class TenantCustomPageSchema
       "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals",
       "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts",
       "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "hidden",
+      "hiddenCommands", "commandWhen", "barLook",
       // Proje 2 Faz A: conditions, tabs, lookup, server paging and input validation.
       "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab",
       "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
@@ -40,7 +41,7 @@ internal static class TenantCustomPageSchema
       // Proje 2 Faz B: save sequences, row actions, editable grids, custom fields, dialogs, images and change tracking.
       "saveSequence", "stopOnError", "sequenceWhen", "rowActions", "emptyText", "limit", "promptLabel", "promptRequired", "dialogId",
       "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
-      "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit",
+      "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "backdropClose", "height", "fit",
       "recordKey", "trackChanges",
       // Proje 4: the actionBar's record dialog (Yeni / Aç).
       "formDialog",
@@ -70,7 +71,17 @@ internal static class TenantCustomPageSchema
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
-      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh" };
+      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook" };
+    private static readonly string[] BarCommandIds = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"];
+    /// <summary>actionBar <c>barLook</c> "anahtar=değer" öğeleri: anahtar başına izin verilen değerler (renkler #RRGGBB).</summary>
+    private static readonly Dictionary<string, string[]?> BarLookValues = new(StringComparer.Ordinal)
+    {
+        ["align"] = ["start", "center", "end"], ["density"] = ["compact", "normal", "wide"], ["sticky"] = ["true", "false"],
+        ["separators"] = ["true", "false"], ["size"] = ["sm", "md", "lg"], ["style"] = ["outline", "solid", "plain"],
+        ["content"] = ["both", "text", "icon"], ["unbound"] = ["dim", "hide"], ["hints"] = ["true", "false"],
+        ["border"] = ["none", "bottom", "box"], ["radius"] = ["sharp", "soft", "round"], ["title"] = ["true", "false"],
+        ["accent"] = null, ["background"] = null,
+    };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
     private const string FormDialogTargetText = "'formDialog' sayfadaki bir pencere kimliği olmalıdır: ";
     private const int MaxMoreButtons = 10;
@@ -780,8 +791,61 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
+        if (!ValidateBarAppearance(props, context, out error)) return false;
         return ValidateBarCommands(props, context, out error) && ValidateSaveQueries(props, context, out error);
     }
+
+    /// <summary>
+    /// actionBar görünümü: <c>hiddenCommands</c> (çubukta gizlenen komutlar), <c>commandWhen</c> ("komut=koşul": koşul
+    /// yanlışsa komut ERP'de gizlenir; kökler visibleWhen gibi denetlenir) ve <c>barLook</c> ("anahtar=değer").
+    /// </summary>
+    private static bool ValidateBarAppearance(JsonElement props, Context context, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("hiddenCommands", out var hidden))
+        {
+            var ids = StringItems(hidden);
+            if (ids is null || ids.Count is < 1 or > 9 || ids.Any(id => !BarCommandIds.Contains(id)) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+            { error = $"'hiddenCommands' 1–9 farklı komut içermelidir: {string.Join(", ", BarCommandIds)}."; return false; }
+        }
+        if (props.TryGetProperty("commandWhen", out var when))
+        {
+            var items = StringItems(when);
+            if (items is null || items.Count is < 1 or > 9)
+            { error = "'commandWhen' 1–9 adet komut=koşul öğesi içermelidir."; return false; }
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in items)
+            {
+                var at = item.IndexOf('=');
+                var id = at > 0 ? item[..at] : "";
+                if (!BarCommandIds.Contains(id) || !seen.Add(id) || item.Length > 320)
+                { error = $"'commandWhen' öğesi komut=koşul biçiminde olmalı ve her komut bir kez geçmelidir: {item}"; return false; }
+                if (!PageConditionExpression.TryParse(item[(at + 1)..], out var roots, out var reason))
+                { error = $"'commandWhen' koşulu geçersiz ({id}): {reason}"; return false; }
+                context.PendingConditionRoots.Add(("commandWhen", roots));
+            }
+        }
+        if (props.TryGetProperty("barLook", out var look))
+        {
+            var items = StringItems(look);
+            if (items is null || items.Count is < 1 or > 14)
+            { error = "'barLook' 1–14 adet anahtar=değer öğesi içermelidir."; return false; }
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in items)
+            {
+                var at = item.IndexOf('=');
+                var key = at > 0 ? item[..at] : "";
+                var value = at > 0 ? item[(at + 1)..] : "";
+                if (!BarLookValues.TryGetValue(key, out var allowed) || !seen.Add(key) || (allowed is null ? !IsHexColor(value) : !allowed.Contains(value)))
+                { error = $"'barLook' öğesi geçersiz: {item}"; return false; }
+            }
+        }
+        return true;
+    }
+
+    private static List<string>? StringItems(JsonElement list) =>
+        list.ValueKind == JsonValueKind.Array && list.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(x.GetString()))
+            ? list.EnumerateArray().Select(x => x.GetString()!).ToList() : null;
 
     /// <summary>saveQuery (actionBar, dialog) and deleteQuery (actionBar): kinds; the ids are kept for the Faz B grid-iteration rule.</summary>
     private static bool ValidateSaveQueries(JsonElement props, Context context, out string? error)
@@ -1408,7 +1472,7 @@ internal static class TenantCustomPageSchema
         ["maxRows"] = ["editableGrid"], ["addLabel"] = ["editableGrid"], ["fixedRowLabel"] = ["editableGrid"],
         ["matrixCode"] = ["editableGrid"], ["matrixName"] = ["editableGrid"],
         ["definitionsQuery"] = ["customFieldsBlock"], ["valuesQuery"] = ["customFieldsBlock"],
-        ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"],
+        ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"], ["backdropClose"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
         ["closeInput"] = ["card"],
@@ -1675,7 +1739,10 @@ internal static class TenantCustomPageSchema
             return Fail("'presentation' dialog veya drawer olmalıdır.", out error);
         if (props.TryGetProperty("saveLabel", out var saveLabel) && !IsStaticTextUpTo(saveLabel, 40))
             return Fail("'saveLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        foreach (var key in new[] { "closeOnSave", "resetOnOpen" })
+        // 'size' is a shared prop (SafeProps); on a dialog it picks the window / drawer width.
+        if (props.TryGetProperty("size", out _) && StringOf(props, "size") is not ("sm" or "md" or "lg" or "full"))
+            return Fail("'size' sm, md, lg veya full olmalıdır.", out error);
+        foreach (var key in new[] { "closeOnSave", "resetOnOpen", "backdropClose" })
             if (props.TryGetProperty(key, out var flag) && !IsBool(flag)) { error = $"'{key}' true veya false olmalıdır."; return false; }
         context.PendingDialogContains.Add((id, ids));
         return true;
