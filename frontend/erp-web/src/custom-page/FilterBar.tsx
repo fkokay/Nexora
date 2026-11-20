@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { Search } from "lucide-react";
 import "../list-page/list-page-v2.css";
+import { SearchableSelect } from "./SearchableSelect";
 import { filterChips, isRange, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./filterBarModel";
 
 /**
@@ -54,6 +55,13 @@ export function FilterBar({ search, values, filters, style, searchInputId, onSea
           value={range.min} onChange={(event) => set("min", event.target.value)} />
         <input type={type} aria-label={`${filter.label} ${filter.kind === "date" ? "bitiş" : "en çok"}`} placeholder={filter.kind === "date" ? "bitiş" : "en çok"}
           value={range.max} onChange={(event) => set("max", event.target.value)} />
+      </div>;
+    }
+    if (filter.kind === "select" && filter.searchable) {
+      // Aranabilir seçim (`searchable` bayrağı): yazarak süzülen açılır liste; "Tümü" boş değerdir.
+      return <div className="tenant-page-input tenant-page-input-lookup tenant-page-filter-searchable">
+        <SearchableSelect inputId={id} label={inPopover ? "" : filter.label} ariaLabel={filter.label} value={text} choices={filter.choices} emptyLabel="Tümü"
+          onChange={(next) => onChange(filter.key, next || undefined)} />
       </div>;
     }
     if (filter.kind === "select") {

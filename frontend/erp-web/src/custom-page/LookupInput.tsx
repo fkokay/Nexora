@@ -66,7 +66,7 @@ export function lookupOptionsWithValue(props: Record<string, unknown>, state: Qu
  * Arama kutusu (combobox). Seçimde etiket saklanır; değer dışarıdan değişirse (varsayılan, setInput) eşleşen seçeneğin
  * etiketi, eşleşme yoksa ham değer gösterilir; değer hiçbir zaman seçeneklere göre temizlenmez.
  */
-export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected, appearance = "search" }: {
+export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected, appearance = "search", ariaLabel }: {
   inputId: string; label: string; raw: string; onChange: (value: string, row: Record<string, unknown> | null, label: string) => void;
   onSearch: (text: string) => void; options: LookupOption[];
   loading: boolean; error?: string; allowClear: boolean; disabled: boolean; placeholder: string;
@@ -77,6 +77,8 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
    * liste açılır, odakta metin seçilir (yazmak aramayı başlatır). Boş değerli seçenek (ör. "Tüm depolar") varsa ✕ çizilmez.
    */
   appearance?: "search" | "select";
+  /** Etiket çizilmediğinde (ör. "Daha fazla süzgeç" panelinde) girişin erişilebilir adı. */
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   // Yazılan arama metni; null iken kutuda seçili etiket görünür.
@@ -128,7 +130,7 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   return <div className={`tenant-page-lookup${isSelect ? " is-select" : ""}`}>
     {label && <label htmlFor={inputId}><span>{label}</span></label>}
     <div className="tenant-page-lookup-control">
-      <input id={inputId} type="text" role="combobox" autoComplete="off" aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
+      <input id={inputId} type="text" role="combobox" autoComplete="off" aria-label={!label && ariaLabel ? ariaLabel : undefined} aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
         aria-activedescendant={active} disabled={disabled} placeholder={placeholder} value={text ?? display}
         onChange={(event) => { setText(event.target.value); setOpen(true); setHighlight(-1); onSearch(event.target.value); }}
         onClick={() => { if (!disabled) setOpen(true); }}
@@ -138,7 +140,7 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
       {showClear && <button type="button" className="tenant-page-lookup-clear" aria-label="Temizle"
         onMouseDown={(event) => event.preventDefault()} onClick={clear}><X size={14} aria-hidden="true" /></button>}
       {/* Listeye (kaydırma çubuğu dahil) basmak girişi bulanıklaştırıp listeyi kapatmasın. */}
-      {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || undefined} onMouseDown={(event) => event.preventDefault()}>
+      {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || ariaLabel || undefined} onMouseDown={(event) => event.preventDefault()}>
         {loading ? <li className="tenant-page-lookup-state" role="status">Aranıyor…</li>
           : options.length === 0 ? <li className="tenant-page-lookup-state" role="status">Sonuç bulunamadı.</li>
             : options.map((option, index) => <li key={`${index}-${option.value}`} id={`${inputId}-option-${index}`} role="option"

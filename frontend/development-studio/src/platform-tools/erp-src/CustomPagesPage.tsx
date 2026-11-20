@@ -173,7 +173,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // İşlem Çubuğu İşlemler › "CSV olarak dışa aktar" (Excel bağlıyken; kapalıysa false yazılır).
   "exportCsv",
   // Süzgeç alanı: bağlı tablonun arama kutusu ve süzgeçleri.
-  "search", "searchPlaceholder", "searchColumns", "searchParam", "filters"]);
+  "search", "searchPlaceholder", "searchColumns", "searchParam", "filters",
+  // Aranabilir açılır liste ve ilk seçenek varsayılanı.
+  "searchable", "defaultFirst"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -181,6 +183,15 @@ const bindableKeys = new Set(["text", "title", "description", "label", "value", 
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
+/**
+ * Giriş türü değişince türe özgü özelliklerin sıfırlanması: arama kutusu özellikleri (sabit seçenekler ve açıklama sütunu açılır
+ * listede de geçerlidir, korunur), `searchable` yalnız açılır listede, `defaultFirst` açılır liste ve arama kutusunda kalır.
+ */
+const inputTypeReset = (value: string, props: Record<string, PropValue>): Record<string, PropValue | undefined> => ({
+  ...(value !== "lookup" ? { ...lookupReset, ...(value === "select" ? { staticOptions: props.staticOptions, optionDescriptionColumn: props.optionDescriptionColumn } : {}) } : {}),
+  ...(value !== "select" ? { searchable: undefined } : {}),
+  ...(value !== "select" && value !== "lookup" ? { defaultFirst: undefined } : {}),
+});
 const LOOKUP_HELP = "Sunucuda aramak için sorgunun arama parametresini {{<ad>.search}} ile bağlayın; bağlamazsanız sonuçlar tarayıcıda süzülür.";
 const STATIC_OPTION = /^[^=]{0,128}=[^=]{1,60}$/;
 const MAX_STATIC_OPTIONS = 20;
@@ -2245,8 +2256,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const preview = typeof inputProps.optionsQuery === "string" ? queryPreviews[inputProps.optionsQuery] : undefined;
     const valueColumn = String(inputProps.optionValueColumn || "") || preview?.columns[0]?.code || "";
     const labelColumn = String(inputProps.optionLabelColumn || "") || valueColumn;
+    // Açılır listede açıklama sütunu ERP'deki gibi "etiket · açıklama" olur (arama kutusunda ayrı satırdadır).
+    const descriptionColumn = inputProps.inputType === "select" ? String(inputProps.optionDescriptionColumn || "") : "";
     const show = (value: unknown) => value == null ? "" : String(value);
-    return { ready: !!preview, rows: (preview?.rows ?? []).map((row) => ({ value: show(row[valueColumn]), label: show(row[labelColumn]) || show(row[valueColumn]), row })) };
+    return { ready: !!preview, rows: (preview?.rows ?? []).map((row) => {
+      const label = show(row[labelColumn]) || show(row[valueColumn]);
+      const description = descriptionColumn ? show(row[descriptionColumn]).trim() : "";
+      return { value: show(row[valueColumn]), label: description ? `${label} · ${description}` : label, row };
+    }) };
   };
   /** `inline`: tek satırlık süzgeç (FormCard `layout: "inline"`) içinde ERP görünümü: kapalı açılır kutu, düğme gibi onay kutusu. */
   const renderInput = (component: PageComponent, style: CSSProperties, inline = false) => {
@@ -2257,8 +2274,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const sample = (raw: unknown) => { const text = String(raw ?? ""); return text.includes("{{") ? interpolate(text, designScope()) || text : text; };
     const defaultShown = sample(props.defaultValue);
     const placeholderShown = sample(props.placeholder);
+    // İlk seçenek varsayılanı (`defaultFirst`): varsayılan değer boşsa tuvalde ilk örnek seçenek görünür (ERP'deki gibi).
+    const firstShown = (labels: string[]) => props.defaultFirst === true && !defaultShown ? labels.find(Boolean) ?? "" : "";
+    const selectLabels = inputType === "select" ? [...parseStaticOptions(props.staticOptions).filter((option) => option.value !== "").map((option) => option.label),
+      ...optionRows(props).rows.filter((option) => option.value !== "").map((option) => option.label)] : [];
     const control = inputType === "checkbox" ? <input type="checkbox" tabIndex={-1} readOnly checked={/^(true|1|evet)$/i.test(String(props.defaultValue ?? ""))}/>
-      : inputType === "select" ? <select tabIndex={-1}><option>{optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin"}</option></select>
+      // Aranabilir açılır liste ERP'de değer metni ve ⌄ taşıyan kutudur (arama kutusunun kapalı görünümü).
+      : inputType === "select" && props.searchable === true
+        ? <LookupPreview placeholder="Seçin" value={firstShown(selectLabels) || defaultShown} options={[]} ready compact/>
+      : inputType === "select" ? <select tabIndex={-1}><option>{firstShown(selectLabels) || (optionsQuery ? `Seçenekler: ${optionsQuery.name}` : "Seçin")}</option></select>
         : inputType === "lookup" ? (() => {
           // Sabit seçenekler önce, ardından seçenek sorgusunun önizleme satırları (etiket ve açıklama sütunu).
           const { ready, rows } = optionRows(props);
@@ -2269,7 +2293,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           ];
           // ERP'deki gibi kapalı açılır kutu: varsayılan değer sabit bir seçeneğin değeriyse etiketi gösterilir (ör. Receipt → Giriş).
           const fixed = parseStaticOptions(props.staticOptions).find((option) => option.value === String(props.defaultValue ?? ""));
-          return <LookupPreview placeholder={placeholderShown} value={fixed?.label ?? defaultShown} options={options} ready={ready || !optionsQuery} compact/>;
+          const first = props.defaultFirst === true && !defaultShown
+            ? [...parseStaticOptions(props.staticOptions).filter((option) => option.value !== "").map((option) => option.label), ...rows.filter((option) => option.value !== "").map((option) => option.label)].find(Boolean) ?? "" : "";
+          return <LookupPreview placeholder={placeholderShown} value={fixed?.label ?? (first || defaultShown)} options={options} ready={ready || !optionsQuery} compact/>;
         })()
         : <input tabIndex={-1} readOnly placeholder={placeholderShown} value={defaultShown}/>;
     if (inline && inputType === "checkbox") return <div key={component.id} className="pd-binding-preview-input is-checkbox is-toggle" style={style}><span className="pd-inline-toggle">{String(props.label || component.name)}</span></div>;
@@ -2438,7 +2464,20 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             : dataType === "boolean" || dataType === "bool" ? "toggle" : ["decimal", "int", "integer", "number"].includes(dataType) ? "range" : dataType === "date" ? "date" : "text";
           return spec.param && (kind === "range" || kind === "date") ? "text" : kind;
         };
-        const fieldOf = (spec: ReturnType<typeof parseFilterEntries>[number]) => ({ key: spec.key, label: spec.label || headings[spec.key] || columns.find((column) => column.code === spec.key)?.label || spec.key, kind: kindOf(spec) });
+        // İlk seçenek varsayılanlı seçim süzgeci tuvalde seçenek sorgusunun ilk örnek satırıyla görünür (yoksa "Tümü").
+        const firstSample = (spec: ReturnType<typeof parseFilterEntries>[number]) => {
+          if (!spec.defaultFirst || !spec.options) return undefined;
+          const optionPreview = queryPreviews[spec.options.query];
+          const row = optionPreview?.rows[0];
+          if (!row) return undefined;
+          const keys = Object.keys(row);
+          const text = (value: unknown) => value == null || typeof value === "object" ? "" : String(value);
+          const valueColumn = spec.options.valueColumn ?? keys[0];
+          const label = text(row[spec.options.labelColumn ?? spec.options.valueColumn ?? keys[1] ?? valueColumn]) || text(row[valueColumn]);
+          const description = spec.options.descriptionColumn ? text(row[spec.options.descriptionColumn]).trim() : "";
+          return description ? `${label} · ${description}` : label || undefined;
+        };
+        const fieldOf = (spec: ReturnType<typeof parseFilterEntries>[number]) => ({ key: spec.key, label: spec.label || headings[spec.key] || columns.find((column) => column.code === spec.key)?.label || spec.key, kind: kindOf(spec), sample: firstSample(spec) });
         return <FilterBarPreview key={component.id} style={style} search={props.search === true ? String(props.searchPlaceholder || "") : null}
           row={specs.filter((spec) => spec.place === "row").map(fieldOf)} moreCount={specs.filter((spec) => spec.place === "more").length}
           empty={table ? "Süzgeç alanı: Ayarlar'dan süzgeç seçin" : "Süzgeç alanı: bir tablo seçin"} />;
@@ -3030,8 +3069,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           patchComponent(input.id, { minChars: clamped === 1 ? undefined : clamped });
         }}/></label>
       <label className="pd-check"><input type="checkbox" checked={props.allowClear === true} onChange={(event) => patchComponent(input.id, { allowClear: event.target.checked ? true : undefined })}/>Temizlenebilir</label>
+      {defaultFirstField(input)}
     </>;
   };
+  // Açılır liste ve arama kutusunun ilk seçenek varsayılanı: varsayılan değer (sayfa parametresi bağlaması dahil) boşken.
+  const defaultFirstField = (input: PageComponent) => <>
+    <label className="pd-check"><input type="checkbox" checked={input.props.defaultFirst === true} onChange={(event) => patchComponent(input.id, { defaultFirst: event.target.checked ? true : undefined })}/>İlk seçenekle başlar</label>
+    <small>Varsayılan değer boşsa seçenekler yüklenince ilk seçenek seçilir (ör. ilk aktif depo; sırayı ve süzmeyi sorgu belirler). Kullanıcının seçimi ezilmez.</small>
+  </>;
   // "Giriş" bölümünün Doğrulama alanları (türe göre). İstemci denetimi kolaylıktır; sunucu doğrulaması her zaman çalışır.
   const renderValidationFields = (input: PageComponent) => {
     const props = input.props;
@@ -3368,7 +3413,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 ...(event.target.value === "select" || event.target.value === "lookup" ? { inputType: event.target.value } : { inputType: event.target.value, optionsQuery: undefined, optionLabelColumn: undefined, optionValueColumn: undefined }),
                 // Arama kutusuna özgü özellikler başka türde sunucuda reddedilir.
                 // Sabit seçenekler açılır listede de geçerlidir; lookup ↔ select geçişinde korunur.
-                ...(event.target.value !== "lookup" ? { ...lookupReset, ...(event.target.value === "select" ? { staticOptions: selected.props.staticOptions } : {}) } : {}),
+                ...inputTypeReset(event.target.value, selected.props),
                 // Doğrulama özellikleri türe bağlıdır (sayı/tarih sınırı, metin uzunluğu…); tür değişince yalnız "Zorunlu" kalır.
                 ...(event.target.value !== String(selected.props.inputType || "text") ? validationReset : {}),
               })}>{inputTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -3390,14 +3435,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>))}
             {selected.type === "input" && section("input", "Giriş", <>
               {selected.props.inputType === "select" && <>
-                <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
-                <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined })}/>
-                {typeof selected.props.optionsQuery === "string" && (["optionValueColumn", "optionLabelColumn"] as const).map((key) => {
+                <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
+                <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}/>
+                {typeof selected.props.optionsQuery === "string" && (["optionValueColumn", "optionLabelColumn", "optionDescriptionColumn"] as const).map((key) => {
                   const columns = queryPreviews[String(selected.props.optionsQuery)]?.columns ?? [];
                   const chosen = String(selected.props[key] || "");
-                  return <label key={key} className="pd-field">{key === "optionValueColumn" ? "Değer sütunu" : "Görünen sütun"}
+                  return <label key={key} className="pd-field">{key === "optionValueColumn" ? "Değer sütunu" : key === "optionLabelColumn" ? "Görünen sütun" : "Açıklama sütunu"}
+                    {key === "optionDescriptionColumn" && <small>ERP'de “görünen · açıklama” olarak çizilir (ör. D01 · Merkez).</small>}
                     {columns.length > 0
-                      ? <select value={chosen} onChange={(event) => patchComponent(selected.id, { [key]: event.target.value || undefined })}><option value="">{key === "optionValueColumn" ? "İlk sütun" : "Değer sütunu"}</option>{columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}{chosen && !columns.some((column) => column.code === chosen) && <option value={chosen}>{chosen}</option>}</select>
+                      ? <select value={chosen} onChange={(event) => patchComponent(selected.id, { [key]: event.target.value || undefined })}><option value="">{key === "optionValueColumn" ? "İlk sütun" : key === "optionLabelColumn" ? "Değer sütunu" : "Açıklama yok"}</option>{columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}{chosen && !columns.some((column) => column.code === chosen) && <option value={chosen}>{chosen}</option>}</select>
                       : <input value={chosen} maxLength={128} spellCheck={false} placeholder="Sütun adı" onChange={(event) => patchComponent(selected.id, { [key]: event.target.value.trim() || undefined })}/>}
                   </label>;
                 })}
@@ -3407,6 +3453,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <StaticOptionsField key={selected.id} value={staticOptions} onChange={(next) => patchComponent(selected.id, { staticOptions: next.length > 0 ? next : undefined })}/>
                     {staticOptions.some((entry) => !STATIC_OPTION.test(entry)) && <small className="pd-query-warning">'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır.</small>}</label>;
                 })()}
+                <label className="pd-check"><input type="checkbox" checked={selected.props.searchable === true} onChange={(event) => patchComponent(selected.id, { searchable: event.target.checked ? true : undefined })}/>Yazarak aranır</label>
+                <small>Açılır liste odakta yazılan metinle süzülür (eski “kod · ad” depo seçicisi gibi).</small>
+                {defaultFirstField(selected)}
               </>}
               {selected.props.inputType === "lookup" && renderLookupFields(selected)}
               {renderValidationFields(selected)}

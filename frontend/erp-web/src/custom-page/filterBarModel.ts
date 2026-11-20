@@ -4,12 +4,20 @@ import type { ColumnFormat } from "./cellFormat";
  * Süzgeç alanı (filterBar) modeli. `filters` öğeleri `anahtar|tür|yer|parametre|Etiket|seçenekler` biçimindedir (sunucudaki
  * TenantCustomPageSchema.ValidateFilterBar ile aynı): tür auto/text/range/date/select/toggle, yer row/more; parametre verilmişse
  * değer `{{<ad>.<parametre>}}` bağlamasıyla listenin sorgusuna gider (sunucuda süzülür), verilmemişse yüklenen satırlara
- * uygulanır. Seçenekler `sorgu[:değerSütunu[:etiketSütunu]]`.
+ * uygulanır. Seçenekler `sorgu[:değerSütunu[:etiketSütunu[:açıklamaSütunu]]]`; açıklama verilirse seçenek "etiket · açıklama"
+ * olarak çizilir (eski depo seçicilerinin "kod · ad" görünümü, ör. `depolar:id:code:name`). İsteğe bağlı yedinci bölüm virgülle
+ * bayraklardır (yalnız seçim süzgecinde): `searchable` açılır listeyi yazarak aranır yapar, `defaultFirst` sayfa parametresi ya
+ * da saklanan değer yokken seçenekler yüklenince ilk (boş olmayan) seçeneği seçer. Ör.
+ * `warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable,defaultFirst`.
  */
 export type FilterKind = "text" | "range" | "date" | "select" | "toggle";
 export type FilterSpec = {
   key: string; kind: FilterKind | "auto"; place: "row" | "more"; param?: string; label?: string;
-  options?: { query: string; valueColumn?: string; labelColumn?: string };
+  options?: { query: string; valueColumn?: string; labelColumn?: string; descriptionColumn?: string };
+  /** Yazarak aranan açılır liste (`searchable` bayrağı). */
+  searchable?: boolean;
+  /** Değer yokken ilk seçenek seçilir (`defaultFirst` bayrağı). */
+  defaultFirst?: boolean;
 };
 export type RangeValue = { min: string; max: string };
 export type FilterValue = string | boolean | RangeValue;
@@ -21,7 +29,15 @@ export type ResolvedFilter = FilterSpec & { kind: FilterKind; label: string; opt
 
 const KINDS = new Set(["auto", "text", "range", "date", "select", "toggle"]);
 const PARAM = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-const OPTIONS = /^([A-Za-z0-9_-]{1,64})(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?$/;
+const OPTIONS = /^([A-Za-z0-9_-]{1,64})(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?$/;
+const FLAGS = new Set(["searchable", "defaultFirst"]);
+/** Bayrak bölümü: virgülle ayrılmış bilinen, yinelenmeyen adlar; bozuksa null (öğe atlanır). */
+const parseFlags = (text: string): Set<string> | null => {
+  if (text === "") return new Set();
+  const names = text.split(",");
+  const set = new Set(names);
+  return names.every((name) => FLAGS.has(name)) && set.size === names.length ? set : null;
+};
 export const MAX_FILTERS = 20;
 export const EMPTY_FILTER_VALUES: FilterBarValues = { search: "", values: {} };
 
@@ -33,17 +49,22 @@ export function parseFilterEntries(value: unknown): FilterSpec[] {
   for (const item of value.slice(0, MAX_FILTERS)) {
     if (typeof item !== "string") continue;
     const parts = item.split("|");
-    if (parts.length < 3 || parts.length > 6) continue;
-    const [key, kind, place, param = "", label = "", options = ""] = parts;
+    if (parts.length < 3 || parts.length > 7) continue;
+    const [key, kind, place, param = "", label = "", options = "", flagText = ""] = parts;
     if (!key || key.length > 128 || key.includes("=") || !KINDS.has(kind) || (place !== "row" && place !== "more") || seen.has(key)) continue;
     if (param && !PARAM.test(param)) continue;
+    const flags = parseFlags(flagText);
+    if (!flags || (flags.size > 0 && kind !== "select" && kind !== "auto")) continue;
     seen.add(key);
     const source = options ? OPTIONS.exec(options) : null;
     result.push({
       key, kind: kind as FilterSpec["kind"], place,
       ...(param && kind !== "range" && kind !== "date" ? { param } : {}),
       ...(label.trim() ? { label: label.trim() } : {}),
-      ...(source ? { options: { query: source[1], ...(source[2] ? { valueColumn: source[2] } : {}), ...(source[3] ? { labelColumn: source[3] } : {}) } } : {}),
+      ...(source ? { options: { query: source[1], ...(source[2] ? { valueColumn: source[2] } : {}), ...(source[3] ? { labelColumn: source[3] } : {}),
+        ...(source[4] ? { descriptionColumn: source[4] } : {}) } } : {}),
+      ...(flags.has("searchable") ? { searchable: true } : {}),
+      ...(flags.has("defaultFirst") ? { defaultFirst: true } : {}),
     });
   }
   return result;
@@ -51,8 +72,9 @@ export function parseFilterEntries(value: unknown): FilterSpec[] {
 
 /** Bir öğenin metni (Studio aynı biçimi yazar); boş kalan sondaki bölümler atılır. */
 export function formatFilterEntry(spec: FilterSpec): string {
-  const options = spec.options ? [spec.options.query, spec.options.valueColumn, spec.options.labelColumn].filter(Boolean).join(":") : "";
-  const parts = [spec.key, spec.kind, spec.place, spec.param ?? "", spec.label ?? "", options];
+  const options = spec.options ? [spec.options.query, spec.options.valueColumn, spec.options.labelColumn, spec.options.descriptionColumn].filter(Boolean).join(":") : "";
+  const flags = [spec.searchable ? "searchable" : "", spec.defaultFirst ? "defaultFirst" : ""].filter(Boolean).join(",");
+  const parts = [spec.key, spec.kind, spec.place, spec.param ?? "", spec.label ?? "", options, flags];
   while (parts.length > 3 && parts[parts.length - 1] === "") parts.pop();
   return parts.join("|");
 }
@@ -217,7 +239,10 @@ export function filterChoices(filter: FilterSpec, source: { optionRows?: Record<
       const raw = valueColumn ? row[valueColumn] : undefined;
       if (raw == null || typeof raw === "object") return [];
       const label = row[filter.options!.labelColumn ?? filter.options!.valueColumn ?? keys[1] ?? valueColumn];
-      return [{ value: String(raw), label: label == null || typeof label === "object" ? String(raw) : String(label), row }];
+      const text = label == null || typeof label === "object" ? String(raw) : String(label);
+      const description = filter.options!.descriptionColumn ? row[filter.options!.descriptionColumn] : undefined;
+      const extra = description == null || typeof description === "object" ? "" : String(description).trim();
+      return [{ value: String(raw), label: extra ? `${text} · ${extra}` : text, row }];
     }).slice(0, 200);
   }
   if (source.valueLabels && Object.keys(source.valueLabels).length > 0) {
@@ -276,10 +301,38 @@ export function presetFromPageParams(values: FilterBarValues, filters: FilterSpe
 }
 const MAX_PRESET_LENGTH = 200;
 
-export function saveFilterValues(key: string, values: FilterBarValues) {
+/**
+ * Boş değerler saklanmaz; yalnız `keepEmpty` anahtarlarındaki boş metin (ilk seçenek varsayılanlı süzgeçte açıkça seçilen "Tümü")
+ * yazılır, böylece yeniden açılışta varsayılan o seçimi ezmez.
+ */
+export function saveFilterValues(key: string, values: FilterBarValues, keepEmpty: readonly string[] = []) {
   try {
-    const kept = Object.fromEntries(Object.entries(values.values).filter(([, value]) => !isEmptyFilterValue(value)));
+    const kept = Object.fromEntries(Object.entries(values.values).filter(([name, value]) => (value === "" && keepEmpty.includes(name)) || !isEmptyFilterValue(value)));
     if (!values.search && Object.keys(kept).length === 0) localStorage.removeItem(key);
     else localStorage.setItem(key, JSON.stringify({ search: values.search, values: kept }));
   } catch { /* depolama kapalı ya da dolu: süzgeçler yalnız bu oturumda kalır */ }
+}
+
+/** İlk (boş olmayan) seçenek; seçenek yoksa (henüz yüklenmedi) null. Sabit "Tümü" benzeri boş değerli seçenekler atlanır. */
+export const firstChoiceValue = (choices: readonly { value: string }[]): string | null => choices.find((choice) => choice.value !== "")?.value ?? null;
+
+/**
+ * İlk seçenek varsayılanı (`defaultFirst`): değeri olmayan (anahtarı hiç bulunmayan) seçim süzgeçlerine seçenekler yüklenince ilk
+ * seçeneği yazar. Anahtarın varlığı kullanıcının, sayfa parametresinin ya da saklanan değerin seçimidir — açık "Tümü" boş metin
+ * olarak tutulur ve ezilmez. `applied` süzgeç başına bir kez uygulanmayı sağlar (seçenek sorgusu yeniden çalışınca değer sıçramaz);
+ * değeri olan ya da seçeneği gelen süzgeç işaretlenir. Değişiklik yoksa aynı nesne döner.
+ */
+export function applyFirstChoices(values: FilterBarValues, filters: ResolvedFilter[], applied: Set<string>, prefix = ""): FilterBarValues {
+  let next: Record<string, FilterValue> | null = null;
+  for (const filter of filters) {
+    const mark = `${prefix}${filter.key}`;
+    if (!filter.defaultFirst || filter.kind !== "select" || applied.has(mark)) continue;
+    if (Object.prototype.hasOwnProperty.call(values.values, filter.key)) { applied.add(mark); continue; }
+    const first = firstChoiceValue(filter.choices);
+    if (first === null) continue;
+    applied.add(mark);
+    next ??= { ...values.values };
+    next[filter.key] = first;
+  }
+  return next ? { ...values, values: next } : values;
 }
