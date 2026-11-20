@@ -204,6 +204,28 @@ describe('LookupInput', () => {
   });
 });
 
+describe('LookupInput klavye ve sabit liste', () => {
+  const opts: LookupOption[] = [{ value: 'a', label: 'Alfa', description: 'A1', row: null }, { value: 'b', label: 'Beta', description: '', row: null }];
+  it('aranan metinde Enter vurgu yoksa ilk sonucu seçer; aramasız Enter seçmez', () => {
+    const onChange = vi.fn();
+    renderPlain(<LookupInput inputId='x' label='' ariaLabel='Seç' raw='' onChange={onChange} onSearch={() => {}} options={opts} loading={false} allowClear disabled={false} placeholder='' />);
+    const input = screen.getByRole('combobox', { name: 'Seç' });
+    fireEvent.click(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: 'al' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('a', null, 'Alfa');
+  });
+  it('floating listeyi ekrana sabitler', () => {
+    renderPlain(<LookupInput inputId='y' label='' ariaLabel='Sabit' raw='' onChange={() => {}} onSearch={() => {}} options={opts} loading={false} allowClear disabled={false} placeholder='' floating />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Sabit' }));
+    const list = screen.getByRole('listbox');
+    expect(list.className).toContain('is-floating');
+    expect(list.style.position).toBe('fixed');
+  });
+});
+
 describe('lookupOptions', () => {
   const state = { rows: warehouses, rowCount: 3, columns, truncated: false, loading: false, error: '', ran: true };
   const props = { optionValueColumn: 'Kod', optionLabelColumn: 'Ad', staticOptions: ['=Tüm depolar', 'X=Dış depo'] };

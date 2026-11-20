@@ -435,7 +435,8 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-grid-table tr.is-fixed td { color: var(--nx-muted); font-weight: 600; }
 /* Seçim (lookup) hücresi: açılan liste tablonun kaydırma kabında kırpılmasın (liste açıkken kap taşmaya izin verir). */
 .tenant-page-grid-table td.tenant-page-grid-picker { min-width: 180px; }
-.tenant-page-grid .tenant-page-table-scroll:has(.tenant-page-lookup-list) { overflow: visible; }
+/* Seçim hücresinin listesi ekrana sabitlenir (LookupInput floating): pencere gövdesi ya da tablo kaydırması kesmez. */
+.tenant-page-lookup-list.is-floating { z-index: 1000; }
 .tenant-page-grid-table tr.is-removed td { opacity: .55; text-decoration: line-through; }
 .tenant-page-grid-table tr.is-removed td:nth-last-child(-n+2) { opacity: 1; text-decoration: none; }
 .tenant-page-grid-table td.is-invalid input { border-color: var(--nx-bad); }

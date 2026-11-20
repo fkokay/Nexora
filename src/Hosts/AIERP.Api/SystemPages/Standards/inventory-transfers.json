@@ -93,7 +93,7 @@
       { "id": "kalemlerBilgisi", "type": "text", "name": "kalemlerBilgisi",
         "props": { "text": "Kaynak ve hedef hareketler tek transfer kaydına bağlıdır." } },
       { "id": "kalemTablosu", "type": "dataTable", "name": "kalemTablosu",
-        "props": { "query": "kalemDetayi", "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false,
+        "props": { "title": "Transfer kalemleri", "query": "kalemDetayi", "width": 12, "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false,
                    "showExport": false, "showPivot": false, "showCsv": false, "showSelectedExport": false,
                    "columns": ["code", "name", "displayQuantity", "quantity", "fromStorageLocationCode", "toStorageLocationCode"],
                    "columnLabels": ["code=Stok kodu", "name=Stok adı", "displayQuantity=Miktar", "quantity=Ana birim miktarı",

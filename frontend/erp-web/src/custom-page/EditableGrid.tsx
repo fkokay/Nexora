@@ -55,7 +55,7 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
       if (column.rules.readOnly || !pickerFor) return <td key={column.code}>{(pickerLabel ? pickerLabel(column, value, draft) : value) || "—"}</td>;
       const picker = pickerFor(column, draft);
       return <td key={column.code} className={`tenant-page-grid-picker${message ? " is-invalid" : ""}`}>
-        <LookupInput inputId={inputId} label="" ariaLabel={label} raw={value} placeholder="" allowClear={!column.rules.required} disabled={disabled}
+        <LookupInput inputId={inputId} label="" ariaLabel={label} raw={value} placeholder="" allowClear={!column.rules.required} disabled={disabled} floating
           options={picker.options} loading={picker.loading} error={picker.error} selected={picker.selected}
           onChange={picker.onChange} onSearch={picker.onSearch} />
         {message && <small className="tenant-page-input-error">{message}</small>}
