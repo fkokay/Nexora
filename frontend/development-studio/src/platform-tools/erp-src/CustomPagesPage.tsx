@@ -927,6 +927,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Özellikler paneli kipi (bileşen türü başına hatırlanır) ve "Tüm ayarlar" penceresinde açık bileşen.
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [settingsTab, setSettingsTab] = useState("data");
+  // Başlıkta adı düzenlenen bileşen (kalem simgesi).
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
   const [focusId, setFocusId] = useState<string | null>(null);
   const suggestionsRef = useRef<BindingSuggestion[]>([]);
@@ -3276,7 +3278,26 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           <div className="pd-right-head"><History size={16}/><div><b>Sürüm geçmişi</b><small>Geri yükleme yayımlanmış sayfada yeni taslak, açık taslakta yeni revizyon oluşturur.</small></div><button type="button" className="pd-icon-button" aria-label="Kapat" onClick={() => setRightMode("inspector")}><X size={15}/></button></div>
           {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && systemAdmin && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
         </div> : selected ? <div className="pd-right-body">
-          <div className="pd-right-head"><SelectedIcon size={16}/><div><b>{titleFor(selected.type)}</b><small>{selected.id}</small></div><button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
+          <div className="pd-right-head pd-right-head-tools"><SelectedIcon size={16}/>
+            <div className="pd-right-title">
+              {editingNameId === selected.id
+                ? <input className="pd-binding-name" autoFocus value={selected.name ?? ""} maxLength={64} spellCheck={false} aria-label="Bileşen adı" placeholder="Ad (bağlamada kullanılır)"
+                    onChange={(event) => setComponentName(selected.id, event.target.value.trim())} onBlur={() => setEditingNameId(null)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === "Escape") setEditingNameId(null); }}/>
+                : <span className="pd-right-name"><b>{selected.name || summaryOf(selected)}</b>
+                  {canEdit && <button type="button" className="pd-icon-button" aria-label="Adı düzenle" title={`Ad: bağlamada kullanılır${requiredNameBase(selected.type) ? " (zorunlu)" : ""}`} onClick={() => setEditingNameId(selected.id)}><SquarePen size={12}/></button>}</span>}
+              <small>{titleFor(selected.type)} · {spanOf(selected)}/12</small>
+              {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
+            </div>
+            {canEdit && <span className="pd-right-actions">
+              <button type="button" className="pd-icon-button" aria-label="Yukarı taşı" title="Yukarı" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
+                onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={14}/></button>
+              <button type="button" className="pd-icon-button" aria-label="Aşağı taşı" title="Aşağı" disabled={!selectedCardLocation && !selectedInFocusOwner && selectedIndex >= definition.components.length - 1}
+                onClick={() => selectedCardLocation ? stepInCard(selected.id, 1) : selectedInFocusOwner ? stepInOwner(selected.id, 1) : moveComponent(selectedIndex, 1)}><ArrowDown size={14}/></button>
+              <button type="button" className="pd-icon-button" aria-label="Kopyala" title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : "Kopyala (Ctrl+D)"} disabled={selected.type === "actionBar"} onClick={() => duplicateComponent(selected.id)}><Copy size={14}/></button>
+              <button type="button" className="pd-icon-button danger" aria-label="Sil" title="Sil" onClick={() => removeComponent(selected.id)}><Trash2 size={14}/></button>
+            </span>}
+            <button type="button" className="pd-icon-button" aria-label="Seçimi kaldır" title="Sayfa ayarlarına dön (Esc)" onClick={() => setSelectedComponentId(null)}><X size={15}/></button></div>
           {selectedTabLocation && selectedTabOwner && <div className="pd-tab-location">
             <small>Konum: <button type="button" className="pd-link-button" onClick={() => setSelectedComponentId(selectedTabOwner.id)} title="Sekmeler bileşenini seç">{summaryOf(selectedTabOwner)}</button> › {selectedTabLabel}</small>
             {canEdit && <button type="button" className="pd-button small" onClick={() => detachFromTab(selected.id)} title="Bileşen sayfaya, kendi yerine geri alınır"><ArrowUpFromLine size={13}/>Sekmeden çıkar</button>}
@@ -3301,10 +3322,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
                 : <p className="pd-binding-note">Önce <button type="button" className="pd-link-button" onClick={() => setSettingsTab("data")}>Veri</button> sekmesinde listeyi bir sorguya ya da rapor kaynağına bağlayın.</p>}</div></section></SettingsPane> : null}>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {pane("name", <label className="pd-field">Ad<small>Bağlamada kullanılır{selected.type === "input" ? ", ör. {{ad.value}}" : selected.type === "dataTable" ? ", ör. {{ad.seciliSatir.Sutun}}" : selected.type === "editableGrid" ? ", ör. {{ad.satirlar}}" : selected.type === "customFieldsBlock" ? ", ör. {{ad.degerler}}" : selected.type === "dialog" ? ", ör. {{ad.acik}}" : ""}. {requiredNameBase(selected.type) ? "Zorunlu." : "İsteğe bağlı."}</small>
-              <input className="pd-binding-name" value={selected.name ?? ""} maxLength={64} spellCheck={false} placeholder={selected.type === "input" ? "gunEsigi" : selected.type === "dataTable" ? "izgara" : selected.type === "editableGrid" ? "tablo1" : selected.type === "customFieldsBlock" ? "ozelAlanlar1" : ""} onChange={(event) => setComponentName(selected.id, event.target.value.trim())}/>
-              {selected.name && nameProblem(selected.name, takenNames({ componentId: selected.id })) && <small className="pd-query-warning">{nameProblem(selected.name, takenNames({ componentId: selected.id }))}</small>}
-            </label>)}
             {(contentFields[selected.type].length > 0 || Object.keys(selected.props).some((key) => !managedKeys.has(key))) && pane("view", section("content", "İçerik", <>
               {selected.type === "input" && <>
               <label className="pd-field">Giriş türü<select value={String(selected.props.inputType || "text")} onChange={(event) => patchComponent(selected.id, {
@@ -3701,12 +3718,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
           </fieldset>
           </SettingsHost>
-          {canEdit && <div className="pd-inspector-footer">
-            <button type="button" className="pd-button small" disabled={selectedCardLocation ? selectedCardLocation.index <= 0 : selectedInFocusOwner ? selectedRefLocation!.index <= 0 : selectedIndex <= 0}
-              onClick={() => selectedCardLocation ? stepInCard(selected.id, -1) : selectedInFocusOwner ? stepInOwner(selected.id, -1) : moveComponent(selectedIndex, -1)}><ArrowUp size={13}/>Yukarı</button>
-            <button type="button" className="pd-button small" disabled={selected.type === "actionBar"} title={selected.type === "actionBar" ? "Sayfada yalnız bir İşlem Çubuğu olabilir" : undefined} onClick={() => duplicateComponent(selected.id)}><Copy size={13}/>Kopyala</button>
-            <button type="button" className="pd-button small danger" onClick={() => removeComponent(selected.id)}><Trash2 size={13}/>Sil</button>
-          </div>}
         </div> : <div className="pd-right-body">
           <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>

@@ -88,3 +88,14 @@ describe("describeRules", () => {
     expect(describeRules({ joiner: "and", rules: [] }, labelFor, "görünür", "Her zaman görünür.")).toBe("Her zaman görünür.");
   });
 });
+
+describe("sıralama işleçleri", () => {
+  it("kurucu > >= < <= ile yazdığı koşulu aynen geri okur", () => {
+    for (const text of ["stok.miktar > 5", "stok.miktar >= 0 && stok.minimum < 10", "fiyat <= 2.5 || fiyat > 100"]) {
+      const set = rulesFromCondition(text);
+      expect(set).not.toBeNull();
+      expect(formatRules(set!)).toEqual({ ok: true, text });
+    }
+    expect(rulesFromCondition("tarih < null")).toBeNull();
+  });
+});

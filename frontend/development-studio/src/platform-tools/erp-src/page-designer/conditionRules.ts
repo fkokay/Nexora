@@ -6,17 +6,18 @@
 import { parseCondition, type ConditionNode } from "./conditions";
 
 /** eşittir / eşit değil / içinde / boş (== null) / boş değil (!= null). */
-export type RuleOp = "==" | "!=" | "in" | "empty" | "notEmpty";
+export type RuleOp = "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "empty" | "notEmpty";
 /** `value`: değer kutusundaki metin; "içinde" için virgülle ayrılmış değerler. */
 export type ConditionRule = { path: string; op: RuleOp; value: string };
 export type RuleJoiner = "and" | "or";
 export type RuleSet = { joiner: RuleJoiner; rules: ConditionRule[] };
 
 export const RULE_OPS: readonly (readonly [RuleOp, string])[] = [
-  ["==", "eşittir"], ["!=", "eşit değil"], ["in", "içinde"], ["empty", "boş"], ["notEmpty", "boş değil"],
+  ["==", "eşittir"], ["!=", "eşit değil"], [">", "büyüktür"], [">=", "büyük ya da eşit"], ["<", "küçüktür"], ["<=", "küçük ya da eşit"],
+  ["in", "içinde"], ["empty", "boş"], ["notEmpty", "boş değil"],
 ];
 
-export const ruleNeedsValue = (op: RuleOp) => op === "==" || op === "!=" || op === "in";
+export const ruleNeedsValue = (op: RuleOp) => op !== "empty" && op !== "notEmpty";
 
 // Sayı yalnız yazımı Number ile birebir geri dönüyorsa sayı sabiti olur ("05", "1.0" metin kalır; aksi halde gidiş-dönüş bozulur).
 const NUMBER_TEXT = /^-?\d+(?:\.\d+)?$/;
@@ -67,7 +68,7 @@ export function formatRules(set: RuleSet): { ok: true; text: string | undefined 
 function ruleFromNode(node: ConditionNode): ConditionRule | null {
   if (node.kind === "cmp" && node.left.kind === "path" && node.right.kind === "literal") {
     const { path } = node.left;
-    if (node.right.value === null) return { path, op: node.op === "==" ? "empty" : "notEmpty", value: "" };
+    if (node.right.value === null) return node.op === "==" || node.op === "!=" ? { path, op: node.op === "==" ? "empty" : "notEmpty", value: "" } : null;
     return { path, op: node.op, value: literalText(node.right.value) };
   }
   if (node.kind === "in" && node.item.kind === "path" && node.list.every((item) => item.kind === "literal")) {
@@ -107,6 +108,10 @@ export function describeRule(rule: ConditionRule, labelFor: (path: string) => st
   switch (rule.op) {
     case "==": return `${label} ${quoted(rule.value)} ise`;
     case "!=": return `${label} ${quoted(rule.value)} değilse`;
+    case ">": return `${label} ${quoted(rule.value)} değerinden büyükse`;
+    case ">=": return `${label} ${quoted(rule.value)} ya da büyükse`;
+    case "<": return `${label} ${quoted(rule.value)} değerinden küçükse`;
+    case "<=": return `${label} ${quoted(rule.value)} ya da küçükse`;
     case "in": return `${label} ${splitInValues(rule.value).map(quoted).join(", ")} değerlerinden biriyse`;
     case "empty": return `${label} boşsa`;
     default: return `${label} doluysa`;

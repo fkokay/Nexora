@@ -832,3 +832,11 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-frame .pd-form-card.is-inline{padding:0 !important}
 .pd-frame .pd-form-card.is-inline:not(.pd-filterbar-preview)>.pd-form-card-grid.is-inline{flex-wrap:wrap}
 .pd-frame .pd-form-card.is-inline:not(.pd-filterbar-preview)>.pd-form-card-grid.is-inline>.pd-form-card-cell{flex:0 0 auto}
+/* Sağ panel başlığı: ad (kalemle düzenlenir), tür · genişlik, simge düğmeleri (Yukarı / Aşağı / Kopyala / Sil). */
+.pd-right-head-tools{align-items:flex-start}
+.pd-right-title{display:grid;gap:2px;min-width:0;flex:1}
+.pd-right-name{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.pd-right-name b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-right-title .pd-binding-name{height:28px;font-size:13px}
+.pd-right-actions{display:inline-flex;gap:2px}
+.pd-right-actions .pd-icon-button.danger{color:#b42318}
