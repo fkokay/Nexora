@@ -165,7 +165,8 @@ public sealed class ErpOperationCatalogTests
             foreach (var name in op.Result.Flatten)
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
             // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
-            if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet") continue;
+            if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet"
+                || op.Name == "stok.bakiye.kart") continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -182,6 +183,12 @@ public sealed class ErpOperationCatalogTests
         // A prefixed column keeps the label of its inner code.
         Assert.Equal("Kod", page.Result.Columns.Single(x => x.Code == "balance.code").Label);
         Assert.Equal("Eldeki miktar", page.Result.Columns.Single(x => x.Code == "balance.quantityOnHand").Label);
+        // stok.bakiye.kart is the same read filtered to one required stock card: same result, same routes.
+        Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.kart", out var card));
+        Assert.Same(page.Result, card.Result);
+        Assert.Equal(page.RouteVariants, card.RouteVariants);
+        Assert.Equal(page.Route, card.Route);
+        Assert.Equal(("query", "guid", true), card.Parameters.Where(x => x.Name == "stockItemId").Select(x => (x.In, x.Type, x.Required)).Single());
         Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var reverse));
         Assert.True(reverse.Parameters.Single(x => x.Name == "reason").Required);
         Assert.True(ErpOperationCatalog.TryGet("stok.izleme.bakiyeler", out var tracking));
@@ -629,6 +636,8 @@ public sealed class ErpOperationCatalogTests
         ["stok.kart.ozelAlanDegerleri"] = "id",
         // Proje 4 adds the optional includeInactive filter after belowMinimumOnly; parameters bind by name.
         ["stok.bakiye.sayfa"] = "warehouseId,q,belowMinimumOnly,includeInactive,page,pageSize",
+        // Stok Hareketleri adım adım: one stock card's balance through the same routes.
+        ["stok.bakiye.kart"] = "stockItemId,warehouseId",
         ["uretim.recete.listele"] = "productStockItemId",
         ["depo.konumlari"] = "warehouseId",
         ["stok.kart.birimleri"] = "id",

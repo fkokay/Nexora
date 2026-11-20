@@ -137,6 +137,15 @@ describe('buildPageCommands', () => {
     expect(run.exportTable).toHaveBeenCalledWith('t1');
   });
 
+  it('exportTable: görünmeyen liste (visibleWhen) için Excel gizlenir, CSV menüye girmez', () => {
+    const hidden = buildPageCommands({ exportTable: 't1' }, makeDeps({ tableVisible: () => false }).deps);
+    expect(hidden.export).toEqual({ hidden: true });
+    expect(hidden.more?.some((item) => item.id === 'export-csv') ?? false).toBe(false);
+    const shown = buildPageCommands({ exportTable: 't1' }, makeDeps({ tableVisible: () => true }).deps);
+    expect(shown.export?.run).toBeDefined();
+    expect(shown.more?.some((item) => item.id === 'export-csv')).toBe(true);
+  });
+
   it('moreButtons etiketli öğelere dönüşür', () => {
     const { deps, run } = makeDeps();
     const commands = buildPageCommands({ moreButtons: ['b1', 'yok'] }, deps);

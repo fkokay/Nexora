@@ -183,6 +183,37 @@ public sealed class InventoryBalancePageAdditionsTests
             Assert.Equal("EUR", (await GetPageAsync(client, route)).GetProperty("baseCurrencyCode").GetString());
     }
 
+    /// <summary>stok.bakiye.kart: the optional stockItemId filter returns that one card of the tenant, on both routes.</summary>
+    [Fact]
+    public async Task Stock_item_filter_returns_that_card_only()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        using var client = await ArrangeAsync(factory, "TRY", new Card("A", 0, true, 2, 10), new Card("B", 0, true, 3, 5), new Card("C", 0, false, 1, 1));
+        Guid cardB, otherTenantCard;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            cardB = db.StockItems.Single(x => x.TenantId == TenantA && x.Code == "B").Id;
+            otherTenantCard = db.StockItems.Single(x => x.TenantId == TenantB).Id;
+        }
+        foreach (var route in Routes)
+        {
+            var page = await GetPageAsync(client, route, $"?stockItemId={cardB:D}");
+            Assert.Equal(["B"], Codes(page));
+            Assert.Equal(1, page.GetProperty("totalCount").GetInt32());
+            var balance = page.GetProperty("items")[0].GetProperty("balance");
+            Assert.Equal((cardB, 3m, 15m), (balance.GetProperty("stockItemId").GetGuid(), balance.GetProperty("quantityOnHand").GetDecimal(),
+                balance.GetProperty("valuationAmountBase").GetDecimal()));
+            // The filter narrows the other filters, it never widens them: q and the active-only default still apply.
+            Assert.Empty(Codes(await GetPageAsync(client, route, $"?stockItemId={cardB:D}&q=yok-boyle-kart")));
+            Assert.Equal(["B"], Codes(await GetPageAsync(client, route, $"?stockItemId={cardB:D}&belowMinimumOnly=false&page=1&pageSize=25")));
+            // Another tenant's card or an unknown id: an empty page, never another card.
+            Assert.Empty(Codes(await GetPageAsync(client, route, $"?stockItemId={otherTenantCard:D}")));
+            Assert.Empty(Codes(await GetPageAsync(client, route, $"?stockItemId={Guid.NewGuid():D}")));
+            Assert.Equal(["A", "B"], Codes(await GetPageAsync(client, route)));
+        }
+    }
+
     [Fact]
     public async Task Per_warehouse_page_has_same_additions()
     {

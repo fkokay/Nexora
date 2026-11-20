@@ -530,3 +530,30 @@ export function AlertPreview({ variant, title, text, icon, value, style }: { var
     {value && <span className="pd-status-strip-badge">{value}</span>}
   </aside>;
 }
+
+/** Adımlar (ERP StepsIndicator görünümü): etkin adımdan öncekiler tamam (✓, yeşil), etkin adım vurgulu, sonrakiler soluk. */
+export function StepsPreview({ labels, active, style }: { labels: string[]; active: number; style: CSSProperties }) {
+  const shown = labels.length > 0 ? labels : ["Adım 1", "Adım 2"];
+  return <ol className="pd-steps" aria-label="Adımlar" style={style}>
+    {shown.map((label, index) => {
+      const state = index < active ? "is-done" : index === active ? "is-active" : "is-next";
+      return <li key={index} className={`pd-step ${state}`} aria-current={index === active ? "step" : undefined}>
+        {index > 0 && <span className="pd-step-sep" aria-hidden="true"/>}
+        <i aria-hidden="true">{index < active ? "✓" : index + 1}</i><span>{label || `Adım ${index + 1}`}</span>
+      </li>;
+    })}
+  </ol>;
+}
+
+/** Kayıt özeti (ERP RecordHeader görünümü): simge karesi, kalın başlık ve soluk alt başlık, anahtar/değer çiftleri, sağda düğmeler. */
+export function RecordHeaderPreview({ icon, title, subtitle, fields, buttons, style }: {
+  icon?: unknown; title: string; subtitle: string; fields: { label: string; text: string }[]; buttons: ReactNode[]; style: CSSProperties;
+}) {
+  const Icon = typeof icon === "string" && Object.hasOwn(ICONS, icon) ? ICONS[icon] : undefined;
+  return <section className="pd-record-header" style={style}>
+    {Icon && <span className="pd-record-header-icon" aria-hidden="true"><Icon size={17}/></span>}
+    <span className="pd-record-header-title"><b>{title || "—"}</b>{subtitle && <small>{subtitle}</small>}</span>
+    {fields.length > 0 && <dl className="pd-record-header-fields">{fields.map((field, index) => <div key={index}><dt>{field.label}</dt><dd>{field.text || "—"}</dd></div>)}</dl>}
+    {buttons.length > 0 && <span className="pd-record-header-actions">{buttons}</span>}
+  </section>;
+}

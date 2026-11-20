@@ -198,19 +198,25 @@ internal static class ErpOperationCatalog
         var balanceColumns = Columns<InventoryBalanceView>("balance")
             .Concat(Columns<StockItemView>("stockItem").Where(x => !hiddenStockColumns.Contains(x.Code, StringComparer.Ordinal)))
             .Append(new ErpOperationColumn("status", Label("status"), "text")).ToArray();
+        var balanceResult = List(balanceColumns, "items") with
+        {
+            Flatten = ["balance", "stockItem"],
+            // The page summary members are computed over the returned page items only.
+            MetaPaths = ["page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity",
+                "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode"]
+        };
+        ErpOperationRouteVariant[] balanceRoutes = [new("/api/warehouses/{warehouseId}/balances/page", "warehouseId")];
 
         // warehouseId is optional: when it is set the per-warehouse route is used, otherwise all active warehouses.
         yield return Read(StockModule, "stok.bakiye.sayfa", "Stok bakiyeleri (sayfalı)", "/api/warehouses/balances/page",
             [new ErpOperationParameter("warehouseId", "route", "guid", false), Query("q", "text"), Query("belowMinimumOnly", "bool"),
                 Query("includeInactive", "bool"), .. paging],
-            List(balanceColumns, "items") with
-            {
-                Flatten = ["balance", "stockItem"],
-                // The page summary members are computed over the returned page items only.
-                MetaPaths = ["page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity",
-                    "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode"]
-            })
-            with { RouteVariants = [new ErpOperationRouteVariant("/api/warehouses/{warehouseId}/balances/page", "warehouseId")] };
+            balanceResult) with { RouteVariants = balanceRoutes };
+        // One stock card's balance (e.g. a step-by-step page's selected stock): the same routes filtered by the required
+        // stockItemId, so the page never reads every card's balance through it.
+        yield return Read(StockModule, "stok.bakiye.kart", "Stok kartının bakiyesi", "/api/warehouses/balances/page",
+            [new ErpOperationParameter("stockItemId", "query", "guid", true), new ErpOperationParameter("warehouseId", "route", "guid", false)],
+            balanceResult) with { RouteVariants = balanceRoutes };
         yield return Read(WarehouseModule, "depo.listele", "Depoları listele", "/api/warehouses", [], List(Columns<WarehouseView>(), null));
         yield return Read(WarehouseModule, "depo.konumlari", "Depo konumları", "/api/warehouses/{warehouseId}/locations", [warehouseId],
             List(Columns<WarehouseLocationView>(), null));
