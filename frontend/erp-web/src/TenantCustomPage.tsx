@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, L
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
+import { countRowsWhen, countText } from "./custom-page/countWhen";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { bindingPath, displayText, interpolate, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -448,9 +449,10 @@ const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
 /** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
 const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
 
-function QueryMetric({ state, title, description, style, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties } & MetricExtras) {
+function QueryMetric({ state, title, description, style, count, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties; count?: number | null } & MetricExtras) {
   const first = state.columns[0]?.code;
-  const value = state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
+  // `countWhen` varsa değer koşulu sağlayan yüklenmiş satır sayısıdır; yoksa ilk satırın ilk sütunu.
+  const value = count !== undefined ? countText(count) : state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
   return <MetricCard title={title} description={description} style={style} hasError={!!state.error} {...card}
     value={state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
@@ -902,7 +904,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const onActivate = runtime && filterInput && filterValue !== ""
         ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue) : undefined;
       const card = { tone, icon, trend, active, onActivate };
-      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
+      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card}
+        count={countRowsWhen(component.props?.countWhen, runtime.states[queryName].rows, queryName, runtime.scope)} />;
       // Değeri bağlama olan (sorgusuz, kaynaksız) v2 gösterge: çözülen değer `format` ile (number/money; diğerleri metin) yazılır.
       const rawValue = component.props?.value;
       if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {

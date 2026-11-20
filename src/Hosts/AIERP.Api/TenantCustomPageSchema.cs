@@ -52,6 +52,8 @@ internal static class TenantCustomPageSchema
       "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot",
       // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
       "titleCount",
+      // Conditional row count on a query metric (legacy summary cards, e.g. "Süresi geçmiş"): "<sorgu>.satir.expiryDate < bugun".
+      "countWhen",
       // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
       "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
@@ -85,7 +87,7 @@ internal static class TenantCustomPageSchema
         "trending-up", "trending-down", "line-chart", "pie-chart", "activity", "target", "calendar", "calendar-clock", "hourglass",
         "timer", "file-text", "files", "clipboard-list", "inbox", "archive", "mail", "phone", "user", "user-check", "briefcase",
         "handshake", "globe", "map-pin", "settings", "wrench", "shield", "lock", "bell", "star", "flag", "info", "x-circle", "ban",
-        "refresh-cw",
+        "refresh-cw", "calendar-x",
     };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
@@ -615,6 +617,27 @@ internal static class TenantCustomPageSchema
             && ValidateNavigationAction(props, typeText, out error);
     }
 
+    /// <summary>
+    /// A query metric's <c>countWhen</c>: the metric shows how many loaded rows of its query hold the condition. Each row
+    /// is exposed as <c>&lt;sorgu&gt;.satir</c> (like a table's <c>seciliSatir</c>), so the condition must use the metric's
+    /// own query name; other roots (bugun, inputs…) resolve against the page as usual.
+    /// </summary>
+    private static bool ValidateCountWhen(JsonElement props, JsonElement countWhen, string typeText, Context context, out string? error)
+    {
+        error = null;
+        if (typeText != "metric" || !props.TryGetProperty("query", out var query) || query.ValueKind != JsonValueKind.String
+            || !context.QueryById.TryGetValue(query.GetString()!, out var pageQuery))
+        { error = "'countWhen' yalnızca sorgusu olan gösterge bileşeninde kullanılabilir."; return false; }
+        if (countWhen.ValueKind != JsonValueKind.String)
+        { error = "'countWhen' koşulu geçersiz: ifade metin olmalı"; return false; }
+        if (!PageConditionExpression.TryParse(countWhen.GetString()!, out var roots, out var reason))
+        { error = $"'countWhen' koşulu geçersiz: {reason}"; return false; }
+        if (!roots.Contains(pageQuery.Name, StringComparer.Ordinal))
+        { error = $"'countWhen' koşulu satır alanlarına '{pageQuery.Name}.satir.<alan>' ile başvurmalıdır."; return false; }
+        context.PendingConditionRoots.Add(("countWhen", roots));
+        return true;
+    }
+
     /// <summary>Metric, badge and dataTable presentation props (design language step 2a).</summary>
     private static bool ValidateDesignLanguageProps(JsonElement props, string typeText, Context context, out string? error)
     {
@@ -646,6 +669,7 @@ internal static class TenantCustomPageSchema
             { error = $"'filterValue' yalnızca gösterge bileşeninde ve en fazla {MaxFilterValueLength} karakterlik metin olabilir."; return false; }
             if (!hasFilterInput) { error = "'filterValue' için göstergede 'filterInput' (giriş bileşeni) da tanımlı olmalıdır."; return false; }
         }
+        if (props.TryGetProperty("countWhen", out var countWhen) && !ValidateCountWhen(props, countWhen, typeText, context, out error)) return false;
         if (props.TryGetProperty("toneMap", out var toneMap)
             && !ValidateMapItems("toneMap", toneMap, typeText is "badge" or "dataTable", MaxToneMapItems, ToneMapItem,
                 "Ad=info|success|warning|danger", out error)) return false;
@@ -1949,7 +1973,7 @@ internal static class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted

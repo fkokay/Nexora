@@ -466,6 +466,31 @@ public sealed class TenantCustomPageSchemaV2Tests
     }
 
     [Fact]
+    public void Count_when_counts_rows_of_the_metric_query()
+    {
+        // Legacy Lot / Seri İzleme summary cards: the row is "<query name>.satir"; ordering operators and bugun + n are allowed.
+        var json = Page(
+            new { id = "m1", type = "metric", props = new { query = "q1", title = "Süresi geçmiş", variant = "danger", icon = "calendar-x", countWhen = "liste.satir.expiryDate < bugun" } },
+            new { id = "m2", type = "metric", props = new { query = "q1", variant = "warning", icon = "calendar-clock",
+                countWhen = "liste.satir.expiryDate >= bugun && liste.satir.expiryDate <= bugun + 30 && durum.value != 'x'" } },
+            new { id = "in1", type = "input", name = "durum" });
+        Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
+
+        object Metric(object props) => new { id = "m1", type = "metric", props };
+        AssertRejected(Page(new { id = "t1", type = "dataTable", props = new { query = "q1", countWhen = "liste.satir.x == 1" } }), "countWhen");
+        AssertRejected(Page(new { id = "h1", type = "heading", props = new { countWhen = "liste.satir.x == 1" } }), "countWhen");
+        AssertRejected(Page(Metric(new { source = "customers", countWhen = "liste.satir.x == 1" })), "yalnızca sorgusu olan gösterge");
+        AssertRejected(Page(Metric(new { query = "q1", countWhen = "liste.satir.x <" })), "'countWhen' koşulu geçersiz");
+        AssertRejected(Page(Metric(new { query = "q1", countWhen = 3 })), "countWhen");
+        AssertRejected(Page(Metric(new { query = "q1", countWhen = "bugun == '2026-01-01'" })), "liste.satir.<alan>");
+        AssertRejected(Page(Metric(new { query = "q1", countWhen = "liste.satir.x == yok.value" })), "sayfada olmayan bir ada başvuruyor: yok");
+        // Quoted literals keep rejecting markup.
+        AssertRejected(Page(Metric(new { query = "q1", countWhen = "liste.satir.x == '<b>'" })), "countWhen");
+        // v1 pages have no query metrics.
+        AssertRejected(JsonSerializer.Serialize(new { schemaVersion = 1, components = new object[] { Metric(new { countWhen = "a.satir.x == 1" }) } }));
+    }
+
+    [Fact]
     public void Filter_input_may_be_declared_after_metric_or_nested()
     {
         var after = Page(
