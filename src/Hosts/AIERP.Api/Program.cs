@@ -2900,12 +2900,14 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
-warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false) =>
+warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false, Guid? stockItemId = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var warehouseIds = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).Select(x => x.Id).ToArrayAsync();
     var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && (includeInactive || x.IsActive));
+    // stok.bakiye.kart: one stock card's balance.
+    if (stockItemId is { } onlyStockItemId) query = query.Where(x => x.Id == onlyStockItemId);
     if (!string.IsNullOrWhiteSpace(q))
     {
         var term = q.Trim();
@@ -2968,12 +2970,14 @@ warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal,
     return Results.Ok(InventoryBalancePageSummary.Page(result, page, pageSize, totalCount, belowMinimumCount, baseCurrency));
 });
 
-warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false) =>
+warehouses.MapGet("/{warehouseId:guid}/balances/page", async (Guid warehouseId, string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false, Guid? stockItemId = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     if (!await db.Warehouses.AnyAsync(x => x.TenantId == tenantId && x.Id == warehouseId)) return Results.NotFound();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
     var query = db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && (includeInactive || x.IsActive));
+    // stok.bakiye.kart: one stock card's balance.
+    if (stockItemId is { } onlyStockItemId) query = query.Where(x => x.Id == onlyStockItemId);
     if (!string.IsNullOrWhiteSpace(q))
     {
         var term = q.Trim();

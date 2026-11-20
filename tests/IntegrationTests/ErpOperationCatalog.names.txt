@@ -48,6 +48,7 @@ satinalma.malKabul.ekMaliyetDagit
 satinalma.malKabul.ekMaliyetTersKayit
 satinalma.malKabul.ekMaliyetler
 satinalma.malKabul.listele
+stok.bakiye.kart
 stok.bakiye.sayfa
 stok.hareket.ekle
 stok.hareket.gecmisi

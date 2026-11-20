@@ -23,6 +23,8 @@ export const MORE_SETTINGS: Readonly<Record<string, readonly string[]>> = {
   input: ["Yer tutucu", "Varsayılan değer", "Doğrulama", "Koşullar"],
   button: ["Onay", "Sonra yenile", "Mesajlar", "Koşullar"],
   filterBar: ["Bağlı tablo", "Arama kutusu", "Süzgeçler", "Koşullar"],
+  steps: ["Adımlar ve koşulları", "Görünüm"],
+  recordHeader: ["Alt başlık", "Alanlar", "Düğmeler", "Koşullar"],
 };
 const DEFAULT_MORE = ["Koşullar", "Görünüm"];
 

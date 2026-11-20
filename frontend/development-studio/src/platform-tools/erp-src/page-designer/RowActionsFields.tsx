@@ -4,7 +4,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, idList, parseTabs } from "./layoutRefs
 
 type RowActionComponent = { id: string; type: string; name?: string; props: Record<string, unknown> };
 
-export const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", "link", "erpPage", "page"];
+export const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", "setInput", "link", "erpPage", "page"];
 export const MAX_EMPTY_TEXT = 120;
 export const MAX_ROW_LIMIT = 100;
 const defaultLabel = (component: RowActionComponent) => String(component.props.label || component.props.title || component.name || component.id);
@@ -20,7 +20,9 @@ export function rowActionOwners(components: RowActionComponent[], tableId: strin
     if (component.type === "tabs") for (const tab of parseTabs(component.props.tabs)) for (const id of tab.ids) owners[id] = `${labelOf(component)} · ${tab.label}`;
     if (component.type === "dialog") for (const id of idList(component.props.contains, MAX_DIALOG_IDS)) owners[id] = labelOf(component);
     if (component.type === "dataTable") for (const id of idList(component.props.rowActions, MAX_ROW_ACTIONS)) owners[id] = `${labelOf(component)} · satır işlemi`;
+    if (component.type === "dataTable" && typeof component.props.rowOpenAction === "string" && component.props.rowOpenAction) owners[component.props.rowOpenAction] ??= `${labelOf(component)} · satır açma`;
     if (component.type === "actionBar") for (const id of idList(component.props.moreButtons, 10)) owners[id] = `${labelOf(component)} · İşlemler menüsü`;
+    if (component.type === "recordHeader") for (const id of idList(component.props.buttons, 3)) owners[id] = `${labelOf(component)} · özet düğmesi`;
   }
   return owners;
 }
@@ -57,8 +59,8 @@ export function RowActionsFields({ table, components, labelOf = defaultLabel, se
       <InputPicker inputs={buttons} value={value} owned={owners} filter={eligible} max={MAX_ROW_ACTIONS} takenLabel="Başka yerde" disabled={disabled || !named || !queryBound}
         onChange={(next) => onPatch({ rowActions: next.length > 0 ? next : undefined })}/>
       {onAddButton && <button type="button" className="pd-button small" disabled={disabled || !named || !queryBound || value.length >= MAX_ROW_ACTIONS} onClick={onAddButton}>＋ Yeni satır düğmesi</button>}
-      {!onAddButton && buttons.filter(eligible).length === 0 && <small>Önce eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olan bir düğme ekleyin.</small>}
-      {ineligibleSelected.length > 0 && <small className="pd-query-warning">Satır işlemi düğmesinin eylem türü sorgu, kayıt dizisi, pencere aç ya da gezinme (bağlantı, ERP ekranı, sayfa) olmalıdır.</small>}
+      {!onAddButton && buttons.filter(eligible).length === 0 && <small>Önce eylem türü sorgu, kayıt dizisi, pencere aç, alana değer ata ya da gezinme (bağlantı, ERP ekranı, sayfa) olan bir düğme ekleyin.</small>}
+      {ineligibleSelected.length > 0 && <small className="pd-query-warning">Satır işlemi düğmesinin eylem türü sorgu, kayıt dizisi, pencere aç, alana değer ata ya da gezinme (bağlantı, ERP ekranı, sayfa) olmalıdır.</small>}
     </div>}
     {parts.includes("empty") && <label className="pd-field">Boş liste metni<small>Boşsa ERP'nin standart “kayıt yok” metni gösterilir; sorgu çalışmadan önce de bu metin görünür.</small>
       <input value={emptyText} maxLength={MAX_EMPTY_TEXT} disabled={disabled} placeholder="Henüz hareket yok."

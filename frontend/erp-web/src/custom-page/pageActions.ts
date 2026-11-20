@@ -152,6 +152,8 @@ export type PageActionDeps = {
   /** Arama kutulu süzgeç alanları: Filtre komutu (focusInput) girişe ya da bunların arama kutusuna odaklanır. */
   searchBarIds?: Set<string>;
   tableState: (tableId: string) => { loading: boolean; error?: string; rowCount: number } | undefined;
+  /** Aktarım tablosu sayfada görünüyor mu (`visibleWhen`, sahipleri dahil); false ise Excel ve CSV komutları gizlenir. */
+  tableVisible?: (tableId: string) => boolean;
   buttonLabel: (id: string) => string | undefined;
   /** moreButtons düğmesinin koşul durumu: `visibleWhen` yanlışsa gizli (menüye girmez), `disabledWhen` doğruysa nedenli pasif. */
   buttonGate?: (id: string) => { hidden?: boolean; disabled?: boolean; disabledReason?: string } | undefined;
@@ -205,7 +207,9 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const newIds = idList(props.newInputs).filter((id) => deps.inputIds.has(id));
   const focusId = str(props.focusInput);
   const exportId = str(props.exportTable);
-  const exportState = exportId ? deps.tableState(exportId) : undefined;
+  // Görünmeyen listenin (ör. sihirbazın henüz açılmamış adımı) aktarımı yoktur: Excel gizlenir, CSV menüye girmez.
+  const exportHidden = !!exportId && deps.tableVisible?.(exportId) === false;
+  const exportState = exportId && !exportHidden ? deps.tableState(exportId) : undefined;
 
   const gatedAll = (rights: string[], run: () => void) =>
     rights.some((right) => !deps.rights[right]) ? { disabledReason: NO_RIGHT } : deps.busy ? { disabledReason: BUSY } : { run };
@@ -278,7 +282,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     refresh: { run: () => deps.run.refresh() },
     filter: focusId && (deps.inputIds.has(focusId) || deps.searchBarIds?.has(focusId)) ? { run: () => deps.run.focus(focusId) } : unbound,
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,
-    export: exportCommand,
+    export: exportHidden ? { hidden: true } : exportCommand,
     ...(more.length > 0 ? { more } : {}),
   };
   return applyBarVisibility(props, built, deps.commandVisible);
