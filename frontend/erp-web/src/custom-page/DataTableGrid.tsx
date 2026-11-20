@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
-import AdvancedDataGrid from "../AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions } from "../AdvancedDataGrid";
+import type { BulkAction } from "../list-page/BulkActionBar";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, toneFor, type ColumnFormat, type Tone } from "./cellFormat";
 import { displayText } from "./pageBindings";
 import { PagedTableFooter } from "./PagedTableFooter";
@@ -16,13 +17,23 @@ import "./data-table-grid.css";
  * ızgaranın güncel satırıdır, onay kutuları ise yalnız ızgara içi çoklu seçimdir.
  */
 /** Tasarımcıdaki tablo araçları: kaydedilmemişse açıktır (false = gizli). */
-export type GridTools = { search: boolean; filters: boolean; columns: boolean; export: boolean; pivot: boolean };
-export const ALL_GRID_TOOLS: GridTools = { search: true, filters: true, columns: true, export: true, pivot: true };
-/** dataTable props → araçlar: `showGridSearch`, `showColumnFilters`, `showColumnChooser`, `showExport`, `showPivot`. */
+export type GridTools = { search: boolean; filters: boolean; columns: boolean; export: boolean; pivot: boolean;
+  /** `export` açıkken ızgaranın CSV düğmesi (XLSX kalır). */
+  csv: boolean;
+  /** Seçim varken yüzen çubuktaki "Excel (seçilenler)" (eski listeler gibi; `export` kapalıyken de çalışır). */
+  selectedExport: boolean };
+export const ALL_GRID_TOOLS: GridTools = { search: true, filters: true, columns: true, export: true, pivot: true, csv: true, selectedExport: true };
+/**
+ * dataTable props → araçlar: `showGridSearch`, `showColumnFilters`, `showColumnChooser`, `showExport`, `showPivot`,
+ * `showCsv`, `showSelectedExport`.
+ */
 export function gridToolsOf(props: Record<string, unknown> | undefined): GridTools {
   const on = (key: string) => props?.[key] !== false;
-  return { search: on("showGridSearch"), filters: on("showColumnFilters"), columns: on("showColumnChooser"), export: on("showExport"), pivot: on("showPivot") };
+  return { search: on("showGridSearch"), filters: on("showColumnFilters"), columns: on("showColumnChooser"), export: on("showExport"), pivot: on("showPivot"),
+    csv: on("showCsv"), selectedExport: on("showSelectedExport") };
 }
+/** Eski listelerin toplu işlemi: seçili satırları ızgaranın Excel aktarımıyla indirir (görünen sütunlar ve biçimler). */
+export const SELECTED_EXPORT_LABEL = "Excel (seçilenler)";
 export type DataTableGridProps = {
   tools?: GridTools;
   /** Görünüm ayarlarının anahtarı: `custom-page.<sayfaKodu>.<bileşenId>`. */
@@ -83,6 +94,9 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
 
   // Tıklama satırı kendisi seçer/bırakır; ızgaranın aynı tıklamadaki güncel satır isteği yok sayılır (çift seçim olmaz).
   const clickRef = useRef(false);
+  const exportRef = useRef<GridExportActions | null>(null);
+  const bulkActions: BulkAction[] | undefined = tools.selectedExport
+    ? [{ id: "export-selected", label: SELECTED_EXPORT_LABEL, run: () => void exportRef.current?.exportExcel() }] : undefined;
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
   const selectedIndex = selected ? drawn.indexOf(selected) : -1;
   const currentRowKey = onSelect ? (selectedIndex >= 0 ? rowKey(selectedIndex) : null) : undefined;
@@ -133,7 +147,8 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
             <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
                 externalPagination={!!paging} enableRowSelection={false} selectable
-                hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hidePivot={!tools.pivot}
+                hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
+                bulkActions={bulkActions} exportActionsRef={exportRef}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>
                   {visible.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "nx-num" : undefined}>{column.label || column.code}</th>)}

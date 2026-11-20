@@ -109,7 +109,9 @@ export function OpenRowField({ table, components, labelOf, disabled, onPatchBar 
 
 export const GRID_TOOLS = [
   ["showGridSearch", "Arama kutusu"], ["showColumnFilters", "Sütun süzgeçleri"], ["showColumnChooser", "Sütun seçici"],
-  ["showExport", "Dışa aktarma (XLSX/CSV)"], ["showPivot", "Pivot görünümü"],
+  ["showExport", "Dışa aktarma (XLSX/CSV)"], ["showCsv", "CSV düğmesi"], ["showPivot", "Pivot görünümü"],
+  // Eski listeler gibi: satır seçiliyken yüzen çubukta "Excel (seçilenler)" (dışa aktarma kapalıyken de çalışır).
+  ["showSelectedExport", "Excel (seçilenler)"],
 ] as const;
 export type GridToolKey = typeof GRID_TOOLS[number][0];
 
@@ -120,6 +122,6 @@ export const gridToolPatch = (key: GridToolKey, on: boolean): Partial<Record<Gri
 export function GridToolsField({ props, disabled, onPatch }: { props: Record<string, unknown>; disabled?: boolean; onPatch: (patch: Partial<Record<GridToolKey, false | undefined>>) => void }) {
   return <div className="pd-field">Tablo araçları<small>ERP'de listenin üst çubuğunda gösterilir; kapatılan araç çizilmez.</small>
     <div className="pd-grid-tools">{GRID_TOOLS.map(([key, label]) => <label key={key} className="pd-check pd-switch">
-      <input type="checkbox" role="switch" checked={props[key] !== false} disabled={disabled} onChange={(event) => onPatch(gridToolPatch(key, event.target.checked))}/>{label}</label>)}</div>
+      <input type="checkbox" role="switch" checked={props[key] !== false} disabled={disabled || (key === "showCsv" && props.showExport === false)} onChange={(event) => onPatch(gridToolPatch(key, event.target.checked))}/>{label}</label>)}</div>
   </div>;
 }

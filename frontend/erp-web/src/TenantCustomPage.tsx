@@ -25,7 +25,7 @@ import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
-import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
+import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
@@ -1281,7 +1281,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     }, bound("successMessage") || "İşlem tamamlandı.", bound("errorMessage"), refresh);
   };
 
-  const exportTable = async (tableId: string) => {
+  const exportTable = async (tableId: string, format: "xlsx" | "csv" = "xlsx") => {
     const current = latest.current;
     const table = current.tableById[tableId];
     const loaded = table && typeof table.props?.query === "string" ? current.states[current.queryNames[table.props.query]] : undefined;
@@ -1295,12 +1295,14 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     const rows = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
     onStatus(null);
     try {
-      await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, rows, chosen));
+      // CSV: eski listelerle aynı yardımcı (UTF-8 BOM, virgül ayraç, formül korumalı hücreler).
+      if (format === "csv") downloadCsv(`${page.code}.csv`, exportRows(state.columns, rows, chosen));
+      else await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, rows, chosen));
       // Sunucu sayfalı liste her zaman "kesilmiş"tir: yalnız görünen sayfa aktarılır ve bu bildirilir.
       if (mounted.current && table.props?.paging === "server") onStatus({ tone: "warning", text: `Yalnız görünen sayfa aktarıldı (${state.rows.length} satır).` });
       else if (mounted.current && state.truncated) onStatus({ tone: "warning", text: `Liste ilk ${state.rows.length} satırla sınırlı` });
     } catch (cause) {
-      if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "Excel dosyası oluşturulamadı." });
+      if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || (format === "csv" ? "CSV dosyası oluşturulamadı." : "Excel dosyası oluşturulamadı.") });
     }
   };
 
@@ -1357,7 +1359,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       refresh: () => latest.current.rerun(loadIds),
       focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
       print: () => window.print(),
-      exportTable: (tableId) => void exportTable(tableId),
+      exportTable: (tableId, format) => void exportTable(tableId, format),
       button: runButton,
     },
   });

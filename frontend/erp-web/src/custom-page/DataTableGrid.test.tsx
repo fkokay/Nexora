@@ -1,8 +1,14 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import { CommandProvider } from '../commands/CommandProvider';
-import { DataTableGrid, type DataTableGridProps } from './DataTableGrid';
+import { ALL_GRID_TOOLS, DataTableGrid, gridToolsOf, type DataTableGridProps } from './DataTableGrid';
+
+const xlsx = vi.hoisted(() => ({ sheets: [] as unknown[][][] }));
+vi.mock('xlsx', () => ({
+  utils: { book_new: () => ({}), aoa_to_sheet: (data: unknown[][]) => { xlsx.sheets.push(data); return {}; }, book_append_sheet: () => {} },
+  writeFileXLSX: () => {},
+}));
 import type { QueryState } from './usePageQueries';
 import type { RowAction } from '../TenantCustomPage';
 
@@ -98,6 +104,50 @@ describe('DataTableGrid (gelişmiş ızgara)', () => {
   it('görünüm ayarlarını sayfa ve bileşen kimliğinden türeyen anahtarla saklar', () => {
     render(<Harness />);
     expect(localStorage.getItem('nexora.grid.custom-page.p.t')).not.toBeNull();
+  });
+
+  it('gridToolsOf: showCsv ve showSelectedExport yoksa açık, yalnız false kapatır', () => {
+    expect(gridToolsOf(undefined)).toEqual(ALL_GRID_TOOLS);
+    expect(gridToolsOf({ showCsv: false, showSelectedExport: false })).toMatchObject({ export: true, csv: false, selectedExport: false });
+    expect(gridToolsOf({ showCsv: true, showSelectedExport: 'hayır' })).toMatchObject({ csv: true, selectedExport: true });
+  });
+
+  it('onay kutusuyla seçim varken "Excel (seçilenler)" yalnız seçili satırları görünen sütun ve biçimlerle aktarır', async () => {
+    render(<Harness />);
+    expect(screen.queryByRole('toolbar', { name: 'Toplu işlemler' })).toBeNull();
+    xlsx.sheets.length = 0;
+    fireEvent.click(within(dataRows()[1]).getByRole('checkbox'));
+    const bulk = screen.getByRole('toolbar', { name: 'Toplu işlemler' });
+    fireEvent.click(within(bulk).getByRole('button', { name: 'Excel (seçilenler)' }));
+    await waitFor(() => expect(xlsx.sheets).toHaveLength(1));
+    expect(xlsx.sheets[0]).toEqual([['Ürün adı', 'Kod', 'Durum', 'Miktar'], ['Armut', 'K2', 'Kapalı', '5 Kg']]);
+  });
+
+  it('showSelectedExport: false seçimde toplu aktarım çubuğunu çizmez', () => {
+    render(<Harness tools={{ ...ALL_GRID_TOOLS, selectedExport: false }} />);
+    fireEvent.click(within(dataRows()[0]).getByRole('checkbox'));
+    expect(screen.queryByRole('button', { name: 'Excel (seçilenler)' })).toBeNull();
+  });
+
+  it('CSV düğmesi UTF-8 BOM ve virgül ayraçla görünen sütunları indirir (seçim varsa yalnız seçilenler); showCsv: false gizler', async () => {
+    const blobs: Blob[] = [];
+    const create = vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => { blobs.push(blob as Blob); return 'blob:x'; });
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    try {
+      const { unmount } = render(<Harness />);
+      fireEvent.click(within(dataRows()[0]).getByRole('checkbox'));
+      fireEvent.click(screen.getAllByRole('button', { name: 'CSV' })[0]);
+      expect(blobs).toHaveLength(1);
+      const bytes = new Uint8Array(await blobs[0].arrayBuffer());
+      expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+      const text = new TextDecoder().decode(bytes.slice(3));
+      expect(text).toBe('"Ürün adı","Kod","Durum","Miktar"\r\n"Elma","K1","Aktif","3 Adet"');
+      unmount();
+      render(<Harness tools={{ ...ALL_GRID_TOOLS, csv: false }} />);
+      expect(screen.queryByRole('button', { name: 'CSV' })).toBeNull();
+      expect(screen.getAllByRole('button', { name: 'XLSX' }).length).toBeGreaterThan(0);
+    } finally { create.mockRestore(); revoke.mockRestore(); click.mockRestore(); }
   });
 
   it('toplamlar ızgaranın altında çizilir; boş sonuçta boş metin görünür', () => {

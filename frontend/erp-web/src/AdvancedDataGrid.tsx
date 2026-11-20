@@ -103,6 +103,8 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   toolbarContainer?: HTMLElement | null;
   /** Hides the grid's own XLSX/CSV buttons when the page offers export elsewhere. */
   hideExport?: boolean;
+  /** With the grid's own export shown: hides only its CSV button (XLSX stays). */
+  hideCsv?: boolean;
   /** Hides the column filters tool (toolbar and view menu). */
   hideFilters?: boolean;
   /** Hides the column chooser tool (toolbar and view menu). */
@@ -484,6 +486,7 @@ export default function AdvancedDataGrid({
   onEditRows,
   toolbarContainer,
   hideExport = false,
+  hideCsv = false,
   hideFilters = false,
   hideColumnChooser = false,
   hidePivot = false,
@@ -1920,6 +1923,7 @@ export default function AdvancedDataGrid({
             <Download size={15} aria-hidden="true" />
             XLSX
           </button>
+          {!hideCsv && (
           <button
             type="button"
             className="secondary list-v2-export-action"
@@ -1929,6 +1933,7 @@ export default function AdvancedDataGrid({
             <Download size={15} aria-hidden="true" />
             CSV
           </button>
+          )}
         </>,
         exportSlot,
       )
@@ -2191,6 +2196,7 @@ export default function AdvancedDataGrid({
         >
           XLSX
         </button>
+        {!hideCsv && (
         <button
           type="button"
           className="advanced-grid-action"
@@ -2200,6 +2206,7 @@ export default function AdvancedDataGrid({
         >
           CSV
         </button>
+        )}
           </>
         )}
         {onImportRows && excelImportEnabled && (
@@ -2347,6 +2354,7 @@ export default function AdvancedDataGrid({
                   >
                     <span>{labels.downloadXlsx}</span>
                   </button>
+                  {!hideCsv && (
                   <button
                     type="button"
                     role="menuitem"
@@ -2354,6 +2362,7 @@ export default function AdvancedDataGrid({
                   >
                     <span>{labels.downloadCsv}</span>
                   </button>
+                  )}
                 </>
               )}
               <button
