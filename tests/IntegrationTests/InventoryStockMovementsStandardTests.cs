@@ -42,7 +42,9 @@ public sealed class InventoryStockMovementsStandardTests
         // Read-only screen: no write query, no write command.
         Assert.All(Definition()["queries"]!.AsArray().OfType<JsonObject>(), x => Assert.Equal(("read", "load"), ((string)x["kind"]!, (string)x["runOn"]!)));
         var bar = Props("komutlar");
-        Assert.Equal(new[] { "exportTable", "titleCount" }, bar.Select(x => x.Key).Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { "exportTable", "hiddenCommands", "titleCount" }, bar.Select(x => x.Key).Order(StringComparer.Ordinal));
+        // Yalnız okunan ekran: çubukta Yenile ve Excel kalır.
+        Assert.Equal(new[] { "new", "open", "save", "delete", "filter", "print" }, bar["hiddenCommands"]!.AsArray().Select(x => (string)x!));
         Assert.Equal(("liste", "{{gecmis.meta.totalCount}}"), ((string)bar["exportTable"]!, (string)bar["titleCount"]!));
     }
 

@@ -68,7 +68,8 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "openButton": "acDugmesi", "titleCount": "{{bakiye.meta.totalCount}}" } },
+        "props": { "focusInput": "suzgec", "exportTable": "liste", "openButton": "acDugmesi", "titleCount": "{{bakiye.meta.totalCount}}",
+                   "hiddenCommands": ["new", "save", "delete", "print"] } },
       { "id": "yetkiNotu", "type": "alert", "name": "yetkiNotu",
         "props": { "variant": "info", "icon": "shield", "width": 12,
                    "text": "Stok maliyetleri ve alternatif birimler yalnızca firma yöneticileri tarafından yönetilebilir.",
