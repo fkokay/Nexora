@@ -209,9 +209,12 @@ describe('Stok Hareketleri standart tanımı (iki adım)', { timeout: 30000 }, (
     await waitFor(() => expect(gets(`/api/warehouses/${W}/stock/${S1}/transactions`)).toHaveLength(1), T);
     await waitFor(() => expect(summaryCalls(WAREHOUSE_BALANCES)).toHaveLength(1), T);
 
+    // The title count follows the movements list: shown in step 2, gone in step 1.
+    await waitFor(() => expect(document.querySelector('.list-v2-count')).not.toBeNull(), T);
     fireEvent.click(within(header()!).getByRole('button', { name: '‹ Stok değiştir' }));
     await waitFor(() => expect(header()).toBeNull(), T);
     expect(activeStep()?.textContent).toContain('Stok seç');
+    expect(document.querySelector('.list-v2-count')).toBeNull();
     expect(combo('stokArama').value).toBe('kal');
     expect(combo('depoSecimi').value).toContain('Merkez');
     await stockRow('KLM');
