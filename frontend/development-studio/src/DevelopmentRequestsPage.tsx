@@ -2,17 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   Boxes,
   CalendarDays,
-  CheckCircle2,
-  Clock3,
   FileText,
-  Filter,
   GitBranch,
   LayoutGrid,
   List,
   ListTodo,
   MoreHorizontal,
   Pencil,
-  Play,
   Plus,
   Search,
   Trash2,
@@ -59,6 +55,24 @@ const statusTones: Record<string, string> = {
   Rejected: "is-danger",
 };
 
+type StatusGroup = "all" | "pending" | "active" | "done";
+// Çipler eski KPI kartlarının hesaplarıyla aynı gruplamayı kullanır.
+// Reddedildi, İptal edildi ve Onaylandı yalnızca "Tümü" altında görünür.
+const statusGroups: { id: StatusGroup; label: string; statuses?: string[] }[] = [
+  { id: "all", label: "Tümü" },
+  { id: "pending", label: "Bekleyen", statuses: ["Submitted", "Planned", "InReview"] },
+  { id: "active", label: "Devam eden", statuses: ["InProgress"] },
+  { id: "done", label: "Tamamlanan", statuses: ["Completed"] },
+];
+
+function matchesGroup(status: string, group: StatusGroup) {
+  if (group === "all") return true;
+  return (
+    statusGroups.find((item) => item.id === group)?.statuses?.includes(status) ??
+    false
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
@@ -85,7 +99,7 @@ export function DevelopmentRequestsPage({
   onEdit,
   onDelete,
 }: Props) {
-  const [status, setStatus] = useState("all");
+  const [group, setGroup] = useState<StatusGroup>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState<"list" | "cards">("list");
@@ -108,7 +122,7 @@ export function DevelopmentRequestsPage({
   const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
   const filtered = requests
     .filter((item) => {
-      const matchesStatus = status === "all" || item.status === status;
+      const matchesStatus = matchesGroup(item.status, group);
       const searchableText =
         `${item.title} ${item.description}`.toLocaleLowerCase("tr-TR");
       return (
@@ -121,38 +135,20 @@ export function DevelopmentRequestsPage({
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return (sort === "newest" ? result : -result) || a.id.localeCompare(b.id);
     });
-  const summary = [
-    {
-      label: "Toplam Talep",
-      count: requests.length,
-      hint: "Tüm geliştirme talepleri",
-      icon: ListTodo,
-      tone: "blue",
-    },
-    {
-      label: "Devam Eden",
-      count: requests.filter((item) => item.status === "InProgress").length,
-      hint: "Aktif geliştirmeler",
-      icon: Play,
-      tone: "green",
-    },
-    {
-      label: "Tamamlanan",
-      count: requests.filter((item) => item.status === "Completed").length,
-      hint: "Tamamlanmış talepler",
-      icon: CheckCircle2,
-      tone: "violet",
-    },
-    {
-      label: "Bekleyen",
-      count: requests.filter((item) =>
-        ["Submitted", "Planned", "InReview"].includes(item.status),
-      ).length,
-      hint: "İşlem veya inceleme bekleyen",
-      icon: Clock3,
-      tone: "amber",
-    },
-  ];
+  const groupCounts: Record<StatusGroup, number> = {
+    all: requests.length,
+    pending: 0,
+    active: 0,
+    done: 0,
+  };
+  for (const item of requests)
+    for (const { id } of statusGroups)
+      if (id !== "all" && matchesGroup(item.status, id)) groupCounts[id] += 1;
+  const isFiltered = group !== "all" || normalizedQuery !== "";
+  function clearFilters() {
+    setGroup("all");
+    setQuery("");
+  }
 
   function renderProject(item: Request) {
     const project = projects.find((project) => project.id === item.projectId);
@@ -215,31 +211,25 @@ export function DevelopmentRequestsPage({
 
   return (
     <>
-      <section className="studio-metrics" aria-label="Geliştirme talebi özeti">
-        {summary.map(({ label, count, hint, icon: Icon, tone }) => (
-          <article className="studio-metric-card" key={label}>
-            <span className={`studio-metric-icon ${tone}`}>
-              <Icon size={24} />
-            </span>
-            <div>
-              <small>{label}</small>
-              <b>{count}</b>
-              <span>{hint}</span>
-            </div>
-          </article>
-        ))}
-      </section>
-      <section
-        className="ns-card dr-panel"
-        id="requests"
-        aria-labelledby="studio-demands-title"
-      >
-        <header className="dr-head">
-          <div>
-            <h2 id="studio-demands-title">Proje geliştirme talepleri</h2>
-            <p>
-              {requests.length} talepten {filtered.length} kayıt gösteriliyor
-            </p>
+      {requests.length > 0 && (
+        <div className="dr-toolbar">
+          <div
+            className="dr-chips"
+            role="group"
+            aria-label="Talep durumuna göre filtrele"
+          >
+            {statusGroups.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className="dr-chip"
+                aria-pressed={group === id}
+                onClick={() => setGroup(id)}
+              >
+                {label}
+                <span className="dr-chip-count">{groupCounts[id]}</span>
+              </button>
+            ))}
           </div>
           <div className="dr-controls">
             <label className="dr-control dr-search">
@@ -260,23 +250,6 @@ export function DevelopmentRequestsPage({
                   <X size={14} />
                 </button>
               )}
-            </label>
-            <label className="dr-control">
-              <Filter size={15} />
-              <select
-                aria-label="Talep durumuna göre filtrele"
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-              >
-                <option value="all">Tüm durumlar</option>
-                {Array.from(new Set(requests.map((item) => item.status)))
-                  .sort()
-                  .map((value) => (
-                    <option key={value} value={value}>
-                      {statuses[value] || value}
-                    </option>
-                  ))}
-              </select>
             </label>
             <label className="dr-control">
               <List size={15} />
@@ -308,7 +281,20 @@ export function DevelopmentRequestsPage({
               </button>
             </div>
           </div>
-        </header>
+        </div>
+      )}
+      <section
+        className="ns-card dr-panel"
+        id="requests"
+        aria-label="Geliştirme talepleri listesi"
+      >
+        {requests.length > 0 && (
+          <p className="dr-count" aria-live="polite">
+            {isFiltered
+              ? `${requests.length} talepten ${filtered.length} kayıt gösteriliyor`
+              : `${requests.length} talep`}
+          </p>
+        )}
         {filtered.length > 0 && view === "list" && (
           <div className="ns-table-wrap dr-table-wrap">
             <table className="ns-table dr-table">
@@ -372,46 +358,40 @@ export function DevelopmentRequestsPage({
             ))}
           </div>
         )}
-        {filtered.length === 0 && (
+        {requests.length === 0 && (
           <div className="ns-empty dr-empty">
             <span className="dr-empty-icon" aria-hidden="true">
               <ListTodo size={22} />
             </span>
-            <b>
-              {requests.length
-                ? query
-                  ? "Aramanızla eşleşen talep bulunamadı"
-                  : "Bu duruma uygun talep bulunamadı"
-                : "Henüz geliştirme talebi yok"}
-            </b>
+            <b>İlk talebinizi oluşturun</b>
             <span>
-              {requests.length
-                ? query
-                  ? "Farklı bir ifade deneyin veya filtreleri temizleyin."
-                  : "Durum filtresini değiştirerek diğer talepleri görebilirsiniz."
-                : "Yeni bir ihtiyaç ekleyerek geliştirme akışını başlatın."}
+              Ne değişmesini istediğinizi yazın; Studio ayrı çalışma alanında
+              hazırlar.
             </span>
-            {requests.length ? (
-              <button
-                type="button"
-                className="ns-btn ns-btn-sm"
-                onClick={() => {
-                  setStatus("all");
-                  setQuery("");
-                }}
-              >
-                Filtreleri temizle
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="ns-btn ns-btn-sm ns-btn-primary"
-                onClick={onCreate}
-              >
-                <Plus size={15} />
-                Talep oluştur
-              </button>
-            )}
+            <button
+              type="button"
+              className="ns-btn ns-btn-primary"
+              onClick={onCreate}
+            >
+              <Plus size={15} aria-hidden="true" />
+              Talep oluştur
+            </button>
+          </div>
+        )}
+        {requests.length > 0 && filtered.length === 0 && (
+          <div className="ns-empty dr-empty">
+            <span className="dr-empty-icon" aria-hidden="true">
+              <Search size={20} />
+            </span>
+            <b>Bu filtreyle eşleşen talep yok</b>
+            <span>Farklı bir arama deneyin veya filtreyi temizleyin.</span>
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm"
+              onClick={clearFilters}
+            >
+              Filtreyi temizle
+            </button>
           </div>
         )}
       </section>
