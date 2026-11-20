@@ -56,7 +56,8 @@ describe("sayfa kataloğu modeli", () => {
   });
 });
 
-describe("sayfa tasarımcısı girişi", () => {
+// Tasarımcı modülü büyük: soğuk dinamik içe aktarma yüklü makinede 5 sn sınırını aşabilir.
+describe("sayfa tasarımcısı girişi", { timeout: 30_000 }, () => {
   it("araç sekme şeridi yok; tek satır başlık ve Yeni sayfa düğmesi var", async () => {
     const { default: LowCodeDesignerPage } = await import("./LowCodeDesignerPage");
     const html = renderToString(<LowCodeDesignerPage token="t" role="TenantAdmin" initialSection="custom-pages" />);

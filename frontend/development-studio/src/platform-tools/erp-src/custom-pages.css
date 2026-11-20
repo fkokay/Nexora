@@ -840,3 +840,6 @@ html.pd-fullscreen-active{overflow:hidden}
 .pd-right-title .pd-binding-name{height:28px;font-size:13px}
 .pd-right-actions{display:inline-flex;gap:2px}
 .pd-right-actions .pd-icon-button.danger{color:#b42318}
+.pd-input-picker li.is-on{display:flex;align-items:center;gap:2px}
+.pd-input-picker .pd-picker-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-picker-add{margin-top:6px;width:100%}
