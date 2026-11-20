@@ -39,6 +39,8 @@ import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { parseGridColumns } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
+import { countRowsWhen, countText, countWhenProblem } from "./page-designer/countWhen";
+import { CountWhenField } from "./page-designer/CountWhenField";
 import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
@@ -154,7 +156,11 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
+<<<<<<< HEAD
 const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+=======
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "countWhen", "defaultWhen", "closeInput",
+>>>>>>> origin/feat/kosullu-sayac
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -227,7 +233,7 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   for (const key of readRefs) delete props[key];
   if (staleDialogSave) delete props.saveQuery;
   // Sunucu sayfalaması ERP işlemi sorgusuna bağlıdır; sorgu kalkınca sayfalama özellikleri de kalkar.
-  if (readGone && props.query === queryId) { delete props.query; delete props.totals; delete props.columnFormats; delete props.toneMap; for (const key of PAGING_PROPS) delete props[key]; }
+  if (readGone && props.query === queryId) { delete props.query; delete props.countWhen; delete props.totals; delete props.columnFormats; delete props.toneMap; for (const key of PAGING_PROPS) delete props[key]; }
   if (readGone && props.trendQuery === queryId) delete props.trendQuery;
   // Seçenek sütunları (arama kutusunun açıklama sütunu dahil) sorguya bağlıdır; sabit seçenekler, en az karakter ve
   // temizlenebilir sorgudan bağımsızdır, kalır (sabit seçenekli arama kutusu sorgusuz da geçerlidir).
@@ -1954,7 +1960,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 : fazBProblem(component, label);
       // Koşul sözdizimi ve kök adları: sunucu da reddeder; burada aynı metinle ve bileşen seçilerek gösterilir.
       const condition = empty ?? conditionProblem("visibleWhen", component.props.visibleWhen, pageNamesOf(definition))
-        ?? conditionProblem("disabledWhen", component.props.disabledWhen, pageNamesOf(definition));
+        ?? conditionProblem("disabledWhen", component.props.disabledWhen, pageNamesOf(definition))
+        ?? countWhenProblem(component.props.countWhen, component.type === "metric" ? definition.queries.find((query) => query.id === component.props.query)?.name ?? null : null, pageNamesOf(definition));
       if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
     }
     // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
@@ -2304,8 +2311,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
         const first = preview?.columns[0]?.code;
+<<<<<<< HEAD
         const value = preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
         return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+=======
+        // Koşullu sayaç tuvalde örnek satırlardan (en fazla 5) sayılır.
+        const count = preview && query ? countRowsWhen(props.countWhen, preview.rows, query.name, designScope()) : undefined;
+        const value = count !== undefined ? countText(count) : preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
+        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
+>>>>>>> origin/feat/kosullu-sayac
       } else if (!props.source && typeof props.value === "string") {
         const metricValue = interpolate(props.value, designScope());
         // Açıklamadaki bağlama da örnek veriyle çözülür (ör. birim "EA"); çözülemezse ham metin kalır.
@@ -3420,8 +3434,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <small>Kullanılabilir değişkenler listesindeki <b>Sayılar</b> grubundan bir kaynak seçebilirsiniz.</small></label>
               : selectedQueryRef ? <>
                 <label className="pd-field">Sorgu<select value={selectedQueryRef} onChange={(event) => patchComponent(selected.id, { query: event.target.value, totals: undefined, columnFormats: undefined, toneMap: undefined, ...pagingReset, ...(selected.type === "dataTable" ? { columns: [] } : {}) })}>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>
-                  <small>{selected.type === "metric" ? "Gösterge, ilk satırın ilk sütununu gösterir." : "Seçim yoksa tüm sütunlar gösterilir."}</small></label>
+                  <small>{selected.type === "metric" ? selected.props.countWhen ? "Gösterge, koşullu sayaçtaki koşulu sağlayan satırları sayar." : "Gösterge, ilk satırın ilk sütununu gösterir." : "Seçim yoksa tüm sütunlar gösterilir."}</small></label>
                 <QueryFieldActions kinds={READ_KINDS} target={selected.type === "dataTable" ? "Izgara (liste)" : "Gösterge"} value={selectedQueryRef} componentId={selected.id} disabled={!canEdit} bind={bindDataQuery}/>
+                {selected.type === "metric" && <CountWhenField value={selected.props.countWhen} queryName={definition.queries.find((query) => query.id === selectedQueryRef)?.name ?? selectedQueryRef}
+                  pageNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { countWhen: next })}/>}
                 {selected.type === "dataTable" && (selectedQueryColumns.length === 0 ? <p className="pd-binding-note">Sütunları seçmek için sorguyu Sorgular sekmesinde önizleyin.</p> : columnsShortcut)}
               </> : <>
               <label className="pd-field">Rapor kaynağı<select value={String(selected.props.source || "")} onChange={(event) => { const source = sources.find((item) => item.code === event.target.value); updateComponent(selected.id, "source", event.target.value); if (selected.type === "dataTable") patchComponent(selected.id, { columns: (source?.columns ?? []).slice(0, 5).map((column) => column.code), columnFormats: undefined, toneMap: undefined, totals: undefined }); }}><option value="">Veri kaynağı seçin</option>{sources.map((source) => <option key={source.code} value={source.code}>{source.label}</option>)}</select>{sources.length === 0 && <small>Kaynak kataloğu yüklenemedi veya erişilebilir kaynak yok.</small>}</label>

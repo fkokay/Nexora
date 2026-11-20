@@ -1,6 +1,6 @@
 import {
   Activity, AlertTriangle, Archive, Ban, Banknote, BarChart3, Bell, Box, Boxes, Briefcase, Building, Building2, Calculator, Calendar,
-  CalendarClock, CheckCircle2, ClipboardList, Clock, Coins, CreditCard, Factory, FileText, Files, Flag, Globe, Handshake, Hourglass,
+  CalendarClock, CalendarX, CheckCircle2, ClipboardList, Clock, Coins, CreditCard, Factory, FileText, Files, Flag, Globe, Handshake, Hourglass,
   Inbox, Info, Landmark, Layers, LineChart, Lock, Mail, MapPin, Package, Percent, Phone, PieChart, PiggyBank, Receipt, RefreshCw,
   ScanLine, Settings, Shield, ShoppingBag, ShoppingCart, Star, Store, Tag, Target, Timer, TrendingDown, TrendingUp, Truck, User,
   UserCheck, Users, Wallet, Warehouse, Wrench, XCircle, Barcode, type LucideIcon,
@@ -75,6 +75,7 @@ export const metricIconOptions: { value: string; label: string; icon: LucideIcon
   { value: "x-circle", label: "Hata", icon: XCircle, keywords: "iptal red başarısız" },
   { value: "ban", label: "Yasak", icon: Ban, keywords: "engel bloke iptal" },
   { value: "refresh-cw", label: "Yenile", icon: RefreshCw, keywords: "tekrar iade döngü" },
+  { value: "calendar-x", label: "Süresi geçmiş", icon: CalendarX, keywords: "takvim son kullanma vade gecikmiş" },
 ];
 
 /** Tuval önizlemesi için anahtar → simge eşlemesi. */

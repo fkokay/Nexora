@@ -1,6 +1,6 @@
 import {
   Activity, AlertTriangle, Archive, Ban, Banknote, BarChart3, Barcode, Bell, Box, Boxes, Briefcase, Building, Building2, Calculator,
-  Calendar, CalendarClock, CheckCircle2, ClipboardList, Clock, Coins, CreditCard, Factory, FileText, Files, Flag, Globe, Handshake,
+  Calendar, CalendarClock, CalendarX, CheckCircle2, ClipboardList, Clock, Coins, CreditCard, Factory, FileText, Files, Flag, Globe, Handshake,
   Hourglass, Inbox, Info, Landmark, Layers, LineChart, Lock, Mail, MapPin, Package, Percent, Phone, PieChart, PiggyBank, Receipt,
   RefreshCw, ScanLine, Settings, Shield, ShoppingBag, ShoppingCart, Star, Store, Tag, Target, Timer, TrendingDown, TrendingUp, Truck,
   User, UserCheck, Users, Wallet, Warehouse, Wrench, XCircle, type LucideIcon,
@@ -20,5 +20,5 @@ export const METRIC_ICONS: Record<string, LucideIcon> = {
   "file-text": FileText, files: Files, "clipboard-list": ClipboardList, inbox: Inbox, archive: Archive, mail: Mail, phone: Phone,
   user: User, "user-check": UserCheck, briefcase: Briefcase, handshake: Handshake, globe: Globe, "map-pin": MapPin, settings: Settings,
   wrench: Wrench, shield: Shield, lock: Lock, bell: Bell, star: Star, flag: Flag, info: Info, "x-circle": XCircle, ban: Ban,
-  "refresh-cw": RefreshCw,
+  "refresh-cw": RefreshCw, "calendar-x": CalendarX,
 };
