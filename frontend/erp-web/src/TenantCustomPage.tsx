@@ -2799,7 +2799,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // üstünde, çubuk başlığın hemen altındaki yuvaya (ActionBarSlot) taşınır; açıklama başlığın ipucudur (eski ekranda satır yok).
   // `barLook` `title=false`: başlık satırı (ve onun çubuk yuvası, "Eski ekranda aç" bağlantısı) çizilmez; çubuk kabuğun kendi
   // yerinde (sayfanın üstünde) kalır, iz (breadcrumb) kabuğun satırında bir kez görünür.
-  const titleCount = bar ? pageTitleCount(bar.props.titleCount, scope) : null;
+  // Kayıt sayısı aktarım tablosunu izler: tablo (ya da bir sahibi) `visibleWhen` ile gizliyken eski sorgunun sayısı gösterilmez.
+  const countTable = bar && typeof bar.props.exportTable === "string" ? bar.props.exportTable.trim() : "";
+  const countTableHidden = !!runtime && countTable !== "" && !ancestorsOf(countTable).every((id) => { const item = flatById[id]; return !item || componentVisible(item, runtime); });
+  const titleCount = bar && !countTableHidden ? pageTitleCount(bar.props.titleCount, scope) : null;
   const showTitle = !!bar && parseBarLook(bar.props.barLook)?.title !== false;
   return <div className="tenant-custom-page-content" ref={contentRef}>
     {showTitle && <div className="list-v2 tenant-custom-page-title">
