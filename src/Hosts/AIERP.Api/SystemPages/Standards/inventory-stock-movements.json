@@ -1,0 +1,69 @@
+{
+  "screenKey": "inventory-stock-movements", "title": "Stok Hareketleri",
+  "description": "Bir stok seçerek depo hareket geçmişini görüntüleyin.", "module": "Stok & Depo",
+  "version": 1, "stage": "preview",
+  "items": {
+    "component:komutlar": { "since": 1, "label": "İşlem çubuğu", "requires": ["component:liste", "query:gecmis"] },
+    "component:suzgecKarti": { "since": 1, "label": "Süzgeç satırı (stok kartı, depo)",
+      "requires": ["component:stokSecimi", "component:depoSecimi"] },
+    "component:stokSecimi": { "since": 1, "label": "Stok kartı seçimi", "requires": ["query:stokKartlari"] },
+    "component:depoSecimi": { "since": 1, "label": "Depo seçimi", "requires": ["query:depolar"] },
+    "component:stokSecinBilgisi": { "since": 1, "label": "Stok kartı seçin bilgisi", "requires": ["component:stokSecimi"] },
+    "component:liste": { "since": 1, "label": "Stok hareketleri listesi", "requires": ["query:gecmis", "component:stokSecimi"] },
+    "query:stokKartlari": { "since": 1, "label": "Stok kartlarını ara", "requires": ["component:stokSecimi"] },
+    "query:depolar": { "since": 1, "label": "Depoları listele" },
+    "query:gecmis": { "since": 1, "label": "Stok hareket geçmişi",
+      "requires": ["component:stokSecimi", "component:depoSecimi", "component:liste"] }
+  },
+  "screenViews": [ { "key": "inventory-movement-history", "component": "liste",
+                     "fields": { "entryDate": "entryDate", "direction": "direction", "quantity": "displayQuantity",
+                                 "warehouse": "warehouseCode", "storageLocation": "storageLocationCode", "tracking": "trackingText",
+                                 "description": "description", "unitCostBase": "unitCostBase" } } ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
+        "props": { "exportTable": "liste", "titleCount": "{{gecmis.meta.totalCount}}" } },
+
+      { "id": "suzgecKarti", "type": "formCard", "name": "suzgecKarti",
+        "props": { "title": "Süzgeçler", "layout": "inline", "inputs": ["stokSecimi", "depoSecimi"] } },
+      { "id": "stokSecimi", "type": "input", "name": "stokSecimi",
+        "props": { "inputType": "lookup", "label": "Stok kartı", "placeholder": "Stok kodu veya adıyla ara",
+                   "optionsQuery": "stokKartlari", "optionValueColumn": "id", "optionLabelColumn": "name",
+                   "optionDescriptionColumn": "code", "minChars": 0, "allowClear": true } },
+      { "id": "depoSecimi", "type": "input", "name": "depoSecimi",
+        "props": { "inputType": "lookup", "label": "Depo", "optionsQuery": "depolar", "optionValueColumn": "id",
+                   "optionLabelColumn": "name", "optionDescriptionColumn": "code", "staticOptions": ["=Tüm depolar"],
+                   "minChars": 0 } },
+
+      { "id": "stokSecinBilgisi", "type": "text", "name": "stokSecinBilgisi",
+        "props": { "text": "Hareketleri görmek için bir stok kartı seçin.", "visibleWhen": "stokSecimi.value == null" } },
+      { "id": "liste", "type": "dataTable", "name": "liste",
+        "props": { "query": "gecmis", "paging": "server", "pageSize": 50, "width": 12,
+                   "visibleWhen": "stokSecimi.value != null",
+                   "columns": ["entryDate", "direction", "isReversal", "displayQuantity", "warehouseCode", "storageLocationCode",
+                               "trackingText", "description"],
+                   "columnLabels": ["entryDate=Tarih", "direction=Yön", "isReversal=Ters kayıt", "displayQuantity=Miktar",
+                                    "warehouseCode=Depo", "storageLocationCode=Konum", "trackingText=Lot / seri",
+                                    "description=Açıklama", "unitCostBase=Birim maliyet"],
+                   "columnUnits": ["displayQuantity=displayUnitCode", "warehouseCode=warehouseName",
+                                   "storageLocationCode=storageLocationName"],
+                   "columnFormats": ["entryDate=date", "direction=status", "isReversal=status", "displayQuantity=number",
+                                     "unitCostBase=number"],
+                   "valueLabels": ["direction:Receipt=Giriş", "direction:Issue=Çıkış", "isReversal:true=İade", "isReversal:false=—"],
+                   "toneMap": ["Giriş=success", "Çıkış=info"],
+                   "emptyText": "Seçili stok ve depoda hareket bulunmuyor." } }
+    ],
+    "queries": [
+      { "id": "stokKartlari", "name": "stokKartlari", "kind": "read", "operation": "stok.kart.listele", "runOn": "load",
+        "parameters": [ { "name": "q", "binding": "{{stokSecimi.search}}", "type": "text" } ] },
+      { "id": "depolar", "name": "depolar", "kind": "read", "operation": "depo.listele", "runOn": "load", "parameters": [] },
+      { "id": "gecmis", "name": "gecmis", "kind": "read", "operation": "stok.hareket.gecmisi", "runOn": "load",
+        "parameters": [
+          { "name": "stockItemId", "binding": "{{stokSecimi.value}}", "type": "guid" },
+          { "name": "warehouseId", "binding": "{{depoSecimi.value}}", "type": "guid" },
+          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
+          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] }
+    ]
+  }
+}

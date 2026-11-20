@@ -39,7 +39,7 @@ import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { CompactList, compactCell } from "./custom-page/CompactList";
 import { FilterBar } from "./custom-page/FilterBar";
-import { applyClientFilters, filterChoices, filterScope, filterStorageKey, loadFilterValues, parseFilterEntries, resolveKind, saveFilterValues, EMPTY_FILTER_VALUES, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./custom-page/filterBarModel";
+import { applyClientFilters, filterChoices, filterScope, filterStorageKey, loadFilterValues, parseFilterEntries, presetFromPageParams, resolveKind, saveFilterValues, EMPTY_FILTER_VALUES, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./custom-page/filterBarModel";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
@@ -1502,11 +1502,15 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const blockComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "customFieldsBlock" && !!component.name) : []), [isV2, flat]);
   const formCards = useMemo(() => (isV2 ? flat.filter((component) => component.type === "formCard") : []), [isV2, flat]);
   // Süzgeç alanları: değerler sayfa + bileşen başına tarayıcıda saklanır (önizlemede okunmaz, yazılmaz). İlk değerler eşzamanlı
-  // okunur; böylece sunucuya giden süzgeçli sorgu açılışta iki kez çalışmaz.
+  // okunur; böylece sunucuya giden süzgeçli sorgu açılışta iki kez çalışmaz. Sayfa parametreleri aynı adlı parametreli süzgeci
+  // doldurur (gövde parametreler değişince baştan kurulur, ilk değer yeter).
   const filterBars = useMemo(() => (isV2 ? flat.filter((component) => component.type === "filterBar" && !!component.name) : []), [isV2, flat]);
   const tenantId = useMemo(() => sessionTenant(token), [token]);
-  const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => previewId ? {} : Object.fromEntries(
-    filterBars.map((filterBar) => [filterBar.id, loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), parseFilterEntries(filterBar.props?.filters))])));
+  const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => Object.fromEntries(filterBars.map((filterBar) => {
+    const specs = parseFilterEntries(filterBar.props?.filters);
+    const stored = previewId ? EMPTY_FILTER_VALUES : loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), specs);
+    return [filterBar.id, presetFromPageParams(stored, specs, pageParams)];
+  })));
   useEffect(() => {
     if (previewId) return;
     for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);

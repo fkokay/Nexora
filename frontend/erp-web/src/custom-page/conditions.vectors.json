@@ -104,13 +104,45 @@
         "roots": [
           "a"
         ]
+      },
+      {
+        "text": "ad.value < 3",
+        "roots": [
+          "ad"
+        ]
+      },
+      {
+        "text": "liste.seciliSatir.expiryDate >= bugun && liste.seciliSatir.expiryDate <= bugun + 30",
+        "roots": [
+          "liste",
+          "bugun"
+        ]
+      },
+      {
+        "text": "a.value<=b.value||a.value>-1.5",
+        "roots": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "text": "(a.value + -7) > b.value",
+        "roots": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "text": "a.value+1 == 2",
+        "roots": [
+          "a"
+        ]
       }
     ],
     "invalid": [
       "",
       "ad.value ==",
       "ad.value = 1",
-      "ad.value < 3",
       "in == 1",
       "'abc",
       "ad.value in []",
@@ -138,7 +170,16 @@
       "a.value == 'it\\'s'",
       "a.value === 1",
       "a..value",
-      "!"
+      "!",
+      "a.value << 3",
+      "a.value + b.value",
+      "a.value + 'x'",
+      "a.value +",
+      "a.value + 1 + 2",
+      "a.value => 1",
+      "a.value < 1 < 2",
+      "a.value + -",
+      "k.value in [1 + 2]"
     ]
   },
   "eval": [
@@ -424,6 +465,195 @@
       "scope": {
         "a": {
           "value": "x"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value < 3",
+      "scope": {
+        "a": {
+          "value": "2"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value < 3",
+      "scope": {
+        "a": {
+          "value": 3
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value <= 3",
+      "scope": {
+        "a": {
+          "value": 3
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value > 2.5",
+      "scope": {
+        "a": {
+          "value": "10"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value >= 10",
+      "scope": {
+        "a": {
+          "value": ""
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value < 3",
+      "scope": {
+        "a": {
+          "value": "abc"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value < 'b'",
+      "scope": {
+        "a": {
+          "value": "a"
+        }
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value < bugun",
+      "scope": {
+        "a": {
+          "value": "2026-11-18"
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value < bugun",
+      "scope": {
+        "a": {
+          "value": "2026-11-19T00:00:00"
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value >= bugun",
+      "scope": {
+        "a": {
+          "value": null
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value < bugun",
+      "scope": {
+        "a": {
+          "value": null
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value <= bugun + 30",
+      "scope": {
+        "a": {
+          "value": "2026-12-19"
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value <= bugun + 30",
+      "scope": {
+        "a": {
+          "value": "2026-12-20"
+        },
+        "bugun": "2026-11-19"
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value == bugun + 13",
+      "scope": {
+        "a": {
+          "value": "2027-01-01"
+        },
+        "bugun": "2026-12-19"
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value == bugun + -1",
+      "scope": {
+        "a": {
+          "value": "2024-02-29"
+        },
+        "bugun": "2024-03-01"
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value + 2 == 5",
+      "scope": {
+        "a": {
+          "value": "3"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value + 1.5 > bugun",
+      "scope": {
+        "a": {
+          "value": "2026-11-19"
+        },
+        "bugun": "2026-11-01"
+      },
+      "expected": false
+    },
+    {
+      "text": "a.value + 1 == null",
+      "scope": {
+        "a": {
+          "value": "x"
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "a.value < 3 || a.value > 9",
+      "scope": {
+        "a": {
+          "value": 12
+        }
+      },
+      "expected": true
+    },
+    {
+      "text": "!(a.value < 3)",
+      "scope": {
+        "a": {
+          "value": null
         }
       },
       "expected": true

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { applyClientFilters, filterChips, filterChoices, filterScope, filterStorageKey, formatFilterEntry, loadFilterValues, parseFilterEntries, resolveKind, saveFilterValues, type ResolvedFilter } from './filterBarModel';
+import { applyClientFilters, filterChips, filterChoices, filterScope, filterStorageKey, formatFilterEntry, loadFilterValues, parseFilterEntries, presetFromPageParams, resolveKind, saveFilterValues, type ResolvedFilter } from './filterBarModel';
 
 const resolved = (entry: string, kind: ResolvedFilter['kind'], label = entry.split('|')[0], choices: ResolvedFilter['choices'] = []): ResolvedFilter =>
   ({ ...parseFilterEntries([entry])[0], kind, label, choices });
@@ -99,5 +99,16 @@ describe('süzgeç değerlerinin saklanması', () => {
     expect(localStorage.getItem('k')).toBeNull();
     localStorage.setItem('k', '{bozuk');
     expect(loadFilterValues('k', [])).toEqual({ search: '', values: {} });
+  });
+});
+
+describe('sayfa parametreleriyle süzgeç', () => {
+  it('aynı adlı parametreli süzgeci doldurur ve saklanan değerin önüne geçer; parametresiz süzgeç ve boş değer etkilenmez', () => {
+    const specs = parseFilterEntries(['warehouseId|select|row|warehouseId|Depo|depolar:id:name', 'isActive|select|row||Durum', 'pasif|toggle|row|includeInactive']);
+    const stored = { search: 'ra', values: { warehouseId: 'eski', isActive: 'true' } };
+    expect(presetFromPageParams(stored, specs, { warehouseId: 'w2', isActive: 'false', includeInactive: 'true' }))
+      .toEqual({ search: 'ra', values: { warehouseId: 'w2', isActive: 'true', pasif: true } });
+    expect(presetFromPageParams(stored, specs, { warehouseId: '  ' })).toBe(stored);
+    expect(presetFromPageParams(stored, specs, {})).toBe(stored);
   });
 });
