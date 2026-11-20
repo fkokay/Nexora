@@ -59,4 +59,57 @@ describe('PageDialog', () => {
     render(<PageDialog {...base} presentation="drawer" open onClose={() => undefined} />);
     expect(screen.getByRole('dialog').classList.contains('is-drawer')).toBe(true);
   });
+
+  it('size writes data-size except for the default md', () => {
+    const { rerender } = render(<PageDialog {...base} open onClose={() => undefined} />);
+    expect(screen.getByRole('dialog').hasAttribute('data-size')).toBe(false);
+    rerender(<PageDialog {...base} size="md" open onClose={() => undefined} />);
+    expect(screen.getByRole('dialog').hasAttribute('data-size')).toBe(false);
+    for (const size of ['sm', 'lg', 'full'] as const) {
+      rerender(<PageDialog {...base} size={size} open onClose={() => undefined} />);
+      expect(screen.getByRole('dialog').getAttribute('data-size')).toBe(size);
+    }
+    rerender(<PageDialog {...base} presentation="drawer" size="lg" open onClose={() => undefined} />);
+    expect(screen.getByRole('dialog').classList.contains('is-drawer')).toBe(true);
+    expect(screen.getByRole('dialog').getAttribute('data-size')).toBe('lg');
+  });
+
+  const clickBackdrop = () => {
+    const backdrop = document.querySelector('.tenant-page-dialog-backdrop')!;
+    fireEvent.mouseDown(backdrop);
+    fireEvent.click(backdrop);
+  };
+
+  it('backdrop click does not close by default', () => {
+    const onClose = vi.fn();
+    render(<PageDialog {...base} open onClose={onClose} />);
+    clickBackdrop();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('backdropClose closes on backdrop click only', () => {
+    const onClose = vi.fn();
+    render(<PageDialog {...base} backdropClose open onClose={onClose} />);
+    // Clicks inside the dialog do not close it.
+    const dialog = screen.getByRole('dialog');
+    fireEvent.mouseDown(dialog);
+    fireEvent.click(dialog);
+    expect(onClose).not.toHaveBeenCalled();
+    // Press inside, release on the backdrop (drag out) does not close it.
+    fireEvent.mouseDown(screen.getByLabelText('Ad'));
+    fireEvent.click(document.querySelector('.tenant-page-dialog-backdrop')!);
+    expect(onClose).not.toHaveBeenCalled();
+    clickBackdrop();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('backdropClose never closes while a save is in flight', () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<PageDialog {...base} backdropClose save={{ label: 'Kaydet', busy: true, run: () => undefined }} open onClose={onClose} />);
+    clickBackdrop();
+    expect(onClose).not.toHaveBeenCalled();
+    rerender(<PageDialog {...base} backdropClose save={{ label: 'Kaydet', busy: false, run: () => undefined }} open onClose={onClose} />);
+    clickBackdrop();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
