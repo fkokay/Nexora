@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { displayText } from "./pageBindings";
 import type { QueryState } from "./usePageQueries";
@@ -66,7 +66,7 @@ export function lookupOptionsWithValue(props: Record<string, unknown>, state: Qu
  * Arama kutusu (combobox). Seçimde etiket saklanır; değer dışarıdan değişirse (varsayılan, setInput) eşleşen seçeneğin
  * etiketi, eşleşme yoksa ham değer gösterilir; değer hiçbir zaman seçeneklere göre temizlenmez.
  */
-export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected, appearance = "search", ariaLabel }: {
+export function LookupInput({ inputId, label, raw, onChange, onSearch, options, loading, error, allowClear, disabled, placeholder, selected, appearance = "search", ariaLabel, floating = false }: {
   inputId: string; label: string; raw: string; onChange: (value: string, row: Record<string, unknown> | null, label: string) => void;
   onSearch: (text: string) => void; options: LookupOption[];
   loading: boolean; error?: string; allowClear: boolean; disabled: boolean; placeholder: string;
@@ -79,6 +79,11 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   appearance?: "search" | "select";
   /** Etiket çizilmediğinde (ör. "Daha fazla süzgeç" panelinde) girişin erişilebilir adı. */
   ariaLabel?: string;
+  /**
+   * Liste kaydırılan bir kabın (ör. pencere gövdesi, tablo) içinde kesilmesin diye ekrana sabitlenir (`position: fixed`);
+   * aşağıda yer yoksa girişin üstüne açılır. Düzenlenebilir tablonun seçim hücreleri kullanır.
+   */
+  floating?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // Yazılan arama metni; null iken kutuda seçili etiket görünür.
@@ -87,6 +92,8 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   const [localChosen, setChosen] = useState<{ value: string; label: string } | null>(null);
   const chosen = selected !== undefined ? selected : localChosen;
   const listId = `${inputId}-listbox`;
+  const controlRef = useRef<HTMLDivElement>(null);
+  const [floatStyle, setFloatStyle] = useState<CSSProperties | undefined>(undefined);
   const display = chosen && chosen.value === raw ? chosen.label : options.find((option) => option.value === raw)?.label ?? raw;
   const listOpen = open && !disabled;
   const isSelect = appearance === "select";
@@ -118,7 +125,9 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
       setOpen(true);
       setHighlight((current) => Math.max(current - 1, 0));
     } else if (event.key === "Enter") {
-      if (listOpen && !loading && highlight >= 0 && options[highlight]) { event.preventDefault(); choose(options[highlight]); }
+      // Vurgulu seçenek yoksa, aranan metin varken ilk sonuç seçilir (yaz + Enter).
+      const index = highlight >= 0 ? highlight : text !== null && text.trim() !== "" ? 0 : -1;
+      if (listOpen && !loading && index >= 0 && options[index]) { event.preventDefault(); choose(options[index]); }
     } else if (event.key === "Escape") {
       if (listOpen) { event.preventDefault(); close(); }
     }
@@ -126,10 +135,28 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   const active = listOpen && !loading && highlight >= 0 && options[highlight] ? `${inputId}-option-${highlight}` : undefined;
   // Ok tuşlarıyla vurgulanan seçenek görünür alana kaydırılır (jsdom'da scrollIntoView yoktur).
   useEffect(() => { if (active) document.getElementById(active)?.scrollIntoView?.({ block: "nearest" }); }, [active]);
+  // Sabitlenen liste girişin ekrandaki yerini izler (kaydırma ve yeniden boyutlandırma).
+  useLayoutEffect(() => {
+    if (!floating || !listOpen) { setFloatStyle(undefined); return; }
+    const place = () => {
+      const rect = controlRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const below = window.innerHeight - rect.bottom;
+      const up = below < 220 && rect.top > below;
+      const width = Math.max(rect.width, 220);
+      const left = Math.max(4, Math.min(rect.left, window.innerWidth - width - 4));
+      setFloatStyle({ position: "fixed", left, width, right: "auto", maxHeight: Math.max(120, Math.min(260, (up ? rect.top : below) - 8)),
+        ...(up ? { top: "auto", bottom: window.innerHeight - rect.top + 2 } : { top: rect.bottom + 2, bottom: "auto" }) });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [floating, listOpen]);
 
   return <div className={`tenant-page-lookup${isSelect ? " is-select" : ""}`}>
     {label && <label htmlFor={inputId}><span>{label}</span></label>}
-    <div className="tenant-page-lookup-control">
+    <div className="tenant-page-lookup-control" ref={controlRef}>
       <input id={inputId} type="text" role="combobox" autoComplete="off" aria-label={!label && ariaLabel ? ariaLabel : undefined} aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
         aria-activedescendant={active} disabled={disabled} placeholder={placeholder} value={text ?? display}
         onChange={(event) => { setText(event.target.value); setOpen(true); setHighlight(-1); onSearch(event.target.value); }}
@@ -140,7 +167,7 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
       {showClear && <button type="button" className="tenant-page-lookup-clear" aria-label="Temizle"
         onMouseDown={(event) => event.preventDefault()} onClick={clear}><X size={14} aria-hidden="true" /></button>}
       {/* Listeye (kaydırma çubuğu dahil) basmak girişi bulanıklaştırıp listeyi kapatmasın. */}
-      {listOpen && <ul id={listId} role="listbox" className="tenant-page-lookup-list" aria-label={label || ariaLabel || undefined} onMouseDown={(event) => event.preventDefault()}>
+      {listOpen && <ul id={listId} role="listbox" className={`tenant-page-lookup-list${floating ? " is-floating" : ""}`} style={floatStyle} aria-label={label || ariaLabel || undefined} onMouseDown={(event) => event.preventDefault()}>
         {loading ? <li className="tenant-page-lookup-state" role="status">Aranıyor…</li>
           : options.length === 0 ? <li className="tenant-page-lookup-state" role="status">Sonuç bulunamadı.</li>
             : options.map((option, index) => <li key={`${index}-${option.value}`} id={`${inputId}-option-${index}`} role="option"

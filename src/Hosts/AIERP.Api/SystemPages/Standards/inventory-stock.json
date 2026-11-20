@@ -253,7 +253,7 @@
                                    "expiryDate|Son kullanma tarihi|date"],
                    "maxRows": 200, "visibleWhen": "liste.seciliSatir.stockItem.trackingMode != 'None'" } },
       { "id": "hareketTablosu", "type": "dataTable", "name": "hareketTablosu",
-        "props": { "query": "hareketler", "paging": "server", "pageSize": 50,
+        "props": { "query": "hareketler", "paging": "server", "pageSize": 50, "width": 12,
                    "columns": ["entryDate", "direction", "quantity", "enteredQuantity", "enteredUnitCode", "unitCostBase",
                                "storageLocationCode", "description", "isReversal", "hasReversal"],
                    "rowActions": ["tersKayitDugmesi"], "emptyText": "Bu depoda hareket yok." } },
