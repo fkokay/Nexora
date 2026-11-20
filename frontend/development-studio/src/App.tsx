@@ -17,6 +17,8 @@ import {
   ClipboardCheck,
   Code2,
   Database,
+  Eye,
+  EyeOff,
   FileText,
   FolderKanban,
   GitBranch,
@@ -211,6 +213,38 @@ function StudioBrand() {
   );
 }
 
+const authSteps = [
+  { title: "İhtiyacı yazın", hint: "Talep doğru projeye bağlanır" },
+  {
+    title: "Ayrı çalışma alanında hazırlanır",
+    hint: "Canlı sisteme dokunmaz",
+  },
+  { title: "Siz onaylayınca uygulanır", hint: "Onaysız değişiklik yok" },
+];
+
+/** Giriş ve firma seçiminin iki bölmeli kabuğu: solda tanıtım paneli, sağda form. */
+function AuthShell({
+  labelledBy,
+  panel,
+  children,
+}: {
+  labelledBy: string;
+  panel: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="st-auth">
+      <main className="st-auth-card" aria-labelledby={labelledBy}>
+        <aside className="st-auth-panel">
+          <StudioBrand />
+          {panel}
+        </aside>
+        <div className="st-auth-main">{children}</div>
+      </main>
+    </div>
+  );
+}
+
 function EmptyState({
   icon: Icon,
   title,
@@ -288,6 +322,8 @@ export default function App() {
   });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [tenantQuery, setTenantQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -937,73 +973,136 @@ export default function App() {
 
   if (!token || (!tenant && tenants.length === 0))
     return (
-      <div className="st-auth">
-        <main className="st-auth-card" aria-labelledby="studio-login-title">
-          <StudioBrand />
-          <div className="st-auth-copy">
-            <h1 id="studio-login-title">Oturum açın</h1>
-            <p>
-              AI Development Studio, Platform hesabınızla ayrı ve yetkili
-              oturum açar.
+      <AuthShell
+        labelledBy="studio-login-title"
+        panel={
+          <>
+            <p className="st-auth-lead">
+              ERP'nizi kod yazmadan ve güvenle geliştirin
             </p>
+            <ol className="st-auth-steps">
+              {authSteps.map((step, index) => (
+                <li key={step.title}>
+                  <span aria-hidden="true">{index + 1}</span>
+                  <div>
+                    <b>{step.title}</b>
+                    <small>{step.hint}</small>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </>
+        }
+      >
+        <div className="st-auth-copy">
+          <h1 id="studio-login-title">Oturum açın</h1>
+          <p>Nexora Platform hesabınızla giriş yapın.</p>
+        </div>
+        {error && (
+          <div className="st-alert is-danger" role="alert">
+            {error}
           </div>
-          {error && (
-            <div className="st-alert is-danger" role="alert">
-              {error}
-            </div>
-          )}
-          <form className="st-auth-form" onSubmit={login}>
-            <label className="ns-field">
-              <span className="ns-field-label">E-posta</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="username"
-              />
+        )}
+        <form className="st-auth-form" onSubmit={login}>
+          <label className="ns-field">
+            <span className="ns-field-label">E-posta</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="username"
+              placeholder="ad@firma.com"
+            />
+          </label>
+          <div className="ns-field">
+            <label className="ns-field-label" htmlFor="studio-login-password">
+              Parola
             </label>
-            <label className="ns-field">
-              <span className="ns-field-label">Parola</span>
+            <div className="st-password">
               <input
-                type="password"
+                id="studio-login-password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
               />
-            </label>
-            <button className="ns-btn ns-btn-primary st-auth-submit" disabled={busy}>
-              {busy ? "Giriş yapılıyor…" : "Giriş yap"}
-            </button>
-          </form>
-          <p className="st-auth-foot">
-            <ShieldCheck size={14} aria-hidden="true" />
-            Kimlik doğrulaması Platform API üzerinden yapılır.
-          </p>
-        </main>
-      </div>
+              <button
+                type="button"
+                className="st-password-toggle"
+                aria-label={showPassword ? "Parolayı gizle" : "Parolayı göster"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? (
+                  <EyeOff size={16} aria-hidden="true" />
+                ) : (
+                  <Eye size={16} aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          </div>
+          <button
+            className="ns-btn ns-btn-primary st-auth-submit"
+            disabled={busy}
+          >
+            {busy ? "Giriş yapılıyor…" : "Giriş yap"}
+          </button>
+        </form>
+        <p className="st-auth-foot">
+          <ShieldCheck size={14} aria-hidden="true" />
+          Kimlik doğrulaması Platform API üzerinden yapılır.
+        </p>
+      </AuthShell>
     );
 
-  if (!tenant)
+  if (!tenant) {
+    const welcomeName = localStorage.getItem("aierp.user");
+    const visibleTenants = tenants.filter((item) =>
+      item.name
+        .toLocaleLowerCase("tr-TR")
+        .includes(tenantQuery.trim().toLocaleLowerCase("tr-TR")),
+    );
     return (
-      <div className="st-auth">
-        <main className="st-auth-card" aria-labelledby="studio-tenant-title">
-          <StudioBrand />
-          <div className="st-auth-copy">
-            <h1 id="studio-tenant-title">Firma seçin</h1>
-            <p>
+      <AuthShell
+        labelledBy="studio-tenant-title"
+        panel={
+          <>
+            <p className="st-auth-lead">
+              {welcomeName ? `Hoş geldiniz, ${welcomeName}` : "Hoş geldiniz"}
+            </p>
+            <p className="st-auth-sub">
               Studio oturumu seçtiğiniz firmanın yetkileriyle sınırlandırılır.
             </p>
+          </>
+        }
+      >
+        <div className="st-auth-copy">
+          <h1 id="studio-tenant-title">Firma seçin</h1>
+          <p>Çalışmak istediğiniz firmayı seçin.</p>
+        </div>
+        {error && (
+          <div className="st-alert is-danger" role="alert">
+            {error}
           </div>
-          {error && (
-            <div className="st-alert is-danger" role="alert">
-              {error}
-            </div>
-          )}
-          {tenants.length ? (
+        )}
+        {tenants.length > 5 && (
+          <label className="st-search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Firma ara"
+              placeholder="Firma ara"
+              value={tenantQuery}
+              onChange={(event) => setTenantQuery(event.target.value)}
+            />
+          </label>
+        )}
+        {tenants.length ? (
+          visibleTenants.length ? (
             <ul className="st-tenant-options" aria-label="Firmalar">
-              {tenants.map((item) => (
+              {visibleTenants.map((item) => (
                 <li key={item.id}>
                   <button
                     type="button"
@@ -1012,7 +1111,7 @@ export default function App() {
                     onClick={() => void selectTenant(item)}
                   >
                     <span className="st-avatar" aria-hidden="true">
-                      {item.name.slice(0, 1).toUpperCase()}
+                      {item.name.slice(0, 1).toLocaleUpperCase("tr-TR")}
                     </span>
                     <span className="st-tenant-text">
                       <b>{item.name}</b>
@@ -1024,13 +1123,24 @@ export default function App() {
               ))}
             </ul>
           ) : (
-            <button className="ns-btn" type="button" onClick={logout}>
-              Oturumu kapat
-            </button>
-          )}
-        </main>
-      </div>
+            <p className="st-auth-empty">Aramanızla eşleşen firma yok.</p>
+          )
+        ) : (
+          <p className="st-auth-empty">
+            Hesabınıza bağlı bir firma bulunamadı.
+          </p>
+        )}
+        <button
+          className="ns-btn ns-btn-ghost st-auth-switch"
+          type="button"
+          onClick={logout}
+        >
+          <LogOut size={15} aria-hidden="true" />
+          Farklı hesapla giriş yap
+        </button>
+      </AuthShell>
     );
+  }
 
   const connectedProjects = projects.filter(
     (project) => project.githubAuthorized,
@@ -2657,14 +2767,13 @@ export default function App() {
           <header className="st-dialog-head">
             <div>
               <h2 id="studio-request-title">
-                {editingRequestId
-                  ? "Geliştirme talebini düzenle"
-                  : "Yeni geliştirme talebi"}
+                {editingRequestId ? "Talebi düzenle" : "Yeni talep"}
               </h2>
               <p id="studio-request-desc">
+                {tenant.name} ·{" "}
                 {editingRequestId
-                  ? "Talep bilgilerini güncelleyin. İşleme alınmış talepler düzenlenemez."
-                  : "İhtiyacınızı paylaşın; doğru projeyle eşleştirip takip etmeyi kolaylaştıralım."}
+                  ? "işleme alınmış talepler düzenlenemez"
+                  : "ne değişmesini istediğinizi anlatın"}
               </p>
             </div>
             <button
@@ -2681,20 +2790,37 @@ export default function App() {
             onSubmit={editingRequestId ? updateRequest : createRequest}
           >
             <div className="st-dialog-body">
-              <p className="st-note is-compact">
-                <ListTodo size={15} aria-hidden="true" />
-                <span>
-                  Talep <b>{tenant.name}</b> firmasına kaydedilir. İsterseniz
-                  erişiminiz olan bir projeye bağlayabilirsiniz.
-                </span>
-              </p>
               {error && (
                 <div className="st-alert is-danger" role="alert">
                   {error}
                 </div>
               )}
               <label className="ns-field">
-                <span className="ns-field-label">Talep başlığı</span>
+                <span className="ns-field-label">Proje</span>
+                <select
+                  value={requestProjectId}
+                  onChange={(e) => setRequestProjectId(e.target.value)}
+                >
+                  <option value="">Genel talep (projeye bağlı değil)</option>
+                  {projects
+                    .filter(
+                      (p) =>
+                        p.accessLevel === "TenantAdmin" ||
+                        p.accessLevel === "Contributor" ||
+                        p.accessLevel === "Maintainer",
+                    )
+                    .map((p) => (
+                      <option value={p.id} key={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+                <small className="ns-field-hint">
+                  Seçmezseniz talep firma genelinde görünür.
+                </small>
+              </label>
+              <label className="ns-field">
+                <span className="ns-field-label">Başlık</span>
                 <input
                   ref={requestTitleRef}
                   value={requestTitle}
@@ -2703,9 +2829,6 @@ export default function App() {
                   maxLength={180}
                   placeholder="Örn. Stok kartına garanti süresi ekle"
                 />
-                <small className="ns-field-hint">
-                  İhtiyacı kısa ve anlaşılır biçimde özetleyin.
-                </small>
               </label>
               {moduleRequestDraft && (
                 <div className="st-field-row">
@@ -2755,52 +2878,58 @@ export default function App() {
                   </label>
                 </div>
               )}
-              <label className="ns-field">
-                <span className="ns-field-label">İhtiyaç açıklaması</span>
+              <div className="ns-field">
+                <div className="st-field-head">
+                  <label
+                    className="ns-field-label"
+                    htmlFor="studio-request-description"
+                  >
+                    Açıklama
+                  </label>
+                  <span className="st-field-count" aria-live="polite">
+                    {requestDescription.length} / 8000
+                  </span>
+                </div>
+                <div
+                  className="st-template-chips"
+                  role="group"
+                  aria-label="Açıklamaya bölüm ekle"
+                >
+                  {["Mevcut durum", "Beklenen davranış", "İş kuralları"].map(
+                    (section) => (
+                      <button
+                        key={section}
+                        type="button"
+                        onClick={() =>
+                          setRequestDescription((value) =>
+                            `${value.trimEnd()}${value.trim() ? "\n\n" : ""}${section}:\n`.slice(
+                              0,
+                              8000,
+                            ),
+                          )
+                        }
+                      >
+                        <Plus size={12} aria-hidden="true" />
+                        {section}
+                      </button>
+                    ),
+                  )}
+                </div>
                 <textarea
+                  id="studio-request-description"
                   value={requestDescription}
                   onChange={(e) => setRequestDescription(e.target.value)}
                   required
                   maxLength={8000}
-                  rows={5}
-                  placeholder="İş ihtiyacını, mevcut durumu ve beklenen davranışı anlatın…"
+                  rows={6}
+                  placeholder="İş ihtiyacını ve beklenen sonucu anlatın…"
                 />
-                <small className="ns-field-hint">
-                  Beklenen sonucu ve önemli iş kurallarını ekleyin.
-                </small>
-              </label>
-              <label className="ns-field">
-                <span className="ns-field-label">İlgili proje</span>
-                <select
-                  value={requestProjectId}
-                  onChange={(e) => setRequestProjectId(e.target.value)}
-                >
-                  <option value="">Genel talep (projeye bağlı değil)</option>
-                  {projects
-                    .filter(
-                      (p) =>
-                        p.accessLevel === "TenantAdmin" ||
-                        p.accessLevel === "Contributor" ||
-                        p.accessLevel === "Maintainer",
-                    )
-                    .map((p) => (
-                      <option value={p.id} key={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                </select>
-                <small className="ns-field-hint">
-                  Proje seçmezseniz talep firma genelinde görünür.
-                </small>
-              </label>
+              </div>
             </div>
             <footer className="ns-dialog-foot st-dialog-foot">
               <span className="st-dialog-scope">
                 <ShieldCheck size={15} aria-hidden="true" />
-                {requestProjectId
-                  ? projects.find((p) => p.id === requestProjectId)?.name
-                  : tenant.name}{" "}
-                alanında kaydedilecek
+                Onaysız değişiklik uygulanmaz
               </span>
               <button
                 type="button"
@@ -2819,7 +2948,7 @@ export default function App() {
                   ? "Kaydediliyor…"
                   : editingRequestId
                     ? "Talebi güncelle"
-                    : "Talebi kaydet"}
+                    : "Talebi gönder"}
               </button>
             </footer>
           </form>
