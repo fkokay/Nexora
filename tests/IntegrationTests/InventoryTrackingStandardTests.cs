@@ -36,7 +36,9 @@ public sealed class InventoryTrackingStandardTests
             Assert.Equal(("read", "GET"), (op.Kind, op.Method));
         }
         var bar = Props("komutlar");
-        Assert.Equal(new[] { "focusInput", "exportTable", "titleCount" }, bar.Select(x => x.Key));
+        Assert.Equal(new[] { "focusInput", "exportTable", "titleCount", "hiddenCommands" }, bar.Select(x => x.Key));
+        // Yalnız okunan ekranda yazma komutları çubukta gizlidir (eski ekran: Yenile, Filtre, Excel).
+        Assert.Equal(new[] { "new", "open", "save", "delete", "print" }, bar["hiddenCommands"]!.AsArray().Select(x => (string)x!));
         Assert.Equal("{{bakiye.meta.totalCount}}", (string)bar["titleCount"]!);
         Assert.DoesNotContain(AllComponents(), x => (string)x["type"]! is "button" or "dialog" or "form" or "formCard" or "editableGrid");
     }
@@ -60,7 +62,7 @@ public sealed class InventoryTrackingStandardTests
         var bar = Props("suzgec");
         Assert.Equal(("liste", true, "q"), ((string)bar["table"]!, (bool)bar["search"]!, (string)bar["searchParam"]!));
         Assert.Equal("Lot/seri kodu, stok veya depo ara", (string)bar["searchPlaceholder"]!);
-        Assert.Equal(new[] { "trackingMode|select|row|trackingMode|İz türü", "warehouseId|select|row|warehouseId|Depo|depolar:id:name" },
+        Assert.Equal(new[] { "trackingMode|select|row|trackingMode|İz türü", "warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable" },
             Strings(bar["filters"]));
         // The tracking type choices come from the list's value labels: only Lot and Serial reach the server.
         Assert.Equal(new[] { "trackingMode:Lot=Lot", "trackingMode:Serial=Seri" }, Strings(props["valueLabels"]));

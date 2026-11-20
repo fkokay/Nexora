@@ -51,8 +51,14 @@ internal static class TenantCustomPageSchema
       "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
       // Gelişmiş tablo araçları (yoksa açık): arama, sütun süzgeçleri, sütun seçici, dışa aktarma, pivot.
       "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot",
+      // Legacy list export (yoksa açık): grid CSV button, "Excel (seçilenler)" bulk action; actionBar İşlemler › CSV.
+      "showCsv", "showSelectedExport", "exportCsv",
       // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
       "titleCount",
+      // Conditional row count on a query metric (legacy summary cards, e.g. "Süresi geçmiş"): "<sorgu>.satir.expiryDate < bugun".
+      "countWhen",
+      // Searchable select (type-to-filter) and first-option default for select/lookup inputs.
+      "searchable", "defaultFirst",
       // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
       "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
@@ -68,8 +74,8 @@ internal static class TenantCustomPageSchema
       "search", "searchPlaceholder", "searchColumns", "searchParam", "filters" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
-    private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
+    private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "exportCsv", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
       "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook" };
     private static readonly string[] BarCommandIds = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"];
@@ -96,7 +102,7 @@ internal static class TenantCustomPageSchema
         "trending-up", "trending-down", "line-chart", "pie-chart", "activity", "target", "calendar", "calendar-clock", "hourglass",
         "timer", "file-text", "files", "clipboard-list", "inbox", "archive", "mail", "phone", "user", "user-check", "briefcase",
         "handshake", "globe", "map-pin", "settings", "wrench", "shield", "lock", "bell", "star", "flag", "info", "x-circle", "ban",
-        "refresh-cw",
+        "refresh-cw", "calendar-x",
     };
     private const int MaxToneMapItems = 20;
     private const int MaxColumnFormats = 20;
@@ -626,6 +632,27 @@ internal static class TenantCustomPageSchema
             && ValidateNavigationAction(props, typeText, out error);
     }
 
+    /// <summary>
+    /// A query metric's <c>countWhen</c>: the metric shows how many loaded rows of its query hold the condition. Each row
+    /// is exposed as <c>&lt;sorgu&gt;.satir</c> (like a table's <c>seciliSatir</c>), so the condition must use the metric's
+    /// own query name; other roots (bugun, inputs…) resolve against the page as usual.
+    /// </summary>
+    private static bool ValidateCountWhen(JsonElement props, JsonElement countWhen, string typeText, Context context, out string? error)
+    {
+        error = null;
+        if (typeText != "metric" || !props.TryGetProperty("query", out var query) || query.ValueKind != JsonValueKind.String
+            || !context.QueryById.TryGetValue(query.GetString()!, out var pageQuery))
+        { error = "'countWhen' yalnızca sorgusu olan gösterge bileşeninde kullanılabilir."; return false; }
+        if (countWhen.ValueKind != JsonValueKind.String)
+        { error = "'countWhen' koşulu geçersiz: ifade metin olmalı"; return false; }
+        if (!PageConditionExpression.TryParse(countWhen.GetString()!, out var roots, out var reason))
+        { error = $"'countWhen' koşulu geçersiz: {reason}"; return false; }
+        if (!roots.Contains(pageQuery.Name, StringComparer.Ordinal))
+        { error = $"'countWhen' koşulu satır alanlarına '{pageQuery.Name}.satir.<alan>' ile başvurmalıdır."; return false; }
+        context.PendingConditionRoots.Add(("countWhen", roots));
+        return true;
+    }
+
     /// <summary>Metric, badge and dataTable presentation props (design language step 2a).</summary>
     private static bool ValidateDesignLanguageProps(JsonElement props, string typeText, Context context, out string? error)
     {
@@ -657,6 +684,7 @@ internal static class TenantCustomPageSchema
             { error = $"'filterValue' yalnızca gösterge bileşeninde ve en fazla {MaxFilterValueLength} karakterlik metin olabilir."; return false; }
             if (!hasFilterInput) { error = "'filterValue' için göstergede 'filterInput' (giriş bileşeni) da tanımlı olmalıdır."; return false; }
         }
+        if (props.TryGetProperty("countWhen", out var countWhen) && !ValidateCountWhen(props, countWhen, typeText, context, out error)) return false;
         if (props.TryGetProperty("toneMap", out var toneMap)
             && !ValidateMapItems("toneMap", toneMap, typeText is "badge" or "dataTable", MaxToneMapItems, ToneMapItem,
                 "Ad=info|success|warning|danger", out error)) return false;
@@ -792,6 +820,9 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
         if (!ValidateBarAppearance(props, context, out error)) return false;
+        // İşlemler › "CSV olarak dışa aktar": exportTable listesinin CSV'si (yoksa açık; false kapatır).
+        if (props.TryGetProperty("exportCsv", out var csv) && csv.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        { error = "'exportCsv' true veya false olmalıdır."; return false; }
         return ValidateBarCommands(props, context, out error) && ValidateSaveQueries(props, context, out error);
     }
 
@@ -1245,16 +1276,22 @@ internal static class TenantCustomPageSchema
     {
         error = null;
         var isLookup = inputType == "lookup";
-        // Sabit seçenekler açılır listede (select) de kullanılabilir; diğer arama kutusu özellikleri yalnız lookup'ta.
+        // Sabit seçenekler ve açıklama sütunu açılır listede (select) de kullanılabilir; diğer arama kutusu özellikleri yalnız lookup'ta.
         foreach (var key in LookupProps)
-            if (!isLookup && !(key == "staticOptions" && inputType == "select") && props.TryGetProperty(key, out _))
+            if (!isLookup && !(key is "staticOptions" or "optionDescriptionColumn" && inputType == "select") && props.TryGetProperty(key, out _))
             { error = $"'{key}' yalnız arama kutusu (inputType: lookup) girişinde kullanılabilir."; return false; }
         if (inputType == "select" && props.TryGetProperty("staticOptions", out var selectStatic) && !ValidStaticOptions(selectStatic))
         { error = "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır."; return false; }
-        if (!isLookup) return true;
+        // Aranabilir açılır liste yalnız select'te (arama kutusu zaten aranır); ilk seçenek varsayılanı select ve lookup'ta.
+        if (props.TryGetProperty("searchable", out var searchable) && (inputType != "select" || !IsBool(searchable)))
+        { error = "'searchable' yalnız açılır liste (inputType: select) girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("defaultFirst", out var defaultFirst) && (inputType is not ("select" or "lookup") || !IsBool(defaultFirst)))
+        { error = "'defaultFirst' yalnız açılır liste veya arama kutusu (inputType: select, lookup) girişinde true veya false olabilir."; return false; }
+        if (!isLookup && inputType != "select") return true;
         if (props.TryGetProperty("optionDescriptionColumn", out var description)
             && (description.ValueKind != JsonValueKind.String || description.GetString()!.Length is < 1 or > 128))
         { error = "'optionDescriptionColumn' 1–128 karakterlik sütun adı olmalıdır."; return false; }
+        if (!isLookup) return true;
         if (props.TryGetProperty("minChars", out var minChars) && !IsIntIn(minChars, 0, 5))
         { error = "'minChars' 0 ile 5 arasında bir tam sayı olmalıdır."; return false; }
         if (props.TryGetProperty("allowClear", out var allowClear) && !IsBool(allowClear))
@@ -1478,6 +1515,7 @@ internal static class TenantCustomPageSchema
         ["closeInput"] = ["card"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
         ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
+        ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
         ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"]
     };
     private const int MaxColumnMaps = 20;
@@ -1756,18 +1794,22 @@ internal static class TenantCustomPageSchema
     private const int MaxFilterLabelLength = 40;
     private static readonly HashSet<string> FilterKinds = new(StringComparer.Ordinal) { "auto", "text", "range", "date", "select", "toggle" };
     private static readonly Regex FilterColumnCode = new(@"^[^|=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
-    /// <summary>Seçenek kaynağı: <c>sorguKimliği[:değerSütunu[:etiketSütunu]]</c>.</summary>
-    private static readonly Regex FilterOptionsSource = new(@"^([A-Za-z0-9_-]{1,64})(:[^:|=]{1,128}){0,2}\z", RegexOptions.CultureInvariant, RegexTimeout);
-    private const string FilterFormat = "'filters' öğeleri anahtar|tür|yer|parametre|Etiket|seçenekler biçiminde olmalıdır " +
-        "(tür: auto, text, range, date, select veya toggle; yer: row veya more; son üç bölüm isteğe bağlıdır).";
+    /// <summary>Seçenek kaynağı: <c>sorguKimliği[:değerSütunu[:etiketSütunu[:açıklamaSütunu]]]</c> (açıklama "etiket · açıklama" olarak eklenir).</summary>
+    private static readonly Regex FilterOptionsSource = new(@"^([A-Za-z0-9_-]{1,64})(:[^:|=]{1,128}){0,3}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    /// <summary>Seçim süzgecinin bayrakları (yedinci bölüm, virgülle): searchable (yazarak ara), defaultFirst (ilk seçenek varsayılan).</summary>
+    private static readonly HashSet<string> FilterFlags = new(StringComparer.Ordinal) { "searchable", "defaultFirst" };
+    private const string FilterFormat = "'filters' öğeleri anahtar|tür|yer|parametre|Etiket|seçenekler|bayraklar biçiminde olmalıdır " +
+        "(tür: auto, text, range, date, select veya toggle; yer: row veya more; bayraklar: searchable, defaultFirst; son dört bölüm isteğe bağlıdır).";
 
     /// <summary>
     /// Süzgeç alanı, bir veri listesine (<c>table</c>) bağlı arama kutusu ve süzgeçlerdir. <c>filters</c> öğeleri
-    /// <c>anahtar|tür|yer|parametre|Etiket|seçenekler</c> biçimindedir: anahtar listenin sütun kodu (ya da yalnız sunucuya giden
+    /// <c>anahtar|tür|yer|parametre|Etiket|seçenekler|bayraklar</c> biçimindedir: anahtar listenin sütun kodu (ya da yalnız sunucuya giden
     /// süzgeçte serbest bir ad), tür auto/text/range/date/select/toggle, yer row (satırda) veya more (Daha fazla süzgeç);
     /// parametre verilirse değer listenin sorgusundaki aynı adlı parametreye <c>{{&lt;ad&gt;.&lt;parametre&gt;}}</c> bağlamasıyla
     /// gider (sunucuda süzülür), verilmezse yüklenen satırlara uygulanır. Aralık ve tarih süzgeçleri iki uç taşıdığı için yalnız
-    /// sayfada uygulanır. Seçenekler <c>sorguKimliği[:değerSütunu[:etiketSütunu]]</c> okuma sorgusundan gelir.
+    /// sayfada uygulanır. Seçenekler <c>sorguKimliği[:değerSütunu[:etiketSütunu[:açıklamaSütunu]]]</c> okuma sorgusundan gelir.
+    /// Bayraklar (virgülle, yalnız seçim süzgecinde): <c>searchable</c> yazarak aranan açılır liste, <c>defaultFirst</c> değer
+    /// yokken (sayfa parametresi, saklanan değer) ilk seçeneği seçer.
     /// </summary>
     private static bool ValidateFilterBar(JsonElement props, string id, string? name, Context context, out string? error)
     {
@@ -1805,9 +1847,14 @@ internal static class TenantCustomPageSchema
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail(FilterFormat, out error);
                 var parts = item.GetString()!.Split('|');
-                if (parts.Length is < 3 or > 6 || !FilterKinds.Contains(parts[1]) || parts[2] is not ("row" or "more")) return Fail(FilterFormat, out error);
+                if (parts.Length is < 3 or > 7 || !FilterKinds.Contains(parts[1]) || parts[2] is not ("row" or "more")) return Fail(FilterFormat, out error);
                 var (key, kind) = (parts[0], parts[1]);
                 if (!MatchesText(FilterColumnCode, key)) return Fail(FilterFormat, out error);
+                // Bayraklar (yedinci bölüm): bilinen, yinelenmeyen adlar; bozuk bölüm biçim hatasıdır.
+                var flags = parts.Length > 6 ? parts[6] : "";
+                if (flags.Length > 0 && flags.Split(',') is var flagNames
+                    && (flagNames.Any(x => !FilterFlags.Contains(x)) || flagNames.Distinct(StringComparer.Ordinal).Count() != flagNames.Length))
+                    return Fail(FilterFormat, out error);
                 if (!keys.Add(key)) return Fail($"'filters' anahtarları benzersiz olmalıdır: {key}", out error);
                 var parameter = parts.Length > 3 ? parts[3] : "";
                 if (parameter.Length > 0)
@@ -1828,7 +1875,12 @@ internal static class TenantCustomPageSchema
                     try { match = FilterOptionsSource.Match(options); }
                     catch (RegexMatchTimeoutException) { match = Match.Empty; }
                     if (!match.Success || !context.IsReadQuery(match.Groups[1].Value))
-                        return Fail($"Süzgecin seçenek kaynağı sayfadaki bir okuma sorgusu olmalıdır (sorgu[:değerSütunu[:etiketSütunu]]): {options}", out error);
+                        return Fail($"Süzgecin seçenek kaynağı sayfadaki bir okuma sorgusu olmalıdır (sorgu[:değerSütunu[:etiketSütunu[:açıklamaSütunu]]]): {options}", out error);
+                }
+                if (flags.Length > 0)
+                {
+                    if (kind is not ("select" or "auto"))
+                        return Fail($"'searchable' ve 'defaultFirst' bayrakları yalnız seçim süzgecinde kullanılabilir: {key}", out error);
                 }
                 filterCount++;
             }
@@ -2016,7 +2068,7 @@ internal static class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted

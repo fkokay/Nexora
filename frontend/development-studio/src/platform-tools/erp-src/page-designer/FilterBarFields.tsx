@@ -91,7 +91,10 @@ export function FilterBarFields({ name, props, tables, tableId, columns, formats
                 {on && <input aria-label={`${row.label} etiketi`} placeholder="Etiket" maxLength={40} value={spec!.label ?? ""} disabled={disabled} onChange={(event) => patchFilter(row, { label: event.target.value })}/>}</span>
               <span role="cell">{on && <select aria-label={`${row.label} türü`} value={spec!.kind} disabled={disabled} onChange={(event) => patchFilter(row, { kind: event.target.value as FilterKind })}>
                 {kinds.map((kind) => <option key={kind} value={kind}>{FILTER_KIND_LABELS[kind]}</option>)}</select>}
-                {on && (spec!.kind === "select" || (spec!.kind === "auto" && !!spec!.options)) && <OptionsSource spec={spec!} readQueries={readQueries} columnsOf={columnsOf} disabled={disabled} onChange={(options) => patchFilter(row, { options })}/>}
+                {on && (spec!.kind === "select" || (spec!.kind === "auto" && !!spec!.options)) && <>
+                  <OptionsSource spec={spec!} readQueries={readQueries} columnsOf={columnsOf} disabled={disabled} onChange={(options) => patchFilter(row, { options })}/>
+                  <SelectFlags spec={spec!} disabled={disabled} onChange={(patch) => patchFilter(row, patch)}/>
+                </>}
               </span>
               <span role="cell">{on && <select aria-label={`${row.label} yeri`} value={spec!.place} disabled={disabled} onChange={(event) => patchFilter(row, { place: event.target.value as FilterPlace })}>
                 {(Object.keys(FILTER_PLACE_LABELS) as FilterPlace[]).map((place) => <option key={place} value={place}>{FILTER_PLACE_LABELS[place]}</option>)}</select>}</span>
@@ -146,8 +149,22 @@ function OptionsSource({ spec, readQueries, columnsOf, disabled, onChange }: {
     {options && columns.length > 0 && <>
       <select aria-label="Değer sütunu" value={options.valueColumn ?? ""} disabled={disabled} onChange={(event) => onChange({ ...options, valueColumn: event.target.value || undefined })}>
         <option value="">Değer: ilk sütun</option>{columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}</select>
-      <select aria-label="Etiket sütunu" value={options.labelColumn ?? ""} disabled={disabled || !options.valueColumn} onChange={(event) => onChange({ ...options, labelColumn: event.target.value || undefined })}>
+      <select aria-label="Etiket sütunu" value={options.labelColumn ?? ""} disabled={disabled || !options.valueColumn} onChange={(event) => onChange({ ...options, labelColumn: event.target.value || undefined, ...(event.target.value ? {} : { descriptionColumn: undefined }) })}>
         <option value="">Etiket: değer</option>{columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}</select>
+      <select aria-label="Açıklama sütunu" title="Seçenek ERP'de “etiket · açıklama” olarak görünür (ör. D01 · Merkez)" value={options.descriptionColumn ?? ""} disabled={disabled || !options.labelColumn}
+        onChange={(event) => onChange({ ...options, descriptionColumn: event.target.value || undefined })}>
+        <option value="">Açıklama: yok</option>{columns.map((column) => <option key={column.code} value={column.code}>{column.label || column.code}</option>)}</select>
     </>}
+  </span>;
+}
+
+/** Seçim süzgecinin bayrakları: yazarak aranan açılır liste ve değer yokken ilk seçenek (sayfa parametresi ve saklanan değer önce gelir). */
+function SelectFlags({ spec, disabled, onChange }: { spec: FilterSpec; disabled: boolean; onChange: (patch: Partial<FilterSpec>) => void }) {
+  const name = spec.label || spec.key;
+  return <span className="pd-filterbar-flags">
+    <label className="pd-check" title="Açılır liste yazarak süzülür (eski depo seçicisi gibi)."><input type="checkbox" aria-label={`${name} yazarak aranır`} checked={spec.searchable === true} disabled={disabled}
+      onChange={(event) => onChange({ searchable: event.target.checked || undefined })}/>Aranabilir</label>
+    <label className="pd-check" title="Sayfa parametresi ya da saklanan seçim yoksa seçenekler yüklenince ilk seçenek seçilir."><input type="checkbox" aria-label={`${name} ilk seçenekle başlar`} checked={spec.defaultFirst === true} disabled={disabled}
+      onChange={(event) => onChange({ defaultFirst: event.target.checked || undefined })}/>İlk seçenek</label>
   </span>;
 }

@@ -4,13 +4,16 @@ import type { PageQuery, QueryParameterType } from "./QueriesPanel";
  * Süzgeç alanı (filterBar) ayarları. `filters` öğeleri `anahtar|tür|yer|parametre|Etiket|seçenekler` biçimindedir (ERP ve sunucu
  * ile aynı): tür auto/text/range/date/select/toggle, yer row (Satırda) / more (Daha fazla). Parametre verilmişse değer listenin
  * sorgusundaki aynı adlı parametreye `{{<ad>.<parametre>}}` bağlamasıyla gider (sunucuda süzülür); verilmemişse süzgeç ERP'de
- * yüklenen satırlara uygulanır. Aralık ve tarih süzgeçleri iki uç taşıdığından yalnız sayfada uygulanır.
+ * yüklenen satırlara uygulanır. Aralık ve tarih süzgeçleri iki uç taşıdığından yalnız sayfada uygulanır. Seçenekler
+ * `sorgu[:değer[:etiket[:açıklama]]]` (açıklama ERP'de "etiket · açıklama", ör. "D01 · Merkez"); isteğe bağlı yedinci bölüm seçim
+ * süzgecinin virgüllü bayraklarıdır: `searchable` (yazarak aranır), `defaultFirst` (değer yokken ilk seçenek).
  */
 export type FilterKind = "auto" | "text" | "range" | "date" | "select" | "toggle";
 export type FilterPlace = "row" | "more";
 export type FilterSpec = {
   key: string; kind: FilterKind; place: FilterPlace; param?: string; label?: string;
-  options?: { query: string; valueColumn?: string; labelColumn?: string };
+  options?: { query: string; valueColumn?: string; labelColumn?: string; descriptionColumn?: string };
+  searchable?: boolean; defaultFirst?: boolean;
 };
 export const MAX_FILTERS = 20;
 export const MAX_SEARCH_COLUMNS = 8;
@@ -21,7 +24,10 @@ export const SERVER_KINDS: FilterKind[] = ["auto", "text", "select", "toggle"];
 
 const KINDS = new Set<string>(["auto", "text", "range", "date", "select", "toggle"]);
 const PARAM = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-const OPTIONS = /^([A-Za-z0-9_-]{1,64})(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?$/;
+const OPTIONS = /^([A-Za-z0-9_-]{1,64})(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?(?::([^:|=]{1,128}))?$/;
+const FLAGS = new Set(["searchable", "defaultFirst"]);
+/** Seçim süzgeci bayrakları yalnız seçim (ya da kendiliğinden) türünde yazılır. */
+export const supportsSelectFlags = (kind: FilterKind) => kind === "select" || kind === "auto";
 
 export function parseFilterEntries(value: unknown): FilterSpec[] {
   if (!Array.isArray(value)) return [];
@@ -30,16 +36,21 @@ export function parseFilterEntries(value: unknown): FilterSpec[] {
   for (const item of value.slice(0, MAX_FILTERS)) {
     if (typeof item !== "string") continue;
     const parts = item.split("|");
-    if (parts.length < 3 || parts.length > 6) continue;
-    const [key, kind, place, param = "", label = "", options = ""] = parts;
+    if (parts.length < 3 || parts.length > 7) continue;
+    const [key, kind, place, param = "", label = "", options = "", flagText = ""] = parts;
     if (!key || key.length > 128 || key.includes("=") || !KINDS.has(kind) || (place !== "row" && place !== "more") || seen.has(key)) continue;
+    // Bilinmeyen bayrak öğeyi bozmaz: tanınanlar okunur (sunucu kayıtta reddeder).
+    const flags = new Set(flagText.split(",").filter((flag) => FLAGS.has(flag)));
     seen.add(key);
     const source = options ? OPTIONS.exec(options) : null;
     result.push({
       key, kind: kind as FilterKind, place,
       ...(param && PARAM.test(param) ? { param } : {}),
       ...(label.trim() ? { label } : {}),
-      ...(source ? { options: { query: source[1], ...(source[2] ? { valueColumn: source[2] } : {}), ...(source[3] ? { labelColumn: source[3] } : {}) } } : {}),
+      ...(source ? { options: { query: source[1], ...(source[2] ? { valueColumn: source[2] } : {}), ...(source[3] ? { labelColumn: source[3] } : {}),
+        ...(source[4] ? { descriptionColumn: source[4] } : {}) } } : {}),
+      ...(flags.has("searchable") ? { searchable: true } : {}),
+      ...(flags.has("defaultFirst") ? { defaultFirst: true } : {}),
     });
   }
   return result;
@@ -47,8 +58,10 @@ export function parseFilterEntries(value: unknown): FilterSpec[] {
 
 /** Öğe metni; boş kalan sondaki bölümler atılır. Etiketteki `|` atılır (biçimi bozmasın). */
 export function formatFilterEntry(spec: FilterSpec): string {
-  const options = spec.options ? [spec.options.query, spec.options.valueColumn, spec.options.labelColumn].filter(Boolean).join(":") : "";
-  const parts = [spec.key, spec.kind, spec.place, spec.param ?? "", ((spec.label ?? "").trim() ? (spec.label ?? "").replace(/[|<>]/g, "").slice(0, 40) : ""), options];
+  const options = spec.options ? [spec.options.query, spec.options.valueColumn, spec.options.labelColumn, spec.options.descriptionColumn].filter(Boolean).join(":") : "";
+  // Bayraklar yalnız seçim süzgecinde yazılır (tür metne çevrilince düşer; sunucu başka türde reddeder).
+  const flags = supportsSelectFlags(spec.kind) ? [spec.searchable ? "searchable" : "", spec.defaultFirst ? "defaultFirst" : ""].filter(Boolean).join(",") : "";
+  const parts = [spec.key, spec.kind, spec.place, spec.param ?? "", ((spec.label ?? "").trim() ? (spec.label ?? "").replace(/[|<>]/g, "").slice(0, 40) : ""), options, flags];
   while (parts.length > 3 && parts[parts.length - 1] === "") parts.pop();
   return parts.join("|");
 }

@@ -126,9 +126,10 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     fireEvent.change(mode, { target: { value: 'Serial' } });
     await waitFor(() => expect(gets('/api/inventory-tracking/balances').some((call) => query(call.url).get('trackingMode') === 'Serial')).toBe(true), T);
 
-    const warehouse = within(filters()).getByLabelText('Depo') as HTMLSelectElement;
-    await waitFor(() => expect(within(warehouse).getByRole('option', { name: 'Merkez' })).toBeTruthy(), T);
-    fireEvent.change(warehouse, { target: { value: W } });
+    // Depo süzgeci aranabilir: "kod · ad" seçenekleri yazarak süzülür.
+    const warehouse = within(filters()).getByRole('combobox', { name: 'Depo' }) as HTMLInputElement;
+    fireEvent.click(warehouse);
+    fireEvent.click(await screen.findByRole('option', { name: 'MRK · Merkez' }, T));
     await waitFor(() => expect(gets('/api/inventory-tracking/balances').some((call) =>
       query(call.url).get('warehouseId') === W && query(call.url).get('trackingMode') === 'Serial')).toBe(true), T);
 

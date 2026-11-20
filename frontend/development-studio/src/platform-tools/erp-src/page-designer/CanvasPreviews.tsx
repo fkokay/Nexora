@@ -74,10 +74,10 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
       {props.showGridSearch !== false && <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>}
       {props.showColumnFilters !== false && <span className="pd-adv-menu">Sütun filtreleri</span>}{props.showColumnChooser !== false && <span className="pd-adv-menu">Sütunlar</span>}
       <span className="pd-adv-count">{paging ? number(paging.total) : rows.length} kayıt</span>
-      {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span><span className="pd-adv-btn">CSV</span></>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
+      {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span>{props.showCsv !== false && <span className="pd-adv-btn">CSV</span>}</>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
     </div>}
     <div className={`custom-page-preview-grid-scroll${advanced ? " is-advanced" : ""}`}><table className={`custom-page-preview-grid${comfort ? " is-comfort" : ""}${advanced ? " is-advanced" : ""}`}>
-      <thead><tr>{advanced && <th className="pd-adv-check-cell">{check}</th>}{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
+      <thead><tr>{advanced && <th className="pd-adv-check-cell" title={props.showSelectedExport !== false ? "Satır seçilince: Excel (seçilenler)" : undefined}>{check}</th>}{columns.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "num" : undefined}>{column.label || column.code}</th>)}{hasActions &&<th scope="col">İşlemler</th>}</tr></thead>
       <tbody>{rows.length === 0 ? <tr><td colSpan={Math.max(1, colCount)}>{emptyText}</td></tr>
         : rows.map((row, rowIndex) => <tr key={String(row.id ?? rowIndex)}>{advanced && <td className="pd-adv-check-cell">{check}</td>}{columns.map((column) => <td key={column.code} className={cellClass(column)}>{cell(column, row)}</td>)}{hasActions &&<td>{actionChips.map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</td>}</tr>)}</tbody>
       {hasTotals && <tfoot><tr className="pd-total">{advanced && <td />}

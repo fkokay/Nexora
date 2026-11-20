@@ -96,7 +96,7 @@ const type = (id: string, value: string) => fireEvent.change(input(id), { target
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const ctrlS = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 's', ctrlKey: true });
 const cell = (text: string) => screen.getByText(text, { selector: '.tenant-page-data-grid td' });
-const warehouseSelect = () => within(screen.getByRole('region', { name: 'Süzgeçler' })).getByLabelText('Depo') as HTMLSelectElement;
+const warehouseSelect = () => within(screen.getByRole('region', { name: 'Süzgeçler' })).getByRole('combobox', { name: 'Depo' }) as HTMLInputElement;
 /** Depolar'dan geçiş: sayfa `warehouseId` parametresiyle açılır. */
 const openOn = async (warehouseId = W1, role = 'TenantAdmin') => {
   setPageParams(KEY, { warehouseId });
@@ -124,15 +124,10 @@ describe('Raf ve Konumlar standart tanımı', { timeout: 30000 }, () => {
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
 
-  it('without a warehouse nothing is read and the page asks for one', async () => {
+  it('opens on the first warehouse (as the legacy screen) and reads its locations and reconciliation', async () => {
     setup();
-    expect(await screen.findByText('Konumları görmek için önce bir depo seçin.', {}, T)).toBeTruthy();
-    await settle(200);
-    expect(calls.filter((call) => /locations|reconciliation/.test(call.url))).toEqual([]);
-    expect(screen.getByText('Konum eklemek için önce depo seçin.')).toBeTruthy();
-    // Depo seçilince konumlar ve denetim o depo için okunur.
-    await waitFor(() => expect(within(warehouseSelect()).getByRole('option', { name: 'Merkez' })).toBeTruthy(), T);
-    fireEvent.change(warehouseSelect(), { target: { value: W1 } });
+    await waitFor(() => expect(warehouseSelect().value).toBe('MRK · Merkez'), T);
+    expect(gets(`/api/warehouses/${W2}/locations`)).toEqual([]);
     await screen.findByText('A-01', { selector: '.tenant-page-data-grid td' }, T);
     expect(gets(`/api/warehouses/${W1}/location-reconciliation`).length).toBeGreaterThan(0);
   });
@@ -140,7 +135,7 @@ describe('Raf ve Konumlar standart tanımı', { timeout: 30000 }, () => {
   it('a hand-off from Depolar opens on that warehouse (page parameter wins over the stored filter)', async () => {
     localStorage.setItem(`nexora.filterBar.t1.@${KEY}.suzgec`, JSON.stringify({ search: '', values: { warehouseId: W2 } }));
     await openOn(W1);
-    expect(warehouseSelect().value).toBe(W1);
+    expect(warehouseSelect().value).toBe('MRK · Merkez');
     expect(gets(`/api/warehouses/${W2}/locations`)).toEqual([]);
     expect(await screen.findByText('6', { selector: '.tenant-page-data-grid td' }, T)).toBeTruthy();
   });

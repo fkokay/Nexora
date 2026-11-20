@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, L
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
+import { countRowsWhen, countText } from "./custom-page/countWhen";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { bindingPath, displayText, interpolate, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -25,7 +26,7 @@ import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
-import { downloadXlsx } from "./general-ledger/ledgerReportUtils";
+import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid } from "./custom-page/EditableGrid";
@@ -39,7 +40,8 @@ import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
 import { PageImage } from "./custom-page/PageImage";
 import { CompactList, compactCell } from "./custom-page/CompactList";
 import { FilterBar } from "./custom-page/FilterBar";
-import { applyClientFilters, filterChoices, filterScope, filterStorageKey, loadFilterValues, parseFilterEntries, presetFromPageParams, resolveKind, saveFilterValues, EMPTY_FILTER_VALUES, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./custom-page/filterBarModel";
+import { SearchableSelect } from "./custom-page/SearchableSelect";
+import { applyFirstChoices, firstChoiceValue, applyClientFilters, filterChoices, filterScope, filterStorageKey, loadFilterValues, parseFilterEntries, presetFromPageParams, resolveKind, saveFilterValues, EMPTY_FILTER_VALUES, type FilterBarValues, type FilterValue, type ResolvedFilter } from "./custom-page/filterBarModel";
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
@@ -453,9 +455,10 @@ const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
 /** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
 const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
 
-function QueryMetric({ state, title, description, style, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties } & MetricExtras) {
+function QueryMetric({ state, title, description, style, count, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties; count?: number | null } & MetricExtras) {
   const first = state.columns[0]?.code;
-  const value = state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
+  // `countWhen` varsa değer koşulu sağlayan yüklenmiş satır sayısıdır; yoksa ilk satırın ilk sütunu.
+  const value = count !== undefined ? countText(count) : state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
   return <MetricCard title={title} description={description} style={style} hasError={!!state.error} {...card}
     value={state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
@@ -670,13 +673,27 @@ function QueryActionButton({ component, props, label, runtime, disabled: conditi
 
 /**
  * Seçim girişinin seçenekleri: önce sabit seçenekler (`staticOptions`, "değer=Etiket"), sonra optionsQuery satırları;
- * satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur (sabit seçeneklerde boş satır).
+ * satır başına seçilen sütun değeri ve etiketi. Sayı sütunu için `row` korunur (sabit seçeneklerde boş satır). Açıklama sütunu
+ * (`optionDescriptionColumn`) verilmişse etiket eski depo seçicileri gibi "etiket · açıklama" olur (ör. "D01 · Merkez").
  */
 const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState) => {
   const valueColumn = textValue(props.optionValueColumn) || optionsState?.columns[0]?.code || "";
   const labelColumn = textValue(props.optionLabelColumn) || valueColumn;
+  const descriptionColumn = textValue(props.optionDescriptionColumn);
   const fixed = staticLookupOptions(props.staticOptions).map(({ value, label }) => ({ value, label, row: {} as Record<string, unknown> }));
-  return [...fixed, ...(optionsState?.rows ?? []).map((row) => ({ value: displayText(row[valueColumn]), label: displayText(row[labelColumn]) || displayText(row[valueColumn]), row }))];
+  return [...fixed, ...(optionsState?.rows ?? []).map((row) => {
+    const label = displayText(row[labelColumn]) || displayText(row[valueColumn]);
+    const description = descriptionColumn ? displayText(row[descriptionColumn]).trim() : "";
+    return { value: displayText(row[valueColumn]), label: description ? `${label} · ${description}` : label, row };
+  })];
+};
+
+/** İlk seçenek varsayılanı (`defaultFirst`) için girişin ilk boş olmayan seçeneği; seçenekler henüz yüklenmediyse null. */
+const firstInputOption = (props: Record<string, unknown>, optionsState: QueryState | undefined): string | null => {
+  if (optionsState?.loading) return null;
+  const inputType = textValue(props.inputType, "text");
+  const options = inputType === "lookup" ? lookupCandidates(props, optionsState, "", false) : inputType === "select" ? selectOptions(props, optionsState) : [];
+  return firstChoiceValue(options);
 };
 
 /** Düğme simgeleri (`icon`): ör. detay panelinin "Aç" düğmesi. */
@@ -756,13 +773,22 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   let control;
   if (inputType === "checkbox") {
     control = <input {...common} type="checkbox" checked={raw === true} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />;
+  } else if (inputType === "select" && props.searchable === true) {
+    // Aranabilir açılır liste: yazarak süzülen seçenekler; sarmalayıcı arama kutusunun sınıflarını taşır (aynı görünüm).
+    return <div className={`tenant-page-input tenant-page-input-lookup tenant-page-input-searchable${requiredClass}${invalid ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
+      <SearchableSelect inputId={inputId} label={label} value={typeof raw === "string" ? raw : ""} choices={selectOptions(props, optionsState)}
+        emptyLabel={optionsState && neverRan(optionsState) && !optionsState.loading ? MANUAL_QUERY_IDLE : "Seçin"} loading={Boolean(optionsState?.loading)}
+        disabled={disabled} onChange={(next) => onChange(next)} />
+      {optionsState?.error && <QueryError message={optionsState.error} />}
+      {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
+    </div>;
   } else if (inputType === "select") {
     const options = selectOptions(props, optionsState);
     const current = typeof raw === "string" ? raw : "";
     // Seçeneklerde olmayan geçerli değer (ör. listeden kaldırılmış kategori) silinmez; kendi seçeneğiyle gösterilir.
     const orphan = current !== "" && !optionsState?.loading && !options.some((option) => option.value === current);
     control = <select {...common} value={current} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
+      <option value="">{optionsState?.loading ? "Yükleniyor…" : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
       {orphan && <option value={current}>{current}</option>}
     </select>;
@@ -907,7 +933,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const onActivate = runtime && filterInput && filterValue !== ""
         ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue) : undefined;
       const card = { tone, icon, trend, active, onActivate };
-      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} />;
+      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card}
+        count={countRowsWhen(component.props?.countWhen, runtime.states[queryName].rows, queryName, runtime.scope)} />;
       // Değeri bağlama olan (sorgusuz, kaynaksız) v2 gösterge: çözülen değer `format` ile (number/money; diğerleri metin) yazılır.
       const rawValue = component.props?.value;
       if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {
@@ -1281,7 +1308,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     }, bound("successMessage") || "İşlem tamamlandı.", bound("errorMessage"), refresh);
   };
 
-  const exportTable = async (tableId: string) => {
+  const exportTable = async (tableId: string, format: "xlsx" | "csv" = "xlsx") => {
     const current = latest.current;
     const table = current.tableById[tableId];
     const loaded = table && typeof table.props?.query === "string" ? current.states[current.queryNames[table.props.query]] : undefined;
@@ -1295,12 +1322,14 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     const rows = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
     onStatus(null);
     try {
-      await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, rows, chosen));
+      // CSV: eski listelerle aynı yardımcı (UTF-8 BOM, virgül ayraç, formül korumalı hücreler).
+      if (format === "csv") downloadCsv(`${page.code}.csv`, exportRows(state.columns, rows, chosen));
+      else await downloadXlsx(`${page.code}.xlsx`, title, exportRows(state.columns, rows, chosen));
       // Sunucu sayfalı liste her zaman "kesilmiş"tir: yalnız görünen sayfa aktarılır ve bu bildirilir.
       if (mounted.current && table.props?.paging === "server") onStatus({ tone: "warning", text: `Yalnız görünen sayfa aktarıldı (${state.rows.length} satır).` });
       else if (mounted.current && state.truncated) onStatus({ tone: "warning", text: `Liste ilk ${state.rows.length} satırla sınırlı` });
     } catch (cause) {
-      if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || "Excel dosyası oluşturulamadı." });
+      if (mounted.current) onStatus({ tone: "error", text: (cause as Error).message || (format === "csv" ? "CSV dosyası oluşturulamadı." : "Excel dosyası oluşturulamadı.") });
     }
   };
 
@@ -1357,7 +1386,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       refresh: () => latest.current.rerun(loadIds),
       focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
       print: () => window.print(),
-      exportTable: (tableId) => void exportTable(tableId),
+      exportTable: (tableId, format) => void exportTable(tableId, format),
       button: runButton,
     },
   });
@@ -1483,6 +1512,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const [errorJump, setErrorJump] = useState<PageRuntime["errorJump"]>(null);
   // Arama kutuları: yazılan metin ve seçim anında saklanan satır (yalnız değer hâlâ aynıyken geçerli).
   const [lookupState, setLookupState] = useState<Record<string, { search: string; value?: string; row?: Record<string, unknown> | null; label?: string }>>({});
+  // İlk seçenek varsayılanı (`defaultFirst`): seçenekler ilk yüklendiğinde bir kez saklanır (sorgu yeniden çalışınca ya da sunucu
+  // aramasında değer sıçramaz); yalnız varsayılan değer (`defaultValue`, sayfa parametresi bağlaması dahil) boşken kullanılır.
+  const [firstOptions, setFirstOptions] = useState<Record<string, string>>({});
   // Sayfalı listeler: sayfa, hangi sorgu değerleri (sayfa parametreleri hariç) ve arama metniyle seçildiyse o anahtarla saklanır.
   const [tablePages, setTablePages] = useState<Record<string, { page: number; key: string }>>({});
   // Pencereler: açık durumu, kayıt sonucu ve meşguliyeti; açan öğe odağın döneceği yerdir.
@@ -1512,9 +1544,12 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const stored = previewId ? EMPTY_FILTER_VALUES : loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), specs);
     return [filterBar.id, presetFromPageParams(stored, specs, pageParams)];
   })));
+  // Süzgeç alanında ilk seçenek varsayılanı (`defaultFirst`): süzgeç başına bir kez (bileşen ömründe) uygulanır.
+  const firstFilterApplied = useRef(new Set<string>());
   useEffect(() => {
     if (previewId) return;
-    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES);
+    for (const filterBar of filterBars) saveFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES,
+      parseFilterEntries(filterBar.props?.filters).filter((spec) => spec.defaultFirst).map((spec) => spec.key));
   }, [filterValues, filterBars, previewId, page.code, tenantId]);
   const visibleCache = useRef(new Map<string, { state: QueryState; key: string; result: QueryState }>());
   /** Süzgeç alanının tablosu, sorgusu ve türü/etiketi/seçenekleri çözülmüş süzgeçleri; tablo ya da sorgu yoksa null. */
@@ -1627,6 +1662,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
         ? conditionHolds(input.props.defaultWhen, base, false)
         : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
+      if (defaults[input.id] === "" && input.id in firstOptions) defaults[input.id] = firstOptions[input.id];
       raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
       if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
     }
@@ -1661,6 +1697,37 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   });
   const statesRef = useRef(states);
   statesRef.current = states;
+  // İlk seçenek varsayılanları: seçenekleri yüklenen girişler ve süzgeçler (bkz. firstOptions, firstFilterApplied).
+  useEffect(() => {
+    const found: Record<string, string> = {};
+    for (const input of inputs) {
+      if (input.props?.defaultFirst !== true || input.id in firstOptions) continue;
+      const optionsId = input.props?.optionsQuery;
+      const first = firstInputOption(input.props, typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined);
+      if (first !== null) found[input.id] = first;
+    }
+    if (Object.keys(found).length > 0) setFirstOptions((previous) => ({ ...found, ...previous }));
+    // Uygulanacak ilk seçenekler güncel değerlerle (çizimdeki) hesaplanır; güncelleyici yalnız hâlâ anahtarı olmayanlara yazar.
+    const additions: Record<string, Record<string, string>> = {};
+    for (const filterBar of filterBars) {
+      if (!parseFilterEntries(filterBar.props?.filters).some((spec) => spec.defaultFirst && !firstFilterApplied.current.has(`${filterBar.id}.${spec.key}`))) continue;
+      const filters = filterBarModel(filterBar, states)?.filters ?? [];
+      const current = filterValues[filterBar.id] ?? EMPTY_FILTER_VALUES;
+      const applied = applyFirstChoices(current, filters, firstFilterApplied.current, `${filterBar.id}.`);
+      if (applied === current) continue;
+      additions[filterBar.id] = Object.fromEntries(Object.entries(applied.values).filter(([key]) => !Object.prototype.hasOwnProperty.call(current.values, key))) as Record<string, string>;
+    }
+    if (Object.keys(additions).length === 0) return;
+    setFilterValues((previous) => {
+      const next = { ...previous };
+      for (const [id, values] of Object.entries(additions)) {
+        const current = previous[id] ?? EMPTY_FILTER_VALUES;
+        const kept = Object.fromEntries(Object.entries(values).filter(([key]) => !Object.prototype.hasOwnProperty.call(current.values, key)));
+        next[id] = { ...current, values: { ...current.values, ...kept } };
+      }
+      return next;
+    });
+  });
   const inputErrors = operationInputErrors(queryDefinitions, states);
   const events = useMemo(() => createPageEvents(), []);
   const rights = page.rights ?? { view: true };
@@ -2638,12 +2705,15 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         search: model.search ? { placeholder: textValue(filterBar.props?.searchPlaceholder) || "Ara", hint: model.hint } : null,
         values: model.values, filters: model.filters, searchInputId: `page-input-${filterBar.id}`,
         onSearch: (text) => update((current) => ({ ...current, search: text })),
+        // İlk seçenek varsayılanlı süzgeçte "Tümü" boş metin olarak tutulur: varsayılan (yeniden açılışta da) onu ezmez.
         onChange: (key, value) => update((current) => {
           const values = { ...current.values };
-          if (value === undefined) delete values[key]; else values[key] = value;
+          if (value !== undefined) values[key] = value;
+          else if (model.filters.some((filter) => filter.key === key && filter.defaultFirst)) values[key] = "";
+          else delete values[key];
           return { ...current, values };
         }),
-        onClearAll: () => update((current) => ({ ...current, values: {} })),
+        onClearAll: () => update((current) => ({ ...current, values: Object.fromEntries(model.filters.filter((filter) => filter.defaultFirst).map((filter) => [filter.key, ""])) })),
       };
     },
     visibleRows: (table, state) => {

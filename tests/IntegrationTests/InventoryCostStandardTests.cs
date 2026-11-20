@@ -76,7 +76,7 @@ public sealed class InventoryCostStandardTests
         foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("bakiye", parameter));
 
         var filter = Props("suzgec");
-        Assert.Equal(new[] { "warehouseId|select|row|warehouseId|Depo|depolar:id:name" }, Strings(filter["filters"]));
+        Assert.Equal(new[] { "warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable,defaultFirst" }, Strings(filter["filters"]));
         Assert.Equal("Kod veya stok adıyla ara", (string)filter["searchPlaceholder"]!);
         var unvalued = Props("maliyetsizGostergesi");
         Assert.Equal(("Maliyetsiz", "{{bakiye.meta.pageUnvaluedCount}}", "bu sayfa"),
