@@ -1232,6 +1232,82 @@ export default function App() {
   const openRequestCount = requests.filter(
     (item) => !closedStatuses.includes(item.status.toLowerCase()),
   ).length;
+  const requestStatusSummary = Object.entries(
+    requests.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {}),
+  ).map(([status, count]) => ({
+    status,
+    count,
+    tone: requestStatusTone[status] || "is-neutral",
+  }));
+  const onboardingSteps = [
+    {
+      title: "GitHub deposu bağlayın",
+      hint: "Talepler yalnız yetkili depoda çalışır",
+      done: connectedProjects > 0,
+      action: (
+        <a className="ns-btn ns-btn-sm" href="#projects">
+          Proje ekle
+        </a>
+      ),
+    },
+    {
+      title: "İlk talebinizi oluşturun",
+      hint: "Değişiklik ayrı çalışma alanında hazırlanır",
+      done: requests.length > 0,
+      action: (
+        <button
+          className="ns-btn ns-btn-sm"
+          type="button"
+          onClick={openNewRequest}
+        >
+          Talep oluştur
+        </button>
+      ),
+    },
+    {
+      title: "İnceleyip onaylayın",
+      hint: "Onaysız değişiklik uygulanmaz",
+      done: requests.some((item) => item.status === "Completed"),
+      action: null,
+    },
+  ];
+  const onboardingDone = onboardingSteps.findIndex((step) => !step.done) < 0
+    ? onboardingSteps.length
+    : onboardingSteps.findIndex((step) => !step.done);
+  const quickLinks: {
+    href: string;
+    title: string;
+    hint: string;
+    icon: LucideIcon;
+  }[] = [
+    {
+      href: "#adaptation",
+      title: "Uyarlama araçları",
+      hint: "Ekran, rapor ve iş akışı düzenleme",
+      icon: Boxes,
+    },
+    {
+      href: "#marketplace",
+      title: "Modül pazaryeri",
+      hint: "Hazır modülleri etkinleştirin",
+      icon: Package,
+    },
+    {
+      href: "#analytics",
+      title: "Analitik",
+      hint: "Talep ve proje eğilimleri",
+      icon: TrendingUp,
+    },
+    {
+      href: "#requests",
+      title: "Tüm talepler",
+      hint: "Durum ve geçmiş",
+      icon: ListTodo,
+    },
+  ];
   const sectionTitle = activeSection.startsWith("tool-")
     ? platformTools.find((tool) => tool.id === activeSection.slice(5))?.title ||
       "Uyarlama aracı"
@@ -2459,134 +2535,197 @@ export default function App() {
                   </button>
                 </section>
               )}
-              <header className="ns-page-head st-page-head">
-                <div>
-                  <h1>Genel bakış</h1>
+              <header className="st-hero">
+                <div className="st-hero-text">
+                  <small>
+                    {tenant.name} · {roleLabel(tenant.role)}
+                  </small>
+                  <h1>Merhaba, {userName}</h1>
                   <p>
-                    {tenant.name} · projeler, geliştirme talepleri ve yetki
-                    kapsamı
+                    Geliştirme taleplerinizi ve projelerinizi buradan yönetin.
                   </p>
                 </div>
-                <a className="ns-btn" href="#projects">
-                  <FolderKanban size={16} aria-hidden="true" />
-                  Projeleri görüntüle
-                </a>
+                <div className="st-hero-actions">
+                  <a className="ns-btn" href="#projects">
+                    <FolderKanban size={16} aria-hidden="true" />
+                    Projeler
+                  </a>
+                  <button
+                    className="ns-btn ns-btn-primary"
+                    type="button"
+                    onClick={openNewRequest}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Yeni talep
+                  </button>
+                </div>
               </header>
 
-              <section className="st-kpis" aria-label="Studio özeti">
-                <KpiCard
-                  icon={FolderKanban}
-                  tone="accent"
-                  label="Erişilebilir proje"
-                  value={projects.length}
-                  hint="Bu firmada"
-                />
-                <KpiCard
-                  icon={GitBranch}
-                  tone="success"
-                  label="GitHub bağlantısı"
-                  value={
-                    <>
-                      {connectedProjects}
-                      <small> / {projects.length}</small>
-                    </>
-                  }
-                  hint="Yetkilendirilmiş depo"
-                />
-                <KpiCard
-                  icon={ListTodo}
-                  tone="info"
-                  label="Geliştirme talebi"
-                  value={requests.length}
-                  hint={`${submittedRequests} yeni kayıt`}
-                />
-                <KpiCard
-                  icon={Activity}
-                  tone="warning"
-                  label="Açık talep"
-                  value={openRequestCount}
-                  hint="İş akışında devam eden"
-                />
+              <section className="st-stat-strip" aria-label="Studio özeti">
+                <div className="st-stat">
+                  <span className="st-stat-label">
+                    <FolderKanban size={14} className="is-accent" aria-hidden="true" />
+                    Proje
+                  </span>
+                  <b>{projects.length}</b>
+                </div>
+                <div className="st-stat">
+                  <span className="st-stat-label">
+                    <GitBranch size={14} className="is-success" aria-hidden="true" />
+                    GitHub bağlı
+                  </span>
+                  <b>
+                    {connectedProjects}
+                    <small> / {projects.length}</small>
+                  </b>
+                </div>
+                <div className="st-stat">
+                  <span className="st-stat-label">
+                    <ListTodo size={14} className="is-info" aria-hidden="true" />
+                    Talep
+                  </span>
+                  <b>
+                    {requests.length}
+                    {submittedRequests > 0 && (
+                      <small> · {submittedRequests} yeni</small>
+                    )}
+                  </b>
+                </div>
+                <div className="st-stat">
+                  <span className="st-stat-label">
+                    <Activity size={14} className="is-warning" aria-hidden="true" />
+                    Açık talep
+                  </span>
+                  <b>{openRequestCount}</b>
+                </div>
               </section>
 
               <div className="st-grid st-grid-wide">
-                <section
-                  className="ns-card st-card"
-                  aria-labelledby="studio-recent-title"
-                >
-                  <header className="st-card-head">
-                    <div>
-                      <h2 id="studio-recent-title">Son talepler</h2>
-                      <p>En yeni geliştirme talepleri</p>
-                    </div>
-                    <a className="ns-btn ns-btn-ghost ns-btn-sm" href="#requests">
-                      Tümü
-                      <ArrowUpRight size={14} aria-hidden="true" />
-                    </a>
-                  </header>
-                  {recentRequests.length ? (
-                    recentRequestsTable(recentRequests)
-                  ) : (
-                    <EmptyState icon={ListTodo} title="Henüz talep yok">
-                      <span>Yeni talepleriniz ve durumları burada görünür.</span>
-                      <button
-                        className="ns-btn ns-btn-primary ns-btn-sm"
-                        type="button"
-                        onClick={openNewRequest}
+                {requests.length ? (
+                  <section
+                    className="ns-card st-card"
+                    aria-labelledby="studio-recent-title"
+                  >
+                    <header className="st-card-head">
+                      <div>
+                        <h2 id="studio-recent-title">Son talepler</h2>
+                        <p>En yeni geliştirme talepleri</p>
+                      </div>
+                      <a
+                        className="ns-btn ns-btn-ghost ns-btn-sm"
+                        href="#requests"
                       >
-                        <Plus size={14} aria-hidden="true" />
-                        Yeni talep
-                      </button>
-                    </EmptyState>
-                  )}
-                </section>
+                        Tümü
+                        <ArrowUpRight size={14} aria-hidden="true" />
+                      </a>
+                    </header>
+                    <div className="st-status-dist">
+                      <div className="st-status-bar" aria-hidden="true">
+                        {requestStatusSummary.map((item) => (
+                          <span
+                            key={item.status}
+                            className={item.tone}
+                            style={{ flexGrow: item.count }}
+                          />
+                        ))}
+                      </div>
+                      <ul className="st-status-legend">
+                        {requestStatusSummary.map((item) => (
+                          <li key={item.status}>
+                            <i className={item.tone} aria-hidden="true" />
+                            {statusLabel(item.status)}
+                            <b>{item.count}</b>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {recentRequestsTable(recentRequests)}
+                  </section>
+                ) : (
+                  <section
+                    className="ns-card st-card"
+                    aria-labelledby="studio-start-title"
+                  >
+                    <header className="st-card-head">
+                      <div>
+                        <h2 id="studio-start-title">Başlangıç adımları</h2>
+                        <p>
+                          Studio'yu kullanmaya hazırlanın ·{" "}
+                          {onboardingDone}/3 tamamlandı
+                        </p>
+                      </div>
+                    </header>
+                    <div
+                      className="st-progress"
+                      role="progressbar"
+                      aria-label="Başlangıç ilerlemesi"
+                      aria-valuemin={0}
+                      aria-valuemax={3}
+                      aria-valuenow={onboardingDone}
+                    >
+                      <span style={{ width: `${(onboardingDone / 3) * 100}%` }} />
+                    </div>
+                    <ol className="st-checklist">
+                      {onboardingSteps.map((step, index) => {
+                        const state = step.done
+                          ? "is-done"
+                          : index === onboardingDone
+                            ? "is-current"
+                            : "";
+                        return (
+                          <li key={step.title} className={state}>
+                            <span className="st-checklist-mark" aria-hidden="true">
+                              {step.done ? <Check size={14} /> : index + 1}
+                            </span>
+                            <div>
+                              <b>{step.title}</b>
+                              <small>{step.hint}</small>
+                            </div>
+                            {state === "is-current" && step.action}
+                            {step.done && (
+                              <span className="ns-sr-only">Tamamlandı</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    <p className="st-card-note">
+                      İlk talebiniz oluşunca bu alanda son talepler listelenir.
+                    </p>
+                  </section>
+                )}
                 <section
                   className="ns-card st-card"
-                  aria-labelledby="studio-flow-title"
+                  aria-labelledby="studio-quick-title"
                 >
                   <header className="st-card-head">
                     <div>
-                      <h2 id="studio-flow-title">Geliştirme akışı</h2>
-                      <p>Her değişiklik insan onayından geçer</p>
+                      <h2 id="studio-quick-title">Hızlı işlemler</h2>
                     </div>
                   </header>
-                  <ol className="st-steps">
-                    <li>
-                      <span aria-hidden="true">1</span>
-                      <div>
-                        <b>Projeyi seçin</b>
-                        <small>Yetkili depoya güvenli erişim</small>
-                      </div>
-                    </li>
-                    <li>
-                      <span aria-hidden="true">2</span>
-                      <div>
-                        <b>Çalışma alanı isteyin</b>
-                        <small>Değişiklik için ayrı checkout</small>
-                      </div>
-                    </li>
-                    <li>
-                      <span aria-hidden="true">3</span>
-                      <div>
-                        <b>İnceleyip onaylayın</b>
-                        <small>Onaysız değişiklik uygulanmaz</small>
-                      </div>
-                    </li>
-                  </ol>
-                  <a className="ns-btn ns-btn-sm st-card-foot" href="#projects">
-                    Projelere git
-                    <ArrowUpRight size={14} aria-hidden="true" />
-                  </a>
+                  <nav className="st-quick" aria-labelledby="studio-quick-title">
+                    {quickLinks.map((link) => (
+                      <a key={link.href} href={link.href}>
+                        <span className="st-quick-icon" aria-hidden="true">
+                          <link.icon size={16} />
+                        </span>
+                        <span className="st-quick-text">
+                          <b>{link.title}</b>
+                          <small>{link.hint}</small>
+                        </span>
+                        <ChevronRight size={16} aria-hidden="true" />
+                      </a>
+                    ))}
+                  </nav>
+                  <p className="st-quick-note">
+                    <ShieldCheck size={14} aria-hidden="true" />
+                    <span>
+                      Depo erişimi ve değişiklikler proje ve firma
+                      yetkileriyle denetlenir. Onaysız değişiklik uygulanmaz.
+                    </span>
+                  </p>
                 </section>
               </div>
-              <p className="st-note">
-                <ShieldCheck size={16} aria-hidden="true" />
-                <span>
-                  Studio ayrı frontend ve API servisi kullanır. Depo erişimi,
-                  kod paylaşımı ve değişiklik uygulaması proje ve firma
-                  yetkileriyle denetlenir.
-                </span>
-              </p>
             </>
           )}
         </main>
