@@ -2,6 +2,13 @@ import type { CSSProperties, ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { addBlockedMessage, MATRIX_DIMENSION_COLUMNS, type GridAction, type GridColumn, type GridDraft, type GridState } from "./gridState";
 import { displayText } from "./pageBindings";
+import { LookupInput, type LookupOption } from "./LookupInput";
+
+/** Seçim (lookup) hücresinin çizim verisi: seçenekler, seçili değerin görünen metni ve arama/seçim geri çağrıları. */
+export type GridPicker = {
+  options: LookupOption[]; loading: boolean; error?: string; selected: { value: string; label: string } | null;
+  onSearch: (text: string) => void; onChange: (value: string, row: Record<string, unknown> | null, label: string) => void;
+};
 
 const MATRIX_CAP = 200;
 const MATRIX_OVER = "En fazla 200 varyant oluşturulabilir; ilk 200 kullanılacak.";
@@ -19,11 +26,15 @@ function sourceCell(row: Record<string, unknown>, code: string): string {
  * üzere işaretlenir, "Geri al" ile geri alınır), yeni satırlar düzenlenir; `list`/`matrix` kiplerinde tüm satırlar düzenlenir.
  */
 export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
-  disabled, disabledReason, loading, error, matrixPreviewCount, style }: {
+  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel }: {
   id: string; title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
   state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string; dispatch: (action: GridAction) => void;
   errors: Record<string, Record<string, string>>; fixedRowLabel: string; addLabel: string; maxRows: number;
   disabled: boolean; disabledReason: string; loading: boolean; error?: string; matrixPreviewCount?: number; style: CSSProperties;
+  /** Seçim sütununun düzenlenebilir hücresi (yoksa hücre metin girişi gibi çizilir). */
+  pickerFor?: (column: GridColumn, draft: GridDraft) => GridPicker;
+  /** Seçim sütununun salt okunur metni: değerin seçenek etiketi (kaynak satırlar ve readOnly sütun). */
+  pickerLabel?: (column: GridColumn, value: string, draft?: GridDraft) => string;
 }) {
   const shown = mode === "matrix" ? MATRIX_DIMENSION_COLUMNS : columns;
   const blocked = addBlockedMessage(state, { mode, maxRows });
@@ -39,6 +50,17 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
     const label = `${column.label} (satır ${n})`;
     const inputId = `page-grid-${id}-${draft.key}-${column.code}`;
     const common = { id: inputId, "aria-label": label, "aria-invalid": message ? true : undefined, disabled, readOnly: column.rules.readOnly || undefined };
+    if (column.inputType === "lookup") {
+      const value = typeof raw === "string" ? raw : "";
+      if (column.rules.readOnly || !pickerFor) return <td key={column.code}>{(pickerLabel ? pickerLabel(column, value, draft) : value) || "—"}</td>;
+      const picker = pickerFor(column, draft);
+      return <td key={column.code} className={`tenant-page-grid-picker${message ? " is-invalid" : ""}`}>
+        <LookupInput inputId={inputId} label="" ariaLabel={label} raw={value} placeholder="" allowClear={!column.rules.required} disabled={disabled}
+          options={picker.options} loading={picker.loading} error={picker.error} selected={picker.selected}
+          onChange={picker.onChange} onSearch={picker.onSearch} />
+        {message && <small className="tenant-page-input-error">{message}</small>}
+      </td>;
+    }
     const control = column.inputType === "checkbox"
       ? <input {...common} type="checkbox" checked={raw === true || raw === "true"} onChange={(event) => dispatch({ type: "edit", key: draft.key, code: column.code, value: event.target.checked })} />
       : <input {...common} type={column.inputType === "text" ? "text" : column.inputType} value={typeof raw === "string" ? raw : ""}
@@ -68,7 +90,10 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
             const key = displayText(row[rowKey]) || `kaynak-${index}`;
             const isRemoved = removed.has(key);
             return <tr key={`s-${key}`} className={isRemoved ? "is-removed" : undefined}>
-              {shown.map((column) => <td key={column.code}>{sourceCell(row, column.code) || "—"}</td>)}
+              {shown.map((column) => {
+                const text = sourceCell(row, column.code);
+                return <td key={column.code}>{(column.inputType === "lookup" && pickerLabel && text ? pickerLabel(column, text) : text) || "—"}</td>;
+              })}
               <td>{isRemoved && <span className="tenant-page-tag tone-danger">Silinecek</span>}</td>
               <td className="tenant-page-grid-actions">{isRemoved
                 ? <button type="button" className="tenant-page-row-action" disabled={disabled} onClick={() => dispatch({ type: "undoRemove", key })}>Geri al</button>

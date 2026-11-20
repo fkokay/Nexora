@@ -3,7 +3,7 @@ import vectors from './gridColumns.vectors.json';
 import { makeVariantDrafts } from '../inventory/variantDrafts';
 import {
   GRID_UNIQUE, MATRIX_DIMENSION_COLUMNS, addBlockedMessage, emptyGridState, fixedRowValues, gridColumnRoot, gridMaxRowsMessage, gridReducer, gridScope,
-  iterationRows, parseGridColumn, parseGridColumns, validateGrid, type GridAction, type GridColumn, type GridState,
+  gridMinRowsMessage, iterationRows, parseColumnEntries, parseGridColumn, parseGridColumns, validateGrid, wireRow, type GridAction, type GridColumn, type GridState,
 } from './gridState';
 
 const column = (text: string): GridColumn => {
@@ -181,7 +181,7 @@ describe('gridScope', () => {
       { trackingCode: 'B' },
     ]);
     expect(scope.degisti).toBe(true);
-    expect(gridScope('list', columns, emptyGridState(null), [], 'id')).toEqual({ satirlar: [], eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, degisti: false });
+    expect(gridScope('list', columns, emptyGridState(null), [], 'id')).toEqual({ satirlar: [], eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, satirSayisi: 0, degisti: false });
   });
 
   it('unsafe keys never reach wire rows', () => {
@@ -196,7 +196,7 @@ describe('gridScope', () => {
     const state = run(emptyGridState('k'), [{ type: 'add' }, { type: 'edit', key: 'yeni-1', code: 'unitCode', value: 'kutu' }, { type: 'edit', key: 'yeni-1', code: 'factorToBase', value: '6' }, { type: 'remove', key: 'u1' }], stage);
     expect(gridScope('stage', unitColumns, state, sourceRows, 'id')).toEqual({
       satirlar: [sourceRows[1], { unitCode: 'KUTU', factorToBase: 6 }], eklenenler: [{ unitCode: 'KUTU', factorToBase: 6 }], silinenler: [sourceRows[0]],
-      eklenenSayisi: 1, silinenSayisi: 1, degisti: true,
+      eklenenSayisi: 1, silinenSayisi: 1, satirSayisi: 2, degisti: true,
     });
   });
 
@@ -233,5 +233,73 @@ describe('gridScope', () => {
     expect(validateGrid('stage', unitColumns, state, sourceRows, 'id', 50, fixed)).toEqual({ 'yeni-1': { unitCode: GRID_UNIQUE } });
     // meta.baseUnitCode is base + column code; unrelated bindings (even ones merely ending with the code) and non-unique columns are ignored.
     expect(fixedRowValues('{{birimler.meta.baseUnitCode}} · {{kart.rows[0].name}} {{x.factorToBase}} {{x.altUnitCode}}', unitColumns, () => 'KG')).toEqual({ unitCode: ['KG'] });
+  });
+});
+
+describe('lookup (picker) columns', () => {
+  it('parses lookup:<query>:<value>:<label>[:<description>] with required, unique and readOnly', () => {
+    expect(column('stockItemId|Stok kartı|lookup:stoklar:id:code:name|required,unique')).toEqual({
+      code: 'stockItemId', label: 'Stok kartı', inputType: 'lookup',
+      rules: { required: true, unique: true, upperCase: false, readOnly: false },
+      lookup: { query: 'stoklar', valueColumn: 'id', labelColumn: 'code', descriptionColumn: 'name' },
+    });
+    expect(column('unitCode|Birim|lookup:birimler:unitCode:unitCode').lookup).toEqual({ query: 'birimler', valueColumn: 'unitCode', labelColumn: 'unitCode', descriptionColumn: '' });
+    expect(column('loc|Konum|lookup:q-1:balance.id:balance.code|readOnly').rules.readOnly).toBe(true);
+  });
+
+  it('rejects broken lookup types and rules of other types', () => {
+    for (const text of ['a|A|lookup', 'a|A|lookup:', 'a|A|lookup:q', 'a|A|lookup:q:id', 'a|A|lookup:q:id:code:name:x', 'a|A|lookup:q x:id:code',
+      'a|A|lookup:q:id:', 'a|A|lookup:q:1d:code', 'a|A|lookup:q:id:code|upperCase', 'a|A|lookup:q:id:code|maxLength:4', 'a|A|lookup:q:id:code|min:1']) {
+      expect(parseGridColumn(text), text).toMatchObject({ ok: false });
+    }
+  });
+
+  it('an empty picker cell is omitted from the wire; labels never reach it', () => {
+    const columns = [column('stockItemId|Stok|lookup:stoklar:id:code:name|required'), column('fromStorageLocationId|Konum|lookup:k:id:code')];
+    const state = run(emptyGridState(null), [{ type: 'add' }, { type: 'edit', key: 'yeni-1', code: 'stockItemId', value: 'S1', label: 'KLM · Kalem' },
+      { type: 'edit', key: 'yeni-1', code: 'fromStorageLocationId', value: '' }], list);
+    expect(state.rows[0].labels).toEqual({ stockItemId: 'KLM · Kalem' });
+    expect(gridScope('list', columns, state, [], 'id').satirlar).toEqual([{ stockItemId: 'S1' }]);
+    expect(wireRow(columns, state.rows[0])).toEqual({ stockItemId: 'S1' });
+    // An edit without a label drops the stored one (the value no longer matches it).
+    const edited = gridReducer(state, { type: 'edit', key: 'yeni-1', code: 'stockItemId', value: 'S2' }, list);
+    expect(edited.rows[0].labels).toBeUndefined();
+    expect(validateGrid('list', columns, run(state, [{ type: 'edit', key: 'yeni-1', code: 'stockItemId', value: '' }], list), [], 'id'))
+      .toEqual({ 'yeni-1': { stockItemId: 'Bu alan zorunludur.' } });
+  });
+
+  it('clearColumn empties a column in every editable row, labels included', () => {
+    const state = run(emptyGridState(null), [{ type: 'add' }, { type: 'add' },
+      { type: 'edit', key: 'yeni-1', code: 'loc', value: 'L1', label: 'A-01' }, { type: 'edit', key: 'yeni-1', code: 'qty', value: '2' },
+      { type: 'edit', key: 'yeni-2', code: 'loc', value: 'L2', label: 'A-02' }], list);
+    const cleared = gridReducer(state, { type: 'clearColumn', code: 'loc' }, list);
+    expect(cleared.rows.map((draft) => [draft.cells, draft.labels])).toEqual([[{ qty: '2' }, undefined], [{}, undefined]]);
+    expect(gridReducer(cleared, { type: 'clearColumn', code: 'loc' }, list)).toBe(cleared);
+    // Stage mode clears only the new rows (source rows are read-only).
+    const staged = run(emptyGridState('k'), [{ type: 'add' }, { type: 'edit', key: 'yeni-1', code: 'loc', value: 'L1' }], stage);
+    expect(gridReducer(staged, { type: 'clearColumn', code: 'loc' }, stage).added[0].cells).toEqual({});
+  });
+
+  it('minRows blocks a grid with fewer rows; stage counts kept source rows', () => {
+    const columns = [column('q|Miktar|number')];
+    expect(validateGrid('list', columns, emptyGridState(null), [], 'id', 100, undefined, 1)).toEqual({ '': { '': gridMinRowsMessage(1) } });
+    expect(gridMinRowsMessage(1)).toBe('En az 1 kalem girin.');
+    const one = run(emptyGridState(null), [{ type: 'add' }], list);
+    expect(validateGrid('list', columns, one, [], 'id', 100, undefined, 1)).toEqual({});
+    expect(validateGrid('list', columns, one, [], 'id', 100, undefined, 0)).toEqual({});
+    expect(validateGrid('stage', unitColumns, emptyGridState('k'), sourceRows, 'id', 50, undefined, 2)).toEqual({});
+    const removed = run(emptyGridState('k'), [{ type: 'remove', key: 'u1' }], stage);
+    expect(validateGrid('stage', unitColumns, removed, sourceRows, 'id', 50, undefined, 2)).toEqual({ '': { '': gridMinRowsMessage(2) } });
+  });
+
+  it('satirSayisi counts the shown rows', () => {
+    const state = run(emptyGridState(null), [{ type: 'add' }, { type: 'add' }], list);
+    expect(gridScope('list', [column('q|Q|number')], state, [], 'id').satirSayisi).toBe(2);
+  });
+
+  it('parseColumnEntries splits on the first = only', () => {
+    expect(parseColumnEntries(['unitCode==Ana birim', 'stockItemId=satir.isActive == true && satir.id != a.value', 'bad', '=x', 7, 'unitCode=KG=Kilogram']))
+      .toEqual({ unitCode: ['=Ana birim', 'KG=Kilogram'], stockItemId: ['satir.isActive == true && satir.id != a.value'] });
+    expect(parseColumnEntries(undefined)).toEqual({});
   });
 });

@@ -73,7 +73,10 @@ internal static class TenantCustomPageSchema
       // Süzgeç alanı (filterBar): tabloya bağlı arama kutusu ve sütun süzgeçleri (`table` bağlam paneliyle ortaktır).
       "search", "searchPlaceholder", "searchColumns", "searchParam", "filters",
       // Adım adım sayfalar: değer atayan düğme (setInput), satır açma eylemi, adımlar (steps) ve kayıt özeti (recordHeader).
-      "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons" };
+      "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons",
+      // Satırlı kayıt pencereleri: kendiliğinden istek kimliği (autoId), seçenek koşulu (optionsWhen), bağımlı temizleme
+      // (clearsOnChange), ızgarada en az satır ve seçim sütunlarının koşul/sabit seçenekleri, istemde açıklama ve uzunluk sınırı.
+      "autoId", "optionsWhen", "clearsOnChange", "minRows", "columnOptionsWhen", "columnStaticOptions", "promptText", "promptMaxLength" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -122,11 +125,11 @@ internal static class TenantCustomPageSchema
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle" };
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle", "promptText" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
         ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200,
-        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength, ["subtitle"] = MaxHeaderTextLength };
+        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength, ["subtitle"] = MaxHeaderTextLength, ["promptText"] = 300 };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -231,10 +234,16 @@ internal static class TenantCustomPageSchema
         public List<(string TableId, string ButtonId)> PendingRowOpenActions { get; } = [];
         /// <summary>recordHeader <c>buttons</c> lists; owned by the header like row actions.</summary>
         public List<(string HeaderId, List<string> Ids)> PendingHeaderButtons { get; } = [];
+        /// <summary>input <c>clearsOnChange</c> targets (input id, target); resolved after the component loop.</summary>
+        public List<(string InputId, string Target)> PendingClears { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
-    private sealed record GridInfo(string Id, string Name, string Mode, IReadOnlyList<string> Columns, string? SourceQuery);
+    private sealed record GridInfo(string Id, string Name, string Mode, IReadOnlyList<string> Columns, string? SourceQuery)
+    {
+        /// <summary>Picker (lookup) columns by code.</summary>
+        public IReadOnlyDictionary<string, GridColumnSpec.Lookup> Lookups { get; init; } = new Dictionary<string, GridColumnSpec.Lookup>();
+    }
 
     private sealed record FilterBarInfo(string Id, string Name, string TableId, List<string> Parameters);
 
@@ -1220,7 +1229,50 @@ internal static class TenantCustomPageSchema
             && ValidateTabsProps(props, id, typeText, context, out error)
             && ValidateLookupProps(props, typeText, inputType, out error)
             && ValidatePagingProps(props, id, name, typeText, context, out error)
-            && ValidateInputRules(props, typeText, inputType, out error);
+            && ValidateInputRules(props, typeText, inputType, out error)
+            && ValidateInputBehaviour(props, id, typeText, inputType, context, out error);
+    }
+
+    private const int MaxClearsOnChange = 10;
+    /// <summary>The option-row overlay of <c>optionsWhen</c> / <c>columnOptionsWhen</c>; not a page name.</summary>
+    private const string OptionRowRoot = "satir";
+
+    /// <summary>
+    /// Input behaviour: <c>autoId</c> (the runtime keeps a new GUID in the input: on load, when its dialog opens with
+    /// resetOnOpen, and after a write that binds it succeeds), <c>optionsWhen</c> (an option-row condition of a select or
+    /// lookup; <c>satir</c> is the option row) and <c>clearsOnChange</c> (inputs or <c>grid.column</c> cells cleared when the
+    /// user changes this input; resolved after the component loop).
+    /// </summary>
+    private static bool ValidateInputBehaviour(JsonElement props, string id, string typeText, string? inputType, Context context, out string? error)
+    {
+        error = null;
+        if (typeText != "input") return true;
+        if (props.TryGetProperty("autoId", out var autoId) && !IsBool(autoId))
+            return Fail("'autoId' true veya false olmalıdır.", out error);
+        if (props.TryGetProperty("optionsWhen", out var optionsWhen))
+        {
+            if (inputType is not ("select" or "lookup"))
+                return Fail("'optionsWhen' yalnız açılır liste veya arama kutusu (inputType: select, lookup) girişinde kullanılabilir.", out error);
+            if (!QueueOptionCondition("optionsWhen", optionsWhen.ValueKind == JsonValueKind.String ? optionsWhen.GetString() : null, context, out error)) return false;
+        }
+        if (props.TryGetProperty("clearsOnChange", out var clears))
+        {
+            if (!TryReadIds(clears, MaxClearsOnChange, out var targets))
+                return Fail($"'clearsOnChange' 1–{MaxClearsOnChange} adet farklı giriş kimliği veya ızgaraAdı.sütunKodu öğesi içermelidir.", out error);
+            foreach (var target in targets) context.PendingClears.Add((id, target));
+        }
+        return true;
+    }
+
+    /// <summary>Parses an option-row condition; its roots except <c>satir</c> are resolved against the page names.</summary>
+    private static bool QueueOptionCondition(string property, string? condition, Context context, out string? error)
+    {
+        error = null;
+        if (condition is null) return Fail($"'{property}' koşulu geçersiz: ifade metin olmalı", out error);
+        if (!PageConditionExpression.TryParse(condition, out var roots, out var reason))
+            return Fail($"'{property}' koşulu geçersiz: {reason}", out error);
+        context.PendingConditionRoots.Add((property, roots.Where(root => root != OptionRowRoot).ToArray()));
+        return true;
     }
 
     private static bool ValidateConditionProps(JsonElement props, string typeText, Context context, out string? error)
@@ -1531,7 +1583,10 @@ internal static class TenantCustomPageSchema
         ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
         ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"],
         ["assignments"] = ["button"], ["rowOpenAction"] = ["dataTable"], ["steps"] = ["steps"], ["activeWhen"] = ["steps"],
-        ["subtitle"] = ["recordHeader"], ["fieldFormats"] = ["recordHeader"], ["fieldUnits"] = ["recordHeader"], ["buttons"] = ["recordHeader"]
+        ["subtitle"] = ["recordHeader"], ["fieldFormats"] = ["recordHeader"], ["fieldUnits"] = ["recordHeader"], ["buttons"] = ["recordHeader"],
+        ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
+        ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
+        ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1674,6 +1729,11 @@ internal static class TenantCustomPageSchema
             if (!hasPrompt) return Fail("'promptRequired' için 'promptLabel' de tanımlı olmalıdır.", out error);
             if (!IsBool(promptRequired)) return Fail("'promptRequired' true veya false olmalıdır.", out error);
         }
+        // İstem penceresinde etiketin altındaki açıklama (bağlanabilir metin, MessageLimits 300) ve gerekçe alanının uzunluk sınırı.
+        foreach (var key in new[] { "promptText", "promptMaxLength" })
+            if (props.TryGetProperty(key, out _) && !hasPrompt) return Fail($"'{key}' için 'promptLabel' de tanımlı olmalıdır.", out error);
+        if (props.TryGetProperty("promptMaxLength", out var promptMaxLength) && !IsIntIn(promptMaxLength, 1, 4000))
+            return Fail("'promptMaxLength' 1 ile 4000 arasında bir tam sayı olmalıdır.", out error);
         var hasDialog = props.TryGetProperty("dialogId", out var dialogId);
         if (actionType == "openDialog")
         {
@@ -1859,6 +1919,7 @@ internal static class TenantCustomPageSchema
                 return Fail($"'rowKey' kaynak sorgunun sütunu olmalıdır: {rowKey.GetString()}", out error);
         }
         var columns = new List<string>();
+        var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
         var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
         if (matrix)
         {
@@ -1876,17 +1937,69 @@ internal static class TenantCustomPageSchema
             foreach (var item in gridColumns.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail("'gridColumns' öğesi geçersiz: metin değil", out error);
-                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out _, out var reason))
+                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out _, out var lookup, out var reason))
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (lookup is null) continue;
+                // A picker column's options come from a read query of the page; an operation query must return its columns.
+                if (!context.IsReadQuery(lookup.QueryId))
+                    return Fail($"'{code}' seçim sütununun sorgusu sayfadaki bir okuma sorgusu olmalıdır: {lookup.QueryId}", out error);
+                if (OperationColumns(lookup.QueryId, context) is { } optionColumns
+                    && new[] { lookup.ValueColumn, lookup.LabelColumn, lookup.DescriptionColumn }.FirstOrDefault(x => x is not null && !optionColumns.Contains(x, StringComparer.Ordinal)) is { } missingColumn)
+                    return Fail($"'{code}' seçim sütununun '{missingColumn}' sütunu '{lookup.QueryId}' sorgusunun sonucunda yok.", out error);
+                lookups[code] = lookup;
             }
             if (props.TryGetProperty("maxRows", out var maxRows) && !IsIntIn(maxRows, 1, 200))
                 return Fail("'maxRows' 1 ile 200 arasında bir tam sayı olmalıdır.", out error);
+            // A save that binds the grid is blocked while it has fewer rows ("En az {n} kalem girin.").
+            if (props.TryGetProperty("minRows", out var minRows))
+            {
+                if (!IsIntIn(minRows, 0, 100)) return Fail("'minRows' 0 ile 100 arasında bir tam sayı olmalıdır.", out error);
+                if (props.TryGetProperty("maxRows", out var upper) && minRows.GetInt32() > upper.GetInt32())
+                    return Fail("'minRows' değeri 'maxRows' değerinden büyük olamaz.", out error);
+            }
         }
+        if (matrix && props.TryGetProperty("minRows", out _)) return Fail("'minRows' varyant (matrix) kipinde kullanılamaz.", out error);
+        if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery);
+        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery) { Lookups = lookups };
+        return true;
+    }
+
+    /// <summary>
+    /// Per picker column: <c>columnOptionsWhen</c> "kod=koşul" (option-row condition, <c>satir</c> is the option row) and
+    /// <c>columnStaticOptions</c> "kod=değer=Etiket" (a fixed option before the query's, e.g. "unitCode==Ana birim"). Both split
+    /// on the first "=" only, and the code must be a lookup column of the grid.
+    /// </summary>
+    private static bool ValidatePickerColumnProps(JsonElement props, IReadOnlyDictionary<string, GridColumnSpec.Lookup> lookups, Context context, out string? error)
+    {
+        error = null;
+        foreach (var key in new[] { "columnOptionsWhen", "columnStaticOptions" })
+        {
+            if (!props.TryGetProperty(key, out var value)) continue;
+            var format = key == "columnOptionsWhen" ? "sütunKodu=koşul" : "sütunKodu=değer=Etiket";
+            if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() is < 1 or > MaxStaticOptions)
+                return Fail($"'{key}' 1–{MaxStaticOptions} adet {format} öğesi içermelidir.", out error);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in value.EnumerateArray())
+            {
+                var text = item.ValueKind == JsonValueKind.String ? item.GetString()! : "";
+                var at = text.IndexOf('=');
+                if (at <= 0) return Fail($"'{key}' öğeleri {format} biçiminde olmalıdır.", out error);
+                var code = text[..at];
+                var rest = text[(at + 1)..];
+                if (!lookups.ContainsKey(code)) return Fail($"'{key}' sütunu ızgaranın bir seçim (lookup) sütunu olmalıdır: {code}", out error);
+                if (key == "columnOptionsWhen")
+                {
+                    if (!seen.Add(code)) return Fail($"'columnOptionsWhen' her sütun için bir kez yazılabilir: {code}", out error);
+                    if (!QueueOptionCondition(key, rest, context, out error)) return false;
+                }
+                else if (!MatchesText(StaticOptionItem, rest))
+                    return Fail($"'{key}' öğeleri {format} biçiminde olmalıdır.", out error);
+            }
+        }
         return true;
     }
 
@@ -2121,7 +2234,43 @@ internal static class TenantCustomPageSchema
         foreach (var (buttonId, inputId) in context.PendingAssignments)
             if (!context.InputIds.Contains(inputId))
                 return Fail($"'{buttonId}' düğmesinin 'assignments' listesindeki giriş sayfada yok: {inputId}", out error);
-        return ResolveCollectionBindings(context, out error) && ResolveGridIteration(context, out error) && ResolveSequences(context, out error);
+        foreach (var (inputId, target) in context.PendingClears)
+        {
+            var dot = target.IndexOf('.');
+            if (dot < 0)
+            {
+                if (target == inputId || !context.InputIds.Contains(target))
+                    return Fail($"'{inputId}' girişinin 'clearsOnChange' öğesi sayfadaki başka bir giriş olmalıdır: {target}", out error);
+                continue;
+            }
+            if (!context.GridModesByName.TryGetValue(target[..dot], out var grid) || !grid.Columns.Contains(target[(dot + 1)..], StringComparer.Ordinal))
+                return Fail($"'{inputId}' girişinin 'clearsOnChange' öğesi bir düzenlenebilir tablonun sütunu olmalıdır: {target}", out error);
+        }
+        return ResolveCollectionBindings(context, out error) && ResolveGridIteration(context, out error) && ResolveGridRowBindings(context, out error)
+            && ResolveSequences(context, out error);
+    }
+
+    /// <summary>
+    /// A read query parameter bound to <c>{{grid.satir.column}}</c> is row-scoped (run once per distinct value of that grid
+    /// cell, for the picker column options); <c>{{grid.arama}}</c> is the search text of the grid's focused picker cell. Both
+    /// only feed read queries, and the column must be one of the grid's.
+    /// </summary>
+    private static bool ResolveGridRowBindings(Context context, out string? error)
+    {
+        error = null;
+        foreach (var query in context.QueryById.Values)
+            foreach (var parameter in query.Parameters)
+            {
+                if (!TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path)) continue;
+                var segments = path.Split('.', 3);
+                if (segments.Length < 2 || !context.GridModesByName.TryGetValue(segments[0], out var grid)
+                    || segments[1] is not ("satir" or "arama")) continue;
+                if (segments[1] == "arama" ? segments.Length != 2 : segments.Length != 3 || !grid.Columns.Contains(segments[2], StringComparer.Ordinal))
+                    return Fail($"'{query.Name}' sorgusundaki '{parameter.Name}' parametresi '{grid.Name}' tablosunda olmayan bir alana bağlı: {path}", out error);
+                if (query.Kind != "read")
+                    return Fail($"'{query.Name}' sorgusundaki '{parameter.Name}' parametresi ızgara satırına bağlı; yalnız okuma sorgusunda kullanılabilir.", out error);
+            }
+        return true;
     }
 
     private static bool ResolveCollectionBindings(Context context, out string? error)
@@ -2234,7 +2383,7 @@ internal static class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen", "optionsWhen", "columnOptionsWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted

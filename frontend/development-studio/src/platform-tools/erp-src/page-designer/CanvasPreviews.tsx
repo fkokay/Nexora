@@ -418,15 +418,20 @@ export function ActionBarPreview({ bound, moreCount, style, title, count, hidden
 
 // Faz B önizlemeleri: ERP EditableGrid / CustomFieldsBlock / PageImage / PageDialog görünümünün etkileşimsiz karşılıkları.
 
-const sampleCell = (column: GridColumn, row: number): ReactNode => column.inputType === "checkbox" ? (row === 0 ? "✓" : "")
+/** Seçim hücresi ERP'deki gibi kapalı açılır kutudur: ilk satır ilk örnek seçeneği, ikinci satır ikinci örneği (yoksa boş) gösterir. */
+const sampleCell = (column: GridColumn, row: number, picks: string[] = []): ReactNode => column.inputType === "lookup"
+  ? (column.rules.readOnly ? (picks[row] ?? "").split(" · ")[0] : <LookupPreview placeholder="Seçin" value={picks[row] ?? ""} options={[]} ready compact/>)
+  : column.inputType === "checkbox" ? (row === 0 ? "✓" : "")
   : column.inputType === "number" ? String(row + 1) : column.inputType === "date" ? formatCell(`2026-01-0${row + 1}`, "date") : row === 0 ? "Örnek" : "Yeni değer";
 const MATRIX_SAMPLE = [{ name: "Renk", values: "Kırmızı, Mavi" }, { name: "Beden", values: "S, M" }];
 /** Örnek boyutlardan oluşacak varyant sayısı (değer sayılarının çarpımı). */
 const variantCount = (rows: { values: string }[]) => rows.reduce((total, row) => total * row.values.split(",").filter((item) => item.trim() !== "").length, 1);
 
 /** Düzenlenebilir tablo: başlık satırı ve iki örnek satır; stage kipinde ikinci satır "Yeni", matrix kipinde varyant sayısı. */
-export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLabel, style }: {
+export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLabel, style, pickerSamples = {} }: {
   title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[]; fixedRowLabel: string; addLabel: string; style: CSSProperties;
+  /** Seçim sütunlarının örnek seçenekleri (sabit seçenekler ve sorgu önizlemesi, "etiket · açıklama"), sütun koduna göre. */
+  pickerSamples?: Record<string, string[]>;
 }) {
   const matrix = mode === "matrix";
   const headers = matrix ? ["Özellik adı", "Değerler"] : columns.map((column) => column.label);
@@ -439,7 +444,7 @@ export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLa
         {!matrix && fixedRowLabel && <tr><td colSpan={colCount}>{fixedRowLabel}</td></tr>}
         {matrix ? MATRIX_SAMPLE.map((row) => <tr key={row.name}><td>{row.name}</td><td>{row.values}</td><td /></tr>)
           : [0, 1].map((row) => <tr key={row}>
-            {columns.length === 0 ? <td>—</td> : columns.map((column) => <td key={column.code}>{sampleCell(column, row)}</td>)}
+            {columns.length === 0 ? <td>—</td> : columns.map((column) => <td key={column.code}>{sampleCell(column, row, pickerSamples[column.code])}</td>)}
             <td>{mode === "stage" && row === 1 ? <span className="pd-tag tone-info">Yeni</span> : null}</td>
           </tr>)}
       </tbody>

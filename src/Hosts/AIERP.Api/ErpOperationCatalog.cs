@@ -110,7 +110,12 @@ internal static class ErpOperationCatalog
         ["amountBase"] = "Tutar", ["reason"] = "Gerekçe", ["allocationMethod"] = "Dağıtım yöntemi",
         ["purchaseOrderId"] = "Satınalma siparişi kimliği", ["purchaseOrderCode"] = "Satınalma siparişi", ["receiptDate"] = "Kabul tarihi",
         ["lineCount"] = "Satır sayısı",
-        ["lastMovementDate"] = "Son hareket tarihi"
+        ["lastMovementDate"] = "Son hareket tarihi",
+        ["transferDate"] = "Transfer tarihi", ["fromWarehouseId"] = "Kaynak depo kimliği", ["fromWarehouseName"] = "Kaynak depo",
+        ["toWarehouseId"] = "Hedef depo kimliği", ["toWarehouseName"] = "Hedef depo", ["fromStorageLocationId"] = "Kaynak konum kimliği",
+        ["fromStorageLocationCode"] = "Kaynak konum kodu", ["fromStorageLocationName"] = "Kaynak konum adı",
+        ["toStorageLocationId"] = "Hedef konum kimliği", ["toStorageLocationCode"] = "Hedef konum kodu",
+        ["toStorageLocationName"] = "Hedef konum adı"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -173,6 +178,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildWarehouseStandard());
         operations.AddRange(BuildStockCost(paging));
         operations.AddRange(BuildStockScreens(paging));
+        operations.AddRange(BuildWarehouseTransfers(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -364,6 +370,33 @@ internal static class ErpOperationCatalog
         yield return Read(StockModule, "stok.izleme.bakiyeler", "Lot / seri bakiyeleri (sayfalı)", "/api/inventory-tracking/balances",
             [Query("q", "text"), Query("warehouseId", "guid"), Query("trackingMode", "text"), .. paging],
             List(Columns<InventoryTrackingBalanceView>(), "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
+    }
+
+    /// <summary>
+    /// Depolar arası transferler: list, lines, create and void. The create body carries a page-made requestId: the handler
+    /// returns the existing transfer (200) for a retry with the same content and 409 for different content, so a retry after a
+    /// failed save never posts twice. A void writes linked reversal movements in both warehouses; confirmation is fixed, and
+    /// the route resolves to the execute action. The line view's display members are computed outside its constructor, so
+    /// only this operation declares them.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildWarehouseTransfers(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        const string transfersRoute = "/api/warehouses/transfers";
+        var transferId = Route("transferId");
+        var summaryColumns = Columns<InventoryTransferSummary>();
+        var lineColumns = Columns<InventoryTransferLineView>()
+            .Append(new ErpOperationColumn("displayQuantity", Label("displayQuantity"), "decimal"))
+            .Append(new ErpOperationColumn("displayUnitCode", Label("displayUnitCode"), "text")).ToArray();
+        var voidBody = new Dictionary<string, object?>(StringComparer.Ordinal) { ["confirmation"] = true };
+        yield return Read(WarehouseModule, "depo.transfer.listele", "Depo transferlerini listele", transfersRoute, paging,
+            List(summaryColumns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
+        yield return Read(WarehouseModule, "depo.transfer.kalemleri", "Depo transferinin kalemleri", transfersRoute + "/{transferId}", [transferId],
+            List(lineColumns, "lines"));
+        yield return Write(WarehouseModule, "depo.transfer.olustur", "Depo transferi oluştur", "insert", "POST", transfersRoute,
+            [.. BodyParameters<InventoryTransferWriteRequest>(sourceBacked: false), ListParameter<InventoryTransferLineWriteRequest>("lines")],
+            Record(summaryColumns), null, null);
+        yield return Write(WarehouseModule, "depo.transfer.iptal", "Depo transferini iptal et", "update", "POST", transfersRoute + "/{transferId}/void",
+            [transferId, .. BodyParameters<InventoryTransferVoidRequest>(sourceBacked: false, exclude: "confirmation")], None, null, voidBody);
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
