@@ -5,13 +5,14 @@ import {
 } from "./conditionRules";
 
 export type ConditionPath = { path: string; label: string; group?: string };
-export type ConditionProp = "visibleWhen" | "disabledWhen" | "commandWhen" | "requiredWhen";
+export type ConditionProp = "visibleWhen" | "disabledWhen" | "commandWhen" | "requiredWhen" | "optionsWhen";
 
 const OUTCOME: Record<ConditionProp, { outcome: string; always: string }> = {
   visibleWhen: { outcome: "görünür", always: "Koşul yok; her zaman görünür." },
   disabledWhen: { outcome: "pasif olur", always: "Koşul yok; hiçbir zaman pasif olmaz." },
   commandWhen: { outcome: "komut çubukta görünür", always: "Koşul yok; komut her zaman görünür." },
   requiredWhen: { outcome: "zorunlu olur", always: "Koşul yok; zorunlu değil." },
+  optionsWhen: { outcome: "seçenek listede görünür", always: "Koşul yok; bütün seçenekler görünür." },
 };
 
 type State = { set: RuleSet; emitted: string | undefined; code: boolean };

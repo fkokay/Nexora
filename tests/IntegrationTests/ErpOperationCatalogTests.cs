@@ -146,13 +146,13 @@ public sealed class ErpOperationCatalogTests
         Assert.Equal("LOT-1 (1.000,5), LOT-2 (249,5)", json.GetProperty("trackingText").GetString());
     }
     // Stok & Depo screen standards (after the stock pilot): paged reads with meta.
-    private static readonly string[] StockScreenOperations = ["stok.izleme.bakiyeler"];
+    private static readonly string[] StockScreenOperations = ["stok.izleme.bakiyeler", "depo.transfer.listele"];
 
     [Fact]
     public void Depo_operations_use_depo_module()
     {
         var depo = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("depo.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(14, depo.Length);
+        Assert.Equal(18, depo.Length);
         Assert.All(depo, x => Assert.Equal("Depo", x.Module));
         Assert.All(Proje2FazAOperations, name => Assert.True(ErpOperationCatalog.TryGet(name, out _), name));
     }
@@ -606,7 +606,7 @@ public sealed class ErpOperationCatalogTests
     {
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
-        Assert.Equal(6, collections.Length);
+        Assert.Equal(7, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -670,6 +670,10 @@ public sealed class ErpOperationCatalogTests
         ["satinalma.malKabul.ekMaliyetDagit"] = "id,entryDate,amountBase,allocationMethod,description",
         ["satinalma.malKabul.ekMaliyetTersKayit"] = "id,adjustmentId,reason",
         ["stok.izleme.bakiyeler"] = "q,warehouseId,trackingMode,page,pageSize",
+        ["depo.transfer.listele"] = "page,pageSize",
+        ["depo.transfer.kalemleri"] = "transferId",
+        ["depo.transfer.olustur"] = "requestId,fromWarehouseId,toWarehouseId,transferDate",
+        ["depo.transfer.iptal"] = "transferId,reason",
     };
 
     [Fact]
@@ -681,7 +685,8 @@ public sealed class ErpOperationCatalogTests
             ["stok.hareket.ekle"] = ["tracking"],
             ["stok.kart.ozelAlanKaydet"] = ["values"],
             ["depo.olustur"] = ["customFields"],
-            ["depo.ozelAlanKaydet"] = ["values"]
+            ["depo.ozelAlanKaydet"] = ["values"],
+            ["depo.transfer.olustur"] = ["lines"]
         };
         foreach (var op in ErpOperationCatalog.All)
         {
@@ -988,6 +993,32 @@ public sealed class ErpOperationCatalogTests
 
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/stock/items/{foreign.Id:D}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/stock/items/{Guid.NewGuid():D}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Transfer_void_resolves_to_execute_and_create_to_create()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, platformDb =>
+        {
+            foreach (var code in new[] { "erp.custom-menus.read", "erp.inventory-transfers.read" })
+                platformDb.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow));
+            platformDb.TenantPermissionRules.Add(Rule("erp.inventory-transfers.execute", TenantPermissionEffect.Allow, Reader));
+            platformDb.TenantPermissionRules.Add(Rule("erp.inventory-transfers.create", TenantPermissionEffect.Allow, Writer));
+        });
+        using var client = factory.CreateClient();
+        string[] names = ["depo.transfer.listele", "depo.transfer.kalemleri", "depo.transfer.olustur", "depo.transfer.iptal"];
+        async Task<bool[]> AllowedAsync(Guid user, string role)
+        {
+            SetIdentity(client, user, role);
+            var operations = await GetOperationsAsync(client);
+            return names.Select(x => operations[x].GetProperty("allowed").GetBoolean()).ToArray();
+        }
+
+        // Execute alone allows the void (POST …/void), never the create.
+        Assert.Equal(new[] { true, true, false, true }, await AllowedAsync(Reader, "TenantUser"));
+        Assert.Equal(new[] { true, true, true, false }, await AllowedAsync(Writer, "TenantUser"));
+        Assert.Equal(new[] { true, true, true, true }, await AllowedAsync(Admin, "TenantAdmin"));
     }
 
     private static TenantPermissionRule Rule(string code, TenantPermissionEffect effect, Guid? user = null) => new()

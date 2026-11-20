@@ -9,13 +9,30 @@ import { displayText } from "./pageBindings";
 //
 // Biçim: "<kod>|<Etiket>|<tür>[|<kurallar>]". Katı okuma: parçalar ve kural belirteçleri kırpılmaz; boş dördüncü parça,
 // boş belirteç, bilinmeyen belirteç ya da yanlış türdeki kural geçersizdir. Aynı kural iki kez yazılırsa sonuncusu geçerlidir.
+// Seçim (lookup) sütunu: tür "lookup:<sorguKimliği>:<değerSütunu>:<etiketSütunu>[:<açıklamaSütunu>]"; yalnız required,
+// unique ve readOnly kurallarını alır.
 
-export type GridInputType = "text" | "number" | "date" | "checkbox";
+export type GridInputType = "text" | "number" | "date" | "checkbox" | "lookup";
 export type GridColumnRules = { required: boolean; unique: boolean; upperCase: boolean; readOnly: boolean; maxLength?: number; min?: number; max?: number; step?: number };
-export type GridColumn = { code: string; label: string; inputType: GridInputType; rules: GridColumnRules };
+/** Seçim sütununun seçenek sorgusu ve sütunları. */
+export type GridLookupSpec = { query: string; valueColumn: string; labelColumn: string; descriptionColumn: string };
+export type GridColumn = { code: string; label: string; inputType: GridInputType; rules: GridColumnRules; lookup?: GridLookupSpec };
 
 const COLUMN_CODE = /^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[\p{L}\p{N}_ -]{1,40})?$/u;
 const INPUT_TYPES: readonly string[] = ["text", "number", "date", "checkbox"];
+const LOOKUP_QUERY = /^[A-Za-z0-9_-]{1,64}$/;
+const LOOKUP_COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[A-Za-z_][A-Za-z0-9_]{0,63})*$/;
+
+/** "lookup:<sorgu>:<değer>:<etiket>[:<açıklama>]" türünü okur; seçim türü değilse undefined, bozuksa null. */
+function parseLookupType(type: string): GridLookupSpec | null | undefined {
+  if (!type.startsWith("lookup:")) return undefined;
+  const parts = type.slice("lookup:".length).split(":");
+  if (parts.length < 3 || parts.length > 4) return null;
+  const [query, valueColumn, labelColumn, descriptionColumn] = parts;
+  if (!LOOKUP_QUERY.test(query) || !LOOKUP_COLUMN.test(valueColumn) || !LOOKUP_COLUMN.test(labelColumn)) return null;
+  if (descriptionColumn !== undefined && !LOOKUP_COLUMN.test(descriptionColumn)) return null;
+  return { query, valueColumn, labelColumn, descriptionColumn: descriptionColumn ?? "" };
+}
 const RULE_NUMBER = /^-?\d+(\.\d+)?$/;
 const RULE_INTEGER = /^\d+$/;
 export const MAX_GRID_COLUMNS = 12;
@@ -35,8 +52,10 @@ export function parseGridColumn(text: string): { ok: true; column: GridColumn } 
   const [code, label, type, ruleText] = parts;
   if (!COLUMN_CODE.test(code)) return fail("kod");
   if (label.length < 1 || label.length > MAX_LABEL || label.trim() === "") return fail("etiket 1-60 karakter olmalı");
-  if (!INPUT_TYPES.includes(type)) return fail("tür text, number, date ya da checkbox olmalı");
-  const inputType = type as GridInputType;
+  const lookup = parseLookupType(type);
+  if (lookup === null) return fail("seçim türü lookup:<sorgu>:<değer>:<etiket>[:<açıklama>] olmalı");
+  if (lookup === undefined && !INPUT_TYPES.includes(type)) return fail("tür text, number, date, checkbox ya da lookup olmalı");
+  const inputType: GridInputType = lookup ? "lookup" : type as GridInputType;
   const rules: GridColumnRules = { required: false, unique: false, upperCase: false, readOnly: false };
   if (ruleText !== undefined) {
     for (const token of ruleText.split(",")) {
@@ -69,7 +88,25 @@ export function parseGridColumn(text: string): { ok: true; column: GridColumn } 
     }
   }
   if (rules.min !== undefined && rules.max !== undefined && rules.min > rules.max) return fail("min max'tan büyük olamaz");
-  return { ok: true, column: { code, label, inputType, rules } };
+  return { ok: true, column: lookup ? { code, label, inputType, rules, lookup } : { code, label, inputType, rules } };
+}
+
+/**
+ * Sütun başına "<kod>=<metin>" listesi (`columnStaticOptions`, `columnOptionsWhen`): yalnız ilk "=" ayırır (metin "=" ve
+ * "==" içerebilir). Metin olmayan, ayraçsız ya da kodu boş öğeler atlanır; aynı kod birden çok kez yazılabilir.
+ */
+export function parseColumnEntries(value: unknown): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  if (!Array.isArray(value)) return result;
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const index = item.indexOf("=");
+    if (index <= 0) continue;
+    const code = item.slice(0, index).trim();
+    if (code === "" || UNSAFE_KEYS.has(code)) continue;
+    (result[code] ??= []).push(item.slice(index + 1));
+  }
+  return result;
 }
 
 /** `gridColumns` özelliğini okur: metin olmayan ve geçersiz girdiler atlanır, en fazla 12 sütun. */
@@ -88,15 +125,18 @@ export function parseGridColumns(value: unknown): GridColumn[] {
 // ---- Satır durumu ----
 
 export type GridMode = "stage" | "list" | "matrix";
-export type GridDraft = { key: string; cells: Record<string, string | boolean> };
+/** `labels`: seçim hücrelerinin seçim anındaki görünen metni (tel biçimine girmez; değer değişince ya da silinince düşer). */
+export type GridDraft = { key: string; cells: Record<string, string | boolean>; labels?: Record<string, string> };
 /**
  * `stage`: `added` yeni satırlar, `removed` silinmek üzere işaretlenen kaynak satır anahtarları (`rows` kullanılmaz).
  * `list`/`matrix`: `rows` tüm satırlar (`added`/`removed` kullanılmaz). `sourceKey` kaynak sorgunun `ranWith` anahtarıdır.
  */
 export type GridState = { added: GridDraft[]; removed: string[]; rows: GridDraft[]; sourceKey: string | null; nextKey: number };
 export type GridAction =
-  | { type: "add" } | { type: "edit"; key: string; code: string; value: string | boolean } | { type: "remove"; key: string }
+  | { type: "add" } | { type: "edit"; key: string; code: string; value: string | boolean; label?: string } | { type: "remove"; key: string }
   | { type: "undoRemove"; key: string }
+  /** Sütunun tüm düzenlenebilir satırlardaki değeri (ve seçim etiketi) temizlenir (`clearsOnChange`). */
+  | { type: "clearColumn"; code: string }
   /**
    * Farklı `sourceKey`: bekleyen değişiklikler temizlenir. Aynı `sourceKey` ve `sourceKeys` verilmişse (yenilenen kaynak):
    * yalnız artık kaynakta olmayan silme işaretleri düşer, yeni satırlar kalır. Aynı `sourceKey` ve `sourceKeys` yoksa
@@ -108,6 +148,7 @@ export type GridOptions = { mode: GridMode; maxRows: number };
 
 export const GRID_UNIQUE = "Bu değer başka bir satırda da var.";
 export const gridMaxRowsMessage = (n: number) => `En fazla ${n} satır eklenebilir.`;
+export const gridMinRowsMessage = (n: number) => `En az ${n} kalem girin.`;
 /** Varyant kipinde en fazla özellik (boyut) satırı. */
 export const MATRIX_MAX_ROWS = 10;
 const ROW_KEY_PREFIX = "yeni-";
@@ -144,8 +185,23 @@ export function gridReducer(state: GridState, action: GridAction, opts: GridOpti
       const index = drafts.findIndex((draft) => draft.key === action.key);
       if (index < 0) return state; // kaynak satırlar salt okunur
       const next = drafts.slice();
-      next[index] = { key: drafts[index].key, cells: { ...drafts[index].cells, [action.code]: action.value } };
+      const previous = drafts[index];
+      const labels = { ...previous.labels };
+      if (action.label !== undefined) labels[action.code] = action.label; else delete labels[action.code];
+      next[index] = { key: previous.key, cells: { ...previous.cells, [action.code]: action.value },
+        ...(Object.keys(labels).length > 0 ? { labels } : {}) };
       return { ...state, [field]: next };
+    }
+    case "clearColumn": {
+      if (!drafts.some((draft) => action.code in draft.cells || (draft.labels && action.code in draft.labels))) return state;
+      return { ...state, [field]: drafts.map((draft) => {
+        if (!(action.code in draft.cells) && !(draft.labels && action.code in draft.labels)) return draft;
+        const cells = { ...draft.cells };
+        delete cells[action.code];
+        const labels = { ...draft.labels };
+        delete labels[action.code];
+        return { key: draft.key, cells, ...(Object.keys(labels).length > 0 ? { labels } : {}) };
+      }) };
     }
     case "remove": {
       if (drafts.some((draft) => draft.key === action.key)) return { ...state, [field]: drafts.filter((draft) => draft.key !== action.key) };
@@ -210,7 +266,7 @@ function cellWire(column: GridColumn, draft: GridDraft): string | number | boole
 }
 
 /** Taslağı tel biçimine çevirir: boş hücreler atlanır, "a.b" sütunları `{ a: { b: "<metin>" } }` eşlemine yazılır. */
-function wireRow(columns: GridColumn[], draft: GridDraft): Record<string, unknown> {
+export function wireRow(columns: GridColumn[], draft: GridDraft): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   for (const column of columns) {
     const value = cellWire(column, draft);
@@ -266,10 +322,11 @@ function inputRulesOf(column: GridColumn): InputRules {
  * Hücre iletileri: satır anahtarı → sütun kodu → ileti (Faz A giriş iletileri, `unique`). `maxRows` verilir ve düzenlenebilir
  * satır sayısı onu aşarsa tablo düzeyi ileti `[""][""]` anahtarındadır (sınırda dolu tablo geçerlidir). Salt okunur
  * sütunlar ve kaynak satırlar doğrulanmaz; `unique` silinmeyen kaynak satırlarla ve `fixedValues` (sabit satır) değerleriyle de
- * karşılaştırılır (büyük/küçük harf duyarsız).
+ * karşılaştırılır (büyük/küçük harf duyarsız). `minRows` verilir ve tablonun satır sayısı (`stage`: silinmeyen kaynak + yeni
+ * satırlar) ondan azsa tablo düzeyi ileti aynı anahtardadır.
  */
 export function validateGrid(mode: string, columns: GridColumn[], state: GridState, sourceRows: Record<string, unknown>[], rowKey: string,
-  maxRows?: number, fixedValues?: Record<string, string[]>): Record<string, Record<string, string>> {
+  maxRows?: number, fixedValues?: Record<string, string[]>, minRows?: number): Record<string, Record<string, string>> {
   const result: Record<string, Record<string, string>> = {};
   const set = (key: string, code: string, message: string) => { (result[key] ??= {})[code] = message; };
   const drafts = editableRows(mode, state);
@@ -297,21 +354,26 @@ export function validateGrid(mode: string, columns: GridColumn[], state: GridSta
     const limit = mode === "matrix" ? Math.min(maxRows, MATRIX_MAX_ROWS) : maxRows;
     if (drafts.length > limit) set("", "", gridMaxRowsMessage(limit));
   }
+  if (minRows !== undefined && minRows > 0 && mode !== "matrix" && kept.length + drafts.length < minRows && !result[""]?.[""]) {
+    set("", "", gridMinRowsMessage(minRows));
+  }
   return result;
 }
 
 /**
  * Tablonun sayfa kapsamı. `stage`: `satirlar` = silinmeyen kaynak satırlar + yeni satırlar (tel biçiminde).
  * `list`: `satirlar` satırların tel biçimi. `matrix`: `satirlar` = makeVariantDrafts(matrix.code, matrix.name, boyutlar).
- * `eklenenler`/`silinenler` yalnız `stage` kipinde doludur; `list`/`matrix` satır varsa `degisti` olur.
+ * `eklenenler`/`silinenler` yalnız `stage` kipinde doludur; `list`/`matrix` satır varsa `degisti` olur. `satirSayisi`
+ * tablonun gösterilen satır sayısıdır (`stage`: silinmeyen kaynak + yeni satırlar; `list`/`matrix`: satırlar).
  */
 export function gridScope(mode: string, columns: GridColumn[], state: GridState, sourceRows: Record<string, unknown>[], rowKey: string,
-  matrix?: { code: string; name: string }): { satirlar: unknown[]; eklenenler: Record<string, unknown>[]; silinenler: Record<string, unknown>[]; eklenenSayisi: number; silinenSayisi: number; degisti: boolean } {
+  matrix?: { code: string; name: string }): { satirlar: unknown[]; eklenenler: Record<string, unknown>[]; silinenler: Record<string, unknown>[]; eklenenSayisi: number; silinenSayisi: number; satirSayisi: number; degisti: boolean } {
   if (mode === "stage") {
     const eklenenler = state.added.map((draft) => wireRow(columns, draft));
     const silinenler = removedSourceRows(state, sourceRows, rowKey);
+    const satirlar = [...keptSourceRows(state, sourceRows, rowKey), ...eklenenler];
     return {
-      satirlar: [...keptSourceRows(state, sourceRows, rowKey), ...eklenenler], eklenenler, silinenler,
+      satirlar, eklenenler, silinenler, satirSayisi: satirlar.length,
       eklenenSayisi: eklenenler.length, silinenSayisi: silinenler.length, degisti: eklenenler.length + silinenler.length > 0,
     };
   }
@@ -320,7 +382,7 @@ export function gridScope(mode: string, columns: GridColumn[], state: GridState,
       name: String(cellRaw(MATRIX_DIMENSION_COLUMNS[0], draft)), values: String(cellRaw(MATRIX_DIMENSION_COLUMNS[1], draft)),
     })))
     : state.rows.map((draft) => wireRow(columns, draft));
-  return { satirlar, eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, degisti: state.rows.length > 0 };
+  return { satirlar, eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, satirSayisi: state.rows.length, degisti: state.rows.length > 0 };
 }
 
 /** Yinelenen dizi adımının satırları: yeni satırlar tel biçiminde ya da kaynakta hâlâ bulunan silinecek kaynak satırlar. */

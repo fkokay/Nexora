@@ -32,6 +32,8 @@ export type PromptOptions = ConfirmOptions & {
   /** An empty (whitespace-only) answer cannot be submitted. */
   required?: boolean;
   multiline?: boolean;
+  /** Upper bound on the answer length (the field's maxLength). */
+  maxLength?: number;
 };
 
 type Request = { id: number } & (
@@ -143,6 +145,7 @@ function ConfirmDialogView({ current, onDone }: { current: Request; onDone: () =
                   rows={3}
                   value={value}
                   placeholder={current.options.placeholder}
+                  maxLength={current.options.maxLength}
                   aria-invalid={touched && missing ? true : undefined}
                   onChange={(event) => setValue(event.target.value)}
                 />
@@ -151,6 +154,7 @@ function ConfirmDialogView({ current, onDone }: { current: Request; onDone: () =
                   ref={fieldRef}
                   value={value}
                   placeholder={current.options.placeholder}
+                  maxLength={current.options.maxLength}
                   aria-invalid={touched && missing ? true : undefined}
                   onChange={(event) => setValue(event.target.value)}
                 />

@@ -13,6 +13,10 @@ depo.ozelAlanDegerleri
 depo.ozelAlanKaydet
 depo.ozelAlanTanimlari
 depo.pasifeAl
+depo.transfer.iptal
+depo.transfer.kalemleri
+depo.transfer.listele
+depo.transfer.olustur
 rapor.bankStatementLines
 rapor.bankStatements
 rapor.crmOpportunities

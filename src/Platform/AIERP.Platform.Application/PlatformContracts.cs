@@ -186,7 +186,17 @@ public sealed record InventoryTransferSummary(Guid Id, string Code, Guid FromWar
 public sealed record InventoryTransferLineView(Guid StockItemId, string Code, string Name, string UnitCode, decimal Quantity,
     decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? FromStorageLocationId = null,
     string? FromStorageLocationCode = null, string? FromStorageLocationName = null, Guid? ToStorageLocationId = null,
-    string? ToStorageLocationCode = null, string? ToStorageLocationName = null);
+    string? ToStorageLocationCode = null, string? ToStorageLocationName = null)
+{
+    // Display members are deliberately not constructor parameters (as on InventoryTransactionView): only depo.transfer.kalemleri
+    // declares them as result columns.
+
+    /// <summary>The quantity as entered (in the entered unit), else the base quantity.</summary>
+    public decimal DisplayQuantity => EnteredQuantity ?? Quantity;
+
+    /// <summary>The unit of <see cref="DisplayQuantity"/>: the entered unit, else the card's base unit.</summary>
+    public string DisplayUnitCode => string.IsNullOrEmpty(EnteredUnitCode) ? UnitCode : EnteredUnitCode;
+}
 public sealed record InventoryTransferDetailView(InventoryTransferSummary Transfer, IReadOnlyList<InventoryTransferLineView> Lines);
 public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page, int PageSize, int TotalCount);
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);

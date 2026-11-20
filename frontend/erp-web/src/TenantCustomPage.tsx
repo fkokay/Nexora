@@ -14,7 +14,7 @@ import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList,
 import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
 import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
 import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
-import { LookupInput, lookupCandidates, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
+import { LookupInput, lookupCandidates, lookupOptions, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
 import { conditionHolds } from "./custom-page/conditions";
@@ -32,11 +32,11 @@ import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
-import { EditableGrid } from "./custom-page/EditableGrid";
+import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
-import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseGridColumns, validateGrid, MATRIX_MAX_ROWS,
-  type GridAction, type GridColumn, type GridMode, type GridState } from "./custom-page/gridState";
+import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, validateGrid, wireRow, MATRIX_MAX_ROWS,
+  type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
@@ -85,6 +85,10 @@ type PageRuntime = {
   queryNames: Record<string, string>;
   inputValues: Record<string, InputRaw>;
   setInput: (componentId: string, value: InputRaw) => void;
+  /** Kullanıcının giriş değişikliği: `setInput` ve değer değiştiyse `clearsOnChange` hedeflerinin temizlenmesi. */
+  changeInput: (componentId: string, value: InputRaw) => void;
+  /** Seçim girişinin seçenek sorgusu durumu, `optionsWhen` ile süzülmüş (geçerli değerin satırı kalır). */
+  inputOptions: (component: ComponentDefinition) => QueryState | undefined;
   selections: Record<string, Record<string, unknown> | null>;
   /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
   select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
@@ -206,6 +210,8 @@ type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
   dispatch: (action: GridAction) => void; errors: Record<string, Record<string, string>>; maxRows: number; loading: boolean; error?: string;
   matrixPreviewCount?: number;
+  pickerFor: (column: GridColumn, draft: GridDraft) => GridPicker;
+  pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -698,6 +704,32 @@ const selectOptions = (props: Record<string, unknown>, optionsState?: QueryState
   })];
 };
 
+/**
+ * `optionsWhen`: seçenek satırı koşulu; `satir` seçenek satırıdır, diğer yollar sayfa kapsamından çözülür. Tutmayan satırlar
+ * gizlenir; `keep` tutan satırlar (ör. geçerli değerin satırı) her zaman kalır. Koşul yoksa durum olduğu gibi döner.
+ */
+const filterOptionRows = (state: QueryState | undefined, condition: unknown, scope: PageScope, keep?: (row: Record<string, unknown>) => boolean): QueryState | undefined => {
+  if (!state || typeof condition !== "string" || condition.trim() === "") return state;
+  const rows = state.rows.filter((row) => keep?.(row) || conditionHolds(condition, { ...scope, satir: row }, true));
+  return rows.length === state.rows.length ? state : { ...state, rows };
+};
+
+/** Tekrar deneme kimliği (`autoId`): yeni bir GUID (randomUUID yoksa rastgele baytlardan sürüm 4). */
+const newRequestId = (): string => {
+  const source = globalThis.crypto;
+  if (typeof source?.randomUUID === "function") return source.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof source?.getRandomValues === "function") source.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+const isAutoId = (input: ComponentDefinition | undefined) => input?.props?.autoId === true;
+/** Seçeneğin görünen metni: "etiket · açıklama" (açıklama yoksa etiket). */
+const optionText = (option: LookupOption) => (option.description ? `${option.label} · ${option.description}` : option.label);
+
 /** İlk seçenek varsayılanı (`defaultFirst`) için girişin ilk boş olmayan seçeneği; seçenekler henüz yüklenmediyse null. */
 const firstInputOption = (props: Record<string, unknown>, optionsState: QueryState | undefined): string | null => {
   if (optionsState?.loading) return null;
@@ -841,9 +873,9 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
   // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
   const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
   return <PageInput key={component.id} component={component} props={props} style={style}
-    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.setInput(component.id, next)}
+    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.changeInput(component.id, next)}
     error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
-    optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
+    optionsState={runtime ? runtime.inputOptions(component) : undefined}
     lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
 }
 
@@ -1160,8 +1192,17 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   }
 }
 
-type GridSpec = { name: string; mode: GridMode; columns: GridColumn[]; maxRows: number; rowKey: string; sourceQuery: string };
-/** Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), satır anahtarı ve kaynak sorgu. */
+type GridSpec = {
+  name: string; mode: GridMode; columns: GridColumn[]; maxRows: number; rowKey: string; sourceQuery: string;
+  /** En az satır (`minRows`, 0–100); yoksa sınır yok. */
+  minRows?: number;
+  /** Seçim sütunlarının sabit ilk seçenekleri (`columnStaticOptions`, "değer=Etiket") ve seçenek koşulları (`columnOptionsWhen`). */
+  staticOptions: Record<string, string[]>; optionsWhen: Record<string, string>;
+};
+/**
+ * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), en az satır, satır anahtarı, kaynak
+ * sorgu ve seçim sütunlarının sabit seçenekleri ile koşulları.
+ */
 const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   const props = grid.props ?? {};
   const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
@@ -1169,7 +1210,19 @@ const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   return {
     name: grid.name ?? "", mode, columns: mode === "matrix" ? [] : parseGridColumns(props.gridColumns), maxRows,
     rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
+    ...(typeof props.minRows === "number" && Number.isInteger(props.minRows) && props.minRows >= 0 && props.minRows <= 100 ? { minRows: props.minRows } : {}),
+    staticOptions: parseColumnEntries(props.columnStaticOptions),
+    optionsWhen: Object.fromEntries(Object.entries(parseColumnEntries(props.columnOptionsWhen)).map(([code, conditions]) => [code, conditions[conditions.length - 1]])),
   };
+};
+/** Satır kapsamlı okuma: bir parametresi `{{<tablo>.satir.<sütun>}}` bağlıyorsa o tablonun adı (yoksa null). */
+const rowScopeOf = (query: PageQueryDefinition, gridNames: ReadonlySet<string>): string | null => {
+  if (query.kind !== "read") return null;
+  for (const parameter of query.parameters) {
+    const root = /^([A-Za-z_][A-Za-z0-9_]*)\.satir\./.exec(bindingPath(parameter.binding) ?? "")?.[1];
+    if (root && gridNames.has(root)) return root;
+  }
+  return null;
 };
 /** Varyant kipinin önizleme sayısı: geçerli özelliklerin (adı ve değeri olan) farklı değer sayılarının çarpımı (200 sınırı uygulanmadan). */
 const matrixVariantCount = (state: GridState) => countVariantDrafts(state.rows.slice(0, MATRIX_MAX_ROWS)
@@ -1521,6 +1574,23 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   }, [components, isV2]);
   const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
+  // Tekrar deneme kimlikleri (`autoId`): sayfa açılınca üretilir; `touched`'dan ayrı tutulur (girişleri sıfırlayan yollar
+  // kimliği boşaltmasın). Yenilenir: girişi içeren pencere `resetOnOpen` ile açılınca ve girişi bağlayan yazma başarılı olunca.
+  const [autoIds, setAutoIds] = useState<Record<string, string>>(() => Object.fromEntries(inputs.filter(isAutoId).map((input) => [input.id, newRequestId()])));
+  useEffect(() => {
+    const missing = inputs.filter((input) => isAutoId(input) && !(input.id in autoIds));
+    if (missing.length === 0) return;
+    const fresh = Object.fromEntries(missing.map((input) => [input.id, newRequestId()]));
+    setAutoIds((previous) => ({ ...fresh, ...previous }));
+  }, [inputs]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Verilen girişlerden `autoId` olanların kimliği yenilenir (yazılmış değer de atılır). */
+  const rotateAutoIds = (ids: string[]) => {
+    const owned = ids.filter((id) => isAutoId(inputById[id]));
+    if (owned.length === 0) return;
+    const fresh = Object.fromEntries(owned.map((id) => [id, newRequestId()]));
+    setAutoIds((previous) => ({ ...previous, ...fresh }));
+    setTouched((previous) => without(previous, owned));
+  };
   const inputIds = useMemo(() => new Set(inputs.map((input) => input.id)), [inputs]);
   const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
   const flatById = useMemo(() => Object.fromEntries(flat.map((component) => [component.id, component])), [flat]);
@@ -1582,6 +1652,20 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const [gridShown, setGridShown] = useState<Record<string, boolean>>({});
   const [blockShown, setBlockShown] = useState<Record<string, boolean>>({});
   const gridComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "editableGrid" && !!component.name) : []), [isV2, flat]);
+  // Satır kapsamlı seçenek sorguları (`{{<tablo>.satir.<sütun>}}`) sayfa düzeyinde çalışmaz: satır değeri başına önbellekten okunur.
+  const gridNames = useMemo(() => new Set(gridComponents.map((grid) => grid.name!)), [gridComponents]);
+  const rowScopedQueries = useMemo(() => new Set(queryDefinitions.filter((query) => rowScopeOf(query, gridNames) !== null).map((query) => query.id)), [queryDefinitions, gridNames]);
+  const pageQueries = useMemo(() => queryDefinitions.filter((query) => !rowScopedQueries.has(query.id)), [queryDefinitions, rowScopedQueries]);
+  // Seçim hücresinde yazılan arama: tablo başına odaktaki hücre ve metni. `{{<tablo>.arama}}` yalnız odaktaki hücrenin sorgusu
+  // onu bağlıyorsa doludur (başka sütunda yazmak sunucu aramasını yeniden çalıştırmaz).
+  const [gridSearch, setGridSearch] = useState<Record<string, { cell: string; code: string; text: string }>>({});
+  const bindsGridSearch = (queryId: string, gridName: string) =>
+    !!queryById[queryId]?.parameters.some((parameter) => bindingPath(parameter.binding) === `${gridName}.arama`);
+  const gridSearchText = (spec: GridSpec): string | null => {
+    const entry = gridSearch[spec.name];
+    const column = entry ? spec.columns.find((item) => item.code === entry.code) : undefined;
+    return entry && entry.text !== "" && column?.lookup && bindsGridSearch(column.lookup.query, spec.name) ? entry.text : null;
+  };
   const blockComponents = useMemo(() => (isV2 ? flat.filter((component) => component.type === "customFieldsBlock" && !!component.name) : []), [isV2, flat]);
   const formCards = useMemo(() => (isV2 ? flat.filter((component) => component.type === "formCard") : []), [isV2, flat]);
   // Süzgeç alanları: değerler sayfa + bileşen başına tarayıcıda saklanır (önizlemede okunmaz, yazılmaz). İlk değerler eşzamanlı
@@ -1708,7 +1792,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const defaults: Record<string, InputRaw> = {};
     for (const input of inputs) {
       const inputType = textValue(input.props?.inputType, "text");
-      defaults[input.id] = inputType === "checkbox" && typeof input.props?.defaultWhen === "string" && input.props.defaultWhen.trim()
+      defaults[input.id] = isAutoId(input) ? autoIds[input.id] ?? ""
+        : inputType === "checkbox" && typeof input.props?.defaultWhen === "string" && input.props.defaultWhen.trim()
         // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
         ? conditionHolds(input.props.defaultWhen, base, false)
         : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
@@ -1721,7 +1806,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const spec = gridSpecOf(grid);
       const matrix = spec.mode === "matrix"
         ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
-      scope[spec.name] = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
+      scope[spec.name] = { ...gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix), arama: gridSearchText(spec) };
     }
     for (const block of blockComponents) {
       const data = blockData(block, states);
@@ -1741,8 +1826,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
   const [codeWantsOperations, setCodeWantsOperations] = useState(false);
   const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
-  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads } = usePageQueries({
-    queries: isV2 ? queryDefinitions : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
+  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
+    queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
     operations: erpOperations.operations,
   });
   const statesRef = useRef(states);
@@ -1753,7 +1838,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     for (const input of inputs) {
       if (input.props?.defaultFirst !== true || input.id in firstOptions) continue;
       const optionsId = input.props?.optionsQuery;
-      const first = firstInputOption(input.props, typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined);
+      const first = firstInputOption(input.props, filterOptionRows(typeof optionsId === "string" ? states[queryNames[optionsId]] : undefined, input.props?.optionsWhen, scope));
       if (first !== null) found[input.id] = first;
     }
     if (Object.keys(found).length > 0) setFirstOptions((previous) => ({ ...found, ...previous }));
@@ -1833,6 +1918,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
     const values = editMapValues(query, resolved);
     const result = await runWrite(query, values, confirmWrite, clearedParameters(query, values));
+    // Başarılı yazma bağladığı tekrar deneme kimliklerini yeniler (hata fırlatırsa kimlik korunur: yeniden deneme aynı istektir).
+    const boundNames = new Set(boundInputNames(query));
+    rotateAutoIds(inputs.filter((input) => isAutoId(input) && !!input.name && boundNames.has(input.name)).map((input) => input.id));
     const sent = gridComponents.filter((grid) => gridSpecOf(grid).mode !== "stage" && bindsGrid(query, grid.name!, "satirlar")).map((grid) => grid.name!);
     if (sent.length > 0) {
       setGrids((previous) => without(previous, sent));
@@ -2004,7 +2092,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     for (const grid of gridComponents) {
       const spec = gridSpecOf(grid);
       if (!queries.some((query) => bindsGrid(query, spec.name))) continue;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()));
+      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -2051,20 +2139,53 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       if (inputById[inputId]) setInput(inputId, raw);
     }
   };
+  /** `clearsOnChange`: girişin değeri kullanıcı tarafından değişince hedef girişler ve tablo sütunları (her satırda) temizlenir. */
+  const applyClears = (componentId: string) => {
+    for (const target of stringList(inputById[componentId]?.props?.clearsOnChange)) {
+      const dot = target.indexOf(".");
+      if (dot < 0) {
+        if (target === componentId || !inputById[target]) continue;
+        setInput(target, inputIsCheckbox(inputById[target]) ? false : "");
+        setLookupState((previous) => without(previous, [target]));
+        continue;
+      }
+      const grid = gridByName[target.slice(0, dot)];
+      if (grid) dispatchGrid(gridSpecOf(grid), { type: "clearColumn", code: target.slice(dot + 1) });
+    }
+  };
+  const changeInput = (componentId: string, value: InputRaw) => {
+    const previous = inputValues[componentId] ?? "";
+    setInput(componentId, value);
+    if (previous !== value) applyClears(componentId);
+  };
+  /** Seçim girişinin (select) seçenek durumu: `optionsWhen` ile süzülür, geçerli değerin satırı kalır (değer görünmeye devam eder). */
+  const inputOptions = (component: ComponentDefinition): QueryState | undefined => {
+    const optionsId = component.props?.optionsQuery;
+    if (typeof optionsId !== "string") return undefined;
+    const state = states[queryNames[optionsId]];
+    const valueColumn = textValue(component.props?.optionValueColumn) || state?.columns[0]?.code || "";
+    const currentValue = textValue(inputValues[component.id]);
+    return filterOptionRows(state, component.props?.optionsWhen, scope, (row) => currentValue !== "" && displayText(row[valueColumn]) === currentValue);
+  };
   const lookupFor = (component: ComponentDefinition, props: Record<string, unknown>): LookupBinding => {
     const optionsId = typeof props.optionsQuery === "string" ? props.optionsQuery : "";
     const optionsState = optionsId ? states[queryNames[optionsId]] : undefined;
+    // `optionsWhen` tutmayan satırları listeden gizler; seçili değerin etiketi süzülmemiş satırlardan çözülür.
+    const shownState = filterOptionRows(optionsState, props.optionsWhen, scope);
     // Sunucu araması: seçenek sorgusunun bir parametresi `{{<ad>.search}}` bağlıyor; değilse satırlar istemcide süzülür.
     const serverSearch = !!component.name && !!queryById[optionsId]?.parameters.some((parameter) => bindingPath(parameter.binding) === `${component.name}.search`);
     const id = component.id;
+    const value = textValue(inputValues[id]);
+    const stored = lookupState[id] && "value" in lookupState[id] ? { value: lookupState[id].value ?? "", label: lookupState[id].label ?? "" } : null;
+    const own = !stored && value !== "" && shownState !== optionsState ? lookupCandidates(props, optionsState, "", false).find((option) => option.value === value) : undefined;
     return {
-      options: lookupOptionsWithValue(props, optionsState, lookupState[id]?.search ?? "", serverSearch, textValue(inputValues[id])),
+      options: lookupOptionsWithValue(props, shownState, lookupState[id]?.search ?? "", serverSearch, value),
       loading: Boolean(optionsState?.loading), error: optionsState?.error || undefined,
       onSearch: (text) => setLookupState((previous) => ({ ...previous, [id]: { ...previous[id], search: text } })),
-      selected: lookupState[id] && "value" in lookupState[id] ? { value: lookupState[id].value ?? "", label: lookupState[id].label ?? "" } : null,
-      onChange: (value, row, label) => {
-        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value, row, label } }));
-        setInput(id, value);
+      selected: stored ?? (own ? { value: own.value, label: own.label } : null),
+      onChange: (next, row, label) => {
+        setLookupState((previous) => ({ ...previous, [id]: { search: previous[id]?.search ?? "", value: next, row, label } }));
+        changeInput(id, next);
       },
     };
   };
@@ -2105,6 +2226,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       setTouched((previous) => without(previous, owned));
       setValidationErrors((previous) => without(previous, owned));
       setLookupState((previous) => without(previous, owned));
+      // Yeni açılış yeni istektir: pencerenin tekrar deneme kimlikleri yenilenir.
+      rotateAutoIds(owned);
     }
     dialogOpeners.current[id] = opener;
     setDialogStatus((previous) => ({ ...previous, [id]: null }));
@@ -2255,6 +2378,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     // Doğrulama yalnız çalışacak adımları kapsar (yürütücünün süzgeciyle aynı: sıfır satırlı yinelenen adım atlanır).
     const active = steps.filter((step) => !step.iterate || step.iterate.rows.length > 0).map((step) => step.query);
     const promptLabel = text("promptLabel");
+    // İstemin açıklaması (`promptText`, bağlamalı) ve yanıtın en fazla uzunluğu (`promptMaxLength`, 1–4000).
+    const promptText = text("promptText");
+    const promptMaxLength = typeof props.promptMaxLength === "number" && Number.isInteger(props.promptMaxLength) && props.promptMaxLength >= 1
+      && props.promptMaxLength <= 4000 ? props.promptMaxLength : undefined;
     const buttonText = textValue(bound.text ?? bound.label) || textValue(bound.title) || "Eylem";
     const kinds = new Set(queries.map((query) => query.kind));
     // Kısmi oluşturmadan sonraki deneme: girişleri yazan oluşturma ve güncelleme adımlarının hepsi koşullarıyla atlandıysa
@@ -2271,7 +2398,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       validate: () => sequenceReadGuard(queries, steps.filter((step) => active.includes(step.query)), when)
         ?? validateForAll(active),
       beforeWrite: (query) => events.beforeSave(query.name),
-      prompt: promptLabel ? () => promptDialog({ title: buttonText, label: promptLabel, required: props.promptRequired === true, multiline: true, confirmLabel: buttonText }) : undefined,
+      prompt: promptLabel ? () => promptDialog({ title: buttonText, label: promptLabel, message: promptText || undefined, maxLength: promptMaxLength,
+        required: props.promptRequired === true, multiline: true, confirmLabel: buttonText }) : undefined,
       promptName: promptLabel ? source.name : undefined,
       resolve: (query, stepOverlay) => resolveQueryParameters(query, mergeOverlay(mergeOverlay(currentScope(), overlay), stepOverlay)),
       write: async (query, values, confirmWrite) => {
@@ -2455,6 +2583,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     setTouched((previous) => without(previous, owned));
     setValidationErrors((previous) => without(previous, owned));
     setLookupState((previous) => without(previous, owned));
+    rotateAutoIds(owned);
     setDialogStatus((previous) => ({ ...previous, [formDialogId]: null }));
     if (!dialogs[formDialogId]) {
       dialogOpeners.current[formDialogId] = opener;
@@ -2566,15 +2695,92 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const grid = gridByName[gridName];
     if (grid && keys.length > 0) dispatchGrid(gridSpecOf(grid), { type: "commit", list, keys });
   };
+  // ---- Seçim (lookup) hücreleri ----
+  // Satır kapsamlı seçenek sorgusu satırın değerleri başına bir kez çalışır; sonuç anahtar (sorgu + çözülen parametreler) ile saklanır.
+  const [rowOptions, setRowOptions] = useState<Record<string, QueryState>>({});
+  const rowOptionsRequested = useRef(new Set<string>());
+  const rowOptionNeed = (query: PageQueryDefinition, spec: GridSpec, draft: GridDraft) => {
+    const values = resolveQueryParameters(query, mergeOverlay(scope, { [spec.name]: { satir: wireRow(spec.columns, draft) } }));
+    return { query, values, key: `${query.id}|${JSON.stringify(values)}`, empty: Object.values(values).every((value) => value === null) };
+  };
+  const rowOptionNeeds = gridComponents.flatMap((grid) => {
+    const spec = gridSpecOf(grid);
+    const state = gridStateOf(spec, states);
+    const drafts = spec.mode === "stage" ? state.added : state.rows;
+    return spec.columns.flatMap((column) => {
+      const query = column.lookup && rowScopedQueries.has(column.lookup.query) ? queryById[column.lookup.query] : undefined;
+      return query ? drafts.map((draft) => rowOptionNeed(query, spec, draft)).filter((need) => !need.empty) : [];
+    });
+  });
+  const rowOptionSignature = JSON.stringify([erpOperations.operations ? 1 : 0, [...new Set(rowOptionNeeds.map((need) => need.key))]]);
+  useEffect(() => {
+    for (const need of rowOptionNeeds) {
+      // ERP işlemi sorgusu katalog yüklenene kadar bekler; aynı anahtar bir kez istenir (hata verirse sonraki değişimde yeniden).
+      if (rowOptionsRequested.current.has(need.key) || (need.query.operation !== undefined && !erpOperations.operations)) continue;
+      rowOptionsRequested.current.add(need.key);
+      const { key } = need;
+      setRowOptions((previous) => ({ ...previous, [key]: { rows: [], rowCount: 0, columns: [], truncated: false, loading: true, error: "", ran: false } }));
+      void fetchRead(need.query, need.values).then((result) => {
+        if (result.error) rowOptionsRequested.current.delete(key);
+        setRowOptions((previous) => ({ ...previous, [key]: result }));
+      });
+    }
+  }, [rowOptionSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Seçim sütununun seçenek durumu: satır kapsamlı sorguda o satırın önbellek girdisi, değilse sayfa düzeyindeki sorgu durumu. */
+  const pickerState = (spec: GridSpec, column: GridColumn, draft: GridDraft | undefined): QueryState | undefined => {
+    const lookup = column.lookup;
+    if (!lookup) return undefined;
+    if (!rowScopedQueries.has(lookup.query)) return states[queryNames[lookup.query]];
+    const query = queryById[lookup.query];
+    if (!draft || !query) return undefined;
+    const need = rowOptionNeed(query, spec, draft);
+    return need.empty ? undefined : rowOptions[need.key] ?? { rows: [], rowCount: 0, columns: [], truncated: false, loading: true, error: "", ran: false };
+  };
+  const pickerProps = (spec: GridSpec, column: GridColumn): Record<string, unknown> => ({
+    optionValueColumn: column.lookup?.valueColumn, optionLabelColumn: column.lookup?.labelColumn,
+    optionDescriptionColumn: column.lookup?.descriptionColumn, staticOptions: spec.staticOptions[column.code] ?? [],
+  });
+  /** Seçim hücresinin görünen metni: seçimde saklanan etiket, değilse seçeneğin "etiket · açıklama"sı, değilse ham değer. */
+  const pickerText = (spec: GridSpec, column: GridColumn, value: string, draft?: GridDraft): string => {
+    const stored = draft?.labels?.[column.code];
+    if (stored !== undefined) return stored;
+    const option = lookupCandidates(pickerProps(spec, column), pickerState(spec, column, draft), "", false).find((item) => item.value === value);
+    return option ? optionText(option) : value;
+  };
+  const pickerFor = (spec: GridSpec) => (column: GridColumn, draft: GridDraft): GridPicker => {
+    const cell = `${draft.key}.${column.code}`;
+    const entry = gridSearch[spec.name];
+    const search = entry?.cell === cell ? entry.text : "";
+    const raw = draft.cells[column.code];
+    const value = typeof raw === "string" ? raw : "";
+    const props = pickerProps(spec, column);
+    const base = pickerState(spec, column, draft);
+    // Koşul satırın kendisini de görür (`<tablo>.satir`); `satir` seçenek satırıdır.
+    const shown = filterOptionRows(base, spec.optionsWhen[column.code], mergeOverlay(scope, { [spec.name]: { satir: wireRow(spec.columns, draft) } }));
+    const server = !!column.lookup && bindsGridSearch(column.lookup.query, spec.name);
+    const stored = draft.labels?.[column.code];
+    const own = stored === undefined ? lookupCandidates(props, base, "", false).find((option) => option.value === value) : undefined;
+    return {
+      options: lookupOptions(props, shown, search, server), loading: Boolean(base?.loading), error: base?.error || undefined,
+      selected: stored !== undefined ? { value, label: stored } : own ? { value, label: optionText(own) } : null,
+      onSearch: (text) => setGridSearch((previous) => (text === "" && previous[spec.name]?.cell !== cell ? previous
+        : { ...previous, [spec.name]: { cell, code: column.code, text } })),
+      onChange: (next, _row, label) => {
+        const option = lookupCandidates(props, base, "", false).find((item) => item.value === next);
+        dispatchGrid(spec, { type: "edit", key: draft.key, code: column.code, value: next, label: option ? optionText(option) : label });
+      },
+    };
+  };
   const gridFor = (grid: ComponentDefinition): GridView => {
     const spec = gridSpecOf(grid);
     const source = gridSourceState(spec, states);
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
-    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope)) : {};
+    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
     return {
       id: spec.name, mode: spec.mode, columns: spec.columns, state, sourceRows, rowKey: spec.rowKey, errors, maxRows: spec.maxRows,
       dispatch: (action) => dispatchGrid(spec, action),
+      pickerFor: pickerFor(spec), pickerLabel: (column, value, draft) => pickerText(spec, column, value, draft),
       // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
       loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
@@ -2734,7 +2940,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   useEffect(() => () => onTitleRef.current?.(null), []);
 
   const runtime: PageRuntime | undefined = isV2 ? {
-    scope, states, queryNames, inputValues, setInput, lookupFor, tablePaging,
+    scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
     skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
     blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),

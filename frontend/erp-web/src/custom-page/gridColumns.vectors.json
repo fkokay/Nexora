@@ -4,7 +4,9 @@
     { "text": "factorToBase|Katsayı|number|required,min:0.000001,step:0.000001", "code": "factorToBase", "root": "factorToBase", "inputType": "number" },
     { "text": "attributes.Renk|Renk|text|required", "code": "attributes.Renk", "root": "attributes", "inputType": "text" },
     { "text": "expiryDate|Son kullanma|date", "code": "expiryDate", "root": "expiryDate", "inputType": "date" },
-    { "text": "aktif|Aktif|checkbox|readOnly", "code": "aktif", "root": "aktif", "inputType": "checkbox" }
+    { "text": "aktif|Aktif|checkbox|readOnly", "code": "aktif", "root": "aktif", "inputType": "checkbox" },
+    { "text": "stockItemId|Stok kartı|lookup:stoklar:id:code:name|required,unique", "code": "stockItemId", "root": "stockItemId", "inputType": "lookup" },
+    { "text": "unitCode|Birim|lookup:birim-listesi:balance.unitCode:balance.unitCode|readOnly", "code": "unitCode", "root": "unitCode", "inputType": "lookup" }
   ],
   "invalid": [
     "unitCode|Birim|money",
@@ -19,6 +21,12 @@
     "n|N|number|min:5,max:1",
     "n|N|number|step:0",
     "t|T|text|maxLength:4001",
-    "u|U|number|upperCase"
+    "u|U|number|upperCase",
+    "a|A|lookup:q:id",
+    "a|A|lookup:q:id:code:name:extra",
+    "a|A|lookup:q q:id:code",
+    "a|A|lookup:q:1d:code",
+    "a|A|lookup:q:id:code|upperCase",
+    "a|A|lookup:q:id:code|min:1"
   ]
 }

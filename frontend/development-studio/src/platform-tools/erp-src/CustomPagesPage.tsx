@@ -40,7 +40,7 @@ import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
-import { parseGridColumns } from "./page-designer/gridColumns";
+import { COLUMN_STATIC_OPTION, columnEntries, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
 import { countRowsWhen, countText, countWhenProblem } from "./page-designer/countWhen";
 import { CountWhenField } from "./page-designer/CountWhenField";
@@ -184,11 +184,14 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // Aranabilir açılır liste ve ilk seçenek varsayılanı.
   "searchable", "defaultFirst",
   // Seçim → ayrıntı ekranları: alana değer ata, satır açılınca, Adımlar ve Kayıt özeti.
-  "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons"]);
+  "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons",
+  // Seçim hücreli kalem tablosu: otomatik istek kimliği, seçenek koşulu, bağımlı temizleme, seçim sütunu ayarları, en az satır
+  // ve gerekçe isteminin açıklaması / sınırı.
+  "autoId", "optionsWhen", "clearsOnChange", "columnOptionsWhen", "columnStaticOptions", "minRows", "promptText", "promptMaxLength"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle"]);
+  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle", "promptText"]);
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
@@ -199,8 +202,15 @@ const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefi
 const inputTypeReset = (value: string, props: Record<string, PropValue>): Record<string, PropValue | undefined> => ({
   ...(value !== "lookup" ? { ...lookupReset, ...(value === "select" ? { staticOptions: props.staticOptions, optionDescriptionColumn: props.optionDescriptionColumn } : {}) } : {}),
   ...(value !== "select" ? { searchable: undefined } : {}),
-  ...(value !== "select" && value !== "lookup" ? { defaultFirst: undefined } : {}),
+  ...(value !== "select" && value !== "lookup" ? { defaultFirst: undefined, optionsWhen: undefined } : {}),
 });
+/** Gerekçe isteminin açıklaması (bağlanabilir şablon) ve yanıt alanının karakter sınırı (sunucu kuralı). */
+const MAX_PROMPT_TEXT = 300;
+const MAX_PROMPT_LENGTH = 4000;
+/** Girişin değeri değişince temizlenecek en çok hedef ("<girişKimliği>" ya da "<tablo>.<sütun>"). */
+const MAX_CLEARS_ON_CHANGE = 10;
+/** Izgaranın `columnOptionsWhen` / `columnStaticOptions` listelerinin en çok öğesi (sunucudaki MaxStaticOptions). */
+const MAX_COLUMN_ENTRIES = 20;
 const LOOKUP_HELP = "Sunucuda aramak için sorgunun arama parametresini {{<ad>.search}} ile bağlayın; bağlamazsanız sonuçlar tarayıcıda süzülür.";
 const STATIC_OPTION = /^[^=]{0,128}=[^=]{1,60}$/;
 const MAX_STATIC_OPTIONS = 20;
@@ -365,7 +375,7 @@ function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writ
   const navigation = NAVIGATION_ACTION_TYPES.includes(String(next.actionType));
   for (const [type, keys] of Object.entries(NAVIGATION_PROPS)) if (next.actionType !== type) drop(...keys);
   if (navigation) drop("queryId", "refreshQueries", "successMessage", "errorMessage"); else drop("target");
-  if (!(typeof next.promptLabel === "string" && next.promptLabel !== "")) drop("promptRequired");
+  if (!(typeof next.promptLabel === "string" && next.promptLabel !== "")) drop("promptRequired", "promptText", "promptMaxLength");
   // Alana değer ata: atamalar yalnız bu eylemde; sunucuya yazmadığından sorgu ve yenileme alamaz. Silinen girişe atama kalkar.
   if (next.actionType !== "setInput") drop("assignments");
   else {
@@ -375,13 +385,37 @@ function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writ
   }
   return touched ? { ...component, props: next } : component;
 }
+/** `clearsOnChange` hedefi: başka bir giriş kimliği ya da adlı düzenlenebilir tablonun sütunu ("<tablo>.<sütun>"). */
+function clearTargetOk(entry: string, selfId: string, inputIds: ReadonlySet<string>, gridColumns: ReadonlyMap<string, ReadonlySet<string>>): boolean {
+  const dot = entry.indexOf(".");
+  if (dot < 0) return entry !== selfId && inputIds.has(entry);
+  return gridColumns.get(entry.slice(0, dot))?.has(entry.slice(dot + 1)) === true;
+}
+/** Girişin `clearsOnChange` listesi: silinen giriş ve tabloda olmayan sütun kalkar; liste boşalınca özellik silinir. Değişmezse aynı nesne. */
+function cleanInputProps(component: PageComponent, inputIds: ReadonlySet<string>, gridColumns: ReadonlyMap<string, ReadonlySet<string>>): PageComponent {
+  if (component.type !== "input" || !("clearsOnChange" in component.props)) return component;
+  const raw = Array.isArray(component.props.clearsOnChange) ? component.props.clearsOnChange : [];
+  const seen = new Set<string>();
+  const kept = raw.filter((entry): entry is string => typeof entry === "string" && !seen.has(entry) && !!seen.add(entry)
+    && clearTargetOk(entry, component.id, inputIds, gridColumns)).slice(0, MAX_CLEARS_ON_CHANGE);
+  if (sameList(raw, kept)) return component;
+  const props = { ...component.props };
+  if (kept.length > 0) props.clearsOnChange = kept; else delete props.clearsOnChange;
+  return { ...component, props };
+}
+/** Adlı düzenlenebilir tabloların sütun kodları (bağımlı temizleme hedefleri için). */
+const gridColumnCodes = (components: PageComponent[]) => new Map(cardTree.flattenComponents(components)
+  .filter((component) => component.type === "editableGrid" && !!component.name)
+  .map((component) => [component.name!, new Set(parseGridColumns(component.props.gridColumns).map((column) => column.code))]));
 function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptions = {}): PageDefinition {
   const catalog = options.catalog;
   let changed = false;
+  const pageInputIds = new Set(cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => component.id));
+  const pageGridColumns = gridColumnCodes(definition.components);
   // `disabledReason` yalnız `disabledWhen` ile geçerlidir (sunucu kuralı); koşul silinince neden de kalkar. İkisi de yalnız
   // düğme, giriş, düzenlenebilir tablo ve özel alanlar bloğunda geçerlidir; başka türde kalanlar silinir.
   const reasoned = definition.components.map((component) => {
-    const next = cleanDisabledProps(component);
+    const next = cleanInputProps(cleanDisabledProps(component), pageInputIds, pageGridColumns);
     if (next !== component) changed = true;
     return next;
   });
@@ -583,6 +617,17 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       for (const key of ["sourceQuery", "definitionsQuery", "valuesQuery"]) {
         if (key in next && !(typeof next[key] === "string" && readIds.has(next[key] as string))) { delete next[key]; touched = true; }
       }
+      if (component.type === "editableGrid") {
+        // Seçim sütunu ayarları yalnız tablonun seçim (lookup) sütunlarına; varyant kipinde sütun ve satır sınırı yoktur.
+        if (props.gridMode === "matrix") for (const key of ["minRows", "columnOptionsWhen", "columnStaticOptions"]) if (key in next) { delete next[key]; touched = true; }
+        const lookupCodes = new Set(parseGridColumns(props.gridColumns).filter((column) => column.inputType === "lookup").map((column) => column.code));
+        for (const key of ["columnOptionsWhen", "columnStaticOptions"]) {
+          if (!(key in next)) continue;
+          const raw = Array.isArray(next[key]) ? next[key] as unknown[] : [];
+          const kept = raw.filter((entry): entry is string => { const parts = splitColumnEntry(entry); return !!parts && lookupCodes.has(parts.code); });
+          if (!sameList(raw, kept)) { if (kept.length > 0) next[key] = kept; else delete next[key]; touched = true; }
+        }
+      }
       if (!touched) return component;
       changed = true;
       return { ...component, props: next };
@@ -673,7 +718,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   // Kartın içindeki bileşenler: eylem türüne ve koşula bağlı özellikler üst düzeydekiyle aynı kuralla temizlenir.
   components = components.map((component) => {
     if (!cardTree.isCardType(component.type) || !Array.isArray(component.children)) return component;
-    const children = cardTree.mapComponents(component.children as PageComponent[], (child) => cleanButtonProps(cleanDisabledProps(child), dialogIds, writeKinds, allInputIds));
+    const children = cardTree.mapComponents(component.children as PageComponent[], (child) => cleanButtonProps(cleanInputProps(cleanDisabledProps(child), pageInputIds, pageGridColumns), dialogIds, writeKinds, allInputIds));
     if (children === component.children) return component;
     changed = true;
     return { ...component, children };
@@ -825,6 +870,27 @@ const definitionHasQueries = (definitionJson: string | undefined) => {
   } catch { return false; }
 };
 /** Faz B bileşenlerinin zorunlu başvuruları (sunucu da reddeder; metinler sunucudakiyle aynı). Sorun yoksa null. */
+/**
+ * Seçim hücreli düzenlenebilir tablonun kayıt sorunları (sunucu da reddeder): seçim sütununun sorgusu sayfadaki bir okuma
+ * sorgusu, sütun ayarları geçerli biçimde ve seçenek koşulları geçerli olmalıdır; en az satır en fazla satırı aşamaz.
+ */
+const pickerGridProblem = (component: PageComponent, definition: PageDefinition): string | null => {
+  if (component.type !== "editableGrid") return null;
+  const props = component.props;
+  const readIds = new Set(definition.queries.filter((query) => !isWriteKind(query.kind)).map((query) => query.id));
+  for (const column of parseGridColumns(props.gridColumns))
+    if (column.lookup && !readIds.has(column.lookup.query)) return `'${column.code}' seçim sütununun sorgusu sayfadaki bir okuma sorgusu olmalıdır: ${column.lookup.query}`;
+  for (const [key, format] of [["columnOptionsWhen", "sütunKodu=koşul"], ["columnStaticOptions", "sütunKodu=değer=Etiket"]] as const)
+    if (Array.isArray(props[key]) && (props[key] as unknown[]).length > MAX_COLUMN_ENTRIES) return `'${key}' 1–${MAX_COLUMN_ENTRIES} adet ${format} öğesi içermelidir.`;
+  for (const entry of columnEntries(props.columnOptionsWhen)) {
+    const problem = conditionProblem("columnOptionsWhen", entry.rest, [...pageNamesOf(definition), "satir"]);
+    if (problem) return problem;
+  }
+  for (const entry of columnEntries(props.columnStaticOptions))
+    if (!COLUMN_STATIC_OPTION.test(entry.rest)) return "'columnStaticOptions' öğeleri sütunKodu=değer=Etiket biçiminde olmalıdır.";
+  if (typeof props.minRows === "number" && typeof props.maxRows === "number" && props.minRows > props.maxRows) return "'minRows' değeri 'maxRows' değerinden büyük olamaz.";
+  return null;
+};
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
   if (component.type === "dataTable" && typeof props.rowOpenAction === "string" && props.rowOpenAction !== "" && !component.name) return `Satır açma eylemi için veri listesinin adı olmalıdır: ${component.id}`;
@@ -1852,6 +1918,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ...(isPagedTable(component) ? { sayfa: 1, sayfaBoyutu: typeof component.props.pageSize === "number" ? component.props.pageSize : DEFAULT_PAGE_SIZE } : {}),
       };
     }
+    // Düzenlenebilir tablo tasarımda boştur: {{<tablo>.satirSayisi}} 0 olur.
+    for (const component of state.components) if (component.name && component.type === "editableGrid") scope[component.name] = { satirSayisi: 0 };
     for (const component of state.components) {
       if (!component.name || component.type !== "input") continue;
       const raw = interpolate(String(component.props.defaultValue ?? ""), scope);
@@ -2029,6 +2097,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // Koşul sözdizimi ve kök adları: sunucu da reddeder; burada aynı metinle ve bileşen seçilerek gösterilir.
       const condition = empty ?? conditionProblem("visibleWhen", component.props.visibleWhen, pageNamesOf(definition))
         ?? conditionProblem("disabledWhen", component.props.disabledWhen, pageNamesOf(definition))
+        ?? conditionProblem("optionsWhen", component.props.optionsWhen, [...pageNamesOf(definition), "satir"])
+        ?? pickerGridProblem(component, definition)
         ?? countWhenProblem(component.props.countWhen, component.type === "metric" ? definition.queries.find((query) => query.id === component.props.query)?.name ?? null : null, pageNamesOf(definition));
       if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
     }
@@ -2330,7 +2400,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const renderInput = (component: PageComponent, style: CSSProperties, inline = false) => {
     const props = component.props;
     if (props.hidden === true) {
-      const value = String(props.defaultValue ?? "");
+      const value = props.autoId === true ? "otomatik kimlik" : String(props.defaultValue ?? "");
       return <div key={component.id} className="pd-binding-preview-input is-hidden" style={style}><span className="pd-hidden-input" title="Gizli giriş: ERP'de çizilmez, değerini tutar">
         Gizli · {String(props.label || component.name || "Giriş")}{value && <code>{value}</code>}</span></div>;
     }
@@ -2590,7 +2660,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       }
       case "editableGrid": {
         const mode = props.gridMode === "stage" || props.gridMode === "matrix" ? props.gridMode : "list";
-        return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={parseGridColumns(props.gridColumns)}
+        const columns = parseGridColumns(props.gridColumns);
+        // Seçim hücrelerinin örnek seçenekleri: sütunun sabit seçenekleri, ardından sorgu önizlemesinin "etiket · açıklama" satırları.
+        const pickerSamples = Object.fromEntries(columns.filter((column) => column.lookup).map((column) => {
+          const lookup = column.lookup!;
+          const fixed = columnEntries(props.columnStaticOptions).filter((entry) => entry.code === column.code).map((entry) => entry.rest.slice(entry.rest.indexOf("=") + 1));
+          const rows = (queryPreviews[lookup.query]?.rows ?? []).slice(0, 2).map((row) => {
+            const label = String(row[lookup.labelColumn] ?? row[lookup.valueColumn] ?? "");
+            const description = lookup.descriptionColumn && row[lookup.descriptionColumn] != null ? String(row[lookup.descriptionColumn]) : "";
+            return description ? `${label} · ${description}` : label;
+          });
+          return [column.code, [...fixed, ...rows]];
+        }));
+        return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={columns} pickerSamples={pickerSamples}
           fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} />;
       }
       case "customFieldsBlock": {
@@ -2945,7 +3027,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         { path: `${grid}.satirlar`, detail: "Tablonun satırları (liste parametresine)", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.eklenenSayisi`, detail: "Eklenen satır sayısı", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.silinenSayisi`, detail: "Silinecek satır sayısı", group: "Düzenlenebilir tablolar" },
-        { path: `${grid}.degisti`, detail: "Tabloda kaydedilmemiş değişiklik var mı", group: "Düzenlenebilir tablolar" });
+        { path: `${grid}.degisti`, detail: "Tabloda kaydedilmemiş değişiklik var mı", group: "Düzenlenebilir tablolar" },
+        { path: `${grid}.satirSayisi`, detail: "Tablodaki satır sayısı", group: "Düzenlenebilir tablolar" });
+      const gridColumns = parseGridColumns(component.props.gridColumns);
+      if (gridColumns.some((column) => column.inputType === "lookup")) {
+        bindingSuggestions.push({ path: `${grid}.arama`, detail: "Odaktaki seçim hücresine yazılan metin (seçenek sorgusunun arama parametresine)", group: "Düzenlenebilir tablolar" });
+        for (const column of gridColumns) if (columnPath.test(column.code))
+          bindingSuggestions.push({ path: `${grid}.satir.${column.code}`, detail: "Satırın hücresi (seçim sütununun seçenek sorgusunda; her satır kendi seçeneklerini alır)", group: "Düzenlenebilir tablolar" });
+      }
       if (component.props.gridMode === "stage") {
         const gridCodes = parseGridColumns(component.props.gridColumns).map((column) => column.code);
         const sourceCodes = typeof component.props.sourceQuery === "string" ? queryColumns(component.props.sourceQuery).map((column) => column.code) : [];
@@ -3157,6 +3246,39 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <label className="pd-check"><input type="checkbox" checked={props.allowClear === true} onChange={(event) => patchComponent(input.id, { allowClear: event.target.checked ? true : undefined })}/>Temizlenebilir</label>
       {defaultFirstField(input)}
     </>;
+  };
+  // Açılır liste ve arama kutusunun seçenek koşulu (`optionsWhen`): her seçenek satırı `satir` olarak değerlendirilir.
+  const renderOptionsWhenField = (input: PageComponent) => {
+    const optionsQueryId = typeof input.props.optionsQuery === "string" ? input.props.optionsQuery : "";
+    const paths = [...(optionsQueryId ? queryColumns(optionsQueryId) : []).filter((column) => identifier.test(column.code))
+      .map((column) => ({ path: `satir.${column.code}`, label: `satir.${column.code} · Seçenek satırı`, group: "Seçenek satırı" })),
+    ...bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }))];
+    return <div className="pd-field">Seçenek koşulu<small>Her seçenek satırı için değerlendirilir; <code>satir.&lt;sütun&gt;</code> seçenek satırıdır (ör. <code>satir.isActive == true &amp;&amp; satir.id != kaynakDepo.value</code>). Yanlışsa seçenek gizlenir; seçili değer yine görünür.</small>
+      <ConditionBuilder key={`${input.id}-optionsWhen`} prop="optionsWhen" value={typeof input.props.optionsWhen === "string" && input.props.optionsWhen !== "" ? input.props.optionsWhen : undefined}
+        paths={paths} pageNames={[...pageNamesOf(definition), "satir"]} disabled={!canEdit} onChange={(next) => patchComponent(input.id, { optionsWhen: next })}/>
+    </div>;
+  };
+  // Bağımlı temizleme (`clearsOnChange`): kullanıcı değeri değiştirince temizlenecek girişler ve tablo sütunları (her satırda).
+  const renderClearsOnChangeField = (input: PageComponent) => {
+    const current = Array.isArray(input.props.clearsOnChange) ? input.props.clearsOnChange.filter((item): item is string => typeof item === "string") : [];
+    const targets = [
+      ...allComponents.filter((component) => component.type === "input" && component.id !== input.id)
+        .map((component) => ({ value: component.id, label: `${String(component.props.label || component.name || component.id)}${component.props.hidden === true ? " (gizli)" : ""}` })),
+      ...allComponents.filter((component) => component.type === "editableGrid" && !!component.name).flatMap((grid) => parseGridColumns(grid.props.gridColumns)
+        .map((column) => ({ value: `${grid.name}.${column.code}`, label: `${String(grid.props.title || grid.name)} › ${column.label} (her satırda)` }))),
+    ];
+    const labelOf = (value: string) => targets.find((target) => target.value === value)?.label ?? value;
+    const free = targets.filter((target) => !current.includes(target.value));
+    const write = (next: string[]) => patchComponent(input.id, { clearsOnChange: next.length > 0 ? next : undefined });
+    return <div className="pd-field">Değişince temizle<small>Kullanıcı bu girişin değerini değiştirince seçilen girişler ve tablo sütunları (her satırda) boşaltılır (ör. depo değişince satırların konumları).</small>
+      {current.length > 0 && <ul className="pd-action-chips">{current.map((value) => <li key={value}><span>{labelOf(value)}</span>
+        <button type="button" aria-label={`${labelOf(value)} temizlemesini kaldır`} disabled={!canEdit} onClick={() => write(current.filter((item) => item !== value))}><X size={11}/></button></li>)}</ul>}
+      <select value="" aria-label="Temizlenecek alan ekle" disabled={!canEdit || free.length === 0 || current.length >= MAX_CLEARS_ON_CHANGE}
+        onChange={(event) => { if (event.target.value) write([...current, event.target.value]); }}>
+        <option value="">{targets.length === 0 ? "Temizlenecek alan yok" : free.length === 0 ? "Tümü eklendi" : "Temizlenecek alan ekle"}</option>
+        {free.map((target) => <option key={target.value} value={target.value}>{target.label}</option>)}
+      </select>
+    </div>;
   };
   // Açılır liste ve arama kutusunun ilk seçenek varsayılanı: varsayılan değer (sayfa parametresi bağlaması dahil) boşken.
   const defaultFirstField = (input: PageComponent) => <>
@@ -3522,6 +3644,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "input" && section("input", "Giriş", <>
               <label className="pd-check"><input type="checkbox" checked={selected.props.hidden === true} onChange={(event) => patchComponent(selected.id, { hidden: event.target.checked ? true : undefined })}/>Gizli (değer tutar)</label>
               {selected.props.hidden === true && <small>ERP'de çizilmez ve doğrulanmaz; değeri (varsayılan değer ve sayfa parametresi dahil) {"{{ad.value}}"} ile kullanılır. “Alana değer ata” düğmesiyle değiştirilir.</small>}
+              <label className="pd-check"><input type="checkbox" checked={selected.props.autoId === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { autoId: event.target.checked ? true : undefined })}/>Otomatik istek kimliği</label>
+              {selected.props.autoId === true && <small>Değer yeni bir GUID'dir: sayfa açılınca, girişi içeren pencere “Açılınca sıfırla” ile açılınca ve girişi bağlayan kayıt başarılı olunca yenilenir. Kayıt başarısız olursa aynı kalır; yeniden deneme çift kayıt yazmaz. Genellikle gizli girişle birlikte kullanılır.</small>}
               {selected.props.inputType === "select" && <>
                 <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}/>
@@ -3546,7 +3670,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 {defaultFirstField(selected)}
               </>}
               {selected.props.inputType === "lookup" && renderLookupFields(selected)}
+              {(selected.props.inputType === "select" || selected.props.inputType === "lookup") && renderOptionsWhenField(selected)}
               {renderValidationFields(selected)}
+              {renderClearsOnChangeField(selected)}
             </>)}
             {(selected.type === "metric" || selected.type === "dataTable") && pane("data", section("data", "Veri", <>
               <div className="pd-field">Veri kaynağı<div className="pd-segment">
@@ -3650,8 +3776,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <div className="pd-field">Gerekçe iste<small>Kayıttan önce kullanıcıdan bir yanıt istenir; yanıt <code>{`{{${selected.name || "<ad>"}.yanit}}`}</code> ile bağlanır. Gerekçe sorulduğunda ayrıca onay sorulmaz.</small>
                   {!selected.name && <small className="pd-query-warning">Gerekçe sorabilmek için düğmeye ad verin.</small>}
                   <label className="pd-field">Soru metni<BindingInput value={String(selected.props.promptLabel ?? "")} maxLength={60} suggestions={bindingSuggestions} disabled={!canEdit || !selected.name} ariaLabel="Gerekçe sorusu" placeholder="Ters kayıt gerekçesi"
-                    onChange={(next) => patchComponent(selected.id, next ? { promptLabel: next } : { promptLabel: undefined, promptRequired: undefined })}/></label>
+                    onChange={(next) => patchComponent(selected.id, next ? { promptLabel: next } : { promptLabel: undefined, promptRequired: undefined, promptText: undefined, promptMaxLength: undefined })}/></label>
                   <label className="pd-check"><input type="checkbox" checked={selected.props.promptRequired === true} disabled={!canEdit || !selected.props.promptLabel} onChange={(event) => patchComponent(selected.id, { promptRequired: event.target.checked ? true : undefined })}/>Yanıt zorunlu</label>
+                  <label className="pd-field">Açıklama<small>Soru metninin altında gösterilir (ör. işlemin etkisi); en fazla {MAX_PROMPT_TEXT} karakter.</small>
+                    <BindingInput value={String(selected.props.promptText ?? "")} maxLength={MAX_PROMPT_TEXT} multiline suggestions={bindingSuggestions} disabled={!canEdit || !selected.props.promptLabel} ariaLabel="Gerekçe açıklaması"
+                      placeholder="{{liste.seciliSatir.code}} kaydı ters kayıtla iptal edilecek." onChange={(next) => patchComponent(selected.id, { promptText: next || undefined })}/></label>
+                  <label className="pd-field">Yanıt en fazla karakter<small>1–{MAX_PROMPT_LENGTH}; boşsa sınır yok (sunucu yine denetler).</small>
+                    <input type="number" min={1} max={MAX_PROMPT_LENGTH} step={1} aria-label="Yanıt en fazla karakter" disabled={!canEdit || !selected.props.promptLabel}
+                      value={typeof selected.props.promptMaxLength === "number" ? selected.props.promptMaxLength : ""} onChange={(event) => {
+                        const number = Number(event.target.value);
+                        patchComponent(selected.id, { promptMaxLength: event.target.value === "" || !Number.isInteger(number) ? undefined : Math.max(1, Math.min(MAX_PROMPT_LENGTH, number)) });
+                      }}/></label>
                 </div>
                 <label className="pd-check"><input type="checkbox" checked={selected.props.confirmEnabled === true} onChange={(event) => patchComponent(selected.id, { confirmEnabled: event.target.checked })}/>Onay iste</label>
                 {selected.props.confirmEnabled === true && <label className="pd-field">Onay metni<BindingInput value={String(selected.props.confirmText ?? "")} maxLength={300} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Onay metni" placeholder="Boşsa standart onay sorusu gösterilir" onChange={(next) => patchComponent(selected.id, { confirmText: next || undefined })}/></label>}
@@ -3847,6 +3982,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 disabled={!canEdit} onChange={(tabs, defaultTab) => setTabs(selected.id, tabs, defaultTab)}/>
             </>)}
             {selected.type === "editableGrid" && section("grid", "Düzenlenebilir tablo", <EditableGridFields name={selected.name} props={selected.props} readQueries={readQueries}
+              columnsOf={queryColumns} pageNames={pageNamesOf(definition)}
               sourceColumns={typeof selected.props.sourceQuery === "string" ? queryColumns(selected.props.sourceQuery) : []}
               listParameter={selected.name ? collectionParameterFor("list", selected.name, definition.queries, erpCatalog) : null}
               suggestions={bindingSuggestions} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>)}

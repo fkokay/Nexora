@@ -89,6 +89,11 @@ export function usePageQueries(options: {
    * Sıfırlanan okumalara parametreyle bağlanan okumalar da geçişli olarak sıfırlanır; sıfırlanan tüm adlar döner.
    */
   resetReads: (queryNames: string[]) => string[];
+  /**
+   * Okuma sorgusunu verilen parametrelerle çalıştırır ve sonucu döner; sayfa durumlarına yazmaz, sıra denetimi yoktur
+   * (satır kapsamlı seçenek sorguları: her satır değeri kendi önbellek girdisidir). Hata ve eksik zorunlu değer durum olarak döner.
+   */
+  fetchRead: (query: PageQueryDefinition, values: Record<string, unknown>) => Promise<QueryState>;
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
@@ -302,6 +307,30 @@ export function usePageQueries(options: {
     });
   };
 
+  const fetchRead = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState> => {
+    try {
+      if (query.operation !== undefined) {
+        const op = operationOf(query);
+        if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
+        if (missingRequiredValue(op, values, null)) return emptyState(false);
+        const request = buildOperationRequest(op, values, null);
+        const mapped = mapOperationResult(op, await api<unknown>(request.url, token, operationInit(request)));
+        return { ...mapped, truncated: mapped.rows.length < mapped.rowCount, loading: false, error: "", ran: true, ranWith: values };
+      }
+      const result = await api<RunResult>(endpointFor(query), token, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parameters: values }),
+      });
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      return {
+        rows, rowCount: typeof result.rowCount === "number" ? result.rowCount : rows.length, columns: Array.isArray(result.columns) ? result.columns : [],
+        truncated: result.truncated === true, loading: false, error: "", ran: true, ranWith: values,
+      };
+    } catch (cause) {
+      const failure = operationFailure(cause) as Error & { serverError?: string };
+      return { ...emptyState(false), error: failure.serverError || failure.message || "Sorgu çalıştırılamadı.", ran: true };
+    }
+  };
+
   const resetReads = (queryNames: string[]): string[] => {
     // Geçişli: sıfırlanan bir okumaya bağlanan okumalar da (ör. `kart` → birimler, özel alan değerleri, varyantlar) hemen
     // boşalır; yoksa eski kaydın satırları 300 ms gecikme boyunca kalır ve gecikme bitince yazılan değerler silinirdi.
@@ -356,5 +385,5 @@ export function usePageQueries(options: {
     }
   }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads };
+  return { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead };
 }

@@ -88,4 +88,24 @@ describe('EditableGrid', () => {
     for (const button of screen.getAllByRole('button', { name: 'Satırı sil' })) expect((button as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Birim (satır 3)') as HTMLInputElement).disabled).toBe(true);
   });
+
+  it('picker columns draw a combobox in editable rows and the option label in source and read-only cells', () => {
+    const pickers = parseGridColumns(['unitCode|Birim|lookup:birimler:code:code', 'locationId|Konum|lookup:konumlar:id:code:name|readOnly']);
+    const state = gridReducer(gridReducer(emptyGridState('k'), { type: 'add' }, { mode: 'stage', maxRows: 50 }),
+      { type: 'edit', key: 'yeni-1', code: 'locationId', value: 'L1', label: 'A-01 · Raf' }, { mode: 'stage', maxRows: 50 });
+    const onChange = vi.fn();
+    const pickerFor = vi.fn(() => ({ options: [{ value: 'KOLI', label: 'KOLI', description: '', row: null }], loading: false, selected: null,
+      onSearch: () => undefined, onChange }));
+    grid({ columns: pickers, sourceRows: [{ id: 'u1', unitCode: 'KUTU', locationId: 'L2' }], pickerFor,
+      pickerLabel: (column, value, draft) => draft?.labels?.[column.code] ?? `${column.code}:${value}` }, state);
+    const rows = screen.getAllByRole('row');
+    expect(rows[1].textContent).toContain('unitCode:KUTU');
+    expect(rows[1].textContent).toContain('locationId:L2');
+    expect(rows[2].textContent).toContain('A-01 · Raf');
+    const combo = screen.getByRole('combobox', { name: 'Birim (satır 2)' });
+    fireEvent.click(combo);
+    fireEvent.click(screen.getByRole('option', { name: 'KOLI' }));
+    expect(onChange).toHaveBeenCalledWith('KOLI', null, 'KOLI');
+    expect(screen.queryByRole('combobox', { name: 'Konum (satır 2)' })).toBeNull();
+  });
 });
