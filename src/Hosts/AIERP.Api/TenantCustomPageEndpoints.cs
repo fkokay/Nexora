@@ -186,6 +186,9 @@ internal static class TenantCustomPageEndpoints
             {
                 previous.IsPublished = false; previous.IsArchived = true; previous.Revision++; previous.UpdatedByUserId = userId; previous.UpdatedAt = DateTimeOffset.UtcNow;
                 db.TenantCustomPageRevisions.Add(RevisionOf(previous, userId, "Superseded"));
+                // The filtered unique index (one published row per code) is checked per statement and EF does not
+                // order the two updates; the previous row is unpublished first, inside the same transaction.
+                await db.SaveChangesAsync(ct);
             }
             draft.IsPublished = true; draft.Revision++; draft.UpdatedByUserId = userId; draft.UpdatedAt = DateTimeOffset.UtcNow;
             db.TenantCustomPageRevisions.Add(RevisionOf(draft, userId, "Published"));
