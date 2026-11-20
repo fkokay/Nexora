@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import vectors from "../../../../../erp-web/src/custom-page/gridColumns.vectors.json";
+// ?raw: Studio Docker derleme bağlamında erp-web yok; tsc dosyayı çözmeye çalışmaz, vitest okur.
+import vectorsJson from "../../../../../erp-web/src/custom-page/gridColumns.vectors.json?raw";
+const vectors = JSON.parse(vectorsJson) as { valid: { text: string; code: string; inputType: string; [key: string]: unknown }[]; invalid: string[] };
 import { columnEntries, gridColumnText, parseGridColumn, renamedColumnEntries } from "./gridColumns";
 
 // Studio kopyası erp-web gridState.ts ve sunucudaki GridColumnSpec.cs ile aynı vektörleri kabul / reddeder.
