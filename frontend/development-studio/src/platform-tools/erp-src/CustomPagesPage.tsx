@@ -156,11 +156,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-<<<<<<< HEAD
-const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
-=======
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "countWhen", "defaultWhen", "closeInput",
->>>>>>> origin/feat/kosullu-sayac
+const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "countWhen",  "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -2311,15 +2307,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const query = definition.queries.find((item) => item.id === props.query);
         const preview = queryPreviews[String(props.query)];
         const first = preview?.columns[0]?.code;
-<<<<<<< HEAD
-        const value = preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
-        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
-=======
         // Koşullu sayaç tuvalde örnek satırlardan (en fazla 5) sayılır.
         const count = preview && query ? countRowsWhen(props.countWhen, preview.rows, query.name, designScope()) : undefined;
         const value = count !== undefined ? countText(count) : preview && first && preview.rows.length > 0 && preview.rows[0][first] != null ? String(preview.rows[0][first]) : preview ? "—" : "Önizleme yok";
-        return <MetricPreview key={component.id} title={String(props.title || "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
->>>>>>> origin/feat/kosullu-sayac
+        return <MetricPreview key={component.id} title={shown(props.title, "Gösterge")} value={value} description={String(props.description || (query ? `Sorgu · ${query.name}` : ""))} tone={toneOf(props.variant)} icon={props.icon} trendRows={typeof props.trendQuery === "string" ? queryPreviews[props.trendQuery]?.rows : undefined} style={style} />;
       } else if (!props.source && typeof props.value === "string") {
         const metricValue = interpolate(props.value, designScope());
         // Açıklamadaki bağlama da örnek veriyle çözülür (ör. birim "EA"); çözülemezse ham metin kalır.
