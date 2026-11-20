@@ -21,7 +21,10 @@ export const ROW_BINDING = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.seciliSatir\.([A-Z
 export const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 export const list = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 
-export type NewMode = "off" | "clear" | "dialog" | "page" | "button";
+/** ERP gibi: Excel bir listeye bağlıyken İşlemler menüsünde "CSV olarak dışa aktar" vardır (`exportCsv: false` kapatır). */
+export const barCsvExport = (props: Record<string, unknown>) => text(props.exportTable) !== "" && props.exportCsv !== false;
+
+export type NewMode ="off" | "clear" | "dialog" | "page" | "button";
 export type OpenMode = "off" | "dialog" | "page" | "button";
 export type AfterSaveMode = "off" | "page" | "button";
 

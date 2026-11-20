@@ -6,9 +6,9 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
 
-const { api, downloadXlsx } = vi.hoisted(() => ({ api: vi.fn(), downloadXlsx: vi.fn() }));
+const { api, downloadXlsx, downloadCsv } = vi.hoisted(() => ({ api: vi.fn(), downloadXlsx: vi.fn(), downloadCsv: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
-vi.mock('../general-ledger/ledgerReportUtils', () => ({ downloadXlsx }));
+vi.mock('../general-ledger/ledgerReportUtils', () => ({ downloadXlsx, downloadCsv }));
 
 const queries = [
   { id: 'qr', name: 'Liste', kind: 'read', runOn: 'load', parameters: [] },
@@ -59,7 +59,7 @@ function setup(components: unknown[], previewId?: string) {
 const button = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const disabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
 
-beforeEach(() => { writes = []; insertDelay = 0; truncated = false; api.mockReset(); downloadXlsx.mockReset(); });
+beforeEach(() => { writes = []; insertDelay = 0; truncated = false; api.mockReset(); downloadXlsx.mockReset(); downloadCsv.mockReset(); });
 afterEach(() => {
   for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog')) fireEvent.click(within(open).getAllByRole('button')[0]);
   cleanup();
@@ -124,6 +124,31 @@ describe('Sayfa İşlem Çubuğu bağlama', () => {
     await waitFor(() => expect(disabled(button('export'))).toBe(false));
     fireEvent.click(button('export'));
     await waitFor(() => expect(downloadXlsx).toHaveBeenCalledWith('p.xlsx', 'Liste', [['Ad', 'Tutar'], ['=SUM(A1)', 12.5]]));
+  });
+
+  it('Excel bağlıysa İşlemler › "CSV olarak dışa aktar" aynı satırlarla downloadCsv çağırır', async () => {
+    setup([...baseComponents, bar]);
+    await waitFor(() => expect(disabled(button('export'))).toBe(false));
+    fireEvent.click(button('more'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /CSV olarak dışa aktar/ }));
+    await waitFor(() => expect(downloadCsv).toHaveBeenCalledWith('p.csv', [['Ad', 'Tutar'], ['=SUM(A1)', 12.5]]));
+    expect(downloadXlsx).not.toHaveBeenCalled();
+  });
+
+  it('exportCsv: false İşlemler menüsüne CSV koymaz; Excel bağlı değilse CSV de yoktur', async () => {
+    const { unmount } = setup([...baseComponents, { ...bar, props: { ...bar.props, exportCsv: false } }]);
+    await waitFor(() => expect(disabled(button('export'))).toBe(false));
+    fireEvent.click(button('more'));
+    await screen.findByRole('menuitem', { name: /Onayla/ });
+    expect(screen.queryByRole('menuitem', { name: /CSV/ })).toBeNull();
+    unmount();
+    cleanup();
+    const { exportTable: _unused, ...withoutExport } = bar.props;
+    setup([...baseComponents, { ...bar, props: withoutExport }]);
+    await waitFor(() => expect(disabled(button('save'))).toBe(false));
+    fireEvent.click(button('more'));
+    await screen.findByRole('menuitem', { name: /Onayla/ });
+    expect(screen.queryByRole('menuitem', { name: /CSV/ })).toBeNull();
   });
 
   it('kesilmiş liste dışa aktarılınca durum satırında uyarı görünür', async () => {

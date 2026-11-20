@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ColumnsEditor } from "./ColumnsEditor";
 import { GRID_TOOLS, GridToolsField, gridToolPatch } from "./GridSettingsFields";
 import { parseColumnFormats } from "./cellFormat";
+import { GridPreview } from "./CanvasPreviews";
+import { barCsvExport } from "./barCommands";
 import {
   columnValueLabels, conditionTerms, joinConditionTerms, orphanEntries, pairValue, parseWidthWhen, renameTone, setPair, setTone, setValueLabel,
   splitConditionTerms, toneOf, valueRowsFor, widthWhenText, withoutEntry,
@@ -162,5 +164,33 @@ describe("tablo araçları", () => {
     const html = renderToString(<GridToolsField props={{ showExport: false }} onPatch={onPatch}/>);
     expect(onPatch).not.toHaveBeenCalled();
     expect(html.match(/checked=""/g)?.length).toBe(GRID_TOOLS.length - 1);
+  });
+  it("CSV ve Excel (seçilenler) anahtarları listelenir; dışa aktarma kapalıyken CSV anahtarı pasiftir", () => {
+    expect(GRID_TOOLS.map(([key]) => key)).toEqual(expect.arrayContaining(["showCsv", "showSelectedExport"]));
+    expect(gridToolPatch("showCsv", false)).toEqual({ showCsv: false });
+    expect(gridToolPatch("showSelectedExport", true)).toEqual({ showSelectedExport: undefined });
+    const off = renderToString(<GridToolsField props={{ showExport: false }} onPatch={() => {}}/>);
+    expect(/<input[^>]*disabled=""[^>]*\/?>CSV düğmesi/.test(off)).toBe(true);
+    const on = renderToString(<GridToolsField props={{}} onPatch={() => {}}/>);
+    expect(on).toContain("Excel (seçilenler)");
+    expect(/<input[^>]*disabled=""[^>]*\/?>CSV düğmesi/.test(on)).toBe(false);
+  });
+});
+
+describe("tuval dışa aktarma önizlemesi", () => {
+  const preview = (props: Record<string, unknown>) => renderToString(<GridPreview advanced title="Liste" subtitle="" columns={[{ code: "ad", label: "Ad" }]}
+    rows={[{ ad: "Elma" }]} truncated={false} props={props} emptyText="" style={{}}/>);
+  it("araç satırı ERP gibi XLSX ve CSV çizer; showCsv: false CSV'yi, showExport: false ikisini gizler", () => {
+    expect(preview({})).toMatch(/pd-adv-btn">XLSX<.*pd-adv-btn">CSV</);
+    expect(preview({ showCsv: false })).toContain('pd-adv-btn">XLSX<');
+    expect(preview({ showCsv: false })).not.toContain('pd-adv-btn">CSV<');
+    expect(preview({ showExport: false })).not.toContain('pd-adv-btn">XLSX<');
+    expect(preview({})).toContain("Satır seçilince: Excel (seçilenler)");
+    expect(preview({ showSelectedExport: false })).not.toContain("Excel (seçilenler)");
+  });
+  it("İşlem Çubuğu CSV'si Excel bağlıyken vardır; exportCsv: false kapatır", () => {
+    expect(barCsvExport({ exportTable: "t1" })).toBe(true);
+    expect(barCsvExport({ exportTable: "t1", exportCsv: false })).toBe(false);
+    expect(barCsvExport({})).toBe(false);
   });
 });

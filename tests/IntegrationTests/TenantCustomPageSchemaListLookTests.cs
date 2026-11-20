@@ -87,4 +87,19 @@ public sealed class TenantCustomPageSchemaListLookTests
         Rejected(V2(Table(new { query = "q1", showPivot = "hayır" })), "'showPivot' true veya false olmalıdır.");
         Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", showExport = false } }), "'showExport' özelliği bu bileşen türünde kullanılamaz.");
     }
+
+    [Fact]
+    public void Export_flags_are_booleans_on_their_own_component_types()
+    {
+        Accepted(V2(Table(new { query = "q1", showCsv = false, showSelectedExport = false })));
+        Accepted(V2(Table(new { query = "q1", showCsv = true, showSelectedExport = true }),
+            new { id = "bar", type = "actionBar", props = new { exportTable = "t1", exportCsv = false } }));
+        Rejected(V2(Table(new { query = "q1", showCsv = "evet" })), "'showCsv' true veya false olmalıdır.");
+        Rejected(V2(Table(new { query = "q1", showSelectedExport = 1 })), "'showSelectedExport' true veya false olmalıdır.");
+        Rejected(V2(Table(new { query = "q1" }), new { id = "bar", type = "actionBar", props = new { exportTable = "t1", exportCsv = "hayır" } }),
+            "'exportCsv' true veya false olmalıdır.");
+        Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", showCsv = false } }), "'showCsv' özelliği bu bileşen türünde kullanılamaz.");
+        Rejected(V2(new { id = "h1", type = "heading", props = new { text = "x", showSelectedExport = false } }), "'showSelectedExport' özelliği bu bileşen türünde kullanılamaz.");
+        Rejected(V2(Table(new { query = "q1", exportCsv = false })), "'exportCsv' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir.");
+    }
 }

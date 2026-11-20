@@ -27,7 +27,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefau
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields } from "./page-designer/RowActionsFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
-import { BAR_COMMAND_PROPS, barBound, barCommandProblem, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
+import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
@@ -161,7 +161,9 @@ const managedKeys = new Set(["text", "title", "label", "description", "value", "
   // İşlem Çubuğu Yeni / Aç / kayıttan sonra düğmeleri ve sayfa başlığı olan başlık.
   "newButton", "openButton", "afterSaveButton", "pageTitle", ...BAR_COMMAND_PROPS,
   // Izgara tablo araçları (yoksa açık; kapalıysa false yazılır).
-  "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot",
+  "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport",
+  // İşlem Çubuğu İşlemler › "CSV olarak dışa aktar" (Excel bağlıyken; kapalıysa false yazılır).
+  "exportCsv",
   // Süzgeç alanı: bağlı tablonun arama kutusu ve süzgeçleri.
   "search", "searchPlaceholder", "searchColumns", "searchParam", "filters"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
@@ -573,6 +575,8 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       if (cleanSequence(next, writeKinds)) touched = true;
       single("exportTable", (id) => { const table = anyById.get(id); return table?.type === "dataTable" && typeof table.props.query === "string" && table.props.query !== ""; });
       if ("printEnabled" in next && next.printEnabled !== true) { delete next.printEnabled; touched = true; }
+      // CSV yalnız Excel listesiyle anlamlıdır; yoksa açık olduğundan yalnız false saklanır.
+      if ("exportCsv" in next && (next.exportCsv !== false || !("exportTable" in next))) { delete next.exportCsv; touched = true; }
       if (!touched) return component;
       changed = true;
       return { ...component, props: next };
@@ -2398,7 +2402,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         new: barBound(props).new,
         open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
-      }} moreCount={idList(props.moreButtons, 10).length} />;
+      }} moreCount={idList(props.moreButtons, 10).length + (barCsvExport(props) ? 1 : 0)} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
         onSelect={setSelectedComponentId}
         spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
@@ -3505,6 +3509,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   {queryTables.map((table) => <option key={table.id} value={table.id}>{table.name || table.id}</option>)}
                 </select>
               </label>
+              {typeof selected.props.exportTable === "string" && selected.props.exportTable !== "" &&
+                <label className="pd-check"><input type="checkbox" checked={selected.props.exportCsv !== false} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { exportCsv: event.target.checked ? undefined : false })}/> CSV olarak dışa aktar (İşlemler)</label>}
               <div className="pd-field">İşlemler<span className="pd-action-key" aria-hidden="true">Alt+İ</span><small>Menüye taşınan düğmeler sayfada kendi yerinde çizilmez (en fazla 10; sıra değiştirilebilir).</small>
                 <InputPicker inputs={pageButtons} value={barMoreButtons} max={10} owned={rowActionOwners} takenLabel="Satır işlemi" disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { moreButtons: next.length > 0 ? next : undefined })}/>
                 {pageButtons.length === 0 && <small>Önce sayfaya bir eylem düğmesi ekleyin.</small>}

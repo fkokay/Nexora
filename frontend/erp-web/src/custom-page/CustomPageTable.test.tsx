@@ -109,7 +109,7 @@ describe('QueryTable ek durumlar', () => {
 
 const { api, downloadXlsx } = vi.hoisted(() => ({ api: vi.fn(), downloadXlsx: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
-vi.mock('../general-ledger/ledgerReportUtils', () => ({ downloadXlsx }));
+vi.mock('../general-ledger/ledgerReportUtils', () => ({ downloadXlsx, downloadCsv: vi.fn() }));
 
 const pagedOp = {
   name: 'stok.bakiye.sayfa', label: 'Depo bakiyeleri', module: 'Stok', kind: 'read', pageKind: 'read', method: 'GET', route: '/api/warehouses/balances/page',

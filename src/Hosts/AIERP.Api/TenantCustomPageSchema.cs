@@ -50,6 +50,8 @@ internal static class TenantCustomPageSchema
       "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
       // Gelişmiş tablo araçları (yoksa açık): arama, sütun süzgeçleri, sütun seçici, dışa aktarma, pivot.
       "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot",
+      // Legacy list export (yoksa açık): grid CSV button, "Excel (seçilenler)" bulk action; actionBar İşlemler › CSV.
+      "showCsv", "showSelectedExport", "exportCsv",
       // Legacy list header: record count next to the page title (actionBar), e.g. "{{liste.meta.totalCount}}".
       "titleCount",
       // Legacy detail panel: checkbox default by condition (e.g. "sayfa.genis == true") and the panel card's × (input to clear).
@@ -67,8 +69,8 @@ internal static class TenantCustomPageSchema
       "search", "searchPlaceholder", "searchColumns", "searchParam", "filters" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
-    private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot"];
-    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
+    private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
+    private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "exportCsv", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
       "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh" };
     private const string FormDialogTypeText = "'formDialog' yalnız İşlem Çubuğu'nda kullanılabilir.";
@@ -780,6 +782,9 @@ internal static class TenantCustomPageSchema
         }
         if (props.TryGetProperty("printEnabled", out var print) && print.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'printEnabled' true veya false olmalıdır."; return false; }
+        // İşlemler › "CSV olarak dışa aktar": exportTable listesinin CSV'si (yoksa açık; false kapatır).
+        if (props.TryGetProperty("exportCsv", out var csv) && csv.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        { error = "'exportCsv' true veya false olmalıdır."; return false; }
         return ValidateBarCommands(props, context, out error) && ValidateSaveQueries(props, context, out error);
     }
 
@@ -1414,6 +1419,7 @@ internal static class TenantCustomPageSchema
         ["closeInput"] = ["card"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
         ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
+        ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
         ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"]
     };
     private const int MaxColumnMaps = 20;

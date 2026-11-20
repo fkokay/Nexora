@@ -114,12 +114,16 @@ export type PageActionDeps = {
     refresh(): void;
     focus(inputId: string): void;
     print(): void;
-    exportTable(tableId: string): void;
+    /** Görünen satırları indirir: Excel (varsayılan) ya da İşlemler › CSV. */
+    exportTable(tableId: string, format?: "xlsx" | "csv"): void;
     button(id: string): void;
   };
 };
 
 const unbound = { disabledReason: UNBOUND };
+/** Eski listelerin İşlemler öğesi (commands/gridCommands `csvExportCommand`). */
+export const CSV_EXPORT_COMMAND_ID = "export-csv";
+export const CSV_EXPORT_LABEL = "CSV olarak dışa aktar";
 
 /** `props` `actionBar` özellikleridir; her standart komut bağlıysa etkin, değilse nedenli soluktur. */
 export function buildPageCommands(props: Record<string, unknown>, deps: PageActionDeps): PageCommands {
@@ -186,6 +190,15 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     if (gate?.disabled) return [{ id, label, disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE }];
     return [{ id, label, run: () => deps.run.button(id) }];
   });
+  // Eski listeler gibi: Excel çubuğun komutu, CSV'si İşlemler menüsünde (`exportCsv: false` kapatır).
+  const exportCommand = !exportState ? unbound
+    : exportState.loading ? { disabledReason: TABLE_LOADING }
+    : exportState.error ? { disabledReason: exportState.error }
+    : { run: () => deps.run.exportTable(exportId) };
+  if (exportState && props.exportCsv !== false) {
+    const csv = "run" in exportCommand ? { run: () => deps.run.exportTable(exportId, "csv") } : { disabledReason: exportCommand.disabledReason };
+    more.push({ id: CSV_EXPORT_COMMAND_ID, label: CSV_EXPORT_LABEL, ...csv });
+  }
 
   return {
     new: newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound },
@@ -199,10 +212,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     refresh: { run: () => deps.run.refresh() },
     filter: focusId && (deps.inputIds.has(focusId) || deps.searchBarIds?.has(focusId)) ? { run: () => deps.run.focus(focusId) } : unbound,
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,
-    export: !exportState ? unbound
-      : exportState.loading ? { disabledReason: TABLE_LOADING }
-      : exportState.error ? { disabledReason: exportState.error }
-      : { run: () => deps.run.exportTable(exportId) },
+    export: exportCommand,
     ...(more.length > 0 ? { more } : {}),
   };
 }
