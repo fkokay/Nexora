@@ -6,12 +6,13 @@ import {
   RotateCcw, Rows3, Save, SquarePen, ListPlus, Send, Settings2, SlidersHorizontal, Smartphone, Shapes, SquareStack, Table2, Tablet, Tag, TextCursorInput, Trash2, Type, Undo2, X, type LucideIcon,
   Search,
   Plus,
+  ListOrdered, BadgeInfo,
 } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
 import CustomFormsPage from "./CustomFormsPage";
 import CustomPageAccessPanel from "./CustomPageAccessPanel";
 import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
-import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetGroupPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup, FilterBarPreview } from "./page-designer/CanvasPreviews";
+import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetGroupPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup, FilterBarPreview, RecordHeaderPreview, StepsPreview } from "./page-designer/CanvasPreviews";
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
@@ -24,9 +25,11 @@ import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
 import { MAX_JAVASCRIPT_LENGTH, type StubHostData } from "./page-designer/codeBridgeStub";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
 import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
-import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
+import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, headerButtonIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
-import { RowActionsFields } from "./page-designer/RowActionsFields";
+import { RowActionsFields, rowActionOwners as buttonOwnersOf } from "./page-designer/RowActionsFields";
+import { MAX_HEADER_BUTTONS, ROW_OPEN_ACTION_TYPES, activeStepIndex, assignmentsProblem, parseHeaderFields, prunedAssignments, recordHeaderProblem, stepsProblem } from "./page-designer/wizardParts";
+import { AssignmentsFields, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
@@ -77,7 +80,7 @@ type WorkflowOption = { id: string; code: string; name: string; status: string }
 type ReportSource = { code: string; label: string; columns: { code: string; label: string; dataType: string }[]; aggregates: { code: string; label: string }[] };
 type PreviewData = { totalCount: number; rows: Record<string, unknown>[] };
 type Capability = { canRead: boolean; canCreate: boolean; canUpdate: boolean; canPublish: boolean; canDelete: boolean };
-type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar" | "tabs" | "editableGrid" | "customFieldsBlock" | "dialog" | "image" | "filterBar";
+type ComponentType = "heading" | "text" | "label" | "input" | "metric" | "card" | "section" | "divider" | "spacer" | "button" | "dataTable" | "form" | "code" | "alert" | "badge" | "list" | "progress" | "formCard" | "contextPanel" | "filterChips" | "facetPanel" | "actionBar" | "tabs" | "editableGrid" | "customFieldsBlock" | "dialog" | "image" | "filterBar" | "steps" | "recordHeader";
 type PropValue = string | number | boolean | string[];
 type PageComponent = { id: string; type: ComponentType; name?: string; props: Record<string, PropValue>; children?: unknown };
 /** Kart / bölümün `children` dizisindeki bileşenler (tuval önizlemesi için; geçersiz öğeler atlanır). */
@@ -99,6 +102,8 @@ const palette: PaletteItem[] = [
   { type: "facetPanel", label: "Yan filtre paneli", group: "Tasarım dili", icon: SlidersHorizontal, sample: { title: "Filtreler", inputs: [] } },
   { type: "tabs", label: "Sekmeler", group: "Tasarım dili", icon: PanelsTopLeft, sample: { tabs: ["Genel=", "Ayrıntı="], defaultTab: 0 } },
   { type: "dialog", label: "Pencere", group: "Tasarım dili", icon: AppWindow, sample: { title: "Pencere", contains: [], presentation: "dialog" } },
+  { type: "steps", label: "Adımlar", group: "Tasarım dili", icon: ListOrdered, sample: { steps: ["Seç", "Ayrıntı"], activeWhen: ["", ""] } },
+  { type: "recordHeader", label: "Kayıt özeti", group: "Tasarım dili", icon: BadgeInfo, sample: { title: "Kayıt özeti", fields: [] } },
   { type: "heading", label: "Başlık", group: "Metin ve düzen", icon: Heading1, sample: { text: "Sayfa başlığı" } },
   { type: "text", label: "Açıklama", group: "Metin ve düzen", icon: AlignLeft, sample: { text: "Kısa bir açıklama yazın." } },
   { type: "label", label: "Etiket", group: "Metin ve düzen", icon: Type, sample: { text: "Etiket metni" } },
@@ -153,6 +158,8 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   dialog: [{ key: "title", label: "Başlık", kind: "text" }],
   image: [{ key: "title", label: "Alternatif metin", kind: "text" }],
   filterBar: [],
+  steps: [],
+  recordHeader: [{ key: "title", label: "Başlık", kind: "text" }, { key: "subtitle", label: "Alt başlık", kind: "text" }],
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
@@ -175,11 +182,13 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // Süzgeç alanı: bağlı tablonun arama kutusu ve süzgeçleri.
   "search", "searchPlaceholder", "searchColumns", "searchParam", "filters",
   // Aranabilir açılır liste ve ilk seçenek varsayılanı.
-  "searchable", "defaultFirst"]);
+  "searchable", "defaultFirst",
+  // Seçim → ayrıntı ekranları: alana değer ata, satır açılınca, Adımlar ve Kayıt özeti.
+  "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey"]);
+  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle"]);
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
@@ -203,7 +212,7 @@ const parseStaticOptions = (value: unknown) => (Array.isArray(value) ? value : [
   .map((entry) => ({ value: entry.slice(0, entry.indexOf("=")), label: entry.slice(entry.indexOf("=") + 1) }));
 const MAX_REFRESH_QUERIES = 10;
 const buttonActionTypes: [string, string][] = [["workflow", "İş akışı"], ["query", "Sorgu"], ["sequence", "Kayıt dizisi"], ["openDialog", "Pencere aç"],
-  ["link", "Bağlantıya git"], ["erpPage", "ERP ekranı aç"], ["page", "Sayfa aç"]];
+  ["link", "Bağlantıya git"], ["erpPage", "ERP ekranı aç"], ["page", "Sayfa aç"], ["setInput", "Alana değer ata"]];
 const bindingNote = "Değerler SQL'e her zaman parametre olarak gider.";
 const variantOptions = [{ value: "info", label: "Bilgi" }, { value: "success", label: "Olumlu" }, { value: "warning", label: "Dikkat" }, { value: "danger", label: "Hata" }];
 const numericKeys = ["width", "margin", "padding", "borderRadius"];
@@ -293,6 +302,7 @@ const MAIN_TAB_LABEL: Partial<Record<string, string>> = {
   button: "Eylem", form: "Form", code: "Kod", formCard: "Form kartı", filterChips: "Filtre çipleri", facetPanel: "Yan filtre paneli",
   actionBar: "Komutlar", contextPanel: "Bağlam paneli", heading: "Sayfa başlığı", tabs: "Sekmeler", editableGrid: "Tablo",
   customFieldsBlock: "Özel alanlar", dialog: "Pencere", image: "Görsel", input: "Doğrulama", metric: "Veri", filterBar: "Alanlar",
+  steps: "Adımlar", recordHeader: "Kayıt özeti",
 };
 const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
   ...(hasContent ? [{ key: "content", label: "İçerik" }] : []),
@@ -304,7 +314,7 @@ const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
 const tabOfSection = (key: string) => key === "content" ? "content" : key.startsWith("conditions") ? "cond" : key === "style" ? "view" : "main";
 const GRID_SETTINGS_TABS: SettingsTab[] = [{ key: "data", label: "Veri" }, { key: "columns", label: "Sütunlar" }, { key: "rows", label: "Satır eylemleri" }, { key: "view", label: "Görünüm" }];
 /** Satır işlemi olabilen düğme eylem türleri. */
-const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES];
+const ROW_ACTION_TYPES = ["query", "sequence", "openDialog", "setInput", ...NAVIGATION_ACTION_TYPES];
 /**
  * Kayıt dizisi özelliklerini yerinde temizler (İşlem Çubuğu, Pencere, dizi düğmesi): adımlar var olan tekil yazma sorguları
  * (en çok 8), koşullar yalnız dizideki adımlar için; dizi yoksa `stopOnError` ve `sequenceWhen` kalkar, dizi varsa `saveQuery`
@@ -339,7 +349,7 @@ function cleanDisabledProps(component: PageComponent): PageComponent {
   return { ...component, props };
 }
 /** Düğmenin eylem türüne bağlı özellikleri (Faz B ve gezinme). Değişmezse aynı nesne. */
-function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writeKinds: Map<string, PageQuery["kind"]>): PageComponent {
+function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writeKinds: Map<string, PageQuery["kind"]>, inputIds?: ReadonlySet<string>): PageComponent {
   if (component.type !== "button") return component;
   const next = { ...component.props };
   let touched = false;
@@ -356,6 +366,13 @@ function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writ
   for (const [type, keys] of Object.entries(NAVIGATION_PROPS)) if (next.actionType !== type) drop(...keys);
   if (navigation) drop("queryId", "refreshQueries", "successMessage", "errorMessage"); else drop("target");
   if (!(typeof next.promptLabel === "string" && next.promptLabel !== "")) drop("promptRequired");
+  // Alana değer ata: atamalar yalnız bu eylemde; sunucuya yazmadığından sorgu ve yenileme alamaz. Silinen girişe atama kalkar.
+  if (next.actionType !== "setInput") drop("assignments");
+  else {
+    drop("queryId", "refreshQueries");
+    const pruned = inputIds && "assignments" in next ? prunedAssignments(next.assignments, inputIds) : null;
+    if (pruned) { next.assignments = pruned; touched = true; }
+  }
   return touched ? { ...component, props: next } : component;
 }
 function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptions = {}): PageDefinition {
@@ -414,8 +431,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   const dialogIds = new Set(source.filter((component) => component.type === "dialog").map((component) => component.id));
   // Düğmeler (Faz B): eylem türüne bağlı özellikler. Pencere silinince pencere açan düğmenin eylemi de kalkar; kayıt dizisi
   // yalnız "sequence" düğmesinde, gerekçe yalnız sorgu/dizi düğmesinde, `promptRequired` yalnız `promptLabel` ile geçerlidir.
+  const allInputIds = new Set(cardTree.flattenComponents(source).filter((component) => component.type === "input").map((component) => component.id));
   const buttoned = source.map((component) => {
-    const next = cleanButtonProps(component, dialogIds, writeKinds);
+    const next = cleanButtonProps(component, dialogIds, writeKinds, allInputIds);
     if (next !== component) changed = true;
     return next;
   });
@@ -460,7 +478,32 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       return true;
     }));
   }
+  // Satır açılınca düğmesi: aynı listenin satır işlemi olabilir; başka sahibi olamaz. Sorgusuz listede kalkar.
+  const rowOpenResult = new Map<string, boolean>();
+  for (const component of buttoned) {
+    if (component.type !== "dataTable" || !("rowOpenAction" in component.props)) continue;
+    const id = typeof component.props.rowOpenAction === "string" ? component.props.rowOpenAction : "";
+    const target = byId.get(id);
+    const queryBound = typeof component.props.query === "string" && component.props.query !== "";
+    const ok = queryBound && !!target && target.type === "button" && ROW_OPEN_ACTION_TYPES.includes(String(target.props.actionType ?? ""))
+      && (!claimed.has(id) || (rowActionResult.get(component.id) ?? []).includes(id));
+    if (ok) claimed.add(id);
+    rowOpenResult.set(component.id, ok);
+  }
+  // Kayıt özetinin düğmeleri (en çok 3): satır işlemi olabilen eylemli düğmeler, tek sahipli.
+  const headerResult = new Map<string, string[]>();
+  for (const component of buttoned) {
+    if (component.type !== "recordHeader" || !("buttons" in component.props)) continue;
+    headerResult.set(component.id, idList(component.props.buttons, MAX_HEADER_BUTTONS).filter((id) => {
+      const target = byId.get(id);
+      if (!target || target.type !== "button" || !ROW_ACTION_TYPES.includes(String(target.props.actionType ?? "")) || claimed.has(id)) return false;
+      claimed.add(id);
+      return true;
+    }));
+  }
   const rowActionOwned = new Set([...rowActionResult.values()].flat());
+  for (const component of buttoned) if (component.type === "dataTable" && rowOpenResult.get(component.id)) rowActionOwned.add(String(component.props.rowOpenAction));
+  for (const ids of headerResult.values()) for (const id of ids) rowActionOwned.add(id);
   const owned = new Set<string>();
   let barSeen = false;
   let components = buttoned.map((component): PageComponent | null => {
@@ -520,7 +563,16 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
         if (!sameList(props.rowActions, wanted)) { if (wanted.length > 0) next.rowActions = wanted; else delete next.rowActions; touched = true; }
       }
       if ("limit" in next && (!(typeof next.query === "string" && next.query !== "") || next.paging === "server")) { delete next.limit; touched = true; }
+      if ("rowOpenAction" in next && rowOpenResult.get(component.id) === false) { delete next.rowOpenAction; touched = true; }
       if (!touched) return component;
+      changed = true;
+      return { ...component, props: next };
+    }
+    if (component.type === "recordHeader" && "buttons" in props) {
+      const wanted = headerResult.get(component.id) ?? [];
+      if (sameList(props.buttons, wanted)) return component;
+      const next = { ...props };
+      if (wanted.length > 0) next.buttons = wanted; else delete next.buttons;
       changed = true;
       return { ...component, props: next };
     }
@@ -621,7 +673,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   // Kartın içindeki bileşenler: eylem türüne ve koşula bağlı özellikler üst düzeydekiyle aynı kuralla temizlenir.
   components = components.map((component) => {
     if (!cardTree.isCardType(component.type) || !Array.isArray(component.children)) return component;
-    const children = cardTree.mapComponents(component.children as PageComponent[], (child) => cleanButtonProps(cleanDisabledProps(child), dialogIds, writeKinds));
+    const children = cardTree.mapComponents(component.children as PageComponent[], (child) => cleanButtonProps(cleanDisabledProps(child), dialogIds, writeKinds, allInputIds));
     if (children === component.children) return component;
     changed = true;
     return { ...component, children };
@@ -691,6 +743,8 @@ function reconcileDefinition(definition: PageDefinition, options: ReconcileOptio
   const components = cardTree.pruneCardTabs(reconciled.components);
   return components === reconciled.components ? reconciled : { ...reconciled, components };
 }
+/** Yalnız denemeler için: standart tanımların tasarımcıda kayıpsız açılıp kaydedildiğini doğrulamak. */
+export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL };
 /** Kart tasarım ekranında kartın çocuğunu sürüklerken taşınan kimlik. */
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -729,15 +783,16 @@ const identifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const columnPath = /^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 const titleFor = (type: ComponentType) => palette.find((item) => item.type === type)?.label ?? type;
 const iconFor = (type: ComponentType) => palette.find((item) => item.type === type)?.icon ?? LayoutTemplate;
-const defaultSpan = (type: ComponentType) => type === "metric" || type === "image" ? 3 : type === "editableGrid" || type === "customFieldsBlock" || type === "dialog" || type === "formCard" || type === "filterChips" || type === "filterBar" || type === "actionBar" || type === "tabs" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
+const defaultSpan = (type: ComponentType) => type === "metric" || type === "image" ? 3 : type === "editableGrid" || type === "customFieldsBlock" || type === "dialog" || type === "formCard" || type === "filterChips" || type === "filterBar" || type === "actionBar" || type === "tabs" || type === "steps" || type === "recordHeader" ? 12 : type === "contextPanel" ? 4 : type === "facetPanel" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" ? 12 : 6;
 // ERP tasarım dili varsayılanları (kart iç boşluğu 12px, köşe 8px); ERP gösterimi aynı değerleri kullanır.
 const DEFAULT_RADIUS = 8;
-const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel", "tabs", "editableGrid", "customFieldsBlock", "dialog"].includes(type) ? 12 : 0;
+const defaultPadding = (type: ComponentType) => ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "contextPanel", "facetPanel", "tabs", "editableGrid", "customFieldsBlock", "dialog", "recordHeader"].includes(type) ? 12 : 0;
 const spanOf = (component: PageComponent) => Math.max(1, Math.min(12, Number(component.props.width) || defaultSpan(component.type)));
 // Mirrors erp-web's tenant-custom-page.css: tablets show every block at half width, phones stack them.
 const deviceSpan = (span: number, device: Device) => device === "mobile" ? 12 : device === "tablet" ? 6 : span;
 const summaryOf = (component: PageComponent) => {
   const value = component.props.title ?? component.props.text ?? component.props.label;
+  if (component.type === "recordHeader" && typeof value === "string" && value.includes("{{")) return component.name || titleFor(component.type);
   return typeof value === "string" && value.trim() ? value : titleFor(component.type);
 };
 /** Kartın kırıntıdaki adı: bağlamalı başlık ({{…}}) yerine bileşen adı ya da tür adı. */
@@ -770,8 +825,10 @@ const definitionHasQueries = (definitionJson: string | undefined) => {
   } catch { return false; }
 };
 /** Faz B bileşenlerinin zorunlu başvuruları (sunucu da reddeder; metinler sunucudakiyle aynı). Sorun yoksa null. */
-const fazBProblem = (component: PageComponent, label: string): string | null => {
+const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
+  if (component.type === "dataTable" && typeof props.rowOpenAction === "string" && props.rowOpenAction !== "" && !component.name) return `Satır açma eylemi için veri listesinin adı olmalıdır: ${component.id}`;
+  if (component.type === "recordHeader") { const problem = recordHeaderProblem(props, label); if (problem) return problem; }
   if ((component.type === "editableGrid" || component.type === "customFieldsBlock") && !component.name)
     return component.type === "editableGrid" ? `Düzenlenebilir tablonun adı olmalıdır: ${component.id}` : `Özel alanlar bloğunun adı olmalıdır: ${component.id}`;
   if (component.type === "dialog" && idList(props.contains, MAX_DIALOG_IDS).length === 0) return `${label} için pencerede gösterilecek en az bir bileşen seçin.`;
@@ -783,6 +840,7 @@ const fazBProblem = (component: PageComponent, label: string): string | null => 
     if (props.actionType === "link") { const problem = linkProblem(props.href); if (problem) return problem; }
     if (props.actionType === "erpPage" && !(typeof props.pageKey === "string" && props.pageKey !== "")) return "ERP ekranı düğmesi için 'pageKey' gerekli.";
     if (props.actionType === "page" && !(typeof props.pageCode === "string" && props.pageCode !== "")) return "Sayfa düğmesi için 'pageCode' gerekli.";
+    if (props.actionType === "setInput") { const problem = assignmentsProblem(props.assignments, inputIds); if (problem) return problem; }
     if (typeof props.promptLabel === "string" && props.promptLabel !== "" && !component.name) return `Gerekçe soran düğmenin adı olmalıdır: ${component.id}`;
   }
   return null;
@@ -1835,7 +1893,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const copyBase = requiredNameBase(duplicate.type);
     if (copyBase) { const copyName = freeName(copyBase); if (!copyName) return; duplicate.name = copyName; }
     // Satır işlemleri ve pencere içeriği tek sahiplidir; kopya bunları sahiplenmez.
-    if (duplicate.type === "dataTable") delete duplicate.props.rowActions;
+    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; }
+    if (duplicate.type === "recordHeader") delete duplicate.props.buttons;
     if (duplicate.type === "dialog") duplicate.props.contains = [];
     // Sayfalama sorgunun parametrelerini tablonun adıyla bağlar ve arama girişini sahiplenir; adsız kopya sayfasız başlar.
     if (duplicate.type === "dataTable") duplicate.props = stripPagingProps(duplicate.props);
@@ -1952,6 +2011,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
     // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
+    const pageInputIds = new Set(cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => component.id));
     for (const component of definition.components) {
       const label = `“${summaryOf(component)}”`;
       const empty = component.type === "formCard" || component.type === "filterChips" || component.type === "facetPanel" ? idList(component.props.inputs).length === 0 ? `${label} için en az bir giriş kutusu seçin.` : null
@@ -1961,10 +2021,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             return !!table && table.type === "dataTable" && typeof table.props.query === "string" && table.props.query !== "";
           })())
           : component.type === "tabs" ? parseTabs(component.props.tabs).length === 0 ? `${label} için en az bir sekme ekleyin.` : null
+          : component.type === "steps" ? stepsProblem(component.props, label, pageNamesOf(definition))
             : component.type === "input" && component.props.inputType === "lookup" ? !component.props.optionsQuery && parseStaticOptions(component.props.staticOptions).length === 0 ? "Arama kutusu için seçenek sorgusu veya sabit seçenek gerekli."
               : Array.isArray(component.props.staticOptions) && component.props.staticOptions.some((entry) => typeof entry !== "string" || !STATIC_OPTION.test(entry)) ? "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır." : null
-              : component.type === "dataTable" ? pagedTableProblem(component, definition.queries.find((query) => query.id === component.props.query)) ?? fazBProblem(component, label)
-                : fazBProblem(component, label);
+              : component.type === "dataTable" ? pagedTableProblem(component, definition.queries.find((query) => query.id === component.props.query)) ?? fazBProblem(component, label, pageInputIds)
+                : fazBProblem(component, label, pageInputIds);
       // Koşul sözdizimi ve kök adları: sunucu da reddeder; burada aynı metinle ve bileşen seçilerek gösterilir.
       const condition = empty ?? conditionProblem("visibleWhen", component.props.visibleWhen, pageNamesOf(definition))
         ?? conditionProblem("disabledWhen", component.props.disabledWhen, pageNamesOf(definition))
@@ -2175,7 +2236,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kartın içindeki Sekmeler'in üyeleri de (üst düzeyde olsalar da) sayfada ayrıca çizilmez.
   const tabIds = useMemo(() => tabOwnedIds(cardTree.flatWithCardTabs(definition.components)), [definition]);
   // Pencerenin içerdiği bileşenler ve listelerin satır işlemi düğmeleri de üst düzeyde çizilmez (pencerede / İşlemler sütununda görünür).
-  const nestedIds = useMemo(() => new Set([...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]), [definition]);
+  const nestedIds = useMemo(() => new Set([...dialogOwnedIds(definition.components), ...rowActionIds(definition.components), ...headerButtonIds(definition.components)]), [definition]);
   runQueryPreviewRef.current = runQueryPreview;
   // "Yeni sorgu / Düzenle" penceresi: sorgu eklenir/güncellenir; türü değişen sorgunun başvuruları sayfadaki kuralla kalkar.
   const upsertQuery = (state: PageDefinition, query: PageQuery): PageDefinition => {
@@ -2268,6 +2329,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   /** `inline`: tek satırlık süzgeç (FormCard `layout: "inline"`) içinde ERP görünümü: kapalı açılır kutu, düğme gibi onay kutusu. */
   const renderInput = (component: PageComponent, style: CSSProperties, inline = false) => {
     const props = component.props;
+    if (props.hidden === true) {
+      const value = String(props.defaultValue ?? "");
+      return <div key={component.id} className="pd-binding-preview-input is-hidden" style={style}><span className="pd-hidden-input" title="Gizli giriş: ERP'de çizilmez, değerini tutar">
+        Gizli · {String(props.label || component.name || "Giriş")}{value && <code>{value}</code>}</span></div>;
+    }
     const inputType = String(props.inputType || "text");
     const optionsQuery = definition.queries.find((query) => query.id === props.optionsQuery);
     // Varsayılan değer ve ipucu {{…}} içerebilir: tuvalde örnek veriyle çözülür (çözülemezse ham metin kalır).
@@ -2319,7 +2385,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const byComponentId = new Map(definition.components.map((item) => [item.id, item]));
   const rowActionLabelsOf = (tableProps: Record<string, PropValue>) => idList(tableProps.rowActions, MAX_ROW_ACTIONS)
-    .map((id) => byComponentId.get(id)).filter((item): item is PageComponent => !!item).map((item) => String(item.props.label || item.name || "İşlem"));
+    .map((id) => byComponentId.get(id)).filter((item): item is PageComponent => !!item).map((item) => String(item.props.text || item.props.label || item.name || "İşlem"));
   // Sekmeler bileşeni sahiplendiği bileşenleri bu işlevle kendi içinde çizer (sekme bir sekme içermez; özyineleme bir düzeydir).
   const renderOne = (component: PageComponent): ReactNode => {
     const props = component.props;
@@ -2536,6 +2602,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const height = typeof props.height === "number" ? Math.max(40, Math.min(400, props.height)) : 160;
         return <ImagePreview key={component.id} style={style} title={shown(props.title, "")} value={String(props.value || "")} height={height} />;
       }
+      case "steps": {
+        const labels = (Array.isArray(props.steps) ? props.steps : []).map((item) => String(item));
+        // Etkin adım örnek veriyle hesaplanır: koşulu tutan son adım (hiçbiri tutmuyorsa ilk adım).
+        return <StepsPreview key={component.id} style={style} labels={labels} active={activeStepIndex(props.activeWhen, (condition) => conditionHolds(condition, view, false))}/>;
+      }
+      case "recordHeader": {
+        const fields = parseHeaderFields(props).map((field) => {
+          const raw = interpolate(field.template, view);
+          const text = field.format ? formatCell(raw, field.format) : raw.trim() === "" ? "—" : raw;
+          const unit = field.unit ? interpolate(field.unit, view).trim() : "";
+          return { label: field.label, text: text !== "—" && unit ? `${text} ${unit}` : text };
+        });
+        const buttons = idList(props.buttons, MAX_HEADER_BUTTONS).map((id) => byComponentId.get(id)).filter((item): item is PageComponent => !!item && item.type === "button").map((item) => renderOne(item));
+        return <RecordHeaderPreview key={component.id} style={style} icon={props.icon} title={shown(props.title, "Kayıt özeti")} subtitle={shown(props.subtitle, "")} fields={fields} buttons={buttons}/>;
+      }
       default: return <article key={component.id} className="custom-page-preview-card" style={style}><b>{String((component as PageComponent).type)}</b></article>;
     }
   };
@@ -2544,7 +2625,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kartların içindeki Sekmeler de sahip sayılır: sekmelerdeki bileşenler üst düzeyde ayrıca çizilmez.
   const cardInner = definition.components.flatMap((component) => component.type === "card" || component.type === "section" ? childComponentsOf(component) : []);
   const tabOwned = new Set([...tabOwnedIds(definition.components), ...tabOwnedIds(cardInner as typeof definition.components)]);
-  const nested = new Set([...tabOwned, ...dialogOwnedIds(definition.components), ...rowActionIds(definition.components)]);
+  const nested = new Set([...tabOwned, ...dialogOwnedIds(definition.components), ...rowActionIds(definition.components), ...headerButtonIds(definition.components)]);
   // Sayfadaki Sekmeler bileşeninin kabı (TabsCanvas) seçim ve sürükleme durumuna bağlı olduğundan bu önbelleğin dışında
   // çizilir; içindeki bileşenlerin önizlemesi burada bir kez hazırlanır. Pencerenin içindeki Sekmeler durağan önizlemedir.
   const tabChildren = new Map<string, ReactNode>();
@@ -2915,7 +2996,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   })();
   suggestionsRef.current = bindingSuggestions;
   const readQueries = definition.queries.filter((query) => !isWriteKind(query.kind));
-  const buttonAction = selected?.type === "button" && ["query", "sequence", "openDialog", ...NAVIGATION_ACTION_TYPES].includes(String(selected.props.actionType)) ? String(selected.props.actionType) : "workflow";
+  const buttonAction = selected?.type === "button" && ["query", "sequence", "openDialog", "setInput", ...NAVIGATION_ACTION_TYPES].includes(String(selected.props.actionType)) ? String(selected.props.actionType) : "workflow";
   const writeQueries = definition.queries.filter((query) => isWriteKind(query.kind));
   const pageDialogs = definition.components.filter((component) => component.type === "dialog");
   const actionQuery = selected && typeof selected.props.queryId === "string" ? definition.queries.find((query) => query.id === selected.props.queryId) : undefined;
@@ -2971,6 +3052,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   if (selected?.type === "actionBar") for (const component of definition.components) {
     if (component.type !== "dataTable") continue;
     for (const id of idList(component.props.rowActions, MAX_ROW_ACTIONS)) rowActionOwners[id] = `${summaryOf(component)} · satır işlemi`;
+    if (typeof component.props.rowOpenAction === "string" && component.props.rowOpenAction) rowActionOwners[component.props.rowOpenAction] = `${summaryOf(component)} · satır açma`;
+  }
+  if (selected?.type === "actionBar") for (const component of definition.components) {
+    if (component.type !== "recordHeader") continue;
+    for (const id of idList(component.props.buttons, MAX_HEADER_BUTTONS)) rowActionOwners[id] = `${summaryOf(component)} · özet düğmesi`;
   }
   // İşlem Çubuğunun kaydetme yolu: dizi doluysa "Kaydet dizisi"; boş dizi seçimi bileşen kimliğiyle birlikte hatırlanır.
   const barSaveMode: "query" | "sequence" = selected?.type !== "actionBar" ? "query"
@@ -3434,6 +3520,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selected.type === "list" && <label className="pd-field">Liste öğeleri<small>Her satıra bir madde yazın.</small><textarea rows={5} value={Array.isArray(selected.props.items) ? selected.props.items.join("\n") : ""} onChange={(event) => updateComponent(selected.id, "items", event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}/></label>}
             </>))}
             {selected.type === "input" && section("input", "Giriş", <>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.hidden === true} onChange={(event) => patchComponent(selected.id, { hidden: event.target.checked ? true : undefined })}/>Gizli (değer tutar)</label>
+              {selected.props.hidden === true && <small>ERP'de çizilmez ve doğrulanmaz; değeri (varsayılan değer ve sayfa parametresi dahil) {"{{ad.value}}"} ile kullanılır. “Alana değer ata” düğmesiyle değiştirilir.</small>}
               {selected.props.inputType === "select" && <>
                 <label className="pd-field">Seçenek sorgusu<select value={String(selected.props.optionsQuery || "")} onChange={(event) => patchComponent(selected.id, { optionsQuery: event.target.value || undefined, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}><option value="">Sorgu seçin</option>{readQueries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}</select>{readQueries.length === 0 && <small>Önce Sorgular sekmesinde bir okuma sorgusu ekleyin.</small>}</label>
                 <QueryFieldActions kinds={READ_KINDS} target="Açılır liste" value={typeof selected.props.optionsQuery === "string" ? selected.props.optionsQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ optionsQuery: query.id, optionLabelColumn: undefined, optionValueColumn: undefined, optionDescriptionColumn: undefined })}/>
@@ -3516,6 +3604,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "dataTable" && pane("rows", section("rowButtons", "Satır eylemleri", <div className="pd-rowact-list">
               <OpenRowField table={selected} components={definition.components} labelOf={(component) => String(component.props.label || component.name || summaryOf(component as PageComponent))} disabled={!canEdit}
                 onPatchBar={(barId, patch) => patchComponent(barId, patch)}/>
+              {selectedQueryRef && <RowOpenActionField table={selected} components={definition.components} disabled={!canEdit}
+                labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))}
+                onPatch={(patch) => patchComponent(selected.id, patch)}/>}
               {selectedQueryRef ? <RowActionsFields table={selected} components={definition.components} parts={["actions"]}
                 labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
                 onPatch={(patch) => patchComponent(selected.id, patch)} onAddButton={() => addRowButton(selected.id)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
@@ -3533,6 +3624,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   onClick={() => { if (buttonAction !== value) patchComponent(selected.id, { actionType: value }); }}>{label}</button>)}
               </div></div>
               {buttonAction === "workflow" && <label className="pd-field">İş akışı<select value={String(selected.props.workflowId || "")} onChange={(event) => updateComponent(selected.id, "workflowId", event.target.value)}><option value="">Yayımlanmış akış seçin</option>{workflows.map((workflow) => <option key={workflow.id} value={workflow.id}>{workflow.name} · {workflow.code}</option>)}</select>{workflows.length === 0 && <small>Önce İş akışları bölümünde bir akış oluşturup yayımlayın.</small>}</label>}
+              {buttonAction === "setInput" && <AssignmentsFields value={selected.props.assignments} suggestions={bindingSuggestions} disabled={!canEdit}
+                inputs={cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => ({
+                  id: component.id, label: `${String(component.props.label || component.name || component.id)}${component.props.hidden === true ? " (gizli)" : ""}` }))}
+                onChange={(next) => patchComponent(selected.id, { assignments: next })}/>}
               {buttonAction === "openDialog" && <label className="pd-field">Açılacak pencere<select value={typeof selected.props.dialogId === "string" ? selected.props.dialogId : ""} onChange={(event) => patchComponent(selected.id, { dialogId: event.target.value || undefined })}>
                 <option value="">Pencere seçin</option>{pageDialogs.map((dialog) => <option key={dialog.id} value={dialog.id}>{summaryOf(dialog)}{dialog.name ? ` (${dialog.name})` : ""}</option>)}</select>
                 {pageDialogs.length === 0 ? <small>Önce sayfaya bir Pencere bileşeni ekleyin.</small> : !selected.props.dialogId && <small className="pd-query-warning">Pencere açan düğme için 'dialogId' gerekli.</small>}</label>}
@@ -3570,6 +3665,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <p className="pd-binding-note">{bindingNote}</p>
               </>}
             </>)}
+            {selected.type === "steps" && section("steps", "Adımlar", <StepsFields props={selected.props} pageNames={pageNamesOf(definition)} disabled={!canEdit}
+              onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
+            {selected.type === "recordHeader" && section("recordHeader", "Kayıt özeti", <RecordHeaderFields props={selected.props} suggestions={bindingSuggestions} disabled={!canEdit}
+              buttons={pageButtons.filter((button) => ROW_ACTION_TYPES.includes(String(definition.components.find((component) => component.id === button.id)?.props.actionType ?? "")))}
+              owners={buttonOwnersOf(definition.components, selected.id, (component) => summaryOf(component as PageComponent))}
+              onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>)}
             {selected.type === "form" && section("form", "Form", <>
               <label className="pd-field">Yayımlanmış form<select value={String(selected.props.formCode || "")} onChange={(event) => updateComponent(selected.id, "formCode", event.target.value)}><option value="">Form seçin</option>{forms.map((form) => <option key={form.id} value={form.code}>{form.name} · {form.code}</option>)}</select></label>
               <button type="button" className="pd-button small" onClick={() => setFormEditorOpen(true)}><FilePlus2 size={13}/>Formu tanımla / düzenle</button>

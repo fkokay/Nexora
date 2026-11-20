@@ -86,6 +86,16 @@ export function rowActionIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+/** Kayıt özetlerinin düğmeleri (`recordHeader.buttons`, en fazla 3): özetin sağında çizilir, üst düzeyde ayrıca çizilmez. */
+export function headerButtonIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "recordHeader") continue;
+    for (const id of idList(component.props?.buttons, 3)) owned.add(id);
+  }
+  return owned;
+}
+
 /** "sütun=Etiket" girdileri; bozuk (ayraçsız veya boş kısımlı) girdiler atlanır. */
 export function parseFieldList(value: unknown): { code: string; label: string }[] {
   if (!Array.isArray(value)) return [];

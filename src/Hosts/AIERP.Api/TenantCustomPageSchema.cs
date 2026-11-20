@@ -19,7 +19,7 @@ internal static class TenantCustomPageSchema
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
-    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image", "filterBar" };
+    private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image", "filterBar", "steps", "recordHeader" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
     private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
@@ -71,7 +71,9 @@ internal static class TenantCustomPageSchema
       // A heading that replaces the page header title while it is visible (e.g. "Stok kartı {{kart.rows[0].code}}").
       "pageTitle",
       // Süzgeç alanı (filterBar): tabloya bağlı arama kutusu ve sütun süzgeçleri (`table` bağlam paneliyle ortaktır).
-      "search", "searchPlaceholder", "searchColumns", "searchParam", "filters" };
+      "search", "searchPlaceholder", "searchColumns", "searchParam", "filters",
+      // Adım adım sayfalar: değer atayan düğme (setInput), satır açma eylemi, adımlar (steps) ve kayıt özeti (recordHeader).
+      "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -120,11 +122,11 @@ internal static class TenantCustomPageSchema
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount" };
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
         ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200,
-        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength };
+        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength, ["subtitle"] = MaxHeaderTextLength };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -223,6 +225,12 @@ internal static class TenantCustomPageSchema
         public List<FilterBarInfo> PendingFilterBars { get; } = [];
         /// <summary>filterBar ids with a search box (valid actionBar <c>focusInput</c> targets besides inputs).</summary>
         public HashSet<string> SearchFilterBarIds { get; } = new(StringComparer.Ordinal);
+        /// <summary>setInput buttons' assignment targets (button id, input id); resolved against <see cref="InputIds"/>.</summary>
+        public List<(string ButtonId, string InputId)> PendingAssignments { get; } = [];
+        /// <summary>dataTable <c>rowOpenAction</c> buttons; resolved after the row actions (the same table may own both).</summary>
+        public List<(string TableId, string ButtonId)> PendingRowOpenActions { get; } = [];
+        /// <summary>recordHeader <c>buttons</c> lists; owned by the header like row actions.</summary>
+        public List<(string HeaderId, List<string> Ids)> PendingHeaderButtons { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
@@ -530,10 +538,14 @@ internal static class TenantCustomPageSchema
                 }
                 if (prop.Name == "hidden")
                 {
-                    if (typeText != "code" || prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                    { error = "'hidden' yalnızca kod bileşeninde ve doğru/yanlış değeriyle kullanılabilir."; return false; }
+                    // Gizli giriş (v2): çizilmez, değerini tutar (ör. adım adım sayfanın seçili kaydı).
+                    if (!(typeText == "code" || context.V2 && typeText == "input") || prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    { error = "'hidden' yalnızca kod ve giriş bileşeninde, doğru/yanlış değeriyle kullanılabilir."; return false; }
                     continue;
                 }
+                // Öğeleri {{yol}} şablonu taşıyan listeler; kendi doğrulayıcıları her şablonu SafeBindableText ile denetler.
+                if (context.V2 && (prop.Name is "assignments" or "fieldUnits" || prop.Name == "fields" && typeText == "recordHeader"))
+                    continue;
                 if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
                     && (prop.Value.ValueKind != JsonValueKind.String || prop.Value.GetString()!.Length > messageLimit))
                 { error = $"'{prop.Name}' en fazla {messageLimit} karakterlik metin olmalıdır."; return false; }
@@ -566,9 +578,9 @@ internal static class TenantCustomPageSchema
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
             if (props.TryGetProperty("actionType", out var actionType) && (typeText != "button" || actionType.ValueKind != JsonValueKind.String
-                || actionType.GetString() is not ("workflow" or "query" or "sequence" or "openDialog" or "link" or "erpPage" or "page") || actionType.GetString() != "workflow" && !context.V2))
+                || actionType.GetString() is not ("workflow" or "query" or "sequence" or "openDialog" or "link" or "erpPage" or "page" or "setInput") || actionType.GetString() != "workflow" && !context.V2))
             {
-                error = context.V2 ? "Düğme eylem türü iş akışı (workflow), sorgu (query), kayıt dizisi (sequence), pencere (openDialog), bağlantı (link), ERP ekranı (erpPage) veya sayfa (page) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
+                error = context.V2 ? "Düğme eylem türü iş akışı (workflow), sorgu (query), kayıt dizisi (sequence), pencere (openDialog), bağlantı (link), ERP ekranı (erpPage), sayfa (page) veya değer ata (setInput) olabilir." : "Düğme eylem türü yalnızca yayımlanmış iş akışı olabilir.";
                 return false;
             }
             if (props.TryGetProperty("workflowId", out var workflowId) && (typeText != "button" || workflowId.ValueKind != JsonValueKind.String || !string.IsNullOrEmpty(workflowId.GetString()) && !Guid.TryParse(workflowId.GetString(), out _)))
@@ -595,7 +607,7 @@ internal static class TenantCustomPageSchema
             if (typeText == "dataTable" && component.TryGetProperty("name", out _) && props.TryGetProperty("query", out var tableQuery) && tableQuery.ValueKind == JsonValueKind.String)
                 context.NamedQueryTables.Add(idText);
         }
-        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs" or "editableGrid" or "customFieldsBlock" or "dialog" or "filterBar")
+        else if (context.V2 && typeText is "formCard" or "contextPanel" or "filterChips" or "facetPanel" or "tabs" or "editableGrid" or "customFieldsBlock" or "dialog" or "filterBar" or "steps")
         { error = $"'{typeText}' bileşeni için props gerekli."; return false; }
         if (component.TryGetProperty("children", out var children))
         {
@@ -657,7 +669,7 @@ internal static class TenantCustomPageSchema
     private static bool ValidateDesignLanguageProps(JsonElement props, string typeText, Context context, out string? error)
     {
         error = null;
-        if (props.TryGetProperty("icon", out var icon) && typeText == "metric"
+        if (props.TryGetProperty("icon", out var icon) && typeText is "metric" or "recordHeader"
             && (icon.ValueKind != JsonValueKind.String || !MetricIcons.Contains(icon.GetString()!)))
         { error = "Gösterge 'icon' değeri tanımlı simgelerden biri olmalıdır (ör. box, users, wallet, warehouse, truck)."; return false; }
         // An alert's `icon`/`value` were never constrained, so saved pages keep validating: the ERP draws a status strip
@@ -710,7 +722,8 @@ internal static class TenantCustomPageSchema
         "inputs" => typeText is "formCard" or "filterChips" or "facetPanel",
         "columns" => true,
         "table" => typeText is "contextPanel" or "filterBar",
-        "fields" or "relatedQuery" or "relatedTitle" => typeText == "contextPanel",
+        "fields" => typeText is "contextPanel" or "recordHeader",
+        "relatedQuery" or "relatedTitle" => typeText == "contextPanel",
         "facetCounts" => typeText == "facetPanel",
         _ => true
     };
@@ -1516,7 +1529,9 @@ internal static class TenantCustomPageSchema
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
         ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
         ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
-        ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"]
+        ["search"] = ["filterBar"], ["searchPlaceholder"] = ["filterBar"], ["searchColumns"] = ["filterBar"], ["searchParam"] = ["filterBar"], ["filters"] = ["filterBar"],
+        ["assignments"] = ["button"], ["rowOpenAction"] = ["dataTable"], ["steps"] = ["steps"], ["activeWhen"] = ["steps"],
+        ["subtitle"] = ["recordHeader"], ["fieldFormats"] = ["recordHeader"], ["fieldUnits"] = ["recordHeader"], ["buttons"] = ["recordHeader"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1575,6 +1590,8 @@ internal static class TenantCustomPageSchema
             "dialog" => ValidateDialogProps(props, id, context, out error),
             "image" => ValidateImageProps(props, out error),
             "filterBar" => ValidateFilterBar(props, id, name, context, out error),
+            "steps" => ValidateStepsProps(props, context, out error),
+            "recordHeader" => ValidateRecordHeader(props, id, context, out error),
             "card" when props.TryGetProperty("closeInput", out var closeInput) && !(closeInput.ValueKind == JsonValueKind.String && closeInput.GetString()!.Length is >= 1 and <= 64) =>
                 Fail("'closeInput' paneli kapatan onay kutusu girişinin kimliği olmalıdır.", out error),
             "heading" when props.TryGetProperty("pageTitle", out var pageTitle) && !IsBool(pageTitle) =>
@@ -1665,6 +1682,126 @@ internal static class TenantCustomPageSchema
             context.PendingDialogRefs.Add(dialogId.GetString()!);
         }
         else if (hasDialog) return Fail("'dialogId' yalnız pencere açan (openDialog) düğmede kullanılabilir.", out error);
+        var hasAssignments = props.TryGetProperty("assignments", out var assignments);
+        if (actionType == "setInput")
+        {
+            foreach (var key in new[] { "queryId", "refreshQueries" })
+                if (props.TryGetProperty(key, out _)) return Fail($"'{key}' değer atayan (setInput) düğmede kullanılamaz; bu eylem veri yazmaz.", out error);
+            if (!hasAssignments || !TryReadAssignments(assignments, out var targets)) return Fail(AssignmentsFormat, out error);
+            foreach (var target in targets) context.PendingAssignments.Add((id, target));
+        }
+        else if (hasAssignments) return Fail("'assignments' yalnız değer atayan (setInput) düğmede kullanılabilir.", out error);
+        return true;
+    }
+
+    // ---- Adım adım sayfalar: setInput, rowOpenAction, steps, recordHeader ----
+
+    private const int MaxAssignments = 8;
+    private const int MaxAssignmentTemplateLength = 500;
+    private const int MaxSteps = 6;
+    private const int MaxStepLabelLength = 40;
+    private const int MaxHeaderFields = 6;
+    private const int MaxHeaderButtons = 3;
+    private const int MaxHeaderTextLength = 300;
+    private const int MaxHeaderLabelLength = 60;
+    private static readonly Regex AssignmentTarget = new(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private const string AssignmentsFormat = "'assignments' 1–8 adet girişKimliği=şablon öğesi içermelidir; şablon en fazla 500 karakterdir ve {{yol}} ifadeleri içerebilir (boş şablon girişi temizler).";
+
+    /// <summary>
+    /// setInput <c>assignments</c>: "girişKimliği=şablon" items. The template (may be empty: it clears the input) is interpolated
+    /// at runtime with the page scope, plus the row overlay for row actions; the input ids resolve after the component loop.
+    /// </summary>
+    private static bool TryReadAssignments(JsonElement value, out List<string> targets)
+    {
+        targets = [];
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() is < 1 or > MaxAssignments) return false;
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String) return false;
+            var text = item.GetString()!;
+            var at = text.IndexOf('=');
+            if (at <= 0 || !MatchesText(AssignmentTarget, text[..at])) return false;
+            var template = text[(at + 1)..];
+            if (template.Length > MaxAssignmentTemplateLength || !SafeBindableText(template)) return false;
+            targets.Add(text[..at]);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Adımlar (steps): 2–6 step labels and one <c>activeWhen</c> condition per step (visibleWhen grammar). The active step is
+    /// the last one whose condition holds; the component keeps no state of its own.
+    /// </summary>
+    private static bool ValidateStepsProps(JsonElement props, Context context, out string? error)
+    {
+        error = null;
+        if (!props.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array || steps.GetArrayLength() is < 2 or > MaxSteps
+            || steps.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || x.GetString()!.Trim().Length == 0 || x.GetString()!.Length > MaxStepLabelLength))
+            return Fail($"'steps' 2–{MaxSteps} adet 1–{MaxStepLabelLength} karakterlik adım adı içermelidir.", out error);
+        if (!props.TryGetProperty("activeWhen", out var when) || when.ValueKind != JsonValueKind.Array || when.GetArrayLength() != steps.GetArrayLength()
+            || when.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String))
+            return Fail("'activeWhen' her adım için bir koşul içermelidir (adım sayısı kadar).", out error);
+        foreach (var condition in when.EnumerateArray())
+        {
+            if (!PageConditionExpression.TryParse(condition.GetString()!, out var roots, out var reason))
+                return Fail($"'activeWhen' koşulu geçersiz: {reason}", out error);
+            context.PendingConditionRoots.Add(("activeWhen", roots));
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Kayıt özeti (recordHeader): icon, bound title/subtitle, 0–6 "Etiket=şablon" fields with optional formats and units
+    /// (by field label) and 0–3 page buttons. The buttons are owned by the header like row actions (not drawn at top level).
+    /// </summary>
+    private static bool ValidateRecordHeader(JsonElement props, string id, Context context, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("title", out var title) && !IsStaticTextUpTo(title, MaxHeaderTextLength))
+            return Fail($"Kayıt özetinin 'title' değeri en fazla {MaxHeaderTextLength} karakterlik metin olmalıdır.", out error);
+        var labels = new HashSet<string>(StringComparer.Ordinal);
+        if (props.TryGetProperty("fields", out var fields) && !ReadHeaderTemplates(fields, null, labels))
+            return Fail($"'fields' en fazla {MaxHeaderFields} adet Etiket=şablon öğesi içermelidir; etiketler benzersiz ve 1–{MaxHeaderLabelLength} karakter, şablonlar en fazla {MaxAssignmentTemplateLength} karakterdir.", out error);
+        if (props.TryGetProperty("fieldUnits", out var units) && !ReadHeaderTemplates(units, labels, new HashSet<string>(StringComparer.Ordinal)))
+            return Fail("'fieldUnits' öğeleri Etiket=şablon biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
+        if (props.TryGetProperty("fieldFormats", out var formats))
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            if (formats.ValueKind != JsonValueKind.Array || formats.GetArrayLength() > MaxHeaderFields
+                || formats.EnumerateArray().Any(x => !MatchesSafely(HeaderFormatItem, x) || !labels.Contains(x.GetString()!.Split('=')[0]) || !seen.Add(x.GetString()!.Split('=')[0])))
+                return Fail("'fieldFormats' öğeleri Etiket=number|money|date|text biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
+        }
+        if (props.TryGetProperty("buttons", out var buttons))
+        {
+            const string buttonsError = "Kayıt özetinin 'buttons' listesi 0–3 adet farklı düğme kimliği içermelidir.";
+            if (buttons.ValueKind != JsonValueKind.Array) return Fail(buttonsError, out error);
+            if (buttons.GetArrayLength() > 0)
+            {
+                if (!TryReadIds(buttons, MaxHeaderButtons, out var ids)) return Fail(buttonsError, out error);
+                context.PendingHeaderButtons.Add((id, ids));
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// "Etiket=şablon" items (recordHeader fields / fieldUnits). Labels are unique and, when <paramref name="allowed"/> is set,
+    /// must be one of those labels; templates are bindable text.
+    /// </summary>
+    private static bool ReadHeaderTemplates(JsonElement value, HashSet<string>? allowed, HashSet<string> labels)
+    {
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaxHeaderFields) return false;
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String) return false;
+            var text = item.GetString()!;
+            var at = text.IndexOf('=');
+            if (at <= 0 || at > MaxHeaderLabelLength || text[..at].Trim().Length == 0) return false;
+            var (label, template) = (text[..at], text[(at + 1)..]);
+            if (template.Length > MaxAssignmentTemplateLength || !SafeBindableText(text)) return false;
+            if (allowed is not null && !allowed.Contains(label) || !labels.Add(label)) return false;
+        }
         return true;
     }
 
@@ -1679,6 +1816,15 @@ internal static class TenantCustomPageSchema
             if (name is null) return Fail($"Satır işlemleri için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır işlemleri yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowActions.Add((id, ids));
+        }
+        // Enter / çift tıklama: satırla birlikte bir sayfa düğmesini çalıştırır (İşlem Çubuğu Aç davranışının önüne geçer).
+        if (props.TryGetProperty("rowOpenAction", out var rowOpen))
+        {
+            if (rowOpen.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(rowOpen.GetString()))
+                return Fail("'rowOpenAction' sayfadaki bir düğme kimliği olmalıdır.", out error);
+            if (name is null) return Fail($"Satır açma eylemi için veri listesinin adı olmalıdır: {id}", out error);
+            if (!hasQuery) return Fail($"Satır açma eylemi yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
+            context.PendingRowOpenActions.Add((id, rowOpen.GetString()!));
         }
         if (props.TryGetProperty("emptyText", out var emptyText) && !IsStaticTextUpTo(emptyText, 120))
             return Fail("'emptyText' en fazla 120 karakterlik metin olmalıdır.", out error);
@@ -1950,11 +2096,31 @@ internal static class TenantCustomPageSchema
         foreach (var (tableId, ids) in context.PendingRowActions)
             foreach (var buttonId in ids)
             {
-                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page"))
+                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page" or "setInput"))
                     return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
                 if (menuButtons.Contains(buttonId)) return Fail($"Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
                 if (!owners.TryAdd(buttonId, tableId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
             }
+        // The open action may also be one of the same table's row actions; any other owner is refused.
+        foreach (var (tableId, buttonId) in context.PendingRowOpenActions)
+        {
+            if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("setInput" or "link" or "erpPage" or "page" or "openDialog" or "query"))
+                return Fail($"'rowOpenAction' sayfadaki bir değer atama, bağlantı, ERP ekranı, sayfa, pencere veya sorgu düğmesi olmalıdır: {buttonId}", out error);
+            if (menuButtons.Contains(buttonId)) return Fail($"Satır açma düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
+            if (!owners.TryAdd(buttonId, tableId) && owners[buttonId] != tableId)
+                return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
+        }
+        foreach (var (headerId, ids) in context.PendingHeaderButtons)
+            foreach (var buttonId in ids)
+            {
+                if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page" or "setInput"))
+                    return Fail($"Kayıt özetinin 'buttons' listesi eylemli (sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı, sayfa veya değer atama) düğmeler içermelidir: {buttonId}", out error);
+                if (menuButtons.Contains(buttonId)) return Fail($"Kayıt özeti düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
+                if (!owners.TryAdd(buttonId, headerId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
+            }
+        foreach (var (buttonId, inputId) in context.PendingAssignments)
+            if (!context.InputIds.Contains(inputId))
+                return Fail($"'{buttonId}' düğmesinin 'assignments' listesindeki giriş sayfada yok: {inputId}", out error);
         return ResolveCollectionBindings(context, out error) && ResolveGridIteration(context, out error) && ResolveSequences(context, out error);
     }
 
@@ -2068,7 +2234,7 @@ internal static class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted

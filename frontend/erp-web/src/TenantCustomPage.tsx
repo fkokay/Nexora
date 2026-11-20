@@ -10,7 +10,10 @@ import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQuery
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
-import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
+import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
+import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
 import { LookupInput, lookupCandidates, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
@@ -147,6 +150,10 @@ type PageRuntime = {
   /** Pencerelerin ve satır işlemlerinin sahiplendiği bileşenler: üst düzeyde ayrıca çizilmez. */
   dialogOwned: Set<string>;
   rowOwned: Set<string>;
+  /** Kayıt özetlerinin (`recordHeader.buttons`) sahiplendiği düğmeler: özette çizilir. */
+  headerOwned: Set<string>;
+  /** `setInput` düğmesi: atamaları (satır bindirmesiyle) çözer ve girişlere yazar; sunucuya bir şey gitmez. */
+  applyAssignments: (props: Record<string, unknown>, overlay: Record<string, unknown>) => void;
   buttonById: Record<string, ComponentDefinition>;
   /** Düğmenin çalıştırılabilir eylemi ve gereken sayfa hakları (yoksa null). */
   buttonAction: (button: ComponentDefinition) => ButtonAction | null;
@@ -218,7 +225,7 @@ type SequenceSource = {
   /** Tablonun satır işlemi: başarıdan sonra yalnız `refreshQueries` yenilenir (seçim ve açık pencere korunur). */
   rowAction?: boolean;
 };
-type ButtonAction = { type: "query" | "sequence" | "openDialog" | "workflow" | "navigate"; rights: string[]; query?: PageQueryDefinition };
+type ButtonAction = { type: "query" | "sequence" | "openDialog" | "workflow" | "navigate" | "setInput"; rights: string[]; query?: PageQueryDefinition };
 export type RowAction = {
   id: string; label: string; visible: (row: Record<string, unknown>) => boolean;
   /** Pasifse nedeni, değilse null. */
@@ -245,7 +252,7 @@ const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((ite
 const rightOf = (kind: string) => (kind === "read" ? "view" : kind);
 
 /** Düğmenin çalıştırılabilir eylemi: sorgu, kayıt dizisi, pencere ya da iş akışı; eylemi yoksa null. */
-function buttonActionOf(props: Record<string, unknown>, queryById: Record<string, PageQueryDefinition>, dialogIds: Set<string>): ButtonAction | null {
+function buttonActionOf(props: Record<string, unknown>, queryById: Record<string, PageQueryDefinition>, dialogIds: Set<string>, inputIds: ReadonlySet<string>): ButtonAction | null {
   if (props.actionType === "workflow") return typeof props.workflowId === "string" && props.workflowId.trim() !== "" ? { type: "workflow", rights: [] } : null;
   if (props.actionType === "query") {
     const query = typeof props.queryId === "string" ? queryById[props.queryId] : undefined;
@@ -257,6 +264,8 @@ function buttonActionOf(props: Record<string, unknown>, queryById: Record<string
     return { type: "sequence", rights: [...new Set(steps.map((query) => query!.kind))] };
   }
   if (props.actionType === "openDialog") return typeof props.dialogId === "string" && dialogIds.has(props.dialogId) ? { type: "openDialog", rights: ["view"] } : null;
+  // Giriş ataması yalnız sayfa durumunu değiştirir (veri yazmaz): her ataması sayfadaki bir girişe gitmeli.
+  if (props.actionType === "setInput") return assignmentsValid(props.assignments, inputIds) ? { type: "setInput", rights: ["view"] } : null;
   // Gezinme (bağlantı, ERP ekranı, sayfa) veri yazmaz; hedef tıklamada kapsamla çözülür ve yeniden doğrulanır.
   if (isNavigationType(props.actionType)) {
     const target = props.actionType === "link" ? props.href : props.actionType === "erpPage" ? props.pageKey : props.pageCode;
@@ -352,13 +361,13 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
     const parsed = value == null || value === "" ? Number.NaN : Number(value);
     return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
   };
-  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" || type === "editableGrid" || type === "customFieldsBlock" || type === "filterBar" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
+  const span = bounded(props.width, type === "metric" ? 3 : type === "heading" || type === "text" || type === "label" || type === "divider" || type === "spacer" || type === "formCard" || type === "tabs" || type === "filterChips" || type === "actionBar" || type === "editableGrid" || type === "customFieldsBlock" || type === "filterBar" || type === "steps" || type === "recordHeader" ? 12 : type === "facetPanel" ? 3 : type === "contextPanel" ? 4 : 6, 1, 12);
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
     gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
-    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs", "editableGrid", "customFieldsBlock"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
+    padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs", "editableGrid", "customFieldsBlock", "recordHeader"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
     color: color("textColor"),
     borderRadius: `${number("borderRadius", DEFAULT_RADIUS, 32)}px`,
@@ -618,6 +627,7 @@ function QueryActionButton({ component, props, label, runtime, disabled: conditi
     if (disabled) return;
     setFeedback(null);
     if (action.type === "openDialog") { runtime.openDialog(props.dialogId as string, opener); return; }
+    if (action.type === "setInput") { runtime.applyAssignments(component.props ?? {}, {}); return; }
     if (action.type === "navigate") {
       if (inFlight.current) return;
       inFlight.current = true;
@@ -825,7 +835,8 @@ const withConditionalRequired = (props: Record<string, unknown>, raw: Record<str
   props.required !== true && conditionHolds(raw?.requiredWhen, scope, false) ? { ...props, required: true } : props;
 
 function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime, inline = false) {
-  if (!componentVisible(component, runtime)) return null;
+  // `hidden`: giriş hiç çizilmez, değeri (varsayılan ve sayfa parametresi bağlaması dahil) kapsamda kalır.
+  if (!componentVisible(component, runtime) || component.props?.hidden === true) return null;
   const props = runtime ? withConditionalRequired(boundProps, component.props, runtime.scope) : boundProps;
   // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
   const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
@@ -835,6 +846,29 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
     optionsState={runtime && typeof props.optionsQuery === "string" ? runtime.states[runtime.queryNames[props.optionsQuery]] : undefined}
     lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
 }
+
+/** Sayfa düğmesi (üst düzeyde ya da kayıt özetinin sağında): eylemli düğme, iş akışı ya da pasif düğme. */
+function renderPageButton(component: ComponentDefinition, props: Record<string, unknown>, style: CSSProperties, token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
+  const text = textValue(props.text ?? props.label);
+  const title = textValue(props.title);
+  const disabled = componentDisabled(component, runtime);
+  const reason = disabled ? textValue(props.disabledReason).trim() : "";
+  const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
+  const action = runtime?.buttonAction(component);
+  return <div className="tenant-page-action" style={style} key={component.id}>
+    {runtime && action && action.type !== "workflow"
+      ? <QueryActionButton component={component} props={props} label={BUTTON_ICONS[textValue(props.icon)] ? <>{createElement(BUTTON_ICONS[textValue(props.icon)], { size: 13, "aria-hidden": true })}<span>{text || title || "Eylem"}</span></> : text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
+      : workflow && !disabled
+        ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
+        : <>
+          <button className="tenant-page-button" type="button" disabled title={reason || undefined}>{text || title || (workflow ? "İş akışını başlat" : "Eylem")}</button>
+          {reason && <small className="tenant-page-disabled-reason">{reason}</small>}
+        </>}
+  </div>;
+}
+
+/** `rowOpenAction` düğmesinin çalışabileceği eylemler (satıra çift tıklama / Enter). */
+const ROW_OPEN_ACTIONS = new Set<ButtonAction["type"]>(["setInput", "navigate", "openDialog", "query"]);
 
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
   // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
@@ -956,21 +990,24 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       return status ? <div key={component.id} className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"} style={{ gridColumn: style.gridColumn, margin: style.margin }}>{status.text}</div> : null;
     }
     case "button": {
-      if (runtime?.movedButtons.has(component.id) || runtime?.rowOwned.has(component.id)) return null;
-      const disabled = componentDisabled(component, runtime);
-      const reason = disabled ? textValue(props.disabledReason).trim() : "";
-      const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
-      const action = runtime?.buttonAction(component);
-      return <div className="tenant-page-action" style={style} key={component.id}>
-        {runtime && action && action.type !== "workflow"
-          ? <QueryActionButton component={component} props={props} label={BUTTON_ICONS[textValue(props.icon)] ? <>{createElement(BUTTON_ICONS[textValue(props.icon)], { size: 13, "aria-hidden": true })}<span>{text || title || "Eylem"}</span></> : text || title || "Eylem"} runtime={runtime} disabled={disabled} disabledReason={reason} />
-          : workflow && !disabled
-            ? <TenantWorkflowAction token={token} workflowId={props.workflowId as string} title={text || title || "İş akışını başlat"} pageCode={pageCode} componentId={component.id} />
-            : <>
-              <button className="tenant-page-button" type="button" disabled title={reason || undefined}>{text || title || (workflow ? "İş akışını başlat" : "Eylem")}</button>
-              {reason && <small className="tenant-page-disabled-reason">{reason}</small>}
-            </>}
-      </div>;
+      if (runtime?.movedButtons.has(component.id) || runtime?.rowOwned.has(component.id) || runtime?.headerOwned.has(component.id)) return null;
+      return renderPageButton(component, props, style, token, pageCode, runtime);
+    }
+    case "steps": {
+      const labels = stepLabels(component.props?.steps);
+      return <StepsIndicator key={component.id} labels={labels} style={style}
+        active={runtime ? activeStepIndex(labels.length, component.props?.activeWhen, runtime.scope) : 0} />;
+    }
+    case "recordHeader": {
+      if (!runtime) return null;
+      const raw = component.props ?? {};
+      // Özetin düğmeleri sayfa düğmesi gibi çalışır (koşulları dahil); en fazla 3.
+      const buttons = idList(raw.buttons, 3).map((id) => runtime.buttonById[id])
+        .filter((button): button is ComponentDefinition => !!button && componentVisible(button, runtime))
+        .map((button) => renderPageButton(button, bindProps(button.props ?? {}, runtime.scope), {}, token, pageCode, runtime));
+      return <RecordHeader key={component.id} icon={textValue(raw.icon) || undefined} style={style}
+        title={templateText(textValue(raw.title), runtime.scope)} subtitle={templateText(textValue(raw.subtitle), runtime.scope)}
+        fields={recordHeaderFields(raw, runtime.scope)} buttons={buttons.length > 0 ? buttons : undefined} />;
     }
     case "tabs": {
       if (!runtime) return null;
@@ -1031,12 +1068,17 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           }];
         }) : [];
         const limit = tableLimit(props.limit);
+        // `rowOpenAction`: satıra çift tıklama / Enter o düğmeyi satır işlemi olarak çalıştırır (İşlem Çubuğu Aç'ın önüne geçer).
+        const openButton = tableName && typeof props.rowOpenAction === "string" ? runtime.buttonById[props.rowOpenAction.trim()] : undefined;
+        const openAction = openButton ? runtime.buttonAction(openButton) : null;
+        const openByAction = openButton && openAction && ROW_OPEN_ACTIONS.has(openAction.type) && actionAllowed(openAction, runtime.rights)
+          ? (row: Record<string, unknown>) => runtime.runRowAction(component, openButton, row, null) : undefined;
         return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
           valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)}
-          onOpenRow={tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined} />;
+          onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
     }
@@ -1287,6 +1329,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       latest.current.openDialog(props.dialogId as string, document.activeElement instanceof HTMLElement ? document.activeElement : null);
       return;
     }
+    if (action?.type === "setInput") { onStatus(null); latest.current.applyAssignments(component.props ?? {}, {}); return; }
     if (action?.type === "navigate") {
       onStatus(null);
       void runNavigation(component.props ?? {}, latest.current.currentScope, latest.current.tabKey, options)
@@ -1344,6 +1387,11 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       return state ? { loading: state.loading || neverRan(state), error: state.error || undefined, rowCount: state.rowCount } : undefined;
     },
     buttonLabel,
+    // Aktarım tablosu ya da bir sahibi `visibleWhen` ile gizliyse Excel/CSV gizlenir.
+    tableVisible: (tableId) => runtime.ancestorsOf(tableId).every((id) => {
+      const component = flat.find((item) => item.id === id);
+      return !component || componentVisible(component, runtime);
+    }),
     buttonGate: (id) => {
       const component = flat.find((item) => item.id === id && item.type === "button");
       if (!component) return undefined;
@@ -1453,6 +1501,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const dialogOwned = useMemo(() => (isV2 ? dialogOwnedIds(components) : new Set<string>()), [isV2, components]);
   const rowOwned = useMemo(() => (isV2 ? rowActionIds(flat) : new Set<string>()), [isV2, flat]);
   const buttonById = useMemo(() => Object.fromEntries(flat.filter((component) => component.type === "button").map((button) => [button.id, button])), [flat]);
+  const headerOwned = useMemo(() => (isV2 ? headerButtonIds(flat) : new Set<string>()), [isV2, flat]);
   // Sayfadaki tüm yazma yolları (sorgu düğmeleri ve İşlem Çubuğu) için tek uçuş kilidi.
   const writeLock = useRef(false);
   const newCommand = useRef<(() => void | Promise<void>) | null>(null);
@@ -1472,6 +1521,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   }, [components, isV2]);
   const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
+  const inputIds = useMemo(() => new Set(inputs.map((input) => input.id)), [inputs]);
   const tableById = useMemo(() => Object.fromEntries(flattenComponents(components).filter((component) => component.type === "dataTable").map((table) => [table.id, table])), [components]);
   const flatById = useMemo(() => Object.fromEntries(flat.map((component) => [component.id, component])), [flat]);
   const topLevelById = useMemo(() => Object.fromEntries(components.map((component) => [component.id, component])), [components]);
@@ -1799,8 +1849,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Eylemi olan düğme (sorgu, dizi, pencere, iş akışı) İşlemler menüsüne taşınır; eylemsiz düğme sayfada kalır. İşlemler menüsü
   // gizliyse (`hiddenCommands` / `commandWhen`, kapsama bağlı) menü düğmeleri de sayfada kalır.
   const moreHidden = !!bar && barCommandHidden(bar.props, "more", barCommandVisible(bar.props, scope));
-  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds) !== null, moreHidden)
-    : new Set<string>()), [bar, flat, queryById, dialogIds, moreHidden]);
+  const movedButtons = useMemo(() => (bar ? movedButtonIds(flat, (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds, inputIds) !== null, moreHidden)
+    : new Set<string>()), [bar, flat, queryById, dialogIds, inputIds, moreHidden]);
   const loadIds = useMemo(() => queryDefinitions.filter((query) => query.kind === "read" && query.runOn === "load").map((query) => query.id), [queryDefinitions]);
 
   // Sayfa yüklendi: açılış sorgularının hiçbiri yüklenmiyorken load bir kez yayımlanır. ERP kataloğu yüklenemediyse
@@ -1921,7 +1971,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const skipsValidation = (input: ComponentDefinition) =>
     ancestorsOf(input.id).some((id) => flatById[id] && (!conditionHolds(flatById[id].props?.visibleWhen, scope, true)
       || (flatById[id].type === "dialog" && dialogs[id] !== true)))
-    || conditionHolds(input.props?.disabledWhen, scope, false);
+    || conditionHolds(input.props?.disabledWhen, scope, false)
+    // Gizli (`hidden`) giriş hiç çizilmez: doğrulanmaz.
+    || (input.type === "input" && input.props?.hidden === true);
   const validateFor = (query: PageQueryDefinition): string | null => validateForAll([query]);
   /** Sorguların bağladığı girişlerin birleşimini tek geçişte doğrular (kayıt dizisi: etkin adımlar). */
   const validateForAll = (queries: PageQueryDefinition[]): string | null => {
@@ -1991,6 +2043,13 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       if (message) next[componentId] = message; else delete next[componentId];
       return next;
     });
+  };
+  /** `setInput` atamaları: şablonlar en güncel kapsamla (ve satır bindirmesiyle) birlikte çözülür, sonra girişlere yazılır. */
+  const applyAssignments = (props: Record<string, unknown>, overlay: Record<string, unknown>) => {
+    const assignmentScope = mergeOverlay(currentScope(), overlay);
+    for (const { inputId, raw } of resolveAssignments(props.assignments, assignmentScope, (id) => inputIsCheckbox(inputById[id]))) {
+      if (inputById[inputId]) setInput(inputId, raw);
+    }
   };
   const lookupFor = (component: ComponentDefinition, props: Record<string, unknown>): LookupBinding => {
     const optionsId = typeof props.optionsQuery === "string" ? props.optionsQuery : "";
@@ -2460,7 +2519,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   };
   const runRowAction = (table: ComponentDefinition, button: ComponentDefinition, row: Record<string, unknown>, opener: HTMLElement | null) => {
     const tableName = table.name;
-    const action = buttonActionOf(button.props ?? {}, queryById, dialogIds);
+    const action = buttonActionOf(button.props ?? {}, queryById, dialogIds, inputIds);
     if (!tableName || !actionAllowed(action, rights) || !action || operationBlocked(action, { queryAllowed: runtimeQueryAllowed })) return;
     const overlay = { [tableName]: { seciliSatir: row } };
     // Koşullar satırın bindirmesiyle yeniden denetlenir (çizimden sonra değişmiş olabilir).
@@ -2471,6 +2530,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     // Satır işlemi de satır değiştirir: kayıt tablosunda kirli sayfa önce sorar; Vazgeç işlemi de çalıştırmaz.
     userSelect(tableName, row, () => {
       if (action.type === "openDialog") { openDialog(props.dialogId as string, opener); return; }
+      if (action.type === "setInput") { onStatus(null); applyAssignments(props, overlay); return; }
       if (action.type === "navigate") {
         onStatus(null);
         void runNavigation(props, () => mergeOverlay(currentScope(), overlay), tabKey).then((failure) => { if (failure) onStatus({ tone: "error", text: failure }); });
@@ -2685,8 +2745,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     movedButtons, writeLock, actionStatus,
     currentScope, writeWith, runSequence: (source) => sequenceRef.current(source), gridIteration, commitGrid,
     dialogs, openDialog, closeDialog, saveDialog, dialogStatus, dialogBusy, dialogOpener: (id) => dialogOpeners.current[id] ?? null,
-    dialogOwned, rowOwned, buttonById,
-    buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds),
+    dialogOwned, rowOwned, headerOwned, buttonById, applyAssignments,
+    buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds, inputIds),
     runRowAction, tableStatus, tabKey,
     gridFor, blockFor, cardChanges, componentErrorIds, requestCloseDialog, isDirty, startNew,
     queryAllowed: runtimeQueryAllowed,
@@ -2748,7 +2808,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-    {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id))
+    {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
   </div>;
 }

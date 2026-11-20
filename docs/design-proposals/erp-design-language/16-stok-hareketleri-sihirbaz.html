@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Stok hareketleri — iki adım</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--in:#1f5fd1;--in-bg:#e8f0fd}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:24px 0 8px}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 10px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.steps{display:flex;align-items:center;gap:10px;margin:12px 0}
+.st{display:inline-flex;align-items:center;gap:8px;color:var(--mut);font-weight:600}
+.st i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1px solid #c9d2e0;background:#fff;font-size:12px}
+.st.on{color:var(--pri)}.st.on i{background:var(--pri);border-color:var(--pri);color:#fff}
+.st.done{color:var(--ok)}.st.done i{background:var(--ok-bg);border-color:#b7e2c9;color:var(--ok)}
+.sep{width:40px;height:1px;background:#c9d2e0}
+.fbar{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.srch{flex:0 1 360px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.sel{height:32px;min-width:170px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:inline-flex;align-items:center;justify-content:space-between;padding:0 10px}
+.f{color:var(--mut);font-weight:600;font-size:12px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}
+.code{font-family:Consolas,monospace;font-size:12px}.num{text-align:right}
+.go{color:var(--pri);font-weight:600;text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-in{background:var(--ok-bg);color:var(--ok)}.t-out{background:var(--in-bg);color:var(--in)}.t-rev{background:#eef1f7;color:#55647c}
+.head{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;margin-bottom:10px}
+.head .ic{width:34px;height:34px;border-radius:8px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.head b{display:block;font-size:14px}.head small{color:var(--mut)}
+.kv{display:flex;gap:22px;margin-left:18px}.kv span{color:var(--mut);font-size:11.5px}.kv b{font-size:13px;color:var(--tx)}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:6px;padding:5px 11px;font-weight:600}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut)}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}
+</style></head><body>
+<h1>Stok Hareketleri — iki adımlı akış</h1>
+<p class="sub">Önce stok seçilir, seçilince o stokun hareketleri gelir. Boş "bir stok kartı seçin" ekranı yerine ilk adımda stok listesi görünür.</p>
+
+<div class="lbl">ADIM 1 — STOK SEÇ (sayfa açılınca)</div>
+<div class="erp">
+  <div class="crumb">Ana Sayfa › Stok Hareketleri</div>
+  <div class="ttl"><h2>Stok Hareketleri</h2></div>
+  <div class="bar"><span>⟳ Yenile</span><span>⌕ Filtre</span><span class="r">İşlemler ▾</span></div>
+  <div class="steps"><span class="st on"><i>1</i>Stok seç</span><span class="sep"></span><span class="st"><i>2</i>Hareketler</span></div>
+  <div class="fbar"><span class="srch">⌕ Stok kodu veya adıyla ara</span><span class="f">Depo</span><span class="sel">Tüm depolar ⌄</span></div>
+  <div class="card"><table>
+    <tr><th>Stok kodu</th><th>Stok adı</th><th>Kategori</th><th class="num">Mevcut</th><th class="num">Son hareket</th><th></th></tr>
+    <tr><td class="code">TEST</td><td>TEST</td><td>—</td><td class="num">1.100 EA</td><td class="num">18.11.2026</td><td class="go">Hareketleri gör ›</td></tr>
+    <tr class="pick"><td class="code">STK-0001</td><td>TEST ÜRÜN 1</td><td>—</td><td class="num">0 EA</td><td class="num">17.11.2026</td><td class="go">Hareketleri gör ›</td></tr>
+    <tr><td class="code">STK-001</td><td>TEST ÜRÜN 1</td><td>—</td><td class="num">0 EA</td><td class="num">—</td><td class="go">Hareketleri gör ›</td></tr>
+  </table><div class="foot"><span>1–3 / 3</span><span>Satıra tıkla ya da Enter: hareketlere geç</span></div></div>
+</div>
+
+<div class="lbl">ADIM 2 — HAREKETLER (stok seçilince)</div>
+<div class="erp">
+  <div class="crumb">Ana Sayfa › Stok Hareketleri</div>
+  <div class="ttl"><h2>Stok Hareketleri</h2><small>12 kayıt</small></div>
+  <div class="bar"><span>⟳ Yenile</span><span>⌕ Filtre</span><span>▤ Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="steps"><span class="st done"><i>✓</i>Stok seç</span><span class="sep"></span><span class="st on"><i>2</i>Hareketler</span></div>
+  <div class="head"><span class="ic">▦</span><span><b>TEST</b><small class="code">TEST · ana birim EA</small></span>
+    <span class="kv"><span>Mevcut<br><b>1.100 EA</b></span><span>Stok değeri<br><b>687.500,00 TRY</b></span></span>
+    <span style="margin-left:auto;display:flex;gap:10px;align-items:center"><span class="f">Depo</span><span class="sel">Tüm depolar ⌄</span><span class="btn">‹ Stok değiştir</span></span></div>
+  <div class="card"><table>
+    <tr><th>Tarih</th><th>Yön</th><th class="num">Miktar</th><th>Depo</th><th>Konum</th><th>Lot / seri</th><th>Açıklama</th></tr>
+    <tr><td>18.11.2026</td><td><span class="tag t-in">Giriş</span></td><td class="num">1.000 EA</td><td>01 · MERKEZ</td><td>A-01</td><td>LOT-1 (1.000)</td><td>Açılış</td></tr>
+    <tr><td>18.11.2026</td><td><span class="tag t-out">Çıkış</span></td><td class="num">50 EA</td><td>01 · MERKEZ</td><td>—</td><td>—</td><td>Satış irsaliyesi</td></tr>
+    <tr><td>17.11.2026</td><td><span class="tag t-in">Giriş</span> <span class="tag t-rev">İade</span></td><td class="num">150 EA</td><td>02 · ÜRETİM DEPO</td><td>—</td><td>—</td><td>Ters kayıt</td></tr>
+  </table><div class="foot"><span>1–3 / 12</span><span>‹ Önceki · Sayfa 1 / 1 · Sonraki ›</span></div></div>
+</div>
+
+<p class="note">• Sayfa açılınca stok listesi gelir (arama + depo süzgeci); satıra tıklamak ya da "Hareketleri gör" 2. adıma geçer. • 2. adımda seçili stok üstte özet olarak durur (kod, ad, mevcut, değer); "‹ Stok değiştir" 1. adıma döner, arama ve depo seçimi korunur. • Depo seçimi iki adımda ortaktır. • Adım göstergesi küçük ve sade; yalnız bu tür seçim → ayrıntı ekranlarında kullanılır (genel "Adımlar" bileşeni olarak, başka ekranlarda da kullanılabilir). • Stok kartı ekranından "Hareketler" ile gelindiğinde doğrudan 2. adım açılır.</p>
+</body></html>

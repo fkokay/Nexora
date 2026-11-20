@@ -80,6 +80,16 @@ export function rowActionIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+/** Kayıt özetlerinin düğmeleri (`recordHeader.buttons`, en fazla 3): özetin sağında çizilir, üst düzeyde ayrıca çizilmez. */
+export function headerButtonIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "recordHeader") continue;
+    for (const id of idList(component.props?.buttons, 3)) owned.add(id);
+  }
+  return owned;
+}
+
 /**
  * Yalnız Studio: bir Sekmeler ya da Pencere bileşeninin sahiplenebileceği üst düzey bileşenler (sunucudaki sekme/pencere
  * kuralı). Kendisi, İşlem Çubuğu, form kartı/yan filtre paneli girişleri, liste arama girişleri ve satır işlemi düğmeleri
@@ -89,6 +99,10 @@ export function rowActionIds(components: LayoutComponent[]): Set<string> {
 export function ownableCandidates<C extends LayoutComponent>(components: C[], owner: { id: string; type: "tabs" | "dialog" }): C[] {
   const layoutOwned = ownedInputIds(components);
   const rowActions = rowActionIds(components);
+  // Kayıt özetinin düğmeleri de satır işlemleri gibi özete aittir.
+  for (const id of headerButtonIds(components)) rowActions.add(id);
+  // Listenin "Satır açılınca" düğmesi de listeye aittir.
+  for (const component of components) if (component.type === "dataTable" && typeof component.props?.rowOpenAction === "string") rowActions.add(component.props.rowOpenAction);
   const searchInputs = new Set(components.filter((component) => component.type === "dataTable" && typeof component.props?.searchInput === "string")
     .map((component) => String(component.props?.searchInput)));
   return components.filter((component) => component.id !== owner.id && component.type !== "actionBar" && component.type !== "dialog"

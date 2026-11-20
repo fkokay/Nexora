@@ -1,0 +1,30 @@
+/* Seçim → ayrıntı ekranları (taslak 16): adımlar göstergesi ve kayıt özeti. Renkler yalnız --nx-* token'larından. */
+
+.tenant-page-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; padding: 2px 0; list-style: none; }
+.tenant-page-step { display: inline-flex; align-items: center; gap: 8px; color: var(--nx-muted); font-weight: 600; font-size: 12.5px; }
+.tenant-page-step + .tenant-page-step::before { content: ""; width: 40px; height: 1px; margin-right: 2px; background: var(--nx-line); }
+.tenant-page-step-mark { display: grid; place-items: center; width: 22px; height: 22px; flex: none; box-sizing: border-box; border: 1px solid var(--nx-line); border-radius: 50%; background: var(--nx-surface); font-size: 12px; }
+.tenant-page-step.is-active { color: var(--nx-primary); }
+.tenant-page-step.is-active .tenant-page-step-mark { border-color: var(--nx-primary); background: var(--nx-primary); color: var(--nx-on-primary); }
+.tenant-page-step.is-done { color: var(--nx-ok); }
+.tenant-page-step.is-done .tenant-page-step-mark { border-color: color-mix(in srgb, var(--nx-ok) 35%, var(--nx-surface)); background: var(--nx-ok-bg); color: var(--nx-ok); }
+.tenant-page-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.tenant-page-record-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; box-sizing: border-box; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
+.tenant-page-record-header-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 8px; background: var(--nx-primary-soft); color: var(--nx-primary); }
+.tenant-page-record-header-title { display: flex; flex-direction: column; min-width: 0; }
+.tenant-page-record-header-title b { font-size: 14px; color: var(--nx-text); }
+.tenant-page-record-header-title small { color: var(--nx-muted); font-size: 12px; }
+.tenant-page-record-header-fields { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 0 18px; }
+.tenant-page-record-header-fields div { display: flex; flex-direction: column; }
+.tenant-page-record-header-fields dt { color: var(--nx-muted); font-size: 11.5px; }
+.tenant-page-record-header-fields dd { margin: 0; color: var(--nx-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tenant-page-record-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
+/* Özetin düğmeleri taslaktaki gibi çerçeveli ikincil düğmedir (sayfa düğmesinin dolu görünümü yerine). */
+.app-shell .tenant-custom-page .tenant-page-record-header .tenant-page-query-action button.tenant-page-button,
+.tenant-page-record-header .tenant-page-query-action button.tenant-page-button {
+  border-color: color-mix(in srgb, var(--nx-primary) 30%, var(--nx-surface)); background: var(--nx-surface); color: var(--nx-primary);
+}
+.app-shell .tenant-custom-page .tenant-page-record-header .tenant-page-query-action button.tenant-page-button:hover:not(:disabled),
+.tenant-page-record-header .tenant-page-query-action button.tenant-page-button:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-primary-soft); }
+@media (max-width: 560px) { .tenant-page-record-header-fields { margin-left: 0; } .tenant-page-record-header-actions { margin-left: 0; } }
