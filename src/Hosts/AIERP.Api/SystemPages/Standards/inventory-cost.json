@@ -78,7 +78,7 @@
                    "description": "bu sayfa", "variant": "warning", "icon": "alert", "visibleWhen": "kullanici.rol == 'TenantAdmin'" } },
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Kod veya stok adıyla ara", "searchParam": "q",
-                   "filters": ["warehouseId|select|row|warehouseId|Depo|depolar:id:name"],
+                   "filters": ["warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable,defaultFirst"],
                    "visibleWhen": "kullanici.rol == 'TenantAdmin'" } },
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "Stok maliyetleri", "query": "bakiye", "paging": "server", "pageSize": 25, "width": 12,

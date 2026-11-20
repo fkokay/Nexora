@@ -34,7 +34,7 @@
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Lot/seri kodu, stok veya depo ara", "searchParam": "q",
                    "filters": ["trackingMode|select|row|trackingMode|İz türü",
-                               "warehouseId|select|row|warehouseId|Depo|depolar:id:name"] } },
+                               "warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable"] } },
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "Lot / seri bakiyeleri", "query": "bakiye", "paging": "server", "pageSize": 50, "width": 8,
                    "columns": ["trackingCode", "trackingMode", "stockItemName", "stockItemCode", "warehouseCode", "warehouseName",

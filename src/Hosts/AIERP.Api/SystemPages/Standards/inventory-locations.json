@@ -58,7 +58,7 @@
 
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": { "table": "konumListesi", "search": true, "searchPlaceholder": "Kod veya ad ara", "searchColumns": ["code", "name"],
-                   "filters": ["warehouseId|select|row|warehouseId|Depo|depolar:id:name", "isActive|select|row||Durum"] } },
+                   "filters": ["warehouseId|select|row|warehouseId|Depo|depolar:id:code:name|searchable,defaultFirst", "isActive|select|row||Durum"] } },
       { "id": "depoSecinNotu", "type": "text", "name": "depoSecinNotu",
         "props": { "text": "Konumları görmek için önce bir depo seçin.", "width": 6, "visibleWhen": "suzgec.warehouseId == null" } },
       { "id": "konumListesi", "type": "dataTable", "name": "konumListesi",
