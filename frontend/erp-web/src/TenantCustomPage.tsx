@@ -764,7 +764,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     // Seçeneklerde olmayan geçerli değer (ör. listeden kaldırılmış kategori) silinmez; kendi seçeneğiyle gösterilir.
     const orphan = current !== "" && !optionsState?.loading && !options.some((option) => option.value === current);
     control = <select {...common} value={current} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{optionsState?.loading ? "Yükleniyor…" : optionsState && neverRan(optionsState) ? MANUAL_QUERY_IDLE : "Seçin"}</option>
+      <option value="">{optionsState?.loading ? "Yükleniyor…" : "Seçin"}</option>
       {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
       {orphan && <option value={current}>{current}</option>}
     </select>;

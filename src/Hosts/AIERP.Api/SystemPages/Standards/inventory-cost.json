@@ -115,7 +115,7 @@
             "props": { "text": "Birim ekle", "variant": "secondary", "actionType": "query", "queryId": "birimEkle",
                        "successMessage": "Birim dönüşümü tanımlandı.", "refreshQueries": ["birimler"] } },
           { "id": "birimTablosu", "type": "dataTable", "name": "birimTablosu",
-            "props": { "query": "birimler", "columns": ["unitCode", "factorToBase"],
+            "props": { "query": "birimler", "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showExport": false, "showPivot": false, "columns": ["unitCode", "factorToBase"],
                        "columnLabels": ["unitCode=Alternatif birim", "factorToBase=Temel birim katsayısı"], "columnFormats": ["unitCode=code"],
                        "rowActions": ["birimKaldir"], "emptyText": "Alternatif birim tanımı yok." } }
         ] },
@@ -159,7 +159,7 @@
                        "disabledReason": "Ek maliyet yalnız işlenmiş bir mal kabule dağıtılabilir.",
                        "successMessage": "Ek maliyet mal kabul satırlarına dağıtıldı.", "refreshQueries": ["ekMaliyetler", "kayitlar", "bakiye"] } },
           { "id": "ekMaliyetTablosu", "type": "dataTable", "name": "ekMaliyetTablosu",
-            "props": { "query": "ekMaliyetler", "columns": ["code", "totalAmountBase", "entryDate", "description", "kind"],
+            "props": { "query": "ekMaliyetler", "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showExport": false, "showPivot": false, "columns": ["code", "totalAmountBase", "entryDate", "description", "kind"],
                        "columnLabels": ["code=Kayıt", "totalAmountBase=Tutar", "entryDate=Tarih", "description=Açıklama", "kind=Tür"],
                        "columnFormats": ["code=code", "totalAmountBase=money", "entryDate=date"],
                        "valueLabels": ["kind:LandedCost=Dağıtım kaydı", "kind:Reversal=Ters kayıt", "kind:Revaluation=Yeniden değerleme"],
@@ -188,7 +188,7 @@
         "props": { "title": "Seçili depodaki maliyet kayıtları", "description": "Son 100 kayıt; ters kayıtlar önceki belgeyi korur." },
         "children": [
           { "id": "kayitTablosu", "type": "dataTable", "name": "kayitTablosu",
-            "props": { "query": "kayitlar", "columns": ["code", "totalAmountBase", "entryDate", "description", "kind"],
+            "props": { "query": "kayitlar", "showGridSearch": false, "showColumnFilters": false, "showColumnChooser": false, "showExport": false, "showPivot": false, "columns": ["code", "totalAmountBase", "entryDate", "description", "kind"],
                        "columnLabels": ["code=Kayıt", "totalAmountBase=Tutar", "entryDate=Tarih", "description=Açıklama", "kind=Tür"],
                        "columnFormats": ["code=code", "totalAmountBase=money", "entryDate=date"],
                        "valueLabels": ["kind:Revaluation=Yeniden değerleme", "kind:LandedCost=Ek maliyet", "kind:Reversal=Ters kayıt"],

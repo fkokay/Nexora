@@ -4,6 +4,8 @@
   "version": 1, "stage": "preview",
   "items": {
     "component:komutlar": { "since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "query:bakiye"] },
+    "component:suresiGecmis": { "since": 1, "label": "Süresi geçmiş sayacı", "requires": ["query:bakiye"] },
+    "component:suresiYaklasan": { "since": 1, "label": "30 gün içinde dolacak sayacı", "requires": ["query:bakiye"] },
     "component:suzgec": { "since": 1, "label": "Süzgeç alanı (arama, iz türü, depo)",
       "requires": ["component:liste", "query:bakiye", "query:depolar"] },
     "component:liste": { "since": 1, "label": "Lot / seri bakiyeleri listesi", "requires": ["query:bakiye", "component:suzgec"] },
@@ -19,7 +21,15 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{bakiye.meta.totalCount}}" } },
+        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{bakiye.meta.totalCount}}",
+                   "hiddenCommands": ["new", "open", "save", "delete", "print"] } },
+
+      { "id": "suresiGecmis", "type": "metric", "name": "suresiGecmis",
+        "props": { "title": "Süresi geçmiş", "query": "bakiye", "variant": "danger", "icon": "calendar-x", "description": "bu sayfa",
+                   "countWhen": "bakiye.satir.expiryDate < bugun", "width": 3 } },
+      { "id": "suresiYaklasan", "type": "metric", "name": "suresiYaklasan",
+        "props": { "title": "30 gün içinde dolacak", "query": "bakiye", "variant": "warning", "icon": "calendar-clock", "description": "bu sayfa",
+                   "countWhen": "bakiye.satir.expiryDate >= bugun && bakiye.satir.expiryDate <= bugun + 30", "width": 3 } },
 
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": { "table": "liste", "width": 12, "search": true, "searchPlaceholder": "Lot/seri kodu, stok veya depo ara", "searchParam": "q",
