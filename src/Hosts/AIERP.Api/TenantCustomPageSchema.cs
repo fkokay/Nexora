@@ -41,7 +41,7 @@ internal static class TenantCustomPageSchema
       // Proje 2 Faz B: save sequences, row actions, editable grids, custom fields, dialogs, images and change tracking.
       "saveSequence", "stopOnError", "sequenceWhen", "rowActions", "emptyText", "limit", "promptLabel", "promptRequired", "dialogId",
       "gridMode", "sourceQuery", "rowKey", "gridColumns", "maxRows", "addLabel", "fixedRowLabel", "matrixCode", "matrixName",
-      "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit",
+      "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "backdropClose", "height", "fit",
       "recordKey", "trackChanges",
       // Proje 4: the actionBar's record dialog (Yeni / Aç).
       "formDialog",
@@ -1472,7 +1472,7 @@ internal static class TenantCustomPageSchema
         ["maxRows"] = ["editableGrid"], ["addLabel"] = ["editableGrid"], ["fixedRowLabel"] = ["editableGrid"],
         ["matrixCode"] = ["editableGrid"], ["matrixName"] = ["editableGrid"],
         ["definitionsQuery"] = ["customFieldsBlock"], ["valuesQuery"] = ["customFieldsBlock"],
-        ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"],
+        ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"], ["backdropClose"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
         ["closeInput"] = ["card"],
@@ -1739,7 +1739,10 @@ internal static class TenantCustomPageSchema
             return Fail("'presentation' dialog veya drawer olmalıdır.", out error);
         if (props.TryGetProperty("saveLabel", out var saveLabel) && !IsStaticTextUpTo(saveLabel, 40))
             return Fail("'saveLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        foreach (var key in new[] { "closeOnSave", "resetOnOpen" })
+        // 'size' is a shared prop (SafeProps); on a dialog it picks the window / drawer width.
+        if (props.TryGetProperty("size", out _) && StringOf(props, "size") is not ("sm" or "md" or "lg" or "full"))
+            return Fail("'size' sm, md, lg veya full olmalıdır.", out error);
+        foreach (var key in new[] { "closeOnSave", "resetOnOpen", "backdropClose" })
             if (props.TryGetProperty(key, out var flag) && !IsBool(flag)) { error = $"'{key}' true veya false olmalıdır."; return false; }
         context.PendingDialogContains.Add((id, ids));
         return true;
