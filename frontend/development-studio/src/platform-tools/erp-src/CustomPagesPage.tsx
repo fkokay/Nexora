@@ -53,6 +53,7 @@ import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/Co
 import { barLookMap, hiddenForPreview } from "./page-designer/barLook";
 import { BindingSampleContext } from "./page-designer/bindingSample";
 import { ConditionBuilder } from "./page-designer/ConditionBuilder";
+import { DialogLookFields } from "./page-designer/DialogLookFields";
 import { BarLookFields } from "./page-designer/BarLookFields";
 import { BarCommandRows } from "./page-designer/BarCommandRows";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
@@ -153,7 +154,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -3690,6 +3691,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               columnsOf={(queryId) => { const columns = queryColumns(queryId); return columns.length > 0 ? columns.map((column) => column.code) : null; }}
               disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
             {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components}
+              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               labelOf={(component) => { const summary = summaryOf(component as PageComponent); const title = titleFor(component.type as ComponentType); return summary === title ? title : `${title}: ${summary}`; }}
               writeQueries={writeQueries} readQueries={readQueries} pageNames={pageNamesOf(definition)} disabled={!canEdit}
               onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
