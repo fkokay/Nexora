@@ -77,7 +77,7 @@ export function FilterBarFields({ name, props, tables, tableId, columns, formats
       <div className="pd-field pd-settings-wide">Süzgeçler<small>Süzgeçte açık olanlar ERP'de çizilir (en çok {MAX_FILTERS}); tür sütunun biçiminden kendiliğinden gelir.</small>
         <div className="pd-filterbar-table" role="table" aria-label="Süzgeç sütunları">
           <div className="pd-filterbar-row is-head" role="row">{["Süzgeçte", "Aramada", "Sütun", "Tür", "Yer", "Uygulama"].map((head) => <span key={head} role="columnheader">{head}</span>)}</div>
-          {rows.map((row) => {
+          {rows.filter((row) => byKey.has(row.key) || searchColumns.includes(row.key)).map((row) => {
             const spec = byKey.get(row.key);
             const on = !!spec;
             const server = !!spec?.param;
@@ -109,6 +109,17 @@ export function FilterBarFields({ name, props, tables, tableId, columns, formats
           })}
           {rows.length === 0 && <p className="pd-binding-note">Izgaranın sorgu önizlemesi çalışınca sütunlar listelenir.</p>}
         </div>
+        {/* Süzgeçte ya da aramada olmayan sütun / parametreler tabloyu uzatmaz: buradan eklenir. */}
+        {rows.some((row) => !byKey.has(row.key)) && <select className="pd-picker-add" value="" aria-label="Süzgece alan ekle" disabled={disabled || specs.length >= MAX_FILTERS}
+          onChange={(event) => { const row = rows.find((item) => item.key === event.target.value); if (row) patchFilter(row, {}); }}>
+          <option value="">{specs.length >= MAX_FILTERS ? `En fazla ${MAX_FILTERS} süzgeç` : "＋ Alan ekle…"}</option>
+          {rows.filter((row) => !byKey.has(row.key)).map((row) => <option key={row.key} value={row.key}>{row.label}{row.column ? "" : " (sorgu parametresi)"}</option>)}
+        </select>}
+        {search && rows.some((row) => row.column && row.searchable && !searchColumns.includes(row.key) && !byKey.has(row.key)) && <select className="pd-picker-add" value="" aria-label="Aramaya sütun ekle" disabled={disabled}
+          onChange={(event) => { if (event.target.value) onPatch({ searchColumns: emptyToUndefined(toggleSearchColumn(searchColumns, event.target.value)) }); }}>
+          <option value="">＋ Aramaya sütun ekle…</option>
+          {rows.filter((row) => row.column && row.searchable && !searchColumns.includes(row.key) && !byKey.has(row.key)).map((row) => <option key={row.key} value={row.key}>{row.label}</option>)}
+        </select>}
         {paged && search && !props.searchParam && <small className="pd-query-warning">Arama yalnız görünen sayfada yapılır; sunucuda aramak için arama parametresini seçin.</small>}
         {unbound.length > 0 && (queryEditable
           ? <small>Kayıtta {unbound.map((param) => `@${param}`).join(", ")} parametresi {`{{${name}.<parametre>}}`} ile bağlanır.</small>
