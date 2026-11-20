@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AIERP.Api;
@@ -519,6 +520,13 @@ internal static class TenantCustomPageSchema
                 if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
                     && (prop.Value.ValueKind != JsonValueKind.String || prop.Value.GetString()!.Length > messageLimit))
                 { error = $"'{prop.Name}' en fazla {messageLimit} karakterlik metin olmalıdır."; return false; }
+                if (ConditionTextProps.Contains(prop.Name))
+                {
+                    // Conditions are parsed by PageConditionExpression later; only their ordering operators may use < and >.
+                    if (!SafeConditionValue(prop.Value))
+                    { error = $"'{prop.Name}' özelliği yalnızca sınırlı statik metin/sayı/bool/dizi/değer içerebilir."; return false; }
+                    continue;
+                }
                 var bindable = context.V2 && BindableProps.Contains(prop.Name) && prop.Value.ValueKind == JsonValueKind.String;
                 if (bindable ? !SafeBindableText(prop.Value.GetString()!) : !SafeValue(prop.Value, 0))
                 {
@@ -1939,6 +1947,37 @@ internal static class TenantCustomPageSchema
             _ => false
         };
     }
+    /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
+    private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen" };
+
+    /// <summary>
+    /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted
+    /// literals; inside a quoted literal &lt; and &gt; stay rejected, as do the other executable markers everywhere.
+    /// </summary>
+    private static bool SafeConditionValue(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => SafeConditionText(element.GetString()!),
+        JsonValueKind.Array => element.GetArrayLength() <= 40 && element.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeConditionText(x.GetString()!)),
+        JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null => true,
+        _ => false
+    };
+
+    private static bool SafeConditionText(string text)
+    {
+        if (text.Length > 2000) return false;
+        var outside = new StringBuilder(text.Length);
+        char? quote = null;
+        foreach (var c in text)
+        {
+            if (quote is null && c is '\'' or '"') quote = c;
+            else if (quote == c) quote = null;
+            else if (quote is null && c is '<' or '>') continue;
+            outside.Append(c);
+        }
+        return !ContainsExecutableText(outside.ToString());
+    }
+
     private static bool ContainsExecutableText(string text) => text.Contains("<", StringComparison.Ordinal) || text.Contains(">", StringComparison.Ordinal)
         || text.Contains("javascript:", StringComparison.OrdinalIgnoreCase) || text.Contains("data:", StringComparison.OrdinalIgnoreCase)
         || text.Contains("{{", StringComparison.Ordinal) || text.Contains("}}", StringComparison.Ordinal);

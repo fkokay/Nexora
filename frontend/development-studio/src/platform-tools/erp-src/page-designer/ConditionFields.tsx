@@ -32,6 +32,6 @@ export function ConditionFields({ props, allowDisabled, pageNames, suggestions, 
           ariaLabel="Pasiflik nedeni" placeholder="Bu işlem şu anda kullanılamaz." onChange={(next) => onSet("disabledReason", next || undefined)}/>
       </label>
     </>}
-    <p className="pd-binding-note">Yollar {"{{ }}"} olmadan yazılır; <code>==</code>, <code>!=</code>, <code>in [...]</code>, <code>&amp;&amp;</code>, <code>||</code>, <code>!</code> ve parantez kullanılabilir. Kök ad bir bileşen, sorgu ya da <code>kullanici</code>, <code>bugun</code>, <code>sayilar</code> olmalıdır.</p>
+    <p className="pd-binding-note">Yollar {"{{ }}"} olmadan yazılır; <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code> (sayı ve tarih), <code>bugun + 30</code> (gün ekler), <code>in [...]</code>, <code>&amp;&amp;</code>, <code>||</code>, <code>!</code> ve parantez kullanılabilir. Kök ad bir bileşen, sorgu ya da <code>kullanici</code>, <code>bugun</code>, <code>sayilar</code> olmalıdır.</p>
   </>;
 }

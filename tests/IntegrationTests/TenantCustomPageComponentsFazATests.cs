@@ -73,6 +73,36 @@ public sealed class TenantCustomPageComponentsFazATests
     }
 
     [Fact]
+    public void Accepts_ordering_and_relative_date_conditions()
+    {
+        AssertAccepted(V2([SqlQuery("q1", "veri")],
+        [
+            Input("i1", "ad", new { inputType = "number" }),
+            new { id = "d1", type = "divider", props = new { visibleWhen = "veri.rows[0].x < bugun && veri.rows[0].x >= bugun + -30" } },
+            new { id = "d2", type = "divider", props = new { visibleWhen = "ad.value<=3||ad.value>9" } },
+            Input("i2", "miktar", new { inputType = "number", disabledWhen = "ad.value > 0", requiredWhen = "ad.value >= 1" })
+        ]));
+        // < and > are operators only: inside a quoted literal they are still rejected, and markup is not a condition.
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            Heading("h1", new { text = "x", visibleWhen = "ad.value == '<b>'" })]), "'visibleWhen'");
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            Heading("h1", new { text = "x", visibleWhen = "<script>ad.value</script>" })]), "'visibleWhen' koşulu geçersiz: ");
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            Heading("h1", new { text = "x", visibleWhen = "ad.value < 'javascript:x'" })]), "'visibleWhen'");
+        // Every condition prop is parsed after the text check: markup outside quotes is rejected in each of them.
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            Heading("h1", new { text = "x", widthWhen = "8=<img src=x>" })]), "'widthWhen' koşulu geçersiz: ");
+        AssertAccepted(V2(components: [Input("i1", "ad", new { inputType = "number" }),
+            Heading("h1", new { text = "x", widthWhen = "8=ad.value > 2" })]));
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text", requiredWhen = "<b>" })]), "'requiredWhen' koşulu geçersiz: ");
+        AssertRejected(V2(components: [Input("i1", "ad", new { inputType = "text" }),
+            new { id = "k1", type = "card", props = new { title = "Kart" }, children = new object[]
+            {
+                new { id = "b1", type = "button", props = new { text = "Düğme", visibleWhen = "<img src=x onerror=1>", disabledWhen = "ad.value > 1" } }
+            } }]), "'visibleWhen' koşulu geçersiz: ");
+    }
+
+    [Fact]
     public void Rejects_visibleWhen_with_unknown_root()
     {
         AssertRejected(V2(components: [Heading("h1", new { text = "x", visibleWhen = "yok.value == 1" })]),

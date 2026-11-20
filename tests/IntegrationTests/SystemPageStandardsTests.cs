@@ -11,13 +11,15 @@ public sealed class SystemPageStandardsTests
     {
         Assert.Empty(SystemPageStandards.Validate(SystemPageStandards.EmbeddedFiles()));
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(1, standard.Version);
+        // Version 2 completes Depo Yönetimi; the version 1 items keep their ids and since.
+        Assert.Equal(2, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Depo Yönetimi", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Contains(standard.Items, x => x.Key == "component:depoListesi" && x.Kind == "component" && x.Id == "depoListesi"
-            && x.Requires.SequenceEqual(new[] { "query:depolar" }));
+            && x.Since == 1 && x.Requires.SequenceEqual(new[] { "query:depolar" }));
         Assert.Contains(standard.Items, x => x.Key == "query:depolar" && x.Kind == "query" && x.Id == "depolar" && x.Since == 1);
+        Assert.All(standard.Items.Where(x => x.Key is not ("component:depoListesi" or "query:depolar")), x => Assert.Equal(2, x.Since));
         var view = Assert.Single(standard.ScreenViews);
         Assert.Equal("depoListesi", view.Component);
         Assert.Equal("isActive", view.Fields["status"]);
@@ -25,7 +27,11 @@ public sealed class SystemPageStandardsTests
         Assert.Same(standard, same);
         Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.Equal(new[] { "inventory-stock", "inventory-stock-create", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
+        var locations = SystemPageStandards.All["inventory-locations"];
+        Assert.Equal((1, "preview", "Raf ve Konumlar"), (locations.Version, locations.Stage, locations.Title));
+        Assert.Equal(["inventory-warehouse-locations", "warehouse-location-balances", "inventory-warehouse-reconciliation"],
+            locations.ScreenViews.Select(x => x.Key));
+        Assert.Equal(new[] { "inventory-cost", "inventory-locations", "inventory-stock", "inventory-stock-create", "inventory-stock-movements", "inventory-tracking", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var each in SystemPageStandards.All.Values)
             Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");
     }
@@ -62,6 +68,24 @@ public sealed class SystemPageStandardsTests
         foreach (var standard in SystemPageStandards.All.Values)
             for (var k = 1; k <= standard.Version; k++)
                 Assert.True(TenantCustomPageSchema.Validate(SystemPageStandards.Restrict(standard, k), out var error), $"{standard.ScreenKey} v{k}: {error}");
+    }
+
+    /// <summary>
+    /// "Yeni" offers each later item on its own: a firm design of version k plus one item of a later version and its
+    /// transitive requirements must validate, so every item's requires list is complete.
+    /// </summary>
+    [Fact]
+    public void Every_later_item_validates_alone_on_each_earlier_version()
+    {
+        foreach (var standard in SystemPageStandards.All.Values)
+            for (var k = 1; k < standard.Version; k++)
+                foreach (var item in standard.Items.Where(x => x.Since > k))
+                {
+                    var json = Restrict(standard with { Items = standard.Items.Select(x => x.Since <= k || x.Key == item.Key ? x with { Since = Math.Min(x.Since, k) } : x).ToArray() }, k);
+                    Assert.True(TenantCustomPageSchema.Validate(json, out var error), $"{standard.ScreenKey} v{k} + {item.Key}: {error}");
+                }
+
+        static string Restrict(SystemPageStandard standard, int version) => SystemPageStandards.Restrict(standard, version);
     }
 
     [Fact]
@@ -275,8 +299,8 @@ public sealed class SystemPageStandardsTests
         Assert.False(TenantScreenViewEndpoints.TryGetCatalogFields("no-such-view", out _));
     }
 
-    private static JsonObject Demo() =>
-        JsonNode.Parse(SystemPageStandards.EmbeddedFiles().Single(x => x.FileName == Key + ".json").Json)!.AsObject();
+    /// <summary>The version 1 envelope of Depo Yönetimi: a small, stable base for the envelope rules (the embedded one grows).</summary>
+    private static JsonObject Demo() => JsonNode.Parse(WarehouseStandardV1.Json)!.AsObject();
 
     private static IReadOnlyList<string> Errors(string json, string fileName = Key + ".json") =>
         SystemPageStandards.Validate([(fileName, json)]);

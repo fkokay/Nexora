@@ -165,6 +165,18 @@ public sealed class TenantCustomPageComponentsFazBTests
     }
 
     [Fact]
+    public void Sequence_when_accepts_ordering_but_never_markup()
+    {
+        AssertAccepted(V2(CardQueries(), CardComponents(ActionBar(new { saveSequence = new[] { "guncelle" }, sequenceWhen = new[] { "guncelle=bugun >= bugun + -1" } }))));
+        // < and > outside quotes only pass the text check; the condition parser still rejects anything that is not a condition.
+        AssertRejected(V2(CardQueries(), CardComponents(ActionBar(new { saveSequence = new[] { "guncelle" }, sequenceWhen = new[] { "guncelle=<img src=x>" } }))),
+            "'sequenceWhen'");
+        AssertRejected(V2(CardQueries(), CardComponents(ActionBar(new { saveSequence = new[] { "guncelle" }, sequenceWhen = new[] { "guncelle=bugun == '<b>'" } }))),
+            "'sequenceWhen'");
+        AssertRejected(V2(CardQueries(), CardComponents(ActionBar(new { sequenceWhen = new[] { "guncelle=<img src=x>" } }))), "'sequenceWhen'");
+    }
+
+    [Fact]
     public void Rejects_sequence_when_step_not_in_sequence()
     {
         AssertRejected(V2(CardQueries(), CardComponents(ActionBar(new { saveSequence = new[] { "guncelle" }, sequenceWhen = new[] { "pasif=bugun != null" } }))),

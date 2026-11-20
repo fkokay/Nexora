@@ -65,6 +65,7 @@ internal static class ErpOperationCatalog
     private const string ReportModule = "Raporlar";
     private const string ManufacturingModule = "Üretim";
     private const string SettingsModule = "Ayarlar";
+    private const string PurchasingModule = "Satınalma";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
@@ -101,7 +102,15 @@ internal static class ErpOperationCatalog
         ["productStockItemId"] = "Mamul stok kartı", ["productName"] = "Mamul", ["productTrackingMode"] = "Mamul izleme türü",
         ["outputQuantity"] = "Çıktı miktarı", ["orderCount"] = "Üretim emri sayısı", ["tenantId"] = "Firma kimliği",
         ["allowNegativeStock"] = "Negatif stoka izin ver", ["updatedByUserId"] = "Güncelleyen", ["updatedAt"] = "Güncellenme",
-        ["status"] = "Durum"
+        ["status"] = "Durum",
+        ["displayQuantity"] = "Miktar", ["displayUnitCode"] = "Birim", ["trackingText"] = "Lot / seri",
+        ["stockItemCode"] = "Stok kodu", ["stockItemName"] = "Stok adı", ["warehouseQuantity"] = "Depo bakiyesi",
+        ["locatedQuantity"] = "Konumlandırılmış", ["unlocatedQuantity"] = "Konumu boş", ["asOfDate"] = "Tarih itibarıyla",
+        ["kind"] = "Kayıt türü", ["purchaseReceiptId"] = "Mal kabul kimliği", ["totalAmountBase"] = "Toplam tutar",
+        ["amountBase"] = "Tutar", ["reason"] = "Gerekçe", ["allocationMethod"] = "Dağıtım yöntemi",
+        ["purchaseOrderId"] = "Satınalma siparişi kimliği", ["purchaseOrderCode"] = "Satınalma siparişi", ["receiptDate"] = "Kabul tarihi",
+        ["lineCount"] = "Satır sayısı",
+        ["lastMovementDate"] = "Son hareket tarihi"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -160,6 +169,10 @@ internal static class ErpOperationCatalog
         };
         operations.AddRange(BuildStockPilot(id, paging));
         operations.AddRange(BuildStockPilotV1());
+        operations.Add(BuildStockMovementHistory(paging));
+        operations.AddRange(BuildWarehouseStandard());
+        operations.AddRange(BuildStockCost(paging));
+        operations.AddRange(BuildStockScreens(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -234,6 +247,117 @@ internal static class ErpOperationCatalog
             [new ErpOperationParameter("productStockItemId", "query", "guid", true)], List(Columns<BomView>(), null));
         yield return Read(SettingsModule, "ayar.negatifStok", "Negatif stok kuralı", "/api/tenant-settings/operations", [],
             Record(Columns<TenantOperationalSettingsView>()));
+    }
+
+    /// <summary>
+    /// Stok Hareketleri standard: one stock card's movements in every warehouse, or in one warehouse when warehouseId is set
+    /// (the per-warehouse route, as the legacy screen does). The caller needs both routes' read permissions. The display
+    /// columns (entered quantity with its unit, else the base quantity and unit; lot / serial allocations as one line) are
+    /// computed members of the view outside its constructor, so the older transaction operations keep their columns.
+    /// </summary>
+    private static ErpOperation BuildStockMovementHistory(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        var columns = Columns<InventoryTransactionView>()
+            .Append(new ErpOperationColumn("displayQuantity", Label("displayQuantity"), "decimal"))
+            .Append(new ErpOperationColumn("displayUnitCode", Label("displayUnitCode"), "text"))
+            .Append(new ErpOperationColumn("trackingText", Label("trackingText"), "text")).ToArray();
+        return Read(StockModule, "stok.hareket.gecmisi", "Stok hareket geçmişi", "/api/stock/items/{stockItemId}/transactions",
+                [Route("stockItemId"), new ErpOperationParameter("warehouseId", "route", "guid", false), .. paging],
+                List(columns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] })
+            with { RouteVariants = [new ErpOperationRouteVariant("/api/warehouses/{warehouseId}/stock/{stockItemId}/transactions", "warehouseId")] };
+    }
+
+    /// <summary>
+    /// Depo Yönetimi (standard v2) and Raf ve Konumlar (standard v1). There is no single warehouse or location read, so
+    /// the updates have no source operation: every body field, rowVersion included, is bound from the selected list row.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildWarehouseStandard()
+    {
+        const string warehouseRoute = "/api/warehouses/{warehouseId}";
+        const string locationRoute = warehouseRoute + "/locations/{locationId}";
+        var warehouseId = Route("warehouseId");
+        var locationId = Route("locationId");
+        var warehouseColumns = Columns<WarehouseView>();
+        var locationColumns = Columns<WarehouseLocationView>();
+        var valueColumns = Columns<WarehouseCustomFieldValueView>();
+        // Status changes are POST …/status (resolved as erp.warehouses.create); isActive and confirmation are fixed so a page
+        // can neither flip the direction nor skip the confirmation the endpoint requires.
+        Dictionary<string, object?> Status(bool isActive) => new(StringComparer.Ordinal) { ["isActive"] = isActive, ["confirmation"] = true };
+
+        yield return Write(WarehouseModule, "depo.olustur", "Depo oluştur", "insert", "POST", "/api/warehouses",
+            [.. BodyParameters<WarehouseWriteRequest>(sourceBacked: false), MapParameter("customFields")], Record(warehouseColumns), null, null);
+        yield return Write(WarehouseModule, "depo.guncelle", "Depo güncelle", "update", "PUT", warehouseRoute,
+            [warehouseId, .. BodyParameters<WarehouseUpdateRequest>(sourceBacked: false)], Record(warehouseColumns), null, null);
+        yield return Write(WarehouseModule, "depo.pasifeAl", "Depoyu pasife al", "update", "POST", warehouseRoute + "/status",
+            [warehouseId], Record(warehouseColumns), null, Status(false));
+        yield return Write(WarehouseModule, "depo.aktifEt", "Depoyu etkinleştir", "update", "POST", warehouseRoute + "/status",
+            [warehouseId], Record(warehouseColumns), null, Status(true));
+        yield return Read(WarehouseModule, "depo.ozelAlanTanimlari", "Depo özel alan tanımları", "/api/warehouses/custom-fields", [],
+            List(Columns<WarehouseCustomFieldDefinitionView>(), null));
+        yield return Read(WarehouseModule, "depo.ozelAlanDegerleri", "Depo özel alan değerleri", warehouseRoute + "/custom-fields", [warehouseId],
+            List(valueColumns, null));
+        // Same body map as stok.kart.ozelAlanKaydet: codes the page does not bind keep the values read by depo.ozelAlanDegerleri.
+        yield return Write(WarehouseModule, "depo.ozelAlanKaydet", "Depo özel alanlarını kaydet", "update", "PUT", warehouseRoute + "/custom-fields",
+            [warehouseId, MapParameter("values")], List(valueColumns, null), null, null)
+            with { BodyMap = new ErpOperationBodyMap("values", "depo.ozelAlanDegerleri", "code", "value") };
+        // The location write handlers themselves only accept TenantAdmin, whatever the permission rules say.
+        yield return Write(WarehouseModule, "depo.konum.olustur", "Depo konumu oluştur", "insert", "POST", warehouseRoute + "/locations",
+            [warehouseId, .. BodyParameters<WarehouseLocationWriteRequest>(sourceBacked: false)], Record(locationColumns), null, null,
+            requiresTenantAdmin: true);
+        yield return Write(WarehouseModule, "depo.konum.guncelle", "Depo konumu güncelle", "update", "PUT", locationRoute,
+            [warehouseId, locationId, .. BodyParameters<WarehouseLocationUpdateRequest>(sourceBacked: false)], Record(locationColumns), null, null,
+            requiresTenantAdmin: true);
+        // Sil → Pasife al: the same PUT with isActive fixed to false, the other fields bound from the row.
+        yield return Write(WarehouseModule, "depo.konum.pasifeAl", "Depo konumunu pasife al", "update", "PUT", locationRoute,
+            [warehouseId, locationId, .. BodyParameters<WarehouseLocationUpdateRequest>(sourceBacked: false, exclude: "isActive")],
+            Record(locationColumns), null, new Dictionary<string, object?>(StringComparer.Ordinal) { ["isActive"] = false },
+            requiresTenantAdmin: true);
+        yield return Read(WarehouseModule, "depo.konum.bakiyeleri", "Depo konumu stok bakiyeleri", locationRoute + "/balances",
+            [warehouseId, locationId, Query("asOfDate", "date")], List(Columns<WarehouseLocationBalanceView>(), "items"));
+        yield return Read(WarehouseModule, "depo.konumlandirmaDenetimi", "Konumlandırma denetimi", warehouseRoute + "/location-reconciliation",
+            [warehouseId, Query("asOfDate", "date")], List(Columns<WarehouseLocationReconciliationItemView>(), "items"));
+    }
+
+    /// <summary>
+    /// Stok Değerleme (inventory-cost): cost adjustments of a stock item in a warehouse, revaluation, landed costs of a
+    /// purchase receipt and their reversals. Every write handler itself only accepts TenantAdmin; a reversal writes a new
+    /// linked entry and never changes the original, and the handlers keep their fiscal-close checks.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildStockCost(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        var adjustmentColumns = Columns<InventoryCostAdjustmentView>();
+        var warehouseId = Route("warehouseId");
+        var stockItemId = Route("stockItemId");
+        var receiptId = Route("id");
+        const string stockCostRoute = "/api/warehouses/{warehouseId}/stock/{stockItemId}";
+        const string landedCostRoute = "/api/purchasing/receipts/{id}/landed-costs";
+        yield return Read(StockModule, "stok.maliyet.kayitlari", "Stok maliyet kayıtları (depo, son 100)", stockCostRoute + "/cost-adjustments",
+            [warehouseId, stockItemId], List(adjustmentColumns, null));
+        yield return Write(StockModule, "stok.maliyet.yenidenDegerle", "Stok maliyetini yeniden değerle", "insert", "POST", stockCostRoute + "/revaluations",
+            [warehouseId, stockItemId, .. BodyParameters<InventoryCostRevaluationRequest>(sourceBacked: false)], Record(adjustmentColumns), null, null,
+            requiresTenantAdmin: true);
+        yield return Write(StockModule, "stok.maliyet.tersKayit", "Stok değerlemesini ters kayıtla düzelt", "insert", "POST",
+            "/api/warehouses/cost-adjustments/{id}/reverse", [Route("id"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)],
+            Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+        // The list has no status filter; Posted is only checked by the landed cost handler.
+        yield return Read(PurchasingModule, "satinalma.malKabul.listele", "Mal kabulleri listele", "/api/purchasing/receipts", paging,
+            List(Columns<PurchaseReceiptSummary>(), "items"));
+        yield return Read(PurchasingModule, "satinalma.malKabul.ekMaliyetler", "Mal kabul ek maliyetleri", landedCostRoute, [receiptId],
+            List(adjustmentColumns, null));
+        yield return Write(PurchasingModule, "satinalma.malKabul.ekMaliyetDagit", "Mal kabul ek maliyetini dağıt", "insert", "POST", landedCostRoute,
+            [receiptId, .. BodyParameters<LandedCostWriteRequest>(sourceBacked: false)], Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+        yield return Write(PurchasingModule, "satinalma.malKabul.ekMaliyetTersKayit", "Mal kabul ek maliyetini ters kayıtla düzelt", "insert", "POST",
+            landedCostRoute + "/{adjustmentId}/reverse", [receiptId, Route("adjustmentId"), .. BodyParameters<InventoryReverseRequest>(sourceBacked: false)],
+            Record(adjustmentColumns), null, null, requiresTenantAdmin: true);
+    }
+
+    /// <summary>Stok &amp; Depo screen standards: Lot / Seri İzleme (read only).</summary>
+    private static IEnumerable<ErpOperation> BuildStockScreens(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        // Lot/serial balances computed from traced movements; the endpoint accepts trackingMode Lot or Serial only.
+        yield return Read(StockModule, "stok.izleme.bakiyeler", "Lot / seri bakiyeleri (sayfalı)", "/api/inventory-tracking/balances",
+            [Query("q", "text"), Query("warehouseId", "guid"), Query("trackingMode", "text"), .. paging],
+            List(Columns<InventoryTrackingBalanceView>(), "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
     }
 
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.

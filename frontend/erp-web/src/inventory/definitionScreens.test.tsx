@@ -9,6 +9,7 @@ import WarehouseLocationsPage from '../WarehouseLocationsPage';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { LOCATION_REQUEST_EVENT, LOCATION_REQUEST_KEY } from '../warehouse-locations/locationRequest';
 import { commandReason } from '../action-bar/commandReason';
+import { pageParamsOf, setPageParams } from '../pageNavigation';
 
 // Depolar and Raf ve Konumlar as definition screens (mockup 04 "2 · Tanım ekranı" / "2b · Sil onayı"):
 // list on the left, the selected record's form on the right, Sil explains why it is blocked and offers Pasife al.
@@ -103,6 +104,7 @@ afterEach(() => {
   cleanup();
   apiMock.mockReset();
   sessionStorage.clear();
+  setPageParams('inventory-locations', {});
 });
 
 function renderScreen(view: ReactNode) {
@@ -600,6 +602,8 @@ describe('Depolar definition screen', () => {
     fireEvent.click(within(pane()).getByRole('button', { name: /Lokasyon ekle/ }));
     expect(onNavigate).toHaveBeenCalledWith('inventory-locations');
     expect(JSON.parse(sessionStorage.getItem(LOCATION_REQUEST_KEY)!)).toEqual({ warehouseId: 'w1', create: true });
+    // The system Raf ve Konumlar page reads the warehouse from the page parameters.
+    expect(pageParamsOf('inventory-locations')).toEqual({ warehouseId: 'w1' });
     // A passive warehouse takes no new location.
     await selectWarehouse('D9');
     expect(within(pane()).queryByRole('button', { name: /Lokasyon ekle/ })).toBeNull();
@@ -750,6 +754,27 @@ describe('Raf ve Konumlar definition screen', () => {
     await settle();
     expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
     expect(within(pane()).getByRole('heading', { name: 'Konum oluştur' })).toBeTruthy();
+  });
+
+  it('opens on the warehouse that the system Depolar page handed over in the page parameters', async () => {
+    setPageParams('inventory-locations', { warehouseId: 'w2' });
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
+    expect(calls('GET', /^\/api\/warehouses\/w1\/locations$/)).toHaveLength(0);
+  });
+
+  it('takes a page-parameter hand-off while already open', async () => {
+    renderScreen(<WarehouseLocationsPage token="t" role="TenantAdmin" />);
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/)).toHaveLength(0);
+    await act(async () => {
+      setPageParams('inventory-locations', { warehouseId: 'w2' });
+    });
+    await settle();
+    expect(calls('GET', /^\/api\/warehouses\/w2\/locations$/).length).toBeGreaterThan(0);
+    // Without a create flag the form stays closed.
+    expect(within(pane()).queryByRole('heading', { name: 'Konum oluştur' })).toBeNull();
   });
 
   it('Aç (Enter) opens the current row into the form and focuses it', async () => {

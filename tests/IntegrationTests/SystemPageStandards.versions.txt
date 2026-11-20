@@ -1,3 +1,7 @@
+inventory-cost=1
+inventory-locations=1
 inventory-stock=1
 inventory-stock-create=1
-inventory-warehouses=1
+inventory-stock-movements=1
+inventory-tracking=1
+inventory-warehouses=2

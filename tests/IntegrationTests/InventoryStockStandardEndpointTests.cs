@@ -297,10 +297,10 @@ public sealed class InventoryStockStandardMovementSqlAcceptanceTests
         }
     }
 
-    private static string BuildDatabaseConnection(string source, string databaseName) =>
+    internal static string BuildDatabaseConnection(string source, string databaseName) =>
         new SqlConnectionStringBuilder(source) { InitialCatalog = databaseName, ConnectTimeout = 15, TrustServerCertificate = true }.ConnectionString;
 
-    private sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
+    internal sealed class ProcessEnvironmentOverride(IReadOnlyDictionary<string, string?> previousValues) : IDisposable
     {
         public static ProcessEnvironmentOverride Push(IReadOnlyDictionary<string, string?> values)
         {
@@ -315,7 +315,7 @@ public sealed class InventoryStockStandardMovementSqlAcceptanceTests
         }
     }
 
-    private sealed class StockStandardApiFactory(string platformConnection, string tenantConnection, string studioConnection,
+    internal sealed class StockStandardApiFactory(string platformConnection, string tenantConnection, string studioConnection,
         ITenantSqlCredentialReader credentialReader) : WebApplicationFactory<ApiEntryPointMarker>
     {
         protected override IHost CreateHost(IHostBuilder builder)
