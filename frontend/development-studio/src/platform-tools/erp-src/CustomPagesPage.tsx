@@ -52,6 +52,7 @@ import { useCanvasSamples } from "./page-designer/useCanvasSamples";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
 import { barLookMap, hiddenForPreview } from "./page-designer/barLook";
 import { BindingSampleContext } from "./page-designer/bindingSample";
+import { ConditionBuilder } from "./page-designer/ConditionBuilder";
 import { BarLookFields } from "./page-designer/BarLookFields";
 import { BarCommandRows } from "./page-designer/BarCommandRows";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
@@ -152,7 +153,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
 };
 // Keys the inspector edits with a dedicated control. Anything else found on a component
 // (older or hand-written definitions) is still shown as a plain text field so it stays editable.
-const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
+const managedKeys = new Set(["text", "title", "label", "description", "value", "variant", "format", "requiredWhen", "hiddenCommands", "commandWhen", "barLook", "formCode", "source", "columns", "workflowId", "rowActionsEnabled", "rowActionWorkflowId", "rowActionLabel", "actionType", "width", "margin", "padding", "backgroundColor", "textColor", "borderRadius", "css", "javascript", "hidden", "items", "query", "inputType", "placeholder", "defaultValue", "optionsQuery", "optionLabelColumn", "optionValueColumn", "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage", "icon", "trendQuery", "filterInput", "filterValue", "toneMap", "density", "columnFormats", "totals", "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts", "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "formDialog", "titleCount", "defaultWhen", "closeInput",
   // Proje 2 Faz A: koşullar, sekmeler, arama kutusu, sunucu sayfalı liste ve doğrulama (sunucudaki SafePropsV2).
   "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab", "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
   "paging", "pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta", "required", "upperCase", "min", "max", "step", "maxLength", "pattern", "patternMessage",
@@ -233,6 +234,8 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   return { ...component, props };
 }
 /** Giriş türü değişince silinen, türe bağlı doğrulama özellikleri ("Zorunlu" türden bağımsızdır, kalır). */
+/** Doğrulama "Kod" biçimi: büyük harf, rakam ve tire. */
+const CODE_PATTERN = "[A-Z0-9-]+";
 const validationReset: Record<string, undefined> = { min: undefined, max: undefined, step: undefined, maxLength: undefined, pattern: undefined, patternMessage: undefined, upperCase: undefined };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** .NET'te olup ECMAScript'te olmayan yapılar (satır içi seçenekler `(?i)`, `\A`, `\Z`, `\z`); sunucudaki kuralın aynısı. */
@@ -931,6 +934,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [settingsTab, setSettingsTab] = useState("data");
   // Başlıkta adı düzenlenen bileşen (kalem simgesi).
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  // Doğrulama sekmesinde henüz yazılmamış "Koşula göre" / "Özel desen" seçimi (değer yazılana kadar seçim kaybolmasın).
+  const [requiredWhenDraft, setRequiredWhenDraft] = useState<string | null>(null);
+  const [customPatternDraft, setCustomPatternDraft] = useState<string | null>(null);
   // Kart tasarım ekranı: içi düzenlenen bilgi kartı / bölüm (yalnız görünüm durumu; tanıma yazılmaz).
   const [focusId, setFocusId] = useState<string | null>(null);
   const suggestionsRef = useRef<BindingSuggestion[]>([]);
@@ -3036,7 +3042,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       : <label className="pd-field">{label}<input type="number" value={typeof props[key] === "number" ? props[key] as number : ""} onChange={(event) => setOptionalProp(input.id, key, numberOf(event.target.value))}/></label>;
     return <div className="pd-validation">
       <div className="pd-field">Doğrulama<small>ERP'de kayıttan önce denetlenir; sunucudaki doğrulamanın yerini almaz.</small></div>
-      <label className="pd-check"><input type="checkbox" checked={props.required === true} onChange={(event) => patchComponent(input.id, { required: event.target.checked ? true : undefined })}/>Zorunlu</label>
+      <div className="pd-field">Zorunlu<div className="pd-segment" role="group" aria-label="Zorunlu">
+        {([["no", "Hayır"], ["yes", "Evet"], ["when", "Koşula göre"]] as const).map(([value, label]) => {
+          const current = props.required === true ? "yes" : typeof props.requiredWhen === "string" && props.requiredWhen !== "" || requiredWhenDraft === input.id ? "when" : "no";
+          return <button type="button" key={value} aria-pressed={current === value} className={current === value ? "active" : ""} onClick={() => {
+            setRequiredWhenDraft(value === "when" ? input.id : null);
+            patchComponent(input.id, value === "yes" ? { required: true, requiredWhen: undefined } : value === "no" ? { required: undefined, requiredWhen: undefined } : { required: undefined });
+          }}>{label}</button>;
+        })}</div>
+        {(typeof props.requiredWhen === "string" && props.requiredWhen !== "" || requiredWhenDraft === input.id) && props.required !== true
+          && <ConditionBuilder key={`${input.id}-requiredWhen`} prop="requiredWhen" value={typeof props.requiredWhen === "string" ? props.requiredWhen : undefined}
+            paths={bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }))}
+            pageNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => setOptionalProp(input.id, "requiredWhen", next)}/>}
+      </div>
       {(inputType === "number" || inputType === "date") && <div className="pd-field-row">{bound("min", "En az")}{bound("max", "En fazla")}</div>}
       {rangeProblem && <small className="pd-query-warning">{rangeProblem}</small>}
       {inputType === "number" && <label className="pd-field">Adım<small>Ör. 0.01 kuruş, 1 tam sayı.</small><input type="number" min={0} value={typeof step === "number" ? step : ""} onChange={(event) => setOptionalProp(input.id, "step", numberOf(event.target.value))}/>
@@ -3044,13 +3062,22 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {inputType === "text" && <>
         <label className="pd-field">En fazla karakter<input type="number" min={1} max={4000} value={typeof maxLength === "number" ? maxLength : ""} onChange={(event) => setOptionalProp(input.id, "maxLength", numberOf(event.target.value))}/>
           {lengthProblem && <small className="pd-query-warning">{lengthProblem}</small>}</label>
-        <label className="pd-field">Biçim (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
+        <div className="pd-field">Biçim<div className="pd-segment" role="group" aria-label="Biçim">
+          {([["free", "Serbest"], ["code", "Kod (A-Z, 0-9, -)"], ["custom", "Özel desen"]] as const).map(([value, label]) => {
+            const current = pattern === "" && customPatternDraft !== input.id ? "free" : pattern === CODE_PATTERN ? "code" : "custom";
+            return <button type="button" key={value} aria-pressed={current === value} className={current === value ? "active" : ""} onClick={() => {
+              setCustomPatternDraft(value === "custom" ? input.id : null);
+              if (value === "free") patchComponent(input.id, { pattern: undefined, patternMessage: undefined });
+              else if (value === "code") updateComponent(input.id, "pattern", CODE_PATTERN);
+            }}>{label}</button>;
+          })}</div></div>
+        {(customPatternDraft === input.id || pattern !== "" && pattern !== CODE_PATTERN) && <label className="pd-field">Özel desen (düzenli ifade)<small>Değerin tamamı eşleşmelidir, ör. [A-Z]{"{3}"}-\d+</small>
           <input className="pd-condition-input" value={pattern} maxLength={200} spellCheck={false} onChange={(event) => {
             const next = event.target.value;
             if (next === "") patchComponent(input.id, { pattern: undefined, patternMessage: undefined }); else updateComponent(input.id, "pattern", next);
           }}/>
-          {pattern && patternProblem(pattern) && <small className="pd-query-warning">{patternProblem(pattern)}</small>}</label>
-        {pattern && <label className="pd-field">Biçim hatası mesajı<small>Boşsa “Değer beklenen biçimde değil.” gösterilir.</small>
+          {pattern && patternProblem(pattern) && <small className="pd-query-warning">{patternProblem(pattern)}</small>}</label>}
+        {pattern && <label className="pd-field">Hata metni<small>Boşsa “Değer beklenen biçimde değil.” gösterilir.</small>
           <input value={typeof props.patternMessage === "string" ? props.patternMessage : ""} maxLength={120} onChange={(event) => setOptionalProp(input.id, "patternMessage", sanitizeSafeValue(event.target.value, false) || undefined)}/></label>}
         <label className="pd-check"><input type="checkbox" checked={props.upperCase === true} onChange={(event) => patchComponent(input.id, { upperCase: event.target.checked ? true : undefined })}/>Büyük harfe çevir</label>
       </>}
