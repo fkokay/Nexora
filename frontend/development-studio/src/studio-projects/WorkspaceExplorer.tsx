@@ -2,7 +2,8 @@
 import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleStarterFile } from "../moduleStarterFiles";
-import { FolderTree, X, Sparkles, ChevronRight, FileCode, Search, Play, GitBranch, History, ShieldCheck, Plus, Folder, Code2, ArrowUpRight, MessageCircle, ChevronDown } from "lucide-react";
+import { FolderTree, X, Sparkles, ChevronRight, FileCode, Search, Play, GitBranch, History, ShieldCheck, Plus, Folder, Code2, ArrowUpRight, MessageCircle, ChevronDown, BookOpen, Network, Pencil, ListChecks } from "lucide-react";
+import "./workspace-explorer.css";
 import { confirmDialog } from "../ui/confirmDialog";
 import { updateWorkspaceRoute, maxManualWorkspaceFileBytes, linkedDevelopmentContext } from "./helpers";
 import { WorkspaceCodeEditor } from "../WorkspaceCodeEditor";
@@ -212,174 +213,97 @@ export function WorkspaceExplorer({
 }: WorkspaceExplorerProps) {
   return (
     <div
-      className="studio-ide-page studio-file-explorer"
+      className="studio-ide-page studio-file-explorer wx-ide"
       ref={workspaceExplorerRef}
       role="main"
       aria-labelledby="workspace-explorer-title"
       tabIndex={-1}
       onKeyDown={handleWorkspaceExplorerKeyDown}
     >
-      <div className="modal-head">
-        <div>
-          <p className="eyebrow studio-explorer-eyebrow">
-            <FolderTree size={14} /> Nexora Studio{" "}
-            <span>İZOLE ÇALIŞMA ALANI</span>
-          </p>
-          <h2 id="workspace-explorer-title">
-            <span>{workspaceProject?.name}</span>
-            <code className="studio-explorer-branch">
-              {fileWorkspace.branchName}
-            </code>
-          </h2>
-        </div>
+      <header className="modal-head wx-top">
+        <span className="wx-brand" aria-hidden="true">
+          <Sparkles size={14} /> Studio
+        </span>
+        <h2 id="workspace-explorer-title" className="wx-title">
+          <span>{workspaceProject?.name}</span>
+          <code>
+            {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
+          </code>
+        </h2>
+        <button
+          type="button"
+          className="wx-command"
+          onClick={() =>
+            document
+              .querySelector<HTMLInputElement>(".studio-vscode-tree-search input")
+              ?.focus()
+          }
+        >
+          <Search size={14} aria-hidden="true" />
+          <span>Dosya ara</span>
+          <kbd>Ctrl P</kbd>
+        </button>
+        <details className="wx-menu">
+          <summary className="wx-btn">
+            <GitBranch size={14} aria-hidden="true" /> Sürüm
+            <ChevronDown size={13} aria-hidden="true" />
+          </summary>
+          <div className="wx-menu-list" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              disabled={gitStatusLoading}
+              onClick={(event) => {
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                void loadWorkspaceGitStatus(fileWorkspace);
+              }}
+            >
+              <GitBranch size={14} aria-hidden="true" />
+              <span>
+                <b>Durum</b>
+                <small>Değişiklikleri incele</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={changeLoading}
+              onClick={(event) => {
+                event.currentTarget.closest("details")?.removeAttribute("open");
+                void loadWorkspaceChanges(fileWorkspace);
+              }}
+            >
+              <History size={14} aria-hidden="true" />
+              <span>
+                <b>Geçmiş</b>
+                <small>Onaylı değişiklikler</small>
+              </span>
+            </button>
+          </div>
+        </details>
+        <button
+          type="button"
+          className={`wx-btn wx-btn-primary${aiToolsViewOpen ? " is-active" : ""}`}
+          aria-expanded={aiToolsViewOpen}
+          aria-controls="studio-ai-tools-page"
+          onClick={() => {
+            setAiToolsViewOpen((value) => !value);
+            setAiDockOpen(false);
+          }}
+        >
+          <Sparkles size={14} aria-hidden="true" /> AI asistanı
+        </button>
         <button
           ref={workspaceExplorerCloseRef}
           type="button"
-          className="icon-button"
+          className="wx-icon-btn"
           aria-label="Dosya gezginini kapat"
+          title="Projelere dön"
           onClick={closeWorkspaceFileExplorer}
         >
-          <X size={19} />
+          <X size={17} />
         </button>
-      </div>
-      <p className="muted modal-sub studio-explorer-intro">
-        Kod, AI sohbeti, arama, test ve sürüm hazırlığı aynı izole çalışma
-        alanında.
-      </p>
-      <div
-        className="studio-workbench-tools"
-        role="toolbar"
-        aria-label="Çalışma alanı araçları"
-      >
-        <div
-          className="studio-workbench-group"
-          role="group"
-          aria-label="Dosyalar"
-        >
-          <span>Dosyalar</span>
-          <button
-            type="button"
-            className="is-active"
-            aria-label="Dosya gezginini aç"
-            onClick={() => {
-              setFileContent(null);
-              setError("");
-            }}
-          >
-            <FolderTree size={15} /> Dosyalar
-          </button>
-        </div>
-        <div
-          className="studio-workbench-group studio-ai-dock-toggle-group"
-          role="group"
-          aria-label="Yapay zekâ"
-        >
-          <span>Yapay zekâ</span>
-          <button
-            type="button"
-            className={aiToolsViewOpen ? "is-active" : ""}
-            aria-expanded={aiToolsViewOpen}
-            aria-controls="studio-ai-tools-page"
-            onClick={() => {
-              setAiToolsViewOpen((value) => !value);
-              setAiDockOpen(false);
-            }}
-          >
-            <Sparkles size={15} /> AI araçları{" "}
-            <ChevronRight
-              size={13}
-              className={aiToolsViewOpen ? "is-expanded" : ""}
-            />
-          </button>
-        </div>
-        <div
-          className="studio-workbench-group"
-          role="group"
-          aria-label="İnceleme"
-        >
-          <span>İnceleme</span>
-          <button
-            type="button"
-            title="Çoklu dosya seçimi"
-            className={multiFileSelecting ? "is-active" : ""}
-            onClick={() => {
-              setMultiFileSelecting((value) => !value);
-              setMultiFilePaths([]);
-            }}
-          >
-            <FileCode size={15} />{" "}
-            {multiFileSelecting ? "Seçimi kapat" : "Çoklu seç"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSourceSearchWorkspace(fileWorkspace);
-              setSourceSearchQuery("");
-              setSourceSearchResult(null);
-              setSelectedSourceMatches([]);
-              setSourceAnalysisResult(null);
-              setSourceAnalysisQuestion("");
-              setSourceAnalysisConsent(false);
-              setError("");
-            }}
-          >
-            <Search size={15} /> Kod ara
-          </button>
-          <button
-            type="button"
-            disabled={analysisLoading}
-            onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
-          >
-            <FolderTree size={15} /> Proje haritası
-          </button>
-          <button
-            type="button"
-            disabled={testDiscoveryLoading}
-            onClick={() => void discoverWorkspaceTests(fileWorkspace)}
-          >
-            <Play size={15} /> Test ve build
-          </button>
-        </div>
-        <div
-          className="studio-workbench-group"
-          role="group"
-          aria-label="Sürüm"
-        >
-          <span>Sürüm</span>
-          <button
-            type="button"
-            disabled={gitStatusLoading}
-            onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
-          >
-            <GitBranch size={15} /> Durum
-          </button>
-          <button
-            type="button"
-            disabled={changeLoading}
-            onClick={() => void loadWorkspaceChanges(fileWorkspace)}
-          >
-            <History size={15} /> Geçmiş
-          </button>
-        </div>
-        <div
-          className="studio-workbench-group"
-          role="group"
-          aria-label="Bilgi tabanı"
-        >
-          <span>Bilgi tabanı</span>
-          <button
-            type="button"
-            className={knowledgeDrawerOpen ? "is-active" : ""}
-            title="Proje bilgi tabanını aç"
-            onClick={() => {
-              setKnowledgePanelExpanded(true);
-              setKnowledgeDrawerOpen(true);
-            }}
-          >
-            <ShieldCheck size={15} /> Proje kaynakları
-          </button>
-        </div>
-      </div>
+      </header>
       {error && <div className="alert">{error}</div>}
       <nav
         className="studio-vscode-activity-bar"
@@ -387,15 +311,16 @@ export function WorkspaceExplorer({
       >
         <button
           type="button"
-          className="active"
-          title="Dosya gezgini"
-          aria-label="Dosya gezgini"
+          className={!aiToolsViewOpen ? "active" : undefined}
+          title="Dosyalar"
+          aria-label="Dosyalar"
           onClick={() => {
+            setAiToolsViewOpen(false);
             setFileContent(null);
             setError("");
           }}
         >
-          <FolderTree size={20} />
+          <FolderTree size={19} />
         </button>
         <button
           type="button"
@@ -416,8 +341,8 @@ export function WorkspaceExplorer({
         </button>
         <button
           type="button"
-          title="Sürüm durumu"
-          aria-label="Sürüm durumu"
+          title="Git durumu"
+          aria-label="Git durumu"
           disabled={gitStatusLoading}
           onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
         >
@@ -432,19 +357,53 @@ export function WorkspaceExplorer({
         >
           <History size={19} />
         </button>
+        <button
+          type="button"
+          title="Test ve build"
+          aria-label="Test ve build"
+          disabled={testDiscoveryLoading}
+          onClick={() => void discoverWorkspaceTests(fileWorkspace)}
+        >
+          <Play size={19} />
+        </button>
+        <button
+          type="button"
+          title="Proje haritası"
+          aria-label="Proje haritası"
+          disabled={analysisLoading}
+          onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
+        >
+          <Network size={19} />
+        </button>
+        <button
+          type="button"
+          className={knowledgeDrawerOpen ? "active" : undefined}
+          title="Bilgi tabanı · proje kaynakları"
+          aria-label="Bilgi tabanı"
+          onClick={() => {
+            setKnowledgePanelExpanded(true);
+            setKnowledgeDrawerOpen(true);
+          }}
+        >
+          <BookOpen size={19} />
+        </button>
         <span className="activity-spacer" />
-        <ShieldCheck size={18} />
+        <span
+          className="wx-activity-shield"
+          title="İzole çalışma alanı · onaysız yazma yok"
+        >
+          <ShieldCheck size={17} aria-hidden="true" />
+        </span>
       </nav>
       <aside
         className="studio-vscode-explorer-sidebar"
         aria-label="Proje dosyaları"
       >
-        <div className="studio-vscode-explorer-heading">
-          <div>
-            <span>DOSYA GEZGİNİ</span>
-            <b>Dosyalar</b>
-          </div>
-          <div className="studio-vscode-explorer-actions">
+        <div className="studio-vscode-explorer-heading wx-explorer-head">
+          <span className="wx-explorer-label">
+            Dosyalar <small>{visibleWorkspaceEntries.length}</small>
+          </span>
+          <div className="wx-explorer-actions">
             {workspaceProject?.accessLevel !== "Viewer" && (
               <button
                 type="button"
@@ -452,8 +411,7 @@ export function WorkspaceExplorer({
                 aria-label="Yeni dosya oluştur"
                 onClick={() => startManualNewFile(fileWorkspace)}
               >
-                <Plus size={14} />
-                <span>Yeni dosya</span>
+                <Plus size={15} />
               </button>
             )}
             {moduleStarterId &&
@@ -462,16 +420,30 @@ export function WorkspaceExplorer({
                 <button
                   type="button"
                   title="Onayınızla modül şablonundaki yeni dosyaları izole çalışma alanına ekle"
+                  aria-label="Modül şablonunu ekle"
                   disabled={moduleFilesLoading}
                   onClick={() => void loadModuleStarterIntoWorkspace()}
                 >
-                  <FileCode size={14} />
-                  <span>
-                    {moduleFilesLoading ? "Ekleniyor…" : "Modül şablonu"}
-                  </span>
+                  <FileCode size={15} />
                 </button>
               )}
-            <small>{visibleWorkspaceEntries.length}</small>
+            <button
+              type="button"
+              title={
+                multiFileSelecting
+                  ? "Çoklu seçimi kapat"
+                  : "Çoklu dosya seç (AI önerisi için)"
+              }
+              aria-label="Çoklu dosya seçimi"
+              aria-pressed={multiFileSelecting}
+              className={multiFileSelecting ? "is-active" : undefined}
+              onClick={() => {
+                setMultiFileSelecting((value) => !value);
+                setMultiFilePaths([]);
+              }}
+            >
+              <ListChecks size={15} />
+            </button>
           </div>
         </div>
         <div className="studio-vscode-tree-search">
@@ -715,9 +687,42 @@ export function WorkspaceExplorer({
             </div>
           )}
           <div className="studio-vscode-tab-spacer" />
-          <span className="studio-vscode-tab-branch">
-            {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
-          </span>
+          {fileContent && !aiToolsViewOpen && (
+            <div className="wx-tab-actions">
+              {!manualFileEditing &&
+                workspaceProject?.accessLevel !== "Viewer" &&
+                /\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(
+                  fileContent.path,
+                ) && (
+                  <>
+                    <button
+                      type="button"
+                      className="wx-btn"
+                      onClick={startManualFileEdit}
+                    >
+                      <Pencil size={13} aria-hidden="true" /> Düzenle
+                    </button>
+                    <button
+                      type="button"
+                      className="wx-btn"
+                      onClick={startCodeSuggestion}
+                    >
+                      <Sparkles size={13} aria-hidden="true" /> AI önerisi
+                    </button>
+                  </>
+                )}
+              {manualFileEditing && (
+                <button
+                  type="button"
+                  className="wx-btn"
+                  disabled={manualFileSaving}
+                  onClick={cancelManualFileEdit}
+                >
+                  Düzenlemeyi iptal et
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {aiToolsViewOpen && (
           <section
@@ -970,85 +975,47 @@ export function WorkspaceExplorer({
             </div>
           </section>
         )}
-        <div className="panel-heading studio-explorer-location">
-          <div className="studio-explorer-path">
-            <span className="studio-explorer-kicker">
-              {fileContent ? "DOSYA" : "ÇALIŞMA ALANI"}
-            </span>
-            <b>
-              {fileContent
-                ? manualFileCreating
-                  ? manualFilePath
-                  : fileContent.path
-                : filePath
-                  ? "/" + filePath
-                  : "/ Proje kökü"}
-            </b>
-            <small>
-              {fileContent
-                ? fileContent.sizeBytes.toLocaleString("tr-TR") + " bayt"
-                : fileLoading
-                  ? "Klasör okunuyor…"
-                  : (fileListing?.entries.length ?? 0) + " kayıt"}
-            </small>
-          </div>
-          {fileContent ? (
-            <div className="studio-explorer-file-actions">
-              {!manualFileEditing &&
-                workspaceProject?.accessLevel !== "Viewer" &&
-                /\.(cs|csx|razor|ts|tsx|js|jsx|html|css|scss|sql|py|go|rs|java)$/i.test(
-                  fileContent.path,
-                ) && (
-                  <>
-                    <button
-                      className="ns-btn ns-btn-sm small-button"
-                      onClick={startManualFileEdit}
-                    >
-                      Elle düzenle
-                    </button>
-                    <button
-                      className="ns-btn ns-btn-sm small-button"
-                      onClick={startCodeSuggestion}
-                    >
-                      AI önerisi
-                    </button>
-                  </>
-                )}
-              {manualFileEditing && (
-                <button
-                  type="button"
-                  className="ns-btn ns-btn-sm small-button"
-                  disabled={manualFileSaving}
-                  onClick={cancelManualFileEdit}
+        {!fileContent && (
+        <div className="panel-heading studio-explorer-location wx-location">
+          <nav className="wx-crumbs" aria-label="Konum">
+            {filePath
+              .split("/")
+              .filter(Boolean)
+              .map((part, index, parts) => (
+                <span
+                  key={`${index}-${part}`}
+                  className={index === parts.length - 1 ? "is-current" : undefined}
                 >
-                  Düzenlemeyi iptal et
-                </button>
-              )}
-              <button
-                className="ns-btn ns-btn-sm small-button"
-                disabled={manualFileEditing || manualFileSaving}
-                onClick={() => setFileContent(null)}
-              >
-                Sekmeyi kapat
-              </button>
-            </div>
-          ) : (
-            filePath && (
-              <button
-                className="ns-btn ns-btn-sm small-button"
-                disabled={fileLoading}
-                onClick={() =>
-                  void loadWorkspaceFiles(
-                    fileWorkspace,
-                    filePath.split("/").slice(0, -1).join("/"),
-                  )
-                }
-              >
-                Üst klasör
-              </button>
-            )
+                  {index > 0 && (
+                    <ChevronRight size={12} aria-hidden="true" />
+                  )}
+                  {part}
+                </span>
+              ))}
+            {!filePath && <span className="is-current">Proje kökü</span>}
+          </nav>
+          <small className="wx-location-meta">
+            {fileLoading
+              ? "Klasör okunuyor…"
+              : `${fileListing?.entries.length ?? 0} öğe`}
+          </small>
+          {!fileContent && filePath && (
+            <button
+              type="button"
+              className="wx-btn"
+              disabled={fileLoading}
+              onClick={() =>
+                void loadWorkspaceFiles(
+                  fileWorkspace,
+                  filePath.split("/").slice(0, -1).join("/"),
+                )
+              }
+            >
+              Üst klasör
+            </button>
           )}
         </div>
+        )}
         {fileContent ? (
           manualFileEditing ? (
             <div className="studio-manual-editor">
@@ -1124,112 +1091,83 @@ export function WorkspaceExplorer({
             <b>Çalışma alanı dosyaları yükleniyor…</b>
           </div>
         ) : (
-          <section className="studio-vscode-welcome">
-            <div className="studio-welcome-hero">
-              <div className="studio-welcome-copy">
-                <p className="studio-vscode-welcome-eyebrow">
-                  ÇALIŞMA ALANI
-                </p>
-                <h1>
-                  Merhaba, <span>{workspaceProject?.name}</span>
-                </h1>
-                <p>
-                  Başlamak için soldaki gezginden bir dosya seçin.
-                  <br />
-                  Dosyalar izole çalışma alanınızda açılır.
-                </p>
-                {workspaceProject?.accessLevel !== "Viewer" && (
-                  <div className="studio-vscode-welcome-actions">
-                    <button
-                      type="button"
-                      onClick={() => startNewCodeSuggestion(fileWorkspace)}
-                    >
-                      <Sparkles size={18} /> AI ile dosya oluştur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startUiDesigner(fileWorkspace)}
-                    >
-                      <Code2 size={18} /> Ekran tasarla
-                    </button>
-                  </div>
-                )}
-              </div>
-              <img
-                className="studio-welcome-illustration"
-                src={
-                  new URL("./assets/studio-workspace.svg", import.meta.url)
-                    .href
-                }
-                alt=""
-                aria-hidden="true"
-              />
+          <section className="studio-vscode-welcome wx-welcome">
+            <div className="wx-welcome-head">
+              <h1>{workspaceProject?.name}</h1>
+              <p>
+                Soldaki gezginden bir dosya seçin. Dosyalar izole çalışma
+                alanınızda, salt okunur açılır.
+              </p>
+              {workspaceProject?.accessLevel !== "Viewer" && (
+                <div className="wx-welcome-actions">
+                  <button
+                    type="button"
+                    className="wx-btn wx-btn-primary"
+                    onClick={() => startNewCodeSuggestion(fileWorkspace)}
+                  >
+                    <Sparkles size={15} aria-hidden="true" /> AI ile dosya oluştur
+                  </button>
+                  <button
+                    type="button"
+                    className="wx-btn"
+                    onClick={() => startUiDesigner(fileWorkspace)}
+                  >
+                    <Code2 size={15} aria-hidden="true" /> Ekran tasarla
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="studio-welcome-quick">
-              <h2>Hızlı eylemler</h2>
-              <div className="studio-welcome-quick-grid">
-                <button type="button" onClick={closeWorkspaceFileExplorer}>
-                  <span className="studio-quick-icon gold">
-                    <Folder size={23} />
-                  </span>
-                  <span>
-                    <b>Projelere dön</b>
-                    <small>Proje listesine dön</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={gitStatusLoading}
-                  onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
-                >
-                  <span className="studio-quick-icon violet">
-                    <GitBranch size={23} />
-                  </span>
-                  <span>
-                    <b>Git durumu</b>
-                    <small>Değişiklikleri incele</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={testDiscoveryLoading}
-                  onClick={() => void discoverWorkspaceTests(fileWorkspace)}
-                >
-                  <span className="studio-quick-icon green">
-                    <Play size={23} />
-                  </span>
-                  <span>
-                    <b>Test ve build</b>
-                    <small>Testleri ve derlemeyi aç</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={analysisLoading}
-                  onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
-                >
-                  <span className="studio-quick-icon blue">
-                    <FolderTree size={23} />
-                  </span>
-                  <span>
-                    <b>Proje haritası</b>
-                    <small>Yapıyı görselleştir</small>
-                  </span>
-                </button>
-              </div>
+            <div className="wx-welcome-grid">
+              <button
+                type="button"
+                disabled={gitStatusLoading}
+                onClick={() => void loadWorkspaceGitStatus(fileWorkspace)}
+              >
+                <GitBranch size={16} aria-hidden="true" />
+                <span>
+                  <b>Git durumu</b>
+                  <small>Değişiklikleri incele</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={testDiscoveryLoading}
+                onClick={() => void discoverWorkspaceTests(fileWorkspace)}
+              >
+                <Play size={16} aria-hidden="true" />
+                <span>
+                  <b>Test ve build</b>
+                  <small>Testleri ve derlemeyi aç</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={analysisLoading}
+                onClick={() => void loadWorkspaceAnalysis(fileWorkspace)}
+              >
+                <Network size={16} aria-hidden="true" />
+                <span>
+                  <b>Proje haritası</b>
+                  <small>Yapıyı görselleştir</small>
+                </span>
+              </button>
+              <button type="button" onClick={closeWorkspaceFileExplorer}>
+                <Folder size={16} aria-hidden="true" />
+                <span>
+                  <b>Projelere dön</b>
+                  <small>Proje listesine dön</small>
+                </span>
+              </button>
             </div>
-            <div className="studio-vscode-welcome-shortcuts">
+            <div className="wx-shortcuts">
               <span>
-                <kbd>Ctrl + P</kbd>
-                <small>Dosya ara</small>
+                <kbd>Ctrl P</kbd> Dosya ara
               </span>
               <span>
-                <kbd>Ctrl + Shift + F</kbd>
-                <small>Kod içinde ara</small>
+                <kbd>Ctrl Shift F</kbd> Kod içinde ara
               </span>
               <span>
-                <kbd>Ctrl + S</kbd>
-                <small>Onayla kaydet</small>
+                <kbd>Ctrl S</kbd> Onayla kaydet
               </span>
             </div>
           </section>
