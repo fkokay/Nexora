@@ -211,39 +211,6 @@ function StudioBrand() {
   );
 }
 
-type KpiTone = "accent" | "info" | "success" | "warning";
-
-/** Studio genelinde kullanılan KPI kartı: ikon, etiket, değer ve kısa açıklama. */
-function KpiCard({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  hint,
-  children,
-}: {
-  icon: LucideIcon;
-  tone: KpiTone;
-  label: string;
-  value: ReactNode;
-  hint: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <article className="st-kpi">
-      <div className="st-kpi-head">
-        <span className={`st-kpi-icon is-${tone}`} aria-hidden="true">
-          <Icon size={16} />
-        </span>
-        <small>{label}</small>
-      </div>
-      <b className="st-kpi-value">{value}</b>
-      <span className="st-kpi-hint">{hint}</span>
-      {children}
-    </article>
-  );
-}
-
 function EmptyState({
   icon: Icon,
   title,
@@ -333,6 +300,9 @@ export default function App() {
   const [marketplaceError, setMarketplaceError] = useState("");
   const [marketplaceNotice, setMarketplaceNotice] = useState("");
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
+  const [marketplaceTab, setMarketplaceTab] = useState<
+    "catalog" | "samples" | "starters"
+  >("catalog");
   const [toolQuery, setToolQuery] = useState("");
   const [marketplaceBusy, setMarketplaceBusy] = useState("");
   const [sampleInstallBusy, setSampleInstallBusy] = useState("");
@@ -469,23 +439,20 @@ export default function App() {
   );
   const adaptationFlows = [
     {
-      title: "Sayfa ve ekran tasarımcısı",
-      description:
-        "Boş ERP sayfası üzerinde bileşenleri yerleştir; formları, veri modellerini, listeleri ve mevcut ekranları aynı çalışma alanında düzenle.",
+      title: "Ekranlar ve veriler",
+      description: "Sayfaları, formları ve veri modellerini düzenleyin.",
       icon: FileText,
       toolIds: ["custom-pages", "custom-data"],
     },
     {
-      title: "İş süreçlerini otomatikleştir",
-      description:
-        "Onay adımlarını ve koşullara bağlı iş kurallarını tek akışta kur.",
+      title: "Süreç otomasyonu",
+      description: "Onay adımlarını ve koşullu iş kurallarını kurun.",
       icon: Zap,
       toolIds: ["workflows", "business-rules"],
     },
     {
-      title: "Çalışma alanını kişiselleştir",
-      description:
-        "Menüleri ve raporları düzenleyerek ekibi için sadeleştir.",
+      title: "Çalışma alanı",
+      description: "Menü ve raporlarla ekibinizin ekranını sadeleştirin.",
       icon: FolderKanban,
       toolIds: ["custom-menus", "reports"],
     },
@@ -504,7 +471,6 @@ export default function App() {
   const advancedPlatformTools = filteredPlatformTools.filter((tool) =>
     ["modules", "source-workspaces", "settings"].includes(tool.id),
   );
-  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const platformToolHref = (toolId: string) => {
     const url = new URL("/", platformOrigin);
     url.searchParams.set("platformTool", toolId);
@@ -1378,15 +1344,12 @@ export default function App() {
       id="analytics"
       aria-labelledby="studio-analytics-title"
     >
-      <header className="ns-page-head st-page-head">
-        <div>
+      <header className="st-hero">
+        <div className="st-hero-text">
           <h1 id="studio-analytics-title">Analitik</h1>
-          <p>
-            Talep hacmini, iş akışını ve proje dağılımını tek ekrandan takip
-            edin.
-          </p>
+          <p>Talep hacmi, iş akışı ve proje dağılımı</p>
         </div>
-        <div className="st-filters">
+        <div className="st-filters st-hero-actions">
           <label className="st-select">
             <CalendarDays size={15} aria-hidden="true" />
             <select
@@ -1419,217 +1382,234 @@ export default function App() {
           </label>
         </div>
       </header>
-      <section className="st-kpis" aria-label="Analitik özeti">
-        <KpiCard
-          icon={ListTodo}
-          tone="accent"
-          label="Toplam talep"
-          value={analyticsRequests.length}
-          hint={
-            analyticsChange === null ? (
-              "Önceki dönemde kayıt yok"
-            ) : (
-              <>
-                <TrendingUp size={13} aria-hidden="true" /> Önceki döneme göre{" "}
-                <b>
-                  {analyticsChange > 0 ? "+" : ""}
-                  {analyticsChange}%
-                </b>
-              </>
-            )
-          }
-        >
-          <AnalyticsSparkline
-            values={analyticsBuckets.map((item) => item.count)}
-          />
-        </KpiCard>
-        <KpiCard
-          icon={Activity}
-          tone="info"
-          label="Açık iş"
-          value={analyticsOpenCount}
-          hint="İş akışında devam eden talepler"
-        >
-          <AnalyticsSparkline
-            values={analyticsBuckets.map((item) => item.open)}
-          />
-        </KpiCard>
-        <KpiCard
-          icon={FolderKanban}
-          tone="success"
-          label="Projeye bağlı"
-          value={analyticsLinkedCount}
-          hint={`${
-            analyticsRequests.length
-              ? Math.round(
-                  (analyticsLinkedCount / analyticsRequests.length) * 100,
-                )
-              : 0
-          }% proje bağlantısı`}
-        >
-          <AnalyticsSparkline
-            values={analyticsBuckets.map((item) => item.linked)}
-          />
-        </KpiCard>
-        <KpiCard
-          icon={GitBranch}
-          tone="warning"
-          label="Aktif proje"
-          value={
-            new Set(
-              analyticsRequests
-                .filter((item) => item.projectId)
-                .map((item) => item.projectId),
-            ).size
-          }
-          hint="Seçili dönemde talep alan"
-        >
-          <AnalyticsSparkline
-            values={analyticsBuckets.map((item) => item.projects)}
-          />
-        </KpiCard>
+      <section className="st-stat-strip" aria-label="Analitik özeti">
+        <div className="st-stat">
+          <span className="st-stat-label">
+            <ListTodo size={14} className="is-accent" aria-hidden="true" />
+            Toplam talep
+          </span>
+          <b>{analyticsRequests.length}</b>
+          <small className="st-stat-hint">
+            {analyticsChange === null
+              ? "Önceki dönemde kayıt yok"
+              : `Önceki döneme göre ${analyticsChange > 0 ? "+" : ""}${analyticsChange}%`}
+          </small>
+          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.count)} />
+        </div>
+        <div className="st-stat">
+          <span className="st-stat-label">
+            <Activity size={14} className="is-info" aria-hidden="true" />
+            Açık iş
+          </span>
+          <b>{analyticsOpenCount}</b>
+          <small className="st-stat-hint">İş akışında devam eden</small>
+          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.open)} />
+        </div>
+        <div className="st-stat">
+          <span className="st-stat-label">
+            <FolderKanban size={14} className="is-success" aria-hidden="true" />
+            Projeye bağlı
+          </span>
+          <b>
+            %{analyticsRequests.length
+              ? Math.round((analyticsLinkedCount / analyticsRequests.length) * 100)
+              : 0}
+          </b>
+          <small className="st-stat-hint">{analyticsLinkedCount} talep</small>
+          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.linked)} />
+        </div>
+        <div className="st-stat">
+          <span className="st-stat-label">
+            <GitBranch size={14} className="is-warning" aria-hidden="true" />
+            Aktif proje
+          </span>
+          <b>
+            {
+              new Set(
+                analyticsRequests
+                  .filter((item) => item.projectId)
+                  .map((item) => item.projectId),
+              ).size
+            }
+          </b>
+          <small className="st-stat-hint">Seçili dönemde talep alan</small>
+          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.projects)} />
+        </div>
       </section>
-      <div className="st-grid st-grid-wide">
-        <article className="ns-card st-card">
-          <header className="st-card-head">
-            <div>
-              <h2>Geliştirme talebi eğilimi</h2>
-              <p>
-                Seçilen dönem içindeki kayıtlar · {analyticsRequests.length}{" "}
-                talep
-              </p>
-            </div>
-          </header>
-          {analyticsRequests.length ? (
-            <div className="st-trend">
-              <div className="st-trend-scale" aria-hidden="true">
-                {[1, 0.75, 0.5, 0.25, 0].map((factor) => (
-                  <span key={factor}>
-                    {(analyticsMaxBucket * factor).toLocaleString("tr-TR", {
-                      maximumFractionDigits: 1,
-                    })}
-                  </span>
-                ))}
-              </div>
-              <div
-                className="st-trend-bars"
-                style={{
-                  gridTemplateColumns: `repeat(${analyticsBucketCount}, minmax(0, 1fr))`,
-                }}
-                role="img"
-                aria-label={`Talep eğilimi: ${analyticsBuckets.map((item) => `${item.label}: ${item.count}`).join(", ")}`}
+      {analyticsRequests.length === 0 ? (
+        <section className="ns-card st-card st-analytics-empty">
+          <EmptyState icon={TrendingUp} title="Bu dönemde analiz edilecek talep yok">
+            <span>
+              {analyticsRange < 365
+                ? "Dönemi genişletin ya da yeni bir geliştirme talebi oluşturun."
+                : "Grafikler ilk geliştirme talebinizle birlikte dolar."}
+            </span>
+            <div className="st-empty-actions">
+              {analyticsRange < 365 && (
+                <button
+                  className="ns-btn ns-btn-sm"
+                  type="button"
+                  onClick={() => setAnalyticsRange(365)}
+                >
+                  Son 12 ayı göster
+                </button>
+              )}
+              <button
+                className="ns-btn ns-btn-primary ns-btn-sm"
+                type="button"
+                onClick={openNewRequest}
               >
-                {analyticsBuckets.map((item) => (
-                  <div
-                    className="st-trend-column"
-                    title={`${item.label}: ${item.count} talep`}
-                    key={item.key}
-                  >
-                    <b>{item.count}</b>
-                    <span>
-                      <i
+                <Plus size={14} aria-hidden="true" />
+                Yeni talep
+              </button>
+            </div>
+          </EmptyState>
+        </section>
+      ) : (
+        <>
+        <div className="st-grid st-grid-wide">
+          <article className="ns-card st-card">
+            <header className="st-card-head">
+              <div>
+                <h2>Geliştirme talebi eğilimi</h2>
+                <p>
+                  Seçilen dönem içindeki kayıtlar · {analyticsRequests.length}{" "}
+                  talep
+                </p>
+              </div>
+            </header>
+            {analyticsRequests.length ? (
+              <div className="st-trend">
+                <div className="st-trend-scale" aria-hidden="true">
+                  {[1, 0.75, 0.5, 0.25, 0].map((factor) => (
+                    <span key={factor}>
+                      {(analyticsMaxBucket * factor).toLocaleString("tr-TR", {
+                        maximumFractionDigits: 1,
+                      })}
+                    </span>
+                  ))}
+                </div>
+                <div
+                  className="st-trend-bars"
+                  style={{
+                    gridTemplateColumns: `repeat(${analyticsBucketCount}, minmax(0, 1fr))`,
+                  }}
+                  role="img"
+                  aria-label={`Talep eğilimi: ${analyticsBuckets.map((item) => `${item.label}: ${item.count}`).join(", ")}`}
+                >
+                  {analyticsBuckets.map((item) => (
+                    <div
+                      className="st-trend-column"
+                      title={`${item.label}: ${item.count} talep`}
+                      key={item.key}
+                    >
+                      <b>{item.count}</b>
+                      <span>
+                        <i
+                          style={{
+                            height: `${item.count ? Math.round((item.count / analyticsMaxBucket) * 100) : 0}%`,
+                          }}
+                        />
+                      </span>
+                      <small>{item.label}</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <EmptyState icon={Activity} title="Bu dönemde talep bulunmuyor">
+                <span>
+                  Farklı bir dönem veya proje seçerek kayıtları görüntüleyin.
+                </span>
+              </EmptyState>
+            )}
+          </article>
+          <article className="ns-card st-card">
+            <header className="st-card-head">
+              <div>
+                <h2>Talep durumları</h2>
+                <p>Durumlara göre kayıt dağılımı</p>
+              </div>
+            </header>
+            {analyticsStatuses.length ? (
+              <ul className="st-bars">
+                {analyticsStatuses.map(([status, count]) => (
+                  <li key={status}>
+                    <div>
+                      <span>{statusLabel(status)}</span>
+                      <b>{count}</b>
+                    </div>
+                    <i>
+                      <span
                         style={{
-                          height: `${item.count ? Math.round((item.count / analyticsMaxBucket) * 100) : 0}%`,
+                          width: `${Math.round((count / analyticsMaxStatus) * 100)}%`,
                         }}
                       />
-                    </span>
-                    <small>{item.label}</small>
-                  </div>
+                    </i>
+                  </li>
                 ))}
+              </ul>
+            ) : (
+              <EmptyState icon={ListTodo} title="Durum verisi yok">
+                <span>Seçilen aralıkta talep bulunamadı.</span>
+              </EmptyState>
+            )}
+          </article>
+        </div>
+        <div className="st-grid st-grid-wide-end">
+          <article className="ns-card st-card">
+            <header className="st-card-head">
+              <div>
+                <h2>Talep alan projeler</h2>
+                <p>En fazla talep içeren ilk 5 proje</p>
               </div>
-            </div>
-          ) : (
-            <EmptyState icon={Activity} title="Bu dönemde talep bulunmuyor">
-              <span>
-                Farklı bir dönem veya proje seçerek kayıtları görüntüleyin.
-              </span>
-            </EmptyState>
-          )}
-        </article>
-        <article className="ns-card st-card">
-          <header className="st-card-head">
-            <div>
-              <h2>Talep durumları</h2>
-              <p>Durumlara göre kayıt dağılımı</p>
-            </div>
-          </header>
-          {analyticsStatuses.length ? (
-            <ul className="st-bars">
-              {analyticsStatuses.map(([status, count]) => (
-                <li key={status}>
-                  <div>
-                    <span>{statusLabel(status)}</span>
-                    <b>{count}</b>
-                  </div>
-                  <i>
-                    <span
-                      style={{
-                        width: `${Math.round((count / analyticsMaxStatus) * 100)}%`,
-                      }}
-                    />
-                  </i>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState icon={ListTodo} title="Durum verisi yok">
-              <span>Seçilen aralıkta talep bulunamadı.</span>
-            </EmptyState>
-          )}
-        </article>
-      </div>
-      <div className="st-grid st-grid-wide-end">
-        <article className="ns-card st-card">
-          <header className="st-card-head">
-            <div>
-              <h2>Talep alan projeler</h2>
-              <p>En fazla talep içeren ilk 5 proje</p>
-            </div>
-          </header>
-          {analyticsProjects.length ? (
-            <ol className="st-bars is-ranked">
-              {analyticsProjects.map(({ id, name, count }) => (
-                <li key={id}>
-                  <div>
-                    <span>{name}</span>
-                    <b>{count}</b>
-                  </div>
-                  <i>
-                    <span
-                      style={{
-                        width: `${Math.round((count / analyticsMaxProject) * 100)}%`,
-                      }}
-                    />
-                  </i>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <EmptyState icon={FolderKanban} title="Proje dağılımı yok">
-              <span>Projelere bağlanan talepler burada listelenir.</span>
-            </EmptyState>
-          )}
-        </article>
-        <article className="ns-card st-card">
-          <header className="st-card-head">
-            <div>
-              <h2>Güncel talepler</h2>
-              <p>Seçilen dönemin en yeni kayıtları</p>
-            </div>
-            <a className="ns-btn ns-btn-ghost ns-btn-sm" href="#requests">
-              Tümü
-              <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </header>
-          {analyticsRecentRequests.length ? (
-            recentRequestsTable(analyticsRecentRequests)
-          ) : (
-            <EmptyState icon={FileText} title="Henüz kayıt yok">
-              <span>Yeni geliştirme talepleri burada görünür.</span>
-            </EmptyState>
-          )}
-        </article>
-      </div>
+            </header>
+            {analyticsProjects.length ? (
+              <ol className="st-bars is-ranked">
+                {analyticsProjects.map(({ id, name, count }) => (
+                  <li key={id}>
+                    <div>
+                      <span>{name}</span>
+                      <b>{count}</b>
+                    </div>
+                    <i>
+                      <span
+                        style={{
+                          width: `${Math.round((count / analyticsMaxProject) * 100)}%`,
+                        }}
+                      />
+                    </i>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState icon={FolderKanban} title="Proje dağılımı yok">
+                <span>Projelere bağlanan talepler burada listelenir.</span>
+              </EmptyState>
+            )}
+          </article>
+          <article className="ns-card st-card">
+            <header className="st-card-head">
+              <div>
+                <h2>Güncel talepler</h2>
+                <p>Seçilen dönemin en yeni kayıtları</p>
+              </div>
+              <a className="ns-btn ns-btn-ghost ns-btn-sm" href="#requests">
+                Tümü
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </a>
+            </header>
+            {analyticsRecentRequests.length ? (
+              recentRequestsTable(analyticsRecentRequests)
+            ) : (
+              <EmptyState icon={FileText} title="Henüz kayıt yok">
+                <span>Yeni geliştirme talepleri burada görünür.</span>
+              </EmptyState>
+            )}
+          </article>
+        </div>
+        </>
+      )}
     </section>
   );
 
@@ -1807,36 +1787,27 @@ export default function App() {
         <main className="st-content studio-dashboard-main" id="overview">
           {activeSection === "marketplace" ? (
             <>
-              <header className="ns-page-head st-page-head">
-                <div>
+              <header className="st-hero">
+                <div className="st-hero-text">
                   <h1>Modül pazaryeri</h1>
-                  <p>
-                    Yayımlanmış modülleri yönetin veya örnek şablonları temel
-                    alarak kendi modülünüzü geliştirin.
-                  </p>
+                  <p>Yayımlanmış modüller ve başlangıç şablonları</p>
                 </div>
-                <button
-                  className="ns-btn"
-                  type="button"
-                  onClick={() => void refreshMarketplace()}
-                  disabled={marketplaceLoading}
-                >
-                  <RefreshCw
-                    size={15}
-                    aria-hidden="true"
-                    className={marketplaceLoading ? "st-spin" : undefined}
-                  />
-                  {marketplaceLoading ? "Yenileniyor…" : "Kataloğu yenile"}
-                </button>
+                <div className="st-hero-actions">
+                  <button
+                    className="ns-btn"
+                    type="button"
+                    onClick={() => void refreshMarketplace()}
+                    disabled={marketplaceLoading}
+                  >
+                    <RefreshCw
+                      size={15}
+                      aria-hidden="true"
+                      className={marketplaceLoading ? "st-spin" : undefined}
+                    />
+                    {marketplaceLoading ? "Yenileniyor…" : "Kataloğu yenile"}
+                  </button>
+                </div>
               </header>
-              <p className="st-note">
-                <ShieldCheck size={16} aria-hidden="true" />
-                <span>
-                  Yayımlanmış paketler imza ve runtime doğrulamasıyla
-                  etkinleşir. Örnek şablonlar geliştirme başlangıcıdır;
-                  yayımlanmış modül olarak firmaya eklenmez.
-                </span>
-              </p>
               {marketplaceError && (
                 <div className="st-alert is-danger" role="alert">
                   {marketplaceError}
@@ -1847,149 +1818,31 @@ export default function App() {
                   {marketplaceNotice}
                 </div>
               )}
-              <section
-                className="st-section"
-                aria-labelledby="studio-samples-title"
-              >
-                <header className="st-section-head">
-                  <div>
-                    <h2 id="studio-samples-title">Hazır low-code örnekleri</h2>
-                    <p>
-                      Örnek tanımları firmanıza taslak olarak kurun; inceleyip
-                      yayımladıktan sonra kullanıma açın.
-                    </p>
-                  </div>
-                  <span className="ns-badge">{lowCodeSamples.length} örnek</span>
-                </header>
-                <div className="st-card-grid">
-                  {lowCodeSamples.map((sample) => {
-                    const installed = installedSamples.includes(sample.id);
-                    return (
-                      <article className="ns-card st-tile" key={sample.id}>
-                        <div className="st-tile-top">
-                          <span className="st-tile-icon" aria-hidden="true">
-                            {sample.category === "Form" ? (
-                              <FileText size={17} />
-                            ) : (
-                              <Zap size={17} />
-                            )}
-                          </span>
-                          <span className="ns-badge is-accent">
-                            {sample.category}
-                          </span>
-                        </div>
-                        <h3>{sample.name}</h3>
-                        <p>{sample.description}</p>
-                        <small className="st-tile-meta">
-                          {sample.category === "Form"
-                            ? "Özel form taslağı"
-                            : "İş akışı ve iş kuralı taslağı"}{" "}
-                          · veri kaydı oluşturmaz
-                        </small>
-                        <div className="st-tile-actions">
-                          <button
-                            className={`ns-btn ns-btn-sm ${installed ? "" : "ns-btn-primary"}`.trim()}
-                            type="button"
-                            disabled={!!sampleInstallBusy || installed}
-                            onClick={() => void installLowCodeSample(sample)}
-                          >
-                            {sampleInstallBusy === sample.id ? (
-                              <RefreshCw
-                                size={14}
-                                className="st-spin"
-                                aria-hidden="true"
-                              />
-                            ) : installed ? (
-                              <Check size={14} aria-hidden="true" />
-                            ) : (
-                              <Plus size={14} aria-hidden="true" />
-                            )}
-                            {sampleInstallBusy === sample.id
-                              ? "Kuruluyor…"
-                              : installed
-                                ? "Kuruldu"
-                                : "Firmaya kur"}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
+              <div className="st-toolbar">
+                <div
+                  className="st-segmented"
+                  role="group"
+                  aria-label="Pazaryeri bölümü"
+                >
+                  {(
+                    [
+                      ["catalog", "Firma kataloğu", marketplaceModules.length],
+                      ["samples", "Low-code örnekleri", lowCodeSamples.length],
+                      ["starters", "Kod şablonları", studioModuleStarters.length],
+                    ] as const
+                  ).map(([id, label, count]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={marketplaceTab === id}
+                      onClick={() => setMarketplaceTab(id)}
+                    >
+                      {label}
+                      <span>{count}</span>
+                    </button>
+                  ))}
                 </div>
-              </section>
-              <section
-                className="st-section"
-                aria-labelledby="studio-starters-title"
-              >
-                <header className="st-section-head">
-                  <div>
-                    <h2 id="studio-starters-title">Kod modülü geliştirme</h2>
-                    <p>
-                      Bunlar doğrudan kurulan modül değildir. Kaynak kodu temel
-                      alıp WASM modülü geliştirme talebi açar.
-                    </p>
-                  </div>
-                  <span className="ns-badge">
-                    {studioModuleStarters.length} şablon
-                  </span>
-                </header>
-                <div className="st-card-grid">
-                  {studioModuleStarters.map((starter) => {
-                    const files = moduleStarterFiles(
-                      starter.id,
-                      starter.moduleCode,
-                      starter.name,
-                    );
-                    return (
-                      <article className="ns-card st-tile" key={starter.id}>
-                        <div className="st-tile-top">
-                          <span className="st-tile-icon" aria-hidden="true">
-                            <Code2 size={17} />
-                          </span>
-                          <span className="ns-badge">WASM</span>
-                        </div>
-                        <h3>{starter.name}</h3>
-                        <p>{starter.description}</p>
-                        <code className="st-code-chip">
-                          {starter.moduleCode}
-                        </code>
-                        <details className="st-details">
-                          <summary>Şablon dosyalarını incele</summary>
-                          <div>
-                            {files.map((file) => (
-                              <details key={file.path}>
-                                <summary>{file.path}</summary>
-                                <pre>{file.content}</pre>
-                              </details>
-                            ))}
-                          </div>
-                        </details>
-                        <div className="st-tile-actions">
-                          <button
-                            className="ns-btn ns-btn-primary ns-btn-sm"
-                            type="button"
-                            onClick={() => openModuleStarterRequest(starter)}
-                          >
-                            <Code2 size={14} aria-hidden="true" />
-                            Bu şablonla geliştir
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-              <section
-                className="st-section"
-                aria-labelledby="studio-catalog-title"
-              >
-                <header className="st-section-head">
-                  <div>
-                    <h2 id="studio-catalog-title">Firma modül kataloğu</h2>
-                    <p>
-                      Etkinleştirme firma yöneticisi yetkisi ve platform lisans
-                      sınırlarına tabidir.
-                    </p>
-                  </div>
+                {marketplaceTab === "catalog" && (
                   <label className="st-search">
                     <Search size={15} aria-hidden="true" />
                     <input
@@ -2002,151 +1855,288 @@ export default function App() {
                       aria-label="Modül kataloğunda ara"
                     />
                   </label>
-                </header>
-                {marketplaceLoading && marketplaceModules.length === 0 ? (
-                  <div className="ns-card">
-                    <EmptyState
-                      icon={RefreshCw}
-                      title="Yayımlanmış modüller yükleniyor…"
-                    />
-                  </div>
-                ) : filteredMarketplaceModules.length === 0 ? (
-                  <div className="ns-card">
-                    <EmptyState
-                      icon={Package}
-                      title={
-                        marketplaceModules.length
-                          ? "Eşleşen modül yok"
-                          : "Henüz yayımlanmış modül yok"
-                      }
-                    >
-                      <span>
-                        {marketplaceModules.length
-                          ? "Arama terimini değiştirip yeniden deneyin."
-                          : "Platform yayın yöneticisi modül yayımladığında burada görünür."}
-                      </span>
-                    </EmptyState>
-                  </div>
-                ) : (
-                  <div className="st-card-grid">
-                    {filteredMarketplaceModules.map((item) => {
-                      const name =
-                        item.manifest?.displayName || item.moduleCode;
-                      const canUpdate =
-                        item.isActivated &&
-                        item.activatedVersion !== item.version;
-                      return (
-                        <article
-                          className="ns-card st-tile"
-                          key={`${item.moduleCode}@${item.version}`}
-                        >
-                          <div className="st-tile-top">
+                )}
+              </div>
+              {marketplaceTab === "catalog" && (
+                <section
+                  className="st-section"
+                  aria-label="Firma modül kataloğu"
+                >
+                  {marketplaceLoading && marketplaceModules.length === 0 ? (
+                    <div className="ns-card">
+                      <EmptyState
+                        icon={RefreshCw}
+                        title="Yayımlanmış modüller yükleniyor…"
+                      />
+                    </div>
+                  ) : filteredMarketplaceModules.length === 0 ? (
+                    <div className="ns-card">
+                      <EmptyState
+                        icon={Package}
+                        title={
+                          marketplaceModules.length
+                            ? "Eşleşen modül yok"
+                            : "Henüz yayımlanmış modül yok"
+                        }
+                      >
+                        <span>
+                          {marketplaceModules.length
+                            ? "Arama terimini değiştirip yeniden deneyin."
+                            : "Platform yayın yöneticisi modül yayımladığında burada görünür. Bu arada low-code örneklerini veya kod şablonlarını deneyebilirsiniz."}
+                        </span>
+                        {!marketplaceModules.length && (
+                          <button
+                            className="ns-btn ns-btn-sm"
+                            type="button"
+                            onClick={() => setMarketplaceTab("samples")}
+                          >
+                            Örneklere göz at
+                          </button>
+                        )}
+                      </EmptyState>
+                    </div>
+                  ) : (
+                    <div className="ns-card st-module-list">
+                      {filteredMarketplaceModules.map((item) => {
+                        const name =
+                          item.manifest?.displayName || item.moduleCode;
+                        const canUpdate =
+                          item.isActivated &&
+                          item.activatedVersion !== item.version;
+                        return (
+                          <article
+                            className="st-module-row"
+                            key={`${item.moduleCode}@${item.version}`}
+                          >
                             <span className="st-tile-icon" aria-hidden="true">
-                              <Boxes size={17} />
+                              <Boxes size={16} />
                             </span>
-                            <span
-                              className={`ns-badge ${item.runtimeStatus === "Ready" ? "is-success" : "is-danger"}`}
-                            >
-                              {item.runtimeStatus === "Ready"
-                                ? "Runtime hazır"
-                                : "Runtime engelli"}
-                            </span>
-                          </div>
-                          <h3>{name}</h3>
-                          <p className="st-tile-meta">
-                            <code>{item.moduleCode}</code> · v{item.version} ·{" "}
-                            {item.publisher}
-                          </p>
-                          <small className="st-tile-meta">
-                            {item.isActivated
-                              ? `Firmada etkin · ${item.activatedVersion || "sürüm bilinmiyor"}`
-                              : "Firmada etkin değil"}
-                          </small>
-                          {item.manifest && (
-                            <details className="st-details">
-                              <summary>İzin ve bağımlılıklar</summary>
-                              <div>
-                                <p>
-                                  Bağımlılıklar:{" "}
-                                  {item.manifest.dependencies.length
-                                    ? item.manifest.dependencies
-                                        .map(
-                                          (dependency) =>
-                                            `${dependency.moduleCode} ≥ ${dependency.minimumVersion}`,
-                                        )
-                                        .join(", ")
-                                    : "Yok"}
-                                </p>
-                                <p>
-                                  İzinler:{" "}
-                                  {item.manifest.permissions.length
-                                    ? item.manifest.permissions
-                                        .map((permission) => permission.code)
-                                        .join(", ")
-                                    : "Yok"}
-                                </p>
+                            <div className="st-module-main">
+                              <div className="st-module-title">
+                                <h3>{name}</h3>
+                                {item.isActivated && (
+                                  <span className="ns-badge is-success">
+                                    Etkin · v
+                                    {item.activatedVersion || "?"}
+                                  </span>
+                                )}
+                                {item.runtimeStatus !== "Ready" && (
+                                  <span className="ns-badge is-danger">
+                                    Runtime engelli
+                                  </span>
+                                )}
                               </div>
-                            </details>
-                          )}
-                          {tenant.role === "TenantAdmin" && (
-                            <div className="st-tile-actions">
-                              {(!item.isActivated || canUpdate) && (
-                                <button
-                                  className="ns-btn ns-btn-primary ns-btn-sm"
-                                  type="button"
-                                  disabled={
-                                    !!marketplaceBusy ||
-                                    item.runtimeStatus !== "Ready"
-                                  }
-                                  onClick={() =>
-                                    void toggleMarketplaceModule(item)
-                                  }
-                                >
-                                  {marketplaceBusy === item.moduleCode ? (
-                                    "Doğrulanıyor…"
-                                  ) : (
-                                    <>
-                                      <Check size={14} aria-hidden="true" />
-                                      {canUpdate
-                                        ? `v${item.version} sürümüne geç`
-                                        : "Firmaya ekle"}
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                              {item.isActivated && (
-                                <button
-                                  className="ns-btn ns-btn-sm"
-                                  type="button"
-                                  disabled={!!marketplaceBusy}
-                                  onClick={() =>
-                                    void toggleMarketplaceModule(item, true)
-                                  }
-                                >
-                                  <Trash2 size={14} aria-hidden="true" />
-                                  Firmadan çıkar
-                                </button>
+                              <p className="st-tile-meta">
+                                <code>{item.moduleCode}</code> · v
+                                {item.version} · {item.publisher}
+                              </p>
+                              {item.manifest && (
+                                <details className="st-details">
+                                  <summary>İzin ve bağımlılıklar</summary>
+                                  <div>
+                                    <p>
+                                      Bağımlılıklar:{" "}
+                                      {item.manifest.dependencies.length
+                                        ? item.manifest.dependencies
+                                            .map(
+                                              (dependency) =>
+                                                `${dependency.moduleCode} ≥ ${dependency.minimumVersion}`,
+                                            )
+                                            .join(", ")
+                                        : "Yok"}
+                                    </p>
+                                    <p>
+                                      İzinler:{" "}
+                                      {item.manifest.permissions.length
+                                        ? item.manifest.permissions
+                                            .map((permission) => permission.code)
+                                            .join(", ")
+                                        : "Yok"}
+                                    </p>
+                                  </div>
+                                </details>
                               )}
                             </div>
-                          )}
+                            {tenant.role === "TenantAdmin" && (
+                              <div className="st-module-actions">
+                                {(!item.isActivated || canUpdate) && (
+                                  <button
+                                    className="ns-btn ns-btn-primary ns-btn-sm"
+                                    type="button"
+                                    disabled={
+                                      !!marketplaceBusy ||
+                                      item.runtimeStatus !== "Ready"
+                                    }
+                                    onClick={() =>
+                                      void toggleMarketplaceModule(item)
+                                    }
+                                  >
+                                    {marketplaceBusy === item.moduleCode ? (
+                                      "Doğrulanıyor…"
+                                    ) : (
+                                      <>
+                                        <Check size={14} aria-hidden="true" />
+                                        {canUpdate
+                                          ? `v${item.version} sürümüne geç`
+                                          : "Firmaya ekle"}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                                {item.isActivated && (
+                                  <button
+                                    className="ns-btn ns-btn-sm"
+                                    type="button"
+                                    disabled={!!marketplaceBusy}
+                                    onClick={() =>
+                                      void toggleMarketplaceModule(item, true)
+                                    }
+                                  >
+                                    <Trash2 size={14} aria-hidden="true" />
+                                    Firmadan çıkar
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="st-quick-note">
+                    <ShieldCheck size={14} aria-hidden="true" />
+                    <span>
+                      Paketler imza ve runtime doğrulamasıyla etkinleşir;
+                      etkinleştirme firma yöneticisi yetkisi ve lisans
+                      sınırlarına tabidir.
+                    </span>
+                  </p>
+                </section>
+              )}
+              {marketplaceTab === "samples" && (
+                <section
+                  className="st-section"
+                  aria-label="Hazır low-code örnekleri"
+                >
+                  <p className="st-tab-desc">
+                    Örnek tanımları firmanıza taslak olarak kurun; inceleyip
+                    yayımladıktan sonra kullanıma açın. Veri kaydı oluşturmaz.
+                  </p>
+                  <div className="st-card-grid">
+                    {lowCodeSamples.map((sample) => {
+                      const installed = installedSamples.includes(sample.id);
+                      return (
+                        <article className="ns-card st-tile" key={sample.id}>
+                          <div className="st-tile-top">
+                            <span className="st-tile-icon" aria-hidden="true">
+                              {sample.category === "Form" ? (
+                                <FileText size={17} />
+                              ) : (
+                                <Zap size={17} />
+                              )}
+                            </span>
+                            <span className="ns-badge is-accent">
+                              {sample.category}
+                            </span>
+                          </div>
+                          <h3>{sample.name}</h3>
+                          <p>{sample.description}</p>
+                          <div className="st-tile-actions">
+                            <button
+                              className={`ns-btn ns-btn-sm ${installed ? "" : "ns-btn-primary"}`.trim()}
+                              type="button"
+                              disabled={!!sampleInstallBusy || installed}
+                              onClick={() => void installLowCodeSample(sample)}
+                            >
+                              {sampleInstallBusy === sample.id ? (
+                                <RefreshCw
+                                  size={14}
+                                  className="st-spin"
+                                  aria-hidden="true"
+                                />
+                              ) : installed ? (
+                                <Check size={14} aria-hidden="true" />
+                              ) : (
+                                <Plus size={14} aria-hidden="true" />
+                              )}
+                              {sampleInstallBusy === sample.id
+                                ? "Kuruluyor…"
+                                : installed
+                                  ? "Kuruldu"
+                                  : "Firmaya kur"}
+                            </button>
+                          </div>
                         </article>
                       );
                     })}
                   </div>
-                )}
-              </section>
+                </section>
+              )}
+              {marketplaceTab === "starters" && (
+                <section className="st-section" aria-label="Kod şablonları">
+                  <p className="st-tab-desc">
+                    Doğrudan kurulmaz: şablon kaynak kodunu temel alıp WASM
+                    modülü geliştirme talebi açar.
+                  </p>
+                  <div className="st-card-grid">
+                    {studioModuleStarters.map((starter) => {
+                      const files = moduleStarterFiles(
+                        starter.id,
+                        starter.moduleCode,
+                        starter.name,
+                      );
+                      return (
+                        <article className="ns-card st-tile" key={starter.id}>
+                          <div className="st-tile-top">
+                            <span className="st-tile-icon" aria-hidden="true">
+                              <Code2 size={17} />
+                            </span>
+                            <span className="ns-badge">WASM</span>
+                          </div>
+                          <h3>{starter.name}</h3>
+                          <p>{starter.description}</p>
+                          <code className="st-code-chip">
+                            {starter.moduleCode}
+                          </code>
+                          <details className="st-details">
+                            <summary>Şablon dosyalarını incele</summary>
+                            <div>
+                              {files.map((file) => (
+                                <details key={file.path}>
+                                  <summary>{file.path}</summary>
+                                  <pre>{file.content}</pre>
+                                </details>
+                              ))}
+                            </div>
+                          </details>
+                          <div className="st-tile-actions">
+                            <button
+                              className="ns-btn ns-btn-primary ns-btn-sm"
+                              type="button"
+                              onClick={() => openModuleStarterRequest(starter)}
+                            >
+                              <Code2 size={14} aria-hidden="true" />
+                              Bu şablonla geliştir
+                            </button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
             </>
           ) : activeSection === "adaptation" ? (
             <>
-              <header className="ns-page-head st-page-head">
-                <div>
+              <header className="st-hero">
+                <div className="st-hero-text">
                   <h1>Platform uyarlama</h1>
                   <p>
-                    {tenant.name} için ERP deneyimini iş süreçlerinize göre
-                    şekillendirin. Tüm araçlar Studio içinde açılır.
+                    ERP'yi {tenant.name} iş süreçlerine göre şekillendirin;
+                    araçlar Studio içinde açılır.
                   </p>
                 </div>
-                <label className="st-search">
+                <label className="st-search st-hero-search">
                   <Search size={15} aria-hidden="true" />
                   <input
                     type="search"
@@ -2157,115 +2147,106 @@ export default function App() {
                   />
                 </label>
               </header>
-              <section
-                className="st-section"
-                aria-labelledby="studio-flows-title"
-              >
-                <header className="st-section-head">
-                  <div>
+              {filteredAdaptationFlows.length > 0 && (
+                <section
+                  className="st-section"
+                  aria-labelledby="studio-flows-title"
+                >
+                  <header className="st-section-head">
                     <h2 id="studio-flows-title">Neyi düzenlemek istiyorsunuz?</h2>
-                    <p>İhtiyacınızı seçin; ilgili tasarım adımlarını burada bulun.</p>
-                  </div>
-                  <span className="ns-badge" role="status">
-                    {filteredAdaptationFlows.reduce(
-                      (count, flow) => count + flow.tools.length,
-                      0,
-                    ) +
-                      (showAdvancedTools || !!toolQuery.trim()
-                        ? advancedPlatformTools.length
-                        : 0)}{" "}
-                    araç erişilebilir
-                  </span>
-                </header>
-                {filteredAdaptationFlows.length > 0 && (
-                  <div className="st-card-grid">
+                    <span className="ns-badge" role="status">
+                      {filteredPlatformTools.length} araç
+                    </span>
+                  </header>
+                  <div className="st-flow-grid">
                     {filteredAdaptationFlows.map((flow) => {
                       const FlowIcon = flow.icon;
                       return (
-                        <article className="ns-card st-tile" key={flow.title}>
-                          <div className="st-tile-top">
+                        <article className="ns-card st-flow" key={flow.title}>
+                          <header className="st-flow-head">
                             <span className="st-tile-icon" aria-hidden="true">
-                              <FlowIcon size={18} />
+                              <FlowIcon size={16} />
                             </span>
-                          </div>
-                          <h3>{flow.title}</h3>
-                          <p>{flow.description}</p>
-                          <div className="st-tile-links">
+                            <div>
+                              <h3>{flow.title}</h3>
+                              <p>{flow.description}</p>
+                            </div>
+                          </header>
+                          <nav
+                            className="st-flow-tools"
+                            aria-label={`${flow.title} araçları`}
+                          >
                             {flow.tools.map((tool) => (
                               <a href={`#tool-${tool.id}`} key={tool.id}>
-                                {tool.title}
-                                <ArrowUpRight size={13} aria-hidden="true" />
+                                <span>
+                                  <b>{tool.title}</b>
+                                  <small>{tool.description}</small>
+                                </span>
+                                <ChevronRight size={16} aria-hidden="true" />
                               </a>
                             ))}
-                          </div>
+                          </nav>
                         </article>
                       );
                     })}
                   </div>
-                )}
-                {advancedPlatformTools.length > 0 && (
-                  <section className="ns-card st-advanced">
-                    <button
-                      type="button"
-                      className="st-advanced-toggle"
-                      aria-expanded={showAdvancedTools || !!toolQuery.trim()}
-                      onClick={() => setShowAdvancedTools((value) => !value)}
-                    >
-                      <span>
-                        {showAdvancedTools || toolQuery.trim()
-                          ? "Gelişmiş araçları gizle"
-                          : "Gelişmiş araçları göster"}
-                      </span>
-                      <ChevronRight size={16} aria-hidden="true" />
-                    </button>
-                    {(showAdvancedTools || !!toolQuery.trim()) && (
-                      <div className="st-advanced-list">
-                        {advancedPlatformTools.map((tool) => {
-                          const ToolIcon = tool.icon;
-                          const href =
-                            tool.id === "modules"
-                              ? "#marketplace"
-                              : tool.id === "source-workspaces"
-                                ? "#projects"
-                                : `#tool-${tool.id}`;
-                          return (
-                            <a href={href} key={tool.id}>
-                              <span className="st-tile-icon" aria-hidden="true">
-                                <ToolIcon size={16} />
-                              </span>
-                              <span>
-                                <b>{tool.title}</b>
-                                <small>{tool.description}</small>
-                              </span>
-                              <ArrowUpRight size={14} aria-hidden="true" />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-                )}
-                {filteredPlatformTools.length === 0 && (
-                  <div className="ns-card">
-                    <EmptyState
-                      icon={Search}
-                      title="Aramanızla eşleşen araç bulunamadı"
-                    >
-                      <span>
-                        Araç adı veya açıklamasındaki bir kelimeyle tekrar
-                        arayın.
-                      </span>
-                      <button
-                        className="ns-btn ns-btn-sm"
-                        type="button"
-                        onClick={() => setToolQuery("")}
-                      >
-                        Aramayı temizle
-                      </button>
-                    </EmptyState>
+                </section>
+              )}
+              {advancedPlatformTools.length > 0 && (
+                <section
+                  className="st-section"
+                  aria-labelledby="studio-advanced-title"
+                >
+                  <header className="st-section-head">
+                    <h2 id="studio-advanced-title">Gelişmiş araçlar</h2>
+                  </header>
+                  <div className="ns-card st-advanced">
+                    <div className="st-advanced-list st-advanced-grid">
+                      {advancedPlatformTools.map((tool) => {
+                        const ToolIcon = tool.icon;
+                        const href =
+                          tool.id === "modules"
+                            ? "#marketplace"
+                            : tool.id === "source-workspaces"
+                              ? "#projects"
+                              : `#tool-${tool.id}`;
+                        return (
+                          <a href={href} key={tool.id}>
+                            <span className="st-tile-icon" aria-hidden="true">
+                              <ToolIcon size={16} />
+                            </span>
+                            <span>
+                              <b>{tool.title}</b>
+                              <small>{tool.description}</small>
+                            </span>
+                            <ChevronRight size={16} aria-hidden="true" />
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
-              </section>
+                </section>
+              )}
+              {filteredPlatformTools.length === 0 && (
+                <div className="ns-card">
+                  <EmptyState
+                    icon={Search}
+                    title="Aramanızla eşleşen araç bulunamadı"
+                  >
+                    <span>
+                      Araç adı veya açıklamasındaki bir kelimeyle tekrar
+                      arayın.
+                    </span>
+                    <button
+                      className="ns-btn ns-btn-sm"
+                      type="button"
+                      onClick={() => setToolQuery("")}
+                    >
+                      Aramayı temizle
+                    </button>
+                  </EmptyState>
+                </div>
+              )}
             </>
           ) : activeSection.startsWith("tool-") ? (
             (() => {
@@ -2342,72 +2323,6 @@ export default function App() {
           ) : activeSection === "projects" ? (
             <>
               {pageAlerts}
-              <header className="ns-page-head st-page-head">
-                <div>
-                  <h1>Projeler</h1>
-                  <p>
-                    {tenant.name} firmasındaki yetkilendirilmiş depoları ve
-                    proje erişimlerini yönetin.
-                  </p>
-                </div>
-                <button
-                  className="ns-btn ns-btn-primary"
-                  type="button"
-                  onClick={openNewRequest}
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  Yeni geliştirme talebi
-                </button>
-              </header>
-              <section className="st-kpis" aria-label="Proje özeti">
-                <KpiCard
-                  icon={FolderKanban}
-                  tone="accent"
-                  label="Toplam proje"
-                  value={projects.length}
-                  hint="Erişilebilir proje"
-                />
-                <KpiCard
-                  icon={GitBranch}
-                  tone="success"
-                  label="GitHub bağlantısı"
-                  value={
-                    <>
-                      {connectedProjects}
-                      <small> / {projects.length}</small>
-                    </>
-                  }
-                  hint="Yetkilendirilmiş depo"
-                />
-                <KpiCard
-                  icon={ShieldCheck}
-                  tone="info"
-                  label="Yönetilebilir proje"
-                  value={
-                    projects.filter((project) =>
-                      ["TenantAdmin", "Maintainer"].includes(
-                        project.accessLevel,
-                      ),
-                    ).length
-                  }
-                  hint="Yönetim erişiminiz olan projeler"
-                />
-                <KpiCard
-                  icon={ListTodo}
-                  tone="warning"
-                  label="Proje talepleri"
-                  value={
-                    requests.filter(
-                      (request) =>
-                        request.projectId &&
-                        projects.some(
-                          (project) => project.id === request.projectId,
-                        ),
-                    ).length
-                  }
-                  hint="Projeye bağlı geliştirme talebi"
-                />
-              </section>
               <div id="projects" className="studio-projects-page-content">
                 <Suspense
                   fallback={
@@ -2422,37 +2337,37 @@ export default function App() {
                     projects={projects}
                     setProjects={setProjects}
                     refreshProjects={refreshProjects}
+                    projectRequestCount={
+                      requests.filter(
+                        (request) =>
+                          request.projectId &&
+                          projects.some(
+                            (project) => project.id === request.projectId,
+                          ),
+                      ).length
+                    }
                   />
                 </Suspense>
               </div>
-              <p className="st-note">
-                <ShieldCheck size={16} aria-hidden="true" />
-                <span>
-                  Depo erişimi proje ve firma yetkileriyle denetlenir. Kaynak
-                  kodu paylaşımı ve çalışma alanı değişiklikleri ayrıca onay
-                  gerektirir.
-                </span>
-              </p>
             </>
           ) : activeSection === "requests" ? (
             <>
               {pageAlerts}
-              <header className="ns-page-head st-page-head">
-                <div>
+              <header className="st-hero">
+                <div className="st-hero-text">
                   <h1>Geliştirme talepleri</h1>
-                  <p>
-                    {tenant.name} firmasındaki geliştirme ihtiyaçları ve
-                    durumları.
-                  </p>
+                  <p>İhtiyaçlar ve durumları</p>
                 </div>
-                <button
-                  className="ns-btn ns-btn-primary"
-                  type="button"
-                  onClick={openNewRequest}
-                >
-                  <Plus size={16} aria-hidden="true" />
-                  Yeni geliştirme talebi
-                </button>
+                <div className="st-hero-actions">
+                  <button
+                    className="ns-btn ns-btn-primary"
+                    type="button"
+                    onClick={openNewRequest}
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    Yeni talep
+                  </button>
+                </div>
               </header>
               <Suspense
                 fallback={

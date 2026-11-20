@@ -98,6 +98,36 @@
 .st-kpi:has(.st-sparkline) {
   padding-right: 100px;
 }
+.st-stat:has(.st-sparkline) {
+  position: relative;
+  padding-right: 92px;
+}
+.st-stat .st-sparkline {
+  right: 12px;
+  bottom: 12px;
+  width: 68px;
+  height: 30px;
+}
+.st-stat-hint {
+  overflow: hidden;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-analytics-empty {
+  padding: var(--ns-space-6) var(--ns-space-5);
+}
+.st-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ns-space-2);
+  margin-top: 6px;
+}
+.st-empty-actions .ns-btn {
+  margin-top: 0;
+}
 .st-sparkline {
   position: absolute;
   right: 14px;

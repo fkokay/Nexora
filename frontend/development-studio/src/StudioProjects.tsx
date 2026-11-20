@@ -92,7 +92,10 @@ import { TestDiscoveryDialog } from "./studio-projects/TestDiscoveryDialog";
 import { UiDesignerDialog } from "./studio-projects/UiDesignerDialog";
 import { SourceSearchDialog } from "./studio-projects/SourceSearchDialog";
 import { WorkspaceRequestsScreen } from "./studio-projects/WorkspaceRequestsScreen";
-import { ProjectsSection } from "./studio-projects/ProjectsSection";
+import {
+  ProjectsHeader,
+  ProjectsSection,
+} from "./studio-projects/ProjectsSection";
 import { ApprovalQueueSection } from "./studio-projects/ApprovalQueueSection";
 import { WorkspaceExplorer } from "./studio-projects/WorkspaceExplorer";
 
@@ -102,12 +105,15 @@ export function StudioProjects({
   projects,
   setProjects,
   refreshProjects,
+  projectRequestCount,
 }: {
   token: string;
   tenant: Tenant;
   projects: DevelopmentProject[];
   setProjects: Dispatch<SetStateAction<DevelopmentProject[]>>;
   refreshProjects: () => Promise<DevelopmentProject[]>;
+  /** Projeye bağlı geliştirme talebi sayısı (özet şeridinde gösterilir). */
+  projectRequestCount: number;
 }) {
   const [members, setMembers] = useState<ProjectMember[]>([]),
     [pendingApprovals, setPendingApprovals] = useState<
@@ -4349,6 +4355,14 @@ export function StudioProjects({
   );
   return (
     <>
+      <ProjectsHeader
+        busy={busy}
+        projectRequestCount={projectRequestCount}
+        projects={projects}
+        refreshProjectStatus={refreshProjectStatus}
+        setShowCreate={setShowCreate}
+        tenant={tenant}
+      />
       {pendingApprovals.length > 0 && (
         <ApprovalQueueSection
           approvalQueueLoading={approvalQueueLoading}
@@ -4365,13 +4379,11 @@ export function StudioProjects({
       )}
       <ProjectsSection
         aiConfigured={aiConfigured}
-        busy={busy}
         error={error}
         notice={notice}
         openAccess={openAccess}
         openWorkspace={openWorkspace}
         projects={projects}
-        refreshProjectStatus={refreshProjectStatus}
         setModuleMappingProject={setModuleMappingProject}
         setShowCreate={setShowCreate}
         tenant={tenant}
