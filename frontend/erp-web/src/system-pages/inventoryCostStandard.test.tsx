@@ -112,10 +112,10 @@ const gets = (path: string) => calls.filter((call) => call.method === 'GET' && c
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
-const warehouseSelect = () => within(screen.getByRole('region', { name: 'Süzgeçler' })).getByLabelText('Depo') as HTMLSelectElement;
+const warehouseSelect = () => within(screen.getByRole('region', { name: 'Süzgeçler' })).getByRole('combobox', { name: 'Depo' }) as HTMLInputElement;
+// Depo süzgeci ilk depoyla açılır (defaultFirst): eski ekran gibi ilk depo seçilidir.
 const chooseWarehouse = async () => {
-  await waitFor(() => expect(within(warehouseSelect()).getByRole('option', { name: 'Merkez' })).toBeTruthy(), T);
-  fireEvent.change(warehouseSelect(), { target: { value: W } });
+  await waitFor(() => expect(warehouseSelect().value).toBe('MRK · Merkez'), T);
   await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(0), T);
 };
 const rowOf = (scope: HTMLElement, text: string) => within(scope).getByText(text).closest('tr') as HTMLElement;
@@ -147,10 +147,9 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     expect(row.textContent).toContain('TRY');
     expect(screen.getByText('Maliyetsiz')).toBeTruthy();
     expect(screen.queryByText(/yalnızca firma yöneticileri/)).toBeNull();
-    // Without a warehouse the manager cannot open (cost records are per warehouse).
-    const manage = within(row).getByRole('button', { name: 'Yönet' });
-    expect(manage.hasAttribute('disabled')).toBe(true);
-    expect(manage.getAttribute('title')).toBe('Maliyet yönetimi için önce bir depo seçin.');
+    // Sayfa ilk depoyla açılır (eski ekran gibi); maliyet kayıtları depo bazlı olduğundan Yönet o depoda açılır.
+    await waitFor(() => expect(warehouseSelect().value).toBe('MRK · Merkez'), T);
+    await waitFor(() => expect(within(rowOf(document.body, 'Kalem')).getByRole('button', { name: 'Yönet' }).hasAttribute('disabled')).toBe(false), T);
   });
 
   it('shows only the boundary note to a tenant user', async () => {
