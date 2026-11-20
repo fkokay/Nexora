@@ -51,6 +51,7 @@ import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KI
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
 import { barLookMap, hiddenForPreview } from "./page-designer/barLook";
+import { BindingSampleContext } from "./page-designer/bindingSample";
 import { BarLookFields } from "./page-designer/BarLookFields";
 import { BarCommandRows } from "./page-designer/BarCommandRows";
 import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
@@ -3313,6 +3314,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {canEdit && <button type="button" className="pd-button small" onClick={() => ejectFromOwner(selected.id)} title="Bileşen sayfada kendi yerinde kalır"><ArrowUpFromLine size={13}/>{ejectText(selectedRefOwner.type)}</button>}
             {canEdit && <small className="pd-tab-list-hint">"{ejectText(selectedRefOwner.type)}" ile bileşen sayfada kendi yerinde görünür.</small>}
           </div>}
+          <BindingSampleContext.Provider value={(template) => sampleText(template, designScope())}>
           <SettingsHost open={settingsOpen} title={`${titleFor(selected.type)} · ${selected.name || summaryOf(selected)} — Ayarlar`} onClose={() => setSettingsId(null)}
             tabs={componentTabs} tab={settingsTab} onTab={setSettingsTab} onOpen={() => setSettingsId(selected.id)}
             panelExtra={selected.type === "dataTable" ? <SettingsPane tab="columns"><button type="button" className="pd-button small" onClick={() => { setSettingsTab("columns"); setSettingsId(selected.id); }}>Sütunları pencerede düzenle</button></SettingsPane> : null}
@@ -3718,6 +3720,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </>)}
           </fieldset>
           </SettingsHost>
+          </BindingSampleContext.Provider>
         </div> : <div className="pd-right-body">
           <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
