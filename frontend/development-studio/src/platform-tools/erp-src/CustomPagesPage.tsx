@@ -278,6 +278,7 @@ const MAIN_TAB_LABEL: Partial<Record<string, string>> = {
 const settingsTabsFor = (type: string, hasContent: boolean): SettingsTab[] => [
   ...(hasContent ? [{ key: "content", label: "İçerik" }] : []),
   ...(MAIN_TAB_LABEL[type] ? [{ key: "main", label: MAIN_TAB_LABEL[type]! }] : []),
+  ...(type === "dialog" ? [{ key: "save", label: "Kaydetme" }] : []),
   { key: "cond", label: "Koşul" }, { key: "view", label: "Görünüm" },
 ];
 /** Bölüm anahtarının sekmesi (ızgara kendi sekmelerini `pane` ile verir). */
@@ -3661,10 +3662,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "customFieldsBlock" && section("customFields", "Özel alanlar", <CustomFieldsBlockFields name={selected.name} props={selected.props} readQueries={readQueries}
               columnsOf={(queryId) => { const columns = queryColumns(queryId); return columns.length > 0 ? columns.map((column) => column.code) : null; }}
               disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
-            {selected.type === "dialog" && section("dialog", "Pencere", <DialogFields dialog={selected} components={definition.components}
+            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components}
               labelOf={(component) => { const summary = summaryOf(component as PageComponent); const title = titleFor(component.type as ComponentType); return summary === title ? title : `${title}: ${summary}`; }}
               writeQueries={writeQueries} readQueries={readQueries} pageNames={pageNamesOf(definition)} disabled={!canEdit}
-              onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>)}
+              onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
             {selected.type === "image" && section("image", "Görsel", <>
               <label className="pd-field">Görsel bağlantısı<small>Yalnız http:// ya da https:// ile başlayan tam adresler gösterilir; diğer değerlerde “Görsel yok” yazar.</small>
                 <BindingInput value={String(selected.props.value ?? "")} maxLength={200} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Görsel bağlantısı"
