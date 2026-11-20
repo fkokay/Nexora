@@ -226,3 +226,8 @@
 .pd-cond-link:disabled{color:#a3abba;cursor:default}
 .pd-cond-summary{color:#45536b;font-size:11.5px;font-weight:500}
 .pd-cond-note{color:#8a96aa;font-size:11px}
+/* Bağlama çipleri ve örnek değer önizlemesi */
+.pd-binding-chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:4px;min-width:0;font-size:11px}
+.pd-binding-chips .pd-binding-chip{max-width:100%;overflow:hidden;padding:0 7px;border:1px solid var(--pd-accent-line,#d9d0fb);border-radius:999px;background:var(--pd-accent-soft,#f3f0ff);color:#5132c7;font-weight:600;line-height:18px;text-overflow:ellipsis;white-space:nowrap}
+.pd-binding-chips .pd-binding-sample{flex-basis:100%;min-width:0;overflow:hidden;color:#66758c;text-overflow:ellipsis;white-space:nowrap}
+.pd-binding-chips .pd-binding-sample b{color:#45536b;font-weight:600}

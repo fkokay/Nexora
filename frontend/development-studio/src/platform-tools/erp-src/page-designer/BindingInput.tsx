@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import { BindingSampleContext, bindingChips } from "./bindingSample";
 
 export type BindingSuggestion = { path: string; detail: string; group?: string };
 
@@ -47,6 +48,7 @@ export default function BindingInput({ value, onChange, suggestions, multiline =
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const pendingCaret = useRef<number | null>(null);
+  const resolveSample = useContext(BindingSampleContext);
   // Değişken listesinden ekleme, en güncel değeri ve onChange'i kullanmalı.
   const latest = useRef({ value, onChange, maxLength, replaceOnInsert });
   latest.current = { value, onChange, maxLength, replaceOnInsert };
@@ -141,6 +143,7 @@ export default function BindingInput({ value, onChange, suggestions, multiline =
   };
   return <>
     {multiline ? <textarea rows={3} {...common} /> : <input {...common} />}
+    {value.includes("{{") && <BindingPreview value={value} resolve={resolveSample} />}
     {open && position && createPortal(<ul className="pd-binding-suggestions" role="listbox" aria-label="Değişken önerileri" style={position}>
       {matches.map((item, index) => <li key={item.path} role="option" aria-selected={index === active} className={index === active ? "is-active" : ""}
         onMouseDown={(event) => { event.preventDefault(); choose(item); }} onMouseEnter={() => setActive(index)}>
@@ -148,4 +151,19 @@ export default function BindingInput({ value, onChange, suggestions, multiline =
       </li>)}
     </ul>, document.body)}
   </>;
+}
+
+/** Alanın altında bağlamaları okunur çipler ve tuval örnek değeriyle gösterir. */
+function BindingPreview({ value, resolve }: { value: string; resolve: ((template: string) => string) | null }) {
+  const chips = bindingChips(value);
+  let sample = "";
+  if (resolve) {
+    try { sample = resolve(value); } catch { sample = ""; }
+  }
+  const showSample = sample.trim() !== "" && sample !== value;
+  if (!chips.length && !showSample) return null;
+  return <div className="pd-binding-chips">
+    {chips.map((chip, index) => <span key={`${index}-${chip.expression}`} className="pd-binding-chip" title={chip.expression}>{chip.label}</span>)}
+    {showSample && <span className="pd-binding-sample" title={sample}><b>Örnek:</b> {sample}</span>}
+  </div>;
 }
