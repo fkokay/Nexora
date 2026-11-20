@@ -243,7 +243,21 @@ export function WorkspaceExplorer({
           <span>Dosya ara</span>
           <kbd>Ctrl P</kbd>
         </button>
-        <details className="wx-menu">
+        <details
+          className="wx-menu"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.preventDefault();
+              event.stopPropagation();
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+              event.currentTarget.open = false;
+          }}
+        >
           <summary className="wx-btn">
             <GitBranch size={14} aria-hidden="true" /> Sürüm
             <ChevronDown size={13} aria-hidden="true" />
