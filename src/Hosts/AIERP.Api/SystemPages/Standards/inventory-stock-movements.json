@@ -23,7 +23,8 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "exportTable": "liste", "titleCount": "{{gecmis.meta.totalCount}}" } },
+        "props": { "exportTable": "liste", "titleCount": "{{gecmis.meta.totalCount}}",
+                   "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"] } },
 
       { "id": "suzgecKarti", "type": "formCard", "name": "suzgecKarti",
         "props": { "title": "Süzgeçler", "layout": "inline", "inputs": ["stokSecimi", "depoSecimi"] } },

@@ -103,6 +103,8 @@ public sealed class InventoryCostStandardTests
             Assert.Contains("suzgec.warehouseId == null", (string)button["disabledWhen"]!);
         }
         Assert.Equal("acDugmesi", (string)Props("komutlar")["openButton"]!);
+        // Liste yalnız Aç ile maliyet yöneticisini açar; yazma komutları çubukta gizli.
+        Assert.Equal(new[] { "new", "save", "delete", "print" }, Props("komutlar")["hiddenCommands"]!.AsArray().Select(x => (string)x!));
         var dialog = Props("maliyetPenceresi");
         Assert.Equal(new[] { "pencereAciklamasi", "birimBolumu", "degerlemeBolumu", "ekMaliyetBolumu", "kayitBolumu" }, Strings(dialog["contains"]));
         // Three independent forms: the dialog has no single save; every section has its own write button.
