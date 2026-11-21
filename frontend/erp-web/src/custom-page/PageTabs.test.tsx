@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { PageTabs } from './PageTabs';
+import { boundTab, PageTabs } from './PageTabs';
 
 const tabs = [{ label: 'Genel', ids: ['a'] }, { label: 'Ayrıntı', ids: ['b'] }, { label: 'Notlar', ids: ['c'] }];
 
@@ -58,5 +58,21 @@ describe('PageTabs', () => {
     view.rerender(<PageTabs id="t" tabs={tabs} defaultTab={2} renderOwned={renderOwned} errorCounts={[1, 0, 0]} jumpTo={{ tab: 0, signal: 1 }} style={{}} />);
     await waitFor(() => expect(screen.getAllByRole('tab')[0].getAttribute('aria-selected')).toBe('true'));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('giris-a')));
+  });
+});
+
+describe('boundTab', () => {
+  const scope = { birimler: { rowCount: 2 }, kart: { code: 'KLM' }, bos: {} };
+  it('turns a trailing binding into the tab count and leaves static labels alone', () => {
+    expect(boundTab({ label: 'Birimler {{birimler.rowCount}}', ids: ['a'] }, scope)).toEqual({ label: 'Birimler', ids: ['a'], count: '2' });
+    expect(boundTab({ label: 'Birimler {{bos.rowCount}}', ids: ['a'] }, scope)).toEqual({ label: 'Birimler', ids: ['a'] });
+    expect(boundTab({ label: 'Genel', ids: ['a'] }, scope)).toEqual({ label: 'Genel', ids: ['a'] });
+    expect(boundTab({ label: '{{kart.code}} ayrıntı', ids: ['a'] }, scope)).toEqual({ label: 'KLM ayrıntı', ids: ['a'] });
+  });
+  it('draws the count next to the label', () => {
+    render(<PageTabs id="c" tabs={[{ label: 'Birimler', ids: ['a'], count: '3' }, { label: 'Notlar', ids: ['c'] }]} defaultTab={0} renderOwned={renderOwned}
+      errorCounts={[0, 0]} jumpTo={null} style={{}} />);
+    expect(screen.getByRole('tab', { name: 'Birimler 3' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Notlar' })).toBeTruthy();
   });
 });

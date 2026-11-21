@@ -555,6 +555,11 @@ internal static class TenantCustomPageSchema
                 // Öğeleri {{yol}} şablonu taşıyan listeler; kendi doğrulayıcıları her şablonu SafeBindableText ile denetler.
                 if (context.V2 && (prop.Name is "assignments" or "fieldUnits" || prop.Name == "fields" && typeText == "recordHeader"))
                     continue;
+                // Sekme etiketleri {{yol}} taşıyabilir (ör. "Birimler {{birimler.rowCount}}": sondaki bağlama sekme sayacıdır);
+                // biçimi ValidateTabsProps denetler.
+                if (context.V2 && prop.Name == "tabs" && typeText == "tabs" && prop.Value.ValueKind == JsonValueKind.Array
+                    && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeBindableText(x.GetString()!)))
+                    continue;
                 if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
                     && (prop.Value.ValueKind != JsonValueKind.String || prop.Value.GetString()!.Length > messageLimit))
                 { error = $"'{prop.Name}' en fazla {messageLimit} karakterlik metin olmalıdır."; return false; }

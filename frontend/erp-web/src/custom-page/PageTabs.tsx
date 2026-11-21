@@ -1,6 +1,24 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { displayText, interpolate, literalText, resolvePath, type PageScope } from "./pageBindings";
 
 const INVALID_CONTROL = ".tenant-page-input.is-invalid input, .tenant-page-input.is-invalid select";
+
+export type PageTab = { label: string; ids: string[]; count?: string };
+const TRAILING_BINDING = /^([^{}]*?)\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/;
+
+/**
+ * Sekme etiketinin bağlamaları (ör. "Birimler {{birimler.rowCount}}"): etiket tek bir sondaki bağlamayla bitiyorsa çözülen
+ * değer sekme sayacı olarak etiketin yanında çizilir (boşsa sayaç yok); diğer bağlamalar metne yerleştirilir.
+ */
+export function boundTab(tab: { label: string; ids: string[] }, scope: PageScope): PageTab {
+  if (!tab.label.includes("{{")) return tab;
+  const trailing = TRAILING_BINDING.exec(tab.label);
+  if (trailing && trailing[1].trim()) {
+    const count = displayText(resolvePath(scope, trailing[2]));
+    return { ...tab, label: trailing[1].trim(), ...(count ? { count } : {}) };
+  }
+  return { ...tab, label: interpolate(tab.label, scope).trim() || literalText(tab.label).trim() || tab.label };
+}
 
 /**
  * Sekmeler — bileşenleri kimlikle sahiplenir. Tüm paneller çizilir (girişler durumunu korur, doğrulama onları görür);
@@ -8,7 +26,7 @@ const INVALID_CONTROL = ".tenant-page-input.is-invalid input, .tenant-page-input
  * odak verilir.
  */
 export function PageTabs({ id, tabs, defaultTab, renderOwned, errorCounts, jumpTo, style }: {
-  id: string; tabs: { label: string; ids: string[] }[]; defaultTab: number;
+  id: string; tabs: PageTab[]; defaultTab: number;
   renderOwned: (id: string) => ReactNode; errorCounts: number[]; jumpTo: { tab: number; signal: number } | null; style: CSSProperties;
 }) {
   const clamp = (index: number) => Math.max(0, Math.min(tabs.length - 1, Number.isInteger(index) ? index : 0));
@@ -63,6 +81,7 @@ export function PageTabs({ id, tabs, defaultTab, renderOwned, errorCounts, jumpT
           aria-selected={selected} aria-controls={panelId(index)} tabIndex={selected ? 0 : -1}
           className={`tenant-page-tab${selected ? " is-active" : ""}${errors > 0 ? " is-error" : ""}`} onClick={() => setActive(index)}>
           <span>{tab.label}</span>
+          {tab.count !== undefined && <>{" "}<span className="tenant-page-tab-count">{tab.count}</span></>}
           {errors > 0 && <span className="tenant-page-tab-badge" aria-label={`${errors} hata`}>{errors}</span>}
         </button>;
       })}

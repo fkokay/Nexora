@@ -124,8 +124,9 @@ const openManager = async () => {
   const row = await waitFor(() => rowOf(document.body, 'Kalem'), T);
   await waitFor(() => expect(within(row).getByRole('button', { name: 'Yönet' }).hasAttribute('disabled')).toBe(false), T);
   fireEvent.click(within(row).getByRole('button', { name: 'Yönet' }));
-  return screen.findByRole('dialog', { name: 'Stok maliyeti · KLM · Kalem' }, T);
+  return screen.findByRole('dialog', { name: 'Stok maliyeti' }, T);
 };
+const openTab = (dialog: HTMLElement, name: RegExp | string) => fireEvent.click(within(dialog).getByRole('tab', { name }));
 
 beforeEach(() => {
   calls = []; api.mockReset();
@@ -161,12 +162,36 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     expect(screen.queryByText('Maliyetsiz')).toBeNull();
   });
 
-  it('cost manager writes each section on its own', async () => {
+  it('cost manager shows the selected stock summary and one tab per task (draft 18)', async () => {
     setup();
     const dialog = await openManager();
-    for (const title of ['Birim dönüşümleri', 'Maliyet yeniden değerleme', 'Mal kabul ek maliyeti', 'Seçili depodaki maliyet kayıtları']) {
-      expect(within(dialog).getByText(title)).toBeTruthy();
-    }
+    expect(dialog.getAttribute('data-size')).toBe('xl');
+    // Özet şeridi seçili satırdan: başlık "kod · ad", temel birim, miktar ve değer birimleriyle.
+    const summary = within(dialog).getByRole('region', { name: 'KLM · Kalem' });
+    const field = (label: string) => within(summary).getByText(label).nextElementSibling?.textContent;
+    expect(field('Temel birim')).toBe('ADET');
+    expect(field('Depo miktarı')).toBe('12,5 ADET');
+    expect(field('Stok değeri')).toMatch(/^1\.250,75 TRY$/);
+    expect(field('Maliyetsiz miktar')).toBe('2 ADET');
+    // Dört sekme; Birimler ve Kayıtlar sayılarını etikette taşır. Birimler açık, diğer sekmelerin içeriği gizli.
+    await waitFor(() => expect(within(dialog).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Birimler 1', 'Yeniden değerleme', 'Ek maliyet', 'Kayıtlar 3']), T);
+    expect(within(dialog).getByRole('tab', { name: 'Birimler 1' }).getAttribute('aria-selected')).toBe('true');
+    expect(within(dialog).getByRole('button', { name: 'Birim ekle' })).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: 'Yeniden değerle' })).toBeNull();
+    // Canlı önizleme: kod ve katsayı yazılınca "1 KOLI = 12 ADET".
+    expect(within(dialog).queryByText(/^1 .* = .* ADET$/)).toBeNull();
+    type('birimKodu', 'KOLI');
+    type('birimKatsayisi', '12');
+    expect(await within(dialog).findByText('1 KOLI = 12 ADET', {}, T)).toBeTruthy();
+    openTab(dialog, 'Yeniden değerleme');
+    expect(within(dialog).getByRole('button', { name: 'Yeniden değerle' })).toBeTruthy();
+    type('degerFarki', '-25.5');
+    expect(await within(dialog).findByText('Yeni stok değeri = mevcut 1250.75 TRY + fark -25.5 TRY', {}, T)).toBeTruthy();
+  });
+
+  it('cost manager writes each tab on its own', async () => {
+    setup();
+    const dialog = await openManager();
     await within(dialog).findByText('KOLI', {}, T);
     // Birim ekle sends only the unit form; the empty revaluation and landed cost forms do not block it.
     type('birimKodu', 'PK');
@@ -176,16 +201,21 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     expect(writes()[0].url).toBe(`/api/stock/items/${S1}/units`);
     expect(JSON.parse(writes()[0].body!)).toEqual({ unitCode: 'PK', factorToBase: 6 });
 
+    openTab(dialog, 'Yeniden değerleme');
     type('degerFarki', '-25.5');
     type('degerlemeAciklamasi', 'Piyasa düşüşü');
+    const balanceReads = gets(`/api/warehouses/${W}/balances/page`).length;
     fireEvent.click(within(dialog).getByRole('button', { name: 'Yeniden değerle' }));
     await waitFor(() => expect(writes()).toHaveLength(2), T);
     expect(writes()[1].url).toBe(`/api/warehouses/${W}/stock/${S1}/revaluations`);
     expect(JSON.parse(writes()[1].body!)).toMatchObject({ amountBase: -25.5, reason: 'Piyasa düşüşü' });
     expect(JSON.parse(writes()[1].body!).entryDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    // The dialog stays open on the same stock item after a write.
+    // The write refreshes the balances; the dialog stays open on the same stock item and its summary keeps the row.
+    await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(balanceReads), T);
     await settle(100);
-    expect(screen.getByRole('dialog', { name: 'Stok maliyeti · KLM · Kalem' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Stok maliyeti' })).toBeTruthy();
+    const summary = within(dialog).getByRole('region', { name: 'KLM · Kalem' });
+    expect(within(summary).getByText('Depo miktarı').nextElementSibling?.textContent).toBe('12,5 ADET');
   });
 
   it('landed cost goes to the first posted receipt and voided receipts cannot take one', async () => {
@@ -193,6 +223,7 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     const dialog = await openManager();
     await waitFor(() => expect(gets(`/api/purchasing/receipts/${R1}/landed-costs`).length).toBeGreaterThan(0), T);
     await within(dialog).findByText('EKM-1', {}, T);
+    openTab(dialog, 'Ek maliyet');
     type('ekMaliyetTutari', '100');
     type('ekMaliyetAciklamasi', 'Navlun');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Ek maliyeti dağıt' }));
@@ -215,11 +246,16 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     const dialog = await openManager();
     await within(dialog).findByText('DGR-3', {}, T);
     const reverseIn = (code: string) => within(rowOf(dialog, code)).queryByRole('button', { name: 'Ters kayıt' });
+    openTab(dialog, /^Kayıtlar/);
     expect(reverseIn('DGR-1')).toBeNull();
     expect(reverseIn('DGR-2')).toBeNull();
+    expect(reverseIn('DGR-3')).not.toBeNull();
     await within(dialog).findByText('EKM-1', {}, T);
+    openTab(dialog, 'Ek maliyet');
     expect(reverseIn('EKM-2')).toBeNull();
+    expect(reverseIn('EKM-1')).not.toBeNull();
 
+    openTab(dialog, /^Kayıtlar/);
     fireEvent.click(reverseIn('DGR-3')!);
     let prompt = await screen.findByRole('alertdialog');
     fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: 'Hatalı değerleme' } });
@@ -228,6 +264,7 @@ describe('Stok Değerleme standard (inventory-cost)', () => {
     expect(writes()[0]).toEqual({ url: `/api/warehouses/cost-adjustments/${A3}/reverse`, method: 'POST', body: '{"reason":"Hatalı değerleme"}' });
 
     await settle(100);
+    openTab(dialog, 'Ek maliyet');
     fireEvent.click(reverseIn('EKM-1')!);
     prompt = await screen.findByRole('alertdialog');
     fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: 'Yanlış fatura' } });

@@ -106,7 +106,17 @@ public sealed class InventoryCostStandardTests
         // Liste yalnız Aç ile maliyet yöneticisini açar; yazma komutları çubukta gizli.
         Assert.Equal(new[] { "new", "save", "delete", "print" }, Props("komutlar")["hiddenCommands"]!.AsArray().Select(x => (string)x!));
         var dialog = Props("maliyetPenceresi");
-        Assert.Equal(new[] { "pencereAciklamasi", "birimBolumu", "degerlemeBolumu", "ekMaliyetBolumu", "kayitBolumu" }, Strings(dialog["contains"]));
+        // Taslak 18: xl pencere; üstte seçili stokun özeti, altında her iş için bir sekme.
+        Assert.Equal("xl", (string)dialog["size"]!);
+        Assert.Equal(new[] { "maliyetOzeti", "maliyetSekmeleri" }, Strings(dialog["contains"]));
+        Assert.Equal(new[] { "Birimler {{birimler.rowCount}}=birimBolumu", "Yeniden değerleme=degerlemeBolumu", "Ek maliyet=ekMaliyetBolumu",
+            "Kayıtlar {{kayitlar.rowCount}}=kayitBolumu" }, Strings(Props("maliyetSekmeleri")["tabs"]));
+        var summary = Props("maliyetOzeti");
+        Assert.Equal("{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}}", (string)summary["title"]!);
+        Assert.Equal(new[] { "Temel birim", "Depo miktarı", "Stok değeri", "Maliyetsiz miktar" },
+            Strings(summary["fields"]).Select(x => x.Split('=')[0]));
+        Assert.All(Strings(summary["fields"]), x => Assert.Contains("{{liste.seciliSatir.balance.", x));
+        Assert.Contains("Stok değeri=money", Strings(summary["fieldFormats"]));
         // Three independent forms: the dialog has no single save; every section has its own write button.
         Assert.Null(dialog["saveQuery"]);
         Assert.Null(dialog["saveSequence"]);

@@ -2637,7 +2637,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length + (barCsvExport(props) ? 1 : 0)} hidden={hiddenForPreview(props)} look={barLookMap(props.barLook)} />;
-      case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs)} defaultTab={Number(props.defaultTab ?? 0)}
+      case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs).map((tab) => ({ ...tab, label: shown(tab.label, tab.label).trim() || tab.label }))} defaultTab={Number(props.defaultTab ?? 0)}
         onSelect={setSelectedComponentId}
         spanFor={(id) => { const child = byComponentId.get(id); return child ? deviceSpan(spanOf(child), device) : 12; }}
         renderOwned={(id) => {
