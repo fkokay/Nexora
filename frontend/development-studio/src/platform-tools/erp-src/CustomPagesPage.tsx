@@ -18,7 +18,7 @@ import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInp
 import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
-import { bindingPath, coerceParameter, interpolate, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
+import { bindingPath, coerceParameter, interpolate, pageDateScope, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
 import { collectTexts, COUNTS_ROOT, isCountableSource, referencedCountCodes } from "./page-designer/pageCounts";
 import VariablesPanel from "./page-designer/VariablesPanel";
 import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
@@ -187,7 +187,11 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons",
   // Seçim hücreli kalem tablosu: otomatik istek kimliği, seçenek koşulu, bağımlı temizleme, seçim sütunu ayarları, en az satır
   // ve gerekçe isteminin açıklaması / sınırı.
-  "autoId", "optionsWhen", "clearsOnChange", "columnOptionsWhen", "columnStaticOptions", "minRows", "promptText", "promptMaxLength"]);
+  "autoId", "optionsWhen", "clearsOnChange", "columnOptionsWhen", "columnStaticOptions", "minRows", "promptText", "promptMaxLength",
+  // Gezinme düğmeleri (bağlantı, ERP ekranı, sayfa): "Eylem" bölümündeki gezinme alanlarında düzenlenir.
+  ...Object.values(NAVIGATION_PROPS).flat(), "target",
+  // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
+  "saveAndNew"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -373,7 +377,9 @@ function cleanButtonProps(component: PageComponent, dialogIds: Set<string>, writ
   if (next.actionType !== "query" && next.actionType !== "sequence") drop("promptLabel", "promptRequired");
   // Gezinme özellikleri yalnız kendi eylem türünde; gezinme düğmesi sorgu çalıştırmaz ve yenilemez.
   const navigation = NAVIGATION_ACTION_TYPES.includes(String(next.actionType));
-  for (const [type, keys] of Object.entries(NAVIGATION_PROPS)) if (next.actionType !== type) drop(...keys);
+  // Birden çok türde geçen özellik (ör. params: erpPage ve page) geçerli türde kalır.
+  const ownNavigation = NAVIGATION_PROPS[String(next.actionType)] ?? [];
+  for (const [type, keys] of Object.entries(NAVIGATION_PROPS)) if (next.actionType !== type) drop(...keys.filter((key) => !ownNavigation.includes(key)));
   if (navigation) drop("queryId", "refreshQueries", "successMessage", "errorMessage"); else drop("target");
   if (!(typeof next.promptLabel === "string" && next.promptLabel !== "")) drop("promptRequired", "promptText", "promptMaxLength");
   // Alana değer ata: atamalar yalnız bu eylemde; sunucuya yazmadığından sorgu ve yenileme alamaz. Silinen girişe atama kalkar.
@@ -1903,12 +1909,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önizleme parametreleri tasarım zamanı kapsamından çözülür: oturum, diğer sorguların son önizlemesi,
   // ızgaraların ilk önizleme satırı (seçili satır yerine) ve girişlerin varsayılan değerleri.
   const designScope = (): PageScope => {
-    const scope: PageScope = { kullanici: sessionUser(token, role), bugun: localToday(), [COUNTS_ROOT]: counts };
+    const scope: PageScope = { kullanici: sessionUser(token, role), bugun: localToday(), tarih: pageDateScope(), [COUNTS_ROOT]: counts };
     const state = definitionRef.current;
     for (const query of state.queries) {
       if (isWriteKind(query.kind)) continue;
       const preview = queryPreviews[query.id];
-      if (preview) scope[query.name] = { rows: preview.rows, rowCount: preview.rowCount, columns: preview.columns, truncated: preview.truncated, meta: preview.meta ?? {} };
+      if (preview) scope[query.name] = { rows: preview.rows, rowCount: preview.rowCount, satirSayisi: preview.rowCount, columns: preview.columns, truncated: preview.truncated, meta: preview.meta ?? {} };
     }
     for (const component of state.components) {
       if (!component.name) continue;
@@ -3001,7 +3007,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         bindingSuggestions.push({ path: `${query.name}.sonuc.${column.code}`, detail: `İşlem sonucu · ${column.label || column.dataType}`, group: "Sorgular" });
       continue;
     }
-    bindingSuggestions.push({ path: `${query.name}.rows`, detail: "Sorgu satırları", group: "Sorgular" }, { path: `${query.name}.rowCount`, detail: "Satır sayısı", group: "Sorgular" });
+    bindingSuggestions.push({ path: `${query.name}.rows`, detail: "Sorgu satırları", group: "Sorgular" }, { path: `${query.name}.rowCount`, detail: "Satır sayısı", group: "Sorgular" },
+      { path: `${query.name}.satirSayisi`, detail: "Satır sayısı (sayfalı işlemde toplam kayıt)", group: "Sorgular" });
     // Düzleştirilmiş işlemlerin sütun kodları noktalıdır ("balance.code"); bağlama iç nesne üzerinden aynı değere çözülür.
     for (const column of queryColumns(query.id)) if (columnPath.test(column.code)) bindingSuggestions.push({ path: `${query.name}.rows[0].${column.code}`, detail: `İlk satır · ${column.dataType}`, group: "Sorgular" });
     const op = isOperationQuery(query) ? findOperation(erpCatalog, query.operation) : undefined;
@@ -3050,7 +3057,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       bindingSuggestions.push({ path: `${component.name}.yanit`, detail: "Düğmenin sorduğu gerekçenin yanıtı (yalnız o çalıştırmada)", group: "Düğmeler" });
   }
   bindingSuggestions.push({ path: "kullanici.id", detail: "Oturumdaki kullanıcı kimliği", group: "Oturum" }, { path: "kullanici.ad", detail: "Oturumdaki kullanıcı adı", group: "Oturum" },
-    { path: "kullanici.rol", detail: "Oturumdaki kullanıcının rolü", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" });
+    { path: "kullanici.rol", detail: "Oturumdaki kullanıcının rolü", group: "Oturum" }, { path: "bugun", detail: "Bugünün tarihi (YYYY-AA-GG)", group: "Oturum" },
+    { path: "tarih.ayBasi", detail: "Bu ayın ilk günü (YYYY-AA-GG)", group: "Oturum" }, { path: "tarih.yilBasi", detail: "Bu yılın ilk günü (YYYY-AA-GG)", group: "Oturum" },
+    { path: "tarih.ucAyOnce", detail: "Son 3 ayın başı: iki ay önceki ayın ilk günü (YYYY-AA-GG)", group: "Oturum" });
   // {{sayfa.parametre.x}}: bu sayfa "Sayfa aç" eylemiyle açılınca verilen parametreler; tanımda geçen adlar önerilir.
   for (const name of new Set([...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1])))
     bindingSuggestions.push({ path: `sayfa.parametre.${name}`, detail: "Sayfa aç eyleminin verdiği parametre", group: "Sayfa" });
@@ -3175,6 +3184,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       print: props.printEnabled === true ? "Açık" : "Kapalı",
       export: exportTable ? `Liste: ${exportTable.name || exportTable.id}` : "Bağlı değil",
       more: more > 0 ? `${more} düğme` : "Boş",
+      saveNew: props.saveAndNew === true ? "İşlemler menüsünde" : "Kapalı",
       afterSave: props.afterSaveAction === "page" ? `Sayfa aç → ${pageOf(props.afterSavePageCode) || "seçilmedi"}` : "Kapalı",
     };
   };
@@ -3891,6 +3901,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </label> : <SequenceFields value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS)} when={selected.props.sequenceWhen} stopOnError={selected.props.stopOnError}
                 writeQueries={writeQueries} componentsNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, sequencePatch(next) as Record<string, PropValue | undefined>)}/>}
               {barSaveMode === "sequence" && <QueryFieldActions kinds={WRITE_KINDS} target="Kaydet dizisi" value={idList(selected.props.saveSequence, MAX_SEQUENCE_STEPS).at(-1) ?? null} componentId={selected.id} disabled={!canEdit} bind={bindSequenceStep}/>}
+                </> : id === "saveNew" ? <>
+              <label className="pd-check"><input type="checkbox" checked={selected.props.saveAndNew === true} disabled={!canEdit}
+                onChange={(event) => patchComponent(selected.id, { saveAndNew: event.target.checked || undefined })}/>İşlemler menüsünde “Kaydet ve yeni”</label>
+              <p className="pd-binding-note">Kaydeder; başarıda kaydettikten sonra eylemi yerine Yeni komutunu çalıştırır. Kaydet ve Yeni bağlı olmalıdır; biri gizliyse bu da gizlenir.</p>
                 </> : id === "delete" ? <>
               <label className="pd-field">Sil<span className="pd-action-key" aria-hidden="true">Ctrl+Del</span>
                 <select value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { deleteQuery: event.target.value || undefined })}>

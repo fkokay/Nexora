@@ -4,6 +4,9 @@
 
 export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"] as const;
 export type BarCommandId = typeof BAR_COMMAND_IDS[number];
+/** `commandWhen` anahtarları: çubuk komutları ve İşlemler › "Kaydet ve yeni" (`saveNew`, `saveAndNew: true` ile). Sunucuda `hiddenCommands` saveNew almaz. */
+export const BAR_CONDITION_IDS = [...BAR_COMMAND_IDS, "saveNew"] as const;
+export type BarConditionId = typeof BAR_CONDITION_IDS[number];
 
 /** Seçenekli anahtarların geçerli değerleri (sunucuyla aynı); her anahtarın varsayılanı BAR_LOOK_DEFAULTS'tadır. */
 export const BAR_LOOK_OPTIONS = {
@@ -106,7 +109,7 @@ export function getCommandCondition(value: unknown, id: string): string | undefi
 }
 
 /** Bir komutun koşulunu yazar (komut başına tek öğe; yerinde değiştirilir, yeni öğe sona eklenir); boş koşul öğeyi siler. */
-export function setCommandCondition(value: unknown, id: BarCommandId, condition: string | undefined): string[] | undefined {
+export function setCommandCondition(value: unknown, id: BarConditionId, condition: string | undefined): string[] | undefined {
   const result: string[] = [];
   let placed = false;
   for (const item of strings(value)) {

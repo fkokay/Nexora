@@ -111,4 +111,11 @@ describe('sayfa parametreleriyle süzgeç', () => {
     expect(presetFromPageParams(stored, specs, { warehouseId: '  ' })).toBe(stored);
     expect(presetFromPageParams(stored, specs, {})).toBe(stored);
   });
+
+  it('arama kutusunun searchParam adlı sayfa parametresi arama metnini doldurur', () => {
+    const stored = { search: 'eski', values: {} };
+    expect(presetFromPageParams(stored, [], { q: ' C-1001 ' }, 'q')).toEqual({ search: 'C-1001', values: {} });
+    expect(presetFromPageParams(stored, [], { q: 'C-1001' })).toBe(stored);
+    expect(presetFromPageParams(stored, [], { q: '  ' }, 'q')).toBe(stored);
+  });
 });

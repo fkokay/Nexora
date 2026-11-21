@@ -7,6 +7,19 @@ const EMBEDDED = new RegExp(String.raw`\{\{\s*(${PATH})\s*\}\}`, "g");
 const SINGLE = new RegExp(String.raw`^\{\{\s*(${PATH})\s*\}\}$`);
 const TOKEN = /([A-Za-z_][A-Za-z0-9_]*)|\[(\d{1,4})\]/g;
 
+const isoDate = (year: number, monthIndex: number, day: number) => {
+  const date = new Date(year, monthIndex, day);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+/**
+ * Sayfa kapsamının `tarih` kökü (yerel saatle, YYYY-AA-GG; `bugun`un yanında): ayın ve yılın ilk günü ile `ucAyOnce` (iki ay
+ * önceki ayın ilk günü; "Son 3 ay" bu ay dahil üç takvim ayıdır). Studio ikizi page-designer/pageBindings.ts ile aynı kuraldır.
+ */
+export function pageDateScope(now: Date = new Date()): { ayBasi: string; yilBasi: string; ucAyOnce: string } {
+  return { ayBasi: isoDate(now.getFullYear(), now.getMonth(), 1), yilBasi: isoDate(now.getFullYear(), 0, 1), ucAyOnce: isoDate(now.getFullYear(), now.getMonth() - 2, 1) };
+}
+
 /** "q.rows[0].Ad" gibi bir yolu kapsamda çözer; çözülemezse undefined döner. */
 export function resolvePath(scope: PageScope, path: string): unknown {
   if (!new RegExp(`^${PATH}$`).test(path)) return undefined;

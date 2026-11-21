@@ -1,11 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { ConditionBuilder, type ConditionPath } from "./ConditionBuilder";
-import { getCommandCondition, isCommandHidden, setCommandCondition, setCommandHidden, type BarCommandId } from "./barLook";
+import { BAR_COMMAND_IDS, getCommandCondition, isCommandHidden, setCommandCondition, setCommandHidden, type BarCommandId, type BarConditionId } from "./barLook";
 
-/** İşlem Çubuğu komutları: ERP'deki sabit sıra ve kısayollar; "Kaydettikten sonra" çubukta düğme değildir (göz ve koşul yok). */
-export const BAR_COMMAND_ROWS: readonly { id: BarCommandId | "afterSave"; label: string; key?: string }[] = [
+/**
+ * İşlem Çubuğu komutları: ERP'deki sabit sıra ve kısayollar; "Kaydettikten sonra" çubukta düğme değildir (göz ve koşul yok).
+ * "Kaydet ve yeni" İşlemler menüsündedir: koşulu olur, gözü olmaz (`hiddenCommands` almaz).
+ */
+export const BAR_COMMAND_ROWS: readonly { id: BarConditionId | "afterSave"; label: string; key?: string }[] = [
   { id: "new", label: "Yeni", key: "F2" }, { id: "open", label: "Aç", key: "Enter" }, { id: "save", label: "Kaydet", key: "Ctrl+S" },
+  { id: "saveNew", label: "Kaydet ve yeni", key: "Ctrl+F2" },
   { id: "delete", label: "Sil", key: "Ctrl+Del" }, { id: "refresh", label: "Yenile", key: "F5" }, { id: "filter", label: "Filtre", key: "Ctrl+F" },
   { id: "print", label: "Yazdır", key: "Ctrl+P" }, { id: "export", label: "Excel", key: "Ctrl+E" }, { id: "more", label: "İşlemler", key: "Alt+İ" },
   { id: "afterSave", label: "Kaydettikten sonra" },
@@ -26,15 +30,16 @@ export function BarCommandRows({ props, summaries, renderDetail, paths, pageName
   return <div className="pd-cmd-rows" role="list">
     {BAR_COMMAND_ROWS.map(({ id, label, key }) => {
       const command = id === "afterSave" ? null : id;
-      const hidden = command !== null && isCommandHidden(props.hiddenCommands, command);
+      const eye = (BAR_COMMAND_IDS as readonly string[]).includes(id) ? id as BarCommandId : null;
+      const hidden = eye !== null && isCommandHidden(props.hiddenCommands, eye);
       const condition = command === null ? undefined : getCommandCondition(props.commandWhen, command);
       const open = openId === id;
       const byCondition = condition !== undefined || conditional[id] === true;
       return <div key={id} role="listitem" className={`pd-cmd-row${hidden ? " is-hidden" : ""}${open ? " is-open" : ""}`}>
         <div className="pd-cmd-row-head">
-          {command !== null
+          {eye !== null
             ? <button type="button" className="pd-cmd-eye" aria-label={hidden ? "Göster" : "Gizle"} title={hidden ? `${label} çubukta gösterilsin` : `${label} çubukta gizlensin`}
-              aria-pressed={hidden} disabled={disabled} onClick={() => onPatch({ hiddenCommands: setCommandHidden(props.hiddenCommands, command, !hidden) })}>
+              aria-pressed={hidden} disabled={disabled} onClick={() => onPatch({ hiddenCommands: setCommandHidden(props.hiddenCommands, eye, !hidden) })}>
               {hidden ? <EyeOff size={15}/> : <Eye size={15}/>}
             </button>
             : <span className="pd-cmd-eye is-none" aria-hidden="true"/>}

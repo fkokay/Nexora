@@ -111,7 +111,9 @@ public sealed class TenantCustomPageNavigationActionTests
         AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "page", pageCode = "p", @params = new[] { "no=1", "no=2" } })]), "'params'");
         AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "page", pageCode = "p", @params = new[] { "a=1", "b=1", "c=1", "d=1", "e=1", "f=1", "g=1" } })]), "'params'");
         AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "page", pageCode = "p", @params = new[] { "no=<b>" } })]), "'params'");
-        AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "erpPage", pageKey = "customers", @params = new[] { "no=1" } })]), "'params' yalnız");
+        // An ERP screen takes page parameters too (e.g. customerId); a link does not.
+        AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "link", href = "https://example.com", @params = new[] { "no=1" } })]), "'params' yalnız");
+        AssertRejected(V2([C("b1", "button", new { label = "Detay", actionType = "erpPage", pageKey = "customers", @params = new[] { "No=1" } })]), "'params'");
     }
 
     // ---- row actions, sayfa root ----

@@ -3,6 +3,7 @@ import type { CustomerItem } from './erp-types'
 import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import { api } from './erpApi'
 import { CUSTOMER_SEARCH_REQUEST_EVENT } from './customers/customerLabels'
+import { setPageParams } from './pageNavigation'
 import type { Tenant } from './erp-types'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 
@@ -72,6 +73,8 @@ export function useWorkspaceSearch({ pages, quickLinks, locale, token, tenant, p
   const openResult = useCallback((result: GlobalSearchResult) => {
     if (result.kind === 'customer') {
       setCustomerSearch(result.query || result.label)
+      // The Cari Hesaplar system page reads the search from its page param `q` (its search box's searchParam).
+      setPageParams('customers', { q: result.query || result.label })
       setPage('customers')
       // A Cari Hesaplar list that is already open applies the search again, even when the text is unchanged.
       window.dispatchEvent(new CustomEvent(CUSTOMER_SEARCH_REQUEST_EVENT, { detail: result.query || result.label }))

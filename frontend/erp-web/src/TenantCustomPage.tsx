@@ -5,7 +5,7 @@ import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
 import TenantWorkflowAction from "./TenantWorkflowAction";
-import { bindingPath, displayText, interpolate, resolvePath, type PageScope } from "./custom-page/pageBindings";
+import { bindingPath, displayText, interpolate, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
@@ -26,7 +26,8 @@ import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
 import { mapOperationResult, missingRequiredValue, type ErpOperation } from "./custom-page/erpOperations";
 import { CREATED_REOPEN, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
 import { useErpOperations } from "./custom-page/useErpOperations";
-import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
+import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, SAVE_AND_NEW_COMMAND_ID, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
+import { openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
@@ -1292,15 +1293,19 @@ const CATALOG_WAIT_MS = 10_000;
  * Sayfadaki `actionBar` bileşeninin komutlarını kabuğun İşlem Çubuğu'na kaydeder (yalnız actionBar varken bağlanır;
  * kalkınca kayıt da kalkar). Tüm yazma yolları tek uçuş kilidini paylaşır.
  */
-function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onStatus, onBusy, busy }: {
+function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onStatus, onBusy, busy, rootRef }: {
   barProps: Record<string, unknown>; runtime: PageRuntime; page: PublishedPage; token: string; flat: ComponentDefinition[];
   loadIds: string[]; onStatus: (status: ActionStatus | null) => void; onBusy: (busy: boolean) => void; busy: boolean;
+  /** Sayfa içeriği: gizli (arka plandaki) sekmede ya da açık pencere varken Ctrl+F2 çalışmaz. */
+  rootRef?: { current: HTMLElement | null };
 }) {
   const inFlight = runtime.writeLock;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const latest = useRef(runtime);
   latest.current = runtime;
+  /** Yeni komutunun onaysız ve sıfırlamasız çekirdeği (gezinme ya da girişleri temizleme); Kaydet ve yeni kayıttan sonra çalıştırır. */
+  const newAfterSave = useRef<(() => void | Promise<void>) | null>(null);
   const buttonProps = (component: ComponentDefinition) => bindProps(component.props ?? {}, latest.current.scope);
   const buttonLabel = (id: string) => {
     const component = flat.find((item) => item.id === id && item.type === "button");
@@ -1484,6 +1489,23 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         onStatus(null);
         void latest.current.runSequence(sequenceSource(barProps, undefined, afterSave));
       },
+      // Kaydet ve yeni: kayıttan sonra eylemi yerine Yeni'nin sıfırlaması (onaysız: değişiklikler az önce kaydedildi) çalışır.
+      saveAndNew: () => {
+        const startNext = () => {
+          if (!mounted.current) return;
+          latest.current.startNew();
+          latest.current.clearRecordInputs();
+          const next = newAfterSave.current;
+          void Promise.resolve(next?.()).then(() => {
+            if (mounted.current) onStatus({ tone: "success", text: "Kaydedildi. Yeni kayıt için alanlar temizlendi." });
+          });
+        };
+        const saveId = textValue(barProps.saveQuery).trim();
+        onStatus(null);
+        if (idList(barProps.saveSequence, 8).length > 0) { void latest.current.runSequence(sequenceSource(barProps, undefined, startNext)); return; }
+        const query = latest.current.queryById[saveId];
+        if (query) void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], startNext);
+      },
       refresh: () => latest.current.rerun(loadIds),
       focus: (inputId) => document.getElementById(`page-input-${inputId}`)?.focus(),
       print: () => window.print(),
@@ -1493,6 +1515,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   });
   // Yeni: kaydedilmemiş değişiklik varsa önce sorulur; devam edilirse tablolar, bloklar ve kayıt sonuçları da sıfırlanır.
   const clearAndFocus = commands.new?.run;
+  newAfterSave.current = clearAndFocus ?? null;
   if (commands.new && clearAndFocus) {
     commands.new = {
       ...commands.new,
@@ -1510,6 +1533,15 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
   runtime.openCommand.current = commands.open?.run && !commands.open.disabledReason ? commands.open.run : null;
   usePageCommands(commands);
+  // Ctrl+F2 = Kaydet ve yeni (kayıt formlarındaki gibi): yalnız görünen sekmede ve açık pencere yokken.
+  const saveAndNewRun = commands.more?.find((item) => item.id === SAVE_AND_NEW_COMMAND_ID);
+  useWindowKeyDown(!!saveAndNewRun, (event) => {
+    if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
+    const root = rootRef?.current;
+    if (!root || root.closest("[hidden]") || openDialogs().length > 0) return;
+    event.preventDefault();
+    void saveAndNewRun?.run?.();
+  });
   return null;
 }
 
@@ -1676,7 +1708,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const [filterValues, setFilterValues] = useState<Record<string, FilterBarValues>>(() => Object.fromEntries(filterBars.map((filterBar) => {
     const specs = parseFilterEntries(filterBar.props?.filters);
     const stored = previewId ? EMPTY_FILTER_VALUES : loadFilterValues(filterStorageKey(page.code, filterBar.id, tenantId), specs);
-    return [filterBar.id, presetFromPageParams(stored, specs, pageParams)];
+    const searchParam = filterBar.props?.search === true ? textValue(filterBar.props?.searchParam).trim() : "";
+    return [filterBar.id, presetFromPageParams(stored, specs, pageParams, searchParam)];
   })));
   // Süzgeç alanında ilk seçenek varsayılanı (`defaultFirst`): süzgeç başına bir kez (bileşen ömründe) uygulanır.
   const firstFilterApplied = useRef(new Set<string>());
@@ -1774,7 +1807,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Kapsam: oturum + sorgu durumları + ızgara seçimleri + girişler. Girişin varsayılanı yalnız sorgu/oturum/dokunulmuş
   // girişlerden çözülür (başka girişin varsayılanına bağlanamaz), böylece döngü oluşmaz.
   const effective = (states: Record<string, QueryState>) => {
-    const base: PageScope = { kullanici: user, bugun: localToday(), [COUNTS_ROOT]: counts, ...states, sayfa: { parametre: pageParams, genislik: pageWidth, genis: pageWidth >= WIDE_PAGE } };
+    // `tarih` (ay/yıl başı, son 3 ay) ve sorguların `satirSayisi`'ı (`rowCount`: sayfalı işlemde sunucunun totalCount'u, diğerlerinde
+    // satır sayısı) kapsamdadır; aynı adlı sorgu ya da giriş bunları ezer.
+    const counted: PageScope = {};
+    for (const [name, state] of Object.entries(states)) counted[name] = { ...state, satirSayisi: state.rowCount };
+    const base: PageScope = { kullanici: user, bugun: localToday(), tarih: pageDateScope(), [COUNTS_ROOT]: counts, ...counted, sayfa: { parametre: pageParams, genislik: pageWidth, genis: pageWidth >= WIDE_PAGE } };
     for (const [name, row] of Object.entries(selections)) base[name] = { seciliSatir: row };
     for (const dialog of Object.values(dialogById)) if (dialog.name) base[dialog.name] = { acik: dialogs[dialog.id] === true };
     // Süzgeç alanı değerleri (`{{<ad>.<parametre>}}`): parametreli süzgeç sorguyu yeniden çalıştırır, sayfalı liste 1. sayfaya döner.
@@ -3015,7 +3052,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       <ListPageHeader title={pageTitle || page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
     </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
-      loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} />}
+      loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} rootRef={contentRef} />}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
     {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
@@ -3060,12 +3097,14 @@ type TenantCustomPageProps = {
   code?: string; previewId?: string; token: string;
   /** System mode: the page key of a built-in screen whose firm design or standard is served by `/api/system-pages`. */
   systemScreenKey?: string;
+  /** The workspace tab the page lives in when it is not the screen's own key (an alias key such as `customer-edit`). */
+  tabKey?: string;
   onOpenLegacy?: () => void;
   /** Called on a 404 in system mode (stale runtime map) instead of showing an error. */
   onSystemPageMissing?: () => void;
 };
 
-export default function TenantCustomPage({ code, previewId, token, systemScreenKey, onOpenLegacy, onSystemPageMissing }: TenantCustomPageProps) {
+export default function TenantCustomPage({ code, previewId, token, systemScreenKey, tabKey: aliasTabKey, onOpenLegacy, onSystemPageMissing }: TenantCustomPageProps) {
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -3074,7 +3113,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
   // A system page (published or a Studio draft preview) lives in its built-in screen's tab.
-  const tabKey = systemScreenKey ?? (previewId ? `custom-page-preview:${previewId}` : code ? `custom-page:${code}` : undefined);
+  const tabKey = (systemScreenKey && aliasTabKey) || (systemScreenKey ?? (previewId ? `custom-page-preview:${previewId}` : code ? `custom-page:${code}` : undefined));
   const pageParams = usePageParams(tabKey);
   // Sekme başka parametrelerle yeniden açıldı (ör. başka bir kayıt): sayfa gövdesi baştan kurulur, yazılanlar ve sonuçlar taşınmaz.
   const paramKeys = useRef(new WeakMap<object, number>());

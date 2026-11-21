@@ -45,6 +45,16 @@ function safeCopy(source: Record<string, unknown> | null | undefined): Record<st
 }
 
 const isEmpty = (value: unknown) => value === null || value === undefined || value === "";
+
+const DOTTED_NAME = /^([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)$/;
+/**
+ * Noktalı gövde parametresi (`adres.il`, tek düzey): [üst, alt] adları; noktasız ya da geçersiz adda null. Telde iç içe
+ * nesnedir: `{ "adres": { "il": … } }`.
+ */
+export function dottedBodyName(name: string): [string, string] | null {
+  const match = DOTTED_NAME.exec(name);
+  return match && safeKey(match[1]) && safeKey(match[2]) ? [match[1], match[2]] : null;
+}
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 function propertyCaseInsensitive(source: Record<string, unknown> | null, name: string): unknown {
@@ -102,7 +112,19 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
   const request: OperationRequest = { url: search ? `${url}?${search}` : url, method };
   if (method === "GET" || method === "DELETE") return request;
 
-  const body: Record<string, unknown> = { ...safeCopy(source), ...safeCopy(op.fixedBody) };
+  // Kaynak satırın düzleştirilmiş `ad.alan` anahtarları gövdeye düz anahtar olarak taşınmaz (iç içe nesnenin kendisi taşınır).
+  const sourceCopy = safeCopy(source);
+  for (const key of Object.keys(sourceCopy)) if (key.includes(".")) delete sourceCopy[key];
+  // `fixedBody`un noktalı anahtarları (ör. "address.kind") iç içe nesneye yazılır; yalnız o nesne gönderilecekse (aşağıda).
+  const fixedCopy = safeCopy(op.fixedBody);
+  const fixedNested: [string, string, unknown][] = [];
+  for (const key of Object.keys(fixedCopy)) {
+    if (!key.includes(".")) continue;
+    const dotted = dottedBodyName(key);
+    if (dotted) fixedNested.push([dotted[0], dotted[1], fixedCopy[key]]);
+    delete fixedCopy[key];
+  }
+  const body: Record<string, unknown> = { ...sourceCopy, ...fixedCopy };
   // `bodyMap.property` adlı bildirilmiş `map` parametresi eşlemin yerine geçmez; kaynak satırların üzerine birleştirilir.
   const mapParameter = op.bodyMap
     ? op.parameters.find((parameter) => parameter.in === "body" && parameter.type === "map" && parameter.name === op.bodyMap!.property)
@@ -124,19 +146,61 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     }
     body[op.bodyMap.property] = map;
   }
+  // Noktalı parametrelerin iç içe nesneleri (üst ad küçük harfle): kaynak kayıttaki aynı adlı nesne kopyalanıp üzerine yazılır.
+  const nested = new Map<string, Record<string, unknown>>();
+  /** İç içe nesnede bağlı parametrenin yazdığı alanlar (üst ad küçük harfle → alt adlar küçük harfle). */
+  const boundNested = new Map<string, Set<string>>();
+  const nestedOf = (parent: string): Record<string, unknown> => {
+    const lowerParent = parent.toLowerCase();
+    const known = nested.get(lowerParent);
+    if (known) return known;
+    const existingKey = Object.keys(body).find((key) => key.toLowerCase() === lowerParent);
+    const existing = existingKey === undefined ? undefined : body[existingKey];
+    const target = isRecord(existing) ? safeCopy(existing) : {};
+    for (const key of Object.keys(body)) if (key.toLowerCase() === lowerParent) delete body[key];
+    body[parent] = target;
+    nested.set(lowerParent, target);
+    return target;
+  };
   for (const parameter of op.parameters) {
-    if (parameter.in !== "body" || !safeKey(parameter.name) || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
+    if (parameter.in !== "body" || !Object.prototype.hasOwnProperty.call(values, parameter.name)) continue;
+    const dotted = dottedBodyName(parameter.name);
+    if (!dotted && !safeKey(parameter.name)) continue;
     if (parameter === mapParameter) continue;
-    const lower = parameter.name.toLowerCase();
     const value = values[parameter.name];
     // Çözülemeyen koleksiyon (list/map) anahtarı hiç yazılmaz.
     if (isCollection(parameter) && (value === null || value === undefined)) continue;
+    const target = dotted ? nestedOf(dotted[0]) : body;
+    const name = dotted ? dotted[1] : parameter.name;
+    const lower = name.toLowerCase();
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
     // Kullanıcının boşalttığı (`cleared`) alan ise bilinçli temizlemedir: null kaynak değerin yerine yazılır.
     const clearedByUser = value === null && cleared?.has(parameter.name) === true;
-    if ((value === null || value === undefined) && !clearedByUser && Object.keys(body).some((key) => key.toLowerCase() === lower)) continue;
-    for (const key of Object.keys(body)) if (key !== parameter.name && key.toLowerCase() === lower) delete body[key];
-    body[parameter.name] = value;
+    const present = Object.keys(target).some((key) => key.toLowerCase() === lower);
+    if ((value === null || value === undefined) && !clearedByUser && present) continue;
+    // İç içe nesnede boş bağlı alan yazılmaz (sunucu varsayılanı geçerli); kaynakta olan alanı kullanıcı boşalttıysa null yazılır.
+    if (dotted && isEmpty(value) && !(clearedByUser && present)) continue;
+    if (dotted) {
+      const written = boundNested.get(dotted[0].toLowerCase()) ?? new Set<string>();
+      written.add(lower);
+      boundNested.set(dotted[0].toLowerCase(), written);
+    }
+    for (const key of Object.keys(target)) if (key !== name && key.toLowerCase() === lower) delete target[key];
+    target[name] = value;
+  }
+  // Bütün alanları boş iç içe nesne gönderilmez (ör. adres girilmedi): sunucu onu "yok" sayar. `fixedBody`un sabit alanları
+  // nesneyi "dolu" saymaz; gönderilen nesneye, bağlı parametrenin yazmadığı alanlar için eklenir.
+  for (const [lowerParent, target] of nested) {
+    if (Object.values(target).some((value) => !isEmpty(value))) {
+      const written = boundNested.get(lowerParent);
+      for (const [parent, child, value] of fixedNested) {
+        if (parent.toLowerCase() !== lowerParent || written?.has(child.toLowerCase())) continue;
+        for (const key of Object.keys(target)) if (key.toLowerCase() === child.toLowerCase()) delete target[key];
+        target[child] = value;
+      }
+      continue;
+    }
+    for (const key of Object.keys(body)) if (key.toLowerCase() === lowerParent) delete body[key];
   }
   request.body = JSON.stringify(body);
   return request;

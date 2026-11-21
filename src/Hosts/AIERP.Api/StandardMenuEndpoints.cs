@@ -23,6 +23,12 @@ public static class StandardMenuEndpoints
     ];
     /// <summary>Page keys of the standard menu; declared after <see cref="Catalog"/> so static initialization sees it.</summary>
     internal static IReadOnlySet<string> PageKeys { get; } = Catalog.Select(x => x.Page).ToHashSet(StringComparer.Ordinal);
+    /// <summary>
+    /// ERP screens a page may open (erpPage action): the standard menu pages plus workspace screens reached only by
+    /// navigation (the sales document entry screens a customer card starts).
+    /// </summary>
+    internal static IReadOnlySet<string> NavigablePageKeys { get; } =
+        PageKeys.Concat(["sales-quote-create", "sales-order-create", "sales-delivery-create"]).ToHashSet(StringComparer.Ordinal);
     public static void MapStandardMenuEndpoints(this WebApplication app)
     {
         var menus = app.MapGroup("/api/custom-menus/standard").RequireAuthorization();

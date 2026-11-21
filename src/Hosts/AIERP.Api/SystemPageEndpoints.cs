@@ -68,7 +68,12 @@ internal static class SystemPageEndpoints
             foreach (var key in EnabledStandards(configuration))
                 if (!screens.ContainsKey(key) && standards.TryGet(key, out var standard))
                     screens[key] = new SystemPageRuntimeScreen("standard", standard.Version);
-            return Results.Ok(new SystemPageRuntimeMap(screens));
+            // Alias screens (e.g. customer-edit) open their standard's screen while that screen is served as a system page.
+            var aliases = new SortedDictionary<string, SystemPageRuntimeAlias>(StringComparer.Ordinal);
+            foreach (var standard in standards.All.Where(x => screens.ContainsKey(x.ScreenKey)))
+                foreach (var alias in standard.Aliases)
+                    aliases[alias.Key] = new SystemPageRuntimeAlias(standard.ScreenKey, alias.Param);
+            return Results.Ok(new SystemPageRuntimeMap(screens, aliases));
         });
 
         // Runtime definition: the published firm design, else the enabled standard. Query SQL is never sent to the runtime.
@@ -324,7 +329,9 @@ internal static class SystemPageEndpoints
     private sealed record SystemPageSummary(string ScreenKey, string Title, string? Description, string Module, int Version, string Stage,
         IReadOnlyList<string> ScreenViewKeys, Guid? DraftId, Guid? PublishedId, int? StandardVersion, int NewItemCount, bool CanEdit);
     private sealed record SystemPageRuntimeScreen(string Mode, int Revision);
-    private sealed record SystemPageRuntimeMap(IReadOnlyDictionary<string, SystemPageRuntimeScreen> Screens);
+    private sealed record SystemPageRuntimeAlias(string ScreenKey, string Param);
+    private sealed record SystemPageRuntimeMap(IReadOnlyDictionary<string, SystemPageRuntimeScreen> Screens,
+        IReadOnlyDictionary<string, SystemPageRuntimeAlias> Aliases);
     private sealed record SystemPagePublished(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson,
         IReadOnlyList<TenantCustomPageEndpoints.EmbeddedForm> Forms, CustomPageRightsView Rights, string ScreenKey, string Source, int? StandardVersion);
     private sealed record SystemPageDraft(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived,

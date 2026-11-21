@@ -18,7 +18,24 @@ public sealed record CustomerView(Guid Id, string Code, string Name, Counterpart
     string? Phone = null, string? Email = null, string? Website = null, string? ContactName = null,
     string? ContactPhone = null, string? ContactEmail = null, string? PriceListCode = null,
     string? ReceivableAccountCode = null, string? PayableAccountCode = null, string? BankName = null,
-    string? BankBranchCode = null, string? Iban = null);
+    string? BankBranchCode = null, string? Iban = null)
+{
+    // The primary (active, default, General) address of the card; set only by the single-card read. These members are
+    // deliberately not constructor parameters: the ERP operation catalog derives result columns from the constructor, so
+    // the list keeps its columns and only cari.getir declares them.
+    public Guid? DefaultAddressId { get; init; }
+    public string? DefaultAddressLabel { get; init; }
+    public string? DefaultAddressLine { get; init; }
+    public string? DefaultAddressCity { get; init; }
+    public string? DefaultAddressDistrict { get; init; }
+    public string? DefaultAddressPostalCode { get; init; }
+    public string? DefaultAddressCountryCode { get; init; }
+    public decimal? DefaultAddressLatitude { get; init; }
+    public decimal? DefaultAddressLongitude { get; init; }
+}
+/// <summary>Customer list counters (search applied, type and status not): one read instead of a count per filter.</summary>
+public sealed record CustomerCounts(int TotalCount, int ActiveCount, int InactiveCount, int CustomerCount, int SupplierCount,
+    int BothCount, int DealerCount, int EmployeeCount, int EInvoiceRegisteredCount, int RiskLimitDefinedCount);
 public sealed record CustomerWriteRequest(string Code, string Name, CounterpartyType Type, string? TaxNumber,
     bool IsActive = true, byte[]? RowVersion = null, Guid? GroupId = null, string CurrencyCode = "TRY",
     decimal? RiskLimit = null, int PaymentTermDays = 0, IReadOnlyDictionary<string, string?>? CustomFields = null,
@@ -47,13 +64,62 @@ public sealed record CustomerLedgerView(Guid Id, DateOnly EntryDate, CustomerLed
 public sealed record CustomerLedgerWriteRequest(DateOnly EntryDate, CustomerLedgerDirection Direction, decimal Amount,
     string CurrencyCode, string Description);
 public sealed record CustomerLedgerReverseRequest(string Reason);
-public sealed record CustomerLedgerBalance(string CurrencyCode, decimal Balance, string BalanceSide, decimal? RiskLimit);
+public sealed record CustomerLedgerBalance(string CurrencyCode, decimal Balance, string BalanceSide, decimal? RiskLimit)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only cari.bakiye declares them as columns.
+
+    /// <summary>The balance without its sign; <see cref="BalanceSideCode"/> tells the side.</summary>
+    public decimal BalanceAmount => Math.Abs(Balance);
+
+    /// <summary>"B" (borç, debit), "A" (alacak, credit) or "" when balanced. (<see cref="BalanceSide"/> is the wire word.)</summary>
+    public string BalanceSideCode => CustomerLedgerSides.Code(Balance);
+
+    /// <summary>
+    /// Debit balance as a percentage of the risk limit (two decimals); 0 on a credit or zero balance, null without a
+    /// positive limit. Balance and limit are both in the card currency; movements are not converted.
+    /// </summary>
+    public decimal? LimitUsagePercent => RiskLimit is > 0 and var limit
+        ? Balance > 0 ? Math.Round(Balance / limit * 100m, 2, MidpointRounding.AwayFromZero) : 0m
+        : null;
+}
 public sealed record CustomerLedgerPage(IReadOnlyList<CustomerLedgerView> Items, int Page, int PageSize, int TotalCount);
 public sealed record CustomerStatementLine(Guid Id, DateOnly EntryDate, CustomerLedgerDirection Direction, decimal Amount,
-    string CurrencyCode, string Description, Guid? ReversalOfId, bool HasReversal, decimal Balance);
+    string CurrencyCode, string Description, Guid? ReversalOfId, bool HasReversal, decimal Balance)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only cari.ekstre declares them as columns.
+
+    /// <summary>The line currency when it differs from the account currency; set by the statement read, null otherwise.</summary>
+    public string? ForeignCurrencyCode { get; init; }
+
+    public bool IsReversal => ReversalOfId is not null;
+    public decimal? DebitAmount => Direction == CustomerLedgerDirection.Debit ? Amount : null;
+    public decimal? CreditAmount => Direction == CustomerLedgerDirection.Credit ? Amount : null;
+    /// <summary>The running balance without its sign; <see cref="BalanceSide"/> tells the side.</summary>
+    public decimal BalanceAmount => Math.Abs(Balance);
+    /// <summary>"B" (borç, debit), "A" (alacak, credit) or "" when balanced.</summary>
+    public string BalanceSide => CustomerLedgerSides.Code(Balance);
+}
 public sealed record CustomerStatementView(Guid CustomerId, string CustomerCode, string CustomerName, string CurrencyCode,
     DateOnly From, DateOnly To, decimal OpeningBalance, decimal DebitTotal, decimal CreditTotal, decimal ClosingBalance,
-    IReadOnlyList<CustomerStatementLine> Items);
+    IReadOnlyList<CustomerStatementLine> Items)
+{
+    // Summary members outside the constructor, copied into the cari.ekstre query meta.
+    public decimal OpeningAmount => Math.Abs(OpeningBalance);
+    public string OpeningSide => CustomerLedgerSides.Code(OpeningBalance);
+    public decimal ClosingAmount => Math.Abs(ClosingBalance);
+    public string ClosingSide => CustomerLedgerSides.Code(ClosingBalance);
+    /// <summary>Period debit minus credit (signed).</summary>
+    public decimal NetMovement => DebitTotal - CreditTotal;
+    /// <summary>The opening balance is the balance at the end of the day before <see cref="From"/>.</summary>
+    public DateOnly OpeningAsOf => From.AddDays(-1);
+    /// <summary>A line in another currency than the account: totals and balances add amounts without conversion.</summary>
+    public bool HasForeignCurrency => Items.Any(x => !string.Equals(x.CurrencyCode, CurrencyCode, StringComparison.OrdinalIgnoreCase));
+}
+/// <summary>Balance side letters of the customer statement and balance displays.</summary>
+public static class CustomerLedgerSides
+{
+    public static string Code(decimal balance) => balance > 0 ? "B" : balance < 0 ? "A" : "";
+}
 public sealed record CustomerCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record CustomerCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label, CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
 public sealed record CustomerCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);

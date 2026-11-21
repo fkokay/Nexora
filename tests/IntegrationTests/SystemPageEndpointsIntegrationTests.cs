@@ -108,6 +108,28 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Runtime_map_lists_aliases_of_served_standards_only()
+    {
+        await using (var app = await StartApplicationAsync(enabled: ["customer-create"], standards: new EmbeddedSystemPageStandardSet()))
+        {
+            using var client = app.GetTestClient();
+            SetIdentity(client, Mehmet, "TenantUser");
+            var map = await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime");
+            var alias = Assert.Single(map.GetProperty("aliases").EnumerateObject());
+            Assert.Equal("customer-edit", alias.Name);
+            Assert.Equal(("customer-create", "customerId"), (alias.Value.GetProperty("screenKey").GetString(), alias.Value.GetProperty("param").GetString()));
+        }
+        // The alias follows its standard: not served, no alias.
+        await using (var app = await StartApplicationAsync(enabled: ["customers"], standards: new EmbeddedSystemPageStandardSet()))
+        {
+            using var client = app.GetTestClient();
+            SetIdentity(client, Mehmet, "TenantUser");
+            var map = await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime");
+            Assert.Empty(map.GetProperty("aliases").EnumerateObject());
+        }
+    }
+
+    [Fact]
     public async Task Published_returns_standard_with_synthetic_id()
     {
         await using var app = await StartApplicationAsync(enabled: [ScreenKey]);
