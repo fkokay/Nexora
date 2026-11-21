@@ -828,17 +828,25 @@ internal static class TenantScreenViewEndpoints
             catalog = await WithCustomerFieldsAsync(catalog, tenantId, db, ct);
             if (!TryNormalizeFields(catalog.Key == "customers" ? WithFixedFields(catalog, ReadFields(draft.LayoutJson)) : ReadFields(draft.LayoutJson), catalog, out _, out var errors))
                 return Results.Conflict(new { error = "Görünüm tanımı artık geçerli değil.", details = errors });
+            // The filtered unique index (one published view per screen) is checked per statement and EF does not order
+            // the two updates, so the previous view is unpublished first; one transaction keeps the switch atomic.
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
             var previous = await db.TenantScreenViews.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.ScreenKey == draft.ScreenKey && x.IsPublished, ct);
-            if (previous is not null)
+            try
             {
-                db.TenantScreenViewRevisions.Add(RevisionOf(previous, userId, "Superseded"));
-                previous.IsPublished = false; previous.Revision++; previous.UpdatedByUserId = userId; previous.UpdatedAt = DateTimeOffset.UtcNow;
+                if (previous is not null)
+                {
+                    db.TenantScreenViewRevisions.Add(RevisionOf(previous, userId, "Superseded"));
+                    previous.IsPublished = false; previous.Revision++; previous.UpdatedByUserId = userId; previous.UpdatedAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                }
+                db.TenantScreenViewRevisions.Add(RevisionOf(draft, userId, "Published"));
+                draft.IsPublished = true; draft.Revision++; draft.UpdatedByUserId = userId; draft.UpdatedAt = DateTimeOffset.UtcNow;
+                AddAudit(db, tenantId, userId, "screen-view.published", $"{draft.ScreenKey}@{draft.Revision}");
+                await db.SaveChangesAsync(ct);
             }
-            db.TenantScreenViewRevisions.Add(RevisionOf(draft, userId, "Published"));
-            draft.IsPublished = true; draft.Revision++; draft.UpdatedByUserId = userId; draft.UpdatedAt = DateTimeOffset.UtcNow;
-            AddAudit(db, tenantId, userId, "screen-view.published", $"{draft.ScreenKey}@{draft.Revision}");
-            try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateConcurrencyException) { return Results.Conflict(new { error = "Görünüm eşzamanlı değiştirildi. Yenileyip tekrar deneyin." }); }
+            if (transaction is not null) await transaction.CommitAsync(ct);
             return Results.Ok(ToView(draft, catalog));
         });
 

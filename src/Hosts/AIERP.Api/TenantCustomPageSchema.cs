@@ -2037,8 +2037,8 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("saveLabel", out var saveLabel) && !IsStaticTextUpTo(saveLabel, 40))
             return Fail("'saveLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
         // 'size' is a shared prop (SafeProps); on a dialog it picks the window / drawer width.
-        if (props.TryGetProperty("size", out _) && StringOf(props, "size") is not ("sm" or "md" or "lg" or "full"))
-            return Fail("'size' sm, md, lg veya full olmalıdır.", out error);
+        if (props.TryGetProperty("size", out _) && StringOf(props, "size") is not ("sm" or "md" or "lg" or "xl" or "full"))
+            return Fail("'size' sm, md, lg, xl veya full olmalıdır.", out error);
         foreach (var key in new[] { "closeOnSave", "resetOnOpen", "backdropClose" })
             if (props.TryGetProperty(key, out var flag) && !IsBool(flag)) { error = $"'{key}' true veya false olmalıdır."; return false; }
         context.PendingDialogContains.Add((id, ids));

@@ -4,7 +4,7 @@ import { usePageCommands } from "../commands/CommandProvider";
 export type ActionStatus = { tone: "success" | "error" | "warning"; text: string };
 export type DialogSave = { label: string; busy: boolean; run: () => void };
 /** Pencere genişliği (`dialog.size`); `md` bugünkü genişliktir ve DOM'a yazılmaz. */
-export type DialogSize = "sm" | "md" | "lg" | "full";
+export type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
 
 const FIELD_SELECTOR = "input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled])";
 const BUSY_TEXT = "Kaydediliyor…";

@@ -87,7 +87,7 @@
                    "successMessage": "Depo transferi iki depoda ters hareketlerle iptal edildi.", "refreshQueries": ["transferler"] } },
 
       { "id": "kalemlerPenceresi", "type": "dialog", "name": "kalemlerPenceresi",
-        "props": { "presentation": "dialog", "size": "lg",
+        "props": { "presentation": "dialog", "size": "xl",
                    "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.fromWarehouseName}} → {{liste.seciliSatir.toWarehouseName}}",
                    "contains": ["kalemlerBilgisi", "kalemTablosu"] } },
       { "id": "kalemlerBilgisi", "type": "text", "name": "kalemlerBilgisi",
