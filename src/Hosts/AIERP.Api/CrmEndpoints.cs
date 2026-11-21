@@ -21,13 +21,7 @@ public static class CrmEndpoints
                 valueFrom < 0 || valueTo < 0 || (valueFrom is not null && valueTo is not null && valueFrom > valueTo))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["Sayfalama, tarih veya tahmini değer filtresi geçersiz."] });
 
-            var query = db.CrmOpportunities.AsNoTracking().Where(x => x.TenantId == tenantId);
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var term = q.Trim();
-                query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) ||
-                    (x.Customer != null && x.Customer.Name.Contains(term)));
-            }
+            var query = Search(db.CrmOpportunities.AsNoTracking().Where(x => x.TenantId == tenantId), q);
             if (stage is not null && TryStage(stage, out var parsedStage)) query = query.Where(x => x.Stage == parsedStage);
             if (closeFrom is not null) query = query.Where(x => x.ExpectedCloseDate != null && x.ExpectedCloseDate >= closeFrom);
             if (closeTo is not null) query = query.Where(x => x.ExpectedCloseDate != null && x.ExpectedCloseDate <= closeTo);
@@ -42,6 +36,27 @@ public static class CrmEndpoints
                     Convert.ToBase64String(x.RowVersion)))
                 .ToListAsync(ct);
             return Results.Ok(new CrmOpportunityPage(items, page, pageSize, total));
+        });
+
+        // Counts over every matching record (not one page), the overdue count against the server clock and the open value
+        // in the currency most open valued opportunities use. Same q as the list; "/summary" never matches "/{id:guid}".
+        opportunities.MapGet("/summary", async (ClaimsPrincipal user, TenantDbContext db, string? q, CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId, out _)) return Results.Forbid();
+            var query = Search(db.CrmOpportunities.AsNoTracking().Where(x => x.TenantId == tenantId), q);
+            var stages = await query.GroupBy(x => x.Stage).Select(g => new { Stage = g.Key, Count = g.Count() }).ToListAsync(ct);
+            int Count(CrmOpportunityStage stage) => stages.Where(x => x.Stage == stage).Sum(x => x.Count);
+            var open = query.Where(x => x.Stage != CrmOpportunityStage.Won && x.Stage != CrmOpportunityStage.Lost);
+            var now = DateTimeOffset.UtcNow;
+            var overdue = await open.CountAsync(x => x.NextActivityAt != null && x.NextActivityAt < now, ct);
+            var values = await open.Where(x => x.EstimatedValue != null).GroupBy(x => x.CurrencyCode)
+                .Select(g => new { Currency = g.Key, Count = g.Count(), Amount = g.Sum(x => x.EstimatedValue!.Value) }).ToListAsync(ct);
+            var main = values.OrderByDescending(x => x.Count).ThenBy(x => x.Currency, StringComparer.Ordinal).FirstOrDefault();
+            return Results.Ok(new CrmOpportunitySummary(stages.Sum(x => x.Count), Count(CrmOpportunityStage.Prospecting),
+                Count(CrmOpportunityStage.Qualified), Count(CrmOpportunityStage.Proposal), Count(CrmOpportunityStage.Negotiation),
+                Count(CrmOpportunityStage.Won), Count(CrmOpportunityStage.Lost),
+                stages.Where(x => x.Stage is not (CrmOpportunityStage.Won or CrmOpportunityStage.Lost)).Sum(x => x.Count), overdue,
+                main?.Amount, main?.Currency, Math.Max(0, values.Count - 1)));
         });
 
         opportunities.MapPost("/", async (CrmOpportunityWriteRequest body, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -139,6 +154,14 @@ public static class CrmEndpoints
         });
     }
 
+    /// <summary>The list and summary search: code, name or the linked customer's name.</summary>
+    private static IQueryable<CrmOpportunity> Search(IQueryable<CrmOpportunity> query, string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return query;
+        var term = q.Trim();
+        return query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.Customer != null && x.Customer.Name.Contains(term)));
+    }
+
     private static async Task<CrmOpportunityView?> ToViewAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
         await db.CrmOpportunities.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
             .Select(x => new CrmOpportunityView(x.Id, x.Code, x.Name, x.CustomerId,
@@ -195,4 +218,15 @@ public sealed record CrmOpportunityStageRequest(string? Stage);
 public sealed record CrmOpportunityView(Guid Id, string Code, string Name, Guid? CustomerId, string? CustomerName,
     string Stage, decimal? EstimatedValue, string CurrencyCode, int ProbabilityPercent, DateOnly? ExpectedCloseDate,
     DateTimeOffset? NextActivityAt, string? Notes, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string RowVersion);
-public sealed record CrmOpportunityPage(IReadOnlyList<CrmOpportunityView> Items, int Page, int PageSize, int Total);
+public sealed record CrmOpportunityPage(IReadOnlyList<CrmOpportunityView> Items, int Page, int PageSize, int Total)
+{
+    /// <summary>Same value as <see cref="Total"/>: the name system pages read for server paging (<c>meta.totalCount</c>).</summary>
+    public int TotalCount => Total;
+}
+/// <summary>
+/// Counts of every matching opportunity; overdue = open with <c>NextActivityAt</c> before now (UTC). The open value sums the
+/// open valued opportunities of the currency with the most of them (tie: alphabetical); null when there is none.
+/// </summary>
+public sealed record CrmOpportunitySummary(int TotalCount, int ProspectingCount, int QualifiedCount, int ProposalCount,
+    int NegotiationCount, int WonCount, int LostCount, int OpenCount, int OverdueCount, decimal? OpenValueAmount,
+    string? OpenValueCurrencyCode, int OtherCurrencyCount);

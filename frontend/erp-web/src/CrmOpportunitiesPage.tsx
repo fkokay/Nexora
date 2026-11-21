@@ -18,6 +18,7 @@ import { SalesListDetailEmpty, SalesListPanelToggle } from "./sales/components/S
 import { SalesListFooter, pageAmountHint } from "./sales/components/SalesListFooter";
 import "./sales/sales-list-v2.css";
 import { CLOSED_OPPORTUNITY_REASON, stageTone } from "./crm-opportunities/stageTone";
+import { toLocalInputText } from "./custom-page/dateTimeInput";
 import "./crm-opportunities.css";
 import { CrmOpportunityHeader } from "./crm-opportunities/components/CrmOpportunityHeader";
 import {
@@ -289,7 +290,8 @@ export default function CrmOpportunitiesPage({
     setCurrency(item.currencyCode);
     setProbability(String(item.probabilityPercent));
     setCloseDate(item.expectedCloseDate || "");
-    setActivity(item.nextActivityAt ? new Date(item.nextActivityAt).toISOString().slice(0, 16) : "");
+    // datetime-local yerel saat bekler; UTC metni (toISOString) yazmak kaydedince saati dilim farkı kadar kaydırıyordu.
+    setActivity(toLocalInputText(item.nextActivityAt));
     setNotes(item.notes || "");
     setError("");
     setNotice("");

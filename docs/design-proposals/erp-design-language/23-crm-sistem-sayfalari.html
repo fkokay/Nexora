@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CRM sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+/* kart */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px}
+.nav{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px}.nav div{padding:7px 9px;border-radius:6px;font-weight:600;color:#475467;display:flex;justify-content:space-between}.nav .on{background:var(--pri-soft);color:var(--pri)}.nav small{color:var(--mut);font-size:10.5px;display:block;padding:8px 9px 2px;font-weight:500}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px}.status b{color:var(--ok)}
+/* ekstre */
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.open td,tr.close td{background:#f8fafc;font-weight:600}tr.rev td{color:#475467}tr.rev td:nth-child(2){padding-left:24px}tr.strike td{color:#98a2b3}tr.strike td:nth-child(2) span.t{text-decoration:line-through}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.flow{list-style:none;margin:6px 0 0;padding:0}.flow li{display:flex;align-items:center;gap:8px;padding:4px 0;color:#98a2b3;font-weight:600}.flow li i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;background:#eef1f7}.flow li.done{color:#344054}.flow li.done i{background:var(--ok-bg);color:var(--ok)}.flow li.on{color:var(--pri)}.flow li.on i{background:var(--pri);color:#fff}
+.side{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px}.side h5{margin:0 0 6px;font-size:13px}.side .w{font-size:18px;font-weight:700}.side p{color:var(--mut);margin:8px 0 0;line-height:1.5}
+.pre{display:flex;gap:6px;margin-top:6px}.pre span{border:1px solid #d8e2ec;border-radius:6px;padding:2px 8px;font-weight:600;color:#475467;background:#fff}.pre span.on{background:var(--pri-soft);color:var(--pri);border-color:#bcd0f5}
+.form2{display:grid;grid-template-columns:1fr 260px;gap:10px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.cmp div{border-radius:8px;padding:7px 9px;font-size:12px;line-height:1.45}.cmp .old{background:#f8fafc;border:1px dashed #d0d8e4;color:#475467}.cmp .new{background:#f3f7ff;border:1px solid #bcd0f5}
+.d .tagw{font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagb{font-size:10.5px;font-weight:700;color:var(--pri);background:var(--pri-soft);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagr{font-size:10.5px;font-weight:700;color:var(--dan);background:var(--dan-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+</style></head><body>
+<h1>CRM Fırsatları → sistem sayfaları (taslak 23)</h1>
+<p class="sub">CRM modülü bugün yalnız <b>fırsatlardan</b> oluşuyor: aktivite, görüşme ya da kampanya ekranı yok (kampanyalar Satış modülünde). İki ekran sistem sayfasına geçiyor: <b>CRM Fırsatları</b> listesi ve <b>Fırsat kartı</b> (yeni ve düzenleme tek tanımda). Görünüm bugünküyle aynı kalıyor; aşama kuralları API'de kalıyor. Bugün hiç olmayan <code>crm.firsat.*</code> ERP işlemleri (8 adet) ekleniyor. Aşağıdaki kararlar sizin onayınızı bekliyor.</p>
+
+<div class="lbl">1 · CRM FIRSATLARI (LİSTE) · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Cari Hesaplar › CRM Fırsatları</div>
+  <div class="ttl"><h2>CRM fırsatları</h2><small>42 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span>Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">◎</span><div><span>Açık fırsat</span><strong>31</strong> <small>tüm kayıtlar</small></div></div>
+    <div class="met"><span class="ic" style="background:var(--ok-bg);color:var(--ok)">✓</span><div><span>Kazanıldı</span><strong>8</strong> <small>tüm kayıtlar</small></div></div>
+    <div class="met"><span class="ic">₺</span><div><span>Açık fırsat değeri</span><strong>4.860.000 ₺</strong> <small>tüm kayıtlar · + 2 dövizde</small></div></div>
+    <div class="met"><span class="ic" style="background:var(--warn-bg);color:var(--warn)">!</span><div><span>Takibi geçmiş</span><strong>5</strong> <small>tüm kayıtlar</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Kod, fırsat veya müşteri ara</span><span class="chip on">Tümü<i>42</i></span><span class="chip">İlk temas<i>12</i></span><span class="chip">Nitelikli<i>9</i></span><span class="chip">Teklif<i>6</i></span><span class="chip">Müzakere<i>4</i></span><span class="chip">Kazanıldı<i>8</i></span><span class="chip">Kaybedildi<i>3</i></span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Fırsat kodu</th><th>Fırsat</th><th>Müşteri</th><th>Aşama</th><th class="num">Tahmini değer</th><th class="num">Olasılık</th><th>Beklenen kapanış</th><th>Sonraki takip</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">FRS-2026-014</td><td>ERP yenileme projesi</td><td>ÖRNEK GIDA A.Ş.</td><td><span class="tag t-w">Teklif</span></td><td class="num">1.250.000,00 ₺</td><td class="num">%50</td><td>15.12.2026</td><td>24.11.2026 10:00</td></tr>
+      <tr><td class="code">FRS-2026-011</td><td>Depo otomasyonu</td><td><span style="color:#98a2b3">Bağlanmadı</span></td><td><span class="tag t-in">İlk temas</span></td><td class="num">—</td><td class="num">%10</td><td><span style="color:#98a2b3">Tarih yok</span></td><td>Takip planlanmadı</td></tr>
+      <tr><td class="code">FRS-2026-007</td><td>Yıllık bakım sözleşmesi</td><td>KONYA TEKSTİL LTD.</td><td><span class="tag t-ok">Kazanıldı</span></td><td class="num">180.000,00 €</td><td class="num">%100</td><td>01.11.2026</td><td>—</td></tr>
+      <tr><td class="code">FRS-2026-003</td><td>Mobil satış uygulaması</td><td>ESKİ MÜŞTERİ LTD.</td><td><span class="tag t-off">Kaybedildi</span></td><td class="num">90.000,00 ₺</td><td class="num">%0</td><td>30.09.2026</td><td>—</td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+Del sil · Ctrl+. detay paneli</span><span>Sayfa 1 / 1 · 42 kayıt · 50'şer</span></div></div>
+    <div class="card pnl"><span class="code">FRS-2026-014</span> <span class="btn" style="float:right;padding:1px 8px">Aç</span><h4>ERP yenileme projesi</h4>
+      <div style="margin-top:4px"><span class="tag t-w">Teklif</span></div>
+      <div class="ptabs"><span class="on">Özet</span><span>Not</span></div>
+      <div class="k"><div><span>Tahmini değer</span><b>1.250.000,00 ₺</b></div><div><span>Kazanma olasılığı</span><b>%50</b></div><div><span>Beklenen kapanış</span><b>15.12.2026</b></div><div><span>Sonraki takip</span><b>24.11.2026 10:00</b></div></div>
+      <dl class="dl"><dt>Müşteri</dt><dd>ÖRNEK GIDA A.Ş.</dd></dl>
+      <div style="margin-top:10px;font-weight:700;font-size:12px">Aşama akışı</div>
+      <ol class="flow"><li class="done"><i>✓</i>İlk temas</li><li class="done"><i>✓</i>Nitelikli</li><li class="on"><i>3</i>Teklif</li><li><i>4</i>Müzakere</li><li><i>5</i>Kazanıldı</li></ol></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>İşlemler menüsü</b> (seçili açık fırsatta): <b>Aşamayı ilerlet: Müzakere</b> (düğme sonraki aşamanın adını taşır), <b>Kaybedildi olarak işaretle</b> (artık <b>onay soruyor</b>), CSV dışa aktar. Aşama yalnız seçili tek satıra uygulanır; toplu aşama değişikliği yok.</li>
+  <li><b>Kapanmış fırsat</b> (Kazanıldı/Kaybedildi): Aç nedenli pasif ("Kapanmış fırsat düzenlenemez"); Sil açık ve bugünkü "Fırsat silinsin mi? · geri alınamaz" onayıyla çalışır.</li>
+  <li><b>Kaybedilen fırsatın panelinde</b> akış listesi yerine "Kaybedildi · aşama geçmişi tutulmuyor" notu çıkar (bugün yalnız Kaybedildi işaretli bir liste gösteriliyor; sayfa motorunun adım bileşeni önceki adımları hep "tamamlandı" çizdiği için).</li>
+  <li><b>Kartlar artık tüm kayıtları sayar:</b> bugün "Açık fırsat değeri" ve "Takibi geçmiş" yalnız görünen sayfayı sayıyor; yeni özet işlemiyle tüm sonuç sayılır, birden çok dövizde toplam döviz bazında verilir.</li>
+</ul>
+
+<div class="lbl">2 · FIRSAT KARTI (YENİ + DÜZENLEME TEK TANIM, AYRI SEKME)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Cari Hesaplar › CRM Fırsatları › Fırsat</div>
+  <div class="rh"><div><h2>ERP yenileme projesi</h2><p><span class="code">FRS-2026-014</span> · <span class="tag t-w">Teklif</span> · ÖRNEK GIDA A.Ş.</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Değişiklikleri kaydet</span></div></div>
+  <div class="status"><span>* zorunlu alan</span><span>Ctrl+S kaydet · Esc vazgeç</span></div>
+  <div class="form2">
+    <div>
+      <div class="sec"><h5>Fırsat</h5><div class="g3"><div class="f" style="grid-column:span 2"><label>Fırsat adı <b>*</b></label><div class="in">ERP yenileme projesi</div></div><div class="f"><label>Fırsat kodu <b>*</b></label><div class="in code">FRS-2026-014</div></div></div>
+        <div class="f" style="margin-top:10px"><label>Müşteri</label><div class="in">C-1004 · ÖRNEK GIDA A.Ş. ▾</div></div></div>
+      <div class="sec"><h5>Tahmin ve takip</h5><div class="g2"><div class="f"><label>Tahmini tutar</label><div class="in">1.250.000,00 &nbsp;<span class="code" style="margin-left:auto">TRY</span></div></div><div class="f"><label>Beklenen kapanış</label><div class="in">15.12.2026</div></div><div class="f"><label>Sonraki takip</label><div class="in">24.11.2026 &nbsp; 10:00</div></div><div class="f"><label>Kazanma olasılığı (%)</label><div class="in">50</div><div class="pre"><span>%10</span><span>%25</span><span class="on">%50</span><span>%75</span><span>%90</span></div></div></div></div>
+      <div class="sec"><h5>Not</h5><div class="in ta">Görüşme özeti veya sonraki adım</div></div>
+    </div>
+    <div class="side"><h5>Ağırlıklı değer</h5><div class="w">625.000,00 ₺</div><p>tahmini tutar × olasılık</p><p>Fırsatı müşteri carisine bağlayın; kapanış ve sonraki takip tarihini planlayın.</p></div>
+  </div>
+</div>
+<ul class="note">
+  <li>Yeni kartta başlıkta "Yeni fırsat" yazar, düğme "Fırsat oluştur" olur; aşama her zaman İlk temas'tır. Kayıttan ya da vazgeçten sonra listeye dönülür.</li>
+  <li>Müşteri seçicide yalnız <b>aktif</b> ve <b>Müşteri / Müşteri &amp; Tedarikçi</b> türündeki cariler listelenir (bugünkü gibi).</li>
+  <li>Sağdaki "Ağırlıklı değer" kutusu ve olasılık hazır düğmeleri sayfa motorunda karşılığı en zayıf iki parça; karar 5'e bakın.</li>
+</ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL) · <span style="color:var(--pri)">mavi</span> = yalnız CRM dosyası · <span style="color:var(--warn)">sarı</span> = ortak dosya, diğer modüllerle sıralanır · <span style="color:var(--dan)">kırmızı</span> = bugünkü kusur</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Kayıt sayısı alanının adı<span class="tagb">CRM API</span></b><p>Sayfa motoru toplam kayıt sayısını <code>totalCount</code> adıyla okuyor; CRM listesi <code>total</code> döndürüyor. Düzeltilmezse sistem sayfası yalnız ilk 50 kaydı gösterir ve başlıkta "50 kayıt" yazar.</p><p class="rec">Öneri: CRM liste yanıtına aynı değerle <code>totalCount</code> eklensin; <code>total</code> kalır (asistan ve eski ekran etkilenmez).</p></div>
+  <div class="d"><b class="h">2 · Tek "özet" işlemi<span class="tagb">CRM API</span></b><p>Bugün çip ve kart sayıları 7 ayrı istekle alınıyor. "Açık fırsat değeri" ve "Takibi geçmiş" yalnız görünen sayfayı ve tarayıcı saatini kullanıyor; sayfa motorunda "şimdi" karşılaştırması yok.</p><p class="rec">Öneri: yeni uç <code>/api/crm/opportunities/summary</code> + <code>crm.firsat.ozet</code>: aşama sayıları, açık sayısı, takibi geçmiş (sunucu saatiyle) ve döviz bazında açık değer tek istekte.</p>
+    <div class="cmp"><div class="old">Bugün: "Takibi geçmiş 2 · bu sayfa"</div><div class="new">Yeni: "Takibi geçmiş 5 · tüm kayıtlar"</div></div></div>
+  <div class="d"><b class="h">3 · "Sonraki takip" tarih + saat<span class="tagw">ortak motor</span><span class="tagr">kusur</span></b><p>Sayfa motorunda tarih-saat girişi yok; alan yalnız tarih olursa saat 00:00'a düşer. Ayrıca bugünkü ekranda bir kusur var: düzenleme açılırken saat UTC olarak dolduruluyor, kaydederken yerel saat sayılıyor. Türkiye'de <b>her düzenleme kaydı takip saatini 3 saat geri kaydırıyor</b>.</p><p class="rec">Öneri: sayfa motoruna "tarih ve saat" giriş türü (yerel saat ↔ UTC doğru çeviriyle). Ortak dosya olduğu için diğer modüllerle sıralanır; gelene kadar CRM standardı önizlemede kalır. Eski ekrandaki kayma ayrıca küçük bir düzeltmeyle hemen giderilebilir.</p></div>
+  <div class="d"><b class="h">4 · Yeni / Aç ayrı sekmede<span class="tagb">standart</span></b><p>Bugün Yeni ve Aç, formu listenin yerine <b>aynı sekmede</b> açıyor; menüdeki "Yeni fırsat" ise ayrı sekme.</p><p class="rec">Öneri: stok kartındaki gibi tek tanım <code>crm-opportunity-create</code>; Yeni ve Aç bu sekmeyi açar (Aç fırsat kimliğiyle). Görünür fark: liste sekmesi yerinde kalır, form yeni sekmede açılır.</p></div>
+  <div class="d"><b class="h">5 · Ağırlıklı değer ve hazır düğmeler<span class="tagb">standart</span></b><p>Sayfa motoru alanlar arasında hesap (tutar × olasılık) yapamıyor; bir düğmenin form alanına değer yazıp yazamadığı da henüz doğrulanmadı.</p><p class="rec">Öneri: ilk sürümde "Ağırlıklı değer" kutusu kalkar, yerine kısa ipucu kalır. Hazır düğmeler doğrulanırsa kalır, olmazsa yalnız "0–99" sayı alanı. Kayıt davranışı değişmez.</p></div>
+  <div class="d"><b class="h">6 · Aşama işlemlerinin adları (kalıcı)<span class="tagw">ortak katalog</span></b><p>"İlerlet" düğmesi satırın aşamasına göre farklı hedefe gider. ERP işlem adları sonradan değiştirilemez.</p><p class="rec">Öneri: tek <code>crm.firsat.asamaDegistir</code> (aşama değeri düğmede sabit verilir) + onaylı <code>crm.firsat.kaybedildi</code>. Düğmede sabit değer verilemiyorsa dört ayrı ad (<code>nitelikliYap</code>, <code>teklifeGecir</code>, <code>muzakereyeGecir</code>, <code>kazanildi</code>). Kod yazmadan önce doğrulanacak.</p></div>
+  <div class="d"><b class="h">7 · Müşteri seçici Cari'ye bağlı<span class="tagw">Cari oturumu</span></b><p>Seçici <code>cari.listele</code> işlemini kullanacak (Cari oturumunda öneriliyor); CRM ayrı bir kopya açmaz. Bu işlem tek tür alıyor, "Müşteri <i>veya</i> Müşteri &amp; Tedarikçi" tek sorguda ifade edilemiyor.</p><p class="rec">Öneri: Cari PR'ı önce birleşsin; cari listesine çoklu tür (<code>type=Customer,Both</code>) desteği Cari oturumunda eklensin. Olmazsa geçici olarak tedarikçiler de görünür, sunucu yanlış seçimi reddeder.</p></div>
+  <div class="d"><b class="h">8 · Küçük görünüm farkları<span class="tagb">standart</span></b><p>Kod bugün ad sütununun altında küçük yazılıyor; sistem tablosunda iki satırlı hücre yok. Boş hat ekranındaki uzun açıklama ve "İlk fırsatı oluştur" düğmesi tek satırlık boş metne dönüşebilir.</p><p class="rec">Öneri: kod ayrı sütun (yukarıdaki görseldeki gibi); boş durum düğmesi motor destekliyorsa korunur.</p></div>
+  <div class="d"><b class="h">9 · Yetki farkı (olumlu)<span class="tagb">standart</span></b><p>Aşama değiştirmek "çalıştır" izni ister. Bugün izinsiz kullanıcı düğmeye basıp hata alıyor.</p><p class="rec">Öneri: sistem sayfası izinsiz düğmeyi nedenli pasif gösterir. QA'da yalnız "güncelle" izni olan kullanıcıyla denenecek.</p></div>
+  <div class="d"><b class="h">10 · Sıra ve yayın</b><p>Ortak dosyaları (ERP işlem kataloğu etiketleri, sistem sayfası listeleri) beş modül oturumu birden değiştiriyor.</p><p class="rec">Öneri: (1) Cari PR'ı → (2) tek CRM PR'ı: API eklemeleri (karar 1–2), <code>crm.*</code> işlemleri, iki standart (önizleme, varsayılan yine eski ekran) → (3) tarih-saat girişi sırası gelince. QA yalnız "QA Test Firma 20261117"de.</p></div>
+</div>
+<ul class="note">
+  <li>Bugünkü iki davranış değişmeden kalıyor: kapanmış fırsat silinebilir (kalıcı) ve eşzamanlı düzenlemede son kaydeden kazanır (sürüm denetimi yok).</li>
+  <li>Kapsam dışı ve etkilenmeyen: AI asistanının fırsat araması ve "CRM fırsatları" rapor kaynağı.</li>
+</ul>
+</body></html>

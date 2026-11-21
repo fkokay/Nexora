@@ -14,7 +14,7 @@ import {
 // Seçim → ayrıntı ekranlarının müfettiş alanları: Adımlar, Kayıt özeti, "Alana değer ata" atamaları ve "Satır açılınca".
 
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown> };
-const FORMAT_LABELS: Record<HeaderFieldFormat, string> = { number: "Sayı", money: "Para", date: "Tarih", text: "Metin" };
+const FORMAT_LABELS: Record<HeaderFieldFormat, string> = { number: "Sayı", money: "Para", date: "Tarih", datetime: "Tarih ve saat", text: "Metin" };
 
 /** Adımlar: etiket ve etkinlik koşulu satırları (2–6). Etkin adım, koşulu tutan son adımdır; hiçbiri tutmuyorsa ilk adım. */
 export function StepsFields({ props, pageNames, disabled, onPatch }: {

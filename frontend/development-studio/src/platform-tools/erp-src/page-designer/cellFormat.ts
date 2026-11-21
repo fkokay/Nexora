@@ -1,9 +1,11 @@
 // Kurallar frontend/erp-web/src/custom-page/cellFormat.ts ile aynıdır (Studio erp-web içinden içe aktaramaz); biri değişirse diğeri de güncellenmelidir.
-export type Tone = "info" | "success" | "warning" | "danger";
-export type ColumnFormat = "text" | "code" | "number" | "money" | "date" | "status";
+import { formatDateTime } from "./dateTime";
+
+export type Tone ="info" | "success" | "warning" | "danger";
+export type ColumnFormat = "text" | "code" | "number" | "money" | "date" | "datetime" | "status";
 
 export const TONES: readonly Tone[] = ["info", "success", "warning", "danger"];
-export const COLUMN_FORMATS: readonly ColumnFormat[] = ["text", "code", "number", "money", "date", "status"];
+export const COLUMN_FORMATS: readonly ColumnFormat[] = ["text", "code", "number", "money", "date", "datetime", "status"];
 
 const EMPTY = "—";
 
@@ -74,6 +76,8 @@ export function formatCell(value: unknown, format?: ColumnFormat, dataType?: str
     const date = value instanceof Date ? value : new Date(String(value));
     return Number.isNaN(date.getTime()) ? String(value) : dateFormat.format(date);
   }
+  // Tarih ve saat: yerel saatle kısa tarih + saat (ör. 21.11.2026 14:30).
+  if (effective === "datetime") return formatDateTime(value) ?? String(value);
   if (typeof value === "boolean") return value ? "Evet" : "Hayır";
   if (typeof value === "object") {
     try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }

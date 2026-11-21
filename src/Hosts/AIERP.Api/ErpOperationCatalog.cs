@@ -57,7 +57,7 @@ internal sealed record ErpOperationView(string Name, string Label, string Module
 /// entries are only added or marked deprecated, never removed or renamed (<c>ErpOperationCatalog.names.txt</c> in the
 /// integration tests enforces this). If an operation's contract has to change, add a new name.
 /// </summary>
-internal static class ErpOperationCatalog
+internal static partial class ErpOperationCatalog
 {
     private const string Since = "2026-11-18";
     private const string StockModule = "Stok";
@@ -138,7 +138,14 @@ internal static class ErpOperationCatalog
         ["foreignCurrencyCode"] = "Satır dövizi",
         ["totalCount"] = "Cari kartı", ["activeCount"] = "Aktif", ["inactiveCount"] = "Pasif", ["customerCount"] = "Müşteri",
         ["supplierCount"] = "Tedarikçi", ["bothCount"] = "Müşteri ve tedarikçi", ["dealerCount"] = "Bayi", ["employeeCount"] = "Personel",
-        ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı"
+        ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı",
+        // CRM Fırsatları ve fırsat kartı.
+        ["customerId"] = "Müşteri kimliği", ["customerName"] = "Müşteri", ["stage"] = "Aşama", ["estimatedValue"] = "Tahmini değer",
+        ["probabilityPercent"] = "Kazanma olasılığı %", ["expectedCloseDate"] = "Beklenen kapanış", ["nextActivityAt"] = "Sonraki takip",
+        ["notes"] = "Not", ["prospectingCount"] = "İlk temas", ["qualifiedCount"] = "Nitelikli", ["proposalCount"] = "Teklif",
+        ["negotiationCount"] = "Müzakere", ["wonCount"] = "Kazanıldı", ["lostCount"] = "Kaybedildi", ["openCount"] = "Açık fırsat",
+        ["overdueCount"] = "Takibi geçmiş", ["openValueAmount"] = "Açık fırsat değeri", ["openValueCurrencyCode"] = "Açık değer dövizi",
+        ["otherCurrencyCount"] = "Diğer döviz sayısı"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -203,6 +210,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildStockScreens(paging));
         operations.AddRange(BuildWarehouseTransfers(paging));
         operations.AddRange(BuildCustomers(paging));
+        operations.AddRange(BuildCrm(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

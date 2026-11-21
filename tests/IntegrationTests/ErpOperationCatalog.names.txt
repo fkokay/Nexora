@@ -19,6 +19,17 @@ cari.ozelAlanKaydet
 cari.ozelAlanTanimlari
 cari.pasifeAl
 cari.sayaclar
+crm.firsat.getir
+crm.firsat.guncelle
+crm.firsat.kaybedildi
+crm.firsat.kazanildi
+crm.firsat.listele
+crm.firsat.muzakereyeGecir
+crm.firsat.nitelikliYap
+crm.firsat.olustur
+crm.firsat.ozet
+crm.firsat.sil
+crm.firsat.teklifeGecir
 depo.aktifEt
 depo.guncelle
 depo.konum.bakiyeleri

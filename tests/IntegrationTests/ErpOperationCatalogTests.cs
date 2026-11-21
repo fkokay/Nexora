@@ -166,7 +166,8 @@ public sealed class ErpOperationCatalogTests
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
             // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
             if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet"
-                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)) continue;
+                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)
+                || op.Name.StartsWith("crm.", StringComparison.Ordinal)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -689,8 +690,8 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.* operations are new names with their own contract tests (CustomerSystemPagesTests).
-        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)))
+        // The cari.* and crm.* operations are new names with their own contract tests (CustomerSystemPagesTests, CrmSystemPagesTests).
+        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal) && !x.Name.StartsWith("crm.", StringComparison.Ordinal)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);
@@ -873,8 +874,8 @@ public sealed class ErpOperationCatalogTests
             foreach (var parameter in op.Parameters)
             {
                 Assert.Contains(parameter.In, new[] { "route", "query", "body" });
-                // Faz B: list and map parameters exist only in the body.
-                Assert.Contains(parameter.Type, parameter.In == "body" ? [.. types, "list", "map"] : types);
+                // Faz B: list and map parameters exist only in the body; so does datetime (CRM nextActivityAt).
+                Assert.Contains(parameter.Type, parameter.In == "body" ? [.. types, "list", "map", "datetime"] : types);
                 if (parameter.In != "route") continue;
                 var variants = op.RouteVariants.Where(x => x.When == parameter.Name).ToArray();
                 if (variants.Length > 0)

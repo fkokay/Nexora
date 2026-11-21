@@ -216,7 +216,7 @@ public sealed class TenantCustomPageWizardSchemaTests
     [Fact]
     public void Record_header_formats_and_units_name_its_fields()
     {
-        AssertRejected(V2([.. Wizard(ozet: new { fieldFormats = new[] { "Mevcut=percent" } })]), "'fieldFormats' öğeleri Etiket=number|money|date|text");
+        AssertRejected(V2([.. Wizard(ozet: new { fieldFormats = new[] { "Mevcut=percent" } })]), "'fieldFormats' öğeleri Etiket=number|money|date|datetime|text");
         AssertRejected(V2([.. Wizard(ozet: new { fieldFormats = new[] { "Yok=number" } })]), "'fieldFormats' öğeleri");
         AssertRejected(V2([.. Wizard(ozet: new { fieldFormats = new[] { "Mevcut=number", "Mevcut=text" } })]), "'fieldFormats' öğeleri");
         AssertRejected(V2([.. Wizard(ozet: new { fieldUnits = new[] { "Yok={{kayitlar.rows[0].code}}" } })]), "'fieldUnits' öğeleri");
