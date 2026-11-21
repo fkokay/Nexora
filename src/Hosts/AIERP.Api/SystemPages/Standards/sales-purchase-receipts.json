@@ -146,7 +146,7 @@
                    "emptyText": "Satır yok." } },
 
       { "id": "siparissizDugmesi", "type": "button", "name": "siparissizDugmesi",
-        "props": { "text": "Siparişsiz mal kabul", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacy": true } },
+        "props": { "text": "Siparişsiz mal kabul", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacyScreen": true } },
       { "id": "faturalaDugmesi", "type": "button", "name": "faturalaDugmesi",
         "props": { "text": "Faturala", "actionType": "page", "pageCode": "@sales-purchase-invoice-entry", "target": "newTab",
                    "params": ["receiptId={{liste.seciliSatir.id}}"],
@@ -161,10 +161,10 @@
                    "disabledWhen": "kabul.rows[0].invoice.id != null",
                    "disabledReason": "Mal kabul önce bağlı alış faturası iptal edilerek kapatılmalıdır." } },
       { "id": "faturaAcDugmesi", "type": "button", "name": "faturaAcDugmesi",
-        "props": { "text": "Alış faturasını aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacy": true, "target": "newTab",
+        "props": { "text": "Alış faturasını aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true, "target": "newTab",
                    "params": ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"], "visibleWhen": "kabul.rows[0].invoice.id != null" } },
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacy": true,
+        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-receipts", "legacyScreen": true,
                    "params": ["receiptId={{liste.seciliSatir.id}}"] } }
     ],
     "queries": [

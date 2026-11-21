@@ -59,9 +59,9 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
 
 
 describe("satınalma standartlarında eski ekran gezinmesi", () => {
-  it("erpPage 'legacy' bayrağı Gezinme alanlarında tanınır ve en az bir standartta kullanılır", () => {
-    expect(NAVIGATION_PROPS.erpPage).toContain("legacy");
-    const legacy = standards.flatMap(([, standard]) => flatten(standard.definition.components)).filter((component) => component.props.legacy === true);
+  it("erpPage 'legacyScreen' bayrağı Gezinme alanlarında tanınır ve en az bir standartta kullanılır", () => {
+    expect(NAVIGATION_PROPS.erpPage).toContain("legacyScreen");
+    const legacy = standards.flatMap(([, standard]) => flatten(standard.definition.components)).filter((component) => component.props.legacyScreen === true);
     expect(legacy.length).toBeGreaterThan(0);
     for (const component of legacy) expect(component.props.actionType, component.id).toBe("erpPage");
   });
@@ -69,7 +69,7 @@ describe("satınalma standartlarında eski ekran gezinmesi", () => {
     const render = (actionType: string, props: Record<string, unknown>) => renderToString(createElement(NavigationFields,
       { actionType, props, screens: [], pages: [], suggestions: [], onPatch: () => undefined }));
     const checked = /<input type="checkbox"(?=[^>]*checked)[^>]*\/?>Eski ekranda aç/;
-    expect(render("erpPage", { pageKey: "sales-purchasing", legacy: true })).toMatch(checked);
+    expect(render("erpPage", { pageKey: "sales-purchasing", legacyScreen: true })).toMatch(checked);
     expect(render("erpPage", { pageKey: "sales-purchasing" })).toContain("Eski ekranda aç");
     expect(render("erpPage", { pageKey: "sales-purchasing" })).not.toMatch(checked);
     expect(render("page", { pageCode: "x" })).not.toContain("Eski ekranda aç");

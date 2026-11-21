@@ -138,7 +138,7 @@
                    "visibleWhen": "kabulSecimi.value != null" } },
 
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoice-entry", "legacy": true,
+        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoice-entry", "legacyScreen": true,
                    "params": ["receiptId={{kabulSecimi.value}}"] } }
     ],
     "queries": [

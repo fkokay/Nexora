@@ -295,7 +295,7 @@
                    "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Posted' || liste.seciliSatir.outstandingAmount <= 0",
                    "disabledReason": "Ödeme yalnız işlenmiş ve kalan tutarı olan bir faturaya eklenir." } },
       { "id": "iadeDugmesi", "type": "button", "name": "iadeDugmesi",
-        "props": { "text": "İade oluştur", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacy": true,
+        "props": { "text": "İade oluştur", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true,
                    "params": ["purchaseInvoiceId={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.status != 'Posted'",
                    "disabledReason": "İade yalnız işlenmiş bir faturadan oluşturulur." } },
@@ -309,7 +309,7 @@
       { "id": "taslaklarDugmesi", "type": "button", "name": "taslaklarDugmesi",
         "props": { "text": "Mal kabulsüz fatura", "actionType": "erpPage", "pageKey": "sales-purchase-invoice-drafts", "target": "newTab" } },
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacy": true,
+        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true,
                    "params": ["purchaseInvoiceId={{liste.seciliSatir.id}}", "supplierId={{tedarikciSecimi.value}}"] } }
     ],
     "queries": [

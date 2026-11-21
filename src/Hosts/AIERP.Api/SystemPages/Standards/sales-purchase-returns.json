@@ -152,7 +152,7 @@
         "props": { "text": "Bu iade iptal edildi; stok ve cari hareketleri ters kayıtla geri alındı.", "visibleWhen": "iade.rows[0].status == 'Voided'" } },
 
       { "id": "yeniIadeDugmesi", "type": "button", "name": "yeniIadeDugmesi",
-        "props": { "text": "Yeni iade", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacy": true, "target": "newTab",
+        "props": { "text": "Yeni iade", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true, "target": "newTab",
                    "params": ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] } },
       { "id": "iptalMenuDugmesi", "type": "button", "name": "iptalMenuDugmesi",
         "props": { "text": "İadeyi iptal et", "actionType": "query", "queryId": "iadeIptal", "confirmEnabled": true,
@@ -161,11 +161,11 @@
                    "errorMessage": "Alış iadesi iptal edilemedi.", "refreshQueries": ["iadeler", "iade"],
                    "visibleWhen": "liste.seciliSatir.status == 'Posted'" } },
       { "id": "faturaAcDugmesi", "type": "button", "name": "faturaAcDugmesi",
-        "props": { "text": "Faturayı aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacy": true, "target": "newTab",
+        "props": { "text": "Faturayı aç", "actionType": "erpPage", "pageKey": "sales-purchase-invoices", "legacyScreen": true, "target": "newTab",
                    "params": ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"],
                    "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-returns", "legacy": true } }
+        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "sales-purchase-returns", "legacyScreen": true } }
     ],
     "queries": [
       { "id": "iadeler", "name": "iadeler", "kind": "read", "operation": "satinalma.iade.listele", "runOn": "load",

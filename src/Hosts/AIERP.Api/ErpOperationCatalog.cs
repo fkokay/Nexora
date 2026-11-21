@@ -70,7 +70,8 @@ internal static partial class ErpOperationCatalog
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
+    // Module label blocks (e.g. SalesLabels in ErpOperationCatalog.Sales.cs) are merged in; a duplicate code fails startup.
+    private static readonly IReadOnlyDictionary<string, string> Labels = MergeLabels(new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["id"] = "Kimlik", ["code"] = "Kod", ["name"] = "Ad", ["barcode"] = "Barkod", ["unitCode"] = "Birim",
         ["category"] = "Kategori", ["minimumStock"] = "Minimum stok", ["isActive"] = "Etkin", ["createdAt"] = "Oluşturulma",
@@ -139,14 +140,23 @@ internal static partial class ErpOperationCatalog
         ["totalCount"] = "Cari kartı", ["activeCount"] = "Aktif", ["inactiveCount"] = "Pasif", ["customerCount"] = "Müşteri",
         ["supplierCount"] = "Tedarikçi", ["bothCount"] = "Müşteri ve tedarikçi", ["dealerCount"] = "Bayi", ["employeeCount"] = "Personel",
         ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı",
-        // CRM Fırsatları ve fırsat kartı.
-        ["customerId"] = "Müşteri kimliği", ["customerName"] = "Müşteri", ["stage"] = "Aşama", ["estimatedValue"] = "Tahmini değer",
+        // CRM Fırsatları ve fırsat kartı (customerId, customerName ve notes Satış etiketleriyle ortaktır: SalesLabels).
+        ["stage"] = "Aşama", ["estimatedValue"] = "Tahmini değer",
         ["probabilityPercent"] = "Kazanma olasılığı %", ["expectedCloseDate"] = "Beklenen kapanış", ["nextActivityAt"] = "Sonraki takip",
-        ["notes"] = "Not", ["prospectingCount"] = "İlk temas", ["qualifiedCount"] = "Nitelikli", ["proposalCount"] = "Teklif",
+        ["prospectingCount"] = "İlk temas", ["qualifiedCount"] = "Nitelikli", ["proposalCount"] = "Teklif",
         ["negotiationCount"] = "Müzakere", ["wonCount"] = "Kazanıldı", ["lostCount"] = "Kaybedildi", ["openCount"] = "Açık fırsat",
         ["overdueCount"] = "Takibi geçmiş", ["openValueAmount"] = "Açık fırsat değeri", ["openValueCurrencyCode"] = "Açık değer dövizi",
         ["otherCurrencyCount"] = "Diğer döviz sayısı"
-    };
+    }, SalesLabels());
+
+    private static Dictionary<string, string> MergeLabels(Dictionary<string, string> labels, params IEnumerable<KeyValuePair<string, string>>[] blocks)
+    {
+        foreach (var block in blocks)
+            foreach (var (code, label) in block)
+                if (!labels.TryAdd(code, label))
+                    throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' etiketi birden fazla kez tanımlı.");
+        return labels;
+    }
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
     private static readonly ErpOperationResult None = new("none", null, []);
@@ -212,6 +222,7 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(BuildCustomers(paging));
         operations.AddRange(BuildCrm(paging));
         operations.AddRange(BuildPurchasing(paging));
+        operations.AddRange(BuildSales(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

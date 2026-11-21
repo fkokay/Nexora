@@ -60,7 +60,7 @@
                    "rowOpenAction": "acDugmesi",
                    "emptyText": "Filtrelerle eşleşen tedarikçi teklifi yok." } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                    "params": ["requestId={{liste.seciliSatir.purchaseRequestId}}"],
                    "disabledWhen": "liste.seciliSatir.purchaseRequestId == null", "disabledReason": "Önce talebe bağlı bir teklif seçin" } },
 
@@ -70,7 +70,7 @@
                    "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
         "children": [
           { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Talebi aç ›", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+            "props": { "text": "Talebi aç ›", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                        "params": ["requestId={{liste.seciliSatir.purchaseRequestId}}"],
                        "visibleWhen": "liste.seciliSatir.purchaseRequestId != null" } },
           { "id": "durumSecildiRozeti", "type": "badge", "name": "durumSecildiRozeti",
@@ -113,7 +113,7 @@
                    "emptyText": "Teklif satırı yok." } },
 
       { "id": "talepsizTeklifDugmesi", "type": "button", "name": "talepsizTeklifDugmesi",
-        "props": { "text": "Talepsiz teklif", "actionType": "erpPage", "pageKey": "sales-purchase-quotes", "legacy": true } },
+        "props": { "text": "Talepsiz teklif", "actionType": "erpPage", "pageKey": "sales-purchase-quotes", "legacyScreen": true } },
       { "id": "siparisiAcDugmesi", "type": "button", "name": "siparisiAcDugmesi",
         "props": { "text": "Siparişi aç", "actionType": "erpPage", "pageKey": "sales-purchasing",
                    "params": ["purchaseOrderId={{teklif.rows[0].purchaseOrderId}}"],

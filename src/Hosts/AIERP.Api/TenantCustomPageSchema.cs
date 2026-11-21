@@ -63,8 +63,6 @@ internal static class TenantCustomPageSchema
       "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
       "href", "pageKey", "pageCode", "params", "queryText",
-      // erpPage "Eski ekranda aç": parametreleri yazar ve anahtarın eski ekranını açar (sistem sayfası olsa da).
-      "legacy",
       // actionBar Yeni / Aç / after-save run a page button (e.g. open the record screen) instead of a record dialog.
       "newButton", "openButton", "afterSaveButton",
       // actionBar Yeni / Aç / kaydettikten sonra as flat values (action, page, target, list, values to send).
@@ -80,7 +78,10 @@ internal static class TenantCustomPageSchema
       // (clearsOnChange), ızgarada en az satır ve seçim sütunlarının koşul/sabit seçenekleri, istemde açıklama ve uzunluk sınırı.
       "autoId", "optionsWhen", "clearsOnChange", "minRows", "columnOptionsWhen", "columnStaticOptions", "promptText", "promptMaxLength",
       // actionBar İşlemler › "Kaydet ve yeni": kaydı çalıştırır, başarıda kaydettikten sonra eylemi yerine Yeni komutunu çalıştırır.
-      "saveAndNew" };
+      "saveAndNew",
+      // Sayfa parametresiyle kayıt açma (dataTable openParam: sayfa.parametre.<ad> doluysa o kimliği seçip satır açma eylemini
+      // çalıştırır) ve ERP ekranının eski (yerleşik) sürümünü açan erpPage düğmesi (legacyScreen).
+      "openParam", "legacyScreen" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -1077,7 +1078,7 @@ internal static class TenantCustomPageSchema
     // ---- Navigation actions: link (Bağlantıya git), erpPage (ERP ekranı aç), page (Sayfa aç) ----
 
     private const int MaxPageParams = 6;
-    private static readonly string[] NavigationProps = ["href", "pageKey", "queryText", "legacy", "pageCode", "params"];
+    private static readonly string[] NavigationProps = ["href", "pageKey", "queryText", "pageCode", "params"];
     private static readonly Regex PageParamItem = new(@"^([a-z][a-zA-Z0-9]{0,31})=(.{0,200})\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>
     /// The literal start of a link: http(s), a host of DNS labels and an optional port, then the end of the text or one of
@@ -1090,7 +1091,7 @@ internal static class TenantCustomPageSchema
     private static string? NavigationTypeOf(string prop) => prop switch
     {
         "href" => "link",
-        "pageKey" or "queryText" or "legacy" => "erpPage",
+        "pageKey" or "queryText" => "erpPage",
         "pageCode" or "params" => "page",
         _ => null
     };
@@ -1160,6 +1161,9 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty(key, out _) && !NavigationPropAllowed(key, actionType))
                 return Fail(key == "params" ? "'params' yalnız sayfa açan (page) ya da ERP ekranı (erpPage) eylemli düğmede kullanılabilir."
                     : $"'{key}' yalnız {NavigationLabel(NavigationTypeOf(key))} eylemli düğmede kullanılabilir.", out error);
+        if (props.TryGetProperty("legacyScreen", out var legacyScreen)
+            && (actionType != "erpPage" || legacyScreen.ValueKind is not (JsonValueKind.True or JsonValueKind.False)))
+            return Fail("'legacyScreen' yalnız ERP ekranı (erpPage) eylemli düğmede doğru/yanlış (true/false) değeri olabilir.", out error);
         if (actionType is not ("link" or "erpPage" or "page")) return true;
         foreach (var key in new[] { "queryId", "refreshQueries" })
             if (props.TryGetProperty(key, out _)) return Fail($"'{key}' gezinme eylemli düğmede kullanılamaz; bu eylemler veri yazmaz.", out error);
@@ -1174,8 +1178,6 @@ internal static class TenantCustomPageSchema
                     return Fail("'href' http:// veya https:// ile başlayan, sunucu adı sabit yazılmış bir adres olmalıdır; {{…}} ifadeleri yalnız sunucu adından sonra (/, ? veya # ardından) kullanılabilir.", out error);
                 break;
             case "erpPage":
-                if (props.TryGetProperty("legacy", out var legacy) && !IsBool(legacy))
-                    return Fail("'legacy' doğru/yanlış değeri olmalıdır.", out error);
                 var pageKey = StringOf(props, "pageKey");
                 if (string.IsNullOrEmpty(pageKey)) return Fail("ERP ekranı düğmesi için 'pageKey' gerekli.", out error);
                 if (!StandardMenuEndpoints.NavigablePageKeys.Contains(pageKey)) return Fail($"ERP ekranı bulunamadı: {pageKey}", out error);
@@ -1636,7 +1638,8 @@ internal static class TenantCustomPageSchema
         ["subtitle"] = ["recordHeader"], ["fieldFormats"] = ["recordHeader"], ["fieldUnits"] = ["recordHeader"], ["buttons"] = ["recordHeader"],
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
-        ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"]
+        ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1815,6 +1818,7 @@ internal static class TenantCustomPageSchema
     private const int MaxHeaderTextLength = 300;
     private const int MaxHeaderLabelLength = 60;
     private static readonly Regex AssignmentTarget = new(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex OpenParamName = new(@"^[a-z][a-zA-Z0-9]{0,31}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|datetime|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private const string AssignmentsFormat = "'assignments' 1–8 adet girişKimliği=şablon öğesi içermelidir; şablon en fazla 500 karakterdir ve {{yol}} ifadeleri içerebilir (boş şablon girişi temizler).";
 
@@ -1935,6 +1939,15 @@ internal static class TenantCustomPageSchema
             if (name is null) return Fail($"Satır açma eylemi için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır açma eylemi yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowOpenActions.Add((id, rowOpen.GetString()!));
+        }
+        // Sayfa parametresiyle açma: sayfa (ya da açık sekme) bu parametreyle açılınca tablo o kimliği seçer ve satır açma
+        // eylemini çalıştırır; değer bir parametre adıdır, bağlama değildir.
+        if (props.TryGetProperty("openParam", out var openParam))
+        {
+            if (openParam.ValueKind != JsonValueKind.String || !MatchesText(OpenParamName, openParam.GetString()!))
+                return Fail("'openParam' küçük harfle başlayan en fazla 32 harf/rakamlık bir sayfa parametresi adı olmalıdır (ör. orderId).", out error);
+            if (!props.TryGetProperty("rowOpenAction", out _))
+                return Fail($"'openParam' için veri listesinde satır açma eylemi (rowOpenAction) da tanımlı olmalıdır: {id}", out error);
         }
         if (props.TryGetProperty("emptyText", out var emptyText) && !IsStaticTextUpTo(emptyText, 120))
             return Fail("'emptyText' en fazla 120 karakterlik metin olmalıdır.", out error);

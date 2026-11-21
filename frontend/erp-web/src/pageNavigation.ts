@@ -7,7 +7,7 @@ export type WorkspaceOpenRequest = {
   page: string; params: PageParams; replace: boolean; from?: string;
   /** Hedef sekme açıksa açılış sorgularını yeniler (ör. kayıttan sonra listeye dönüş). */
   refresh?: boolean;
-  /** erpPage `legacy: true`: hedef anahtarın sistem sayfası olsa da (geçerli sayfa olsa da) eski ekranı açılır. */
+  /** Sistem sayfası etkin olsa bile (geçerli sayfa olsa da) hedefin eski (yerleşik) ekranını açar ("Eski ekranda aç" ile aynı; erpPage `legacyScreen`). */
   legacy?: boolean;
 };
 
@@ -35,6 +35,13 @@ export function setPageParams(page: string, params: PageParams) {
 }
 
 export const pageParamsOf = (page: string | undefined): PageParams => (page ? store.get(page) ?? EMPTY : EMPTY);
+
+/** Okunan tek bir parametreyi siler; diğer parametreler kendi okuyucuları için kalır (ör. `customerId` + `invoiceId`). */
+export function dropPageParam(page: string, name: string) {
+  const current = pageParamsOf(page);
+  if (!Object.prototype.hasOwnProperty.call(current, name)) return;
+  setPageParams(page, Object.fromEntries(Object.entries(current).filter(([key]) => key !== name)));
+}
 
 /** Sekmenin güncel parametreleri; açık sekme yeni parametrelerle yeniden açılınca yeniden çizilir. */
 export function usePageParams(page: string | undefined): PageParams {

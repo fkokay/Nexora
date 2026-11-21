@@ -4,6 +4,7 @@ import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
+import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { bindingPath, displayText, interpolate, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -2949,6 +2950,29 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     pendingOpen.current = false;
     void openCommand.current?.();
   }, [openSignal]);
+  // dataTable `openParam`: sayfa parametresiyle gelen kaydın satır açma düğmesi, liste sorgusu yanıt verdikten sonra bir kez
+  // çalışır. Sekmeye aynı parametrelerle yeniden gelinirse (gövde yeniden kurulmaz) gezinme olayı kaydı yeniden açar.
+  const paramOpens = useMemo(() => (isV2 ? openParamTargets(flat, pageParams) : []), [isV2, flat, pageParams]);
+  const [paramOpenRound, setParamOpenRound] = useState(() => (paramOpens.length > 0 ? 1 : 0));
+  const paramOpenDone = useRef(0);
+  useEffect(() => {
+    if (paramOpenRound === 0 || paramOpenDone.current === paramOpenRound) return;
+    const stateOf = (table: ComponentDefinition) => typeof table.props?.query === "string" ? states[queryNames[table.props.query]] : undefined;
+    if (paramOpens.some(({ table }) => stateOf(table)?.loading)) return;
+    paramOpenDone.current = paramOpenRound;
+    for (const { table, button, value } of paramOpens) {
+      if (buttonById[button]) runRowAction(table, buttonById[button], openParamRow(stateOf(table)?.rows, value), null);
+    }
+  });
+  useEffect(() => {
+    if (paramOpens.length === 0) return;
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
+      if (request?.page === tabKey && !request.legacy && request.params && sameOpenRequest(request.params, pageParams)) setParamOpenRound((round) => round + 1);
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, [paramOpens, tabKey, pageParams]);
   /** Kayıt kartlarının girişleri kaynak değerlerine döner (İşlem Çubuğu Yeni düğmesi ve `afterSaveButton`). */
   const clearRecordInputs = () => {
     const owned = formCards.filter((card) => textValue(card.props?.recordKey).trim() !== "").flatMap((card) => idList(card.props?.inputs));

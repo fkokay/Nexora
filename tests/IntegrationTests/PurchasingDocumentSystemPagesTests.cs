@@ -21,7 +21,7 @@ namespace AIERP.Api.IntegrationTests;
 /// Purchasing document system pages, Faz 1 (draft 21): Mal kabulleri, Mal kabul faturası girişi, Satınalma Faturaları and
 /// Satınalma İadeleri. The standards validate, bind only catalog operations, guard every write (confirm or a dialog, autoId
 /// request keys, an error message), save invoices through the server preview's receipt, and open the legacy screens with the
-/// page params their readers take (E-L "legacy").
+/// page params their readers take (E-L "legacyScreen").
 /// </summary>
 public sealed class PurchasingDocumentSystemPagesTests
 {
@@ -241,7 +241,7 @@ public sealed class PurchasingDocumentSystemPagesTests
                      ("sales-purchase-delivery-notes", "malKabuluAcDugmesi", "{{liste.seciliSatir.purchaseReceiptId}}") })
         {
             var props = Props(key, button);
-            Assert.Equal(("erpPage", "sales-purchase-receipts", true), ((string)props["actionType"]!, (string)props["pageKey"]!, (bool)props["legacy"]!));
+            Assert.Equal(("erpPage", "sales-purchase-receipts", true), ((string)props["actionType"]!, (string)props["pageKey"]!, (bool)props["legacyScreen"]!));
             Assert.Equal(new[] { "receiptId=" + binding }, Strings(props["params"]));
         }
     }
@@ -350,7 +350,7 @@ public sealed class PurchasingDocumentSystemPagesTests
     public void Legacy_command_opens_the_legacy_screen_with_its_params(string key, string button, string pageKey, string[] parameters)
     {
         var props = Props(key, button);
-        Assert.Equal(("erpPage", pageKey, true), ((string)props["actionType"]!, (string)props["pageKey"]!, (bool)props["legacy"]!));
+        Assert.Equal(("erpPage", pageKey, true), ((string)props["actionType"]!, (string)props["pageKey"]!, (bool)props["legacyScreen"]!));
         Assert.Equal(parameters, props["params"] is null ? [] : Strings(props["params"]));
     }
 
@@ -359,7 +359,7 @@ public sealed class PurchasingDocumentSystemPagesTests
     public void Every_legacy_command_sends_only_params_its_screen_reads(string key, string _)
     {
         var definition = Definition(key);
-        var legacy = Components(definition).Where(x => (bool?)x["props"]?["legacy"] == true).ToArray();
+        var legacy = Components(definition).Where(x => (bool?)x["props"]?["legacyScreen"] == true).ToArray();
         Assert.NotEmpty(legacy);
         // "Eski ekranda aç": the page's own legacy screen, as the last İşlemler command.
         var own = Assert.Single(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");

@@ -29,7 +29,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefau
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields, rowActionOwners as buttonOwnersOf } from "./page-designer/RowActionsFields";
 import { MAX_HEADER_BUTTONS, ROW_OPEN_ACTION_TYPES, activeStepIndex, assignmentsProblem, parseHeaderFields, prunedAssignments, recordHeaderProblem, stepsProblem } from "./page-designer/wizardParts";
-import { AssignmentsFields, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
+import { AssignmentsFields, OPEN_PARAM_NAME, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
@@ -191,7 +191,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // Gezinme düğmeleri (bağlantı, ERP ekranı, sayfa): "Eylem" bölümündeki gezinme alanlarında düzenlenir.
   ...Object.values(NAVIGATION_PROPS).flat(), "target",
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
-  "saveAndNew"]);
+  "saveAndNew",
+  // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca).
+  "openParam"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -604,6 +606,8 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       }
       if ("limit" in next && (!(typeof next.query === "string" && next.query !== "") || next.paging === "server")) { delete next.limit; touched = true; }
       if ("rowOpenAction" in next && rowOpenResult.get(component.id) === false) { delete next.rowOpenAction; touched = true; }
+      // Sayfa parametresiyle açma yalnız satır açılınca düğmesiyle çalışır (sunucu: openParam rowOpenAction ister).
+      if ("openParam" in next && !(typeof next.rowOpenAction === "string" && next.rowOpenAction !== "")) { delete next.openParam; touched = true; }
       if (!touched) return component;
       changed = true;
       return { ...component, props: next };
@@ -900,6 +904,8 @@ const pickerGridProblem = (component: PageComponent, definition: PageDefinition)
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
   if (component.type === "dataTable" && typeof props.rowOpenAction === "string" && props.rowOpenAction !== "" && !component.name) return `Satır açma eylemi için veri listesinin adı olmalıdır: ${component.id}`;
+  if (component.type === "dataTable" && "openParam" in props && !(typeof props.openParam === "string" && OPEN_PARAM_NAME.test(props.openParam)))
+    return `'openParam' (sayfa parametresiyle aç) küçük harfle başlayan, en fazla 32 harf/rakamlık bir parametre adı olmalıdır: ${component.id}`;
   if (component.type === "recordHeader") { const problem = recordHeaderProblem(props, label); if (problem) return problem; }
   if ((component.type === "editableGrid" || component.type === "customFieldsBlock") && !component.name)
     return component.type === "editableGrid" ? `Düzenlenebilir tablonun adı olmalıdır: ${component.id}` : `Özel alanlar bloğunun adı olmalıdır: ${component.id}`;
@@ -1967,7 +1973,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const copyBase = requiredNameBase(duplicate.type);
     if (copyBase) { const copyName = freeName(copyBase); if (!copyName) return; duplicate.name = copyName; }
     // Satır işlemleri ve pencere içeriği tek sahiplidir; kopya bunları sahiplenmez.
-    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; }
+    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; delete duplicate.props.openParam; }
     if (duplicate.type === "recordHeader") delete duplicate.props.buttons;
     if (duplicate.type === "dialog") duplicate.props.contains = [];
     // Sayfalama sorgunun parametrelerini tablonun adıyla bağlar ve arama girişini sahiplenir; adsız kopya sayfasız başlar.
@@ -3061,7 +3067,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     { path: "tarih.ayBasi", detail: "Bu ayın ilk günü (YYYY-AA-GG)", group: "Oturum" }, { path: "tarih.yilBasi", detail: "Bu yılın ilk günü (YYYY-AA-GG)", group: "Oturum" },
     { path: "tarih.ucAyOnce", detail: "Son 3 ayın başı: iki ay önceki ayın ilk günü (YYYY-AA-GG)", group: "Oturum" });
   // {{sayfa.parametre.x}}: bu sayfa "Sayfa aç" eylemiyle açılınca verilen parametreler; tanımda geçen adlar önerilir.
-  for (const name of new Set([...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1])))
+  // Listelerin "Sayfa parametresiyle aç" adları da bu sayfanın parametreleridir.
+  const openParams = definition.components.flatMap((component) => component.type === "dataTable" && typeof component.props.openParam === "string" && OPEN_PARAM_NAME.test(component.props.openParam) ? [component.props.openParam] : []);
+  for (const name of new Set([...[...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1]), ...openParams]))
     bindingSuggestions.push({ path: `sayfa.parametre.${name}`, detail: "Sayfa aç eyleminin verdiği parametre", group: "Sayfa" });
   for (const source of sources) if (isCountableSource(source.code))
     bindingSuggestions.push({ path: `${COUNTS_ROOT}.${source.code}`, detail: `${source.label} · kayıt sayısı${typeof counts[source.code] === "number" ? ` (şu an ${counts[source.code].toLocaleString("tr-TR")})` : ""}`, group: "Sayılar" });

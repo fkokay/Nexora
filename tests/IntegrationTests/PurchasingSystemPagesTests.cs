@@ -21,7 +21,7 @@ namespace AIERP.Api.IntegrationTests;
 /// <summary>
 /// Satınalma system pages, Faz 1 (draft 21): the sales-requests, sales-purchase-quotes, sales-purchasing and
 /// sales-purchase-delivery-notes standards (catalog bindings, write safeguards, "Eski ekranda aç" commands) and the erpPage
-/// <c>legacy</c> flag of the page schema.
+/// <c>legacyScreen</c> flag of the page schema.
 /// </summary>
 public sealed class PurchasingSystemPagesTests
 {
@@ -248,20 +248,20 @@ public sealed class PurchasingSystemPagesTests
     public void Legacy_commands_open_the_legacy_screen_with_its_params(string key)
     {
         var components = AllComponents(Definition(key)).ToArray();
-        var legacy = components.Where(x => x["props"]?["legacy"] is not null).ToArray();
+        var legacy = components.Where(x => x["props"]?["legacyScreen"] is not null).ToArray();
         Assert.Equal(LegacyCommands[key].Keys.Order(StringComparer.Ordinal), legacy.Select(x => (string)x["id"]!).Order(StringComparer.Ordinal));
         foreach (var button in legacy)
         {
             var props = button["props"]!.AsObject();
             var (page, parameters) = LegacyCommands[key][(string)button["id"]!];
-            Assert.Equal(("button", "erpPage", true, page), ((string)button["type"]!, (string)props["actionType"]!, props["legacy"]!.GetValue<bool>(),
+            Assert.Equal(("button", "erpPage", true, page), ((string)button["type"]!, (string)props["actionType"]!, props["legacyScreen"]!.GetValue<bool>(),
                 (string)props["pageKey"]!));
             var actual = props["params"] is null ? [] : Strings(props["params"]);
             Assert.Equal(parameters, actual);
             Assert.All(actual, x => Assert.Contains(x.Split('=')[0], LegacyReaders[page]));
         }
         // Plain erpPage navigation (system page or legacy, whichever the firm serves) also sends only K7 params.
-        foreach (var button in components.Where(x => (string?)x["props"]?["actionType"] == "erpPage" && x["props"]?["legacy"] is null))
+        foreach (var button in components.Where(x => (string?)x["props"]?["actionType"] == "erpPage" && x["props"]?["legacyScreen"] is null))
         {
             var props = button["props"]!.AsObject();
             Assert.True(LegacyReaders.TryGetValue((string)props["pageKey"]!, out var readers), (string)button["id"]!);
@@ -342,25 +342,25 @@ public sealed class PurchasingSystemPagesTests
         }
     }
 
-    // ---- Schema: erpPage legacy flag ----
+    // ---- Schema: erpPage legacyScreen flag ----
 
     [Theory]
-    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacy":true,"params":["purchaseOrderId={{x.value}}"]}""")]
-    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacy":false}""")]
-    [InlineData("""{"actionType":"erpPage","pageKey":"customers","legacy":true,"target":"newTab"}""")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacyScreen":true,"params":["purchaseOrderId={{x.value}}"]}""")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacyScreen":false}""")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"customers","legacyScreen":true,"target":"newTab"}""")]
     public void Schema_accepts_the_legacy_flag_on_erp_page_buttons(string buttonProps)
     {
         Assert.True(TenantCustomPageSchema.Validate(PageWithButton(buttonProps), out var error), error);
     }
 
     [Theory]
-    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacy":"true"}""", "doğru/yanlış")]
-    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacy":1}""", "doğru/yanlış")]
-    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacy":null}""", "doğru/yanlış")]
-    [InlineData("""{"actionType":"page","pageCode":"@customers","legacy":true}""", "erpPage")]
-    [InlineData("""{"actionType":"link","href":"https://example.com/","legacy":true}""", "erpPage")]
-    [InlineData("""{"actionType":"query","queryId":"q","legacy":true}""", "erpPage")]
-    [InlineData("""{"actionType":"setInput","assignments":["x="],"legacy":true}""", "erpPage")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacyScreen":"true"}""", "doğru/yanlış")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacyScreen":1}""", "doğru/yanlış")]
+    [InlineData("""{"actionType":"erpPage","pageKey":"sales-purchasing","legacyScreen":null}""", "doğru/yanlış")]
+    [InlineData("""{"actionType":"page","pageCode":"@customers","legacyScreen":true}""", "erpPage")]
+    [InlineData("""{"actionType":"link","href":"https://example.com/","legacyScreen":true}""", "erpPage")]
+    [InlineData("""{"actionType":"query","queryId":"q","legacyScreen":true}""", "erpPage")]
+    [InlineData("""{"actionType":"setInput","assignments":["x="],"legacyScreen":true}""", "erpPage")]
     public void Schema_rejects_the_legacy_flag_outside_erp_page_or_when_not_boolean(string buttonProps, string expected)
     {
         Assert.False(TenantCustomPageSchema.Validate(PageWithButton(buttonProps), out var error));
@@ -370,11 +370,11 @@ public sealed class PurchasingSystemPagesTests
     [Fact]
     public void Schema_rejects_the_legacy_flag_on_other_components()
     {
-        var page = """{"schemaVersion":2,"components":[{"id":"t","type":"text","name":"t","props":{"text":"x","legacy":true}}],"queries":[]}""";
+        var page = """{"schemaVersion":2,"components":[{"id":"t","type":"text","name":"t","props":{"text":"x","legacyScreen":true}}],"queries":[]}""";
         Assert.False(TenantCustomPageSchema.Validate(page, out var error));
         Assert.Contains("erpPage", error);
         // Version 1 pages never knew navigation props.
-        var v1 = """{"schemaVersion":1,"components":[{"id":"b","type":"button","props":{"text":"x","actionType":"erpPage","pageKey":"customers","legacy":true}}]}""";
+        var v1 = """{"schemaVersion":1,"components":[{"id":"b","type":"button","props":{"text":"x","actionType":"erpPage","pageKey":"customers","legacyScreen":true}}]}""";
         Assert.False(TenantCustomPageSchema.Validate(v1, out _));
     }
 

@@ -102,12 +102,13 @@ export function useSystemPageMap(token: string, tenantId: string): SystemPageMap
     legacy.delete(key);
     return { ...current, legacy };
   }), []);
-  // erpPage `legacy: true` (navigationActions): the target key shows its legacy screen, also when it is the current page.
-  // Only a key with a system page is switched; any other key renders its legacy screen anyway.
+  // A navigation that asks for the built-in screen (erpPage `legacyScreen: true`, navigationActions) switches the target key
+  // to its legacy screen like "Eski ekranda aç", also when it is the current page; the workspace opens the tab with the
+  // request's page params at the same time. Only a key with a system page is switched; any other key renders its legacy screen anyway.
   useEffect(() => {
     const onOpen = (event: Event) => {
       const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
-      if (!request?.legacy || typeof request.page !== "string") return;
+      if (request?.legacy !== true || typeof request.page !== "string") return;
       const key = request.page;
       setState((current) => !Object.prototype.hasOwnProperty.call(current.screens, key) || current.legacy.has(key)
         ? current : { ...current, legacy: new Set([...current.legacy, key]) });

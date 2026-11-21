@@ -67,8 +67,8 @@ export function navigationTarget(props: Record<string, unknown>, scope: PageScop
     const q = typeof props.queryText === "string" ? interpolate(props.queryText, scope).trim().slice(0, MAX_PARAM_VALUE) : "";
     const params = pageParamValues(props.params, scope);
     const workspace = { kind: "workspace" as const, page: props.pageKey, params: q ? { ...params, q } : params, replace: target !== "newTab" };
-    // `legacy: true` (yalnız erpPage): parametreler yazılır ve anahtarın eski ekranı açılır (sistem sayfası olsa da).
-    return props.legacy === true ? { ...workspace, legacy: true } : workspace;
+    // `legacyScreen: true` (yalnız erpPage): parametreler yazılır ve hedefin eski (yerleşik) ekranı açılır (sistem sayfası olsa da).
+    return props.legacyScreen === true ? { ...workspace, legacy: true } : workspace;
   }
   if (props.actionType === "page") {
     const code = typeof props.pageCode === "string" ? props.pageCode : "";

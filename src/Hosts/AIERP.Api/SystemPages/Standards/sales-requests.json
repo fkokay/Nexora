@@ -111,7 +111,7 @@
                    "rowOpenAction": "acDugmesi",
                    "emptyText": "Filtrelerle eşleşen satın alma talebi yok." } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+        "props": { "text": "Aç", "icon": "open", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                    "params": ["requestId={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
 
@@ -121,7 +121,7 @@
                    "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
         "children": [
           { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Talep belgesini aç ›", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+            "props": { "text": "Talep belgesini aç ›", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                        "params": ["requestId={{liste.seciliSatir.id}}"] } },
           { "id": "durumOnayBekliyorRozeti", "type": "badge", "name": "durumOnayBekliyorRozeti",
             "props": { "text": "Onay bekliyor", "variant": "warning", "visibleWhen": "liste.seciliSatir.status == 'Submitted'" } },
@@ -177,7 +177,7 @@
                    "visibleWhen": "liste.seciliSatir.status == 'Submitted'" } },
 
       { "id": "yeniTalepDugmesi", "type": "button", "name": "yeniTalepDugmesi",
-        "props": { "text": "Yeni talep", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true } },
+        "props": { "text": "Yeni talep", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true } },
       { "id": "onaylaDugmesi", "type": "button", "name": "onaylaDugmesi",
         "props": { "text": "Onayla", "actionType": "query", "queryId": "onay",
                    "promptLabel": "Karar notu (isteğe bağlı)", "promptMaxLength": 500,
@@ -191,11 +191,11 @@
                    "successMessage": "{{liste.seciliSatir.code}} talebi reddedildi.", "refreshQueries": ["talepler", "sayOnayBekliyor", "sayReddedildi"],
                    "disabledWhen": "liste.seciliSatir.status != 'Submitted'", "disabledReason": "Yalnız onay bekleyen talep karara bağlanır." } },
       { "id": "teklifEkleDugmesi", "type": "button", "name": "teklifEkleDugmesi",
-        "props": { "text": "Teklif ekle", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+        "props": { "text": "Teklif ekle", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                    "params": ["requestId={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.status != 'Approved'", "disabledReason": "Teklif yalnız onaylanmış talebe eklenir." } },
       { "id": "siparisOlusturDugmesi", "type": "button", "name": "siparisOlusturDugmesi",
-        "props": { "text": "Siparişe dönüştür", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true,
+        "props": { "text": "Siparişe dönüştür", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true,
                    "params": ["requestId={{liste.seciliSatir.id}}"],
                    "disabledWhen": "liste.seciliSatir.status != 'Approved' || liste.seciliSatir.purchaseOrderId != null",
                    "disabledReason": "Yalnız siparişi olmayan onaylı talep siparişe dönüştürülür." } },
@@ -204,7 +204,7 @@
                    "params": ["purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"],
                    "disabledWhen": "liste.seciliSatir.purchaseOrderId == null", "disabledReason": "Bu talebin siparişi yok." } },
       { "id": "alanlarDugmesi", "type": "button", "name": "alanlarDugmesi",
-        "props": { "text": "Alanlar", "actionType": "erpPage", "pageKey": "sales-requests", "legacy": true } }
+        "props": { "text": "Alanlar", "actionType": "erpPage", "pageKey": "sales-requests", "legacyScreen": true } }
     ],
     "queries": [
       { "id": "talepler", "name": "talepler", "kind": "read", "operation": "satinalma.talep.listele", "runOn": "load",
