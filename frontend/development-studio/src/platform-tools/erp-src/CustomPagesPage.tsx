@@ -40,7 +40,7 @@ import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
-import { COLUMN_STATIC_OPTION, columnEntries, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
+import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
 import { countRowsWhen, countText, countWhenProblem } from "./page-designer/countWhen";
 import { CountWhenField } from "./page-designer/CountWhenField";
@@ -632,6 +632,11 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
           const raw = Array.isArray(next[key]) ? next[key] as unknown[] : [];
           const kept = raw.filter((entry): entry is string => { const parts = splitColumnEntry(entry); return !!parts && lookupCodes.has(parts.code); });
           if (!sameList(raw, kept)) { if (kept.length > 0) next[key] = kept; else delete next[key]; touched = true; }
+        }
+        // Alt toplam yalnız tablonun sayı sütunlarında (varyant kipinde hiç yok).
+        if ("totals" in next) {
+          const kept = gridTotalCodes(props);
+          if (!sameList(next.totals, kept)) { if (kept.length > 0) next.totals = kept; else delete next.totals; touched = true; }
         }
       }
       if (!touched) return component;
@@ -1924,8 +1929,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ...(isPagedTable(component) ? { sayfa: 1, sayfaBoyutu: typeof component.props.pageSize === "number" ? component.props.pageSize : DEFAULT_PAGE_SIZE } : {}),
       };
     }
-    // Düzenlenebilir tablo tasarımda boştur: {{<tablo>.satirSayisi}} 0 olur.
-    for (const component of state.components) if (component.name && component.type === "editableGrid") scope[component.name] = { satirSayisi: 0 };
+    // Düzenlenebilir tablo tasarımda boştur: {{<tablo>.satirSayisi}} ve alt toplamlar ({{<tablo>.toplam.<kod>}}) 0 olur.
+    for (const component of state.components) if (component.name && component.type === "editableGrid")
+      scope[component.name] = { satirSayisi: 0, toplam: Object.fromEntries(gridTotalCodes(component.props).map((code) => [code, 0])) };
     for (const component of state.components) {
       if (!component.name || component.type !== "input") continue;
       const raw = interpolate(String(component.props.defaultValue ?? ""), scope);
@@ -2679,7 +2685,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           return [column.code, [...fixed, ...rows]];
         }));
         return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={columns} pickerSamples={pickerSamples}
-          fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} />;
+          fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} totals={gridTotalCodes(props)} />;
       }
       case "customFieldsBlock": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
@@ -3035,7 +3041,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         { path: `${grid}.eklenenSayisi`, detail: "Eklenen satır sayısı", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.silinenSayisi`, detail: "Silinecek satır sayısı", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.degisti`, detail: "Tabloda kaydedilmemiş değişiklik var mı", group: "Düzenlenebilir tablolar" },
-        { path: `${grid}.satirSayisi`, detail: "Tablodaki satır sayısı", group: "Düzenlenebilir tablolar" });
+        { path: `${grid}.satirSayisi`, detail: "Tablodaki satır sayısı", group: "Düzenlenebilir tablolar" },
+        ...gridTotalCodes(component.props).map((code) => ({ path: `${grid}.toplam.${code}`, detail: `${code} sütununun toplamı`, group: "Düzenlenebilir tablolar" })));
       const gridColumns = parseGridColumns(component.props.gridColumns);
       if (gridColumns.some((column) => column.inputType === "lookup")) {
         bindingSuggestions.push({ path: `${grid}.arama`, detail: "Odaktaki seçim hücresine yazılan metin (seçenek sorgusunun arama parametresine)", group: "Düzenlenebilir tablolar" });

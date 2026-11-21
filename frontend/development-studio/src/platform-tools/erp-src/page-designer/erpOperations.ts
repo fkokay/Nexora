@@ -21,6 +21,8 @@ export type ErpOperation = {
   /** Gövde eşlemesi (ör. özel alan değerleri): sayfa, işlemin bildirmediği büyük harfli alan kodlarını bağlayabilir. */
   bodyMap?: ErpBodyMap | null;
   sourceOperation: string | null; fixedBody: Record<string, unknown> | null; since: string; deprecated: boolean; allowed: boolean;
+  /** Katalogun sabit sorgu değerleri (ör. `isActive=false`): bağlanmaz, her isteğe eklenir (eski katalogda hiç olmayabilir). */
+  fixedQuery?: Record<string, unknown> | null;
 };
 export type ErpRouteVariant = { route: string; when: string };
 export type ErpBodyMap = { property: string; sourceOperation: string; keyColumn: string; valueColumn: string };
@@ -70,7 +72,8 @@ export function chooseRoute(operation: ErpOperation, values: Record<string, unkn
 
 /**
  * Okuma işleminin isteğini kurar (Studio önizlemesi). Yol değerleri doğrulanır ve kodlanır; sorgu parametrelerinde
- * boş değerler atlanır; gövde {...fixedBody, ...bağlı gövde parametreleri} olur. Geçersiz değerde istek kurulmaz.
+ * boş değerler atlanır, sabit sorgu değerleri (fixedQuery) her zaman eklenir; gövde {...fixedBody, ...bağlı gövde parametreleri} olur.
+ * Geçersiz değerde istek kurulmaz.
  */
 export function buildReadRequest(operation: ErpOperation, values: Record<string, unknown>): { url: string; method: string; body?: string } {
   // Önizleme yalnız GET/POST okumalarını çağırır; başka yöntem yazma sayılır ve hiç kurulmaz.
@@ -101,6 +104,10 @@ export function buildReadRequest(operation: ErpOperation, values: Record<string,
       }
     }
   }
+  // Sabit sorgu değerleri bağlanmaz ve boş sayılmaz (ERP Web appendFixedQuery ile aynı): mantıksal değer "true"/"false" yazılır,
+  // aynı adlı bağlı değerin yerine geçer; null ve nesne/dizi değerler atlanır.
+  for (const [name, value] of Object.entries(operation.fixedQuery ?? {}))
+    if (typeof value === "boolean" || typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) query.set(name, String(value));
   const search = query.toString();
   const url = search ? `${path}?${search}` : path;
   return method === "GET" ? { url, method } : { url, method, body: JSON.stringify(body) };

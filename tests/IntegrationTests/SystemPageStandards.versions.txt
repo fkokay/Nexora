@@ -1,6 +1,13 @@
 customer-create=1
 customer-ledger=1
 customers=1
+finance-account-create=1
+finance-accounts=1
+finance-banks=1
+finance-journal-ledger=1
+finance-journal-vouchers=1
+finance-ledger-chart=1
+finance-trial-balance=1
 inventory-cost=1
 inventory-locations=1
 inventory-stock=1

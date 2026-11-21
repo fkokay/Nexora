@@ -4,6 +4,7 @@ import BindingInput, { type BindingSuggestion } from "./BindingInput";
 import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
 import { bindingPath } from "./pageBindings";
 import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, collectionBinding, collectionCandidates, collectionRoot, findOperation, isCollectionType, mergedParameters, type CollectionKind, type ErpCatalog, type ErpOperation, type ErpOperationParameter } from "./erpOperations";
+import { FixedOperationValues } from "./FixedOperationValues";
 
 /** `list`/`map` yalnız ERP işlemi parametrelerinde (katalogdan) gelir; SQL parametre türü seçicisinde hiç sunulmaz. */
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "bool" | "guid" | "list" | "map";
@@ -287,6 +288,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
           })()}
           {query.parameters.some((parameter) => parameter.binding.trim() !== "" && !bindingPath(parameter.binding)) && <small className="pd-query-warning">Bağlanan her parametre tek bir <code>{"{{…}}"}</code> ifadesi olmalıdır.</small>}
         </div>
+        {operation && <FixedOperationValues operation={operation}/>}
       </> : <>
       <div className="pd-field">SQL<small>{sqlStatements[query.kind]} Değerleri <code>@ad</code> parametreleriyle verin.</small>
         <SqlQueryEditor queryId={query.id} value={query.sql ?? ""} readOnly={!editable} schema={schema}

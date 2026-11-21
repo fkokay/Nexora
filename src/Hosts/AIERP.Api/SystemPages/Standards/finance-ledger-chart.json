@@ -1,0 +1,1236 @@
+{
+  "screenKey": "finance-ledger-chart",
+  "title": "Hesap Planı",
+  "description": "Tek Düzen Hesap Planı'na göre muhasebe hesapları: düz liste, sınıf süzgeci, hesap kartı, pasife alma ve muavin.",
+  "module": "Genel Muhasebe",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:kod",
+        "component:ad",
+        "component:tabloSinifi",
+        "component:hesapTipi",
+        "component:calismaSekli",
+        "component:doviz",
+        "component:ifrsKodu",
+        "component:ifrsAdi",
+        "component:ifrsSinifi",
+        "component:listeyiYenile",
+        "component:muavinDugmesi",
+        "component:pasifeAlDugmesi",
+        "component:etkinlestirDugmesi",
+        "component:silDugmesi",
+        "component:tekDuzenDugmesi",
+        "query:hesaplar",
+        "query:olustur",
+        "query:guncelle"
+      ]
+    },
+    "component:yoneticiNotu": {
+      "since": 1,
+      "label": "Yönetici olmayan kullanıcı notu"
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, sınıf, durum)",
+      "requires": [
+        "component:liste",
+        "component:ad",
+        "query:hesap"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Hesap planı listesi",
+      "requires": [
+        "query:hesaplar",
+        "query:hesap"
+      ]
+    },
+    "component:hesapKarti": {
+      "since": 1,
+      "label": "Hesap kartı (sağ panel)",
+      "requires": [
+        "component:liste",
+        "component:hesapFormu",
+        "component:siniflandirmaFormu",
+        "component:ifrsFormu",
+        "component:kartNotu",
+        "component:salt",
+        "query:hesap"
+      ]
+    },
+    "component:hesapFormu": {
+      "since": 1,
+      "label": "Kart bölümü: Hesap",
+      "requires": [
+        "component:liste",
+        "component:kod",
+        "component:ad"
+      ]
+    },
+    "component:siniflandirmaFormu": {
+      "since": 1,
+      "label": "Kart bölümü: Sınıflandırma",
+      "requires": [
+        "component:liste",
+        "component:tabloSinifi",
+        "component:hesapTipi",
+        "component:calismaSekli",
+        "component:doviz"
+      ]
+    },
+    "component:ifrsFormu": {
+      "since": 1,
+      "label": "Kart bölümü: IFRS",
+      "requires": [
+        "component:liste",
+        "component:ifrsKodu",
+        "component:ifrsAdi",
+        "component:ifrsSinifi"
+      ]
+    },
+    "component:kod": {
+      "since": 1,
+      "label": "Alan: Kod",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:ad": {
+      "since": 1,
+      "label": "Alan: Ad",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:tabloSinifi": {
+      "since": 1,
+      "label": "Alan: Finansal tablo sınıfı",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:hesapTipi": {
+      "since": 1,
+      "label": "Alan: Hesap tipi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:calismaSekli": {
+      "since": 1,
+      "label": "Alan: Çalışma şekli",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:doviz": {
+      "since": 1,
+      "label": "Alan: Döviz",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:ifrsKodu": {
+      "since": 1,
+      "label": "Alan: IFRS hesap kodu",
+      "requires": [
+        "component:liste",
+        "query:hesap"
+      ]
+    },
+    "component:ifrsAdi": {
+      "since": 1,
+      "label": "Alan: IFRS hesap adı",
+      "requires": [
+        "component:liste",
+        "component:ad",
+        "query:hesap"
+      ]
+    },
+    "component:ifrsSinifi": {
+      "since": 1,
+      "label": "Alan: IFRS tablo sınıfı",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:kartNotu": {
+      "since": 1,
+      "label": "Kart notu",
+      "requires": [
+        "component:ad",
+        "query:hesap"
+      ]
+    },
+    "component:salt": {
+      "since": 1,
+      "label": "Salt okunur hesap bilgisi",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:listeyiYenile": {
+      "since": 1,
+      "label": "Listeyi yenile",
+      "requires": [
+        "query:hesaplar"
+      ]
+    },
+    "component:muavinDugmesi": {
+      "since": 1,
+      "label": "Hareketleri gör (muavin) komutu",
+      "requires": [
+        "component:liste",
+        "component:muavinPenceresi",
+        "query:hesap"
+      ]
+    },
+    "component:pasifeAlDugmesi": {
+      "since": 1,
+      "label": "Pasife al komutu",
+      "requires": [
+        "component:liste",
+        "query:hesaplar",
+        "query:hesap",
+        "query:pasifeAl"
+      ]
+    },
+    "component:etkinlestirDugmesi": {
+      "since": 1,
+      "label": "Etkinleştir komutu",
+      "requires": [
+        "component:liste",
+        "query:hesaplar",
+        "query:hesap",
+        "query:aktifEt"
+      ]
+    },
+    "component:silDugmesi": {
+      "since": 1,
+      "label": "Sil komutu",
+      "requires": [
+        "component:liste",
+        "query:hesaplar",
+        "query:hesap",
+        "query:hesapSil"
+      ]
+    },
+    "component:tekDuzenDugmesi": {
+      "since": 1,
+      "label": "Tek Düzen Hesap Planı komutu",
+      "requires": [
+        "query:hesaplar",
+        "query:hesap",
+        "query:tekDuzen",
+        "query:tekDuzenUygula"
+      ]
+    },
+    "component:muavinPenceresi": {
+      "since": 1,
+      "label": "Muavin penceresi",
+      "requires": [
+        "component:liste",
+        "component:muavinParametreleri",
+        "component:muavinOzeti",
+        "component:muavinTablosu"
+      ]
+    },
+    "component:muavinParametreleri": {
+      "since": 1,
+      "label": "Muavin dönemi",
+      "requires": [
+        "component:muavinBaslangic",
+        "component:muavinBitis"
+      ]
+    },
+    "component:muavinBaslangic": {
+      "since": 1,
+      "label": "Muavin: Başlangıç tarihi"
+    },
+    "component:muavinBitis": {
+      "since": 1,
+      "label": "Muavin: Bitiş tarihi"
+    },
+    "component:muavinOzeti": {
+      "since": 1,
+      "label": "Muavin özeti",
+      "requires": [
+        "component:liste",
+        "query:muavin"
+      ]
+    },
+    "component:muavinTablosu": {
+      "since": 1,
+      "label": "Muavin tablosu",
+      "requires": [
+        "query:hesap",
+        "query:muavin"
+      ]
+    },
+    "query:hesaplar": {
+      "since": 1,
+      "label": "Hesap planını listele",
+      "requires": [
+        "query:hesap"
+      ]
+    },
+    "query:hesap": {
+      "since": 1,
+      "label": "Seçili muhasebe hesabı",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:tekDuzen": {
+      "since": 1,
+      "label": "Tek Düzen Hesap Planı önizlemesi"
+    },
+    "query:muavin": {
+      "since": 1,
+      "label": "Seçili hesabın muavini",
+      "requires": [
+        "component:liste",
+        "component:muavinBaslangic",
+        "component:muavinBitis",
+        "component:muavinTablosu"
+      ]
+    },
+    "query:olustur": {
+      "since": 1,
+      "label": "Muhasebe hesabı oluştur",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:tabloSinifi",
+        "component:hesapTipi",
+        "component:calismaSekli",
+        "component:doviz",
+        "component:ifrsKodu",
+        "component:ifrsAdi",
+        "component:ifrsSinifi",
+        "query:hesap"
+      ]
+    },
+    "query:guncelle": {
+      "since": 1,
+      "label": "Muhasebe hesabını güncelle",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:tabloSinifi",
+        "component:hesapTipi",
+        "component:calismaSekli",
+        "component:doviz",
+        "component:ifrsKodu",
+        "component:ifrsAdi",
+        "component:ifrsSinifi",
+        "query:hesap"
+      ]
+    },
+    "query:pasifeAl": {
+      "since": 1,
+      "label": "Muhasebe hesabını pasife al",
+      "requires": [
+        "query:hesap"
+      ]
+    },
+    "query:aktifEt": {
+      "since": 1,
+      "label": "Muhasebe hesabını etkinleştir",
+      "requires": [
+        "query:hesap"
+      ]
+    },
+    "query:hesapSil": {
+      "since": 1,
+      "label": "Muhasebe hesabını sil",
+      "requires": [
+        "component:liste",
+        "query:hesap"
+      ]
+    },
+    "query:tekDuzenUygula": {
+      "since": 1,
+      "label": "Tek Düzen eksik hesaplarını ekle",
+      "requires": [
+        "query:tekDuzen"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newInputs": [
+            "kod",
+            "ad",
+            "tabloSinifi",
+            "hesapTipi",
+            "calismaSekli",
+            "doviz",
+            "ifrsKodu",
+            "ifrsAdi",
+            "ifrsSinifi"
+          ],
+          "newAction": "clear",
+          "saveSequence": [
+            "olustur",
+            "guncelle"
+          ],
+          "stopOnError": true,
+          "sequenceWhen": [
+            "olustur=liste.seciliSatir.id == null",
+            "guncelle=liste.seciliSatir.id != null"
+          ],
+          "afterSaveButton": "listeyiYenile",
+          "moreButtons": [
+            "muavinDugmesi",
+            "pasifeAlDugmesi",
+            "etkinlestirDugmesi",
+            "silDugmesi",
+            "tekDuzenDugmesi"
+          ],
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{hesaplar.satirSayisi}}",
+          "commandWhen": [
+            "new=kullanici.rol == 'TenantAdmin'",
+            "save=kullanici.rol == 'TenantAdmin'"
+          ],
+          "hiddenCommands": [
+            "delete",
+            "print"
+          ]
+        }
+      },
+      {
+        "id": "yoneticiNotu",
+        "type": "alert",
+        "name": "yoneticiNotu",
+        "props": {
+          "title": "Salt okunur",
+          "variant": "info",
+          "width": 12,
+          "text": "Hesap planını firma yöneticisi düzenler.",
+          "visibleWhen": "kullanici.rol != 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "width": 12,
+          "search": true,
+          "searchPlaceholder": "Kod veya hesap adı ara",
+          "searchColumns": [
+            "code",
+            "name"
+          ],
+          "filters": [
+            "accountClass|select|row||Sınıf",
+            "isActive|select|row||Durum",
+            "hasMovements|select|row||Hareket"
+          ]
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Hesap planı",
+          "query": "hesaplar",
+          "width": 8,
+          "columns": [
+            "code",
+            "name",
+            "accountClass",
+            "accountType",
+            "normalBalance",
+            "isActive",
+            "hasMovements"
+          ],
+          "columnLabels": [
+            "code=Kod",
+            "name=Hesap",
+            "accountClass=Sınıf",
+            "accountType=Tip",
+            "normalBalance=Çalışma şekli",
+            "isActive=Durum",
+            "hasMovements=Hareket",
+            "statementSection=Finansal tablo sınıfı",
+            "currencyCode=Döviz",
+            "ifrsAccountCode=IFRS kodu"
+          ],
+          "columnFormats": [
+            "code=code",
+            "accountType=status",
+            "normalBalance=status",
+            "isActive=status",
+            "hasMovements=status"
+          ],
+          "valueLabels": [
+            "accountType:Unclassified=Sınıflandırılmamış",
+            "accountType:Asset=Varlık",
+            "accountType:Liability=Yükümlülük",
+            "accountType:Equity=Özkaynak",
+            "accountType:Revenue=Gelir",
+            "accountType:Expense=Gider",
+            "accountType:OffBalanceSheet=Nazım",
+            "normalBalance:Debit=Borç",
+            "normalBalance:Credit=Alacak",
+            "normalBalance:Both=Borç/Alacak",
+            "isActive:true=Aktif",
+            "isActive:false=Pasif",
+            "hasMovements:true=Hareketli",
+            "hasMovements:false=—"
+          ],
+          "toneMap": [
+            "Aktif=success",
+            "Pasif=info",
+            "Hareketli=info"
+          ],
+          "emptyText": "Süzgece uyan hesap yok. Tek Düzen Hesap Planı ile eksik hesapları ekleyebilirsiniz."
+        }
+      },
+      {
+        "id": "hesapKarti",
+        "type": "card",
+        "name": "hesapKarti",
+        "props": {
+          "variant": "panel",
+          "width": 4,
+          "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}"
+        },
+        "children": [
+          {
+            "id": "yeniHesapBasligi",
+            "type": "heading",
+            "name": "yeniHesapBasligi",
+            "props": {
+              "text": "Yeni hesap",
+              "visibleWhen": "liste.seciliSatir.id == null && kullanici.rol == 'TenantAdmin'"
+            }
+          },
+          {
+            "id": "hesapSecin",
+            "type": "text",
+            "name": "hesapSecin",
+            "props": {
+              "text": "Bir hesap seçin.",
+              "visibleWhen": "liste.seciliSatir.id == null && kullanici.rol != 'TenantAdmin'"
+            }
+          },
+          {
+            "id": "aktifEtiketi",
+            "type": "badge",
+            "name": "aktifEtiketi",
+            "props": {
+              "text": "Aktif",
+              "variant": "success",
+              "visibleWhen": "liste.seciliSatir.isActive == true"
+            }
+          },
+          {
+            "id": "pasifEtiketi",
+            "type": "badge",
+            "name": "pasifEtiketi",
+            "props": {
+              "text": "Pasif",
+              "variant": "info",
+              "visibleWhen": "liste.seciliSatir.isActive == false"
+            }
+          },
+          {
+            "id": "hareketliEtiketi",
+            "type": "badge",
+            "name": "hareketliEtiketi",
+            "props": {
+              "text": "Hareketli",
+              "variant": "info",
+              "visibleWhen": "liste.seciliSatir.hasMovements == true"
+            }
+          },
+          {
+            "id": "kartSekmeleri",
+            "type": "tabs",
+            "name": "kartSekmeleri",
+            "props": {
+              "tabs": [
+                "Hesap=hesapFormu,siniflandirmaFormu,ifrsFormu,kartNotu,salt"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "hesapFormu",
+        "type": "formCard",
+        "name": "hesapFormu",
+        "props": {
+          "title": "Hesap",
+          "columns": 2,
+          "inputs": [
+            "kod",
+            "ad"
+          ],
+          "recordKey": "{{liste.seciliSatir.id}}",
+          "trackChanges": true,
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "siniflandirmaFormu",
+        "type": "formCard",
+        "name": "siniflandirmaFormu",
+        "props": {
+          "title": "Sınıflandırma",
+          "columns": 2,
+          "inputs": [
+            "tabloSinifi",
+            "hesapTipi",
+            "calismaSekli",
+            "doviz"
+          ],
+          "recordKey": "{{liste.seciliSatir.id}}",
+          "trackChanges": true,
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "ifrsFormu",
+        "type": "formCard",
+        "name": "ifrsFormu",
+        "props": {
+          "title": "IFRS",
+          "columns": 2,
+          "inputs": [
+            "ifrsKodu",
+            "ifrsAdi",
+            "ifrsSinifi"
+          ],
+          "recordKey": "{{liste.seciliSatir.id}}",
+          "trackChanges": true,
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "kod",
+        "type": "input",
+        "name": "kod",
+        "props": {
+          "inputType": "text",
+          "label": "Kod",
+          "required": true,
+          "maxLength": 32,
+          "placeholder": "120.001",
+          "defaultValue": "{{liste.seciliSatir.code}}"
+        }
+      },
+      {
+        "id": "ad",
+        "type": "input",
+        "name": "ad",
+        "props": {
+          "inputType": "text",
+          "label": "Ad",
+          "required": true,
+          "maxLength": 160,
+          "defaultValue": "{{liste.seciliSatir.name}}"
+        }
+      },
+      {
+        "id": "tabloSinifi",
+        "type": "input",
+        "name": "tabloSinifi",
+        "props": {
+          "inputType": "select",
+          "label": "Finansal tablo sınıfı",
+          "defaultFirst": true,
+          "staticOptions": [
+            "Unclassified=Sınıflandırılmamış",
+            "Asset=Varlık",
+            "Liability=Yükümlülük",
+            "Equity=Özkaynak",
+            "Revenue=Gelir",
+            "Expense=Gider"
+          ],
+          "defaultValue": "{{liste.seciliSatir.statementSection}}"
+        }
+      },
+      {
+        "id": "hesapTipi",
+        "type": "input",
+        "name": "hesapTipi",
+        "props": {
+          "inputType": "select",
+          "label": "Hesap tipi",
+          "defaultFirst": true,
+          "staticOptions": [
+            "Unclassified=Sınıflandırılmamış",
+            "Asset=Varlık",
+            "Liability=Yükümlülük",
+            "Equity=Özkaynak",
+            "Revenue=Gelir",
+            "Expense=Gider",
+            "OffBalanceSheet=Nazım"
+          ],
+          "defaultValue": "{{liste.seciliSatir.accountType}}"
+        }
+      },
+      {
+        "id": "calismaSekli",
+        "type": "input",
+        "name": "calismaSekli",
+        "props": {
+          "inputType": "select",
+          "label": "Çalışma şekli",
+          "defaultFirst": true,
+          "staticOptions": [
+            "Both=Borç/Alacak",
+            "Debit=Borç",
+            "Credit=Alacak"
+          ],
+          "defaultValue": "{{liste.seciliSatir.normalBalance}}"
+        }
+      },
+      {
+        "id": "doviz",
+        "type": "input",
+        "name": "doviz",
+        "props": {
+          "inputType": "text",
+          "label": "Döviz",
+          "maxLength": 3,
+          "upperCase": true,
+          "placeholder": "—",
+          "defaultValue": "{{liste.seciliSatir.currencyCode}}"
+        }
+      },
+      {
+        "id": "ifrsKodu",
+        "type": "input",
+        "name": "ifrsKodu",
+        "props": {
+          "inputType": "text",
+          "label": "IFRS hesap kodu",
+          "maxLength": 32,
+          "defaultValue": "{{liste.seciliSatir.ifrsAccountCode}}"
+        }
+      },
+      {
+        "id": "ifrsAdi",
+        "type": "input",
+        "name": "ifrsAdi",
+        "props": {
+          "inputType": "text",
+          "label": "IFRS hesap adı",
+          "maxLength": 160,
+          "defaultValue": "{{liste.seciliSatir.ifrsAccountName}}"
+        }
+      },
+      {
+        "id": "ifrsSinifi",
+        "type": "input",
+        "name": "ifrsSinifi",
+        "props": {
+          "inputType": "select",
+          "label": "IFRS tablo sınıfı",
+          "defaultFirst": true,
+          "staticOptions": [
+            "Unclassified=Sınıflandırılmamış",
+            "Asset=Varlık",
+            "Liability=Yükümlülük",
+            "Equity=Özkaynak",
+            "Revenue=Gelir",
+            "Expense=Gider"
+          ],
+          "defaultValue": "{{liste.seciliSatir.ifrsStatementSection}}"
+        }
+      },
+      {
+        "id": "kartNotu",
+        "type": "text",
+        "name": "kartNotu",
+        "props": {
+          "text": "Alt hesap tam koduyla yazılır (ör. 120.001); üst hesabın var olduğunu sunucu denetlemez. Hareketli hesabın kodu ve adı değişmez; pasife alıp yeni hesap açılır.",
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "salt",
+        "type": "contextPanel",
+        "name": "salt",
+        "props": {
+          "table": "liste",
+          "visibleWhen": "kullanici.rol != 'TenantAdmin' && liste.seciliSatir.id != null",
+          "fields": [
+            "code=Kod",
+            "name=Hesap",
+            "statementSection=Finansal tablo sınıfı",
+            "accountType=Hesap tipi",
+            "normalBalance=Çalışma şekli",
+            "currencyCode=Döviz",
+            "ifrsAccountCode=IFRS kodu"
+          ]
+        }
+      },
+      {
+        "id": "listeyiYenile",
+        "type": "button",
+        "name": "listeyiYenile",
+        "props": {
+          "text": "Listeyi yenile",
+          "actionType": "query",
+          "queryId": "hesaplar"
+        }
+      },
+      {
+        "id": "muavinDugmesi",
+        "type": "button",
+        "name": "muavinDugmesi",
+        "props": {
+          "text": "Hareketleri gör",
+          "actionType": "openDialog",
+          "dialogId": "muavinPenceresi",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir hesap seçin"
+        }
+      },
+      {
+        "id": "pasifeAlDugmesi",
+        "type": "button",
+        "name": "pasifeAlDugmesi",
+        "props": {
+          "text": "Pasife al",
+          "actionType": "query",
+          "queryId": "pasifeAl",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} pasife alınsın mı? Pasif hesaba yevmiye satırı girilemez.",
+          "successMessage": "Hesap pasife alındı.",
+          "refreshQueries": [
+            "hesaplar",
+            "hesap"
+          ],
+          "visibleWhen": "kullanici.rol == 'TenantAdmin' && liste.seciliSatir.isActive == true"
+        }
+      },
+      {
+        "id": "etkinlestirDugmesi",
+        "type": "button",
+        "name": "etkinlestirDugmesi",
+        "props": {
+          "text": "Etkinleştir",
+          "actionType": "query",
+          "queryId": "aktifEt",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} yeniden etkinleştirilsin mi?",
+          "successMessage": "Hesap etkinleştirildi.",
+          "refreshQueries": [
+            "hesaplar",
+            "hesap"
+          ],
+          "visibleWhen": "kullanici.rol == 'TenantAdmin' && liste.seciliSatir.isActive == false"
+        }
+      },
+      {
+        "id": "silDugmesi",
+        "type": "button",
+        "name": "silDugmesi",
+        "props": {
+          "text": "Sil",
+          "actionType": "query",
+          "queryId": "hesapSil",
+          "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} kalıcı olarak silinsin mi? Hesabın eşleştirmeleri de kaldırılır.",
+          "successMessage": "Hesap silindi.",
+          "refreshQueries": [
+            "hesaplar"
+          ],
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'",
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.hasMovements == true",
+          "disabledReason": "Hareketli hesap silinemez; pasife alın. Alt hesabı olan hesap da silinemez."
+        }
+      },
+      {
+        "id": "tekDuzenDugmesi",
+        "type": "button",
+        "name": "tekDuzenDugmesi",
+        "props": {
+          "text": "Tek Düzen Hesap Planı",
+          "actionType": "query",
+          "queryId": "tekDuzenUygula",
+          "confirmEnabled": true,
+          "confirmText": "Tek Düzen Hesap Planı'ndaki eksik {{tekDuzen.rows[0].accountsToAdd}} hesap eklensin mi? Var olan {{tekDuzen.rows[0].existingAccounts}} hesap değişmez; eşleştirme kurulmaz.",
+          "successMessage": "Eksik Tek Düzen hesapları eklendi.",
+          "refreshQueries": [
+            "hesaplar",
+            "tekDuzen"
+          ],
+          "visibleWhen": "kullanici.rol == 'TenantAdmin'",
+          "disabledWhen": "tekDuzen.rows[0].accountsToAdd == 0",
+          "disabledReason": "Tek Düzen Hesap Planı'nın bütün hesapları tanımlı."
+        }
+      },
+      {
+        "id": "muavinPenceresi",
+        "type": "dialog",
+        "name": "muavinPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Muavin · {{liste.seciliSatir.code}} {{liste.seciliSatir.name}}",
+          "contains": [
+            "muavinParametreleri",
+            "muavinOzeti",
+            "muavinTablosu"
+          ]
+        }
+      },
+      {
+        "id": "muavinParametreleri",
+        "type": "formCard",
+        "name": "muavinParametreleri",
+        "props": {
+          "title": "Dönem",
+          "layout": "inline",
+          "inputs": [
+            "muavinBaslangic",
+            "muavinBitis"
+          ]
+        }
+      },
+      {
+        "id": "muavinBaslangic",
+        "type": "input",
+        "name": "muavinBaslangic",
+        "props": {
+          "inputType": "date",
+          "label": "Başlangıç",
+          "required": true,
+          "defaultValue": "{{tarih.yilBasi}}"
+        }
+      },
+      {
+        "id": "muavinBitis",
+        "type": "input",
+        "name": "muavinBitis",
+        "props": {
+          "inputType": "date",
+          "label": "Bitiş",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "muavinOzeti",
+        "type": "recordHeader",
+        "name": "muavinOzeti",
+        "props": {
+          "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}",
+          "fields": [
+            "Açılış borç={{muavin.meta.openingBalanceDebit}}",
+            "Açılış alacak={{muavin.meta.openingBalanceCredit}}",
+            "Dönem borç={{muavin.meta.totalDebit}}",
+            "Dönem alacak={{muavin.meta.totalCredit}}",
+            "Kapanış borç={{muavin.meta.closingBalanceDebit}}",
+            "Kapanış alacak={{muavin.meta.closingBalanceCredit}}"
+          ],
+          "fieldFormats": [
+            "Açılış borç=money",
+            "Açılış alacak=money",
+            "Dönem borç=money",
+            "Dönem alacak=money",
+            "Kapanış borç=money",
+            "Kapanış alacak=money"
+          ]
+        }
+      },
+      {
+        "id": "muavinTablosu",
+        "type": "dataTable",
+        "name": "muavinTablosu",
+        "props": {
+          "title": "Hesap hareketleri",
+          "query": "muavin",
+          "paging": "server",
+          "pageSize": 50,
+          "width": 12,
+          "columns": [
+            "entryDate",
+            "journalEntryCode",
+            "lineDescription",
+            "debit",
+            "credit"
+          ],
+          "columnLabels": [
+            "entryDate=Tarih",
+            "journalEntryCode=Fiş",
+            "lineDescription=Açıklama",
+            "debit=Borç",
+            "credit=Alacak",
+            "journalDescription=Fiş açıklaması",
+            "sourceType=Kaynak"
+          ],
+          "columnFormats": [
+            "entryDate=date",
+            "journalEntryCode=code",
+            "debit=money",
+            "credit=money"
+          ],
+          "emptyText": "Bu dönemde hesap hareketi yok.",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "hesaplar",
+        "name": "hesaplar",
+        "kind": "read",
+        "operation": "finans.muhasebe.hesap.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "hesap",
+        "name": "hesap",
+        "kind": "read",
+        "operation": "finans.muhasebe.hesap.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "tekDuzen",
+        "name": "tekDuzen",
+        "kind": "read",
+        "operation": "finans.muhasebe.tekDuzen.onizle",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "muavin",
+        "name": "muavin",
+        "kind": "read",
+        "operation": "finans.muhasebe.muavin",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "accountId",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "from",
+            "binding": "{{muavinBaslangic.value}}",
+            "type": "date"
+          },
+          {
+            "name": "to",
+            "binding": "{{muavinBitis.value}}",
+            "type": "date"
+          },
+          {
+            "name": "page",
+            "binding": "{{muavinTablosu.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{muavinTablosu.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "olustur",
+        "name": "olustur",
+        "kind": "insert",
+        "operation": "finans.muhasebe.hesap.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "code",
+            "binding": "{{kod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "binding": "{{ad.value}}",
+            "type": "text"
+          },
+          {
+            "name": "statementSection",
+            "binding": "{{tabloSinifi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "accountType",
+            "binding": "{{hesapTipi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "normalBalance",
+            "binding": "{{calismaSekli.value}}",
+            "type": "text"
+          },
+          {
+            "name": "currencyCode",
+            "binding": "{{doviz.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsAccountCode",
+            "binding": "{{ifrsKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsAccountName",
+            "binding": "{{ifrsAdi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsStatementSection",
+            "binding": "{{ifrsSinifi.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "guncelle",
+        "name": "guncelle",
+        "kind": "update",
+        "operation": "finans.muhasebe.hesap.guncelle",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesap.rows[0].id}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{kod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "binding": "{{ad.value}}",
+            "type": "text"
+          },
+          {
+            "name": "statementSection",
+            "binding": "{{tabloSinifi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "accountType",
+            "binding": "{{hesapTipi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "normalBalance",
+            "binding": "{{calismaSekli.value}}",
+            "type": "text"
+          },
+          {
+            "name": "currencyCode",
+            "binding": "{{doviz.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsAccountCode",
+            "binding": "{{ifrsKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsAccountName",
+            "binding": "{{ifrsAdi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "ifrsStatementSection",
+            "binding": "{{ifrsSinifi.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "pasifeAl",
+        "name": "pasifeAl",
+        "kind": "update",
+        "operation": "finans.muhasebe.hesap.pasifeAl",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesap.rows[0].id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "aktifEt",
+        "name": "aktifEt",
+        "kind": "update",
+        "operation": "finans.muhasebe.hesap.aktifEt",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesap.rows[0].id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "hesapSil",
+        "name": "hesapSil",
+        "kind": "delete",
+        "operation": "finans.muhasebe.hesap.sil",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "tekDuzenUygula",
+        "name": "tekDuzenUygula",
+        "kind": "insert",
+        "operation": "finans.muhasebe.tekDuzen.uygula",
+        "runOn": "manual",
+        "parameters": []
+      }
+    ]
+  }
+}

@@ -736,7 +736,8 @@ internal static class TenantCustomPageSchema
         if (props.TryGetProperty("density", out var density)
             && (typeText != "dataTable" || density.ValueKind != JsonValueKind.String || density.GetString() is not ("dense" or "comfort")))
         { error = "'density' yalnızca veri listesinde dense veya comfort olabilir."; return false; }
-        if (props.TryGetProperty("totals", out var totals))
+        // An editable grid's totals name its own number columns; ValidateGridProps checks them.
+        if (typeText != "editableGrid" && props.TryGetProperty("totals", out var totals))
         {
             if (typeText != "dataTable" || totals.ValueKind != JsonValueKind.Array || totals.GetArrayLength() > MaxTotals
                 || totals.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || x.GetString()!.Length is < 1 or > 128))
@@ -1959,6 +1960,7 @@ internal static class TenantCustomPageSchema
                 return Fail($"'rowKey' kaynak sorgunun sütunu olmalıdır: {rowKey.GetString()}", out error);
         }
         var columns = new List<string>();
+        var numberColumns = new HashSet<string>(StringComparer.Ordinal);
         var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
         var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
         if (matrix)
@@ -1977,10 +1979,11 @@ internal static class TenantCustomPageSchema
             foreach (var item in gridColumns.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail("'gridColumns' öğesi geçersiz: metin değil", out error);
-                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out _, out var lookup, out var reason))
+                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out var inputType, out var lookup, out var reason))
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (inputType == "number") numberColumns.Add(code);
                 if (lookup is null) continue;
                 // A picker column's options come from a read query of the page; an operation query must return its columns.
                 if (!context.IsReadQuery(lookup.QueryId))
@@ -2001,6 +2004,17 @@ internal static class TenantCustomPageSchema
             }
         }
         if (matrix && props.TryGetProperty("minRows", out _)) return Fail("'minRows' varyant (matrix) kipinde kullanılamaz.", out error);
+        // Column totals (footer and {{<grid>.toplam.<code>}}): 1–12 distinct number columns of this grid; a matrix has none.
+        if (props.TryGetProperty("totals", out var totals))
+        {
+            if (matrix) return Fail("'totals' varyant (matrix) kipinde kullanılamaz.", out error);
+            if (totals.ValueKind != JsonValueKind.Array || totals.GetArrayLength() is < 1 or > MaxTotals
+                || totals.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String)
+                || totals.EnumerateArray().Select(x => x.GetString()).Distinct(StringComparer.Ordinal).Count() != totals.GetArrayLength())
+                return Fail($"'totals' 1–{MaxTotals} adet farklı sütun kodu içermelidir.", out error);
+            if (totals.EnumerateArray().Select(x => x.GetString()!).FirstOrDefault(x => !numberColumns.Contains(x)) is { } notNumber)
+                return Fail($"'totals' ızgaranın sayı (number) sütunu olmalıdır: {notNumber}", out error);
+        }
         if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
