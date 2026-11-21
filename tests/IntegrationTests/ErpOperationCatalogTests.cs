@@ -169,6 +169,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)
                 || op.Name.StartsWith("crm.", StringComparison.Ordinal)
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
+                || op.Name.StartsWith("finans.", StringComparison.Ordinal)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
@@ -610,7 +611,7 @@ public sealed class ErpOperationCatalogTests
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
-        // customFields (SalesSystemPagesTests).
+        // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests).
         Assert.Equal(10, collections.Length);
         foreach (var (op, parameter) in collections)
         {
@@ -694,7 +695,7 @@ public sealed class ErpOperationCatalogTests
             ["depo.transfer.olustur"] = ["lines"]
         };
         // The cari.*, crm.*, satis.*, finans.* and Satınalma Faz 1 operations are new names with their own contract tests
-        // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, PurchasingErpOperationCatalogTests).
+        // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
             && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)

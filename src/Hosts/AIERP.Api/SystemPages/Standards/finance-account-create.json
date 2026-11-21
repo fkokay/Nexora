@@ -1,0 +1,468 @@
+{
+  "screenKey": "finance-account-create",
+  "title": "Kasa/Banka kartı",
+  "description": "Kasa ve banka hesap kartı oluşturma ve düzenleme: kod, ad, tür, döviz ve yalnız yeni kartta açılış bakiyesi.",
+  "module": "Finans",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:yeniKartDugmesi",
+        "query:kart",
+        "query:olustur",
+        "query:guncelle"
+      ]
+    },
+    "component:yeniKartDugmesi": {
+      "since": 1,
+      "label": "Yeni kart komutu",
+      "requires": [
+        "component:tur"
+      ]
+    },
+    "component:yeniBaslik": {
+      "since": 1,
+      "label": "Başlık (yeni kart)",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:kartBasligi": {
+      "since": 1,
+      "label": "Başlık (kayıtlı kart)",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumAktif": {
+      "since": 1,
+      "label": "Durum etiketi: Aktif",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumPasif": {
+      "since": 1,
+      "label": "Durum etiketi: Pasif",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:kayitliOzet": {
+      "since": 1,
+      "label": "Kayıtlı kartın özeti",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:zorunluNotu": {
+      "since": 1,
+      "label": "Zorunlu alanlar notu",
+      "requires": [
+        "component:kod",
+        "component:ad"
+      ]
+    },
+    "component:hesapKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Hesap bilgileri",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:tur",
+        "component:doviz",
+        "component:acilisBakiyesi",
+        "query:kart"
+      ]
+    },
+    "component:kod": {
+      "since": 1,
+      "label": "Alan: Kod",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:ad": {
+      "since": 1,
+      "label": "Alan: Ad",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:tur": {
+      "since": 1,
+      "label": "Alan: Hesap türü",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:doviz": {
+      "since": 1,
+      "label": "Alan: Döviz",
+      "requires": [
+        "component:kod",
+        "query:kart"
+      ]
+    },
+    "component:acilisBakiyesi": {
+      "since": 1,
+      "label": "Alan: Açılış bakiyesi (yalnız yeni kart)",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:acilisNotu": {
+      "since": 1,
+      "label": "Açılış bakiyesi notu"
+    },
+    "component:kasalarDugmesi": {
+      "since": 1,
+      "label": "Kasalar listesine dön",
+      "requires": [
+        "component:tur"
+      ]
+    },
+    "component:bankalarDugmesi": {
+      "since": 1,
+      "label": "Bankalar listesine dön",
+      "requires": [
+        "component:tur"
+      ]
+    },
+    "query:kart": {
+      "since": 1,
+      "label": "Açılan kasa/banka kartı"
+    },
+    "query:olustur": {
+      "since": 1,
+      "label": "Kasa/banka kartı oluştur",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:tur",
+        "component:doviz",
+        "component:acilisBakiyesi"
+      ]
+    },
+    "query:guncelle": {
+      "since": 1,
+      "label": "Kasa/banka kartını güncelle",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:tur",
+        "component:doviz",
+        "query:kart"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "saveSequence": [
+            "olustur",
+            "guncelle"
+          ],
+          "stopOnError": true,
+          "sequenceWhen": [
+            "olustur=kart.rows[0].id == null && olustur.sonuc.id == null",
+            "guncelle=kart.rows[0].id != null"
+          ],
+          "newButton": "yeniKartDugmesi",
+          "saveAndNew": true,
+          "commandWhen": [
+            "saveNew=kart.rows[0].id == null"
+          ],
+          "hiddenCommands": [
+            "delete",
+            "print"
+          ]
+        }
+      },
+      {
+        "id": "yeniKartDugmesi",
+        "type": "button",
+        "name": "yeniKartDugmesi",
+        "props": {
+          "text": "Yeni",
+          "actionType": "page",
+          "pageCode": "@finance-account-create",
+          "target": "sameTab",
+          "params": [
+            "accountType={{tur.value}}"
+          ]
+        }
+      },
+      {
+        "id": "yeniBaslik",
+        "type": "heading",
+        "name": "yeniBaslik",
+        "props": {
+          "text": "Kasa/Banka Kartı Tanımlama",
+          "pageTitle": true,
+          "visibleWhen": "kart.rows[0].id == null"
+        }
+      },
+      {
+        "id": "kartBasligi",
+        "type": "heading",
+        "name": "kartBasligi",
+        "props": {
+          "text": "{{kart.rows[0].code}} · {{kart.rows[0].name}}",
+          "pageTitle": true,
+          "visibleWhen": "kart.rows[0].id != null"
+        }
+      },
+      {
+        "id": "durumAktif",
+        "type": "badge",
+        "name": "durumAktif",
+        "props": {
+          "text": "Aktif",
+          "variant": "success",
+          "visibleWhen": "kart.rows[0].isActive == true"
+        }
+      },
+      {
+        "id": "durumPasif",
+        "type": "badge",
+        "name": "durumPasif",
+        "props": {
+          "text": "Pasif",
+          "variant": "info",
+          "visibleWhen": "kart.rows[0].isActive == false"
+        }
+      },
+      {
+        "id": "kayitliOzet",
+        "type": "text",
+        "name": "kayitliOzet",
+        "props": {
+          "text": "Bakiye {{kart.rows[0].balance}} {{kart.rows[0].currencyCode}} · {{kart.rows[0].transactionTotalCount}} hareket",
+          "visibleWhen": "kart.rows[0].id != null"
+        }
+      },
+      {
+        "id": "zorunluNotu",
+        "type": "text",
+        "name": "zorunluNotu",
+        "props": {
+          "text": "* işaretli alanlar zorunludur: kod, ad ve döviz."
+        }
+      },
+      {
+        "id": "hesapKarti",
+        "type": "formCard",
+        "name": "hesapKarti",
+        "props": {
+          "title": "Hesap bilgileri",
+          "columns": 3,
+          "inputs": [
+            "kod",
+            "ad",
+            "tur",
+            "doviz",
+            "acilisBakiyesi"
+          ],
+          "recordKey": "{{kart.rows[0].id}}",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "kod",
+        "type": "input",
+        "name": "kod",
+        "props": {
+          "inputType": "text",
+          "label": "Kod",
+          "required": true,
+          "maxLength": 40,
+          "upperCase": true,
+          "placeholder": "KASA-01",
+          "defaultValue": "{{kart.rows[0].code}}"
+        }
+      },
+      {
+        "id": "ad",
+        "type": "input",
+        "name": "ad",
+        "props": {
+          "inputType": "text",
+          "label": "Ad",
+          "required": true,
+          "maxLength": 120,
+          "defaultValue": "{{kart.rows[0].name}}"
+        }
+      },
+      {
+        "id": "tur",
+        "type": "input",
+        "name": "tur",
+        "props": {
+          "inputType": "select",
+          "label": "Hesap türü",
+          "required": true,
+          "defaultFirst": true,
+          "staticOptions": [
+            "Cash=Kasa",
+            "Bank=Banka"
+          ],
+          "defaultValue": "{{kart.rows[0].type}}{{sayfa.parametre.accountType}}",
+          "disabledWhen": "kart.rows[0].id != null || sayfa.parametre.accountType != null",
+          "disabledReason": "Hesap türü listeden gelir; hareketi olan hesabın türü değiştirilemez."
+        }
+      },
+      {
+        "id": "doviz",
+        "type": "input",
+        "name": "doviz",
+        "props": {
+          "inputType": "text",
+          "label": "Döviz",
+          "required": true,
+          "maxLength": 3,
+          "upperCase": true,
+          "placeholder": "TRY",
+          "pattern": "^[A-Za-z]{3}$",
+          "patternMessage": "Döviz üç harfli kod olmalıdır (ör. TRY).",
+          "defaultValue": "{{kart.rows[0].currencyCode}}"
+        }
+      },
+      {
+        "id": "acilisBakiyesi",
+        "type": "input",
+        "name": "acilisBakiyesi",
+        "props": {
+          "inputType": "number",
+          "label": "Açılış bakiyesi",
+          "step": 0.01,
+          "visibleWhen": "kart.rows[0].id == null"
+        }
+      },
+      {
+        "id": "acilisNotu",
+        "type": "text",
+        "name": "acilisNotu",
+        "props": {
+          "text": "Açılış bakiyesi yalnız yeni kartta girilir; sonra bakiye hareketlerden hesaplanır. Kasa açılış bakiyesi eksi olamaz. Hareketi olan hesabın türü ve dövizi değiştirilemez."
+        }
+      },
+      {
+        "id": "kasalarDugmesi",
+        "type": "button",
+        "name": "kasalarDugmesi",
+        "props": {
+          "text": "Kasalar ›",
+          "actionType": "page",
+          "pageCode": "@finance-accounts",
+          "target": "sameTab",
+          "visibleWhen": "tur.value == 'Cash'"
+        }
+      },
+      {
+        "id": "bankalarDugmesi",
+        "type": "button",
+        "name": "bankalarDugmesi",
+        "props": {
+          "text": "Bankalar ›",
+          "actionType": "page",
+          "pageCode": "@finance-banks",
+          "target": "sameTab",
+          "visibleWhen": "tur.value == 'Bank'"
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "kart",
+        "name": "kart",
+        "kind": "read",
+        "operation": "finans.hesap.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{sayfa.parametre.accountId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "olustur",
+        "name": "olustur",
+        "kind": "insert",
+        "operation": "finans.hesap.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "code",
+            "binding": "{{kod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "binding": "{{ad.value}}",
+            "type": "text"
+          },
+          {
+            "name": "type",
+            "binding": "{{tur.value}}",
+            "type": "text"
+          },
+          {
+            "name": "currencyCode",
+            "binding": "{{doviz.value}}",
+            "type": "text"
+          },
+          {
+            "name": "openingBalance",
+            "binding": "{{acilisBakiyesi.value}}",
+            "type": "decimal"
+          }
+        ]
+      },
+      {
+        "id": "guncelle",
+        "name": "guncelle",
+        "kind": "update",
+        "operation": "finans.hesap.guncelle",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{kart.rows[0].id}}",
+            "type": "guid"
+          },
+          {
+            "name": "code",
+            "binding": "{{kod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "binding": "{{ad.value}}",
+            "type": "text"
+          },
+          {
+            "name": "type",
+            "binding": "{{tur.value}}",
+            "type": "text"
+          },
+          {
+            "name": "currencyCode",
+            "binding": "{{doviz.value}}",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

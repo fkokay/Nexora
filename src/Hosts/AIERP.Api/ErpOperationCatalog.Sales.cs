@@ -5,14 +5,13 @@ namespace AIERP.Api;
 /// <summary>
 /// Satış (Aşama A): quotes, orders, deliveries and invoices as lists, read-only document details and their status /
 /// workflow actions. Creation and edit cards stay on the legacy screens. Kept in its own file so other modules' catalog
-/// additions do not conflict; the label block is merged into the shared dictionary and a duplicate code fails startup.
+/// additions do not conflict; the label block (SalesLabelMap) applies to the sales operations only and a code the shared dictionary already defines fails startup.
 /// </summary>
 internal static partial class ErpOperationCatalog
 {
     private const string SalesModule = "Satış";
-    private const string FinanceModule = "Finans";
 
-    /// <summary>Sales label codes (only codes the shared dictionary does not already define).</summary>
+    /// <summary>Sales label codes (only codes the shared dictionary does not already define; other modules may label them differently).</summary>
     private static KeyValuePair<string, string>[] SalesLabels() =>
     [
         new("customerId", "Cari kimliği"), new("customerCode", "Cari kodu"), new("customerName", "Müşteri"),

@@ -588,7 +588,11 @@ public sealed record LedgerAccountWriteRequest(string Code, string Name, bool Is
     string? IfrsAccountCode = null, string? IfrsAccountName = null, string? IfrsStatementSection = null);
 public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection, bool HasMovements = false,
     string AccountType = "Unclassified", string NormalBalance = "Both", string? CurrencyCode = null,
-    string? IfrsAccountCode = null, string? IfrsAccountName = null, string IfrsStatementSection = "Unclassified");
+    string? IfrsAccountCode = null, string? IfrsAccountName = null, string IfrsStatementSection = "Unclassified")
+{
+    /// <summary>Tek Düzen hesap sınıfı (kodun ilk karakteri, 1–9) for the class filter; outside the constructor, so only the finans.* operations declare it.</summary>
+    public string AccountClass => LedgerAccountRules.AccountClass(Code);
+}
 public sealed record AccountingRuleProfileWriteRequest(string ProfileCode, string Name, string JurisdictionCode,
     string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
     DateOnly? EffectiveTo, string ParametersJson, string? OfficialSourceUrl = null, bool IsActive = true);
@@ -620,10 +624,37 @@ public sealed record LedgerMappingView(string MappingKey, string Label, Guid? Ac
 public sealed record JournalEntryLineView(int LineNumber, Guid AccountId, string AccountCode, string AccountName,
     string Description, decimal Debit, decimal Credit);
 public sealed record JournalEntryView(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType,
-    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false, string AccountingBasis = "TDHP");
+    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false, string AccountingBasis = "TDHP")
+{
+    // Members outside the constructor: the reversal rule stays in JournalReversalRules (shared with the reverse handler).
+    public bool IsSourced => JournalReversalRules.IsSourced(SourceType);
+    public bool IsReversal => JournalReversalRules.IsReversal(SourceType);
+    public bool CanReverse => JournalReversalRules.CanReverse(SourceType, IsReversed);
+    public string SourceLabel => JournalReversalRules.SourceLabel(SourceType);
+    /// <summary>The entry that reversed this one (fiş zinciri), set by the single-entry read.</summary>
+    public Guid? ReversedByEntryId { get; init; }
+    public string? ReversedByEntryCode { get; init; }
+    /// <summary>For a reversal entry: the code of the entry it reverses, set by the single-entry read.</summary>
+    public string? ReversalOfEntryCode { get; init; }
+}
+/// <summary>A journal entry list row: the former anonymous projection's wire names plus the reversal flags.</summary>
+public sealed record JournalEntryListItem(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType, Guid SourceId,
+    DateTimeOffset CreatedAt, string AccountingBasis, decimal TotalDebit, decimal TotalCredit, bool IsReversed = false)
+{
+    public bool IsSourced => JournalReversalRules.IsSourced(SourceType);
+    public bool IsReversal => JournalReversalRules.IsReversal(SourceType);
+    public bool CanReverse => JournalReversalRules.CanReverse(SourceType, IsReversed);
+    public string SourceLabel => JournalReversalRules.SourceLabel(SourceType);
+}
+public sealed record JournalEntryPage(IReadOnlyList<JournalEntryListItem> Items, int Page, int PageSize, int Total)
+{
+    /// <summary>Same as <see cref="Total"/>: the page runtime reads the top-level <c>totalCount</c> (G-F9).</summary>
+    public int TotalCount => Total;
+}
 public sealed record JournalTransferRequest(string SourceType, Guid SourceId);
 public sealed record ManualJournalEntryWriteRequest(DateOnly EntryDate, string Description, IReadOnlyList<ManualJournalLineWriteRequest> Lines, string AccountingBasis = "TDHP");
-public sealed record ManualJournalLineWriteRequest(Guid AccountId, string Description, decimal Debit, decimal Credit);
+/// <summary>An empty line description takes the entry description (G-F5); an omitted side is 0.</summary>
+public sealed record ManualJournalLineWriteRequest(Guid AccountId, string? Description = null, decimal Debit = 0m, decimal Credit = 0m);
 public sealed record ManualJournalEntryReverseRequest(DateOnly EntryDate, string Reason);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseRequestOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string? Notes,
@@ -773,6 +804,9 @@ public sealed record FinancialAccountTransferWriteRequest(Guid RequestId, Guid F
     DateOnly TransferDate, decimal Amount, string? Reference = null, string Description = "Hesaplar arası transfer", decimal ExchangeRate = 1m);
 public sealed record FinancialAccountSummary(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
     bool IsActive, decimal Balance, int TransactionCount, DateTimeOffset CreatedAt);
+/// <summary>Summary cards of the cash/bank list. TotalBalance is set only when every account has the same currency (CurrencyCode).</summary>
+public sealed record FinancialAccountListSummary(int AccountCount, int ActiveCount, int InactiveCount, int NegativeBalanceCount,
+    int CurrencyCount, decimal? TotalBalance, string? CurrencyCode);
 public sealed record FinancialAccountTransferSummary(Guid Id, string Code, Guid FromAccountId, string FromAccountName,
     Guid ToAccountId, string ToAccountName, string CurrencyCode, DateOnly TransferDate, decimal Amount,
     string? Reference, string Description, FinancialTransferStatus Status, DateTimeOffset CreatedAt,
@@ -795,10 +829,47 @@ public sealed record BankStatementDetail(Guid Id, string Code, Guid AccountId, s
     DateTimeOffset CreatedAt, IReadOnlyList<BankStatementLineView> Lines);
 public sealed record FinancialAccountTransactionView(Guid Id, DateOnly TransactionDate, FinancialDirection Direction,
     decimal Amount, string CurrencyCode, string Description, string? Reference, string? SourceType, string? SourceCode,
-    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified);
+    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified)
+{
+    // Members outside the constructor (only the finans.* operations declare them): the void and classification rules of the
+    // handlers, so a page binds to flags instead of the Turkish SourceType text.
+
+    /// <summary>Machine code of the source (<see cref="FinancialTransactionSourceKinds"/>), set by the handler.</summary>
+    public string SourceKind { get; init; } = FinancialTransactionSourceKinds.Other;
+    /// <summary>A linked reversal of this movement exists, set by the handler.</summary>
+    public bool IsReversed { get; init; }
+    public bool IsReversal => ReversalOfId is not null;
+    public decimal? Inflow => Direction == FinancialDirection.Inflow ? Amount : null;
+    public decimal? Outflow => Direction == FinancialDirection.Outflow ? Amount : null;
+    /// <summary>The movement void accepts it: a manual movement (never a reversal) not reversed yet.</summary>
+    public bool CanVoid => SourceKind == FinancialTransactionSourceKinds.Manual && !IsReversed;
+    /// <summary>A transfer movement not reversed yet (the transfer void reverses both movements).</summary>
+    public bool CanVoidTransfer => SourceKind == FinancialTransactionSourceKinds.Transfer && TransferId is not null && !IsReversed;
+    /// <summary>The cash-flow category handler accepts it (it also requires TenantAdmin, which the operation's allowed reflects).</summary>
+    public bool CanChangeCashFlow => TransferId is null && CashFlowCategory is not (CashFlowCategory.InternalTransfer or CashFlowCategory.OpeningBalance);
+}
+/// <summary>Machine codes of <see cref="FinancialAccountTransactionView.SourceKind"/>, in the account read's precedence order.</summary>
+public static class FinancialTransactionSourceKinds
+{
+    public const string Reversal = "Reversal";
+    public const string CustomerCollection = "CustomerCollection";
+    public const string SupplierPayment = "SupplierPayment";
+    public const string Transfer = "Transfer";
+    public const string CreditFacility = "CreditFacility";
+    public const string Manual = "Manual";
+    public const string Opening = "Opening";
+    public const string Other = "Other";
+}
 public sealed record FinancialAccountDetail(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
     bool IsActive, decimal Balance, DateTimeOffset CreatedAt, IReadOnlyList<FinancialAccountTransactionView> Transactions,
-    int TransactionPage = 1, int TransactionPageSize = 50, int TransactionTotalCount = 0);
+    int TransactionPage = 1, int TransactionPageSize = 50, int TransactionTotalCount = 0)
+{
+    /// <summary>Same as <see cref="TransactionTotalCount"/>: the page runtime reads the top-level <c>totalCount</c> (G-F9).</summary>
+    public int TotalCount => TransactionTotalCount;
+    /// <summary>Inflows and outflows of the returned page only (the legacy "Giriş / Çıkış · bu sayfa" boxes).</summary>
+    public decimal PageInflow => Transactions.Where(x => x.Direction == FinancialDirection.Inflow).Sum(x => x.Amount);
+    public decimal PageOutflow => Transactions.Where(x => x.Direction == FinancialDirection.Outflow).Sum(x => x.Amount);
+}
 
 public static class FinancialMovementValidation
 {

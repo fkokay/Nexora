@@ -3,6 +3,8 @@
  * Sayfa hiçbir zaman URL vermez: yol ve yöntem yalnız sunucu kataloğundan gelir; yol parametreleri doğrulanır ve kodlanır.
  */
 // Koleksiyon kuralları (list/map parametreleri) Studio ikizi page-designer/erpOperations.ts ile aynı tutulmalıdır.
+import { appendFixedQuery } from "./fixedQuery";
+
 export type ErpOperationParameterItem = { code: string; label: string; dataType: string; required: boolean };
 /** `items` yalnız `list` parametrelerinde doludur (öğe alanları); diğerlerinde null (eski sunucuda yok). */
 export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean;
@@ -19,6 +21,8 @@ export type ErpOperation = {
     metaPaths?: string[] | null;
   };
   sourceOperation: string | null; fixedBody: Record<string, unknown> | null; since: string; deprecated: boolean; allowed: boolean;
+  /** Katalogun sabit sorgu değerleri; bağlı sorgu parametrelerinden sonra eklenir (eski sunucuda yok: null). */
+  fixedQuery?: Record<string, unknown> | null;
   /** Seçmeli yol parametresi doluyken kullanılan yollar; ilk eşleşen kazanır (eski sunucuda yok: []). */
   routeVariants?: { route: string; when: string }[] | null;
   /** Bildirilmemiş sayfa parametrelerini gövdedeki bir eşlem alanına yazar (özel alan değerleri; eski sunucuda yok: null). */
@@ -107,6 +111,7 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     if (isEmpty(value)) continue;
     query.append(parameter.name, String(value));
   }
+  appendFixedQuery(query, op.fixedQuery);
   const search = query.toString();
   const method = op.method.toUpperCase();
   const request: OperationRequest = { url: search ? `${url}?${search}` : url, method };

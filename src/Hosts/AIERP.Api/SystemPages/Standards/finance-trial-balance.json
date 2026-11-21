@@ -1,0 +1,672 @@
+{
+  "screenKey": "finance-trial-balance",
+  "title": "Mizan",
+  "description": "Dönem, standart (TDHP/IFRS), hesap düzeyi ve kapsamla mizan; genel toplam ve denge durumu sunucudan, muavin TDHP alt hesapta.",
+  "module": "Finans",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:liste",
+        "query:mizan"
+      ]
+    },
+    "component:donemBilgisi": {
+      "since": 1,
+      "label": "Dönem ve standart özeti",
+      "requires": [
+        "component:baslangic",
+        "component:bitis",
+        "query:mizan"
+      ]
+    },
+    "component:parametreler": {
+      "since": 1,
+      "label": "Rapor parametreleri",
+      "requires": [
+        "component:baslangic",
+        "component:bitis",
+        "component:standart",
+        "component:duzey",
+        "component:yalnizHareketli"
+      ]
+    },
+    "component:baslangic": {
+      "since": 1,
+      "label": "Parametre: Başlangıç tarihi"
+    },
+    "component:bitis": {
+      "since": 1,
+      "label": "Parametre: Bitiş tarihi"
+    },
+    "component:standart": {
+      "since": 1,
+      "label": "Parametre: Muhasebe standardı"
+    },
+    "component:duzey": {
+      "since": 1,
+      "label": "Parametre: Hesap düzeyi",
+      "requires": [
+        "component:standart",
+        "query:mizan"
+      ]
+    },
+    "component:yalnizHareketli": {
+      "since": 1,
+      "label": "Parametre: Hesap kapsamı"
+    },
+    "component:buYil": {
+      "since": 1,
+      "label": "Dönem: Bu yıl",
+      "requires": [
+        "component:baslangic",
+        "component:bitis"
+      ]
+    },
+    "component:buAy": {
+      "since": 1,
+      "label": "Dönem: Bu ay",
+      "requires": [
+        "component:baslangic",
+        "component:bitis"
+      ]
+    },
+    "component:tarihUyarisi": {
+      "since": 1,
+      "label": "Tarih aralığı uyarısı",
+      "requires": [
+        "component:baslangic",
+        "component:bitis"
+      ]
+    },
+    "component:donemBorcGostergesi": {
+      "since": 1,
+      "label": "Dönem borç göstergesi",
+      "requires": [
+        "query:mizan"
+      ]
+    },
+    "component:donemAlacakGostergesi": {
+      "since": 1,
+      "label": "Dönem alacak göstergesi",
+      "requires": [
+        "query:mizan"
+      ]
+    },
+    "component:dengedeGostergesi": {
+      "since": 1,
+      "label": "Durum göstergesi: Dengede",
+      "requires": [
+        "query:mizan"
+      ]
+    },
+    "component:dengesizGostergesi": {
+      "since": 1,
+      "label": "Durum göstergesi: Dengede değil",
+      "requires": [
+        "query:mizan"
+      ]
+    },
+    "component:eslemeUyarisi": {
+      "since": 1,
+      "label": "IFRS eşleme uyarısı",
+      "requires": [
+        "query:mizan"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, sınıf)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Mizan tablosu",
+      "requires": [
+        "component:muavinDugmesi",
+        "query:mizan"
+      ]
+    },
+    "component:muavinDugmesi": {
+      "since": 1,
+      "label": "Muavin düğmesi (yalnız TDHP alt hesap)",
+      "requires": [
+        "component:muavinPenceresi",
+        "query:mizan"
+      ]
+    },
+    "component:altBilgi": {
+      "since": 1,
+      "label": "Mizan alt bilgisi",
+      "requires": [
+        "query:muavin"
+      ]
+    },
+    "component:muavinPenceresi": {
+      "since": 1,
+      "label": "Muavin penceresi",
+      "requires": [
+        "component:liste",
+        "component:muavinOzeti",
+        "component:muavinTablosu",
+        "component:muavinNotu"
+      ]
+    },
+    "component:muavinOzeti": {
+      "since": 1,
+      "label": "Muavin özeti",
+      "requires": [
+        "component:baslangic",
+        "component:bitis",
+        "component:liste",
+        "query:muavin"
+      ]
+    },
+    "component:muavinTablosu": {
+      "since": 1,
+      "label": "Muavin tablosu",
+      "requires": [
+        "query:muavin"
+      ]
+    },
+    "component:muavinNotu": {
+      "since": 1,
+      "label": "Muavin notu"
+    },
+    "query:mizan": {
+      "since": 1,
+      "label": "Mizan",
+      "requires": [
+        "component:baslangic",
+        "component:bitis",
+        "component:standart",
+        "component:duzey",
+        "component:yalnizHareketli"
+      ]
+    },
+    "query:muavin": {
+      "since": 1,
+      "label": "Seçili hesabın muavini",
+      "requires": [
+        "component:baslangic",
+        "component:bitis",
+        "component:liste",
+        "component:muavinTablosu"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "exportTable": "liste",
+          "titleCount": "{{mizan.satirSayisi}}",
+          "hiddenCommands": [
+            "new",
+            "open",
+            "save",
+            "delete",
+            "print"
+          ]
+        }
+      },
+      {
+        "id": "donemBilgisi",
+        "type": "text",
+        "name": "donemBilgisi",
+        "props": {
+          "text": "{{baslangic.value}} – {{bitis.value}} · {{mizan.meta.basis}}"
+        }
+      },
+      {
+        "id": "parametreler",
+        "type": "formCard",
+        "name": "parametreler",
+        "props": {
+          "title": "Parametreler",
+          "layout": "inline",
+          "width": 12,
+          "inputs": [
+            "baslangic",
+            "bitis",
+            "standart",
+            "duzey",
+            "yalnizHareketli"
+          ]
+        }
+      },
+      {
+        "id": "baslangic",
+        "type": "input",
+        "name": "baslangic",
+        "props": {
+          "inputType": "date",
+          "label": "Başlangıç",
+          "required": true,
+          "defaultValue": "{{tarih.yilBasi}}"
+        }
+      },
+      {
+        "id": "bitis",
+        "type": "input",
+        "name": "bitis",
+        "props": {
+          "inputType": "date",
+          "label": "Bitiş",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "standart",
+        "type": "input",
+        "name": "standart",
+        "props": {
+          "inputType": "select",
+          "label": "Standart",
+          "required": true,
+          "staticOptions": [
+            "TDHP=TDHP",
+            "IFRS=IFRS"
+          ],
+          "defaultValue": "TDHP"
+        }
+      },
+      {
+        "id": "duzey",
+        "type": "input",
+        "name": "duzey",
+        "props": {
+          "inputType": "select",
+          "label": "Hesap düzeyi",
+          "required": true,
+          "staticOptions": [
+            "sub=Alt hesap",
+            "main=Ana hesap"
+          ],
+          "defaultValue": "sub",
+          "disabledWhen": "standart.value == 'IFRS'",
+          "disabledReason": "IFRS mizanında satırlar IFRS koduna göre birleşir; düzey seçilmez."
+        }
+      },
+      {
+        "id": "yalnizHareketli",
+        "type": "input",
+        "name": "yalnizHareketli",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Yalnız hareketli hesaplar",
+          "defaultValue": "true"
+        }
+      },
+      {
+        "id": "buYil",
+        "type": "button",
+        "name": "buYil",
+        "props": {
+          "text": "Bu yıl",
+          "actionType": "setInput",
+          "width": 2,
+          "assignments": [
+            "baslangic={{tarih.yilBasi}}",
+            "bitis={{bugun}}"
+          ]
+        }
+      },
+      {
+        "id": "buAy",
+        "type": "button",
+        "name": "buAy",
+        "props": {
+          "text": "Bu ay",
+          "actionType": "setInput",
+          "width": 2,
+          "assignments": [
+            "baslangic={{tarih.ayBasi}}",
+            "bitis={{bugun}}"
+          ]
+        }
+      },
+      {
+        "id": "tarihUyarisi",
+        "type": "alert",
+        "name": "tarihUyarisi",
+        "props": {
+          "title": "Tarih aralığı geçersiz",
+          "variant": "danger",
+          "width": 12,
+          "text": "Bitiş tarihi başlangıç tarihinden önce olamaz.",
+          "visibleWhen": "bitis.value < baslangic.value"
+        }
+      },
+      {
+        "id": "donemBorcGostergesi",
+        "type": "metric",
+        "name": "donemBorcGostergesi",
+        "props": {
+          "title": "Dönem borç",
+          "value": "{{mizan.meta.totalDebit}}",
+          "format": "money",
+          "width": 4,
+          "icon": "trending-up",
+          "description": "genel toplam"
+        }
+      },
+      {
+        "id": "donemAlacakGostergesi",
+        "type": "metric",
+        "name": "donemAlacakGostergesi",
+        "props": {
+          "title": "Dönem alacak",
+          "value": "{{mizan.meta.totalCredit}}",
+          "format": "money",
+          "width": 4,
+          "icon": "trending-down",
+          "description": "genel toplam"
+        }
+      },
+      {
+        "id": "dengedeGostergesi",
+        "type": "metric",
+        "name": "dengedeGostergesi",
+        "props": {
+          "title": "Durum",
+          "value": "Mizan dengede",
+          "format": "text",
+          "width": 4,
+          "icon": "check",
+          "variant": "success",
+          "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
+          "visibleWhen": "mizan.meta.isBalanced == true"
+        }
+      },
+      {
+        "id": "dengesizGostergesi",
+        "type": "metric",
+        "name": "dengesizGostergesi",
+        "props": {
+          "title": "Durum",
+          "value": "Dengede değil",
+          "format": "text",
+          "width": 4,
+          "icon": "alert",
+          "variant": "danger",
+          "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
+          "visibleWhen": "mizan.meta.isBalanced == false"
+        }
+      },
+      {
+        "id": "eslemeUyarisi",
+        "type": "alert",
+        "name": "eslemeUyarisi",
+        "props": {
+          "title": "IFRS eşlemesi eksik",
+          "variant": "warning",
+          "width": 12,
+          "text": "{{mizan.meta.unmappedAccountCount}} hareketli hesapta IFRS eşlemesi eksik. Profil tamamlanmadan rapor eksiksiz değildir.",
+          "visibleWhen": "mizan.meta.isComplete == false"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "width": 12,
+          "search": true,
+          "searchPlaceholder": "Kod veya hesap ara",
+          "searchColumns": [
+            "code",
+            "name"
+          ],
+          "filters": [
+            "accountClass|select|row||Sınıf"
+          ]
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Mizan",
+          "query": "mizan",
+          "width": 12,
+          "columns": [
+            "code",
+            "name",
+            "openingDebit",
+            "openingCredit",
+            "debit",
+            "credit",
+            "balanceDebit",
+            "balanceCredit"
+          ],
+          "columnLabels": [
+            "code=Hesap",
+            "name=Hesap adı",
+            "openingDebit=Açılış B",
+            "openingCredit=Açılış A",
+            "debit=Dönem B",
+            "credit=Dönem A",
+            "balanceDebit=Bakiye B",
+            "balanceCredit=Bakiye A",
+            "accountClass=Sınıf",
+            "statementSection=Tablo sınıfı"
+          ],
+          "columnFormats": [
+            "code=code",
+            "openingDebit=money",
+            "openingCredit=money",
+            "debit=money",
+            "credit=money",
+            "balanceDebit=money",
+            "balanceCredit=money"
+          ],
+          "totals": [
+            "openingDebit",
+            "openingCredit",
+            "debit",
+            "credit",
+            "balanceDebit",
+            "balanceCredit"
+          ],
+          "rowActions": [
+            "muavinDugmesi"
+          ],
+          "rowOpenAction": "muavinDugmesi",
+          "emptyText": "Seçilen dönemde mizan satırı yok."
+        }
+      },
+      {
+        "id": "muavinDugmesi",
+        "type": "button",
+        "name": "muavinDugmesi",
+        "props": {
+          "text": "Muavin",
+          "actionType": "openDialog",
+          "dialogId": "muavinPenceresi",
+          "visibleWhen": "mizan.meta.basis == 'TDHP' && mizan.meta.level == 'sub'"
+        }
+      },
+      {
+        "id": "altBilgi",
+        "type": "text",
+        "name": "altBilgi",
+        "props": {
+          "text": "Genel toplam süzgeçten bağımsızdır. Satıra tıklayınca muavin açılır (yalnız TDHP, alt hesap düzeyinde). Sınıf ara toplamları bu sürümde yok."
+        }
+      },
+      {
+        "id": "muavinPenceresi",
+        "type": "dialog",
+        "name": "muavinPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "xl",
+          "title": "Muavin · {{liste.seciliSatir.code}} {{liste.seciliSatir.name}}",
+          "contains": [
+            "muavinOzeti",
+            "muavinTablosu",
+            "muavinNotu"
+          ]
+        }
+      },
+      {
+        "id": "muavinOzeti",
+        "type": "recordHeader",
+        "name": "muavinOzeti",
+        "props": {
+          "title": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}",
+          "subtitle": "{{baslangic.value}} – {{bitis.value}}",
+          "fields": [
+            "Açılış borç={{muavin.meta.openingBalanceDebit}}",
+            "Açılış alacak={{muavin.meta.openingBalanceCredit}}",
+            "Dönem borç={{muavin.meta.totalDebit}}",
+            "Dönem alacak={{muavin.meta.totalCredit}}",
+            "Kapanış borç={{muavin.meta.closingBalanceDebit}}",
+            "Kapanış alacak={{muavin.meta.closingBalanceCredit}}"
+          ],
+          "fieldFormats": [
+            "Açılış borç=money",
+            "Açılış alacak=money",
+            "Dönem borç=money",
+            "Dönem alacak=money",
+            "Kapanış borç=money",
+            "Kapanış alacak=money"
+          ]
+        }
+      },
+      {
+        "id": "muavinTablosu",
+        "type": "dataTable",
+        "name": "muavinTablosu",
+        "props": {
+          "title": "Hesap hareketleri",
+          "query": "muavin",
+          "paging": "server",
+          "pageSize": 50,
+          "width": 12,
+          "columns": [
+            "entryDate",
+            "journalEntryCode",
+            "lineDescription",
+            "debit",
+            "credit"
+          ],
+          "columnLabels": [
+            "entryDate=Tarih",
+            "journalEntryCode=Fiş",
+            "lineDescription=Açıklama",
+            "debit=Borç",
+            "credit=Alacak",
+            "journalDescription=Fiş açıklaması",
+            "sourceType=Kaynak"
+          ],
+          "columnFormats": [
+            "entryDate=date",
+            "journalEntryCode=code",
+            "debit=money",
+            "credit=money"
+          ],
+          "emptyText": "Bu dönemde hesap hareketi yok.",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false
+        }
+      },
+      {
+        "id": "muavinNotu",
+        "type": "text",
+        "name": "muavinNotu",
+        "props": {
+          "text": "Muavin bütün standartların fiş satırlarını listeler. Yürüyen bakiye bu sürümde gösterilmez."
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "mizan",
+        "name": "mizan",
+        "kind": "read",
+        "operation": "finans.mizan",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "from",
+            "binding": "{{baslangic.value}}",
+            "type": "date"
+          },
+          {
+            "name": "to",
+            "binding": "{{bitis.value}}",
+            "type": "date"
+          },
+          {
+            "name": "basis",
+            "binding": "{{standart.value}}",
+            "type": "text"
+          },
+          {
+            "name": "level",
+            "binding": "{{duzey.value}}",
+            "type": "text"
+          },
+          {
+            "name": "movedOnly",
+            "binding": "{{yalnizHareketli.value}}",
+            "type": "bool"
+          }
+        ]
+      },
+      {
+        "id": "muavin",
+        "name": "muavin",
+        "kind": "read",
+        "operation": "finans.muhasebe.muavin",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "accountId",
+            "binding": "{{liste.seciliSatir.accountId}}",
+            "type": "guid"
+          },
+          {
+            "name": "from",
+            "binding": "{{baslangic.value}}",
+            "type": "date"
+          },
+          {
+            "name": "to",
+            "binding": "{{bitis.value}}",
+            "type": "date"
+          },
+          {
+            "name": "page",
+            "binding": "{{muavinTablosu.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{muavinTablosu.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      }
+    ]
+  }
+}

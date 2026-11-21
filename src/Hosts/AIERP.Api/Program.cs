@@ -273,6 +273,7 @@ app.MapTenantBudgetEndpoints();
 app.MapTenantCashForecastEndpoints();
 app.MapDirectCashBudgetEndpoints();
 app.MapFinanceCreditFacilityEndpoints();
+app.MapFinanceSystemPageEndpoints();
 app.MapTenantLicenseEndpoints();
 app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
@@ -8139,7 +8140,13 @@ generalLedger.MapGet("/entries", async (DateOnly? from, DateOnly? to, string? ac
     var entries = await query.OrderByDescending(x => x.EntryDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new { x.Id, x.Code, x.EntryDate, x.Description, x.SourceType, x.SourceId, x.CreatedAt, x.AccountingBasis,
             TotalDebit = x.Lines.Sum(l => l.Debit), TotalCredit = x.Lines.Sum(l => l.Credit) }).ToListAsync();
-    return Results.Ok(new { items = entries, page, pageSize, total });
+    // One lookup for the page: which of its entries a ManualReversal entry already reverses (canReverse, "Ters kaydı var").
+    var pageEntryIds = entries.Select(x => x.Id).ToArray();
+    var reversedIds = (await db.JournalEntries.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.SourceType == JournalReversalRules.ReversalSourceType && pageEntryIds.Contains(x.SourceId))
+        .Select(x => x.SourceId).ToListAsync()).ToHashSet();
+    return Results.Ok(new JournalEntryPage(entries.Select(x => new JournalEntryListItem(x.Id, x.Code, x.EntryDate, x.Description, x.SourceType,
+        x.SourceId, x.CreatedAt, x.AccountingBasis, x.TotalDebit, x.TotalCredit, reversedIds.Contains(x.Id))).ToList(), page, pageSize, total));
 });
 generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -8153,7 +8160,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     if (request.Lines.Any(line => line.AccountId == Guid.Empty || line.Debit < 0 || line.Credit < 0
         || line.Debit > maxJournalLineAmount || line.Credit > maxJournalLineAmount
         || (line.Debit > 0) == (line.Credit > 0) || decimal.Round(line.Debit, 2) != line.Debit || decimal.Round(line.Credit, 2) != line.Credit
-        || string.IsNullOrWhiteSpace(line.Description) || line.Description.Trim().Length > 240))
+        || LedgerAccountApiSupport.ManualJournalLineDescription(line, description).Length > 240))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Her satırda tenant hesabı, açıklama ve yalnız bir tarafta sıfırdan büyük iki ondalıklı tutar bulunmalıdır."] });
     var debitTotal = request.Lines.Sum(line => line.Debit);
     var creditTotal = request.Lines.Sum(line => line.Credit);
@@ -8174,7 +8181,7 @@ generalLedger.MapPost("/entries/manual", async (ManualJournalEntryWriteRequest r
     {
         var line = request.Lines[i];
         entry.Lines.Add(new JournalEntryLine { TenantId = tenantId, JournalEntryId = entry.Id, AccountId = line.AccountId,
-            LineNumber = i + 1, Description = line.Description.Trim(), Debit = line.Debit, Credit = line.Credit });
+            LineNumber = i + 1, Description = LedgerAccountApiSupport.ManualJournalLineDescription(line, description), Debit = line.Debit, Credit = line.Credit });
     }
     db.JournalEntries.Add(entry);
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "finance.general-ledger.manual-entry-created", Resource = entry.Code });
@@ -8196,7 +8203,7 @@ generalLedger.MapPost("/entries/{id:guid}/reverse", async (Guid id, ManualJourna
         return Results.Conflict(new { error = $"{closed.FromDate:yyyy-MM-dd}–{closed.ToDate:yyyy-MM-dd} dönemi kapalı; bu tarihe ters kayıt eklenemez." });
     var original = await db.JournalEntries.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (original is null) return Results.NotFound();
-    if (original.SourceType is not ("Manual" or "SalesInvoice" or "PurchaseInvoice" or "StandaloneInvoiceDraft" or "PurchaseReceipt" or "SalesDelivery" or "SalesReturn" or "SupplierReturn" or "CustomerCollection" or "SupplierPayment" or "FxRevaluation" or "InventoryCostAdjustment"))
+    if (!JournalReversalRules.IsReversible(original.SourceType))
         return Results.Conflict(new { error = "Bu kaynak türü ters kayıtla kapatılamaz." });
     if (await db.JournalEntries.AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == original.Id))
         return Results.Conflict(new { error = "Bu fiş daha önce ters çevrilmiştir." });
@@ -8230,9 +8237,14 @@ generalLedger.MapGet("/entries/{id:guid}", async (Guid id, ClaimsPrincipal princ
     var accounts = await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && entry.Lines.Select(l => l.AccountId).Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     var lines = entry.Lines.OrderBy(x => x.LineNumber).Select(x => new JournalEntryLineView(x.LineNumber, x.AccountId,
         accounts[x.AccountId].Code, accounts[x.AccountId].Name, x.Description, x.Debit, x.Credit)).ToList();
-    var isReversed = await db.JournalEntries.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.SourceType == "ManualReversal" && x.SourceId == entry.Id);
+    var reversedBy = await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.SourceType == JournalReversalRules.ReversalSourceType && x.SourceId == entry.Id)
+        .Select(x => new { x.Id, x.Code }).FirstOrDefaultAsync();
+    var reversalOfCode = entry.SourceType == JournalReversalRules.ReversalSourceType
+        ? await db.JournalEntries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == entry.SourceId).Select(x => x.Code).FirstOrDefaultAsync()
+        : null;
     return Results.Ok(new JournalEntryView(entry.Id, entry.Code, entry.EntryDate, entry.Description, entry.SourceType,
-        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, isReversed, entry.AccountingBasis));
+        entry.SourceId, entry.CreatedAt, lines.Sum(x => x.Debit), lines.Sum(x => x.Credit), lines, reversedBy is not null, entry.AccountingBasis)
+        { ReversedByEntryId = reversedBy?.Id, ReversedByEntryCode = reversedBy?.Code, ReversalOfEntryCode = reversalOfCode });
 });
 generalLedger.MapGeneralLedgerTransferEndpoints();
 app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -8286,10 +8298,12 @@ app.MapGet("/api/finance/maturities", async (DateOnly? asOfDate, ClaimsPrincipal
     }).OrderBy(x => x.direction).ThenBy(x => x.currencyCode).ToList();
     return Results.Ok(new { asOfDate = asOf, summaries, items = rows });
 }).RequireAuthorization();
-financeAccounts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db) =>
+financeAccounts.MapGet("/", async (string? type, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var accounts = await db.FinancialAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
+    if (!FinanceSystemPageEndpoints.TryParseAccountType(type, out var accountType))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["type"] = [FinanceSystemPageEndpoints.AccountTypeError] });
+    var accounts = await db.FinancialAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && (accountType == null || x.Type == accountType))
         .OrderBy(x => x.Type).ThenBy(x => x.Code)
         .Select(x => new FinancialAccountSummary(x.Id, x.Code, x.Name, x.Type, x.CurrencyCode, x.IsActive,
             x.Transactions.Sum(t => (decimal?)(t.Direction == FinancialDirection.Inflow ? t.Amount : -t.Amount)) ?? 0m,
@@ -8380,9 +8394,23 @@ financeAccounts.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
     var transactionIds = rows.Select(x => x.Id).ToArray();
     var creditMovementTransactionIds = await db.CreditFacilityMovements.AsNoTracking().Where(x => x.TenantId == tenantId && transactionIds.Contains(x.FinancialAccountTransactionId))
         .Select(x => x.FinancialAccountTransactionId).ToListAsync();
+    var reversedTransactionIds = (await db.FinancialAccountTransactions.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.ReversalOfId != null && transactionIds.Contains(x.ReversalOfId.Value))
+        .Select(x => x.ReversalOfId!.Value).ToListAsync()).ToHashSet();
     var transactions = rows.Select(x => new FinancialAccountTransactionView(x.Id, x.TransactionDate, x.Direction, x.Amount,
         x.CurrencyCode, x.Description, x.Reference, x.ReversalOfId is not null ? "Ters kayıt" : x.CustomerCollectionId is not null ? "Tahsilat" : x.SupplierPaymentId is not null ? "Tedarikçi ödemesi" : x.TransferId is not null ? "Hesap transferi" : creditMovementTransactionIds.Contains(x.Id) ? "Kredi / finansman" : x.RequestId is not null ? "Manuel hareket" : x.Description == "Açılış bakiyesi" ? "Açılış bakiyesi" : null,
-        x.CustomerCollection?.Code ?? x.SupplierPayment?.Code ?? x.Transfer?.Code, x.ReversalOfId, x.CreatedAt, x.TransferId, x.CashFlowCategory)).ToList();
+        x.CustomerCollection?.Code ?? x.SupplierPayment?.Code ?? x.Transfer?.Code, x.ReversalOfId, x.CreatedAt, x.TransferId, x.CashFlowCategory)
+        {
+            // Same precedence as the SourceType text above.
+            SourceKind = x.ReversalOfId is not null ? FinancialTransactionSourceKinds.Reversal
+                : x.CustomerCollectionId is not null ? FinancialTransactionSourceKinds.CustomerCollection
+                : x.SupplierPaymentId is not null ? FinancialTransactionSourceKinds.SupplierPayment
+                : x.TransferId is not null ? FinancialTransactionSourceKinds.Transfer
+                : creditMovementTransactionIds.Contains(x.Id) ? FinancialTransactionSourceKinds.CreditFacility
+                : x.RequestId is not null ? FinancialTransactionSourceKinds.Manual
+                : x.Description == "Açılış bakiyesi" ? FinancialTransactionSourceKinds.Opening : FinancialTransactionSourceKinds.Other,
+            IsReversed = reversedTransactionIds.Contains(x.Id)
+        }).ToList();
     return Results.Ok(new FinancialAccountDetail(account.Id, account.Code, account.Name, account.Type, account.CurrencyCode,
         account.IsActive, balance, account.CreatedAt, transactions, page, pageSize, totalCount));
 });
@@ -8418,7 +8446,8 @@ financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccount
         if (prior.FinancialAccountId != id || prior.TransactionDate != request.TransactionDate || prior.Direction != request.Direction || prior.Amount != request.Amount || prior.Description != description || prior.Reference != reference || prior.CashFlowCategory != request.CashFlowCategory)
             return Results.Conflict(new { error = "Bu tekrar gönderim anahtarı farklı bir finans hareketinde kullanıldı." });
         return Results.Ok(new FinancialAccountTransactionView(prior.Id, prior.TransactionDate, prior.Direction, prior.Amount,
-            prior.CurrencyCode, prior.Description, prior.Reference, "Manuel hareket", null, prior.ReversalOfId, prior.CreatedAt, null, prior.CashFlowCategory));
+            prior.CurrencyCode, prior.Description, prior.Reference, "Manuel hareket", null, prior.ReversalOfId, prior.CreatedAt, null, prior.CashFlowCategory)
+            { SourceKind = FinancialTransactionSourceKinds.Manual });
     }
     await using var transaction = await db.Database.BeginTransactionAsync();
     if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
@@ -8444,7 +8473,7 @@ financeAccounts.MapPost("/{id:guid}/movements", async (Guid id, FinancialAccount
     await transaction.CommitAsync();
     return Results.Created($"/api/finance/accounts/{id}/transactions/{movement.Id}", new FinancialAccountTransactionView(movement.Id,
         movement.TransactionDate, movement.Direction, movement.Amount, movement.CurrencyCode, movement.Description, movement.Reference,
-        "Manuel hareket", null, null, movement.CreatedAt, null, movement.CashFlowCategory));
+        "Manuel hareket", null, null, movement.CreatedAt, null, movement.CashFlowCategory) { SourceKind = FinancialTransactionSourceKinds.Manual });
 });
 financeAccounts.MapPost("/{id:guid}/transactions/{transactionId:guid}/void", async (Guid id, Guid transactionId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -8571,7 +8600,7 @@ financialTransfers.MapPost("/", async (FinancialAccountTransferWriteRequest requ
         transfer.Amount, transfer.Reference, transfer.Description, transfer.Status, transfer.CreatedAt,
         transfer.ToCurrencyCode, transfer.DestinationAmount, transfer.ExchangeRate));
 });
-financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+financialTransfers.MapPost("/{transferId:guid}/void", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -8580,7 +8609,7 @@ financialTransfers.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal pr
     var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "hesap transferi ters kaydı") is { } transferReversalConflict)
         return transferReversalConflict;
-    var transfer = await db.FinancialAccountTransfers.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccountTransfers] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    var transfer = await db.FinancialAccountTransfers.FromSqlInterpolated($"SELECT * FROM [dbo].[FinancialAccountTransfers] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {transferId}").SingleOrDefaultAsync();
     if (transfer is null) return Results.NotFound();
     if (transfer.Status != FinancialTransferStatus.Posted) return Results.Conflict(new { error = "Transfer daha önce iptal edilmiş." });
     var accounts = new Dictionary<Guid, FinancialAccount>();
@@ -9251,6 +9280,10 @@ internal static class TokenIssuer
 }
 internal static class LedgerAccountApiSupport
 {
+/// <summary>G-F5: a manual journal line without its own description takes the entry description (as the legacy form did).</summary>
+public static string ManualJournalLineDescription(ManualJournalLineWriteRequest line, string entryDescription) =>
+    string.IsNullOrWhiteSpace(line.Description) ? entryDescription : line.Description.Trim();
+
 public static bool TryLedgerClassification(LedgerAccountWriteRequest request, out LedgerAccountType accountType,
     out LedgerNormalBalance normalBalance, out LedgerAccountStatementSection ifrsSection,
     out Dictionary<string, string[]>? errors)

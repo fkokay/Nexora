@@ -36,6 +36,7 @@ import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
+import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, validateGrid, wireRow, MATRIX_MAX_ROWS,
@@ -213,6 +214,8 @@ type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
   dispatch: (action: GridAction) => void; errors: Record<string, Record<string, string>>; maxRows: number; loading: boolean; error?: string;
   matrixPreviewCount?: number;
+  /** Sütun toplamları (`totals`; yoksa boş). */
+  totals: Record<string, number>;
   pickerFor: (column: GridColumn, draft: GridDraft) => GridPicker;
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
 };
@@ -1205,6 +1208,8 @@ type GridSpec = {
   minRows?: number;
   /** Seçim sütunlarının sabit ilk seçenekleri (`columnStaticOptions`, "değer=Etiket") ve seçenek koşulları (`columnOptionsWhen`). */
   staticOptions: Record<string, string[]>; optionsWhen: Record<string, string>;
+  /** Toplamı alınan `number` sütunları (`totals`). */
+  totals: string[];
 };
 /**
  * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), en az satır, satır anahtarı, kaynak
@@ -1214,12 +1219,14 @@ const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   const props = grid.props ?? {};
   const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
   const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 200 ? props.maxRows : 50;
+  const columns = mode === "matrix" ? [] : parseGridColumns(props.gridColumns);
   return {
-    name: grid.name ?? "", mode, columns: mode === "matrix" ? [] : parseGridColumns(props.gridColumns), maxRows,
+    name: grid.name ?? "", mode, columns, maxRows,
     rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
     ...(typeof props.minRows === "number" && Number.isInteger(props.minRows) && props.minRows >= 0 && props.minRows <= 100 ? { minRows: props.minRows } : {}),
     staticOptions: parseColumnEntries(props.columnStaticOptions),
     optionsWhen: Object.fromEntries(Object.entries(parseColumnEntries(props.columnOptionsWhen)).map(([code, conditions]) => [code, conditions[conditions.length - 1]])),
+    totals: parseGridTotals(props.totals, columns, mode),
   };
 };
 /** Satır kapsamlı okuma: bir parametresi `{{<tablo>.satir.<sütun>}}` bağlıyorsa o tablonun adı (yoksa null). */
@@ -1849,7 +1856,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const spec = gridSpecOf(grid);
       const matrix = spec.mode === "matrix"
         ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
-      scope[spec.name] = { ...gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix), arama: gridSearchText(spec) };
+      const view = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
+      scope[spec.name] = { ...view, arama: gridSearchText(spec), ...(spec.totals.length > 0 ? { toplam: gridColumnTotals(spec.totals, view.satirlar) } : {}) };
     }
     for (const block of blockComponents) {
       const data = blockData(block, states);
@@ -2827,6 +2835,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
       loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
+      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, state, sourceRows, spec.rowKey).satirlar) : {},
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */

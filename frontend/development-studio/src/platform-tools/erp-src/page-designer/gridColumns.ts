@@ -173,3 +173,18 @@ export function renamedColumnEntries(props: Record<string, unknown>, from: strin
   }
   return patch;
 }
+
+/** Düzenlenebilir tablonun alt toplam sütunları (`totals`): yalnız tablonun sayı sütunlarının kodları, sırasıyla (varyant kipinde yok). */
+export function gridTotalCodes(props: Record<string, unknown>): string[] {
+  if (props.gridMode === "matrix" || !Array.isArray(props.totals)) return [];
+  const numbers = new Set(parseGridColumns(props.gridColumns).filter((column) => column.inputType === "number").map((column) => column.code));
+  return props.totals.filter((code, index, list): code is string => typeof code === "string" && numbers.has(code) && list.indexOf(code) === index);
+}
+
+/** Sütun yeniden adlanınca ya da sayı sütunu olmaktan çıkınca (`next` null) `totals` girdisini taşır / kaldırır; değişiklik yoksa boş yama. */
+export function renamedTotals(props: Record<string, unknown>, from: string, next: string | null): { totals?: string[] | undefined } {
+  const list = Array.isArray(props.totals) ? props.totals.filter((item): item is string => typeof item === "string") : [];
+  if (!list.includes(from) || from === next) return {};
+  const mapped = list.flatMap((item) => item !== from ? [item] : next === null ? [] : [next]);
+  return { totals: mapped.length > 0 ? mapped : undefined };
+}

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AIERP.Platform.Application;
 using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -7,11 +8,17 @@ public static class TrialBalanceEndpoints
 {
     public static RouteGroupBuilder MapTrialBalanceEndpoint(this RouteGroupBuilder group)
     {
-        group.MapGet("/trial-balance", async (DateOnly? from, DateOnly? to, string? basis, ClaimsPrincipal principal, TenantDbContext db) =>
+        // level (sub | main) and movedOnly are optional: without them the response is the same flat sub-account list as before.
+        group.MapGet("/trial-balance", async (DateOnly? from, DateOnly? to, string? basis, string? level, bool? movedOnly, ClaimsPrincipal principal, TenantDbContext db) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
             var reportBasis = NormalizeBasis(basis);
             if (reportBasis is null) return Results.ValidationProblem(new Dictionary<string, string[]> { ["basis"] = ["Rapor standardı TDHP, IFRS veya UFRS olmalıdır."] });
+            var reportLevel = string.IsNullOrWhiteSpace(level) ? "sub" : level.Trim().ToLowerInvariant();
+            if (reportLevel is not ("sub" or "main"))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["level"] = ["Hesap düzeyi sub (alt hesap) veya main (ana hesap) olmalıdır."] });
+            // Main accounts are a TDHP view: IFRS rows are already grouped by their IFRS code.
+            if (reportBasis != "TDHP") reportLevel = "sub";
             if (from.HasValue && to.HasValue && from.Value > to.Value)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["dateRange"] = ["Başlangıç tarihi bitiş tarihinden sonra olamaz."] });
 
@@ -55,15 +62,35 @@ public static class TrialBalanceEndpoints
                 : localRows.Where(x => x.IfrsAccountCode is not null).GroupBy(x => new { x.IfrsAccountCode, x.IfrsAccountName, x.IfrsSection })
                     .Select(g => new { accountId = $"IFRS:{g.Key.IfrsAccountCode}", Code = g.Key.IfrsAccountCode!, Name = g.Key.IfrsAccountName!, IsActive = g.All(x => x.IsActive), statementSection = (string?)g.Key.IfrsSection,
                         openingDebit = g.Sum(x => x.openingDebit), openingCredit = g.Sum(x => x.openingCredit), debit = g.Sum(x => x.debit), credit = g.Sum(x => x.credit), balanceDebit = g.Sum(x => x.balanceDebit), balanceCredit = g.Sum(x => x.balanceCredit) }).ToList();
+            // Ana hesap: alt hesaplar kodun ilk 3 hanesinde toplanır, bakiye ana hesap başına netlenir (eski ekranın aggregateMainAccounts'u).
+            if (reportLevel == "main")
+                rows = rows.GroupBy(x => LedgerAccountRules.MainAccountCode(x.Code)).Select(g =>
+                {
+                    var own = g.FirstOrDefault(x => x.Code.Trim() == g.Key) ?? g.First();
+                    var openingDebit = g.Sum(x => x.openingDebit);
+                    var openingCredit = g.Sum(x => x.openingCredit);
+                    var debit = g.Sum(x => x.debit);
+                    var credit = g.Sum(x => x.credit);
+                    var net = openingDebit - openingCredit + debit - credit;
+                    return new { accountId = $"MAIN:{g.Key}", Code = g.Key, own.Name, IsActive = g.Any(x => x.IsActive), own.statementSection,
+                        openingDebit, openingCredit, debit, credit, balanceDebit = Math.Max(0m, net), balanceCredit = Math.Max(0m, -net) };
+                }).OrderBy(x => x.Code, StringComparer.Ordinal).ToList();
+            // Totals are over every row of the level; movedOnly only hides rows, as the legacy screen's scope does.
             var totalOpeningDebit = rows.Sum(x => x.openingDebit);
             var totalOpeningCredit = rows.Sum(x => x.openingCredit);
             var totalDebit = rows.Sum(x => x.debit);
             var totalCredit = rows.Sum(x => x.credit);
             var totalBalanceDebit = rows.Sum(x => x.balanceDebit);
             var totalBalanceCredit = rows.Sum(x => x.balanceCredit);
-            return Results.Ok(new { from = startDate, to = endDate, basis = reportBasis, accounts = rows, totalOpeningDebit, totalOpeningCredit, totalDebit, totalCredit,
+            var moved = rows.Where(x => x.openingDebit + x.openingCredit + x.debit + x.credit != 0m).ToList();
+            var shown = movedOnly == true ? moved : rows;
+            return Results.Ok(new { from = startDate, to = endDate, basis = reportBasis, level = reportLevel, movedOnly = movedOnly == true,
+                accounts = shown.Select(x => new { x.accountId, x.Code, x.Name, x.IsActive, x.statementSection, x.openingDebit, x.openingCredit, x.debit, x.credit,
+                    x.balanceDebit, x.balanceCredit, accountClass = LedgerAccountRules.AccountClass(x.Code) }).ToList(),
+                totalOpeningDebit, totalOpeningCredit, totalDebit, totalCredit,
                 totalBalanceDebit, totalBalanceCredit, unmappedAccountCount = unmappedAccounts.Length, unmappedAccounts,
-                isComplete = unmappedAccounts.Length == 0, isBalanced = unmappedAccounts.Length == 0 && totalDebit == totalCredit && totalBalanceDebit == totalBalanceCredit });
+                isComplete = unmappedAccounts.Length == 0, isBalanced = unmappedAccounts.Length == 0 && totalDebit == totalCredit && totalBalanceDebit == totalBalanceCredit,
+                accountCount = rows.Count, movedAccountCount = moved.Count });
         });
         return group;
     }

@@ -40,6 +40,11 @@ internal sealed record ErpOperation(string Name, string Label, string Module, st
     /// <summary>Alternative routes; the runtime uses the first whose <c>When</c> parameter is set, else <see cref="Route"/>.</summary>
     public IReadOnlyList<ErpOperationRouteVariant> RouteVariants { get; init; } = [];
     public ErpOperationBodyMap? BodyMap { get; init; }
+    /// <summary>
+    /// Query string values the runtime always appends (e.g. <c>isActive=false</c> of a status route); a page cannot bind
+    /// them, and the keys never collide with a parameter (wire: <c>fixedQuery</c>).
+    /// </summary>
+    public IReadOnlyDictionary<string, object?>? FixedQuery { get; init; }
 }
 
 /// <summary>Resolves an operation by name; <see cref="ErpOperationCatalog.TryGet"/> in production.</summary>
@@ -49,7 +54,10 @@ internal delegate bool ErpOperationLookup(string name, out ErpOperation operatio
 internal sealed record ErpOperationView(string Name, string Label, string Module, string Kind, string PageKind, string Method, string Route,
     IReadOnlyList<ErpOperationParameter> Parameters, ErpOperationResult Result, string? SourceOperation,
     IReadOnlyDictionary<string, object?>? FixedBody, string Since, bool Deprecated, bool Allowed,
-    IReadOnlyList<ErpOperationRouteVariant> RouteVariants, ErpOperationBodyMap? BodyMap);
+    IReadOnlyList<ErpOperationRouteVariant> RouteVariants, ErpOperationBodyMap? BodyMap,
+    // Left out of the wire when null, so the recorded operation fixtures of the pages that do not use it stay unchanged.
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyDictionary<string, object?>? FixedQuery);
 
 /// <summary>
 /// Named ERP operations that custom pages may bind to instead of SQL. Each entry describes an existing API endpoint; the
@@ -67,11 +75,13 @@ internal static partial class ErpOperationCatalog
     private const string SettingsModule = "Ayarlar";
     private const string PurchasingModule = "Satınalma";
     private const string CustomerModule = "Cari";
+    private const string FinanceModule = "Finans";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
-    // Module label blocks (e.g. SalesLabels in ErpOperationCatalog.Sales.cs) are merged in; a duplicate code fails startup.
-    private static readonly IReadOnlyDictionary<string, string> Labels = MergeLabels(new Dictionary<string, string>(StringComparer.Ordinal)
+    // Shared labels. A module's own codes live in its label block (CrmLabels, PurchasingLabel, SalesLabelMap, FinanceLabels)
+    // and apply to that module's operations only (see InModule), so two modules may label the same code differently.
+    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["id"] = "Kimlik", ["code"] = "Kod", ["name"] = "Ad", ["barcode"] = "Barkod", ["unitCode"] = "Birim",
         ["category"] = "Kategori", ["minimumStock"] = "Minimum stok", ["isActive"] = "Etkin", ["createdAt"] = "Oluşturulma",
@@ -139,22 +149,57 @@ internal static partial class ErpOperationCatalog
         ["foreignCurrencyCode"] = "Satır dövizi",
         ["totalCount"] = "Cari kartı", ["activeCount"] = "Aktif", ["inactiveCount"] = "Pasif", ["customerCount"] = "Müşteri",
         ["supplierCount"] = "Tedarikçi", ["bothCount"] = "Müşteri ve tedarikçi", ["dealerCount"] = "Bayi", ["employeeCount"] = "Personel",
-        ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı",
-        // CRM Fırsatları ve fırsat kartı (customerId, customerName ve notes Satış etiketleriyle ortaktır: SalesLabels).
-        ["stage"] = "Aşama", ["estimatedValue"] = "Tahmini değer",
+        ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı"
+    };
+
+    /// <summary>CRM Fırsatları ve fırsat kartı.</summary>
+    private static readonly IReadOnlyDictionary<string, string> CrmLabels = ModuleLabels("CRM", new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["customerId"] = "Müşteri kimliği", ["customerName"] = "Müşteri", ["stage"] = "Aşama", ["estimatedValue"] = "Tahmini değer",
         ["probabilityPercent"] = "Kazanma olasılığı %", ["expectedCloseDate"] = "Beklenen kapanış", ["nextActivityAt"] = "Sonraki takip",
-        ["prospectingCount"] = "İlk temas", ["qualifiedCount"] = "Nitelikli", ["proposalCount"] = "Teklif",
+        ["notes"] = "Not", ["prospectingCount"] = "İlk temas", ["qualifiedCount"] = "Nitelikli", ["proposalCount"] = "Teklif",
         ["negotiationCount"] = "Müzakere", ["wonCount"] = "Kazanıldı", ["lostCount"] = "Kaybedildi", ["openCount"] = "Açık fırsat",
         ["overdueCount"] = "Takibi geçmiş", ["openValueAmount"] = "Açık fırsat değeri", ["openValueCurrencyCode"] = "Açık değer dövizi",
         ["otherCurrencyCount"] = "Diğer döviz sayısı"
-    }, SalesLabels());
+    });
 
-    private static Dictionary<string, string> MergeLabels(Dictionary<string, string> labels, params IEnumerable<KeyValuePair<string, string>>[] blocks)
+    /// <summary>Finans: Kasalar / Bankalar, Mizan, Hesap Planı ve Yevmiye.</summary>
+    private static readonly IReadOnlyDictionary<string, string> FinanceLabels = ModuleLabels("Finans", new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        foreach (var block in blocks)
-            foreach (var (code, label) in block)
-                if (!labels.TryAdd(code, label))
-                    throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' etiketi birden fazla kez tanımlı.");
+        // Codes shared with other modules ("type", "totalCount",
+        // "entryDate", …) keep their label here; BuildFinance relabels its own columns where the text differs.
+        ["transactionCount"] = "Hareket", ["transactionDate"] = "Tarih", ["reference"] = "Referans", ["sourceType"] = "Kaynak",
+        ["sourceCode"] = "Kaynak belge", ["transferId"] = "Transfer kimliği", ["cashFlowCategory"] = "Nakit akışı",
+        ["transactionPage"] = "Ekstre sayfası", ["transactionPageSize"] = "Ekstre sayfa boyutu", ["transactionTotalCount"] = "Hareket sayısı",
+        ["inflow"] = "Giriş", ["outflow"] = "Çıkış", ["sourceKind"] = "Kaynak türü", ["isReversed"] = "Ters çevrildi",
+        ["canVoid"] = "İptal edilebilir", ["canVoidTransfer"] = "Transfer iptal edilebilir", ["canChangeCashFlow"] = "Nakit akışı değiştirilebilir",
+        ["reversalUpdated"] = "Ters kaydı da güncellendi", ["accountCount"] = "Hesap", ["negativeBalanceCount"] = "Eksi bakiyeli hesap",
+        ["currencyCount"] = "Döviz sayısı", ["totalBalance"] = "Toplam bakiye", ["fromAccountId"] = "Kaynak hesap kimliği",
+        ["fromAccountName"] = "Kaynak hesap", ["toAccountId"] = "Hedef hesap kimliği", ["toAccountName"] = "Hedef hesap",
+        ["toCurrencyCode"] = "Hedef döviz", ["destinationAmount"] = "Hedef tutar", ["exchangeRate"] = "Kur",
+        ["accountId"] = "Hesap kimliği", ["statementSection"] = "Finansal tablo sınıfı", ["openingDebit"] = "Açılış borç",
+        ["openingCredit"] = "Açılış alacak", ["debit"] = "Borç", ["credit"] = "Alacak", ["balanceDebit"] = "Bakiye borç",
+        ["balanceCredit"] = "Bakiye alacak", ["accountClass"] = "Sınıf", ["journalEntryId"] = "Fiş kimliği", ["journalEntryCode"] = "Fiş no",
+        ["journalDescription"] = "Fiş açıklaması", ["lineNumber"] = "Satır", ["lineDescription"] = "Satır açıklaması",
+        ["hasMovements"] = "Hareketli", ["accountType"] = "Hesap tipi", ["normalBalance"] = "Çalışma şekli",
+        ["ifrsAccountCode"] = "IFRS hesap kodu", ["ifrsAccountName"] = "IFRS hesap adı", ["ifrsStatementSection"] = "IFRS tablo sınıfı",
+        ["template"] = "Şablon", ["sourceUrl"] = "Kaynak bağlantısı", ["totalAccounts"] = "Şablondaki hesap", ["existingAccounts"] = "Mevcut hesap",
+        ["accountsToAdd"] = "Eklenecek hesap", ["addedCount"] = "Eklenen hesap", ["preservedExistingCount"] = "Korunan hesap",
+        ["sourceId"] = "Kaynak kimliği", ["accountingBasis"] = "Muhasebe standardı", ["totalDebit"] = "Toplam borç",
+        ["totalCredit"] = "Toplam alacak", ["isSourced"] = "Kaynaklı", ["canReverse"] = "Ters çevrilebilir", ["sourceLabel"] = "Kaynak adı",
+        ["reversedByEntryId"] = "Ters kayıt fişi kimliği", ["reversedByEntryCode"] = "Ters kayıt fişi", ["reversalOfEntryCode"] = "Ters çevrilen fiş",
+        ["accountCode"] = "Hesap kodu", ["accountName"] = "Hesap adı"
+    });
+
+    private static readonly IReadOnlyDictionary<string, string> SalesLabelMap = ModuleLabels("Satış", SalesLabels());
+
+    /// <summary>A module label block: its codes must be new (the shared dictionary wins on a shared code) and appear once.</summary>
+    private static IReadOnlyDictionary<string, string> ModuleLabels(string module, IEnumerable<KeyValuePair<string, string>> block)
+    {
+        var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (code, label) in block)
+            if (Labels.ContainsKey(code) || !labels.TryAdd(code, label))
+                throw new InvalidOperationException($"ERP işlem kataloğunda {module} etiketi '{code}' birden fazla kez tanımlı.");
         return labels;
     }
 
@@ -220,9 +265,10 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(BuildStockScreens(paging));
         operations.AddRange(BuildWarehouseTransfers(paging));
         operations.AddRange(BuildCustomers(paging));
-        operations.AddRange(BuildCrm(paging));
-        operations.AddRange(BuildPurchasing(paging));
-        operations.AddRange(BuildSales(paging));
+        operations.AddRange(InModule(code => CrmLabels.GetValueOrDefault(code), () => BuildCrm(paging)));
+        operations.AddRange(InModule(PurchasingLabel, () => BuildPurchasing(paging)));
+        operations.AddRange(InModule(code => SalesLabelMap.GetValueOrDefault(code), () => BuildSales(paging)));
+        operations.AddRange(InModule(code => FinanceLabels.GetValueOrDefault(code), () => BuildFinance(paging)));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -545,6 +591,144 @@ internal static partial class ErpOperationCatalog
             });
     }
 
+    /// <summary>
+    /// Finans: Kasalar / Bankalar (list, summary, statement, card, movements, transfers), Mizan with muavin, Hesap Planı and
+    /// Yevmiye (list, entry, lines, manual entry, reversal). Account and transfer voids bind the account (<c>id</c>) and the
+    /// movement (<c>transactionId</c>) explicitly: neither has a source read, so a page cannot take the account from the
+    /// statement row's own id (G-F8). Status changes fix <c>isActive</c> in the query (<see cref="ErpOperation.FixedQuery"/>).
+    /// The void, reversal and classification rules stay in the API as computed flags (<c>canVoid</c>, <c>canReverse</c>, …),
+    /// members outside the view constructors, so only these operations declare them. Ledger writes, the manual entry, the
+    /// reversal and the cash-flow category are TenantAdmin-only in their handlers.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildFinance(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        const string accountsRoute = "/api/finance/accounts";
+        const string accountRoute = accountsRoute + "/{id}";
+        const string accountRead = "finans.hesap.getir";
+        const string ledgerRoute = "/api/finance/general-ledger";
+        const string ledgerAccountRoute = ledgerRoute + "/accounts/{id}";
+        const string ledgerAccountRead = "finans.muhasebe.hesap.getir";
+        const string entryRoute = ledgerRoute + "/entries/{id}";
+        var id = Route("id");
+        var transactionId = Route("transactionId");
+        static ErpOperationColumn Col(string code, string type) => new(code, Label(code), type);
+        static ErpOperationColumn[] Cols(params string[] specs) => specs.Select(x => x.Split(':')).Select(x => Col(x[0], x[1])).ToArray();
+        // Shared codes whose label elsewhere names another module's field ("type" = Cari türü) keep their code here.
+        static ErpOperationColumn[] Relabel(IEnumerable<ErpOperationColumn> columns, params (string Code, string Label)[] labels) =>
+            columns.Select(x => labels.FirstOrDefault(l => l.Code == x.Code) is { Label: { } label } ? x with { Label = label } : x).ToArray();
+        static Dictionary<string, object?> Fixed(string key, object? value) => new(StringComparer.Ordinal) { [key] = value };
+
+        var accountColumns = Relabel(Columns<FinancialAccountSummary>(), ("type", "Hesap türü"));
+        var detailColumns = Relabel(Columns<FinancialAccountDetail>().Append(Col("totalCount", "int")), ("type", "Hesap türü"), ("totalCount", "Hareket sayısı"));
+        var transactionColumns = Columns<FinancialAccountTransactionView>()
+            .Concat(Cols("inflow:decimal", "outflow:decimal", "sourceKind:text", "isReversal:bool", "isReversed:bool", "canVoid:bool",
+                "canVoidTransfer:bool", "canChangeCashFlow:bool")).ToArray();
+        var typeQuery = Query("type", "text");
+
+        // ---- Kasa / Banka ----
+        yield return Read(FinanceModule, "finans.hesap.listele", "Kasa ve banka hesaplarını listele", accountsRoute, [typeQuery], List(accountColumns, null));
+        yield return Read(FinanceModule, "finans.hesap.ozet", "Kasa ve banka hesap özeti", accountsRoute + "/summary", [typeQuery],
+            Record(Relabel(Columns<FinancialAccountListSummary>(), ("activeCount", "Aktif hesap"), ("inactiveCount", "Pasif hesap"))));
+        yield return Read(FinanceModule, accountRead, "Kasa/banka hesabı getir", accountRoute, [id, .. paging], Record(detailColumns));
+        yield return Read(FinanceModule, "finans.hesap.ekstre", "Kasa/banka hesap ekstresi", accountRoute, [id, .. paging],
+            List(transactionColumns, "transactions") with
+            {
+                MetaPaths = ["code", "name", "type", "currencyCode", "isActive", "balance", "transactionPage", "transactionPageSize",
+                    "transactionTotalCount", "totalCount", "pageInflow", "pageOutflow"]
+            });
+        yield return Write(FinanceModule, "finans.hesap.olustur", "Kasa/banka hesabı oluştur", "insert", "POST", accountsRoute,
+            BodyParameters<FinancialAccountWriteRequest>(sourceBacked: false), Record(accountColumns), null, null);
+        // PUT replaces the card: unbound fields come from finans.hesap.getir; the handler rejects any opening balance on edit.
+        yield return Write(FinanceModule, "finans.hesap.guncelle", "Kasa/banka hesabını güncelle", "update", "PUT", accountRoute,
+            [id, .. BodyParameters<FinancialAccountWriteRequest>(sourceBacked: true, exclude: "openingBalance")], Record(accountColumns), accountRead,
+            Fixed("openingBalance", 0m));
+        yield return Write(FinanceModule, "finans.hesap.sil", "Kasa/banka hesabını sil", "delete", "DELETE", accountRoute, [id], None, null, null);
+        var statusResult = Record(Cols("id:guid", "isActive:bool"));
+        yield return Write(FinanceModule, "finans.hesap.pasifeAl", "Kasa/banka hesabını pasife al", "update", "POST", accountRoute + "/status", [id],
+            statusResult, null, null) with { FixedQuery = Fixed("isActive", false) };
+        yield return Write(FinanceModule, "finans.hesap.aktifEt", "Kasa/banka hesabını etkinleştir", "update", "POST", accountRoute + "/status", [id],
+            statusResult, null, null) with { FixedQuery = Fixed("isActive", true) };
+        // requestId is page-made (autoId): a retry with the same content returns the existing movement.
+        yield return Write(FinanceModule, "finans.hareket.ekle", "Kasa/banka hareketi ekle", "insert", "POST", accountRoute + "/movements",
+            [id, .. BodyParameters<FinancialAccountMovementWriteRequest>(sourceBacked: false)], Record(transactionColumns), null, null);
+        yield return Write(FinanceModule, "finans.hareket.iptal", "Kasa/banka hareketini ters kayıtla iptal et", "update", "POST",
+            accountRoute + "/transactions/{transactionId}/void", [id, transactionId], Record(Cols("id:guid", "status:text")), null, null);
+        yield return Write(FinanceModule, "finans.hareket.nakitAkisi", "Hareketin nakit akışı sınıfını değiştir", "update", "POST",
+            accountRoute + "/transactions/{transactionId}/cash-flow-category",
+            [id, transactionId, .. BodyParameters<CashFlowCategoryUpdateRequest>(sourceBacked: false)],
+            Record(Cols("id:guid", "cashFlowCategory:text", "reversalUpdated:bool")), null, null, requiresTenantAdmin: true);
+        // The legacy screen has no description field: the transfer description is fixed.
+        yield return Write(FinanceModule, "finans.transfer.olustur", "Kasa/banka transferi oluştur", "insert", "POST", "/api/finance/transfers",
+            BodyParameters<FinancialAccountTransferWriteRequest>(sourceBacked: false, exclude: "description"), Record(Columns<FinancialAccountTransferSummary>()),
+            null, Fixed("description", "Kasa/banka döviz transferi"));
+        yield return Write(FinanceModule, "finans.transfer.iptal", "Kasa/banka transferini ters kayıtla iptal et", "update", "POST",
+            "/api/finance/transfers/{transferId}/void", [Route("transferId")], Record(Cols("id:guid", "code:text", "status:text")), null, null);
+
+        // ---- Mizan ----
+        var trialColumns = Cols("accountId:text", "code:text", "name:text", "isActive:bool", "statementSection:text", "openingDebit:decimal",
+            "openingCredit:decimal", "debit:decimal", "credit:decimal", "balanceDebit:decimal", "balanceCredit:decimal", "accountClass:text");
+        yield return Read(FinanceModule, "finans.mizan", "Mizan", ledgerRoute + "/trial-balance",
+            [new ErpOperationParameter("from", "query", "date", true), new ErpOperationParameter("to", "query", "date", true), Query("basis", "text"),
+                Query("level", "text"), Query("movedOnly", "bool")],
+            List(trialColumns, "accounts") with
+            {
+                MetaPaths = ["from", "to", "basis", "level", "movedOnly", "totalOpeningDebit", "totalOpeningCredit", "totalDebit", "totalCredit",
+                    "totalBalanceDebit", "totalBalanceCredit", "unmappedAccountCount", "isComplete", "isBalanced", "accountCount", "movedAccountCount"]
+            });
+        // The server route names the account {accountId}; the runtime and the permission lookup match it by that name.
+        yield return Read(FinanceModule, "finans.muhasebe.muavin", "Muavin (hesap hareketleri)", ledgerRoute + "/accounts/{accountId}/statement",
+            [Route("accountId"), Query("from", "date"), Query("to", "date"), .. paging],
+            List(Cols("journalEntryId:guid", "journalEntryCode:text", "entryDate:date", "journalDescription:text", "sourceType:text", "lineNumber:int",
+                "lineDescription:text", "debit:decimal", "credit:decimal"), "lines") with
+            {
+                MetaPaths = ["from", "to", "openingDebit", "openingCredit", "openingBalanceDebit", "openingBalanceCredit", "totalDebit", "totalCredit",
+                    "closingBalanceDebit", "closingBalanceCredit", "totalCount", "page", "pageSize", "totalPages"]
+            });
+
+        // ---- Hesap planı ----
+        var ledgerColumns = Columns<LedgerAccountView>().Append(Col("accountClass", "text")).ToArray();
+        yield return Read(FinanceModule, "finans.muhasebe.hesap.listele", "Hesap planını listele", ledgerRoute + "/accounts", [], List(ledgerColumns, null));
+        yield return Read(FinanceModule, ledgerAccountRead, "Muhasebe hesabı getir", ledgerAccountRoute, [id], Record(ledgerColumns));
+        yield return Write(FinanceModule, "finans.muhasebe.hesap.olustur", "Muhasebe hesabı oluştur", "insert", "POST", ledgerRoute + "/accounts",
+            BodyParameters<LedgerAccountWriteRequest>(sourceBacked: false, exclude: "isActive"), Record(ledgerColumns), null, Fixed("isActive", true),
+            requiresTenantAdmin: true);
+        // PUT replaces the account: the fields the page does not bind (isActive included) come from finans.muhasebe.hesap.getir.
+        yield return Write(FinanceModule, "finans.muhasebe.hesap.guncelle", "Muhasebe hesabını güncelle", "update", "PUT", ledgerAccountRoute,
+            [id, .. BodyParameters<LedgerAccountWriteRequest>(sourceBacked: true, exclude: "isActive")], Record(ledgerColumns), ledgerAccountRead, null,
+            requiresTenantAdmin: true);
+        yield return Write(FinanceModule, "finans.muhasebe.hesap.pasifeAl", "Muhasebe hesabını pasife al", "update", "PUT", ledgerAccountRoute, [id],
+            Record(ledgerColumns), ledgerAccountRead, Fixed("isActive", false), requiresTenantAdmin: true);
+        yield return Write(FinanceModule, "finans.muhasebe.hesap.aktifEt", "Muhasebe hesabını etkinleştir", "update", "PUT", ledgerAccountRoute, [id],
+            Record(ledgerColumns), ledgerAccountRead, Fixed("isActive", true), requiresTenantAdmin: true);
+        yield return Write(FinanceModule, "finans.muhasebe.hesap.sil", "Muhasebe hesabını sil", "delete", "DELETE", ledgerAccountRoute, [id], None,
+            null, null, requiresTenantAdmin: true);
+        yield return Read(FinanceModule, "finans.muhasebe.tekDuzen.onizle", "Tek Düzen Hesap Planı önizlemesi", ledgerRoute + "/accounts/standard-chart", [],
+            Record(Cols("template:text", "version:text", "sourceUrl:text", "totalAccounts:int", "existingAccounts:int", "accountsToAdd:int")));
+        yield return Write(FinanceModule, "finans.muhasebe.tekDuzen.uygula", "Tek Düzen Hesap Planı eksik hesaplarını ekle", "insert", "POST",
+            ledgerRoute + "/accounts/standard-chart/apply", [],
+            Record(Cols("template:text", "addedCount:int", "preservedExistingCount:int", "totalAccounts:int")), null, null, requiresTenantAdmin: true);
+
+        // ---- Yevmiye ----
+        (string, string)[] entryLabels = [("entryDate", "Fiş tarihi"), ("code", "Fiş no")];
+        var flagColumns = Cols("isSourced:bool", "isReversal:bool", "canReverse:bool", "sourceLabel:text");
+        yield return Read(FinanceModule, "finans.fis.listele", "Yevmiye fişlerini listele", ledgerRoute + "/entries",
+            [Query("from", "date"), Query("to", "date"), Query("accountingBasis", "text"), .. paging],
+            List(Relabel(Columns<JournalEntryListItem>().Concat(flagColumns), entryLabels), "items") with { MetaPaths = ["page", "pageSize", "total", "totalCount"] });
+        yield return Read(FinanceModule, "finans.fis.getir", "Yevmiye fişi getir", entryRoute, [id],
+            Record(Relabel(Columns<JournalEntryView>().Concat(flagColumns)
+                .Concat(Cols("reversedByEntryId:guid", "reversedByEntryCode:text", "reversalOfEntryCode:text")), entryLabels)));
+        yield return Read(FinanceModule, "finans.fis.satirlari", "Yevmiye fişinin satırları", entryRoute, [id], List(Columns<JournalEntryLineView>(), "lines"));
+        var postedColumns = Relabel(Cols("id:guid", "code:text", "entryDate:date", "description:text", "sourceType:text", "sourceId:guid",
+            "accountingBasis:text", "totalDebit:decimal", "totalCredit:decimal"), entryLabels);
+        // No idempotency key on the server (G-F22): the page's busy lock is the only double-submit guard.
+        yield return Write(FinanceModule, "finans.fis.olustur", "Yevmiye fişi kaydet", "insert", "POST", ledgerRoute + "/entries/manual",
+            [.. BodyParameters<ManualJournalEntryWriteRequest>(sourceBacked: false), ListParameter<ManualJournalLineWriteRequest>("lines")],
+            Record(postedColumns), null, null, requiresTenantAdmin: true);
+        // The reversal date is bound by the page (today); the handler checks the closed period for it.
+        yield return Write(FinanceModule, "finans.fis.tersKayit", "Yevmiye fişini ters kayıtla çevir", "insert", "POST", entryRoute + "/reverse",
+            [id, .. BodyParameters<ManualJournalEntryReverseRequest>(sourceBacked: false)], Record(postedColumns), null, null, requiresTenantAdmin: true);
+    }
+
     // A method, not a static field: Build() runs during static initialization, before later fields are assigned.
     private static bool IsDottedName(string name) =>
         Regex.IsMatch(name, @"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant);
@@ -578,6 +762,13 @@ internal static partial class ErpOperationCatalog
             var parent = key[..key.IndexOf('.')];
             if (!parents.Contains(parent)) return $"fixedBody '{key}': '{parent}' üst adının noktalı parametresi yok.";
             if (names.Contains(key)) return $"fixedBody '{key}' aynı zamanda bir parametre.";
+        }
+        foreach (var (key, value) in operation.FixedQuery ?? new Dictionary<string, object?>())
+        {
+            if (!Regex.IsMatch(key, @"^[A-Za-z_][A-Za-z0-9_]{0,63}\z", RegexOptions.CultureInvariant))
+                return $"fixedQuery '{key}': anahtar bir tanımlayıcı olmalıdır.";
+            if (names.Contains(key)) return $"fixedQuery '{key}' aynı zamanda bir parametre.";
+            if (value is not (bool or string or int or long or decimal or double)) return $"fixedQuery '{key}': değer bool, sayı veya metin olmalıdır.";
         }
         return null;
     }
@@ -682,9 +873,20 @@ internal static partial class ErpOperationCatalog
 
     private static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 
-    // The main dictionary wins on shared codes; purchasing-only codes come from PurchasingLabel (a switch, not a static field).
+    // The shared dictionary wins on shared codes; a module's own codes come from the label block of the module being built.
     private static string Label(string code) => Labels.TryGetValue(code, out var label) ? label
-        : PurchasingLabel(code) ?? throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
+        : moduleLabel?.Invoke(code) ?? throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
+
+    [ThreadStatic] private static Func<string, string?>? moduleLabel;
+
+    /// <summary>Builds one module's operations with its label block in scope (builders are lazy, so they are listed here).</summary>
+    private static List<ErpOperation> InModule(Func<string, string?> labels, Func<IEnumerable<ErpOperation>> build)
+    {
+        var previous = moduleLabel;
+        moduleLabel = labels;
+        try { return build().ToList(); }
+        finally { moduleLabel = previous; }
+    }
 
     // Endpoint lookup by "METHOD normalized-route" → raw route pattern, built once per endpoint data source.
     private static readonly ConditionalWeakTable<EndpointDataSource, IReadOnlyDictionary<string, string>> RoutePatterns = new();
@@ -728,7 +930,7 @@ internal static partial class ErpOperationCatalog
                     // Deprecated operations still report the caller's rights; Studio hides them by the deprecated flag.
                     var allowed = needs[index].All(position => position >= 0 && decisions[position]);
                     views.Add(new ErpOperationView(op.Name, op.Label, op.Module, op.Kind, op.PageKind, op.Method, op.Route, op.Parameters,
-                        op.Result, op.SourceOperation, op.FixedBody, op.Since, op.Deprecated, allowed, op.RouteVariants, op.BodyMap));
+                        op.Result, op.SourceOperation, op.FixedBody, op.Since, op.Deprecated, allowed, op.RouteVariants, op.BodyMap, op.FixedQuery));
                 }
                 return Results.Ok(new { operations = views });
             });
