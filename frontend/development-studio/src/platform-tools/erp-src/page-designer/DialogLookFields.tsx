@@ -1,10 +1,10 @@
 type Patch = Record<string, unknown>;
-type DialogSize = "sm" | "md" | "lg" | "full";
+type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
 
-const SIZE_OPTIONS: [DialogSize, string][] = [["sm", "Küçük"], ["md", "Orta"], ["lg", "Büyük"], ["full", "Tam ekran"]];
+const SIZE_OPTIONS: [DialogSize, string][] = [["sm", "Küçük"], ["md", "Orta"], ["lg", "Büyük"], ["xl", "Çok büyük"], ["full", "Tam ekran"]];
 const BACKDROP_OPTIONS: [boolean, string][] = [[false, "Kapanmasın"], [true, "Kapansın"]];
 
-const sizeOf = (value: unknown): DialogSize => value === "sm" || value === "lg" || value === "full" ? value : "md";
+const sizeOf = (value: unknown): DialogSize => value === "sm" || value === "lg" || value === "xl" || value === "full" ? value : "md";
 
 /**
  * Pencere görünümü: boyut (`size`; çekmecede çekmece genişliği) ve dışarı tıklayınca kapanma (`backdropClose`).

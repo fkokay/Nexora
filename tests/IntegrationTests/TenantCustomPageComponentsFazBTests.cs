@@ -566,8 +566,8 @@ public sealed class TenantCustomPageComponentsFazBTests
     [Fact]
     public void Rejects_invalid_dialog_size_and_backdrop_close()
     {
-        AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" }, size = "xl" })), "'size' sm, md, lg veya full olmalıdır.");
-        AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" }, size = 3 })), "'size' sm, md, lg veya full olmalıdır.");
+        AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" }, size = "xxl" })), "'size' sm, md, lg, xl veya full olmalıdır.");
+        AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" }, size = 3 })), "'size' sm, md, lg, xl veya full olmalıdır.");
         AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" }, backdropClose = "true" })), "'backdropClose' true veya false olmalıdır.");
         AssertRejected(V2([Liste(), HareketEkle()], DialogPage(new { contains = new[] { "i2" } }, C("b2", "button", new { label = "X", backdropClose = true }))),
             "'backdropClose' özelliği bu bileşen türünde kullanılamaz.");

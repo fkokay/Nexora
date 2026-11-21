@@ -1160,7 +1160,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       // Kayıt penceresi açıkken (kısayollar pencere içinde çalışmaz) F2 İşlem Çubuğu'nun Yeni komutunu çalıştırır.
       const onNew = runtime.formDialog?.id === component.id ? () => { void runtime.newCommand.current?.(); } : undefined;
       return <PageDialog key={component.id} id={component.id} title={title || "Pencere"} presentation={props.presentation === "drawer" ? "drawer" : "dialog"}
-        size={props.size === "sm" || props.size === "lg" || props.size === "full" ? props.size : undefined} backdropClose={props.backdropClose === true}
+        size={props.size === "sm" || props.size === "lg" || props.size === "xl" || props.size === "full" ? props.size : undefined} backdropClose={props.backdropClose === true}
         open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids} onNew={onNew}
         save={canSave ? { label: textValue(props.saveLabel).trim() || "Kaydet", busy: runtime.dialogBusy[component.id] === true, run: () => runtime.saveDialog(component.id) } : undefined}
         status={runtime.dialogStatus[component.id] ?? null} returnFocus={runtime.dialogOpener(component.id)} />;

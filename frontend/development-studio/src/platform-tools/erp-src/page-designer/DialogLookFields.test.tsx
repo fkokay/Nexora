@@ -43,6 +43,6 @@ describe("DialogLookFields", () => {
   });
 
   it("bilinmeyen boyut Orta sayılır", () => {
-    expect(buttonsOf({ size: "xl" }, () => undefined)("Orta")["aria-pressed"]).toBe(true);
+    expect(buttonsOf({ size: "xxl" }, () => undefined)("Orta")["aria-pressed"]).toBe(true);
   });
 });
