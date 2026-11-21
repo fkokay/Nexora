@@ -12,6 +12,7 @@ import SalesDocumentGrid from "./sales/components/SalesDocumentGrid";
 import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
 import { SalesListFooter } from "./sales/components/SalesListFooter";
 import { useSalesListPanel } from "./sales/useSalesListPanel";
+import { loadPurchasingReceiptRef, usePurchasingPageParams } from "./sales/purchasingPageParams";
 import { PageCommandsSlot, documentOpenCommands } from "./commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import type { MenuCommand, PageCommands } from "./commands/types";
@@ -187,6 +188,11 @@ export function PurchaseReceiptsScreen({
       setError((e as Error).message);
     }
   }
+  // A system page opens this tab with `receiptId` (K7): the receipt opens through its order, as from the list.
+  usePurchasingPageParams("sales-purchase-receipts", ["receiptId"], ({ receiptId }) => {
+    if (receiptId) void loadPurchasingReceiptRef(token, receiptId).then((receipt) => open({ id: receipt.id, purchaseOrderId: receipt.purchaseOrderId }),
+      (e: Error) => setError(e.message));
+  });
   const openById = (id: string) => {
     const item = items.find((x) => x.id === id);
     if (item) return open(item);

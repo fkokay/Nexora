@@ -3,7 +3,7 @@ import BindingInput, { type BindingSuggestion } from "./BindingInput";
 /** Gezinme eylemleri: veri yazmaz; adres, ERP ekranı ya da sayfa açar. */
 export const NAVIGATION_ACTION_TYPES = ["link", "erpPage", "page"];
 /** Eylem türüne göre gezinme özellikleri (sunucu: her özellik yalnız kendi türünde). */
-export const NAVIGATION_PROPS: Record<string, string[]> = { link: ["href"], erpPage: ["pageKey", "queryText", "params"], page: ["pageCode", "params"] };
+export const NAVIGATION_PROPS: Record<string, string[]> = { link: ["href"], erpPage: ["pageKey", "queryText", "params", "legacy"], page: ["pageCode", "params"] };
 export const MAX_PAGE_PARAMS = 6;
 const PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
 const LINK_PREFIX = /^https?:\/\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*(?::[0-9]{1,5})?([/?#]|$)/i;
@@ -63,6 +63,8 @@ export function NavigationFields({ actionType, props, screens, pages, suggestion
       <label className="pd-field">Arama metni<small>Ekrana <code>{"{{sayfa.parametre.q}}"}</code> olarak gider; desteklemeyen ekran yok sayar.</small>
         <BindingInput value={text("queryText")} maxLength={200} suggestions={suggestions} disabled={disabled} ariaLabel="Arama metni" onChange={(next) => onPatch({ queryText: next || undefined })}/></label>
       {paramRows}
+      <label className="pd-check"><input type="checkbox" checked={props.legacy === true} disabled={disabled} onChange={(event) => onPatch({ legacy: event.target.checked || undefined })}/>Eski ekranda aç
+        <small>Ekranın sistem sayfası olsa da eski ekranı açar; parametreler sayfa parametresi olarak gider.</small></label>
     </>}
     {actionType === "page" && <>
       <label className="pd-field">Açılacak sayfa<select value={text("pageCode")} disabled={disabled} onChange={(event) => onPatch({ pageCode: event.target.value || undefined })}>

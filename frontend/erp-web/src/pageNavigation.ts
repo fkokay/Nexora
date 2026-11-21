@@ -7,6 +7,8 @@ export type WorkspaceOpenRequest = {
   page: string; params: PageParams; replace: boolean; from?: string;
   /** Hedef sekme açıksa açılış sorgularını yeniler (ör. kayıttan sonra listeye dönüş). */
   refresh?: boolean;
+  /** erpPage `legacy: true`: hedef anahtarın sistem sayfası olsa da (geçerli sayfa olsa da) eski ekranı açılır. */
+  legacy?: boolean;
 };
 
 export const OPEN_PAGE_EVENT = "nexora:open-page";
