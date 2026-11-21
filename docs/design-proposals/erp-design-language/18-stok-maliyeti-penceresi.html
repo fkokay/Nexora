@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Stok maliyeti penceresi</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:26px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:1150px}
+.bad{background:#fff;border:1px solid #f1c7c0;border-radius:10px;padding:12px 14px}.bad b{color:var(--dan)}
+.good{background:#fff;border:1px solid #b7e2c9;border-radius:10px;padding:12px 14px}.good b{color:var(--ok)}
+.bad ul,.good ul{margin:6px 0 0;padding-left:18px;line-height:1.55}
+/* pencere */
+.shade{background:rgba(27,36,48,.28);border-radius:10px;padding:22px 16px;display:flex;justify-content:center;max-width:1150px}
+.dlg{background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(16,24,40,.22);width:100%;max-width:920px;overflow:hidden}
+.dh{display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px 0}
+.eyebrow{font-size:10.5px;letter-spacing:.08em;color:var(--pri);font-weight:700;margin:0 0 3px}
+.dh h3{margin:0;font-size:17px}.dh p{margin:3px 0 0;color:var(--mut);font-size:12.5px}
+.x{width:30px;height:30px;border:1px solid #d8e2ec;border-radius:8px;display:grid;place-items:center;color:var(--mut)}
+/* özet şeridi */
+.sum{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:14px 20px 0;border:1px solid #e6ebf2;border-radius:10px;background:#f8fafc}
+.sum div{padding:9px 12px;border-left:1px solid #e6ebf2}.sum div:first-child{border-left:0}
+.sum span{display:block;font-size:11px;color:var(--mut);font-weight:600}.sum strong{font-size:14px}.sum .w{color:var(--warn)}
+/* sekmeler */
+.tabs{display:flex;gap:4px;margin:14px 20px 0;border-bottom:1px solid #e6ebf2}
+.tab{padding:8px 12px;font-weight:600;color:#475467;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--pri);border-color:var(--pri)}.tab i{font-style:normal;font-size:11px;background:#eef1f7;color:#475467;border-radius:999px;padding:0 7px;margin-left:5px}
+.db{padding:16px 20px 18px;min-height:250px}
+.intro{color:#475467;margin:0 0 12px;line-height:1.5}
+.f{display:flex;flex-direction:column;gap:5px}.f label{font-weight:600;font-size:12px;color:#344054}.f label b{color:var(--dan)}
+.in{height:34px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}.in.v{color:var(--tx)}
+.row{display:grid;gap:12px;align-items:end}
+.r-unit{grid-template-columns:1.1fr 1.1fr 1.4fr auto}
+.r3{grid-template-columns:1fr 1fr 1fr}.r2{grid-template-columns:1fr 1fr}
+.preview{height:34px;border-radius:7px;background:var(--pri-soft);color:var(--pri);display:flex;align-items:center;padding:0 10px;font-weight:600}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:0 14px;height:34px;font-weight:600;display:inline-flex;align-items:center;white-space:nowrap}
+.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.hint{color:var(--mut);font-size:12px;margin:8px 0 0}
+table{width:100%;border-collapse:collapse;margin-top:14px;border:1px solid #e6ebf2;border-radius:9px;overflow:hidden}
+th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}.num{text-align:right}.code{font-family:Consolas,monospace}
+.ra{color:var(--dan);font-weight:600}.ra.b{color:var(--pri)}
+.empty{margin-top:14px;border:1px dashed #d0d8e4;border-radius:9px;padding:22px;text-align:center;color:var(--mut)}
+.empty b{display:block;color:#344054;font-size:13px;margin-bottom:3px}
+.actions{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid #eef1f6}
+.actions small{color:var(--mut);font-size:12px}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}
+.df{display:flex;justify-content:flex-end;padding:12px 20px;border-top:1px solid #eef1f6;background:#fbfcfe}
+.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;max-width:1150px}
+.mini .dlg{max-width:none}.mini .db{min-height:0}
+</style></head><body>
+<h1>Stok Değerleme · "Yönet" penceresi (taslak 18)</h1>
+<p class="sub">Pencere aynı işleri yapmaya devam ediyor: alternatif birim, yeniden değerleme, mal kabul ek maliyeti ve maliyet kayıtları. Değişen yalnız düzen. Dört bölüm alt alta durmak yerine <b>sekmelere</b> ayrılıyor. Stokun özeti üstte sabit duruyor, her sekmede tek bir iş var.</p>
+
+<div class="cols">
+  <div class="bad"><b>Bugünkü sorunlar</b><ul>
+    <li>Bölüm başlığıyla açıklama bitişik: "Birim dönüşümleri<u>Temel</u> birim…".</li>
+    <li>Kart içinde kart var; çift çerçeve ve fazla boşluk oluşuyor.</li>
+    <li>Yardım metinleri 9–10 px, okunmuyor ve bölümün altında yalnız kalıyor.</li>
+    <li>Dört form alt alta dizildiği için pencere çok uzun; kayıtlar en altta kalıyor.</li>
+    <li>Stokun miktarı ve değeri görünmüyor; neyi değerlediğinizi bilmeden tutar giriyorsunuz.</li>
+    <li>"Birim ekle" düğmesi alanlardan kopuk, boş durum düz metin.</li>
+  </ul></div>
+  <div class="good"><b>Önerilen</b><ul>
+    <li>Üstte özet şeridi: temel birim, depo miktarı, stok değeri, birim maliyet, maliyetsiz miktar.</li>
+    <li>4 sekme: <b>Birimler · Yeniden değerleme · Ek maliyet · Kayıtlar</b>. Sayılar sekme etiketinde görünüyor.</li>
+    <li>Her sekmede tek bir kısa açıklama ve tek bir ana düğme var; düğme sağ altta, uyarı solunda.</li>
+    <li>Birim satırı tek hizada: kod, katsayı, canlı önizleme ("1 KOLI = 12 EA") ve Ekle.</li>
+    <li>Yeniden değerlemede "yeni stok değeri" önizlemesi var.</li>
+    <li>Pencere "xl" boyutunda; kart içinde kart yok, çerçeveler tek kat.</li>
+  </ul></div>
+</div>
+
+<div class="lbl">1 · BİRİMLER SEKMESİ (AÇILIŞ)</div>
+<div class="shade"><div class="dlg">
+  <div class="dh"><div><p class="eyebrow">STOK MALİYETİ · MERKEZ DEPO</p><h3>TEST · Test ürünü</h3><p>Fiziksel miktar değişmez; yalnız maliyet ve birim tanımları güncellenir.</p></div><span class="x">✕</span></div>
+  <div class="sum">
+    <div><span>Temel birim</span><strong>EA</strong></div>
+    <div><span>Depo miktarı</span><strong>120 EA</strong></div>
+    <div><span>Stok değeri</span><strong>₺6.000,00</strong></div>
+    <div><span>Birim maliyet</span><strong>₺50,00</strong></div>
+    <div><span>Maliyetsiz miktar</span><strong class="w">0 EA</strong></div>
+  </div>
+  <div class="tabs"><span class="tab on">Birimler <i>1</i></span><span class="tab">Yeniden değerleme</span><span class="tab">Ek maliyet</span><span class="tab">Kayıtlar <i>3</i></span></div>
+  <div class="db">
+    <p class="intro">Alternatif birim, hareket girerken kullanılacak ikinci birimdir. Katsayı, girilen miktarı temel birime (EA) çevirir.</p>
+    <div class="row r-unit">
+      <div class="f"><label>Alternatif birim kodu <b>*</b></label><div class="in v">KOLI</div></div>
+      <div class="f"><label>Temel birim katsayısı <b>*</b></label><div class="in v">12</div></div>
+      <div class="f"><label>Önizleme</label><div class="preview">1 KOLI = 12 EA</div></div>
+      <span class="btn p">Birim ekle</span>
+    </div>
+    <table><thead><tr><th>Birim</th><th class="num">Katsayı</th><th>Karşılığı</th><th>Durum</th><th></th></tr></thead>
+      <tbody><tr><td class="code">PAKET</td><td class="num">6</td><td>1 PAKET = 6 EA</td><td><span class="tag t-ok">Aktif</span></td><td class="num"><span class="ra">Devre dışı bırak</span></td></tr></tbody></table>
+  </div>
+  <div class="df"><span class="btn g">Kapat</span></div>
+</div></div>
+<ul class="note"><li>Birim yoksa tablo yerine kesik çizgili bir boş durum görünür: <b>"Alternatif birim yok"</b>, altında "Koli, paket gibi birimleri yukarıdan ekleyin."</li></ul>
+
+<div class="lbl">2 · DİĞER SEKMELER</div>
+<div class="mini">
+  <div class="dlg">
+    <div class="tabs" style="margin-top:12px"><span class="tab">Birimler</span><span class="tab on">Yeniden değerleme</span></div>
+    <div class="db">
+      <p class="intro">Seçili depodaki mevcut 120 EA'nın toplam değerini artırır ya da azaltır.</p>
+      <div class="row r2"><div class="f"><label>Değerleme tarihi <b>*</b></label><div class="in v">21.11.2026</div></div><div class="f"><label>Değer farkı · TRY <b>*</b></label><div class="in v">-500,00</div></div></div>
+      <div class="f" style="margin-top:12px"><label>Açıklama <b>*</b></label><div class="in">Neden değerleniyor?</div></div>
+      <div class="preview" style="margin-top:12px">Yeni stok değeri: ₺6.000,00 → ₺5.500,00 · birim ₺45,83</div>
+      <div class="actions"><small>Negatif stok değeri kabul edilmez.</small><span class="btn p">Yeniden değerle</span></div>
+    </div>
+  </div>
+  <div class="dlg">
+    <div class="tabs" style="margin-top:12px"><span class="tab on">Ek maliyet</span><span class="tab">Kayıtlar</span></div>
+    <div class="db">
+      <p class="intro">Navlun, sigorta gibi maliyetleri bir mal kabulün satırlarına dağıtın.</p>
+      <div class="row r2"><div class="f"><label>Mal kabul <b>*</b></label><div class="in v">GR-2026-000002 · MERKEZ</div></div><div class="f"><label>Tutar · TRY <b>*</b></label><div class="in">0,00</div></div></div>
+      <div class="row r2" style="margin-top:12px"><div class="f"><label>Dağıtım yöntemi <b>*</b></label><div class="in v">Satır maliyetine göre</div></div><div class="f"><label>Kayıt tarihi <b>*</b></label><div class="in v">21.11.2026</div></div></div>
+      <div class="f" style="margin-top:12px"><label>Açıklama <b>*</b></label><div class="in">Örn. Ekim navlunu</div></div>
+      <div class="actions"><small>Yuvarlama farkı son satıra eklenir.</small><span class="btn p">Maliyeti dağıt</span></div>
+    </div>
+  </div>
+  <div class="dlg">
+    <div class="tabs" style="margin-top:12px"><span class="tab">Ek maliyet</span><span class="tab on">Kayıtlar <i>3</i></span></div>
+    <div class="db">
+      <p class="intro">Bu depodaki son 100 maliyet kaydı. Ters kayıt eski belgeyi silmez.</p>
+      <table style="margin-top:0"><thead><tr><th>Tarih</th><th>Tür</th><th class="num">Tutar</th><th></th></tr></thead><tbody>
+        <tr><td>21.11</td><td><span class="tag t-in">Değerleme</span></td><td class="num">-500,00</td><td class="num"><span class="ra b">Ters kayıt</span></td></tr>
+        <tr><td>18.11</td><td><span class="tag t-in">Ek maliyet</span></td><td class="num">250,00</td><td class="num"><span class="ra b">Ters kayıt</span></td></tr>
+        <tr><td>17.11</td><td><span class="tag t-off">Ters kayıt</span></td><td class="num">-120,00</td><td></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</div>
+
+<div class="lbl">NASIL YAPILACAK</div>
+<ul class="note">
+  <li><b>Genel düzeltmeler (her sayfaya yarar):</b> bölüm başlığı ile açıklama ayrı satırlarda ve aralarında boşlukla; pencere içindeki bölümler ikinci bir çerçeve almaz; yardım metni 12 px.</li>
+  <li><b>Standart <code>inventory-cost</code>:</b> pencere <code>size: "xl"</code>, üstte bir <code>recordHeader</code> benzeri özet şeridi, mevcut <code>tabs</code> bileşeniyle dört sekme. Mevcut ERP işlemleri ve kurallar değişmez.</li>
+  <li><b>Canlı önizlemeler</b> ("1 KOLI = 12 EA", "Yeni stok değeri") sayfa ifadeleriyle yazılır; yeni bir sunucu işlemi gerekmez.</li>
+  <li>QA'daki taslak "Standarda dön" ile yenilenip yayımlanır; diğer firmalarda standart gelir.</li>
+</ul>
+</body></html>

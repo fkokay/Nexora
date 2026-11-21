@@ -19,7 +19,7 @@ import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
 import { conditionHolds } from "./custom-page/conditions";
 import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED } from "./custom-page/inputValidation";
-import { PageTabs } from "./custom-page/PageTabs";
+import { boundTab, PageTabs } from "./custom-page/PageTabs";
 import type { BridgeHost } from "./custom-page/codeBridge";
 import { CodeFrame } from "./custom-page/CodeFrame";
 import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
@@ -1044,7 +1044,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     }
     case "tabs": {
       if (!runtime) return null;
-      const tabs = parseTabs(props.tabs);
+      const tabs = parseTabs(props.tabs).map((tab) => boundTab(tab, runtime.scope));
       const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
       // Doğrulanmayan (gizli veya pasif) girişlerin kalan iletileri sayılmaz.
       // Doğrulama iletisi gösterilen düzenlenebilir tablolar ve özel alan blokları da sayılır.
