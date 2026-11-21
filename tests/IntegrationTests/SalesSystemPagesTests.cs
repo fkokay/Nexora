@@ -55,7 +55,7 @@ public sealed class SalesSystemPagesTests
             // Every route parameter is the endpoint's own {id}: permission resolution matches the route pattern by name.
             Assert.All(op.Parameters.Where(x => x.In == "route"), x => Assert.Equal("id", x.Name));
         }
-        Assert.Equal("Finans", Op("finans.hesaplar").Module);
+        Assert.Equal("Finans", Op("finans.hesap.listele").Module);
         // Handlers that check TenantAdmin themselves; the voids have no role check of their own (G-SD10 is a separate PR).
         Assert.Equal(new[] { "satis.fatura.sil", "satis.irsaliye.sil", "satis.siparis.rezervasyonBirak", "satis.siparis.sil", "satis.teklif.sil" },
             Operations.Where(x => Op(x).RequiresTenantAdmin).Order(StringComparer.Ordinal));
@@ -271,7 +271,7 @@ public sealed class SalesSystemPagesTests
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated
-            && (op.Module == "Satış" || name is "depo.listele" or "finans.hesaplar"), name));
+            && (op.Module == "Satış" || name is "depo.listele" or "finans.hesap.listele"), name));
         Assert.Contains(standard.ScreenViews, x => x.Key == key && x.Component == "liste");
     }
 

@@ -65,7 +65,6 @@ finans.hesap.olustur
 finans.hesap.ozet
 finans.hesap.pasifeAl
 finans.hesap.sil
-finans.hesaplar
 finans.mizan
 finans.muhasebe.hesap.aktifEt
 finans.muhasebe.hesap.getir

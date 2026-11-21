@@ -179,9 +179,5 @@ internal static partial class ErpOperationCatalog
             [id], None, null, null);
         yield return Read(SalesModule, "satis.fatura.ozelAlanTanimlari", "Satış faturası özel alan tanımları", invoicesRoute + "/custom-fields", [],
             List(Columns<SalesInvoiceCustomFieldDefinitionView>(), null));
-
-        // ---- Seçenek kaynakları ----
-        yield return Read(FinanceModule, "finans.hesaplar", "Kasa ve banka hesapları", "/api/finance/accounts", [],
-            List(Columns<FinancialAccountSummary>(), null));
     }
 }
