@@ -286,8 +286,12 @@ export function loadFilterValues(key: string, filters: FilterSpec[]): FilterBarV
  * "Sayfa aç" parametreleri (`{{sayfa.parametre.<ad>}}`) aynı adlı sorgu parametresine bağlı süzgeci doldurur: sayfa başka bir
  * ekrandan bir kayıtla açıldıysa (ör. Depolar → Raf ve Konumlar, `warehouseId`) süzgeç o değerle başlar ve saklanan değerin
  * önüne geçer. Yalnız tek değerli (`param` taşıyan) süzgeçler dolar; aç/kapa "true"/"false" metnini alır, boş parametre yok sayılır.
+ * `searchParam` verilirse (arama kutulu süzgeç alanının `searchParam`ı) aynı adlı sayfa parametresi arama metnini doldurur
+ * (ör. global arama Cari Hesaplar'ı `q` ile açar).
  */
-export function presetFromPageParams(values: FilterBarValues, filters: FilterSpec[], params: Readonly<Record<string, string>>): FilterBarValues {
+export function presetFromPageParams(values: FilterBarValues, filters: FilterSpec[], params: Readonly<Record<string, string>>, searchParam = ""): FilterBarValues {
+  const searchText = searchParam && Object.prototype.hasOwnProperty.call(params, searchParam) ? params[searchParam].trim().slice(0, MAX_PRESET_LENGTH) : "";
+  if (searchText) values = { ...values, search: searchText };
   let next: Record<string, FilterValue> | null = null;
   for (const filter of filters) {
     if (!filter.param || !Object.prototype.hasOwnProperty.call(params, filter.param)) continue;

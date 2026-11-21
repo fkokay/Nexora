@@ -21,10 +21,17 @@ export function actionBarOf(components: Component[]): { id: string; props: Recor
   return bar ? { id: bar.id, props: bar.props ?? {} } : null;
 }
 
-/** İşlem Çubuğu'nda gizlenebilen komutlar (`hiddenCommands`, `commandWhen`): sekiz standart komut ve İşlemler menüsü. */
-export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"] as const;
+/**
+ * İşlem Çubuğu'nda gizlenebilen komutlar (`hiddenCommands`, `commandWhen`): sekiz standart komut, İşlemler menüsü ve
+ * İşlemler › Kaydet ve yeni (`saveNew`, `saveAndNew: true` ile).
+ */
+export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more", "saveNew"] as const;
 export type BarCommandId = (typeof BAR_COMMAND_IDS)[number];
-const STANDARD_BAR_IDS = BAR_COMMAND_IDS.filter((id) => id !== "more") as StandardCommandId[];
+const STANDARD_BAR_IDS = BAR_COMMAND_IDS.filter((id) => id !== "more" && id !== "saveNew") as StandardCommandId[];
+/** İşlemler › Kaydet ve yeni (`actionBar.saveAndNew`): kaydeder, başarıda kayıttan sonra eylemi yerine Yeni komutunu çalıştırır. */
+export const SAVE_AND_NEW_COMMAND_ID = "save-and-new";
+export const SAVE_AND_NEW_LABEL = "Kaydet ve yeni";
+export const SAVE_AND_NEW_SHORTCUT = "Ctrl+F2";
 
 const LOOK_VALUES: Record<keyof BarLook, readonly string[] | null> = {
   align: ["start", "center", "end"], density: ["compact", "normal", "wide"], sticky: ["true", "false"],
@@ -179,6 +186,8 @@ export type PageActionDeps = {
     write(queryId: string, kind: "save" | "delete"): void;
     /** İşlem Çubuğu `saveSequence` kayıt dizisini çalıştırır. */
     saveSequence(): void;
+    /** Kaydet ve yeni: kayıt yolunu (dizi ya da `saveQuery`) çalıştırır, başarıda Yeni komutuyla yeni kayda başlar. */
+    saveAndNew?(): void;
     refresh(): void;
     focus(inputId: string): void;
     print(): void;
@@ -270,11 +279,23 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     more.push({ id: CSV_EXPORT_COMMAND_ID, label: CSV_EXPORT_LABEL, ...csv });
   }
 
+  const newSpec: CommandSpec = newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound };
+  const saveSpec: CommandSpec = sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
+    : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound;
+  // Kaydet ve yeni: kayıt yolu ve Yeni bağlıysa İşlemler'in ilk öğesi; Kaydet ya da Yeni çalışamıyorsa nedeniyle pasif.
+  // `hiddenCommands`/`commandWhen` (`saveNew`) gizler; Kaydet ya da Yeni gizliyse o da gizlidir.
+  if (props.saveAndNew === true && saveBound && newSpec !== unbound && deps.run.saveAndNew
+    && !barCommandHidden(props, "saveNew", deps.commandVisible) && !barCommandHidden(props, "save", deps.commandVisible)
+    && !barCommandHidden(props, "new", deps.commandVisible)) {
+    const reason = saveSpec.disabledReason ?? newSpec.disabledReason;
+    const saveAndNew = deps.run.saveAndNew;
+    more.unshift({ id: SAVE_AND_NEW_COMMAND_ID, label: SAVE_AND_NEW_LABEL, shortcut: SAVE_AND_NEW_SHORTCUT, ...(reason ? { disabledReason: reason } : { run: () => saveAndNew() }) });
+  }
+
   const built: PageCommands = {
-    new: newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound },
+    new: newSpec,
     open: openCommand,
-    save: sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
-      : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound,
+    save: saveSpec,
     delete: !deleteBound ? unbound
       : !deps.queryAllowed(deleteId) ? { disabledReason: NO_RIGHT }
       : deps.rights.delete && deps.deleteNeedsSelection ? { disabledReason: NEEDS_SELECTION }

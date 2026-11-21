@@ -74,12 +74,17 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         if (await authorizer.IsAllowedAsync(tenantId, userId, role, resolved, http.RequestAborted)) context.Succeed(requirement);
     }
 
-    private static bool IsStatusFilteredCollection(string method, string? path, string resourceType)
+    /// <summary>
+    /// Collection reads whose handler itself filters rows by the caller's row rules: a row-attribute Allow rule is enough
+    /// for the route. The ERP operation catalog uses the same list for its <c>allowed</c> flag.
+    /// </summary>
+    internal static bool IsStatusFilteredCollection(string method, string? path, string resourceType)
     {
         if (!string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) || path is null) return false;
         var route = path.TrimEnd('/');
         return (resourceType, route) is
             ("erp.customers", "/api/customers") or
+            ("erp.customers", "/api/customers/counts") or
             ("erp.sales-deliveries", "/api/sales/standalone-deliveries") or
             ("erp.purchase-receipts", "/api/purchasing/standalone-receipts") or
             ("erp.sales-quotes", "/api/sales/quotes") or
@@ -91,6 +96,16 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
             ("erp.purchase-invoices", "/api/purchasing/standalone-invoices") or
             ("erp.purchase-invoices", "/api/purchasing/standalone-invoices/suppliers");
     }
+
+    /// <summary>
+    /// Resource types whose <c>{id}</c> routes get the record's own attributes (<see cref="ResolveResourceAttributesAsync"/>)
+    /// before row rules are evaluated, for everyone but a TenantAdmin. Keep in step with that method.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> RecordAttributeResourceTypes = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "erp.sales-quotes", "erp.sales-orders", "erp.purchase-requests", "erp.purchase-orders", "erp.sales-invoices",
+        "erp.sales-deliveries", "erp.purchase-receipts", "erp.purchase-invoices", "erp.customers"
+    };
 
     private static async Task<Dictionary<string, string>?> ResolveResourceAttributesAsync(TenantDbContext db, Guid tenantId, string resourceType, Guid id,
         CancellationToken cancellationToken)

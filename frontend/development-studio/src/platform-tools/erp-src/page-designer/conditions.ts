@@ -185,7 +185,7 @@ export function parseCondition(text: string): { ok: true; node: ConditionNode; r
   }
 }
 
-export const CONDITION_RESERVED_ROOTS = ["kullanici", "bugun", "sayilar", "sayfa"];
+export const CONDITION_RESERVED_ROOTS = ["kullanici", "bugun", "tarih", "sayilar", "sayfa"];
 
 /**
  * Müfettiş için koşul hatası: sözdizimi ya da sayfada olmayan kök. Metinler sunucunun hata metinleriyle aynı biçimdedir.

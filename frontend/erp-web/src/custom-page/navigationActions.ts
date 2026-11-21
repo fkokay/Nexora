@@ -63,8 +63,10 @@ export function navigationTarget(props: Record<string, unknown>, scope: PageScop
   }
   if (props.actionType === "erpPage") {
     if (typeof props.pageKey !== "string" || !PAGE_KEY.test(props.pageKey)) return null;
+    // `params` ("ad=değer", "Sayfa aç" ile aynı biçim) ekranın sayfa parametreleridir (ör. customerId); `queryText` `q` olarak gider.
     const q = typeof props.queryText === "string" ? interpolate(props.queryText, scope).trim().slice(0, MAX_PARAM_VALUE) : "";
-    return { kind: "workspace", page: props.pageKey, params: q ? { q } : {}, replace: target !== "newTab" };
+    const params = pageParamValues(props.params, scope);
+    return { kind: "workspace", page: props.pageKey, params: q ? { ...params, q } : params, replace: target !== "newTab" };
   }
   if (props.actionType === "page") {
     const code = typeof props.pageCode === "string" ? props.pageCode : "";

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown, ChevronUp, Database, Play, Plus, Search, Trash2 } from "lucide-react";
 import BindingInput, { type BindingSuggestion } from "./BindingInput";
 import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
@@ -25,7 +25,7 @@ export { MAX_QUERY_PARAMETERS } from "./queryDraft";
 import { MAX_QUERY_PARAMETERS } from "./queryDraft";
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 // "onceki" kayıt dizisinde bir önceki adımın sonucudur (sunucuda yalnız ValidName'de ayrılmış; koşul kökü değildir).
-export const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki", "sayfa"];
+export const RESERVED_NAMES = ["kullanici", "bugun", "tarih", "sayilar", "onceki", "sayfa"];
 /** Çalışma zamanı kapsamında JavaScript nesne iç anahtarlarıyla çakışan adlar (sunucudaki ObjectKeyNames). */
 export const OBJECT_KEY_NAMES = ["__proto__", "constructor", "prototype"];
 const WRITE_CONFIRM = "Bu sorgu verileri değiştirecek. Devam edilsin mi?";
@@ -247,11 +247,16 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
             const fromSource = (place: string | undefined) => place === "route" && !!operation?.sourceOperation;
             const toParameters = (items: typeof rows) => items.map((item) => ({ name: item.name, binding: item.binding, type: item.type }));
             const bodyMap = operation?.bodyMap ?? null;
+            // "ad.alan" gövde parametreleri iç nesne adıyla gruplanır (ör. address).
+            const parentOf = (name: string | undefined) => name && name.includes(".") ? name.slice(0, name.indexOf(".")) : null;
             const mapSource = bodyMap ? findOperation(catalog, bodyMap.sourceOperation) : undefined;
             return <>
               {rows.length === 0 ? <p className="pd-query-muted">{operation ? "Bu işlemde parametre yok." : "İşlem seçilince parametreler burada listelenir."}</p>
                 : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
-                {rows.map((row) => {
+                {rows.map((row, rowIndex) => {
+                  const parent = parentOf(row.name);
+                  const groupRow = parent && parent !== parentOf(rows[rowIndex - 1]?.name)
+                    ? <tr className="pd-query-param-group"><th scope="rowgroup" colSpan={3}><code>{parent}</code> <small>iç nesne</small></th></tr> : null;
                   const required = !!row.spec?.required;
                   const custom = row.custom === true;
                   const empty = row.binding.trim() === "";
@@ -260,7 +265,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
                   const update = (binding: string) => onUpdate({
                     parameters: toParameters(rows.map((item) => item.name === row.name ? { ...item, binding } : item)),
                   }, `query:${query.id}:param:${row.name}`);
-                  return <tr key={row.name}>
+                  return <Fragment key={row.name}>{groupRow}<tr>
                     <td><code title={custom ? "Özel alan (gövde eşlemesi)" : row.spec ? parameterPlaces[row.spec.in] : undefined}>{row.name}{required ? " *" : ""}</code></td>
                     <td>{collection ? <CollectionSelect kind={collection} binding={row.binding} candidates={collectionCandidates(collection, components)} name={row.name} disabled={!editable} onChange={update}/>
                       : <BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={invalid}
@@ -269,7 +274,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
                       <button type="button" className="pd-icon-button" aria-label={`${row.name} özel alanını kaldır`} disabled={!editable}
                         onClick={() => onUpdate({ parameters: toParameters(rows.filter((item) => item.name !== row.name)) })}><Trash2 size={12}/></button></span>
                       : <small>{parameterTypeLabel(row.type)}</small>}</td>
-                  </tr>;
+                  </tr></Fragment>;
                 })}
               </tbody></table>}
               {operation && bodyMap && <>

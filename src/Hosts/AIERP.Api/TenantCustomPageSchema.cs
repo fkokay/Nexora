@@ -76,14 +76,18 @@ internal static class TenantCustomPageSchema
       "assignments", "rowOpenAction", "steps", "activeWhen", "subtitle", "fieldFormats", "fieldUnits", "buttons",
       // Satırlı kayıt pencereleri: kendiliğinden istek kimliği (autoId), seçenek koşulu (optionsWhen), bağımlı temizleme
       // (clearsOnChange), ızgarada en az satır ve seçim sütunlarının koşul/sabit seçenekleri, istemde açıklama ve uzunluk sınırı.
-      "autoId", "optionsWhen", "clearsOnChange", "minRows", "columnOptionsWhen", "columnStaticOptions", "promptText", "promptMaxLength" };
+      "autoId", "optionsWhen", "clearsOnChange", "minRows", "columnOptionsWhen", "columnStaticOptions", "promptText", "promptMaxLength",
+      // actionBar İşlemler › "Kaydet ve yeni": kaydı çalıştırır, başarıda kaydettikten sonra eylemi yerine Yeni komutunu çalıştırır.
+      "saveAndNew" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "exportCsv", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
-      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook" };
+      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook", "saveAndNew" };
     private static readonly string[] BarCommandIds = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"];
+    /// <summary><c>commandWhen</c> keys: the bar commands plus İşlemler › "Kaydet ve yeni" (<c>saveNew</c>, with <c>saveAndNew</c>).</summary>
+    private static readonly string[] ConditionalBarCommandIds = [.. BarCommandIds, "saveNew"];
     /// <summary>actionBar <c>barLook</c> "anahtar=değer" öğeleri: anahtar başına izin verilen değerler (renkler #RRGGBB).</summary>
     private static readonly Dictionary<string, string[]?> BarLookValues = new(StringComparer.Ordinal)
     {
@@ -153,6 +157,11 @@ internal static class TenantCustomPageSchema
     private static readonly HashSet<string> RuntimeReservedNames = new(StringComparer.OrdinalIgnoreCase) { "onceki", PageRoot };
     /// <summary><c>{{sayfa.parametre.x}}</c>: the parameters a "page" (Sayfa aç) action opened this page with.</summary>
     private const string PageRoot = "sayfa";
+    /// <summary>
+    /// <c>{{tarih.ayBasi}}</c>, <c>tarih.yilBasi</c>, <c>tarih.ucAyOnce</c>: ISO dates next to <c>bugun</c> (page runtime). Not a
+    /// reserved name: saved pages already have inputs named "tarih", and a page name shadows the root.
+    /// </summary>
+    private const string DateRoot = "tarih";
 
     private sealed class Context(int version)
     {
@@ -377,7 +386,9 @@ internal static class TenantCustomPageSchema
             var parameterName = StringOf(parameter, "name");
             if (parameterName is not null && TenantCustomPageQueries.ObjectKeyNames.Contains(parameterName))
             { error = $"'{name}' sorgusu: '{parameterName}' ayrılmış bir addır; başka bir parametre adı seçin."; return false; }
-            if (!TenantCustomPageQueries.IsValidName(parameterName) || !declared.Add(parameterName!))
+            // ERP operation queries may also bind dotted body parameters (address.city); the operation must declare them.
+            var validName = TenantCustomPageQueries.IsValidName(parameterName) || allowCollections && IsDottedParameterName(parameterName);
+            if (!validName || !declared.Add(parameterName!))
             { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
             var type = StringOf(parameter, "type");
             if (type is null || !(ParameterTypes.Contains(type) || (allowCollections && CollectionParameterTypes.Contains(type))))
@@ -389,6 +400,11 @@ internal static class TenantCustomPageSchema
         }
         return true;
     }
+
+    /// <summary>A one-level dotted body parameter name (<c>address.city</c>): two valid names joined by one dot.</summary>
+    internal static bool IsDottedParameterName(string? name) =>
+        name is not null && name.Split('.') is [var parent, var child]
+        && TenantCustomPageQueries.IsValidName(parent) && TenantCustomPageQueries.IsValidName(child);
 
     /// <summary>
     /// A query bound to a named ERP operation: the operation must exist and not be deprecated, the kind must equal its
@@ -850,6 +866,17 @@ internal static class TenantCustomPageSchema
         // İşlemler › "CSV olarak dışa aktar": exportTable listesinin CSV'si (yoksa açık; false kapatır).
         if (props.TryGetProperty("exportCsv", out var csv) && csv.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
         { error = "'exportCsv' true veya false olmalıdır."; return false; }
+        // "Kaydet ve yeni" runs the bar's save, then its Yeni command: both must exist.
+        if (props.TryGetProperty("saveAndNew", out var saveAndNew))
+        {
+            if (!IsBool(saveAndNew)) { error = "'saveAndNew' true veya false olmalıdır."; return false; }
+            if (saveAndNew.ValueKind == JsonValueKind.True
+                && !(props.TryGetProperty("saveQuery", out _) || props.TryGetProperty("saveSequence", out _)))
+            { error = "'saveAndNew' (Kaydet ve yeni) için İşlem Çubuğu'nda bir kayıt sorgusu ('saveQuery') ya da kayıt dizisi ('saveSequence') gerekli."; return false; }
+            if (saveAndNew.ValueKind == JsonValueKind.True
+                && !(StringOf(props, "newAction") is "clear" or "dialog" or "page" || props.TryGetProperty("newButton", out _)))
+            { error = "'saveAndNew' (Kaydet ve yeni) için İşlem Çubuğu'nda bir Yeni komutu ('newAction' ya da 'newButton') gerekli."; return false; }
+        }
         return ValidateBarCommands(props, context, out error) && ValidateSaveQueries(props, context, out error);
     }
 
@@ -876,7 +903,7 @@ internal static class TenantCustomPageSchema
             {
                 var at = item.IndexOf('=');
                 var id = at > 0 ? item[..at] : "";
-                if (!BarCommandIds.Contains(id) || !seen.Add(id) || item.Length > 320)
+                if (!ConditionalBarCommandIds.Contains(id) || !seen.Add(id) || item.Length > 320)
                 { error = $"'commandWhen' öğesi komut=koşul biçiminde olmalı ve her komut bir kez geçmelidir: {item}"; return false; }
                 if (!PageConditionExpression.TryParse(item[(at + 1)..], out var roots, out var reason))
                 { error = $"'commandWhen' koşulu geçersiz ({id}): {reason}"; return false; }
@@ -1060,6 +1087,13 @@ internal static class TenantCustomPageSchema
         _ => null
     };
 
+    /// <summary>
+    /// Whether a navigation prop is valid on the action type: each belongs to one type, except <c>params</c>, which an ERP
+    /// screen (erpPage) also takes as its page parameters (e.g. <c>customerId</c>; a screen that does not read one ignores it).
+    /// </summary>
+    private static bool NavigationPropAllowed(string prop, string? actionType) =>
+        NavigationTypeOf(prop) == actionType || prop == "params" && actionType == "erpPage";
+
     private static string NavigationLabel(string? actionType) => actionType switch
     {
         "link" => "bağlantı (link)",
@@ -1092,7 +1126,7 @@ internal static class TenantCustomPageSchema
     {
         error = null;
         var format = $"'{property}' en fazla 6 adet ad=değer öğesi içermelidir; ad küçük harfle başlar, en fazla 32 harf/rakamdır ve benzersizdir.";
-        if (property == "params" && typeText != "button") return Fail("'params' yalnız sayfa açan (page) eylemli düğmede kullanılabilir.", out error);
+        if (property == "params" && typeText != "button") return Fail("'params' yalnız sayfa açan (page) ya da ERP ekranı (erpPage) eylemli düğmede kullanılabilir.", out error);
         if (property == "openParams" && typeText != "actionBar") return Fail("'openParams' özelliği yalnızca İşlem Çubuğu (actionBar) bileşeninde kullanılabilir.", out error);
         if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaxPageParams) return Fail(format, out error);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -1115,8 +1149,9 @@ internal static class TenantCustomPageSchema
         error = null;
         var actionType = typeText == "button" ? StringOf(props, "actionType") : null;
         foreach (var key in NavigationProps)
-            if (props.TryGetProperty(key, out _) && NavigationTypeOf(key) != actionType)
-                return Fail($"'{key}' yalnız {NavigationLabel(NavigationTypeOf(key))} eylemli düğmede kullanılabilir.", out error);
+            if (props.TryGetProperty(key, out _) && !NavigationPropAllowed(key, actionType))
+                return Fail(key == "params" ? "'params' yalnız sayfa açan (page) ya da ERP ekranı (erpPage) eylemli düğmede kullanılabilir."
+                    : $"'{key}' yalnız {NavigationLabel(NavigationTypeOf(key))} eylemli düğmede kullanılabilir.", out error);
         if (actionType is not ("link" or "erpPage" or "page")) return true;
         foreach (var key in new[] { "queryId", "refreshQueries" })
             if (props.TryGetProperty(key, out _)) return Fail($"'{key}' gezinme eylemli düğmede kullanılamaz; bu eylemler veri yazmaz.", out error);
@@ -1133,7 +1168,7 @@ internal static class TenantCustomPageSchema
             case "erpPage":
                 var pageKey = StringOf(props, "pageKey");
                 if (string.IsNullOrEmpty(pageKey)) return Fail("ERP ekranı düğmesi için 'pageKey' gerekli.", out error);
-                if (!StandardMenuEndpoints.PageKeys.Contains(pageKey)) return Fail($"ERP ekranı bulunamadı: {pageKey}", out error);
+                if (!StandardMenuEndpoints.NavigablePageKeys.Contains(pageKey)) return Fail($"ERP ekranı bulunamadı: {pageKey}", out error);
                 break;
             default:
                 var pageCode = StringOf(props, "pageCode");
@@ -1215,7 +1250,7 @@ internal static class TenantCustomPageSchema
     private static readonly Regex IsoDate = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly string[] LookupProps = ["optionDescriptionColumn", "minChars", "staticOptions", "allowClear"];
     private static readonly string[] PagingProps = ["pageParam", "pageSizeParam", "pageSize", "searchInput", "footerMeta"];
-    private static readonly HashSet<string> ConditionRoots = new(TenantCustomPageQueries.ReservedNames, StringComparer.Ordinal) { PageRoot };
+    private static readonly HashSet<string> ConditionRoots = new(TenantCustomPageQueries.ReservedNames, StringComparer.Ordinal) { PageRoot, DateRoot };
 
     private static bool IsBool(JsonElement value) => value.ValueKind is JsonValueKind.True or JsonValueKind.False;
     private static bool IsIntIn(JsonElement value, int min, int max) =>

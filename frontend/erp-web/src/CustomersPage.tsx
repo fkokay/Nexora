@@ -6,6 +6,7 @@ import {
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
+import { setPageParams } from "./pageNavigation";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
@@ -1061,6 +1062,8 @@ function CustomersPage({
   async function openEditCustomer(item: CustomerItem, openPage = true, section?: "addresses" | "custom") {
     if (openPage) {
       sessionStorage.setItem("nexora.customer-edit-id", item.id);
+      // The customer-edit alias of the customer-create system page reads the account from this page param.
+      setPageParams("customer-edit", { customerId: item.id });
       if (section) sessionStorage.setItem(CUSTOMER_EDIT_SECTION_KEY, section);
       else sessionStorage.removeItem(CUSTOMER_EDIT_SECTION_KEY);
       onNavigate("customer-edit");

@@ -1062,6 +1062,7 @@ auditRetention.MapPut("/", async (AuditRetentionPolicyWriteRequest request, Clai
 var customers = app.MapGroup("/api/customers").WithTags("Cari Yönetimi").RequireAuthorization();
 customers.RequireVisibleCustomerRows();
 customers.MapCustomerBalanceEndpoint();
+customers.MapCustomerCountsEndpoint();
 customers.MapCustomerBulkImportEndpoint();
 var customerLocationDefinitions = app.MapGroup("/api/location-definitions").WithTags("Tanımlamalar").RequireAuthorization();
 customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>
@@ -1466,7 +1467,17 @@ customers.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tenant
             visibleAccounts.Where(parent => parent.Id == x.ParentCompanyId).Select(parent => parent.Name).FirstOrDefault(),
             visibleAccounts.Count(subsidiary => subsidiary.ParentCompanyId == x.Id), null, x.IsEInvoiceRegistered, x.EInvoiceRecipientAlias,
             x.Phone, x.Email, x.Website, x.ContactName, x.ContactPhone, x.ContactEmail, x.PriceListCode, x.ReceivableAccountCode, x.PayableAccountCode, x.BankName, x.BankBranchCode, x.Iban)).SingleOrDefaultAsync(ct);
-    return customer is null ? Results.NotFound() : Results.Ok(customer);
+    if (customer is null) return Results.NotFound();
+    // The primary address (active, default, General): the card form edits it and the list panel shows it.
+    var primary = await db.CustomerAddresses.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.CustomerId == id && x.IsActive && x.IsDefault && x.Kind == CustomerAddressKind.General)
+        .OrderBy(x => x.Label).ThenBy(x => x.Id).FirstOrDefaultAsync(ct);
+    return Results.Ok(primary is null ? customer : customer with
+    {
+        DefaultAddressId = primary.Id, DefaultAddressLabel = primary.Label, DefaultAddressLine = primary.AddressLine, DefaultAddressCity = primary.City,
+        DefaultAddressDistrict = primary.District, DefaultAddressPostalCode = primary.PostalCode, DefaultAddressCountryCode = primary.CountryCode,
+        DefaultAddressLatitude = primary.Latitude, DefaultAddressLongitude = primary.Longitude
+    });
 });
 customers.MapPost("/", async (CustomerWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -1735,7 +1746,10 @@ customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly
     {
         runningBalance += x.Direction == CustomerLedgerDirection.Debit ? x.Amount : -x.Amount;
         return new CustomerStatementLine(x.Id, x.EntryDate, x.Direction, x.Amount, x.CurrencyCode, x.Description,
-            x.ReversalOfId, x.HasReversal, runningBalance);
+            x.ReversalOfId, x.HasReversal, runningBalance)
+        {
+            ForeignCurrencyCode = string.Equals(x.CurrencyCode, customer.CurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : x.CurrencyCode
+        };
     }).ToList();
     var debitTotal = entries.Where(x => x.Direction == CustomerLedgerDirection.Debit).Sum(x => x.Amount);
     var creditTotal = entries.Where(x => x.Direction == CustomerLedgerDirection.Credit).Sum(x => x.Amount);

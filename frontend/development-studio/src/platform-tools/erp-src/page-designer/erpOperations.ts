@@ -92,7 +92,13 @@ export function buildReadRequest(operation: ErpOperation, values: Record<string,
     } else if (parameter.in === "query") {
       if (!isEmpty(value)) query.append(parameter.name, String(value));
     } else if (value !== undefined) {
-      body[parameter.name] = value;
+      // "ad.alan" gövde parametresi iç nesneye yazılır: { ad: { alan } } (ERP Web çalışma zamanıyla aynı).
+      const dot = parameter.name.indexOf(".");
+      if (dot < 0) body[parameter.name] = value;
+      else {
+        const parent = parameter.name.slice(0, dot);
+        body[parent] = { ...(isRecord(body[parent]) ? body[parent] as Record<string, unknown> : {}), [parameter.name.slice(dot + 1)]: value };
+      }
     }
   }
   const search = query.toString();

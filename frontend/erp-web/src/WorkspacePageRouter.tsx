@@ -3,7 +3,8 @@ import type { Locale } from "./WorkspaceComponents";
 import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
-import { canBeSystemPage } from "./system-pages/systemPageKeys";
+import { canBeSystemPage, canBeSystemPageAlias } from "./system-pages/systemPageKeys";
+import { usePageParams } from "./pageNavigation";
 import { LegacyScreenBar } from "./system-pages/LegacyScreenBar";
 import { systemPreviewFor } from "./workspace-storage";
 
@@ -166,6 +167,33 @@ const isBuiltInPageKey = (key: string) => !nonBuiltInPrefixes.some((prefix) => k
 
 export function WorkspacePageRouter({ systemPages, ...props }: RouterProps) {
   const key = props.page;
+  // An alias key (a standard's `aliases`, e.g. customer-edit → customer-create) opens the target's system page in its own tab,
+  // with the alias tab's page params. Without the required param (a tab restored after reload) it stays on the legacy screen.
+  const aliasMap = systemPages && canBeSystemPageAlias(key) ? systemPages : undefined;
+  const aliasParams = usePageParams(aliasMap ? key : undefined);
+  if (aliasMap) {
+    if (aliasMap.status === "loading")
+      return <div className="panel page-loading" role="status">Sayfa yükleniyor…</div>;
+    const alias = aliasMap.aliases[key];
+    const usable = !!alias && Object.prototype.hasOwnProperty.call(aliasMap.screens, alias.screenKey) && (aliasParams[alias.param] ?? "") !== "";
+    if (!alias || !usable) return <LegacyPageRouter {...props} />;
+    if (aliasMap.legacy.has(alias.screenKey))
+      return (
+        <>
+          <LegacyScreenBar onBack={() => aliasMap.closeLegacy(alias.screenKey)} />
+          <LegacyPageRouter {...props} />
+        </>
+      );
+    return (
+      <TenantCustomPage
+        token={props.token}
+        systemScreenKey={alias.screenKey}
+        tabKey={key}
+        onOpenLegacy={() => aliasMap.openLegacy(alias.screenKey)}
+        onSystemPageMissing={() => aliasMap.dropScreen(alias.screenKey)}
+      />
+    );
+  }
   // Studio's preview of a system page draft opens on the screen's own key, so the workspace shows it as that built-in
   // screen (module menu, breadcrumb, tab title) with the draft in place of the published design or the legacy screen.
   const previewId = isBuiltInPageKey(key) && canBeSystemPage(key) ? systemPreviewFor(key) : undefined;

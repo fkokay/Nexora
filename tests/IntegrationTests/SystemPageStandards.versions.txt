@@ -1,3 +1,6 @@
+customer-create=1
+customer-ledger=1
+customers=1
 inventory-cost=1
 inventory-locations=1
 inventory-stock=1

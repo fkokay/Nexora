@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { setPageParams, usePageParams } from "./pageNavigation";
 import {
   Ban,
   Check,
@@ -210,6 +211,34 @@ export function SalesPage({
   const [actionCustomerId, setActionCustomerId] = useState(() =>
     salesActionPage ? takeCustomerSalesAction(salesActionPage) : "",
   );
+  // A system page opens the create screen with the page param `customerId` (erpPage `params`). It is read once, like the
+  // sessionStorage handoff, so the next menu-opened create screen starts without the previous customer.
+  const paramCustomerId = usePageParams(salesActionPage || undefined).customerId ?? "";
+  useEffect(() => {
+    if (!salesActionPage || !paramCustomerId) return;
+    setActionCustomerId(paramCustomerId);
+    setPageParams(salesActionPage, {});
+  }, [salesActionPage, paramCustomerId]);
+  // The invoice list takes the same page param as a removable customer filter (Cari Hesaplar › Faturalar).
+  const invoiceListKey = section === "sales-invoices" && !createInvoicePage ? "sales-invoices" : undefined;
+  const paramInvoiceCustomerId = usePageParams(invoiceListKey).customerId ?? "";
+  const [invoiceCustomer, setInvoiceCustomer] = useState<{ id: string; label: string } | null>(null);
+  useEffect(() => {
+    if (!invoiceListKey || !paramInvoiceCustomerId) return;
+    setInvoiceCustomer({ id: paramInvoiceCustomerId, label: "" });
+    setPageParams(invoiceListKey, {});
+  }, [invoiceListKey, paramInvoiceCustomerId]);
+  const invoiceCustomerId = invoiceCustomer?.id ?? "";
+  useEffect(() => {
+    if (!invoiceCustomerId) return;
+    let active = true;
+    void api<SalesCustomer>(`/api/customers/${encodeURIComponent(invoiceCustomerId)}`, token)
+      .then((customer) => {
+        if (active) setInvoiceCustomer((current) => current?.id === customer.id ? { ...current, label: `${customer.code} · ${customer.name}` } : current);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [invoiceCustomerId, token]);
   useEffect(() => {
     if (!salesActionPage) return;
     const pendingCustomerId = takeCustomerSalesAction(salesActionPage);
@@ -579,7 +608,7 @@ export function SalesPage({
             page: number;
             totalCount: number;
           }>(
-            `${endpoint}?q=${encodeURIComponent(query.trim())}&page=${targetPage}&pageSize=25${quoteFilterQuery ? `&${quoteFilterQuery}` : ""}`,
+            `${endpoint}?q=${encodeURIComponent(query.trim())}&page=${targetPage}&pageSize=25${quoteFilterQuery ? `&${quoteFilterQuery}` : ""}${tab === "invoices" && invoiceCustomerId ? `&customerId=${encodeURIComponent(invoiceCustomerId)}` : ""}`,
             token,
           ),
           api<Warehouse[]>("/api/warehouses/", token),
@@ -675,15 +704,16 @@ export function SalesPage({
       setError((error as Error).message);
     }
   }
-  const salesRequestKey = useRef({ tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo });
+  const salesRequestKey = useRef({ tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo, invoiceCustomerId });
   useEffect(() => {
     const changed =
       salesRequestKey.current.tab !== activeTab ||
       salesRequestKey.current.query !== search ||
       salesRequestKey.current.quoteStatusFilter !== quoteStatusFilter ||
       salesRequestKey.current.quoteDateFrom !== quoteDateFrom ||
-      salesRequestKey.current.quoteDateTo !== quoteDateTo;
-    salesRequestKey.current = { tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo };
+      salesRequestKey.current.quoteDateTo !== quoteDateTo ||
+      salesRequestKey.current.invoiceCustomerId !== invoiceCustomerId;
+    salesRequestKey.current = { tab: activeTab, query: search, quoteStatusFilter, quoteDateFrom, quoteDateTo, invoiceCustomerId };
     const page = changed ? 1 : salesListPage;
     if (changed && salesListPage !== 1) setSalesListPage(1);
     const delay =
@@ -696,7 +726,7 @@ export function SalesPage({
       void load(page, search, activeTab);
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [token, activeTab, search, salesListPage, quoteStatusFilter, quoteDateFrom, quoteDateTo]);
+  }, [token, activeTab, search, salesListPage, quoteStatusFilter, quoteDateFrom, quoteDateTo, invoiceCustomerId]);
   useEffect(() => {
     let cancelled = false;
     api<{ fields: BuiltInScreenLayoutField[] }>(
@@ -2215,6 +2245,14 @@ export function SalesPage({
               onRefresh={() => void load()}
               extra={<SalesListPanelToggle open={salesPanel.open} onToggle={salesPanel.toggle} />}
             />
+            {activeTab === "invoices" && invoiceCustomer && (
+              <div className="notice sales-customer-filter" role="status">
+                <span>Yalnız <strong>{invoiceCustomer.label || "seçili cari"}</strong> carisinin faturaları gösteriliyor.</span>
+                <button type="button" aria-label="Cari süzgecini kaldır" title="Cari süzgecini kaldır" onClick={() => setInvoiceCustomer(null)}>
+                  <X size={15} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       {error && !createInvoicePage && !createOrderPage && !createQuotePage && (

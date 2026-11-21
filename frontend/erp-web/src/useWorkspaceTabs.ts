@@ -3,7 +3,7 @@ import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
 import { standalonePageTitle } from './workspace-navigation'
-import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from './pageNavigation'
+import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from './pageNavigation'
 
 type Tab = { id: string; label: string }
 type Props = {
@@ -83,6 +83,9 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     if (tabId === 'dashboard') return
     const nextTabs = moduleTabs.filter(tab => tab.id !== tabId)
     setModuleTabs(nextTabs)
+    // A closed tab forgets its page params: reopening it from the menu or the rail starts without the last record (e.g. a
+    // card opened for editing with `customerId` reopens as a new card).
+    setPageParams(tabId, {})
     clearTabLimitNotice()
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
     if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')

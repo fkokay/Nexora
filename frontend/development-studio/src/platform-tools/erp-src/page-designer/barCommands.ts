@@ -64,6 +64,11 @@ export function barCommandProblem(props: Record<string, unknown>): string | null
   for (const [label, action] of [["Yeni", "newAction"], ["Aç", "openAction"]] as const)
     if (props[action] === "page" && text(props.formDialog)) return `İşlem Çubuğu ${label} sayfa açarken kayıt penceresi ('formDialog') kullanılamaz; pencere için 'dialog' seçin.`;
   if (props.openAction === "page" && !text(props.openTable)) return "İşlem Çubuğu Aç sayfa açıyor; satırı kullanılacak liste ('openTable') gerekli.";
+  // Kaydet ve yeni: çubuğun kaydı ve Yeni komutu birlikte çalışır (sunucudaki saveAndNew kuralı).
+  if (props.saveAndNew === true && !text(props.saveQuery) && list(props.saveSequence).length === 0)
+    return "'saveAndNew' (Kaydet ve yeni) için İşlem Çubuğu'nda bir kayıt sorgusu ('saveQuery') ya da kayıt dizisi ('saveSequence') gerekli.";
+  if (props.saveAndNew === true && !["clear", "dialog", "page"].includes(text(props.newAction)) && !text(props.newButton))
+    return "'saveAndNew' (Kaydet ve yeni) için İşlem Çubuğu'nda bir Yeni komutu ('newAction' ya da 'newButton') gerekli.";
   const params = list(props.openParams);
   if (params.some((item, index) => { const name = item.slice(0, item.indexOf("=")); return !item.includes("=") || !PARAM_NAME.test(name) || params.findIndex((other) => other.startsWith(`${name}=`)) !== index; }))
     return "'openParams' en fazla 6 adet ad=değer öğesi içermelidir; ad küçük harfle başlar, en fazla 32 harf/rakamdır ve benzersizdir.";

@@ -8,8 +8,14 @@ using AIERP.Api;
 
 internal sealed record SystemPageItem(string Key, string Kind, string Id, int Since, string Label, IReadOnlyList<string> Requires);
 internal sealed record SystemPageScreenView(string Key, string Component, IReadOnlyDictionary<string, string> Fields);
+/// <summary>Another screen key served by a standard: it opens the standard with the record id as page parameter <c>Param</c>.</summary>
+internal sealed record SystemPageAlias(string Key, string Param);
 internal sealed record SystemPageStandard(string ScreenKey, string Title, string? Description, string Module, int Version, string Stage,
-    IReadOnlyList<SystemPageItem> Items, IReadOnlyList<SystemPageScreenView> ScreenViews, string DefinitionJson);
+    IReadOnlyList<SystemPageItem> Items, IReadOnlyList<SystemPageScreenView> ScreenViews, string DefinitionJson)
+{
+    /// <summary>Screen keys routed to this standard (e.g. <c>customer-edit</c> → <c>customer-create</c> with <c>customerId</c>).</summary>
+    public IReadOnlyList<SystemPageAlias> Aliases { get; init; } = [];
+}
 
 /// <summary>DI singleton the endpoints read; defaults to <see cref="SystemPageStandards.All"/>. Integration tests replace it
 /// through WithWebHostBuilder(ConfigureServices) instead of mutating static state, so parallel xUnit classes never interfere.</summary>
@@ -37,7 +43,9 @@ internal static class SystemPageStandards
     private const string SyntheticIdPrefix = "nexora-system-page:";
     private static readonly Regex ScreenKeyPattern = new("^[a-z0-9-]{1,39}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     private static readonly HashSet<string> EnvelopeKeys = new(StringComparer.Ordinal)
-    { "screenKey", "title", "description", "module", "version", "stage", "items", "screenViews", "definition" };
+    { "screenKey", "title", "description", "module", "version", "stage", "items", "screenViews", "aliases", "definition" };
+    private static readonly HashSet<string> AliasKeys = new(StringComparer.Ordinal) { "key", "param" };
+    private static readonly Regex AliasParamPattern = new("^[a-z][a-zA-Z0-9]{0,31}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     private static readonly HashSet<string> ItemKeys = new(StringComparer.Ordinal) { "since", "label", "requires" };
     private static readonly HashSet<string> ScreenViewKeys = new(StringComparer.Ordinal) { "key", "component", "fields" };
     private static readonly Lazy<IReadOnlyDictionary<string, SystemPageStandard>> Loaded = new(() => Load(EmbeddedFiles()));
@@ -137,7 +145,45 @@ internal static class SystemPageStandards
             if (standard is not null && fileErrors.Count == 0) result.Add(standard.ScreenKey, standard);
             errors.AddRange(fileErrors);
         }
+        // An alias key belongs to one standard and is never a standard's own screen key.
+        var aliasOwners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var standard in result.Values.OrderBy(x => x.ScreenKey, StringComparer.Ordinal))
+            foreach (var alias in standard.Aliases)
+            {
+                if (result.ContainsKey(alias.Key))
+                    errors.Add($"{standard.ScreenKey}: takma ad '{alias.Key}' başka bir standardın ekran anahtarı.");
+                else if (!aliasOwners.TryAdd(alias.Key, standard.ScreenKey))
+                    errors.Add($"{standard.ScreenKey}: takma ad '{alias.Key}' '{aliasOwners[alias.Key]}' standardında da tanımlı.");
+            }
         return result;
+    }
+
+    /// <summary>
+    /// <c>aliases</c>: 0–4 <c>{ key, param }</c> entries. The key is another screen key (not this one); the param is the page
+    /// parameter that carries the record id, and the definition must read it (<c>sayfa.parametre.&lt;param&gt;</c>).
+    /// </summary>
+    private static IReadOnlyList<SystemPageAlias> ParseAliases(string file, JsonElement root, string screenKey, string definitionJson, List<string> errors)
+    {
+        var aliases = new List<SystemPageAlias>();
+        if (!root.TryGetProperty("aliases", out var element)) return aliases;
+        if (element.ValueKind != JsonValueKind.Array || element.GetArrayLength() > 4)
+        { errors.Add($"{file}: aliases en fazla 4 öğeli bir dizi olmalıdır."); return aliases; }
+        foreach (var entry in element.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object || entry.EnumerateObject().Any(x => !AliasKeys.Contains(x.Name)))
+            { errors.Add($"{file}: aliases öğeleri yalnız key ve param alanlarını içeren nesneler olmalıdır."); continue; }
+            var key = StringOf(entry, "key");
+            var param = StringOf(entry, "param");
+            if (key is null || !ScreenKeyPattern.IsMatch(key) || key == screenKey)
+            { errors.Add($"{file}: takma ad anahtarı '{key}' bu standarttan farklı ^[a-z0-9-]{{1,39}}$ biçiminde bir ekran anahtarı olmalıdır."); continue; }
+            if (param is null || !AliasParamPattern.IsMatch(param))
+            { errors.Add($"{file}: takma ad '{key}' için param küçük harfle başlayan en fazla 32 harf/rakamlık bir sayfa parametresi adı olmalıdır."); continue; }
+            if (!definitionJson.Contains("sayfa.parametre." + param, StringComparison.Ordinal))
+            { errors.Add($"{file}: takma ad '{key}' sayfa parametresi '{param}' tanımda okunmuyor ({{{{sayfa.parametre.{param}}}}})."); continue; }
+            if (aliases.Any(x => x.Key == key)) { errors.Add($"{file}: takma ad '{key}' birden fazla kez geçiyor."); continue; }
+            aliases.Add(new SystemPageAlias(key, param));
+        }
+        return aliases;
     }
 
     private static SystemPageStandard? ParseOne(string file, string json, List<string> errors)
@@ -190,8 +236,9 @@ internal static class SystemPageStandards
                 errors.Add($"{file}: '{extra}' öğesinin tanımda karşılığı yok.");
 
             var screenViews = ParseScreenViews(file, root, shape, errors);
+            var aliases = ParseAliases(file, root, screenKey, definitionJson, errors);
             var standard = new SystemPageStandard(screenKey, title ?? "", description, module ?? "", version, stage ?? "",
-                items.Values.ToArray(), screenViews, definitionJson);
+                items.Values.ToArray(), screenViews, definitionJson) { Aliases = aliases };
 
             if (errors.Count == 0)
             {

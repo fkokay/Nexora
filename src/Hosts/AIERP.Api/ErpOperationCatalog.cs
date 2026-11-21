@@ -66,6 +66,7 @@ internal static class ErpOperationCatalog
     private const string ManufacturingModule = "Üretim";
     private const string SettingsModule = "Ayarlar";
     private const string PurchasingModule = "Satınalma";
+    private const string CustomerModule = "Cari";
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
@@ -115,7 +116,29 @@ internal static class ErpOperationCatalog
         ["toWarehouseId"] = "Hedef depo kimliği", ["toWarehouseName"] = "Hedef depo", ["fromStorageLocationId"] = "Kaynak konum kimliği",
         ["fromStorageLocationCode"] = "Kaynak konum kodu", ["fromStorageLocationName"] = "Kaynak konum adı",
         ["toStorageLocationId"] = "Hedef konum kimliği", ["toStorageLocationCode"] = "Hedef konum kodu",
-        ["toStorageLocationName"] = "Hedef konum adı"
+        ["toStorageLocationName"] = "Hedef konum adı",
+        // Cari Hesaplar, cari kart ve Cari Hesap Hareketleri.
+        ["type"] = "Cari türü", ["taxNumber"] = "Vergi no", ["groupId"] = "Cari grubu kimliği", ["groupName"] = "Cari grubu",
+        ["currencyCode"] = "Döviz", ["riskLimit"] = "Risk limiti", ["paymentTermDays"] = "Vade (gün)",
+        ["identityNumber"] = "T.C. kimlik no", ["taxOffice"] = "Vergi dairesi", ["parentCompanyId"] = "Ana firma kimliği",
+        ["parentCompanyName"] = "Ana firma", ["subsidiaryCount"] = "Bağlı firma sayısı", ["isEInvoiceRegistered"] = "E-Fatura mükellefi",
+        ["eInvoiceRecipientAlias"] = "E-Fatura alıcı etiketi", ["phone"] = "Telefon", ["email"] = "Kurumsal e-posta",
+        ["website"] = "Web sitesi", ["contactName"] = "Yetkili kişi", ["contactPhone"] = "Yetkili telefonu",
+        ["contactEmail"] = "Yetkili e-postası", ["priceListCode"] = "Fiyat listesi kodu", ["receivableAccountCode"] = "Alıcı muhasebe hesabı",
+        ["payableAccountCode"] = "Satıcı muhasebe hesabı", ["bankName"] = "Banka adı", ["bankBranchCode"] = "Şube kodu", ["iban"] = "IBAN",
+        ["addressLine"] = "Adres", ["city"] = "İl", ["district"] = "İlçe", ["postalCode"] = "Posta kodu", ["countryCode"] = "Ülke",
+        ["isDefault"] = "Varsayılan", ["latitude"] = "Enlem", ["longitude"] = "Boylam", ["provinceId"] = "İl kimliği",
+        ["defaultAddressId"] = "Varsayılan adres kimliği", ["defaultAddressLabel"] = "Varsayılan adres etiketi",
+        ["defaultAddressLine"] = "Varsayılan adres", ["defaultAddressCity"] = "Varsayılan adres ili",
+        ["defaultAddressDistrict"] = "Varsayılan adres ilçesi", ["defaultAddressPostalCode"] = "Varsayılan adres posta kodu",
+        ["defaultAddressCountryCode"] = "Varsayılan adres ülkesi", ["defaultAddressLatitude"] = "Varsayılan adres enlemi",
+        ["defaultAddressLongitude"] = "Varsayılan adres boylamı",
+        ["balance"] = "Bakiye", ["balanceSide"] = "Bakiye yönü", ["balanceAmount"] = "Bakiye tutarı", ["balanceSideCode"] = "Bakiye (B/A)",
+        ["limitUsagePercent"] = "Limit kullanımı %", ["amount"] = "Tutar", ["debitAmount"] = "Borç", ["creditAmount"] = "Alacak",
+        ["foreignCurrencyCode"] = "Satır dövizi",
+        ["totalCount"] = "Cari kartı", ["activeCount"] = "Aktif", ["inactiveCount"] = "Pasif", ["customerCount"] = "Müşteri",
+        ["supplierCount"] = "Tedarikçi", ["bothCount"] = "Müşteri ve tedarikçi", ["dealerCount"] = "Bayi", ["employeeCount"] = "Personel",
+        ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı"
     };
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
@@ -179,6 +202,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildStockCost(paging));
         operations.AddRange(BuildStockScreens(paging));
         operations.AddRange(BuildWarehouseTransfers(paging));
+        operations.AddRange(BuildCustomers(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -189,6 +213,9 @@ internal static class ErpOperationCatalog
                 [], new ErpOperationResult("list", "rows", ReportColumns(report).Select(x => new ErpOperationColumn(x.Code, x.Label, x.DataType)).ToArray()),
                 null, ReportBody(source, report), Since));
         }
+        foreach (var operation in operations)
+            if (ParameterShapeError(operation) is { } shapeError)
+                throw new InvalidOperationException($"ERP işlemi '{operation.Name}' geçersiz: {shapeError}");
         return operations;
     }
 
@@ -399,6 +426,142 @@ internal static class ErpOperationCatalog
             [transferId, .. BodyParameters<InventoryTransferVoidRequest>(sourceBacked: false, exclude: "confirmation")], None, null, voidBody);
     }
 
+    /// <summary>
+    /// Cari Hesaplar, cari kart (yeni ve düzenleme) and Cari Hesap Hareketleri. The card and its primary address are saved in
+    /// one request: the address fields are dotted body parameters (<c>address.city</c>), nested on the wire, and the fixed
+    /// <c>address.kind</c> / <c>address.isDefault</c> apply only when the page sends the address. Updates and state changes
+    /// start from the cari.getir record (rowVersion included); custom field values of a saved card go through
+    /// cari.ozelAlanKaydet (body map), never cari.guncelle, so values the page does not bind are kept.
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildCustomers(IReadOnlyList<ErpOperationParameter> paging)
+    {
+        const string customersRoute = "/api/customers";
+        const string customerRoute = customersRoute + "/{id}";
+        const string addressRoute = customerRoute + "/addresses/{addressId}";
+        const string customerRead = "cari.getir";
+        var id = Route("id");
+        var customerColumns = Columns<CustomerView>();
+        // cari.getir also returns the primary address (members outside the constructor, set by the single-card read).
+        string[] defaultAddressMembers = ["defaultAddressId:guid", "defaultAddressLabel:text", "defaultAddressLine:text", "defaultAddressCity:text",
+            "defaultAddressDistrict:text", "defaultAddressPostalCode:text", "defaultAddressCountryCode:text", "defaultAddressLatitude:decimal",
+            "defaultAddressLongitude:decimal"];
+        var cardColumns = customerColumns.Concat(defaultAddressMembers.Select(x => x.Split(':'))
+            .Select(x => new ErpOperationColumn(x[0], Label(x[0]), x[1]))).ToArray();
+        var addressColumns = Columns<CustomerAddressView>();
+        var valueColumns = Columns<CustomerCustomFieldValueView>();
+        // The primary address: kind (General) and isDefault are fixed, the page binds the rest.
+        var primaryAddress = NestedBodyParameters<CustomerAddressWriteRequest>("address", "kind", "isDefault", "isActive");
+        static Dictionary<string, object?> Fixed(params (string Key, object? Value)[] values) =>
+            values.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+        (string, object?)[] primaryAddressFixed = [("address.kind", "General"), ("address.isDefault", true)];
+
+        yield return Read(CustomerModule, "cari.listele", "Cari kartlarını listele", customersRoute,
+            [Query("q", "text"), Query("type", "text"), Query("status", "text"), .. paging],
+            List(customerColumns, "items") with { MetaPaths = ["page", "pageSize", "totalCount"] });
+        yield return Read(CustomerModule, customerRead, "Cari kartı getir", customerRoute, [id], Record(cardColumns));
+        // isActive is fixed (a new card is active); rowVersion belongs to updates, which take it from the source record.
+        yield return Write(CustomerModule, "cari.olustur", "Cari kartı oluştur", "insert", "POST", customersRoute,
+            [.. BodyParameters<CustomerWriteRequest>(sourceBacked: false, exclude: ["isActive", "rowVersion"]), MapParameter("customFields"),
+                .. primaryAddress],
+            Record(customerColumns), null, Fixed([("isActive", true), .. primaryAddressFixed]));
+        yield return Write(CustomerModule, "cari.guncelle", "Cari kartı güncelle", "update", "PUT", customerRoute,
+            [id, .. BodyParameters<CustomerWriteRequest>(sourceBacked: true, exclude: ["isActive", "rowVersion"]), .. primaryAddress],
+            Record(customerColumns), customerRead, Fixed(primaryAddressFixed));
+        // Pasife al / Etkinleştir: the whole card from the source record with isActive fixed; no address is sent (kept as is).
+        yield return Write(CustomerModule, "cari.pasifeAl", "Cari kartı pasife al", "update", "PUT", customerRoute, [id],
+            Record(customerColumns), customerRead, Fixed(("isActive", false)));
+        yield return Write(CustomerModule, "cari.aktifEt", "Cari kartı etkinleştir", "update", "PUT", customerRoute, [id],
+            Record(customerColumns), customerRead, Fixed(("isActive", true)));
+        yield return Read(CustomerModule, "cari.bakiye", "Cari bakiyesi", customerRoute + "/balance", [id],
+            Record(Columns<CustomerLedgerBalance>()
+                .Append(new ErpOperationColumn("balanceAmount", Label("balanceAmount"), "decimal"))
+                .Append(new ErpOperationColumn("balanceSideCode", Label("balanceSideCode"), "text"))
+                .Append(new ErpOperationColumn("limitUsagePercent", Label("limitUsagePercent"), "decimal")).ToArray()));
+        yield return Read(CustomerModule, "cari.sayaclar", "Cari sayaçları", customersRoute + "/counts", [Query("q", "text")],
+            Record(Columns<CustomerCounts>()));
+        yield return Read(CustomerModule, "cari.adresleri", "Cari adresleri", customerRoute + "/addresses", [id], List(addressColumns, null));
+        yield return Read(CustomerModule, "cari.anaFirmaSecenekleri", "Ana firma seçenekleri", customersRoute + "/company-options",
+            [Query("q", "text"), Query("excludeId", "guid")], List(Columns<CustomerCompanyOption>(), null));
+        yield return Read(CustomerModule, "cari.gruplar", "Cari grupları", "/api/customer-groups", [], List(Columns<CustomerGroupView>(), null));
+        yield return Read(CustomerModule, "cari.ozelAlanTanimlari", "Cari özel alan tanımları", customersRoute + "/custom-fields", [],
+            List(Columns<CustomerCustomFieldDefinitionView>(), null));
+        yield return Read(CustomerModule, "cari.ozelAlanDegerleri", "Cari özel alan değerleri", customerRoute + "/custom-fields", [id],
+            List(valueColumns, null));
+        // Same body map as stok.kart.ozelAlanKaydet: codes the page does not bind keep the values read by cari.ozelAlanDegerleri.
+        yield return Write(CustomerModule, "cari.ozelAlanKaydet", "Cari özel alanlarını kaydet", "update", "PUT", customerRoute + "/custom-fields",
+            [id, MapParameter("values")], List(valueColumns, null), null, null)
+            with { BodyMap = new ErpOperationBodyMap("values", "cari.ozelAlanDegerleri", "code", "value") };
+        yield return Read(CustomerModule, "cari.iller", "İller", "/api/location-definitions/provinces", [],
+            List(Columns<CustomerLocationProvinceView>(), null));
+        yield return Read(CustomerModule, "cari.ilceler", "İlçeler", "/api/location-definitions/districts",
+            [new ErpOperationParameter("provinceId", "query", "int", true)], List(Columns<CustomerLocationDistrictView>(), null));
+        // Addresses are never deleted: Pasife al is the same PUT with isActive (and isDefault) fixed, the rest bound from the row.
+        yield return Write(CustomerModule, "cari.adres.ekle", "Cari adresi ekle", "insert", "POST", customerRoute + "/addresses",
+            [id, .. BodyParameters<CustomerAddressWriteRequest>(sourceBacked: false, exclude: "isActive")], Record(addressColumns), null,
+            Fixed(("isActive", true)));
+        yield return Write(CustomerModule, "cari.adres.pasifeAl", "Cari adresini pasife al", "update", "PUT", addressRoute,
+            [id, Route("addressId"), .. BodyParameters<CustomerAddressWriteRequest>(sourceBacked: false, exclude: ["isActive", "isDefault"])],
+            Record(addressColumns), null, Fixed(("isActive", false), ("isDefault", false)));
+        yield return Write(CustomerModule, "cari.adres.aktifEt", "Cari adresini etkinleştir", "update", "PUT", addressRoute,
+            [id, Route("addressId"), .. BodyParameters<CustomerAddressWriteRequest>(sourceBacked: false, exclude: "isActive")],
+            Record(addressColumns), null, Fixed(("isActive", true)));
+        // Statement: the route parameter must be "id" (permission resolution matches the route pattern by name), the period
+        // is required so a page never reads every movement, and the display members are computed outside the record
+        // constructors, so only this operation declares them.
+        var statementColumns = Columns<CustomerStatementLine>()
+            .Append(new ErpOperationColumn("isReversal", Label("isReversal"), "bool"))
+            .Append(new ErpOperationColumn("debitAmount", Label("debitAmount"), "decimal"))
+            .Append(new ErpOperationColumn("creditAmount", Label("creditAmount"), "decimal"))
+            .Append(new ErpOperationColumn("balanceAmount", Label("balanceAmount"), "decimal"))
+            .Append(new ErpOperationColumn("balanceSide", Label("balanceSide"), "text"))
+            .Append(new ErpOperationColumn("foreignCurrencyCode", Label("foreignCurrencyCode"), "text")).ToArray();
+        yield return Read(CustomerModule, "cari.ekstre", "Cari hesap ekstresi", customerRoute + "/statement",
+            [id, new ErpOperationParameter("from", "query", "date", true), new ErpOperationParameter("to", "query", "date", true)],
+            List(statementColumns, "items") with
+            {
+                MetaPaths = ["customerId", "customerCode", "customerName", "currencyCode", "from", "to", "openingBalance", "debitTotal",
+                    "creditTotal", "closingBalance", "openingAmount", "openingSide", "closingAmount", "closingSide", "netMovement",
+                    "openingAsOf", "hasForeignCurrency"]
+            });
+    }
+
+    // A method, not a static field: Build() runs during static initialization, before later fields are assigned.
+    private static bool IsDottedName(string name) =>
+        Regex.IsMatch(name, @"^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\z", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Shape rules every operation meets (checked at startup): parameter names are unique ignoring case; a dotted name
+    /// (<c>address.city</c>) is a scalar body parameter one level deep whose parent is not also a parameter. Dotted
+    /// <c>fixedBody</c> keys follow the same rule, belong to a parent that has dotted parameters and are not parameters
+    /// themselves. Null when the operation is valid.
+    /// </summary>
+    internal static string? ParameterShapeError(ErpOperation operation)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parameter in operation.Parameters)
+            if (!names.Add(parameter.Name)) return $"'{parameter.Name}' parametresi birden fazla kez tanımlı.";
+        var plain = operation.Parameters.Where(x => !x.Name.Contains('.')).Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var parents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parameter in operation.Parameters.Where(x => x.Name.Contains('.')))
+        {
+            if (!IsDottedName(parameter.Name))
+                return $"'{parameter.Name}': noktalı parametre adı tek düzeyli (üst.alt) olmalı ve iki parçası da tanımlayıcı olmalıdır.";
+            if (parameter.In != "body") return $"'{parameter.Name}': noktalı ad yalnız gövde (body) parametresinde kullanılabilir.";
+            if (parameter.Type is "list" or "map") return $"'{parameter.Name}': noktalı parametre skaler olmalıdır.";
+            var parent = parameter.Name[..parameter.Name.IndexOf('.')];
+            if (plain.Contains(parent)) return $"'{parameter.Name}': üst ad '{parent}' ayrıca bir parametre olamaz.";
+            parents.Add(parent);
+        }
+        foreach (var key in operation.FixedBody?.Keys.Where(x => x.Contains('.')) ?? [])
+        {
+            if (!IsDottedName(key)) return $"fixedBody '{key}': noktalı anahtar tek düzeyli (üst.alt) olmalıdır.";
+            var parent = key[..key.IndexOf('.')];
+            if (!parents.Contains(parent)) return $"fixedBody '{key}': '{parent}' üst adının noktalı parametresi yok.";
+            if (names.Contains(key)) return $"fixedBody '{key}' aynı zamanda bir parametre.";
+        }
+        return null;
+    }
+
     // /api/reports/run accepts 1–12 columns; a report operation selects (and returns) the source's first 12.
     private static IReadOnlyList<ReportColumn> ReportColumns(ReportSource report) => report.Columns.Take(12).ToArray();
 
@@ -456,6 +619,14 @@ internal static class ErpOperationCatalog
         {
             Items = ScalarMembers<T>(includeMaps: true).Select(x => new ErpOperationParameterItem(x.Name, Label(x.Name), x.Type, x.Required)).ToArray()
         };
+
+    /// <summary>
+    /// Scalar fields of a nested request record as dotted body parameters (<c>parent.field</c>), never required: the runtime
+    /// nests them into one object and leaves the object out when none of them has a value.
+    /// </summary>
+    private static IReadOnlyList<ErpOperationParameter> NestedBodyParameters<T>(string parent, params string[] exclude) =>
+        ScalarMembers<T>().Where(x => !exclude.Contains(x.Name, StringComparer.Ordinal))
+            .Select(x => new ErpOperationParameter(parent + "." + x.Name, "body", x.Type, false)).ToArray();
 
     /// <summary>A body <c>map</c> parameter: a code → string value object (custom field values).</summary>
     private static ErpOperationParameter MapParameter(string name) => new(name, "body", "map", false);
@@ -579,7 +750,12 @@ internal static class ErpOperationCatalog
             });
             if (!PlatformPermissionCatalog.TryResolve(path, op.Method, rawPattern, routeValues, tenantId, userId, role, out var resolved)
                 || resolved is null) return null;
-            routePermissions.Add(resolved);
+            routePermissions.Add(RowRulesDecidedPerRecord(op.Method, path, routeValues, resolved)
+                ? resolved with
+                {
+                    Attributes = new Dictionary<string, string>(resolved.Attributes, StringComparer.OrdinalIgnoreCase) { ["resource.collectionRowsFiltered"] = "true" }
+                }
+                : resolved);
         }
         if (op.Route != "/api/reports/run" || op.FixedBody?["source"] is not string source) return routePermissions;
         // Same order as RunAsync: workflowInstances is admin-only, then the source's own read permission.
@@ -587,6 +763,19 @@ internal static class ErpOperationCatalog
         return ReportEndpoints.TryReportSourcePermission(source, tenantId, userId, role, out var sourcePermission)
             ? [routePermissions[0], sourcePermission] : null;
     }
+
+    /// <summary>
+    /// The catalog resolves a route without a record (empty GUIDs, no row attributes), so a row-attribute rule (e.g.
+    /// <c>resource.customerType == Customer</c>) can never match it. Where the endpoint decides such rules per record — an
+    /// <c>{id}</c> route of a resource whose record attributes the request handler resolves, or a collection read that
+    /// filters its rows — a row-attribute Allow rule counts as "allowed for the page, the server decides per record"
+    /// (the same evaluation as the filtered collection read). Elsewhere (e.g. a create without a record) the request is
+    /// evaluated without row attributes, so the catalog keeps that evaluation too.
+    /// </summary>
+    private static bool RowRulesDecidedPerRecord(string method, string path, IReadOnlyDictionary<string, string?> routeValues,
+        ResolvedPlatformPermission permission) =>
+        PermissionAuthorizationHandler.IsStatusFilteredCollection(method, path, permission.Permission.ResourceType)
+        || routeValues.ContainsKey("id") && PermissionAuthorizationHandler.RecordAttributeResourceTypes.Contains(permission.Permission.ResourceType);
 
     private static string PermissionKey(ResolvedPlatformPermission permission) =>
         permission.Permission.Code + "|" + string.Join(";", permission.Attributes

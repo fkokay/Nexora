@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cari sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+/* kart */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px}
+.nav{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px}.nav div{padding:7px 9px;border-radius:6px;font-weight:600;color:#475467;display:flex;justify-content:space-between}.nav .on{background:var(--pri-soft);color:var(--pri)}.nav small{color:var(--mut);font-size:10.5px;display:block;padding:8px 9px 2px;font-weight:500}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px}.status b{color:var(--ok)}
+/* ekstre */
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.open td,tr.close td{background:#f8fafc;font-weight:600}tr.rev td{color:#475467}tr.rev td:nth-child(2){padding-left:24px}tr.strike td{color:#98a2b3}tr.strike td:nth-child(2) span.t{text-decoration:line-through}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+</style></head><body>
+<h1>Cari Hesaplar → sistem sayfaları (taslak 19)</h1>
+<p class="sub">Üç ekran Studio'da açılabilen sistem sayfalarına geçiyor: <b>Cari Hesaplar</b> listesi, <b>Cari kart</b> (yeni ve düzenleme tek tanımda) ve <b>Cari Hesap Hareketleri</b>. Görünüm bugünküyle aynı kalıyor; yalnız Cari Hesap Hareketleri, Stok Hareketleri gibi iki adımlı akışa geçiyor. Kurallar API'de kalıyor. Bugün eksik olan "cari" ERP işlemleri (yaklaşık 20 adet) ekleniyor.</p>
+
+<div class="lbl">1 · CARİ HESAPLAR (LİSTE) · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Cari Hesaplar</div>
+  <div class="ttl"><h2>Cari Hesaplar</h2><small>128 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Yenile</span><span>Filtre</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">◎</span><div><span>Cari kartı</span><strong>128</strong> <small>tüm kayıtlar · 121 aktif</small></div></div>
+    <div class="met"><span class="ic">⏸</span><div><span>Pasif</span><strong>7</strong> <small>tüm kayıtlar</small></div></div>
+    <div class="met"><span class="ic">e</span><div><span>e-Fatura mükellefi</span><strong>14 / 25</strong> <small>bu sayfa</small></div></div>
+    <div class="met"><span class="ic">!</span><div><span>Risk limiti tanımlı</span><strong>9 / 25</strong> <small>bu sayfa</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Cari kodu, unvanı veya vergi no ile ara</span><span class="chip on">Tümü<i>128</i></span><span class="chip">Müşteri<i>80</i></span><span class="chip">Tedarikçi<i>31</i></span><span class="chip">Müşteri &amp; Tedarikçi<i>17</i></span><span class="chip">Aktif<i>121</i></span><span class="chip">Pasif<i>7</i></span><span class="tool">Detay paneli · Sütunlar · Pivot</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Cari kodu</th><th>Ünvan</th><th>Cari grubu</th><th>Tür</th><th>Döviz</th><th class="num">Vade</th><th>Vergi no</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">C-1001</td><td>FATİH KOKAY <span class="tag t-in">e-Fatura</span></td><td>Bayiler</td><td><span class="tag t-in">Müşteri &amp; Tedarikçi</span></td><td>TRY</td><td class="num">30 gün</td><td class="code">1234567890</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">C-1002</td><td>ÖRNEK TEKSTİL A.Ş.</td><td>Grup atanmamış</td><td><span class="tag t-w">Tedarikçi</span></td><td>EUR</td><td class="num">60 gün</td><td class="code">—</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">C-1003</td><td>ESKİ MÜŞTERİ LTD.</td><td>Perakende</td><td><span class="tag t-in">Müşteri</span></td><td>TRY</td><td class="num">0 gün</td><td class="code">9876543210</td><td><span class="tag t-off">Pasif</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter kartı aç · Ctrl+. detay paneli</span><span>Sayfa 1 / 6 · 128 kayıt</span></div></div>
+    <div class="card pnl"><span class="code">C-1001</span> <span class="btn" style="float:right;padding:1px 8px">Aç</span><h4>FATİH KOKAY</h4>
+      <div class="k"><div><span>Bakiye</span><b>186.242,00 TRY B</b></div><div><span>Risk limiti</span><b>250.000,00</b></div><div><span>Limit kullanımı</span><b>%74</b></div><div><span>Vade</span><b>30 gün</b></div></div>
+      <div class="ptabs"><span class="on">Genel</span><span>Finans</span><span>İletişim</span></div>
+      <dl class="dl"><dt>Cari grubu</dt><dd>Bayiler</dd><dt>Vergi no</dt><dd>1234567890 · Konya VD</dd><dt>Varsayılan adres</dt><dd>Merkez · Selçuklu / Konya</dd></dl>
+      <span class="lnk">Cari Hesap Hareketleri ›</span><span class="lnk">Satış faturaları ›</span><span class="lnk">Adresler ›</span></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>İşlemler menüsü:</b> Yeni sipariş / teklif / irsaliye / fatura (seçili cariyle açılır), Satış faturaları, Alış faturaları, Adresler, Pasife al / Etkinleştir (artık <b>onay soruyor</b>), Excel ve CSV.</li>
+  <li><b>İlk sürümde eski ekranda kalanlar</b> ("Eski ekranda aç" ile ulaşılır): Cari mutabakatı, Cari grupları, özel alan tanımları ve değer geçmişi, içe aktarma.</li>
+  <li><b>Sayaçlar:</b> Bugün 8 ayrı sayım isteği atılıyor; bunun yerine tek bir "cari sayaçları" işlemi ekleniyor.</li>
+</ul>
+
+<div class="lbl">2 · CARİ KART (YENİ + DÜZENLEME TEK TANIM)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Cari Hesaplar › Cari kart</div>
+  <div class="rh"><div><h2>FATİH KOKAY</h2><p><span class="code">C-1001</span> · <span class="tag t-ok">Aktif</span> <span class="tag t-in">Müşteri &amp; Tedarikçi</span> · Bayiler · Vade 30 gün · TRY</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Değişiklikleri kaydet</span> <span class="btn g">İşlemler ▾</span></div></div>
+  <div class="status"><span>Zorunlu alanlar: <b>4 / 4</b></span><span>Ctrl+S kaydet · Esc vazgeç · Ctrl+↑/↓ bölümler arası</span></div>
+  <div class="form">
+    <div class="nav"><div class="on">İletişim ve Adres</div><div>Finans ve Muhasebe</div><div>Vergi ve E-Fatura</div><div>Özel alanlar</div><div>Adresler <span>2</span></div><small>Adresler yalnız kayıtlı kartta</small></div>
+    <div>
+      <div class="sec"><h5>Cari kimliği</h5><div class="g3"><div class="f"><label>Cari kodu <b>*</b></label><div class="in code">C-1001</div></div><div class="f"><label>Ünvan <b>*</b></label><div class="in">FATİH KOKAY</div></div><div class="f"><label>Cari türü <b>*</b></label><div class="in">Müşteri &amp; Tedarikçi ▾</div></div></div></div>
+      <div class="sec"><h5>İletişim · Yetkili kişi</h5><div class="g3"><div class="f"><label>Telefon</label><div class="in ph">0 332 …</div></div><div class="f"><label>Kurumsal e-posta</label><div class="in ph">info@…</div></div><div class="f"><label>Yetkili kişi</label><div class="in ph">Ad soyad</div></div></div></div>
+      <div class="sec"><h5>Birincil adres</h5><div class="g3"><div class="f"><label>Ülke</label><div class="in">Türkiye (TR) ▾</div></div><div class="f"><label>İl</label><div class="in">Konya ▾</div></div><div class="f"><label>İlçe</label><div class="in">Selçuklu ▾</div></div></div><div class="f" style="margin-top:10px"><label>Adres</label><div class="in ta">Feritpaşa Mah. …</div></div></div>
+    </div>
+  </div>
+</div>
+<ul class="note">
+  <li>Yeni kartta başlıkta "Yeni cari kart" yazar ve <b>Kaydet ve Yeni</b> (Ctrl+F2) bulunur. Düzenlemede başlık kartın kendi özetini gösterir.</li>
+  <li>VKN, TCKN ve IBAN sağlaması bugün yalnız sunucuda yapılıyor; sistem sayfası bu hatayı ilgili alanın altında gösterir. Yabancı caride vergi no serbesttir.</li>
+  <li>Adresler sekmesinde adres tablosu (Tür, Etiket, Adres, Durum, Pasife al) ve "Yeni adres" penceresi var. Adres silinmez, yalnız pasife alınır.</li>
+  <li>Harita konumu ilk sürümde enlem ve boylam alanı olarak girilir; harita seçici sonraki adım.</li>
+</ul>
+
+<div class="lbl">3 · CARİ HESAP HAREKETLERİ · İKİ ADIM (STOK HAREKETLERİ GİBİ)</div>
+<div class="erp">
+  <div class="ttl"><h2>Cari Hesap Hareketleri</h2><small>6 hareket</small></div>
+  <div class="steps"><span class="st done"><i>✓</i>Cari seç</span>›<span class="st on"><i>2</i>Ekstre</span></div>
+  <div class="hdr"><span class="sq">C</span><div><h4>C-1001 · FATİH KOKAY</h4><p>Müşteri &amp; Tedarikçi · TRY</p></div>
+    <div class="kv"><div><span>Açılış (31.12.2025)</span><b>12.000,00 B</b></div><div><span>Dönem borç</span><b>210.000,00</b></div><div><span>Dönem alacak</span><b>35.758,00</b></div><div><span>Kapanış</span><b>186.242,00 B</b></div></div><span class="btn g">‹ Cari değiştir</span></div>
+  <div class="fbar"><span class="chip">Bu ay</span><span class="chip">Son 3 ay</span><span class="chip on">Yıl başından</span><span class="in" style="width:130px">01.01.2026</span><span class="in" style="width:130px">21.11.2026</span><span class="tool">Excel · CSV</span></div>
+  <div class="card"><table><thead><tr><th>Tarih</th><th>Açıklama</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th></tr></thead><tbody>
+    <tr class="open"><td></td><td>Devir · açılış bakiyesi</td><td></td><td></td><td class="num">12.000,00 B</td></tr>
+    <tr><td>05.03.2026</td><td>Satış faturası SF-2026-0012</td><td class="num">150.000,00</td><td></td><td class="num">162.000,00 B</td></tr>
+    <tr class="strike"><td>12.04.2026</td><td><span class="t">Elle hareket · avans</span> <span class="tag t-off">Ters çevrildi</span></td><td></td><td class="num">5.000,00</td><td class="num">157.000,00 B</td></tr>
+    <tr class="rev"><td>13.04.2026</td><td>↳ Ters kayıt <span class="tag t-in">Ters kayıt</span></td><td class="num">5.000,00</td><td></td><td class="num">162.000,00 B</td></tr>
+    <tr><td>20.06.2026</td><td>Tahsilat TH-2026-0004</td><td></td><td class="num">30.758,00</td><td class="num">131.242,00 B</td></tr>
+    <tr><td>02.09.2026</td><td>Satış faturası SF-2026-0031</td><td class="num">55.000,00</td><td></td><td class="num">186.242,00 B</td></tr>
+    <tr class="close"><td></td><td>Kapanış · 21.11.2026</td><td class="num">210.000,00</td><td class="num">35.758,00</td><td class="num">186.242,00 B</td></tr>
+  </tbody></table><div class="foot"><span>B borç · A alacak · Ters kayıt orijinalin karşı kaydıdır; hareketler silinmez.</span><span>Farklı dövizli hareket olursa uyarı çıkar.</span></div></div>
+</div>
+<ul class="note"><li><b>1. adım:</b> Stok Hareketleri'nin 1. adımı gibi aranabilir cari listesi (pasifler de listelenir). Satıra tıklayınca, Enter'a basınca veya Cari Hesaplar'daki "Cari Hesap Hareketleri ›" bağlantısından gelince doğrudan 2. adım açılır.</li></ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL)</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Kart ile birincil adres tek istekte</b><p>Sunucu adresi kartın içinde iç içe bir alan olarak bekliyor. Adres ayrı bir istekle gönderilirse yabancı carinin vergi numarası reddediliyor.</p><p class="rec">Öneri: ERP işlemlerine "adres.il" gibi noktalı alan adı desteği. Kart ve adres aynı istekte gider, sunucu değişmez.</p></div>
+  <div class="d"><b class="h">2 · Yeni ve düzenleme tek tanım</b><p>Bugün iki ayrı ekran anahtarı var ve kimlik oturum belleğinden taşınıyor.</p><p class="rec">Öneri: tek standart <code>customer-create</code>. Sayfa parametresi <code>customerId</code> doluysa düzenleme açılır; <code>customer-edit</code> aynı tanıma yönlenir.</p></div>
+  <div class="d"><b class="h">3 · Satış belgesine geçiş</b><p>"Yeni sipariş/teklif/fatura" bugün cariyi oturum belleği ve bir olayla taşıyor.</p><p class="rec">Öneri: satış ekranları <code>?customerId=</code> parametresini okusun; sistem sayfası bu parametreyle yönlendirsin. Satış ekranları sonra taşındığında da aynı yol çalışır.</p></div>
+  <div class="d"><b class="h">4 · Sıra ve yayın</b><p>Cari listesi satış akışının ve global aramanın girişi.</p><p class="rec">Öneri: tek PR'da üç standart (önizleme aşamasında, varsayılan yine eski ekran). Önce QA'da Cari kart, sonra Hareketler, en son liste denenir.</p></div>
+</div>
+<ul class="note">
+  <li>Eski ekranda da bulunan iki risk değişmeden kalıyor: görünmeyen ana firmaya bağlı kart kaydedilince bağ kopuyor; okuma süzgeci olup güncelleme süzgeci olmayan kural setleri.</li>
+  <li>Ekstre kur çevrimi yapmıyor (bugün de öyle); farklı dövizli harekette yalnız uyarı gösteriliyor.</li>
+</ul>
+</body></html>

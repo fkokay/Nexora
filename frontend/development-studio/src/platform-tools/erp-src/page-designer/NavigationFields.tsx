@@ -3,7 +3,7 @@ import BindingInput, { type BindingSuggestion } from "./BindingInput";
 /** Gezinme eylemleri: veri yazmaz; adres, ERP ekranı ya da sayfa açar. */
 export const NAVIGATION_ACTION_TYPES = ["link", "erpPage", "page"];
 /** Eylem türüne göre gezinme özellikleri (sunucu: her özellik yalnız kendi türünde). */
-export const NAVIGATION_PROPS: Record<string, string[]> = { link: ["href"], erpPage: ["pageKey", "queryText"], page: ["pageCode", "params"] };
+export const NAVIGATION_PROPS: Record<string, string[]> = { link: ["href"], erpPage: ["pageKey", "queryText", "params"], page: ["pageCode", "params"] };
 export const MAX_PAGE_PARAMS = 6;
 const PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
 const LINK_PREFIX = /^https?:\/\/[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*(?::[0-9]{1,5})?([/?#]|$)/i;
@@ -38,6 +38,18 @@ export function NavigationFields({ actionType, props, screens, pages, suggestion
   const problem = actionType === "link" ? linkProblem(props.href)
     : actionType === "erpPage" && !text("pageKey") ? "ERP ekranı düğmesi için 'pageKey' gerekli."
     : actionType === "page" && !text("pageCode") ? "Sayfa düğmesi için 'pageCode' gerekli." : null;
+  const paramRows = <div className="pd-field">Parametreler<small>{actionType === "erpPage" ? "Ekran bunları sayfa parametresi olarak alır (ör. customerId); desteklemeyen ekran yok sayar" : <>Açılan sayfa bunları <code>{"{{sayfa.parametre.<ad>}}"}</code> ile okur</>} (en fazla {MAX_PAGE_PARAMS}).</small>
+    {params.map((entry, index) => <div className="pd-inline" key={index}>
+      <input aria-label="Parametre adı" value={entry.name} maxLength={32} disabled={disabled} placeholder="ad"
+        onChange={(event) => setParams(params.map((item, at) => at === index ? { ...item, name: event.target.value.replace(/[^a-zA-Z0-9]/g, "") } : item))}/>
+      <BindingInput value={entry.value} maxLength={200} suggestions={suggestions} disabled={disabled} ariaLabel="Parametre değeri"
+        onChange={(next) => setParams(params.map((item, at) => at === index ? { ...item, value: next } : item))}/>
+      <button type="button" className="pd-button small" disabled={disabled} aria-label="Parametreyi kaldır" onClick={() => setParams(params.filter((_, at) => at !== index))}>×</button>
+    </div>)}
+    <button type="button" className="pd-button small" disabled={disabled || params.length >= MAX_PAGE_PARAMS}
+      onClick={() => setParams([...params, { name: `p${params.length + 1}`, value: "" }])}>Parametre ekle</button>
+    {badParam && <small className="pd-query-warning">Parametre adı küçük harfle başlamalı, en fazla 32 harf/rakam olmalı ve benzersiz olmalıdır.</small>}
+  </div>;
   return <>
     {actionType === "link" && <label className="pd-field">Adres<small>Yalnız http:// veya https://; sunucu adı sabit yazılır. Bağlanan değerler adrese kodlanarak eklenir.</small>
       <BindingInput value={text("href")} maxLength={1000} suggestions={suggestions} disabled={disabled} ariaLabel="Bağlantı adresi"
@@ -50,6 +62,7 @@ export function NavigationFields({ actionType, props, screens, pages, suggestion
         {screens.length === 0 && <small>ERP ekran listesi yüklenemedi.</small>}</label>
       <label className="pd-field">Arama metni<small>Ekrana <code>{"{{sayfa.parametre.q}}"}</code> olarak gider; desteklemeyen ekran yok sayar.</small>
         <BindingInput value={text("queryText")} maxLength={200} suggestions={suggestions} disabled={disabled} ariaLabel="Arama metni" onChange={(next) => onPatch({ queryText: next || undefined })}/></label>
+      {paramRows}
     </>}
     {actionType === "page" && <>
       <label className="pd-field">Açılacak sayfa<select value={text("pageCode")} disabled={disabled} onChange={(event) => onPatch({ pageCode: event.target.value || undefined })}>
@@ -58,18 +71,7 @@ export function NavigationFields({ actionType, props, screens, pages, suggestion
         <optgroup label="Özel sayfalar">{pages.map((page) => <option key={page.code} value={page.code}>{page.name} · {page.code}</option>)}</optgroup>
         <optgroup label="Sistem ekranları">{screens.map((screen) => <option key={screen.key} value={`@${screen.key}`}>{screen.label}</option>)}</optgroup>
       </select></label>
-      <div className="pd-field">Parametreler<small>Açılan sayfa bunları <code>{"{{sayfa.parametre.<ad>}}"}</code> ile okur (en fazla {MAX_PAGE_PARAMS}).</small>
-        {params.map((entry, index) => <div className="pd-inline" key={index}>
-          <input aria-label="Parametre adı" value={entry.name} maxLength={32} disabled={disabled} placeholder="ad"
-            onChange={(event) => setParams(params.map((item, at) => at === index ? { ...item, name: event.target.value.replace(/[^a-zA-Z0-9]/g, "") } : item))}/>
-          <BindingInput value={entry.value} maxLength={200} suggestions={suggestions} disabled={disabled} ariaLabel="Parametre değeri"
-            onChange={(next) => setParams(params.map((item, at) => at === index ? { ...item, value: next } : item))}/>
-          <button type="button" className="pd-button small" disabled={disabled} aria-label="Parametreyi kaldır" onClick={() => setParams(params.filter((_, at) => at !== index))}>×</button>
-        </div>)}
-        <button type="button" className="pd-button small" disabled={disabled || params.length >= MAX_PAGE_PARAMS}
-          onClick={() => setParams([...params, { name: `p${params.length + 1}`, value: "" }])}>Parametre ekle</button>
-        {badParam && <small className="pd-query-warning">Parametre adı küçük harfle başlamalı, en fazla 32 harf/rakam olmalı ve benzersiz olmalıdır.</small>}
-      </div>
+      {paramRows}
     </>}
     <label className="pd-field">Açılış<select value={props.target === "newTab" || props.target === "sameTab" ? props.target as string : defaultTarget} disabled={disabled}
       onChange={(event) => onPatch({ target: event.target.value === defaultTarget ? undefined : event.target.value })}>
