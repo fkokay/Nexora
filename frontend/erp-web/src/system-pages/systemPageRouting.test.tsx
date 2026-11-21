@@ -5,6 +5,7 @@ import { WorkspacePageRouter } from '../WorkspacePageRouter';
 import { useSystemPageMap } from './useSystemPageMap';
 import { resetSystemPreviewForTests } from '../workspace-storage';
 import type * as AppTypes from '../erp-types';
+import { openWorkspacePage, pageParamsOf, setPageParams } from '../pageNavigation';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -129,6 +130,19 @@ describe('system page routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yeni tasarıma dön' }));
     expect(await screen.findByRole('heading', { name: 'Depo Yönetimi' })).toBeTruthy();
     expect(screen.queryByText('Eski depo ekranı')).toBeNull();
+  });
+
+  it('a navigation with legacy (erpPage legacyScreen) switches that key to the legacy screen and carries the params', async () => {
+    mockServer({ runtime: { screens: { [KEY]: { mode: 'override', revision: 3 } } }, publishedResult: published('override') });
+    render(<Harness />);
+    expect(await screen.findByRole('heading', { name: 'Depo Yönetimi' })).toBeTruthy();
+    act(() => openWorkspacePage({ page: 'customers', params: {}, replace: false, legacy: true }));
+    expect(screen.queryByText('Eski depo ekranı')).toBeNull();
+    act(() => openWorkspacePage({ page: KEY, params: { warehouseId: 'w1' }, replace: true, from: KEY, legacy: true }));
+    expect(await screen.findByText('Eski depo ekranı')).toBeTruthy();
+    expect(screen.getByText('Eski ekran görüntüleniyor.')).toBeTruthy();
+    expect(pageParamsOf(KEY)).toEqual({ warehouseId: 'w1' });
+    setPageParams(KEY, {});
   });
 
   it('stale map 404 falls back to legacy', async () => {

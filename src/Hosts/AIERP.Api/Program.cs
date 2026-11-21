@@ -279,6 +279,7 @@ app.MapInventoryTrackingInquiryEndpoints();
 app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesDeliverySearchEndpoints();
+app.MapSalesDeliveryListEndpoints();
 app.MapPurchaseReceiptSearchEndpoints();
 app.MapStandaloneInventoryDocumentEndpoints();
 app.MapTenantDocumentNumbering();
@@ -3574,7 +3575,16 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
         quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields,
         quote.RevisionGroupId, quote.RevisionNumber, quote.DeliveryTerms, quote.SalespersonEmployeeId, quote.Customer?.Code,
-        quote.SourceSalesRequestId, quote.SourceSalesRequest?.Code));
+        quote.SourceSalesRequestId, quote.SourceSalesRequest?.Code)
+    {
+        // Same display values as the list row (system page detail; the legacy screen takes them from the row).
+        SalespersonName = quote.SalespersonEmployeeId is { } salespersonId
+            ? await db.EmployeeRecords.AsNoTracking().Where(employee => employee.TenantId == tenantId && employee.Id == salespersonId)
+                .Select(employee => employee.PersonnelCode + " · " + employee.FullName).FirstOrDefaultAsync()
+            : null,
+        SalesOrderId = quote.Order?.Id,
+        SalesOrderCode = quote.Order?.Code
+    });
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {

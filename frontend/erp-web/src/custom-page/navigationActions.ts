@@ -52,7 +52,7 @@ export function pageParamValues(items: unknown, scope: PageScope): Record<string
 
 export type NavigationTarget =
   | { kind: "link"; url: string; newTab: boolean }
-  | { kind: "workspace"; page: string; params: Record<string, string>; replace: boolean };
+  | { kind: "workspace"; page: string; params: Record<string, string>; replace: boolean; legacy?: boolean };
 
 /** Düğmenin (bağlanmamış) özelliklerinden açılacak hedef; geçersizse null. Bağlantı varsayılan yeni sekme, diğerleri aynı sekme. */
 export function navigationTarget(props: Record<string, unknown>, scope: PageScope): NavigationTarget | null {
@@ -66,7 +66,8 @@ export function navigationTarget(props: Record<string, unknown>, scope: PageScop
     // `params` ("ad=değer", "Sayfa aç" ile aynı biçim) ekranın sayfa parametreleridir (ör. customerId); `queryText` `q` olarak gider.
     const q = typeof props.queryText === "string" ? interpolate(props.queryText, scope).trim().slice(0, MAX_PARAM_VALUE) : "";
     const params = pageParamValues(props.params, scope);
-    return { kind: "workspace", page: props.pageKey, params: q ? { ...params, q } : params, replace: target !== "newTab" };
+    // `legacyScreen`: the target's built-in screen opens even when its system page is active (e.g. a legacy-only action).
+    return { kind: "workspace", page: props.pageKey, params: q ? { ...params, q } : params, replace: target !== "newTab", ...(props.legacyScreen === true ? { legacy: true } : {}) };
   }
   if (props.actionType === "page") {
     const code = typeof props.pageCode === "string" ? props.pageCode : "";
@@ -98,6 +99,7 @@ export async function runNavigation(props: Record<string, unknown>, scope: () =>
     else window.location.assign(target.url);
     return null;
   }
-  openWorkspacePage({ page: target.page, params: target.params, replace: target.replace, from, ...(options?.refreshTarget ? { refresh: true } : {}) });
+  openWorkspacePage({ page: target.page, params: target.params, replace: target.replace, from, ...(options?.refreshTarget ? { refresh: true } : {}),
+    ...(target.legacy ? { legacy: true } : {}) });
   return null;
 }
