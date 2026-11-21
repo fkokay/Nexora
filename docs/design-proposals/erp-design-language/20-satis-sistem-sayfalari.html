@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Satış sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+/* kart */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px}
+.nav{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px}.nav div{padding:7px 9px;border-radius:6px;font-weight:600;color:#475467;display:flex;justify-content:space-between}.nav .on{background:var(--pri-soft);color:var(--pri)}.nav small{color:var(--mut);font-size:10.5px;display:block;padding:8px 9px 2px;font-weight:500}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px}.status b{color:var(--ok)}
+/* ekstre */
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.open td,tr.close td{background:#f8fafc;font-weight:600}tr.rev td{color:#475467}tr.rev td:nth-child(2){padding-left:24px}tr.strike td{color:#98a2b3}tr.strike td:nth-child(2) span.t{text-decoration:line-through}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.t-bad{background:var(--dan-bg);color:var(--dan)}
+.phase{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;letter-spacing:.04em}.pa{background:var(--ok-bg);color:var(--ok)}.pb{background:var(--warn-bg);color:var(--warn)}
+.chain{display:flex;gap:6px;align-items:center;margin:0 0 10px;flex-wrap:wrap;font-weight:600}.chain span{background:#fff;border:1px solid #dfe5ee;border-radius:7px;padding:3px 9px}.chain .cur{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}
+.tot{display:grid;grid-template-columns:1fr 260px;gap:10px;margin-top:10px}.tot .box{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px}.tot dl{display:grid;grid-template-columns:1fr auto;gap:4px 10px;margin:0}.tot dt{color:var(--mut)}.tot dd{margin:0;text-align:right}.tot .gt{font-weight:700;font-size:14px}
+.prob{max-width:1150px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.prob .d b.h{color:var(--dan)}
+.ra{color:var(--pri);font-weight:600}
+.erp{overflow-x:auto}
+@media (max-width:820px){.mets,.split,.dec,.prob,.tot,.g3{grid-template-columns:1fr !important}}
+</style></head><body>
+<h1>Satış → sistem sayfaları (taslak 20)</h1>
+<p class="sub">Teklif, sipariş, irsaliye ve fatura ekranları (liste + belge, toplam 8 ekran anahtarı) Studio'da açılabilen sistem sayfalarına geçiyor. <b>Görünüm bugünküyle aynı kalıyor</b>; kurallar API'de kalıyor. Bugün katalogda hiç "satış" ERP işlemi yok; yaklaşık 60 işlem ekleniyor. Belge kartlarının (satır ızgarası, tutar hesabı) bugünkü sayfa motoruyla eşdeğer kurulamadığı görüldü; bu yüzden <b>iki aşama</b> öneriliyor: <span class="phase pa">AŞAMA A</span> listeler ve belge detayları, <span class="phase pb">AŞAMA B</span> oluşturma/düzenleme kartları (ortak motor eksikleri kapanınca). Ayrıntı: <code>docs/superpowers/specs/2026-11-21-satis-ekranlari-envanteri.md</code>.</p>
+
+<div class="lbl">1 · SATIŞ TEKLİFLERİ (LİSTE) <span class="phase pa">AŞAMA A</span> · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satış › Satış Teklifleri</div>
+  <div class="ttl"><h2>Satış Teklifleri</h2><small>42 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets" style="grid-template-columns:repeat(2,1fr)">
+    <div class="met"><span class="ic">₺</span><div><span>Teklif tutarı</span><strong>1.284.500,00 TRY</strong> <small>bu sayfa</small></div></div>
+    <div class="met"><span class="ic" style="background:var(--warn-bg);color:var(--warn)">⏳</span><div><span>Yanıt bekleyen</span><strong>6</strong> <small>bu sayfa · tıklayınca "İletildi" süzülür</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Teklif no veya müşteriyle ara</span><span class="chip on">Tümü</span><span class="chip">Taslak</span><span class="chip">İletildi</span><span class="chip">Kabul edildi</span><span class="chip">Reddedildi</span><span class="chip">Süresi doldu</span><span class="in" style="width:120px">01.11.2026</span><span class="in" style="width:120px">21.11.2026</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Teklif no</th><th>Müşteri</th><th>Plasiyer</th><th>Sipariş no</th><th>Teklif tarihi</th><th>Geçerlilik</th><th class="num">Satır</th><th class="num">Genel toplam</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code ra">TKL-2026-0042 (2)</td><td><b>FATİH KOKAY</b><br><small style="color:var(--mut)">C-1001</small></td><td>PER001 · Ayşe Yıldız</td><td>—</td><td>18.11.2026</td><td>02.12.2026</td><td class="num">4</td><td class="num">186.000,00 TRY</td><td><span class="tag t-w">İletildi</span></td></tr>
+      <tr><td class="code ra">TKL-2026-0041 (1)</td><td><b>ÖRNEK TEKSTİL A.Ş.</b><br><small style="color:var(--mut)">C-1002</small></td><td>—</td><td class="ra">S-20261115-0381</td><td>14.11.2026</td><td>28.11.2026</td><td class="num">2</td><td class="num">12.400,00 EUR</td><td><span class="tag t-ok">Kabul edildi</span></td></tr>
+      <tr><td class="code ra">TKL-2026-0040 (1)</td><td><b>Kayıtsız alıcı · Mehmet K.</b></td><td>—</td><td>—</td><td>10.11.2026</td><td>17.11.2026</td><td class="num">1</td><td class="num">3.250,00 TRY</td><td><span class="tag t-in">Taslak</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+. detay paneli</span><span>Sayfa 1 / 2 · 42 kayıt</span></div></div>
+    <div class="card pnl"><span class="code">TKL-2026-0042 · rev. 2</span> <span class="btn" style="float:right;padding:1px 8px">Aç</span><h4>FATİH KOKAY</h4>
+      <div class="k"><div><span>Genel toplam</span><b>186.000,00 TRY</b></div><div><span>Geçerlilik</span><b>02.12.2026</b></div><div><span>Satır</span><b>4</b></div><div><span>Durum</span><b><span class="tag t-w">İletildi</span></b></div></div>
+      <span class="lnk">Kabul et · Reddet ›</span><span class="lnk">Revizyonlar (2) ›</span><span class="lnk">Yazdır / PDF ›</span></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>İşlemler menüsü</b> duruma bağlı: Taslak → Düzenle, İletildi yap · İletildi → Kabul et, Reddet · Kabul edildi → Sipariş oluştur · Sil yalnız yöneticiye ve yalnız taslakta. Bu koşullar sistem sayfasında düğme görünürlük kurallarıyla aynen kurulur.</li>
+  <li><b>"Bu sayfa" kartları</b> bugünkü gibi yalnız yüklü 25 satırı sayar; ipucu metni korunur. "Yanıt bekleyen" kartı tıklanınca durum süzgecini değiştirir.</li>
+  <li><b>Düzenle, Revizyon oluştur, Yazdır/PDF</b> Aşama A'da eski teklif kartını açar ("Eski ekranda aç").</li>
+</ul>
+
+<div class="lbl">2 · SATIŞ SİPARİŞİ (BELGE DETAYI) <span class="phase pa">AŞAMA A</span></div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satış › Satış Siparişleri › S-20261115-0381</div>
+  <div class="rh"><div><h2>Satış siparişi · <span class="code">S-20261115-0381</span></h2><p>ÖRNEK TEKSTİL A.Ş. · 15.11.2026 · teslim 25.11.2026 · EUR · <span class="tag t-w">Açık</span> <span class="tag t-in">Kısmi sevk</span></p></div><div><span class="btn g">Yenile</span> <span class="btn p">İrsaliye oluştur</span> <span class="btn g">İşlemler ▾</span></div></div>
+  <div class="chain"><span>Teklif TKL-2026-0041</span>›<span class="cur">Sipariş S-20261115-0381</span>›<span>İrsaliye IRS-2026-118</span>›<span>Fatura —</span></div>
+  <div class="ptabs"><span class="on">Sipariş Bilgileri</span><span>İrsaliye Geçmişi (1)</span></div>
+  <div class="card" style="margin-top:8px"><table><thead><tr><th>Stok kodu</th><th>Stok adı</th><th class="num">Sipariş</th><th class="num">Teslim edilen</th><th class="num">Kalan</th><th>Rezerve</th><th class="num">Birim fiyat</th><th class="num">Satır toplamı</th></tr></thead><tbody>
+    <tr><td class="code">KMS-001</td><td>Pamuklu kumaş 150 cm</td><td class="num">500 m</td><td class="num">300</td><td class="num"><b>200</b></td><td>200 · Merkez depo</td><td class="num">18,00 EUR</td><td class="num">9.000,00</td></tr>
+    <tr><td class="code">IPL-014</td><td>Polyester iplik</td><td class="num">120 kg</td><td class="num">0</td><td class="num"><b>120</b></td><td></td><td class="num">28,33 EUR</td><td class="num">3.400,00</td></tr>
+  </tbody></table><div class="foot"><span>Miktarlar temel birimde · Kalan &gt; 0 olan satırlar sevk edilebilir</span><span>Genel toplam 12.400,00 EUR</span></div></div>
+</div>
+<ul class="note">
+  <li><b>İşlemler:</b> Stok ayır (açık ve rezervasyon yoksa), Rezervasyonu bırak (yönetici; gerekçe ve onay), Teslim tarihini değiştir, Sil (yönetici). Bunlar Aşama A'da sistem sayfasından çalışır.</li>
+  <li><b>İrsaliye oluştur</b> bugün kalan miktarla dolu, miktarı düzenlenebilir bir alt form açıyor. Motor bunu henüz yapamadığı için Aşama A'da eski ekrandaki forma yönlenir.</li>
+  <li>Bağımsız siparişte "Kaynak teklif" sütunu bugün <b>"Bağımsız"</b> metni gösteriyor; belge zincirinde de aynı metin korunur.</li>
+</ul>
+
+<div class="lbl">3 · SATIŞ İRSALİYELERİ (LİSTE) <span class="phase pa">AŞAMA A</span></div>
+<div class="erp">
+  <div class="ttl"><h2>Satış İrsaliyeleri</h2><small>118 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Yenile</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets" style="grid-template-columns:repeat(2,1fr)">
+    <div class="met" style="border-color:#f0d58a"><span class="ic" style="background:var(--warn-bg);color:var(--warn)">!</span><div><span>Faturalanmamış</span><strong>9</strong> <small>bu sayfa · tıklayınca süzer</small></div></div>
+    <div class="met"><span class="ic">⊘</span><div><span>İptal</span><strong>2</strong> <small>bu sayfa</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">İrsaliye, sipariş veya depo ara</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="card"><table><thead><tr><th>İrsaliye no</th><th>Sipariş no</th><th>Sevk tarihi</th><th>Depo</th><th class="num">Satır</th><th>Durum</th><th>Fatura</th></tr></thead><tbody>
+    <tr class="pick"><td class="code ra">IRS-2026-118</td><td class="code">S-20261115-0381</td><td>18.11.2026</td><td>Merkez depo</td><td class="num">1</td><td><span class="tag t-ok">Sevk edildi</span></td><td>Yok</td></tr>
+    <tr><td class="code ra">IRS-2026-117</td><td class="code">S-20261110-0377</td><td>12.11.2026</td><td>Konya şube</td><td class="num">3</td><td><span class="tag t-ok">Sevk edildi</span></td><td class="ra">Faturayı aç</td></tr>
+    <tr><td class="code ra">IRS-2026-116</td><td class="code">S-20261108-0371</td><td>11.11.2026</td><td>Merkez depo</td><td class="num">2</td><td><span class="tag t-bad">İptal</span></td><td>Yok</td></tr>
+  </tbody></table><div class="foot"><span>Siparişsiz irsaliyeler bugün bu listede görünmüyor (karar 2)</span><span>Sayfa 1 / 5</span></div></div>
+</div>
+<ul class="note">
+  <li><b>İşlemler:</b> Faturalaştır (sevk edildi ve faturasız), Faturayı aç, İptal et (bugün yalnız yönetici; ama bu kısıt yalnız ekranda, sunucuda yok), CSV.</li>
+  <li><b>"Fatura" sütunu</b> bugün iptal edilmiş faturada da "Faturayı aç" gösteriyor. Öneri: fatura durumu da yazılsın ("Kesildi" / "İptal").</li>
+</ul>
+
+<div class="lbl">4 · SATIŞ FATURALARI (LİSTE + DETAY) <span class="phase pa">AŞAMA A</span></div>
+<div class="erp">
+  <div class="ttl"><h2>Satış Faturaları</h2><small>264 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets" style="grid-template-columns:repeat(2,1fr)">
+    <div class="met"><span class="ic" style="background:var(--ok-bg);color:var(--ok)">✓</span><div><span>Kesilen</span><strong>412.880,00 TRY</strong> <small>23 fatura · bu sayfa</small></div></div>
+    <div class="met"><span class="ic">⊘</span><div><span>İptal</span><strong>2</strong> <small>bu sayfa</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Fatura no veya müşteriyle ara</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="card"><table><thead><tr><th>Fatura no</th><th>İrsaliye</th><th>Sipariş</th><th>Müşteri</th><th>Fatura tarihi</th><th class="num">Satır</th><th class="num">Genel toplam</th><th>Durum</th></tr></thead><tbody>
+    <tr class="pick"><td class="code ra">SF-2026-0264</td><td class="code">IRS-2026-117</td><td class="code">S-20261110-0377</td><td>FATİH KOKAY</td><td>13.11.2026</td><td class="num">3</td><td class="num">55.000,00 TRY</td><td><span class="tag t-ok">Kesildi</span></td></tr>
+    <tr><td class="code ra">SF-2026-0263</td><td class="code">BIRS-0012</td><td>—</td><td>ESKİ MÜŞTERİ LTD.</td><td>11.11.2026</td><td class="num">1</td><td class="num">4.720,00 TRY</td><td><span class="tag t-off">İptal</span></td></tr>
+  </tbody></table><div class="foot"><span>Fatura no'ya tek tık: seçer ve açar</span><span>Sayfa 1 / 11</span></div></div>
+</div>
+<ul class="note">
+  <li><b>Detay</b> bugünkü belge yüzeyiyle açılır: üst bilgi, satırlar, tahsilatlar, iadeler. Tahsilat ve iade ekleme/iptal Aşama A'da sistem sayfasından çalışır (ayrı izinler: tahsilat <code>erp.customer-collections.create</code>, iade <code>erp.sales-returns.create</code>).</li>
+  <li>İptal yalnız yönetici ve yalnız "Kesildi" faturada; onay metni korunur: "… iptal edilecek ve cari hareketi ters kayıtla kapatılacak."</li>
+  <li>Cari Hesaplar'daki "Satış faturaları ›" bağlantısı ve global arama faturayı sayfa parametresiyle açar (bugünkü uygulama içi köprünün yerine).</li>
+</ul>
+
+<div class="lbl">5 · YENİ SATIŞ FATURASI (KART) <span class="phase pb">AŞAMA B</span> · ÖRNEK BELGE KARTI</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satış › Satış Faturaları › Yeni</div>
+  <div class="rh"><div><h2>Yeni satış faturası</h2><p>Siparişsiz fatura + irsaliye · seçilen depodan stok çıkışı yapılır</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Faturayı kes</span></div></div>
+  <div class="status"><span>Zorunlu alanlar: <b>3 / 3</b></span><span>Ctrl+S kaydet · Esc vazgeç</span></div>
+  <div class="sec"><h5>Belge bilgileri</h5><div class="g3"><div class="f"><label>Fatura tarihi <b>*</b></label><div class="in">21.11.2026</div></div><div class="f"><label>Müşteri <b>*</b></label><div class="in">C-1001 · FATİH KOKAY ▾</div></div><div class="f"><label>Fatura türü</label><div class="in">Toptan (KDV hariç) ▾</div></div></div></div>
+  <div class="sec"><h5>E-belge</h5><div class="g3"><div class="f"><label>Belge senaryosu</label><div class="in">TICARIFATURA ▾</div></div><div class="f"><label>Belge tür kodu</label><div class="in">SATIS ▾</div></div><div class="f"><label>Alıcı e-Fatura etiketi</label><div class="in ph">urn:mail:…</div></div></div></div>
+  <div class="card"><table><thead><tr><th>#</th><th>Stok</th><th>Depo</th><th class="num">Miktar</th><th>Birim</th><th class="num">Birim fiyat (TRY)</th><th class="num">İsk. %</th><th class="num">KDV %</th><th class="num">Tutar</th></tr></thead><tbody>
+    <tr><td>1</td><td>KMS-001 · Pamuklu kumaş ▾</td><td>Merkez depo ▾</td><td class="num">100</td><td>m</td><td class="num">450,00</td><td class="num">5</td><td class="num">20</td><td class="num">42.750,00</td></tr>
+    <tr><td>2</td><td>IPL-014 · Polyester iplik ▾</td><td>Merkez depo ▾</td><td class="num">40</td><td>kg</td><td class="num">300,00</td><td class="num">0</td><td class="num">20</td><td class="num">12.000,00</td></tr>
+  </tbody></table><div class="foot"><span>+ Satır ekle · stok seçilince birim, fiyat ve KDV dolar</span><span>Tutarlar sunucu önizlemesinden gelir</span></div></div>
+  <div class="tot"><div class="box"><b>Not</b><p style="color:var(--mut);margin:6px 0 0">Tevkifat ve vergi profili hesapları sunucuda yapılır; ekranda formül tekrarlanmaz.</p></div>
+    <div class="box"><dl><dt>Ara toplam</dt><dd>54.750,00</dd><dt>KDV %20</dt><dd>10.950,00</dd><dt class="gt">Genel toplam</dt><dd class="gt">65.700,00 TRY</dd></dl></div></div>
+</div>
+<ul class="note">
+  <li>Bu kart <b>bugünkü motorla kurulamaz</b>: stok seçilince diğer hücrelerin dolması, satır tutarı ve toplam hesabı, var olan satırların düzenlenebilir yüklenmesi ve 12 sütun sınırı ortak motor işidir (diğer modüllerle sıralanacak).</li>
+  <li>Teklif kartı (revizyon, kur, PDF), sipariş kartı (14 sütunlu satır, plasiyer) ve siparişsiz irsaliye kartı (depo gözü, lot/seri, son kullanma tarihi) da aynı aşamada taşınır.</li>
+</ul>
+
+<div class="lbl">BUGÜNKÜ EKRANLARDA GÖRÜLEN SORUNLAR (KODDAN ÇIKARILDI, DOĞRULANACAK)</div>
+<div class="prob">
+  <div class="d"><b class="h">Çift kayıt riski</b><p>Formlar her kaydet tıklamasında yeni bir istek kimliği üretiyor; zaman aşımında tekrar basılırsa iki belge oluşabilir.</p><p class="rec">Öneri: kimlik form açılışında bir kez üretilsin (sistem sayfası zaten böyle yapıyor).</p></div>
+  <div class="d"><b class="h">Bağımsız faturada depo</b><p>Satırlarda farklı depo seçilse de stok çıkışı tek depodan yapılıyor; karışık depolu faturanın yeniden denemesi hata veriyor.</p><p class="rec">Öneri: taşımadan önce ayrı küçük bir sunucu düzeltmesi.</p></div>
+  <div class="d"><b class="h">Sipariş kapanmıyor</b><p>Siparişi iptal etme ya da kapatma işlemi yok; kısmi sevk edilen sipariş sürekli "Açık" kalıyor.</p><p class="rec">Öneri: ayrı iş olarak "Siparişi kapat".</p></div>
+  <div class="d"><b class="h">"Süresi doldu" hiç oluşmuyor</b><p>Teklif durum süzgecinde var, ama sunucu bu durumu hiç yazmıyor; geçerliliği geçen teklif "İletildi" kalıyor.</p><p class="rec">Öneri: durum geçerlilik tarihine göre hesaplansın.</p></div>
+  <div class="d"><b class="h">İptal fatura, kilitli irsaliye</b><p>Faturası iptal edilen irsaliye yeniden faturalanamıyor; "Faturalaştır" eski iptal faturayı döndürüyor.</p><p class="rec">Öneri: iptalde irsaliye bağı çözülsün (ayrı iş).</p></div>
+  <div class="d"><b class="h">Gizli izin bağımlılıkları</b><p>Fatura listesi sipariş okuma izni olmadan açılmıyor; sipariş formu personel ve teklif okuma iznine bağlı.</p><p class="rec">Sistem sayfasında her okuma ayrı olduğundan taşımayla düzelir.</p></div>
+</div>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL) · KULLANICI ONAYI 2026-11-21</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · İki aşama</b><p>Listeler ve belge detayları bugünkü motorla kurulabiliyor; belge kartları kurulamıyor.</p><p class="rec">Öneri: Aşama A'da dört liste + detay (önizleme aşamasında, varsayılan yine eski ekran); kartlar eski ekranda kalır. Aşama B ortak motor işi bitince.</p></div>
+  <div class="d"><b class="h">2 · Siparişsiz irsaliyeler</b><p>"Yeni irsaliye" ile kaydedilen siparişsiz irsaliyeler ayrı tabloda; Satış İrsaliyeleri listesinde görünmüyor.</p><p class="rec">Öneri: listede iki tür birlikte görünsün ("Siparişsiz" etiketiyle); bunun için sunucuya birleşik liste işlemi eklenir.</p></div>
+  <div class="d"><b class="h">3 · Tutar hesabı sunucuda</b><p>Satır tutarı, iskonto, KDV dökümü, tevkifat ve kur çevrimi bugün ekranda hesaplanıyor (tevkifat ekranda hep 0).</p><p class="rec">Öneri: yan etkisiz "hesapla / önizle" uç noktaları (teklif, sipariş, fatura). Ekran formül tekrarlamaz; kayıtla aynı sonuç görünür.</p></div>
+  <div class="d"><b class="h">4 · Belgeler arası geçiş</b><p>Cariden "Yeni sipariş", tekliften siparişe, siparişi düzenleme ve faturayı açma bugün oturum belleğiyle taşınıyor.</p><p class="rec">Öneri: hepsi sayfa parametresine geçsin (<code>customerId</code>, <code>quoteId</code>, <code>orderId</code>, <code>invoiceId</code>); eski ekranlar da aynı parametreyi okusun.</p></div>
+  <div class="d"><b class="h">5 · İşlem adları</b><p>Adlar kalıcı; yaklaşık 60 <code>satis.*</code> işlemi (ör. <code>satis.fatura.listele</code>, <code>satis.irsaliye.faturalastir</code>, <code>satis.siparis.stokAyir</code>).</p><p class="rec">Öneri: envanterin 5.1 tablosundaki adlar; Aşama A işlemleri önce eklenir.</p></div>
+  <div class="d"><b class="h">6 · Bugünkü hatalar</b><p>Yukarıdaki sorunların bir kısmı sunucu hatası.</p><p class="rec">Öneri: çift kayıt, bağımsız fatura deposu ve irsaliye iptal yetkisi taşımadan önce ayrı küçük PR'larla; kalanlar ayrı iş.</p></div>
+</div>
+<ul class="note">
+  <li>Satış iadeleri, satış talepleri, dağıtım planı ve kampanyalar bu taslağın kapsamı dışında.</li>
+  <li>Test yalnız QA Test Firma 20261117'de: önce fatura, sonra irsaliye, sipariş, teklif (salt okunurdan yazmaya).</li>
+</ul>
+</body></html>
