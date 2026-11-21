@@ -85,6 +85,7 @@ import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purc
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
 import { PurchaseCreateOrderFlow, purchaseCreateOrderTotals } from "./purchasing/purchaseCreateForms";
+import { usePurchasingPageParams } from "./sales/purchasingPageParams";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -4719,6 +4720,9 @@ function PurchasingPanel({
     window.addEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
   }, [requestsOnly]);
+  // A system page opens this tab with `requestId` / `purchaseOrderId` (K7); read once, like the hand-offs above.
+  usePurchasingPageParams(requestsOnly ? "sales-requests" : "sales-purchasing", [requestsOnly ? "requestId" : "purchaseOrderId"],
+    ({ requestId, purchaseOrderId }) => void (requestId ? openRequest(requestId) : purchaseOrderId && openOrder(purchaseOrderId)));
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;

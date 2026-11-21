@@ -286,6 +286,7 @@ app.MapSalesQuotePdfTemplateEndpoints();
 app.MapSalesPromotionEndpoints();
 app.MapSalesPlanningInquiryEndpoints();
 app.MapPurchaseInvoiceEntryEndpoints();
+app.MapPurchaseInvoicePreviewEndpoints();
 app.MapPurchaseInvoiceDraftEndpoints();
 app.MapPurchaseDeliveryNoteEndpoints();
 app.MapDocumentListEndpoints();
@@ -5714,7 +5715,7 @@ purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext d
         .Select(x => new
         {
             x.Id, x.Code, x.RequestDate, x.NeededByDate, x.Description, x.RequestedByUserId, x.Status,
-            x.ReviewedByUserId, x.ReviewNote, x.CreatedAt, x.ReviewedAt, LineCount = x.Lines.Count,
+            x.ReviewedByUserId, x.ReviewNote, x.CreatedAt, x.ReviewedAt, LineCount = x.Lines.Count, QuoteCount = x.SupplierQuotes.Count,
             PurchaseOrderId = x.PurchaseOrder == null ? null : (Guid?)x.PurchaseOrder.Id,
             PurchaseOrderCode = x.PurchaseOrder == null ? null : x.PurchaseOrder.Code
         }).ToListAsync();
@@ -5725,7 +5726,7 @@ purchaseRequests.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext d
     var rows = requestRows.Select(x => new PurchaseRequestSummary(x.Id, x.Code, x.RequestDate, x.NeededByDate, x.Description,
         x.RequestedByUserId, requesterNames.GetValueOrDefault(x.RequestedByUserId) ?? "Bilinmeyen kullanıcı", x.Status,
         x.ReviewedByUserId, x.ReviewedByUserId is Guid reviewerId ? requesterNames.GetValueOrDefault(reviewerId) : null,
-        x.ReviewNote, x.CreatedAt, x.ReviewedAt, x.LineCount, x.PurchaseOrderId, x.PurchaseOrderCode)).ToList();
+        x.ReviewNote, x.CreatedAt, x.ReviewedAt, x.LineCount, x.PurchaseOrderId, x.PurchaseOrderCode) { QuoteCount = x.QuoteCount }).ToList();
     return Results.Ok(new PurchaseRequestPage(rows, page, pageSize, total));
 });
 purchaseRequests.MapPost("/", async (PurchaseRequestWriteRequest request, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -6473,19 +6474,41 @@ purchaseOrders.MapPost("/", async (PurchaseOrderWriteRequest request, ClaimsPrin
     return Results.Created($"/api/purchasing/orders/{order.Id}", new PurchaseOrderSummary(order.Id, order.Code, supplier.Id, supplier.Name,
         order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count, order.CreatedAt, order.ExpectedReceiptDate, order.TargetWarehouseId));
 });
-purchaseOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
+purchaseOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25,
+    string? status = null, bool? overdue = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var userId = GetUserId(principal);
     if (userId is null) return Results.Forbid();
     page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
+    // status and overdue are optional (system page status chips); without them the query is unchanged.
+    PurchaseOrderStatus? statusFilter = null;
+    if (!string.IsNullOrWhiteSpace(status))
+    {
+        if (!Enum.TryParse<PurchaseOrderStatus>(status, true, out var parsedStatus) || !Enum.IsDefined(parsedStatus))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Satınalma siparişi durumu geçersiz."] });
+        statusFilter = parsedStatus;
+    }
     var query = db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId);
     query = await PermissionStatusFilter.ApplyAsync(platformDb, tenantId, userId.Value, principal.FindFirstValue("role")!, "erp.purchase-orders.read", "erp.purchase-orders", query, x => x.Status, null, x => x.SupplierId) ?? query;
+    if (statusFilter is not null) query = query.Where(x => x.Status == statusFilter.Value);
+    if (overdue == true)
+    {
+        // Same rule as PurchaseOrderSummary.IsOverdue.
+        var today = PurchasingDisplay.Today;
+        query = query.Where(x => (x.Status == PurchaseOrderStatus.Open || x.Status == PurchaseOrderStatus.PartiallyReceived)
+            && x.ExpectedReceiptDate != null && x.ExpectedReceiptDate < today);
+    }
     if (!string.IsNullOrWhiteSpace(q)) { var term = q.Trim(); query = query.Where(x => x.Code.Contains(term) || x.Supplier.Name.Contains(term) || x.Supplier.Code.Contains(term)); }
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.OrderDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new PurchaseOrderSummary(x.Id, x.Code, x.SupplierId, x.Supplier.Name, x.OrderDate, x.CurrencyCode,
-            x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.ExpectedReceiptDate, x.TargetWarehouseId)).ToListAsync();
+            x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.ExpectedReceiptDate, x.TargetWarehouseId)
+        {
+            OrderedQuantity = x.Lines.Sum(l => (decimal?)l.Quantity) ?? 0m,
+            ReceivedQuantity = db.PurchaseReceiptLines.Where(l => l.TenantId == tenantId && l.PurchaseOrderId == x.Id && l.Receipt.Status == PurchaseReceiptStatus.Posted)
+                .Sum(l => (decimal?)l.Quantity) ?? 0m
+        }).ToListAsync();
     return Results.Ok(new PurchaseOrderPage(rows, page, pageSize, total));
 });
 purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -6903,11 +6926,7 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
     var receiptLines = await db.PurchaseReceiptLines.AsNoTracking().Include(x => x.OrderLine)
         .Where(x => x.TenantId == tenantId && x.ReceiptId == id).OrderBy(x => x.OrderLineNumber).ToListAsync();
     if (receiptLines.Count == 0) return Results.Conflict(new { error = "Satır içermeyen mal kabul faturalanamaz." });
-    var historicalLines = await db.PurchaseInvoiceLines.AsNoTracking()
-        .Where(x => x.TenantId == tenantId && x.PurchaseReceiptLine.PurchaseOrderId == order.Id && x.PurchaseInvoice.Status == PurchaseInvoiceStatus.Posted)
-        .GroupBy(x => x.OrderLineNumber)
-        .Select(g => new { Number = g.Key, Quantity = g.Sum(x => x.Quantity), Subtotal = g.Sum(x => x.LineSubtotal), Discount = g.Sum(x => x.DiscountAmount), Tax = g.Sum(x => x.TaxAmount), Total = g.Sum(x => x.LineTotal) })
-        .ToDictionaryAsync(x => x.Number, x => (Quantity: x.Quantity, Amounts: new SalesQuoteLineAmounts(x.Subtotal, x.Discount, x.Tax, x.Total)));
+    var historicalLines = await PurchaseInvoiceCalculation.LoadInvoicedAsync(db, tenantId, order.Id);
     var invoice = new PurchaseInvoice { TenantId = tenantId, PurchaseReceiptId = receipt.Id, PurchaseOrderId = order.Id,
         SupplierId = supplier.Id, Code = request.Code.Trim(), InvoiceDate = request.InvoiceDate,
         DueDate = request.InvoiceDate.AddDays(supplier.PaymentTermDays), CurrencyCode = order.CurrencyCode,
@@ -6915,21 +6934,17 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
         ProviderInvoiceUuid = request.ProviderInvoiceUuid, ProviderScenario = request.ProviderScenario?.Trim(),
         ProviderInvoiceTypeCode = request.ProviderInvoiceTypeCode?.Trim(), ProviderSenderAlias = request.ProviderSenderAlias?.Trim() };
     var invoiceAmounts = new List<SalesQuoteLineAmounts>();
-    foreach (var source in receiptLines)
+    foreach (var calculated in PurchaseInvoiceCalculation.CalculateLines(receiptLines, historicalLines, taxProfile, request.InvoiceDate))
     {
-        var previous = historicalLines.GetValueOrDefault(source.OrderLineNumber);
+        var (source, amounts, taxBreakdownJson) = (calculated.Source, calculated.Amounts, calculated.TaxBreakdownJson);
         var orderLine = source.OrderLine;
-        var amounts = PurchaseInvoiceWorkflow.CalculateIncrementalAmounts(orderLine.StockItemId, orderLine.UnitPrice,
-            orderLine.DiscountPercent, orderLine.VatPercent, previous.Quantity, previous.Amounts ?? new SalesQuoteLineAmounts(0, 0, 0, 0), source.Quantity);
-        var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, orderLine.VatPercent, request.InvoiceDate, "Purchase");
-        amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
         invoiceAmounts.Add(amounts);
         invoice.Lines.Add(new PurchaseInvoiceLine { TenantId = tenantId, PurchaseInvoice = invoice, PurchaseReceiptLineId = source.Id,
             PurchaseReceiptId = receipt.Id, OrderLineNumber = source.OrderLineNumber, StockItemId = source.StockItemId,
             StockCode = source.StockCode, StockName = source.StockName, UnitCode = source.UnitCode, Quantity = source.Quantity,
             UnitPrice = orderLine.UnitPrice, DiscountPercent = orderLine.DiscountPercent, VatPercent = orderLine.VatPercent,
             LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount,
-            TaxBreakdownJson = assessment.TaxBreakdownJson, LineTotal = amounts.LineTotal });
+            TaxBreakdownJson = taxBreakdownJson, LineTotal = amounts.LineTotal });
         invoice.TaxBreakdownJson = AccountingRuleTaxCalculator.Aggregate(invoice.Lines.Select(x => x.TaxBreakdownJson));
     }
     SalesQuoteTotals totals;

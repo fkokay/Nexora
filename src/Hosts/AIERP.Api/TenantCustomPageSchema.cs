@@ -63,6 +63,8 @@ internal static class TenantCustomPageSchema
       "defaultWhen", "closeInput",
       // Navigation actions (link, erpPage, page): they never write data.
       "href", "pageKey", "pageCode", "params", "queryText",
+      // erpPage "Eski ekranda aç": parametreleri yazar ve anahtarın eski ekranını açar (sistem sayfası olsa da).
+      "legacy",
       // actionBar Yeni / Aç / after-save run a page button (e.g. open the record screen) instead of a record dialog.
       "newButton", "openButton", "afterSaveButton",
       // actionBar Yeni / Aç / kaydettikten sonra as flat values (action, page, target, list, values to send).
@@ -1075,7 +1077,7 @@ internal static class TenantCustomPageSchema
     // ---- Navigation actions: link (Bağlantıya git), erpPage (ERP ekranı aç), page (Sayfa aç) ----
 
     private const int MaxPageParams = 6;
-    private static readonly string[] NavigationProps = ["href", "pageKey", "queryText", "pageCode", "params"];
+    private static readonly string[] NavigationProps = ["href", "pageKey", "queryText", "legacy", "pageCode", "params"];
     private static readonly Regex PageParamItem = new(@"^([a-z][a-zA-Z0-9]{0,31})=(.{0,200})\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>
     /// The literal start of a link: http(s), a host of DNS labels and an optional port, then the end of the text or one of
@@ -1088,7 +1090,7 @@ internal static class TenantCustomPageSchema
     private static string? NavigationTypeOf(string prop) => prop switch
     {
         "href" => "link",
-        "pageKey" or "queryText" => "erpPage",
+        "pageKey" or "queryText" or "legacy" => "erpPage",
         "pageCode" or "params" => "page",
         _ => null
     };
@@ -1172,6 +1174,8 @@ internal static class TenantCustomPageSchema
                     return Fail("'href' http:// veya https:// ile başlayan, sunucu adı sabit yazılmış bir adres olmalıdır; {{…}} ifadeleri yalnız sunucu adından sonra (/, ? veya # ardından) kullanılabilir.", out error);
                 break;
             case "erpPage":
+                if (props.TryGetProperty("legacy", out var legacy) && !IsBool(legacy))
+                    return Fail("'legacy' doğru/yanlış değeri olmalıdır.", out error);
                 var pageKey = StringOf(props, "pageKey");
                 if (string.IsNullOrEmpty(pageKey)) return Fail("ERP ekranı düğmesi için 'pageKey' gerekli.", out error);
                 if (!StandardMenuEndpoints.NavigablePageKeys.Contains(pageKey)) return Fail($"ERP ekranı bulunamadı: {pageKey}", out error);

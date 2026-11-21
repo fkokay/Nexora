@@ -211,6 +211,7 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(BuildWarehouseTransfers(paging));
         operations.AddRange(BuildCustomers(paging));
         operations.AddRange(BuildCrm(paging));
+        operations.AddRange(BuildPurchasing(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -670,8 +671,9 @@ internal static partial class ErpOperationCatalog
 
     private static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 
-    private static string Label(string code) => Labels.TryGetValue(code, out var label)
-        ? label : throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
+    // The main dictionary wins on shared codes; purchasing-only codes come from PurchasingLabel (a switch, not a static field).
+    private static string Label(string code) => Labels.TryGetValue(code, out var label) ? label
+        : PurchasingLabel(code) ?? throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
 
     // Endpoint lookup by "METHOD normalized-route" → raw route pattern, built once per endpoint data source.
     private static readonly ConditionalWeakTable<EndpointDataSource, IReadOnlyDictionary<string, string>> RoutePatterns = new();

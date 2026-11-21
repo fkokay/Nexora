@@ -597,12 +597,12 @@ export function PageBadge({ text, variant, toneMap, style }: { text: string; var
 }
 
 /**
- * Yazma hatasının metni. 400/403 yanıtlarında sunucunun nedeni her zaman gösterilir: yapılandırılmış hata mesajı varsa
- * "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
+ * Yazma hatasının metni. 400/403/409 yanıtlarında sunucunun nedeni (ProblemDetails `detail`/`title`) her zaman gösterilir:
+ * yapılandırılmış hata mesajı varsa "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
  */
 function writeErrorText(configured: string, cause: unknown): string {
   const failure = cause as Error & { status?: number; serverError?: string };
-  const server = failure.status === 400 || failure.status === 403 ? (failure.serverError || failure.message || "").trim() : "";
+  const server = failure.status === 400 || failure.status === 403 || failure.status === 409 ? (failure.serverError || failure.message || "").trim() : "";
   if (configured) return server ? `${configured} (${server})` : configured;
   return failure.serverError || failure.message || "İşlem tamamlanamadı.";
 }
