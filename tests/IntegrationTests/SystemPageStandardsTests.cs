@@ -31,7 +31,7 @@ public sealed class SystemPageStandardsTests
         Assert.Equal((1, "preview", "Raf ve Konumlar"), (locations.Version, locations.Stage, locations.Title));
         Assert.Equal(["inventory-warehouse-locations", "warehouse-location-balances", "inventory-warehouse-reconciliation"],
             locations.ScreenViews.Select(x => x.Key));
-        Assert.Equal(new[] { "customer-create", "customer-ledger", "customers", "inventory-cost", "inventory-locations", "inventory-stock", "inventory-stock-create", "inventory-stock-movements", "inventory-tracking", "inventory-transfers", Key }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Equal(new[] { "customer-create", "customer-ledger", "customers", "inventory-cost", "inventory-locations", "inventory-stock", "inventory-stock-create", "inventory-stock-movements", "inventory-tracking", "inventory-transfers", Key, "sales-deliveries", "sales-invoices", "sales-orders", "sales-quotes" }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var each in SystemPageStandards.All.Values)
             Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");
     }

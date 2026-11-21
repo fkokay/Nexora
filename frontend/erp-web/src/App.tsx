@@ -23,6 +23,7 @@ import "./security-workbench.css";
 import "./screen-design-system.css";
 import "./erp-navigation.css";
 import { api } from "./erpApi";
+import { setPageParams } from "./pageNavigation";
 import {
   tokenKey,
   refreshTokenKey,
@@ -246,9 +247,6 @@ function AppContent() {
       return defaultGlobalQuickMenuPages;
     }
   });
-  const [pendingCustomerInvoiceId, setPendingCustomerInvoiceId] = useState<
-    string | null
-  >(null);
   const [pendingPurchaseSupplier, setPendingPurchaseSupplier] = useState<{
     id: string;
     name: string;
@@ -947,7 +945,7 @@ function AppContent() {
       platformStatus={platformStatus}
       selectedModuleMenu={selectedModuleMenu}
       systemPages={systemPages}
-      pendingCustomerInvoiceId={pendingCustomerInvoiceId}
+      pendingCustomerInvoiceId={null}
       pendingPurchaseSupplier={pendingPurchaseSupplier}
       initialCustomerSearch={globalCustomerSearch}
       globalSearchOpen={globalSearchOpen}
@@ -1002,10 +1000,11 @@ function AppContent() {
           item.entry.label,
         );
       }}
-      onInitialInvoiceOpened={() => setPendingCustomerInvoiceId(null)}
+      onInitialInvoiceOpened={() => undefined}
       onInitialSupplierOpened={() => setPendingPurchaseSupplier(null)}
       onOpenSalesInvoice={(id) => {
-        setPendingCustomerInvoiceId(id);
+        // G-S3: the invoice travels as the page param `invoiceId`, read by both the legacy list and the system page.
+        setPageParams("sales-invoices", { invoiceId: id });
         setPage("sales-invoices");
       }}
       onOpenPurchaseInvoices={(supplier) => {

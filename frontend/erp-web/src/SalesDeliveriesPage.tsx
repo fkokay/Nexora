@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type * as AppTypes from "./erp-types";
 import { api, localDateString } from "./erpApi";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 import {
   FilePlus2,
   X,
@@ -296,6 +297,13 @@ export function SalesDeliveriesScreen({
         return null;
     }
   }
+  // Karar 4: the list opens an order-based delivery from the page param `deliveryId` (read once, then removed).
+  const paramDeliveryId = usePageParams(initialCreate ? undefined : "sales-deliveries").deliveryId ?? "";
+  useEffect(() => {
+    if (!paramDeliveryId) return;
+    dropPageParam("sales-deliveries", "deliveryId");
+    void open(paramDeliveryId);
+  }, [paramDeliveryId]);
   async function open(id: string) {
     setError("");
     setInvoiceEditing(false);

@@ -57,7 +57,7 @@ internal sealed record ErpOperationView(string Name, string Label, string Module
 /// entries are only added or marked deprecated, never removed or renamed (<c>ErpOperationCatalog.names.txt</c> in the
 /// integration tests enforces this). If an operation's contract has to change, add a new name.
 /// </summary>
-internal static class ErpOperationCatalog
+internal static partial class ErpOperationCatalog
 {
     private const string Since = "2026-11-18";
     private const string StockModule = "Stok";
@@ -70,7 +70,8 @@ internal static class ErpOperationCatalog
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
-    private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
+    // Module label blocks (e.g. SalesLabels in ErpOperationCatalog.Sales.cs) are merged in; a duplicate code fails startup.
+    private static readonly IReadOnlyDictionary<string, string> Labels = MergeLabels(new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["id"] = "Kimlik", ["code"] = "Kod", ["name"] = "Ad", ["barcode"] = "Barkod", ["unitCode"] = "Birim",
         ["category"] = "Kategori", ["minimumStock"] = "Minimum stok", ["isActive"] = "Etkin", ["createdAt"] = "Oluşturulma",
@@ -139,7 +140,16 @@ internal static class ErpOperationCatalog
         ["totalCount"] = "Cari kartı", ["activeCount"] = "Aktif", ["inactiveCount"] = "Pasif", ["customerCount"] = "Müşteri",
         ["supplierCount"] = "Tedarikçi", ["bothCount"] = "Müşteri ve tedarikçi", ["dealerCount"] = "Bayi", ["employeeCount"] = "Personel",
         ["eInvoiceRegisteredCount"] = "E-Fatura mükellefi", ["riskLimitDefinedCount"] = "Risk limiti tanımlı"
-    };
+    }, SalesLabels());
+
+    private static Dictionary<string, string> MergeLabels(Dictionary<string, string> labels, params IEnumerable<KeyValuePair<string, string>>[] blocks)
+    {
+        foreach (var block in blocks)
+            foreach (var (code, label) in block)
+                if (!labels.TryAdd(code, label))
+                    throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' etiketi birden fazla kez tanımlı.");
+        return labels;
+    }
 
     // Declared before Operations: static fields initialize in textual order and Build() uses it.
     private static readonly ErpOperationResult None = new("none", null, []);
@@ -203,6 +213,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildStockScreens(paging));
         operations.AddRange(BuildWarehouseTransfers(paging));
         operations.AddRange(BuildCustomers(paging));
+        operations.AddRange(BuildSales(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

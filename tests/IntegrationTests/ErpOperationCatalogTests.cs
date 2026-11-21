@@ -166,7 +166,8 @@ public sealed class ErpOperationCatalogTests
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
             // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
             if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet"
-                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)) continue;
+                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)
+                || op.Name.StartsWith("satis.", StringComparison.Ordinal)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -606,8 +607,9 @@ public sealed class ErpOperationCatalogTests
     {
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
-        // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests).
-        Assert.Equal(9, collections.Length);
+        // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
+        // customFields (SalesSystemPagesTests).
+        Assert.Equal(10, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -689,8 +691,10 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.* operations are new names with their own contract tests (CustomerSystemPagesTests).
-        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)))
+        // The cari.*, satis.* and finans.* operations are new names with their own contract tests (CustomerSystemPagesTests,
+        // SalesSystemPagesTests).
+        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
+                     && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);

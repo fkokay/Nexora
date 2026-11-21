@@ -294,7 +294,13 @@ public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, stri
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
     bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null,
     Guid? RevisionGroupId = null, int RevisionNumber = 1, string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null,
-    string? CustomerCode = null, Guid? SalesRequestId = null, string? SalesRequestCode = null);
+    string? CustomerCode = null, Guid? SalesRequestId = null, string? SalesRequestCode = null)
+{
+    /// <summary>Single-quote read only (not constructor members, so the older contract keeps its shape): "PER001 · Ad Soyad".</summary>
+    public string? SalespersonName { get; init; }
+    public Guid? SalesOrderId { get; init; }
+    public string? SalesOrderCode { get; init; }
+}
 public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesOrder = false, Guid? RevisionGroupId = null, int RevisionNumber = 1, string? CustomerCode = null,
@@ -302,7 +308,13 @@ public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, s
 public sealed record SalesQuoteRevisionSummary(Guid Id, string Code, int RevisionNumber, SalesQuoteStatus Status,
     DateOnly QuoteDate, DateOnly ValidUntil, decimal GrandTotal, string CurrencyCode, DateTimeOffset CreatedAt,
     bool HasSalesOrder);
-public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items (every status).
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Items, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Items, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Items, x => x.CurrencyCode);
+}
 public sealed record SalesOrderSummary(Guid Id, string Code, Guid? QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal GrandTotal,
     int LineCount, DateTimeOffset CreatedAt, DateOnly? RequestedDeliveryDate = null, Guid? SalespersonEmployeeId = null);
@@ -332,7 +344,14 @@ public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string
     string? EnteredCurrencyCode = null, decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null,
     bool IsVatIncluded = false,
     decimal ExchangeRateToOrderCurrency = 1m);
-public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items, cancelled orders excluded.
+    private IEnumerable<SalesOrderSummary> Counted => Items.Where(x => x.Status != SalesOrderStatus.Cancelled);
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Counted, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Counted, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Counted, x => x.CurrencyCode);
+}
 public sealed record SalesOrderReservationWriteRequest(Guid RequestId, Guid WarehouseId);
 public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Confirmation);
 public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int OrderLineNumber, Guid WarehouseId,
@@ -454,7 +473,36 @@ public static class SalesInvoiceNotesValidation
         ? new Dictionary<string, string[]> { ["notes"] = [$"Fatura notu en fazla {MaxLength} karakter olabilir."] }
         : null;
 }
-public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items, posted (Kesildi) invoices only.
+    private IEnumerable<SalesInvoiceSummary> Counted => Items.Where(x => x.Status == SalesInvoiceStatus.Posted);
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Counted, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Counted, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Counted, x => x.CurrencyCode);
+    public int PagePostedCount => Counted.Count();
+}
+/// <summary>
+/// Page summaries of the sales lists ("bu sayfa", as the legacy summary cards): a total is given only when every counted
+/// row has the same currency; mixed currencies or no counted row give null.
+/// </summary>
+public static class SalesPageSummary
+{
+    public static decimal? Total<T>(IEnumerable<T> rows, Func<T, string> currency, Func<T, decimal> amount)
+    {
+        var list = rows.ToList();
+        return Currency(list, currency) is null ? null : list.Sum(amount);
+    }
+
+    public static string? Currency<T>(IEnumerable<T> rows, Func<T, string> currency)
+    {
+        var codes = rows.Select(currency).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToList();
+        return codes.Count == 1 ? codes[0] : null;
+    }
+
+    public static bool Mixed<T>(IEnumerable<T> rows, Func<T, string> currency) =>
+        rows.Select(currency).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
+}
 public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale, string? Notes = null);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
