@@ -25,6 +25,7 @@ import { DetailChain, DetailContext, DetailKeyValues, type DocumentTotalRow } fr
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import { PurchaseCreateInvoiceFlow } from "./purchasing/purchaseCreateForms";
+import { loadPurchasingReceiptRef, usePurchasingPageParams } from "./sales/purchasingPageParams";
 import "./sales/sales-list-v2.css";
 
 type ReceiptOption = {
@@ -411,6 +412,27 @@ export default function PurchaseInvoiceEntryPage({
     setInvoiceDate(localDate());
     setProviderInvoiceUuid(""); setProviderScenario(""); setProviderTypeCode(""); setProviderSenderAlias("");
   }
+
+  // A system page opens this tab with `receiptId` (K7, "Faturala"): the receipt is selected once the list shows it; off
+  // the loaded page the list is searched by its code. It is dropped when the user changes that search.
+  const [pendingReceipt, setPendingReceipt] = useState<{ id: string; code?: string } | null>(null);
+  const pendingReceiptRef = useRef(pendingReceipt);
+  pendingReceiptRef.current = pendingReceipt;
+  usePurchasingPageParams("sales-purchase-invoice-entry", ["receiptId"], ({ receiptId }) => setPendingReceipt(receiptId ? { id: receiptId } : null));
+  useEffect(() => {
+    if (!pendingReceipt || loading) return;
+    const item = items.find((x) => x.id === pendingReceipt.id);
+    if (item) { setPendingReceipt(null); selectReceipt(item); return; }
+    // `code` is the search the pending receipt waits on (the current one while its code is looked up).
+    if (pendingReceipt.code !== undefined) { if (query !== pendingReceipt.code) setPendingReceipt(null); return; }
+    const id = pendingReceipt.id;
+    setPendingReceipt({ id, code: query });
+    void loadPurchasingReceiptRef(token, id).then((receipt) => {
+      if (pendingReceiptRef.current?.id !== id) return;
+      setPendingReceipt({ id, code: receipt.code });
+      setSearch(receipt.code); setQuery(receipt.code); setPage(1);
+    }, (e: Error) => { if (pendingReceiptRef.current?.id === id) { setPendingReceipt(null); setError(e.message); } });
+  }, [pendingReceipt, loading, items, query, token]);
 
   async function copyReceiptCode(code: string) {
     try {

@@ -166,7 +166,8 @@ public sealed class ErpOperationCatalogTests
                 Assert.True(op.Result.Columns.Any(x => x.Code.StartsWith(name + ".", StringComparison.Ordinal)), $"{op.Name}: {name}");
             // depo.ozelAlanKaydet carries the same body map as stok.kart.ozelAlanKaydet.
             if (Proje2FazAOperations.Contains(op.Name) || StockScreenOperations.Contains(op.Name) || op.Name == MovementHistory || op.Name == "depo.ozelAlanKaydet"
-                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)) continue;
+                || op.Name == "stok.bakiye.kart" || op.Name.StartsWith("cari.", StringComparison.Ordinal)
+                || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -689,8 +690,10 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.* operations are new names with their own contract tests (CustomerSystemPagesTests).
-        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)))
+        // The cari.* and Satınalma Faz 1 operations are new names with their own contract tests (CustomerSystemPagesTests,
+        // PurchasingErpOperationCatalogTests).
+        foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
+            && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);

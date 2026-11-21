@@ -546,7 +546,12 @@ public sealed record AccountingRuleProfileWriteRequest(string ProfileCode, strin
     DateOnly? EffectiveTo, string ParametersJson, string? OfficialSourceUrl = null, bool IsActive = true);
 public sealed record AccountingRuleProfileView(Guid Id, string ProfileCode, string Name, string JurisdictionCode,
     string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
-    DateOnly? EffectiveTo, string ParametersJson, string OfficialSourceUrl, bool IsActive, DateTimeOffset UpdatedAt);
+    DateOnly? EffectiveTo, string ParametersJson, string OfficialSourceUrl, bool IsActive, DateTimeOffset UpdatedAt)
+{
+    // Display members outside the constructor: only satinalma.faturaGirisi.mevzuatProfilleri declares them.
+    public bool HasTaxRules => PurchasingDisplay.HasTaxRules(ParametersJson);
+    public bool IsDefaultForDocuments => PurchasingDisplay.IsDefaultForDocuments(ParametersJson);
+}
 public sealed record AccountingTaxPreviewRequest(decimal TaxableAmount, DateOnly DocumentDate, string OperationType = "Sales");
 public sealed record AccountingTaxPreviewLine(string Code, string Name, decimal Rate, string Treatment,
     string CalculationBase, decimal TaxableAmount, decimal Amount);
@@ -581,19 +586,45 @@ public sealed record PurchaseRequestLineView(int LineNumber, Guid StockItemId, s
 public sealed record PurchaseRequestSummary(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, Guid RequestedByUserId, string RequestedByName, PurchaseRequestStatus Status,
     Guid? ReviewedByUserId, string? ReviewedByName, string? ReviewNote, DateTimeOffset CreatedAt,
-    DateTimeOffset? ReviewedAt, int LineCount, Guid? PurchaseOrderId, string? PurchaseOrderCode);
+    DateTimeOffset? ReviewedAt, int LineCount, Guid? PurchaseOrderId, string? PurchaseOrderCode)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.talep.* operations declare them.
+
+    /// <summary>Supplier quotes of the request; set by the request list only, null elsewhere.</summary>
+    public int? QuoteCount { get; init; }
+
+    /// <summary>Days until the need date (negative once past) while the request is open; null otherwise.</summary>
+    public int? NeededByDays => PurchasingDisplay.NeededByDays(Status, NeededByDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseRequestView(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, Guid RequestedByUserId, string RequestedByName, PurchaseRequestStatus Status,
     Guid? ReviewedByUserId, string? ReviewedByName, string? ReviewNote, DateTimeOffset CreatedAt,
     DateTimeOffset? ReviewedAt, IReadOnlyList<PurchaseRequestLineView> Lines, Guid? PurchaseOrderId, string? PurchaseOrderCode,
-    IReadOnlyList<PurchaseRequestCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<PurchaseRequestCustomFieldValueView>? CustomFields = null)
+{
+    /// <summary>Days until the need date (negative once past) while the request is open; null otherwise.</summary>
+    public int? NeededByDays => PurchasingDisplay.NeededByDays(Status, NeededByDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseRequestPage(IReadOnlyList<PurchaseRequestSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity);
 public sealed record PurchaseOrderSummary(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
-    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.siparis.* operations declare them.
+
+    /// <summary>Ordered quantity summed over the lines; set by the order list only, null elsewhere.</summary>
+    public decimal? OrderedQuantity { get; init; }
+
+    /// <summary>Quantity received by posted receipts, summed over the lines; set by the order list only, null elsewhere.</summary>
+    public decimal? ReceivedQuantity { get; init; }
+
+    public decimal? ReceivedPercent => PurchasingDisplay.ReceivedPercent(OrderedQuantity, ReceivedQuantity);
+    public bool IsOverdue => PurchasingDisplay.IsOrderOverdue(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int DelayDays => PurchasingDisplay.OrderDelayDays(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record PurchaseOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -608,7 +639,19 @@ public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, st
     string CurrencyCode, PurchaseOrderStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     string? Notes, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseOrderLineView> Lines,
     IReadOnlyList<PurchaseReceiptSummary> Receipts, IReadOnlyList<PurchaseOrderCustomFieldValueView>? CustomFields = null,
-    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null)
+{
+    // Display members outside the constructor, computed from the lines and receipts of this view (satinalma.siparis.getir).
+    public decimal OrderedQuantity => Lines.Sum(x => x.Quantity);
+    public decimal ReceivedQuantity => Lines.Sum(x => x.ReceivedQuantity);
+    public decimal? ReceivedPercent => PurchasingDisplay.ReceivedPercent(OrderedQuantity, ReceivedQuantity);
+    public bool IsOverdue => PurchasingDisplay.IsOrderOverdue(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int DelayDays => PurchasingDisplay.OrderDelayDays(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int PostedReceiptCount => Receipts.Count(x => x.Status == PurchaseReceiptStatus.Posted);
+
+    /// <summary>Posted receipts with an active (posted) invoice.</summary>
+    public int InvoicedReceiptCount => Receipts.Count(x => x.Status == PurchaseReceiptStatus.Posted && x.Invoice is { Status: PurchaseInvoiceStatus.Posted });
+}
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
     IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
@@ -650,7 +693,13 @@ public sealed record SupplierReturnSummary(Guid Id, string Code, Guid PurchaseIn
 public sealed record PurchaseInvoiceSummary(Guid Id, string Code, Guid PurchaseReceiptId, string ReceiptCode,
     Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName, DateOnly InvoiceDate,
     DateOnly DueDate, string CurrencyCode, PurchaseInvoiceStatus Status, decimal GrandTotal, decimal PaidAmount, decimal OutstandingAmount,
-    int LineCount, DateTimeOffset CreatedAt);
+    int LineCount, DateTimeOffset CreatedAt)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.* operations declare them.
+    public string PaymentState => PurchasingDisplay.PaymentState(Status, DueDate, PaidAmount, OutstandingAmount, PurchasingDisplay.Today);
+    public int OverdueDays => PurchasingDisplay.OverdueDays(Status, DueDate, OutstandingAmount, PurchasingDisplay.Today);
+    public decimal? DisplayOutstanding => PurchasingDisplay.DisplayOutstanding(Status, OutstandingAmount);
+}
 public sealed record PurchaseInvoiceView(Guid Id, string Code, Guid PurchaseReceiptId, string ReceiptCode,
     Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName, DateOnly InvoiceDate,
     DateOnly DueDate, string CurrencyCode, PurchaseInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal,
@@ -658,7 +707,13 @@ public sealed record PurchaseInvoiceView(Guid Id, string Code, Guid PurchaseRece
     IReadOnlyList<PurchaseInvoiceLineView> Lines, IReadOnlyList<SupplierPaymentSummary> Payments,
     IReadOnlyList<SupplierReturnSummary>? Returns = null, Guid? ProviderInvoiceUuid = null,
     string? ProviderScenario = null, string? ProviderInvoiceTypeCode = null, string? ProviderSenderAlias = null,
-    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]");
+    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]")
+{
+    // Display members outside the constructor: only satinalma.fatura.getir declares them.
+    public string PaymentState => PurchasingDisplay.PaymentState(Status, DueDate, PaidAmount, OutstandingAmount, PurchasingDisplay.Today);
+    public int OverdueDays => PurchasingDisplay.OverdueDays(Status, DueDate, OutstandingAmount, PurchasingDisplay.Today);
+    public decimal? DisplayOutstanding => PurchasingDisplay.DisplayOutstanding(Status, OutstandingAmount);
+}
 public sealed record PurchaseInvoicePage(IReadOnlyList<PurchaseInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SupplierPaymentWriteRequest(Guid RequestId, DateOnly PaymentDate, decimal Amount,
     string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);

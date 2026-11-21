@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../erpApi";
+import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from "../pageNavigation";
 
 export type SystemScreenEntry = { mode: "override" | "standard"; revision: number };
 /** A built-in key that opens another key's system page (a standard's `aliases`), with the page param the alias tab must carry. */
@@ -101,6 +102,19 @@ export function useSystemPageMap(token: string, tenantId: string): SystemPageMap
     legacy.delete(key);
     return { ...current, legacy };
   }), []);
+  // erpPage `legacy: true` (navigationActions): the target key shows its legacy screen, also when it is the current page.
+  // Only a key with a system page is switched; any other key renders its legacy screen anyway.
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
+      if (!request?.legacy || typeof request.page !== "string") return;
+      const key = request.page;
+      setState((current) => !Object.prototype.hasOwnProperty.call(current.screens, key) || current.legacy.has(key)
+        ? current : { ...current, legacy: new Set([...current.legacy, key]) });
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, []);
   const dropScreen = useCallback((key: string) => setState((current) => {
     if (!(key in current.screens)) return current;
     const screens = { ...current.screens };

@@ -57,7 +57,7 @@ internal sealed record ErpOperationView(string Name, string Label, string Module
 /// entries are only added or marked deprecated, never removed or renamed (<c>ErpOperationCatalog.names.txt</c> in the
 /// integration tests enforces this). If an operation's contract has to change, add a new name.
 /// </summary>
-internal static class ErpOperationCatalog
+internal static partial class ErpOperationCatalog
 {
     private const string Since = "2026-11-18";
     private const string StockModule = "Stok";
@@ -203,6 +203,7 @@ internal static class ErpOperationCatalog
         operations.AddRange(BuildStockScreens(paging));
         operations.AddRange(BuildWarehouseTransfers(paging));
         operations.AddRange(BuildCustomers(paging));
+        operations.AddRange(BuildPurchasing(paging));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))
@@ -662,8 +663,9 @@ internal static class ErpOperationCatalog
 
     private static string CamelCase(string name) => char.ToLowerInvariant(name[0]) + name[1..];
 
-    private static string Label(string code) => Labels.TryGetValue(code, out var label)
-        ? label : throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
+    // The main dictionary wins on shared codes; purchasing-only codes come from PurchasingLabel (a switch, not a static field).
+    private static string Label(string code) => Labels.TryGetValue(code, out var label) ? label
+        : PurchasingLabel(code) ?? throw new InvalidOperationException($"ERP işlem kataloğunda '{code}' alanının etiketi yok.");
 
     // Endpoint lookup by "METHOD normalized-route" → raw route pattern, built once per endpoint data source.
     private static readonly ConditionalWeakTable<EndpointDataSource, IReadOnlyDictionary<string, string>> RoutePatterns = new();

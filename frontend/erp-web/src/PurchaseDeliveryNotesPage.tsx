@@ -37,6 +37,7 @@ import type {
   ScreenField,
 } from "./purchase-delivery-notes/types";
 import { problemDetail } from "./erpApi";
+import { usePurchasingPageParams } from "./sales/purchasingPageParams";
 
 async function request<T>(
   url: string,
@@ -498,6 +499,8 @@ export default function PurchaseDeliveryNotesPage({
     setCreating(true);
     if (orderToOpen) selectOrder(orderToOpen);
   }
+  // A system page opens this tab with `purchaseOrderId` (K7): the create / link view opens on that order.
+  usePurchasingPageParams("sales-purchase-delivery-notes", ["purchaseOrderId"], ({ purchaseOrderId }) => { if (purchaseOrderId) startCreate(purchaseOrderId); });
   const commands: PageCommands = {};
   const more: MenuCommand[] = [];
   if (creating) {

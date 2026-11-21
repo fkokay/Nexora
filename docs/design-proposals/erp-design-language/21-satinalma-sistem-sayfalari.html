@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Satınalma sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.desc{color:var(--mut);margin:0 0 4px}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}.mets.m3{grid-template-columns:repeat(3,1fr)}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}.met.click{border-color:#bcd0f5}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}.ic.w{background:var(--warn-bg);color:var(--warn)}.ic.d{background:var(--dan-bg);color:var(--dan)}.ic.o{background:var(--ok-bg);color:var(--ok)}.ic.g{background:var(--off-bg);color:var(--off)}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px;min-width:900px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6;vertical-align:top}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right;white-space:nowrap}
+td small{display:block;color:var(--mut);font-size:11px}td small.late{color:var(--dan);font-weight:600}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}.t-d{background:var(--dan-bg);color:var(--dan)}
+.prog{height:5px;background:#eef1f6;border-radius:9px;margin-top:4px;width:90px}.prog b{display:block;height:5px;border-radius:9px;background:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+.ta{height:46px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;color:#98a2b3;padding:6px 9px;margin:8px 0}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}.btn.d{color:var(--dan);border-color:#f3c3bb}
+/* belge */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 8px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.steps{display:flex;gap:8px;align-items:center;margin:6px 0 10px;font-weight:600;color:#475467;flex-wrap:wrap}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.chain{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0 0}.chain span{background:#fff;border:1px solid #dfe5ee;border-radius:7px;padding:3px 9px;font-family:Consolas,monospace}.chain span.cur{border-color:var(--pri);color:var(--pri)}
+tr.tot td{background:#f8fafc;font-weight:600}
+.cmp{max-width:1150px}.cmp td,.cmp th{background:#fff}.cmp th{background:#f8fafc}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.bug{max-width:1150px;background:#fff;border:1px solid #f3c3bb;border-radius:10px;padding:10px 14px}.bug li{margin:4px 0;color:#475467}.bug b{color:var(--tx)}
+@media (max-width:760px){.mets,.dec{grid-template-columns:1fr 1fr}body{padding:16px}}
+</style></head><body>
+<h1>Satınalma → sistem sayfaları (taslak 21)</h1>
+<p class="sub">Satın Alma menüsündeki 10 ekran Studio'da açılabilen sistem sayfalarına geçiyor. Bunlar talep, teklif, sipariş, irsaliye, mal kabul, fatura girişi, faturalar, fatura taslakları, iadeler ve ticari sözleşmelerdir. <b>Görünüm bugünküyle aynı kalıyor.</b> Kurallar API'de kalıyor. Bugün katalogda yalnız 4 satınalma işlemi var; yaklaşık 80 yeni "satinalma" işlemi ekleniyor. Satırlı belge yazmaları (sipariş, mal kabul, iade) sayfa motorunda iki ek bekliyor. Bu yüzden iş iki aşamada yapılıyor: önce listeler, paneller ve tek düğmelik işlemler, sonra satırlı formlar. Tedarikçi kartları ayrı bir ekran değildir: türü Tedarikçi olan cari kartlarıdır ve Cari taslağında (19) yer alır.</p>
+
+<div class="lbl">1 · SATINALMA TALEPLERİ · BUGÜNKÜ GÖRÜNÜM KORUNUR · 1. AŞAMA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satın Alma › Satınalma Talepleri</div>
+  <div class="ttl"><h2>Satınalma talepleri</h2><small>12 talep</small></div>
+  <div class="bar"><span class="pri">+ Yeni talep</span><span>Aç</span><span>Onayla</span><span>Reddet</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met click"><span class="ic w">⏳</span><div><span>Onay bekliyor</span><strong>3</strong> <small>tıkla: süz</small></div></div>
+    <div class="met click"><span class="ic">✓</span><div><span>Onaylandı</span><strong>4</strong> <small>tıkla: süz</small></div></div>
+    <div class="met click"><span class="ic o">→</span><div><span>Siparişe dönüştü</span><strong>4</strong> <small>tıkla: süz</small></div></div>
+    <div class="met click"><span class="ic g">✕</span><div><span>Reddedildi</span><strong>1</strong> <small>tıkla: süz</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Talep no, kalem veya talep sahibi ile ara</span><span class="chip on">Tümü<i>12</i></span><span class="chip">Onay bekliyor<i>3</i></span><span class="chip">Onaylandı<i>4</i></span><span class="chip">Siparişe dönüştü<i>4</i></span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Talep</th><th>Talep sahibi</th><th>İhtiyaç</th><th>Teklif</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">ST-2026-0005<small>Koli 40×30×30 · 1 kalem</small></td><td>Ayşe Demir</td><td>15.11.2026<small class="late">6 gün geçti</small></td><td>2<small>en iyi 1.200,00 TL</small></td><td><span class="tag t-in">Onaylandı</span></td></tr>
+      <tr><td class="code">ST-2026-0006<small>Streç film · 2 kalem</small></td><td>Mehmet Kaya</td><td>30.11.2026<small>9 gün kaldı</small></td><td>—</td><td><span class="tag t-w">Onay bekliyor</span></td></tr>
+      <tr><td class="code">ST-2026-0003<small>Etiket rulosu · 1 kalem</small></td><td>Ayşe Demir</td><td>01.11.2026</td><td>3<small>en iyi 860,00 TL</small></td><td><span class="tag t-ok">Siparişe dönüştü</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Enter aç · Ctrl+. detay paneli</span><span>Sayfa 1 / 1 · 12 talep</span></div></div>
+    <div class="card pnl"><span class="code">ST-2026-0005</span><h4>Koli 40×30×30</h4>
+      <div class="ptabs"><span class="on">Özet</span><span>Teklifler 2</span></div>
+      <dl class="dl"><dt>Talep sahibi</dt><dd>Ayşe Demir</dd><dt>İhtiyaç tarihi</dt><dd>15.11.2026</dd><dt>Miktar</dt><dd>40 koli</dd><dt>En iyi teklif</dt><dd>Ege Ambalaj · 1.200,00 TL</dd></dl>
+      <div class="ta">Karar notu (isteğe bağlı)</div>
+      <span class="btn d">Reddet</span> <span class="btn p">Onayla</span>
+      <span class="lnk">Talep belgesini aç ›</span></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>1. aşamada:</b> liste, panel, notlu onay ve ret (talep sahibi kendi talebini onaylayamaz; bu kural API'de kalıyor), yeni talep penceresi ("Kalem ekle" ile).</li>
+  <li><b>2. aşamaya kalanlar:</b> teklif kaydı ve "bu teklifle sipariş oluştur". İkisi de talep satırlarından önceden dolmuş bir fiyat ızgarası istiyor. Sayfa motorunda bu ızgara henüz yok. O zamana kadar bu iki komut "Eski ekranda aç" ile açılıyor.</li>
+  <li><b>Teklif sütunu:</b> Bugün her satır için ayrı bir istek atılıyor. Bunun yerine teklif sayısı ve en iyi teklif listenin yanıtında hazır gelecek.</li>
+  <li><b>Satınalma Teklifleri</b> ekranı aynı düzende: salt okunur liste ve panel (Özet / Satırlar). "Aç", teklifin talebini açar. Talepsiz teklif formu 2. aşamada.</li>
+</ul>
+
+<div class="lbl">2 · SATINALMA SİPARİŞLERİ · LİSTE VE BELGE · 1. AŞAMA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satın Alma › Satınalma Siparişleri</div>
+  <div class="ttl"><h2>Satınalma siparişleri</h2><small>18 sipariş</small></div>
+  <div class="bar"><span class="pri">+ Yeni sipariş</span><span>Aç</span><span>Mal kabul</span><span>Faturala</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets m3">
+    <div class="met"><span class="ic">₺</span><div><span>Sipariş tutarı</span><strong>48.250,00 TRY</strong> <small>bu sayfa · iptaller hariç</small></div></div>
+    <div class="met"><span class="ic w">⧗</span><div><span>Mal bekleyen</span><strong>7</strong> <small>açık + kısmen alındı</small></div></div>
+    <div class="met click"><span class="ic d">!</span><div><span>Gecikmiş</span><strong>2</strong> <small>tıkla: süz</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Sipariş no veya tedarikçi ile ara</span><span class="chip on">Tümü<i>18</i></span><span class="chip">Açık<i>5</i></span><span class="chip">Kısmen alındı<i>2</i></span><span class="chip">Tam alındı<i>10</i></span><span class="chip">Gecikmiş<i>2</i></span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="card"><table><thead><tr><th>Sipariş</th><th>Tedarikçi</th><th>Teslim alınan</th><th class="num">Genel toplam</th><th>Durum</th></tr></thead><tbody>
+    <tr class="pick"><td class="code">SA-2026-0041<small class="late">01.11 · teslim 05.11</small></td><td><b>Ege Ambalaj Ltd.</b><small>Ana depo</small></td><td>12 / 40<div class="prog"><b style="width:30%"></b></div></td><td class="num">1.000,00 TRY</td><td><span class="tag t-d">Gecikmiş</span></td></tr>
+    <tr><td class="code">SA-2026-0042<small>10.11 · teslim 25.11</small></td><td><b>Marmara Kimya</b><small>Hammadde deposu</small></td><td>0 / 120<div class="prog"><b style="width:0"></b></div></td><td class="num">6.480,00 TRY</td><td><span class="tag t-in">Açık</span></td></tr>
+    <tr><td class="code">SA-2026-0039<small>20.10 · teslim 28.10</small></td><td><b>Anadolu Etiket</b><small>Ana depo</small></td><td>500 / 500<div class="prog"><b style="width:100%;background:var(--ok)"></b></div></td><td class="num">860,00 TRY</td><td><span class="tag t-ok">Tam alındı</span></td></tr>
+  </tbody></table><div class="foot"><span>Onay bekliyor · Açık · Kısmen alındı · Tam alındı · İptal / Reddedildi</span><span>Sayfa 1 / 1</span></div></div>
+
+  <div style="margin-top:14px"></div>
+  <div class="rh"><div><h2>SA-2026-0041 · Ege Ambalaj Ltd.</h2><p>Sipariş 01.11.2026 · Beklenen teslim 05.11.2026 · Ana depo · TRY</p></div><div><span class="btn g">Belge zinciri</span> <span class="btn p">Mal kabul oluştur</span> <span class="btn g">İşlemler ▾</span></div></div>
+  <div class="steps"><span class="st done"><i>✓</i>Onay</span>›<span class="st done"><i>✓</i>Açık</span>›<span class="st on"><i>3</i>Kısmen alındı</span>›<span class="st"><i>4</i>Tam alındı</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">₺</span><div><span>Genel toplam</span><strong>1.000,00</strong></div></div>
+    <div class="met"><span class="ic o">⇣</span><div><span>Mal kabul</span><strong>300,00</strong> <small>1 kabul</small></div></div>
+    <div class="met"><span class="ic">▤</span><div><span>Faturalanan</span><strong>0,00</strong></div></div>
+    <div class="met"><span class="ic d">!</span><div><span>Beklenen teslim</span><strong>05.11</strong> <small>16 gün geçti</small></div></div>
+  </div>
+  <div class="card"><table><thead><tr><th>Stok</th><th class="num">Sipariş</th><th class="num">Alınan</th><th class="num">Kalan</th><th class="num">Birim fiyat</th><th class="num">KDV</th><th class="num">Toplam</th></tr></thead><tbody>
+    <tr><td><span class="code">KOLI-403030</span><small>Koli 40×30×30</small></td><td class="num">40 adet</td><td class="num">12</td><td class="num">28</td><td class="num">20,83</td><td class="num">%20</td><td class="num">1.000,00</td></tr>
+    <tr class="tot"><td>Ara toplam 833,33 · KDV %20 166,67</td><td></td><td></td><td></td><td></td><td></td><td class="num">1.000,00</td></tr>
+  </tbody></table></div>
+  <div class="chain"><span>ST-2026-0005</span>→<span class="cur">SA-2026-0041</span>→<span>MK-2026-0018</span>→<span>fatura bekliyor</span></div>
+</div>
+<ul class="note">
+  <li><b>1. aşamada:</b> liste, panel (Özet / Satırlar), salt okunur sipariş belgesi, belge zinciri. Durum çipleri bugün tarayıcıda en çok 1.000 kayıt üzerinden süzülüyor. Sistem sayfasında süzme ve sayaçlar API'den gelecek.</li>
+  <li><b>2. aşamada:</b> yeni sipariş formu ve siparişe bağlı mal kabul formu. Bu formlar üç şey istiyor: satır tutarı ve KDV dökümü hesabı, stok seçilince alış fiyatının satıra gelmesi, kalan miktarların önceden dolu gelmesi. Sayfa motorunda bunların hiçbiri henüz yok. O zamana kadar "Yeni sipariş" ve "Mal kabul oluştur" eski ekranı açıyor.</li>
+  <li><b>Bugün eksik olan komutlar:</b> siparişi iptal etme ve kapatma. API'de bunların karşılığı yok, bu yüzden taslağa eklenmedi (aşağıda "Bugünkü sorunlar").</li>
+</ul>
+
+<div class="lbl">3 · MAL KABULLERİ VE MAL KABUL FATURASI GİRİŞİ · 1. AŞAMA</div>
+<div class="erp">
+  <div class="ttl"><h2>Mal kabulleri</h2><small>24 kabul</small></div>
+  <div class="bar"><span class="pri">+ Siparişsiz mal kabul</span><span>Aç</span><span>Fatura oluştur</span><span>İptal et</span><span>Yenile</span><span class="r">İşlemler ▾</span></div>
+  <div class="card" style="margin-top:10px"><table><thead><tr><th>Mal kabul no</th><th>Tedarikçi siparişi</th><th>Kabul tarihi</th><th>Depo</th><th>Satır</th><th>Durum</th></tr></thead><tbody>
+    <tr class="pick"><td class="code">MK-2026-0018</td><td class="code">SA-2026-0041</td><td>08.11.2026</td><td>Ana depo</td><td>Koli 40×30 · 12 adet</td><td><span class="tag t-ok">Kabul edildi</span></td></tr>
+    <tr><td class="code">MK-2026-0017</td><td class="code">SA-2026-0039</td><td>28.10.2026</td><td>Ana depo</td><td>Etiket rulosu · 500 adet</td><td><span class="tag t-off">İptal</span></td></tr>
+  </tbody></table></div>
+  <div style="margin-top:14px"></div>
+  <div class="ttl"><h2>Mal kabul faturası girişi</h2><small>3 mal kabul fatura bekliyor</small></div>
+  <div class="split" style="margin-top:8px">
+    <div class="card"><table><thead><tr><th>Mal kabul / sipariş</th><th>Tedarikçi</th><th>Kabul tarihi</th><th class="num">Fatura tutarı</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">MK-2026-0018<small>SA-2026-0041</small></td><td>Ege Ambalaj Ltd.<small>Ana depo · 1 satır</small></td><td>08.11.2026</td><td class="num">300,00 TRY</td></tr>
+      <tr><td class="code">MK-2026-0016<small>SA-2026-0037</small></td><td>Marmara Kimya<small>Hammadde · 3 satır</small></td><td>02.11.2026</td><td class="num">2.940,00 TRY</td></tr>
+    </tbody></table></div>
+    <div class="card pnl"><h4>Fatura bilgileri</h4>
+      <dl class="dl" style="margin-top:8px"><dt>Fatura no *</dt><dd class="code">AF-2026-0042</dd><dt>Fatura tarihi *</dt><dd>21.11.2026</dd><dt>Vade</dt><dd>21.12.2026 (30 gün)</dd><dt>Mevzuat profili</dt><dd>Standart ▾</dd><dt>Ara toplam</dt><dd>250,00</dd><dt>KDV</dt><dd>50,00</dd><dt>Genel toplam</dt><dd><b>300,00 TRY</b></dd></dl>
+      <div style="margin-top:10px"><span class="btn p">Faturayı kaydet</span></div></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Mal kabulleri:</b> liste, salt okunur belge, "Fatura oluştur" ve "İptal et" (onaylı) 1. aşamada. Siparişsiz mal kabul ayrı ve büyük bir akış; ilk sürümde eski ekranda açılıyor.</li>
+  <li><b>Fatura girişi:</b> Tutarlar bugün tarayıcıda hesaplanıyor ve tevkifat gibi mevzuat kurallarını hesaba katmıyor. Sistem sayfasında tutarları API hesaplayacak (yeni "önizleme" işlemi). Gösterilen tutar, kaydedilen faturayla birebir aynı olacak.</li>
+  <li><b>Satınalma İrsaliyeleri</b> aynı düzende: liste ve panel 1. aşamada. Siparişten irsaliye oluşturma (kalan miktarlar dolu gelir) 2. aşamada.</li>
+</ul>
+
+<div class="lbl">4 · SATINALMA FATURALARI · 1. AŞAMA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satın Alma › Satınalma Faturaları</div>
+  <div class="ttl"><h2>Satınalma Faturaları</h2><small>5 fatura</small></div>
+  <p class="desc">Mal kabullerinden oluşan tedarikçi faturalarını, vadeleri ve kalan borçları izleyin.</p>
+  <div class="bar"><span class="pri">+ Yeni (mal kabul faturası)</span><span>Aç</span><span>Ödeme ekle</span><span>İade</span><span>İptal et</span><span>Yenile</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">₺</span><div><span>Fatura toplamı</span><strong>3.200,00 TRY</strong> <small>bu sayfa · 4 fatura</small></div></div>
+    <div class="met"><span class="ic w">⧗</span><div><span>Ödenmemiş</span><strong>2.500,00 TRY</strong></div></div>
+    <div class="met"><span class="ic d">!</span><div><span>Vadesi geçen</span><strong>1 · 1.200,00</strong></div></div>
+    <div class="met"><span class="ic g">✕</span><div><span>İptal</span><strong>1</strong></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Fatura no, tedarikçi veya mal kabul ile ara</span><span class="chip on">Tedarikçi: Ege Ambalaj ✕</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Fatura no</th><th>Tedarikçi</th><th>Mal kabul</th><th>Vade</th><th class="num">Genel toplam</th><th class="num">Kalan</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">AF-2026-0038<small>01.11.2026</small></td><td>Ege Ambalaj Ltd.</td><td class="code">MK-2026-0014</td><td>10.11<small class="late">11 gün geçti</small></td><td class="num">1.200,00</td><td class="num" style="color:var(--dan)">1.200,00</td><td><span class="tag t-d">Vadesi geçti</span></td></tr>
+      <tr><td class="code">AF-2026-0039<small>05.11.2026</small></td><td>Marmara Kimya</td><td class="code">MK-2026-0015</td><td>05.12</td><td class="num">1.200,00</td><td class="num" style="color:var(--warn)">800,00</td><td><span class="tag t-w">Kısmen ödendi</span></td></tr>
+      <tr><td class="code">AF-2026-0036<small>20.10.2026</small></td><td>Anadolu Etiket</td><td class="code">MK-2026-0012</td><td>19.11</td><td class="num">800,00</td><td class="num">0,00</td><td><span class="tag t-ok">Ödendi</span></td></tr>
+    </tbody></table><div class="foot"><span>İşlendi · Kısmen ödendi · Vadesi geçti · Ödendi · İptal</span><span>Sayfa 1 / 1</span></div></div>
+    <div class="card pnl"><span class="code">AF-2026-0038</span><h4>Ege Ambalaj Ltd.</h4>
+      <div class="k"><div><span>Genel toplam</span><b>1.200,00</b></div><div><span>Kalan</span><b style="color:var(--dan)">1.200,00</b></div><div><span>Vade</span><b>10.11.2026</b></div><div><span>KDV</span><b>200,00</b></div></div>
+      <div class="ptabs"><span class="on">Özet</span><span>Satırlar</span><span>Ödemeler</span></div>
+      <dl class="dl"><dt>Mal kabul</dt><dd>MK-2026-0014</dd><dt>Sipariş</dt><dd>SA-2026-0035</dd><dt>e-Fatura</dt><dd>Temel · ETTN bağlı</dd></dl>
+      <span class="lnk">Belgeyi aç ›</span><span class="lnk">Ödeme ekle ›</span></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Cari ekranından gelme:</b> Bugün Cari Hesaplar'daki "Alış faturaları" komutu tedarikçiyi uygulama belleğinde taşıyor. Sistem sayfasında bu, sayfa parametresiyle yapılacak (<code>?supplierId=</code>). Üstteki "Tedarikçi" çipi buradan gelir. Cari taslağındaki karar 3 ile aynı yol.</li>
+  <li><b>1. aşamada:</b> liste, panel, belge, iptal (onaylı) ve ödeme ekleme. Ödemesi olan bir fatura iptal edilemez. Kaydedilmiş bir ödeme de, muhasebe fişi ters kayıtla kapatılmadan geri alınamaz. Bu kurallar API'de kalıyor; ekran yalnız nedenini gösteriyor.</li>
+  <li><b>2. aşamada:</b> iade formu (iade edilebilir miktarlar faturadan dolu gelir) ve bağımsız fatura taslağı formu.</li>
+</ul>
+
+<div class="lbl">5 · BÜTÜN EKRANLAR · HANGİ AŞAMADA</div>
+<div class="erp cmp"><table><thead><tr><th>Ekran</th><th>1. aşama (motor eki gerekmez)</th><th>2. aşama (satırlı formlar)</th><th>İlk sürümde eski ekranda</th></tr></thead><tbody>
+  <tr><td>Satınalma Talepleri</td><td>liste, panel, notlu onay / ret, yeni talep</td><td>teklif kaydı, tekliften sipariş</td><td>alan tanımları</td></tr>
+  <tr><td>Satınalma Teklifleri</td><td>liste, panel, belge</td><td>talepsiz teklif formu</td><td>—</td></tr>
+  <tr><td>Satınalma Siparişleri</td><td>liste, panel, belge, belge zinciri</td><td>yeni sipariş, mal kabul formu</td><td>alan tanımları</td></tr>
+  <tr><td>Satınalma İrsaliyeleri</td><td>liste, panel, mal kabul bağla / kaldır</td><td>siparişten irsaliye</td><td>—</td></tr>
+  <tr><td>Mal kabulleri</td><td>liste, belge, fatura oluştur, iptal</td><td>—</td><td>siparişsiz mal kabul, lot / seri girişi</td></tr>
+  <tr><td>Mal kabul faturası girişi</td><td>tamamı (tutarı API hesaplar)</td><td>—</td><td>—</td></tr>
+  <tr><td>Satınalma Faturaları</td><td>liste, panel, belge, iptal, ödeme</td><td>iade formu</td><td>—</td></tr>
+  <tr><td>Bağımsız fatura taslakları</td><td>liste, panel</td><td>taslak formu, muhasebeleştir</td><td>—</td></tr>
+  <tr><td>Satınalma İadeleri</td><td>liste, belge, iptal</td><td>iade oluşturma (fatura üzerinden)</td><td>—</td></tr>
+  <tr><td>Ticari sözleşmeler</td><td>tamamı (satırsız; durum geçişleri gerekçeli ve onaylı)</td><td>—</td><td>—</td></tr>
+</tbody></table></div>
+<ul class="note"><li>Her aşama stok ekranlarında olduğu gibi "önizleme" olarak yayımlanır; eski ekran varsayılan kalır. "Eski ekranda aç" komutu bu süre boyunca her taşınmamış işlemin yanında durur.</li></ul>
+
+<div class="lbl">BUGÜNKÜ SORUNLAR (TAŞIMADAN BAĞIMSIZ · AYRI İŞ ÖNERİLİR)</div>
+<div class="bug"><ul>
+  <li><b>Onay akışı atlanıyor.</b> İş kuralları ve onay, yalnız talepten oluşturulan siparişte çalışıyor. "Yeni sipariş" ile doğrudan açılan sipariş her zaman "Açık" kaydediliyor. Bu kodda doğrulandı.</li>
+  <li><b>Sipariş iptal ve kapatma yok.</b> Ekranda "İptal" durumu görünüyor, ama siparişi bu duruma getiren bir işlem yok. Bu kodda doğrulandı.</li>
+  <li><b>Lot / seri takipli ürünlerin mal kabulü</b> sipariş ekranından kaydedilemiyor gibi görünüyor. Bu kod incelemesinden çıkan bir sonuç; QA'da denenmeli.</li>
+  <li><b>Görünürlük boşlukları.</b> Tedarikçiye göre kısıtlanmış bir kullanıcı iadelerin, tekliflerin ve siparişe bağlı mal kabullerin hepsini görebiliyor. Bu da kod incelemesinden çıkan bir sonuç. Düzeltilirse bu kullanıcılar bugün gördükleri bazı kayıtları göremez.</li>
+  <li><b>Ödeme iptali:</b> Ödeme kaydedildiği anda muhasebe fişi yazılıyor. Bu yüzden "Ödemeyi iptal et" önce fişin ters kaydını istiyor. Bu kod incelemesinden çıkan bir sonuç.</li>
+</ul></div>
+
+<div class="lbl">KARARLAR · 21.11.2026 TÜM ÖNERİLER ONAYLANDI</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · İki aşamalı taşıma</b><p>Satırlı formlarda üç şey gerekiyor: kalan miktarların önceden dolu gelmesi, tutar ve KDV hesabı, stok seçilince fiyatın gelmesi. Sayfa motorunda bunlar henüz yok.</p><p class="rec">Öneri: önce listeler, paneller, belgeler ve tek düğmelik işlemler. Satırlı formlar motor ekinden sonra gelsin.</p></div>
+  <div class="d"><b class="h">2 · Ön dolu ızgara (motor eki)</b><p>Geçici çözüm "Kalem ekle" yolu: kullanıcı her satırı tek tek seçer. Kısmi teslimde bu çok yavaştır.</p><p class="rec">Öneri: ızgaraya "kaynaktan doldur, düzenle, sıfır satırları atla" kipi eklensin. Ortak motor dosyası olduğu için diğer modüllerle sırayla yazılsın.</p></div>
+  <div class="d"><b class="h">3 · Siparişsiz mal kabul</b><p>Kendi taslak, kayıt ve iptal adımları olan ayrı bir akış. Bugün ana listede de görünmüyor.</p><p class="rec">Öneri: ilk sürümde "Eski ekranda aç". Sonra satış tarafındaki eşiyle ortak bir standart olarak taşınsın.</p></div>
+  <div class="d"><b class="h">4 · Fatura tutarını API hesaplasın</b><p>Bugün tutarı tarayıcı hesaplıyor ve tevkifatı hesaba katmıyor. Bu yüzden ekrandaki tutar kaydedilen faturadan farklı olabiliyor.</p><p class="rec">Öneri: yeni "fatura önizleme" işlemi. Ekranda görünen tutar ile kaydedilen tutar aynı olur.</p></div>
+  <div class="d"><b class="h">5 · Fatura girişi izni</b><p>Fatura girişinde liste "satınalma faturası oluşturma" iznini istiyor. Kayıt ise "mal kabul oluşturma" iznine bağlı görünüyor.</p><p class="rec">Öneri: sistem sayfası bugünkü API davranışını aynen yansıtsın. İzinlerin hizalanmasına ayrıca karar verilsin.</p></div>
+  <div class="d"><b class="h">6 · Ticari sözleşmeler ortak ad</b><p>Sözleşmeler hem satışta hem satınalmada kullanılıyor, işlem adları da kalıcı.</p><p class="rec">Öneri: işlem adları <code>ticari.sozlesme.*</code> olsun. Satış oturumuyla birlikte kararlaştırılsın. Sözleşmeler satırsız olduğu için ilk taşınacak ekran olabilir.</p></div>
+  <div class="d"><b class="h">7 · Satış ile ortak dosya</b><p>Satınalma ekranlarının 8'i Satış ile aynı büyük dosyadan açılıyor.</p><p class="rec">Öneri: o dosyaya dokunulmasın; sistem sayfası yönlendiricide ekran bazında devreye girsin. Ortak etiketler tek bir ön PR'da Satış ile birlikte eklensin.</p></div>
+  <div class="d"><b class="h">8 · Bugünkü sorunlar</b><p>Onay akışının atlanması, sipariş iptal ve kapatmanın olmaması, görünürlük boşlukları.</p><p class="rec">Öneri: bunlar taşımadan ayrı hata kayıtları olarak ele alınsın. Taşıma bugünkü davranışı korusun.</p></div>
+</div>
+<ul class="note"><li>Ayrıntılar: <code>docs/superpowers/specs/2026-11-21-satinalma-ekranlari-envanteri.md</code> (10 ekran, yaklaşık 80 yeni işlem adı, G-P1…G-P99 eksikleri ve K1…K10 kök eksikleri).</li></ul>
+</body></html>
