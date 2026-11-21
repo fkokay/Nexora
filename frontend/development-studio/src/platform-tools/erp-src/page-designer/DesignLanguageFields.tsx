@@ -6,7 +6,7 @@ import { COLUMN_FORMATS, parseColumnFormats, parseToneMap, type ColumnFormat, ty
 const MAX_ENTRIES = 20;
 const toneLabels: Record<Tone, string> = { info: "Bilgi", success: "Olumlu", warning: "Dikkat", danger: "Hata" };
 const toneOrder: Tone[] = ["info", "success", "warning", "danger"];
-const formatLabels: Record<ColumnFormat, string> = { text: "Metin", code: "Kod", number: "Sayı", money: "Para", date: "Tarih", status: "Durum etiketi" };
+const formatLabels: Record<ColumnFormat, string> = { text: "Metin", code: "Kod", number: "Sayı", money: "Para", date: "Tarih", datetime: "Tarih ve saat", status: "Durum etiketi" };
 
 /** Göstergenin simgeleri: tek liste `metricIcons.ts` (sunucu ve ERP ile eşitlenir). */
 export const iconOptions = metricIconOptions;

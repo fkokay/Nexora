@@ -1428,7 +1428,8 @@ customers.MapGet("/", async (string? q, string? type, string? status, ClaimsPrin
         var term = q.Trim();
         query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term) || (x.TaxNumber != null && x.TaxNumber.Contains(term)));
     }
-    if (Enum.TryParse<CounterpartyType>(type, ignoreCase: true, out var parsedType)) query = query.Where(x => x.Type == parsedType);
+    var parsedTypes = CounterpartyTypeFilter.Parse(type);
+    if (parsedTypes.Length > 0) query = query.Where(x => parsedTypes.Contains(x.Type));
     if (status is "Active") query = query.Where(x => x.IsActive);
     else if (status is "Inactive") query = query.Where(x => !x.IsActive);
     var total = await query.CountAsync();

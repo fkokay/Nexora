@@ -13,7 +13,7 @@ export const MAX_ASSIGNMENTS = 8;
 export const MAX_ASSIGNMENT_TEMPLATE = 500;
 export const MAX_HEADER_FIELDS = 6;
 export const MAX_HEADER_BUTTONS = 3;
-export const HEADER_FIELD_FORMATS = ["number", "money", "date", "text"] as const;
+export const HEADER_FIELD_FORMATS = ["number", "money", "date", "datetime", "text"] as const;
 export type HeaderFieldFormat = typeof HEADER_FIELD_FORMATS[number];
 /** "Satır açılınca" düğmesinin olabileceği eylem türleri (kayıt dizisi ve iş akışı olamaz). */
 export const ROW_OPEN_ACTION_TYPES = ["setInput", "query", "openDialog", "link", "erpPage", "page"];

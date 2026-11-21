@@ -134,7 +134,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
   input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" }],
   metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
-    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["text", "Metin"]] }],
+    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["date", "Tarih"], ["datetime", "Tarih ve saat"], ["text", "Metin"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   section: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   divider: [],
@@ -196,7 +196,7 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
   "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle", "promptText"]);
-const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
+const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "datetime", label: "Tarih ve saat" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
 /**
@@ -795,7 +795,7 @@ function reconcileDefinition(definition: PageDefinition, options: ReconcileOptio
   return components === reconciled.components ? reconciled : { ...reconciled, components };
 }
 /** Yalnız denemeler için: standart tanımların tasarımcıda kayıpsız açılıp kaydedildiğini doğrulamak. */
-export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL };
+export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL, inputTypeOptions };
 /** Kart tasarım ekranında kartın çocuğunu sürüklerken taşınan kimlik. */
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -2602,8 +2602,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           if (spec.kind !== "auto") return spec.kind;
           const format = formats[spec.key];
           const dataType = (columns.find((column) => column.code === spec.key)?.dataType ?? "").toLowerCase();
-          const kind = spec.options || labeled.has(spec.key) || format === "status" ? "select" : format === "number" || format === "money" ? "range" : format === "date" ? "date"
-            : dataType === "boolean" || dataType === "bool" ? "toggle" : ["decimal", "int", "integer", "number"].includes(dataType) ? "range" : dataType === "date" ? "date" : "text";
+          const kind = spec.options || labeled.has(spec.key) || format === "status" ? "select" : format === "number" || format === "money" ? "range" : format === "date" || format === "datetime" ? "date"
+            : dataType === "boolean" || dataType === "bool" ? "toggle" : ["decimal", "int", "integer", "number"].includes(dataType) ? "range" : dataType === "date" || dataType === "datetime" ? "date" : "text";
           return spec.param && (kind === "range" || kind === "date") ? "text" : kind;
         };
         // İlk seçenek varsayılanlı seçim süzgeci tuvalde seçenek sorgusunun ilk örnek satırıyla görünür (yoksa "Tümü").

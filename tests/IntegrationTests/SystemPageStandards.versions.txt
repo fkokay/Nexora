@@ -1,3 +1,5 @@
+crm-opportunities=1
+crm-opportunity-create=1
 customer-create=1
 customer-ledger=1
 customers=1

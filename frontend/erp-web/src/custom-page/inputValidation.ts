@@ -1,5 +1,6 @@
 // Saf (React'siz) giriş doğrulama kuralları. İstemci doğrulaması yalnız kullanıcıya yardımdır; sunucu yine doğrular.
 import { bindingPath } from "./pageBindings";
+import { parseDateTime } from "./dateTimeInput";
 
 export type InputRules = { required: boolean; min?: number | string; max?: number | string; step?: number; maxLength?: number;
   pattern?: string; patternMessage?: string; upperCase: boolean };
@@ -62,6 +63,8 @@ export function validateInputValue(inputType: string, rules: InputRules, raw: st
     const value = text.slice(0, 10);
     if (typeof rules.min === "string" && DATE_TEXT.test(rules.min) && value < rules.min) return `En erken ${rules.min} olabilir.`;
     if (typeof rules.max === "string" && DATE_TEXT.test(rules.max) && value > rules.max) return `En geç ${rules.max} olabilir.`;
+  } else if (inputType === "datetime") {
+    if (!parseDateTime(text)) return "Geçerli bir tarih ve saat girin.";
   }
 
   return checkTextRules(rules, text);

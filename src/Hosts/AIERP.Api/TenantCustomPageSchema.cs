@@ -123,7 +123,7 @@ internal static class TenantCustomPageSchema
     private const int MaxRelatedTitleLength = 60;
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly Regex ToneMapItem = new(@"^[^=]{1,60}=(info|success|warning|danger)\z", RegexOptions.CultureInvariant, RegexTimeout);
-    private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|datetime|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex ContextFieldItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
@@ -137,7 +137,7 @@ internal static class TenantCustomPageSchema
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
-    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "checkbox", "select", "lookup" };
+    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "datetime", "checkbox", "select", "lookup" };
     private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn" };
     /// <summary>Keys of a query bound to a named ERP operation: <see cref="QueryKeys"/> with operation instead of sql.</summary>
     private static readonly HashSet<string> OperationQueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "operation", "parameters", "runOn" };
@@ -148,6 +148,11 @@ internal static class TenantCustomPageSchema
     internal static string DeprecatedOperationError(string name) => $"ERP işlemi artık kullanılamıyor: {name}";
     private static readonly HashSet<string> ParameterKeys = new(StringComparer.Ordinal) { "name", "binding", "type" };
     private static readonly HashSet<string> ParameterTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
+    /// <summary>
+    /// Scalar types only ERP operation queries accept: <c>datetime</c> is an ISO 8601 date and time with offset (a body
+    /// parameter the catalog declares so, e.g. <c>nextActivityAt</c>); SQL queries have no such parameter type.
+    /// </summary>
+    private static readonly HashSet<string> OperationScalarParameterTypes = new(StringComparer.Ordinal) { "datetime" };
     /// <summary>Collection types: only ERP operation queries accept them (bound to a grid's rows or a custom-fields block's values).</summary>
     private static readonly HashSet<string> CollectionParameterTypes = new(StringComparer.Ordinal) { "list", "map" };
     /// <summary>
@@ -391,7 +396,8 @@ internal static class TenantCustomPageSchema
             if (!validName || !declared.Add(parameterName!))
             { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
             var type = StringOf(parameter, "type");
-            if (type is null || !(ParameterTypes.Contains(type) || (allowCollections && CollectionParameterTypes.Contains(type))))
+            if (type is null || !(ParameterTypes.Contains(type)
+                    || (allowCollections && (CollectionParameterTypes.Contains(type) || OperationScalarParameterTypes.Contains(type)))))
             { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin türü text, int, decimal, date, bool veya guid olmalıdır."; return false; }
             var binding = StringOf(parameter, "binding");
             if (binding is null || !TenantCustomPageQueries.TryParseBindingPath(binding, out _))
@@ -732,7 +738,7 @@ internal static class TenantCustomPageSchema
                 "Ad=info|success|warning|danger", out error)) return false;
         if (props.TryGetProperty("columnFormats", out var columnFormats)
             && !ValidateMapItems("columnFormats", columnFormats, typeText == "dataTable", MaxColumnFormats, ColumnFormatItem,
-                "Sütun=text|code|number|money|date|status", out error)) return false;
+                "Sütun=text|code|number|money|date|datetime|status", out error)) return false;
         if (props.TryGetProperty("density", out var density)
             && (typeText != "dataTable" || density.ValueKind != JsonValueKind.String || density.GetString() is not ("dense" or "comfort")))
         { error = "'density' yalnızca veri listesinde dense veya comfort olabilir."; return false; }
@@ -1805,7 +1811,7 @@ internal static class TenantCustomPageSchema
     private const int MaxHeaderTextLength = 300;
     private const int MaxHeaderLabelLength = 60;
     private static readonly Regex AssignmentTarget = new(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant, RegexTimeout);
-    private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|datetime|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private const string AssignmentsFormat = "'assignments' 1–8 adet girişKimliği=şablon öğesi içermelidir; şablon en fazla 500 karakterdir ve {{yol}} ifadeleri içerebilir (boş şablon girişi temizler).";
 
     /// <summary>
@@ -1870,7 +1876,7 @@ internal static class TenantCustomPageSchema
             var seen = new HashSet<string>(StringComparer.Ordinal);
             if (formats.ValueKind != JsonValueKind.Array || formats.GetArrayLength() > MaxHeaderFields
                 || formats.EnumerateArray().Any(x => !MatchesSafely(HeaderFormatItem, x) || !labels.Contains(x.GetString()!.Split('=')[0]) || !seen.Add(x.GetString()!.Split('=')[0])))
-                return Fail("'fieldFormats' öğeleri Etiket=number|money|date|text biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
+                return Fail("'fieldFormats' öğeleri Etiket=number|money|date|datetime|text biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
         }
         if (props.TryGetProperty("buttons", out var buttons))
         {

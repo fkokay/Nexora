@@ -9,7 +9,8 @@ import type * as AppTypes from '../erp-types';
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 vi.mock('../InventoryWarehousesPage', () => ({ default: () => <div>Eski depo ekranı</div> }));
-vi.mock('../CrmOpportunitiesPage', () => ({ default: () => <div>Eski fırsat ekranı</div> }));
+// Standardı olmayan yerleşik ekran örneği (CRM Fırsatları artık bir sistem sayfasıdır).
+vi.mock('../BusinessRulesPage', () => ({ default: () => <div>Eski iş kuralları ekranı</div> }));
 
 const KEY = 'inventory-warehouses';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
@@ -70,8 +71,8 @@ describe('system page routing', () => {
 
   it('does not block built-in keys without a standard while the map loads', async () => {
     api.mockImplementation(() => new Promise(() => {}));
-    render(<Harness page="crm-opportunities" />);
-    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
+    render(<Harness page="business-rules" />);
+    expect(await screen.findByText('Eski iş kuralları ekranı')).toBeTruthy();
     expect(screen.queryByText('Sayfa yükleniyor…')).toBeNull();
   });
 
@@ -193,7 +194,7 @@ describe('system page draft preview (Studio ERP önizlemesi)', () => {
     window.history.replaceState(null, '', `/?page=${KEY}&systemPreview=${DRAFT}`);
     resetSystemPreviewForTests();
     api.mockImplementation(() => new Promise(() => {}));
-    render(<Harness page="crm-opportunities" />);
-    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
+    render(<Harness page="business-rules" />);
+    expect(await screen.findByText('Eski iş kuralları ekranı')).toBeTruthy();
   });
 });

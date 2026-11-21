@@ -14,6 +14,7 @@ import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList,
 import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
 import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
 import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
+import { toIsoDateTime, toLocalInputText } from "./custom-page/dateTimeInput";
 import { LookupInput, lookupCandidates, lookupOptions, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
@@ -356,6 +357,8 @@ const scopeInputValue = (inputType: string, raw: InputRaw): unknown => {
   if (inputType === "checkbox") return raw === true;
   if (typeof raw !== "string") return null;
   if (inputType === "number") { const parsed = raw.trim() === "" ? Number.NaN : Number(raw); return Number.isFinite(parsed) ? parsed : null; }
+  // Tarih + saat: yerel ham metin (veya kaynaktan gelen ISO) UTC ISO 8601'e; boş/geçersiz → null.
+  if (inputType === "datetime") return toIsoDateTime(raw);
   return raw;
 };
 
@@ -836,11 +839,13 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       {orphan && <option value={current}>{current}</option>}
     </select>;
   } else {
-    const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
+    const htmlType = inputType === "number" || inputType === "date" ? inputType : inputType === "datetime" ? "datetime-local" : "text";
+    // Tarih + saat girişi kaynaktan gelen ISO değeri yerel saatle gösterir; ham değer kullanıcı değiştirene kadar ISO kalır.
+    const shown = typeof raw !== "string" ? "" : inputType === "datetime" ? toLocalInputText(raw) : raw;
     control = <input {...common} type={htmlType} disabled={disabled}
       step={inputType === "number" ? rules.step ?? "any" : undefined} min={limit(rules.min)} max={limit(rules.max)}
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
-      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
+      placeholder={textValue(props.placeholder)} value={shown} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
   let field = <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>;
   if (inline && inputType === "checkbox") {
@@ -1007,7 +1012,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {
         const path = bindingPath(rawValue.trim());
         const resolved = path ? resolvePath(runtime.scope, path) : value;
-        const format = props.format === "number" || props.format === "money" ? props.format : "text";
+        const format = props.format === "number" || props.format === "money" || props.format === "date" || props.format === "datetime" ? props.format : "text";
         return <MetricCard key={component.id} title={title || text || "Gösterge"} description={description} style={style} {...card}
           value={<strong>{formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format)}</strong>} />;
       }

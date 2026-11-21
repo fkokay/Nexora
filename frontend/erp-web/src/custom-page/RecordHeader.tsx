@@ -6,7 +6,7 @@ import "./wizard.css";
 
 const EMPTY = "—";
 const MAX_FIELDS = 6;
-const FIELD_FORMATS = new Set(["number", "money", "date", "text"]);
+const FIELD_FORMATS = new Set(["number", "money", "date", "datetime", "text"]);
 
 /** "Etiket=değer" öğeleri: ilk "=" ayraçtır; etiketsiz ya da ayraçsız öğe atlanır (değer boş olabilir). */
 const labeledEntries = (value: unknown): [string, string][] => (Array.isArray(value) ? value : []).flatMap((item): [string, string][] => {
