@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { setPageParams, usePageParams } from "./pageNavigation";
+import { openSalesRequest } from "./sales/salesNavigation";
 import {
   Ban,
   Check,
@@ -168,6 +169,26 @@ type Warehouse = AppTypes.Warehouse;
 type WarehouseLocationOption = AppTypes.WarehouseLocationOption;
 type SalesQuoteExchangeRates = { baseCurrencyCode: string; rates: { currencyCode: string; rate: number; rateDate: string }[] };
 
+/**
+ * Teklif formu satırı. Talepten gelen satır `requestLineNumber` taşır; `included: false` olan talep satırı teklife girmez
+ * (toplamlara katılmaz, kaydedilmez). `requestQuoteCodes`: bu talep satırına daha önce teklif veren teklifler.
+ */
+type QuoteDraftLine = {
+  stockItemId: string;
+  quantity: string;
+  unitPrice: string;
+  discountPercent: string;
+  vatPercent: string;
+  isVatIncluded: boolean;
+  unitCode: string;
+  currencyCode: string;
+  exchangeRateOverride: string;
+  requestLineNumber?: number | null;
+  included?: boolean;
+  requestQuoteCodes?: string[];
+};
+const quoteLineIncluded = (line: QuoteDraftLine) => line.included !== false;
+
 export function SalesPage({
   token,
   role,
@@ -229,6 +250,14 @@ export function SalesPage({
     setPageParams(invoiceListKey, {});
   }, [invoiceListKey, paramInvoiceCustomerId]);
   const invoiceCustomerId = invoiceCustomer?.id ?? "";
+  // Başka bir belgeden (talep detayı, belge zinciri) teklif açma: `quoteId` sayfa parametresi bir kez okunur.
+  const quoteListKey = section === "sales-quotes" && !createQuotePage ? "sales-quotes" : undefined;
+  const paramQuoteId = usePageParams(quoteListKey).quoteId ?? "";
+  useEffect(() => {
+    if (!quoteListKey || !paramQuoteId) return;
+    setPageParams(quoteListKey, {});
+    void openQuote(paramQuoteId);
+  }, [quoteListKey, paramQuoteId]);
   useEffect(() => {
     if (!invoiceCustomerId) return;
     let active = true;
@@ -479,7 +508,7 @@ export function SalesPage({
   const [quoteSalespeople, setQuoteSalespeople] = useState<QuoteSalesperson[]>([]);
   const [quoteExchangeRates, setQuoteExchangeRates] = useState<SalesQuoteExchangeRates>({ baseCurrencyCode: "TRY", rates: [] });
   const [quoteExchangeRatesLoading, setQuoteExchangeRatesLoading] = useState(false);
-  const [lines, setLines] = useState([
+  const [lines, setLines] = useState<QuoteDraftLine[]>([
     {
       stockItemId: "",
       quantity: "1",
@@ -855,7 +884,7 @@ export function SalesPage({
     try {
       const request = await api<{
         id: string; code: string; customerId: string; customerName: string; currencyCode: string; description: string | null;
-        lines: { stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number }[];
+        lines: { lineNumber: number; stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number; quoteCodes?: string[] | null }[];
       }>(`/api/sales/requests/${requestId}`, token);
       // Müşteri seçicinin ilk sayfasında olmayabilir; kartı ayrıca alınır ve listeye eklenir.
       const requestCustomer = await api<SalesCustomer>(`/api/customers/${request.customerId}`, token)
@@ -879,6 +908,10 @@ export function SalesPage({
         unitCode: line.unitCode,
         currencyCode: cards.get(line.stockItemId)?.priceCurrencyCode || "",
         exchangeRateOverride: "",
+        requestLineNumber: line.lineNumber,
+        // Daha önce teklif verilmiş satırlar işaretsiz gelir; kullanıcı yine de teklife ekleyebilir.
+        included: !(line.quoteCodes?.length),
+        requestQuoteCodes: line.quoteCodes ?? [],
       })));
       for (const line of request.lines) void loadQuoteUnits(line.stockItemId);
       setSourceSalesRequest({ id: request.id, code: request.code });
@@ -1109,7 +1142,10 @@ export function SalesPage({
     const tax = round((subtotal - discount) * vatPercent / 100);
     return { subtotal, discount, tax, total: subtotal - discount + tax };
   };
-  const quoteTotals = lines.reduce(
+  const quoteLines = lines.filter(quoteLineIncluded);
+  // Talepten yeni teklif hazırlanırken satır seçimi ve talep sütunu gösterilir.
+  const requestColumns = Boolean(sourceSalesRequest) && !editingQuoteId;
+  const quoteTotals = quoteLines.reduce(
     (totals, line) => {
       const amount = quoteLineAmounts(line);
       const vatPercent = Number(line.vatPercent || 0);
@@ -1125,7 +1161,7 @@ export function SalesPage({
     },
     { subtotal: 0, discount: 0, tax: 0, total: 0, taxableByRate: {} as Record<number, number>, taxByRate: {} as Record<number, number> },
   );
-  const hasMissingQuoteFx = lines.some((line) => quoteLineEffectiveFxRate(line) === null);
+  const hasMissingQuoteFx = quoteLines.some((line) => quoteLineEffectiveFxRate(line) === null);
   const directOrderEditId = createOrderPage ? sessionStorage.getItem("nexora.sales-order.edit-id") : null;
   const directOrderSaveBlocked = quoteExchangeRatesLoading || directOrderLines.some((line) => quoteLineFxRate(line.currencyCode || currencyCode) === null);
   const quoteCurrencies = [...new Set([currencyCode, quoteExchangeRates.baseCurrencyCode, "TRY", "USD", "EUR", "GBP", ...quoteExchangeRates.rates.map((rate) => rate.currencyCode), ...stockItems.map((item) => item.priceCurrencyCode || "")])].filter(Boolean).sort();
@@ -1434,6 +1470,7 @@ export function SalesPage({
         unitCode: line.enteredUnitCode || line.unitCode,
         currencyCode: line.enteredCurrencyCode || quote.currencyCode,
         exchangeRateOverride: String(line.exchangeRateToQuoteCurrency ?? 1),
+        requestLineNumber: line.salesRequestLineNumber ?? null,
       })));
       setDetail(null);
       if (navigateToPage) {
@@ -1454,6 +1491,11 @@ export function SalesPage({
     const customer = customers.find((x) => x.id === customerId);
     if ((!isProspectQuote && !customer) || (isProspectQuote && !prospectCustomerName.trim())) {
       setError(isProspectQuote ? "Teklif alıcısının adını girin." : "Müşteri seçin veya kayıtsız alıcı seçeneğini açın.");
+      setBusy(false);
+      return;
+    }
+    if (quoteLines.length === 0) {
+      setError("Teklife en az bir satır dahil edin.");
       setBusy(false);
       return;
     }
@@ -1483,8 +1525,9 @@ export function SalesPage({
             customFields: quoteFieldValues,
             revisesQuoteId,
             salesRequestId: editingQuoteId ? null : sourceSalesRequest?.id ?? null,
-            lines: lines.map((x) => ({
+            lines: quoteLines.map((x) => ({
               stockItemId: x.stockItemId,
+              salesRequestLineNumber: x.requestLineNumber ?? null,
               quantity: Number(x.quantity),
               unitPrice: Number(x.unitPrice),
               discountPercent: Number(x.discountPercent),
@@ -1572,6 +1615,7 @@ export function SalesPage({
       unitCode: line.enteredUnitCode || line.unitCode,
       currencyCode: line.enteredCurrencyCode || source.currencyCode,
       exchangeRateOverride: String(line.exchangeRateToQuoteCurrency ?? 1),
+      requestLineNumber: line.salesRequestLineNumber ?? null,
     })));
     setQuoteFieldValues(Object.fromEntries((source.customFields || []).map((field) => [field.code, field.value])));
     setRevisesQuoteId(source.id);
@@ -2996,7 +3040,7 @@ export function SalesPage({
                 {!quoteExchangeRatesLoading && hasMissingQuoteFx && <span className="rf-status-warning">Kuru bulunmayan satır var; teklif kaydedilemez.</span>}
                 {sourceSalesRequest && <span className="rf-status-notice"><span>Kaynak talep:</span> <b>{sourceSalesRequest.code}</b></span>}
                 {notice && <span className="rf-status-notice">{notice}</span>}
-                <span className="rf-status-end">Satır: <b>{lines.length}</b></span>
+                <span className="rf-status-end">Satır: <b>{quoteLines.length}</b></span>
               </>
             }
           >
@@ -3083,7 +3127,7 @@ export function SalesPage({
             </RecordFormGroup>
             <SalesFormLines
               label="Teklif satırları"
-              lines={lines.length}
+              lines={quoteLines.length}
               extra={currencyCode || undefined}
               totals={salesFormTotalRows(
                 { subtotal: quoteTotals.subtotal, discount: quoteTotals.discount, vat: quoteTotals.tax, total: quoteTotals.total, taxableByRate: quoteTotals.taxableByRate, vatByRate: quoteTotals.taxByRate },
@@ -3120,13 +3164,48 @@ export function SalesPage({
                 <table className="dd-lines">
                   <thead>
                     <tr>
-                      <th className="dd-ix">#</th><th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th>
+                      <th className="dd-ix">#</th>{requestColumns && <th className="dd-include">Dahil</th>}<th>Stok kartı</th><th className="dd-num">Miktar</th><th>Birim</th>
                       <th className="dd-num">Birim fiyat</th><th>Döviz</th><th className="dd-num">Kur</th><th className="dd-num">İskonto %</th><th className="dd-num">KDV %</th>
                       <th>KDV</th><th className="dd-num">Ara toplam</th><th className="dd-num">İskonto</th><th className="dd-num">KDV tutarı</th><th className="dd-num">Satır toplamı</th>
+                      {requestColumns && <th>Talep</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {lines.map((line, index) => {
+                      const requestCell = requestColumns ? (
+                        <td className="dd-request-ref">
+                          {line.requestLineNumber == null
+                            ? <span className="dd-muted">Talep dışı</span>
+                            : line.requestQuoteCodes?.length
+                              ? <span>Teklif verildi <b className="nx-code">{line.requestQuoteCodes.join(", ")}</b></span>
+                              : <span>Talep satır {line.requestLineNumber}</span>}
+                        </td>
+                      ) : null;
+                      const includeCell = requestColumns ? (
+                        <td className="dd-include">
+                          {line.requestLineNumber != null && (
+                            <input
+                              type="checkbox"
+                              aria-label={`Satır ${index + 1} teklife dahil`}
+                              checked={quoteLineIncluded(line)}
+                              onChange={(event) => updateLine(index, "included", event.target.checked)}
+                            />
+                          )}
+                        </td>
+                      ) : null;
+                      if (!quoteLineIncluded(line)) {
+                        // Teklife dahil olmayan talep satırı: alanları gösterilmez, doğrulanmaz ve kaydedilmez.
+                        return (
+                          <tr key={index} className="dd-line-excluded">
+                            <td className="dd-ix"><span>{index + 1}</span></td>
+                            {includeCell}
+                            <td className="dd-stock-cell">{quoteStockLabels[line.stockItemId] || "—"}</td>
+                            <td className="dd-num">{line.quantity} {line.unitCode}</td>
+                            <td colSpan={11} className="dd-muted">Teklife dahil değil</td>
+                            {requestCell}
+                          </tr>
+                        );
+                      }
                       const amount = quoteLineAmounts(line);
                       const itemUnit = stockItems.find((item) => item.id === line.stockItemId)?.unitCode || "";
                       const lineCurrency = line.currencyCode || currencyCode;
@@ -3134,6 +3213,7 @@ export function SalesPage({
                       return (
                         <tr key={index}>
                           <td className="dd-ix"><span>{index + 1}</span><button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} kaldır`} title="Satırı kaldır" onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>×</button></td>
+                          {includeCell}
                           <td className="dd-stock-cell">
                             <SearchableRecordPicker
                               options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
@@ -3148,6 +3228,9 @@ export function SalesPage({
                                 setLines((current) => current.map((currentLine, rowIndex) => rowIndex === index ? {
                                   ...currentLine,
                                   stockItemId: id,
+                                  // Başka stok seçilen satır artık talep satırına karşılık gelmez.
+                                  requestLineNumber: id === currentLine.stockItemId ? currentLine.requestLineNumber : null,
+                                  requestQuoteCodes: id === currentLine.stockItemId ? currentLine.requestQuoteCodes : [],
                                   unitCode: selectedItem?.unitCode || "",
                                   unitPrice: String(selectedItem?.salesListPrice ?? 0),
                                   discountPercent: String(selectedItem?.salesDiscountPercent ?? 0),
@@ -3195,11 +3278,12 @@ export function SalesPage({
                           <td className="dd-num"><input aria-label={`Satır ${index + 1} iskonto tutarı`} value={formatOrderMoney(amount.discount)} disabled /></td>
                           <td className="dd-num"><input aria-label={`Satır ${index + 1} KDV tutarı`} value={formatOrderMoney(amount.tax)} disabled /></td>
                           <td className="dd-num dd-total"><input aria-label={`Satır ${index + 1} satır toplamı`} value={formatOrderMoney(amount.total)} disabled /></td>
+                          {requestCell}
                         </tr>
                       );
                     })}
                     <tr className="dd-new-line">
-                      <td colSpan={14}>
+                      <td colSpan={requestColumns ? 16 : 14}>
                         <button
                           type="button"
                           data-line-add-shortcut
@@ -3318,7 +3402,7 @@ export function SalesPage({
                 <DetailContext title="Belge zinciri">
                   <DetailChain
                     items={[
-                      ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi" }] : []),
+                      ...(detail.salesRequestCode ? [{ key: "request", code: detail.salesRequestCode, label: "Satış talebi", onOpen: detail.salesRequestId ? () => openSalesRequest(detail.salesRequestId!) : undefined }] : []),
                       { key: "self", code: detail.code, label: "Bu teklif", kind: "Satış teklifi", current: true, status: salesQuoteStatus(detail.status) },
                       ...(detail.salesOrderId && detail.salesOrderCode
                         ? [{ key: "order", code: detail.salesOrderCode, label: "Satış siparişi", onOpen: () => void openOrder(detail.salesOrderId!) }]

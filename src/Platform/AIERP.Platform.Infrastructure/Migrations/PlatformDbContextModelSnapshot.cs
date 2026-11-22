@@ -17483,6 +17483,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int?>("SourceSalesRequestLineNumber")
+                        .HasColumnType("int");
+
                     b.Property<string>("StockCode")
                         .IsRequired()
                         .HasMaxLength(64)

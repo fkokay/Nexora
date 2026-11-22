@@ -249,7 +249,7 @@ describe('Satış teklifi detayı', () => {
       ['Genel toplam', '175,00 TRY', 'is-grand'],
     ]);
     expect(chain()).toEqual([
-      { text: 'TLP-r1 Satış talebi', current: false, opens: false, status: undefined },
+      { text: 'TLP-r1 Satış talebi', current: false, opens: true, status: undefined },
       { text: 'T-q3 Bu teklif', current: true, opens: false, status: 'Kabul edildi' },
       { text: 'S-o1 Satış siparişi', current: false, opens: true, status: undefined },
     ]);
@@ -441,15 +441,16 @@ describe('Satış talebi detayı', () => {
     await openRow('TLP-r1');
     expect(flowSteps()).toEqual([
       { label: 'Açık', state: 'done' },
+      { label: 'Kısmen teklif verildi', state: 'done' },
       { label: 'Teklif verildi', state: 'current' },
     ]);
     expectNoHeaderActions();
-    expect(openMenu()).toEqual(['Teklif hazırla']);
-    expect(surface().querySelector('.dd-info')!.textContent).toContain('İhtiyaç tarihi');
+    expect(openMenu()).toEqual(['Düzenle', 'Teklif hazırla']);
+    expect(surface().querySelector('.dd-tiles')!.textContent).toContain('İhtiyaç tarihi');
     expect(within(surface()).getByRole('table', { name: 'Talep satırları' }).className).toBe('dd-lines');
     expect(chain()).toEqual([
       { text: 'TLP-r1 Bu talep', current: true, opens: false, status: 'Teklif verildi' },
-      { text: 'T-q3 Satış teklifi', current: false, opens: false, status: 'Kabul edildi' },
+      { text: 'T-q3 Satış teklifi', current: false, opens: true, status: 'Kabul edildi' },
     ]);
     // The linked quotes stay in the body too.
     expect(within(surface()).getByRole('table', { name: 'Bu talepten hazırlanan teklifler' })).toBeTruthy();

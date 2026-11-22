@@ -19,12 +19,12 @@ const step = (key: string, label: string): DocumentFlowStep => ({ key, label });
 const CANCELLED = step("Cancelled", "İptal");
 const VOIDED = step("Voided", "İptal");
 
-/** Talep: Açık → Teklif verildi; İptal akış dışı son durum. */
+/** Talep: Açık → Kısmen teklif verildi → Teklif verildi; İptal akış dışı son durum. */
 /** `status` verilmezse (kaydedilmemiş yeni belge) geçerli adım yoktur: bütün adımlar ilerididir. */
 export function SalesRequestFlow({ status }: { status?: string }) {
   return (
     <DocumentStatusFlow
-      steps={[step("Open", salesRequestStatus("Open").label), step("Quoted", salesRequestStatus("Quoted").label)]}
+      steps={["Open", "PartiallyQuoted", "Quoted"].map((key) => step(key, salesRequestStatus(key).label))}
       current={status}
       terminal={CANCELLED}
     />
