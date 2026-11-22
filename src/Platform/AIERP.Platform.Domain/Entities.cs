@@ -2212,6 +2212,8 @@ public sealed class SalesQuoteLine
     public decimal DiscountAmount { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal LineTotal { get; set; }
+    /// <summary>Teklif bir satış talebinden hazırlandıysa bu satırın karşılık geldiği talep satırı.</summary>
+    public int? SourceSalesRequestLineNumber { get; set; }
 }
 
 public sealed class SalesQuoteCustomFieldDefinition
@@ -3680,7 +3682,8 @@ public sealed class StudioCodeReviewComment
     public string? GitHubRepository { get; set; }
 }
 
-public enum SalesRequestStatus { Open = 1, Quoted = 2, Cancelled = 3 }
+/// <summary>Talep durumu: satırların bir kısmına teklif verildiyse PartiallyQuoted, tümüne verildiyse Quoted.</summary>
+public enum SalesRequestStatus { Open = 1, Quoted = 2, Cancelled = 3, PartiallyQuoted = 4 }
 
 /// <summary>Müşteriden gelen ürün talebi; satış teklifinden önceki adım.</summary>
 public sealed class SalesRequest

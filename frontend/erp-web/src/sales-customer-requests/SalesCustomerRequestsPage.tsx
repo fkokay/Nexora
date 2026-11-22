@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
-import { promptDialog } from "../confirmDialog";
+import { confirmDialog, promptDialog } from "../confirmDialog";
+import { setPageParams, usePageParams } from "../pageNavigation";
+import { openSalesQuote } from "../sales/salesNavigation";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import { ListToolbar } from "../list-page/ListToolbar";
 import { ListSummaryCards } from "../list-page/ListSummaryCards";
@@ -51,6 +53,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
   const [error, setError] = useState("");
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<SalesRequestDetail | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SalesRequestDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
@@ -98,6 +101,59 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
       setDetail(await api<SalesRequestDetail>(`${basePath}/${id}`, token));
     } catch (e) {
       setError((e as Error).message);
+    }
+  }
+
+  // Teklif detayındaki belge zincirinden talep açma: `requestId` sayfa parametresi bir kez okunur.
+  const paramRequestId = usePageParams("sales-customer-requests").requestId ?? "";
+  useEffect(() => {
+    if (!paramRequestId) return;
+    setPageParams("sales-customer-requests", {});
+    setCreating(false);
+    setEditingRequest(null);
+    void openDetail(paramRequestId);
+  }, [paramRequestId]);
+
+  /** Sunucuyla aynı kurallar: teklif hazırlanmış talep silinemez; düzenleme ayrıca yalnızca açık talepler içindir. */
+  const hasQuotes = (request: { quoteCount?: number; quotes?: unknown[] }) => (request.quoteCount ?? request.quotes?.length ?? 0) > 0;
+  const deleteLockedReason = (request: { quoteCount?: number; quotes?: unknown[] }) =>
+    hasQuotes(request) ? "Teklif hazırlanmış talep silinemez" : undefined;
+  const editLockedReason = (request: { status: string; quoteCount?: number; quotes?: unknown[] }) =>
+    hasQuotes(request) ? "Teklif hazırlanmış talep düzenlenemez" : request.status !== "Open" ? "İptal edilmiş talep düzenlenemez" : undefined;
+
+  async function deleteRequests(targets: { id: string; code: string }[]) {
+    if (targets.length === 0) return;
+    const single = targets.length === 1;
+    const confirmed = await confirmDialog({
+      title: single ? "Talep silinsin mi?" : `${targets.length} talep silinsin mi?`,
+      message: single
+        ? `${targets[0].code} talebi kalıcı olarak silinecek.`
+        : "Seçilen talepler kalıcı olarak silinecek. Teklif hazırlanmış talepler atlanır.",
+      tone: "danger",
+      confirmLabel: "Sil",
+    });
+    if (!confirmed) return;
+    setDetailBusy(true);
+    setError("");
+    try {
+      if (single) {
+        await api(`${basePath}/${targets[0].id}`, token, { method: "DELETE" });
+        setDetail(null);
+        setSelectedId(null);
+      } else {
+        const result = await api<{ deleted: number; skippedCodes: string[] }>(`${basePath}/bulk-delete`, token, {
+          method: "POST",
+          body: JSON.stringify({ ids: targets.map((item) => item.id) }),
+        });
+        if (result.skippedCodes.length)
+          setError(`${result.deleted} talep silindi. Teklif hazırlanmış ${result.skippedCodes.length} talep atlandı: ${result.skippedCodes.join(", ")}`);
+        setSelectedId(null);
+      }
+      await load();
+    } catch (e) {
+      (single && detail ? setDetailError : setError)((e as Error).message);
+    } finally {
+      setDetailBusy(false);
     }
   }
 
@@ -153,6 +209,22 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
     return () => observer.disconnect();
   }, [token, page, filter, creating]);
 
+  if (editingRequest) {
+    return (
+      <SalesRequestCreateForm
+        key={editingRequest.id}
+        token={token}
+        editing={editingRequest}
+        onCancel={() => setEditingRequest(null)}
+        onSaved={(saved) => {
+          setEditingRequest(null);
+          void load();
+          void openDetail(saved.id, "Talep güncellendi.");
+        }}
+      />
+    );
+  }
+
   if (creating) {
     return (
       <SalesRequestCreateForm
@@ -187,15 +259,20 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
     }
   };
 
-  // Action bar of the request list and of an open request (requests are cancelled, not deleted).
+  // Action bar of the request list and of an open request. Requests without quotes can be edited and deleted.
   const selected = current ?? (ticked.length === 1 ? items.find((item) => item.id === ticked[0]) : undefined);
   const commands: PageCommands = { new: { primary: !detail, run: () => setCreating(true) } };
   const more: MenuCommand[] = [];
   if (detail) {
     Object.assign(commands, documentOpenCommands(() => openDetail(detail.id)));
+    commands.delete = {
+      disabledReason: detailBusy ? "İşleniyor…" : deleteLockedReason(detail),
+      run: () => deleteRequests([{ id: detail.id, code: detail.code }]),
+    };
+    more.push({ id: "request-edit", label: "Düzenle", disabledReason: detailBusy ? "İşleniyor…" : editLockedReason(detail), run: () => setEditingRequest(detail) });
     if (detail.status !== "Cancelled")
       more.push({ id: "request-quote", label: "Teklif hazırla", disabledReason: detailBusy ? "İşleniyor…" : undefined, run: () => createQuote(detail.id) });
-    if (detail.status === "Open")
+    if (detail.status === "Open" && !hasQuotes(detail))
       more.push({ id: "request-cancel", label: "Talebi iptal et", disabledReason: detailBusy ? "İptal ediliyor…" : undefined, run: () => cancelRequest() });
   } else {
     commands.open = {
@@ -204,6 +281,14 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
         const id = focusedRecordId() ?? selected?.id;
         if (id) return openDetail(id);
       },
+    };
+    const tickedRows = items.filter((item) => ticked.includes(item.id));
+    const deleteTargets = tickedRows.length ? tickedRows : selected ? [selected] : [];
+    commands.delete = {
+      disabledReason: deleteTargets.length === 0
+        ? "Önce bir kayıt seçin"
+        : deleteTargets.length === 1 ? deleteLockedReason(deleteTargets[0]) : undefined,
+      run: () => deleteRequests(deleteTargets),
     };
     more.push(csvExportCommand(gridExportRef));
   }
@@ -216,6 +301,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
           detail={panel.detail}
           error={panel.error}
           onOpen={() => void openDetail(current.id)}
+          onOpenQuote={openSalesQuote}
           openDisabled={detailBusy}
           onClose={panel.close}
           takeFocus={panel.takeFocus}
@@ -238,7 +324,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
           {
             id: "open",
             label: "Teklif bekleyen",
-            value: loading ? "—" : items.filter((item) => item.status === "Open").length.toLocaleString("tr-TR"),
+            value: loading ? "—" : items.filter((item) => item.status === "Open" || item.status === "PartiallyQuoted").length.toLocaleString("tr-TR"),
             icon: Clock3,
             tone: "warn",
             hint: "bu sayfa",
@@ -284,7 +370,14 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
               onTickedChange: setTicked,
               // Only while the list is on screen: a document or form over it must not show the floating bar.
               bulkActions: listActive
-                ? [{ id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() }]
+                ? [
+                    { id: "export-selected", label: "Excel (seçilenler)", run: () => void gridExportRef.current?.exportExcel() },
+                    {
+                      id: "delete-selected",
+                      label: `Seçilenleri sil (${ticked.length})`,
+                      run: () => void deleteRequests(items.filter((item) => ticked.includes(item.id))),
+                    },
+                  ]
                 : undefined,
               onOpen: (id) => void openDetail(id),
             }}
@@ -313,6 +406,7 @@ export default function SalesCustomerRequestsPage({ token, onNavigate }: Props) 
           onDismissError={() => setDetailError("")}
           onDismissNotice={() => setDetailNotice("")}
           onClose={() => setDetail(null)}
+          onOpenQuote={openSalesQuote}
         />
       )}
     </div>

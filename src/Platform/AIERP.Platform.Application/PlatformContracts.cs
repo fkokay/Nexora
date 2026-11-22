@@ -268,7 +268,7 @@ public sealed record StockItemPage(IReadOnlyList<StockItemView> Items, int Page,
 public sealed record InventoryTransactionPage(IReadOnlyList<InventoryTransactionView> Items, int Page, int PageSize, int TotalCount);
 public sealed record WarehouseLocationReconciliationItemView(Guid StockItemId, string StockItemCode, string StockItemName,
     string UnitCode, decimal WarehouseQuantity, decimal LocatedQuantity, decimal UnlocatedQuantity);
-public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, string? UnitCode = null, Guid? WarehouseId = null, string? CurrencyCode = null, decimal? ExchangeRateToQuoteCurrency = null, bool IsVatIncluded = false);
+public sealed record SalesQuoteLineWriteRequest(Guid StockItemId, decimal Quantity, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, string? UnitCode = null, Guid? WarehouseId = null, string? CurrencyCode = null, decimal? ExchangeRateToQuoteCurrency = null, bool IsVatIncluded = false, int? SalesRequestLineNumber = null);
 public sealed record SalesQuoteWriteRequest(string Code, Guid? CustomerId, DateOnly QuoteDate, DateOnly ValidUntil,
     string CurrencyCode, string? Notes, IReadOnlyList<SalesQuoteLineWriteRequest> Lines,
     IReadOnlyDictionary<string, string?>? CustomFields = null, Guid? RevisesQuoteId = null, string? ProspectCustomerName = null,
@@ -288,7 +288,8 @@ public sealed record SalesQuoteTotals(decimal Subtotal, decimal DiscountTotal, d
 public sealed record SalesQuoteLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, string? EnteredCurrencyCode = null,
-    decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null, decimal ExchangeRateToQuoteCurrency = 1m, bool IsVatIncluded = false);
+    decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null, decimal ExchangeRateToQuoteCurrency = 1m, bool IsVatIncluded = false,
+    int? SalesRequestLineNumber = null);
 public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, string? Notes, decimal Subtotal,
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
@@ -1505,11 +1506,14 @@ public sealed record SalesRequestWriteRequest(string? Code, Guid CustomerId, Dat
     IReadOnlyList<SalesRequestLineWriteRequest>? Lines);
 public sealed record SalesRequestCancelRequest(string? Reason);
 public sealed record SalesRequestLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode, decimal Quantity,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, IReadOnlyList<string>? QuoteCodes = null);
 public sealed record SalesRequestQuoteLink(Guid Id, string Code, SalesQuoteStatus Status, decimal GrandTotal, string CurrencyCode, DateOnly QuoteDate);
 public sealed record SalesRequestSummary(Guid Id, string Code, Guid CustomerId, string CustomerName, DateOnly RequestDate, DateOnly? NeededByDate,
     string? Description, SalesRequestStatus Status, int LineCount, int QuoteCount, DateTimeOffset CreatedAt);
 public sealed record SalesRequestPage(IReadOnlyList<SalesRequestSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SalesRequestView(Guid Id, string Code, Guid CustomerId, string CustomerName, string CurrencyCode, DateOnly RequestDate,
     DateOnly? NeededByDate, string? Description, SalesRequestStatus Status, string? CancelReason, DateTimeOffset CreatedAt,
-    IReadOnlyList<SalesRequestLineView> Lines, IReadOnlyList<SalesRequestQuoteLink> Quotes);
+    IReadOnlyList<SalesRequestLineView> Lines, IReadOnlyList<SalesRequestQuoteLink> Quotes,
+    string? CustomerCode = null, string? CustomerPhone = null, string? CustomerEmail = null);
+public sealed record SalesRequestBulkDeleteRequest(IReadOnlyList<Guid>? Ids);
+public sealed record SalesRequestBulkDeleteResult(int Deleted, IReadOnlyList<string> SkippedCodes);

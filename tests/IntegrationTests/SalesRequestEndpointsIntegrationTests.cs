@@ -125,6 +125,110 @@ public sealed class SalesRequestEndpointsIntegrationTests
         Assert.Equal(250m, quote.GetProperty("grandTotal").GetDecimal());
     }
 
+    [Fact]
+    public async Task Update_and_delete_only_apply_to_requests_without_quotes()
+    {
+        await using var app = await StartAsync();
+        using var client = Client(app);
+        var created = await client.PostAsJsonAsync("/api/sales/requests/", new
+        {
+            code = "EDIT-1", customerId = CustomerId, requestDate = "2026-11-10",
+            lines = new object[] { new { stockItemId = StockId, quantity = 1m }, new { stockItemId = StockId, quantity = 2m } }
+        });
+        created.EnsureSuccessStatusCode();
+        using var summary = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = summary.RootElement.GetProperty("id").GetGuid();
+
+        var updated = await client.PutAsJsonAsync($"/api/sales/requests/{id:D}", new
+        {
+            code = "edit-2", customerId = CustomerId, requestDate = "2026-11-11", neededByDate = "2026-11-25", description = " Güncel ",
+            lines = new object[] { new { stockItemId = StockId, quantity = 5m } }
+        });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        using var view = JsonDocument.Parse(await updated.Content.ReadAsStringAsync());
+        Assert.Equal("EDIT-2", view.RootElement.GetProperty("code").GetString());
+        Assert.Equal("Güncel", view.RootElement.GetProperty("description").GetString());
+        Assert.Equal("C-1", view.RootElement.GetProperty("customerCode").GetString());
+        Assert.Equal(5m, Assert.Single(view.RootElement.GetProperty("lines").EnumerateArray()).GetProperty("quantity").GetDecimal());
+
+        var quotedBody = new { code = "QUOTED-1", customerId = CustomerId, requestDate = "2026-11-01", lines = new[] { new { stockItemId = StockId, quantity = 1m } } };
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/sales/requests/{QuotedRequestId:D}", quotedBody)).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.DeleteAsync($"/api/sales/requests/{QuotedRequestId:D}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/sales/requests/{OtherTenantRequestId:D}")).StatusCode);
+
+        var other = await client.PostAsJsonAsync("/api/sales/requests/", new
+        {
+            code = "DEL-2", customerId = CustomerId, requestDate = "2026-11-10", lines = new[] { new { stockItemId = StockId, quantity = 1m } }
+        });
+        using var otherSummary = JsonDocument.Parse(await other.Content.ReadAsStringAsync());
+        var otherId = otherSummary.RootElement.GetProperty("id").GetGuid();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/sales/requests/{id:D}")).StatusCode);
+        var bulk = await client.PostAsJsonAsync("/api/sales/requests/bulk-delete", new { ids = new[] { otherId, QuotedRequestId, OtherTenantRequestId } });
+        Assert.Equal(HttpStatusCode.OK, bulk.StatusCode);
+        using var result = JsonDocument.Parse(await bulk.Content.ReadAsStringAsync());
+        Assert.Equal(1, result.RootElement.GetProperty("deleted").GetInt32());
+        Assert.Equal("QUOTED-1", Assert.Single(result.RootElement.GetProperty("skippedCodes").EnumerateArray()).GetString());
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        Assert.Equal(["QUOTED-1"], await db.SalesRequests.Where(x => x.TenantId == TenantId).Select(x => x.Code).ToListAsync());
+        Assert.True(await db.SalesRequests.AnyAsync(x => x.Id == OtherTenantRequestId));
+        Assert.Equal(2, await db.AuditEvents.CountAsync(x => x.TenantId == TenantId && x.Action == "sales-request.deleted"));
+    }
+
+    [Fact]
+    public async Task Quote_lines_linked_to_request_lines_drive_partial_and_full_quoted_status()
+    {
+        await using var app = await StartAsync();
+        using var client = Client(app);
+        var created = await client.PostAsJsonAsync("/api/sales/requests/", new
+        {
+            code = "PART-1", customerId = CustomerId, requestDate = "2026-11-10",
+            lines = new object[] { new { stockItemId = StockId, quantity = 1m }, new { stockItemId = StockId, quantity = 2m } }
+        });
+        using var summary = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = summary.RootElement.GetProperty("id").GetGuid();
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var linked = new AIERP.Platform.Application.SalesQuoteLineWriteRequest(StockId, 1m, 10m, SalesRequestLineNumber: 1);
+        Assert.Null(await SalesRequestQuoteCoverage.ValidateAsync(db, TenantId, id, [linked]));
+        Assert.NotNull(await SalesRequestQuoteCoverage.ValidateAsync(db, TenantId, id, [linked, linked]));
+        Assert.NotNull(await SalesRequestQuoteCoverage.ValidateAsync(db, TenantId, id, [linked with { SalesRequestLineNumber = 9 }]));
+        Assert.NotNull(await SalesRequestQuoteCoverage.ValidateAsync(db, TenantId, id, [linked with { StockItemId = InactiveStockId }]));
+        Assert.NotNull(await SalesRequestQuoteCoverage.ValidateAsync(db, TenantId, null, [linked]));
+
+        SalesQuote Quote(string code, int requestLine)
+        {
+            var quote = new SalesQuote
+            {
+                TenantId = TenantId, CustomerId = CustomerId, SourceSalesRequestId = id, Code = code,
+                QuoteDate = new DateOnly(2026, 11, 12), ValidUntil = new DateOnly(2026, 11, 30), CurrencyCode = "EUR"
+            };
+            quote.Lines.Add(new SalesQuoteLine { TenantId = TenantId, Quote = quote, LineNumber = 1, StockItemId = StockId, StockCode = "STK-1", StockName = "Stock", SourceSalesRequestLineNumber = requestLine });
+            return quote;
+        }
+        db.SalesQuotes.Add(Quote("PQ-1", 1));
+        await db.SaveChangesAsync();
+        await SalesRequestQuoteCoverage.RefreshStatusAsync(db, TenantId, id);
+        Assert.Equal(SalesRequestStatus.PartiallyQuoted, (await db.SalesRequests.AsNoTracking().SingleAsync(x => x.Id == id)).Status);
+
+        using (var detail = await GetJsonAsync(client, $"/api/sales/requests/{id:D}"))
+        {
+            var lines = detail.RootElement.GetProperty("lines").EnumerateArray().ToList();
+            Assert.Equal("PQ-1", Assert.Single(lines[0].GetProperty("quoteCodes").EnumerateArray()).GetString());
+            Assert.Empty(lines[1].GetProperty("quoteCodes").EnumerateArray());
+        }
+        // Kısmen teklif verilmiş talep iptal edilemez, düzenlenemez.
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsJsonAsync($"/api/sales/requests/{id:D}/cancel", new { reason = "Vazgeçildi" })).StatusCode);
+
+        db.SalesQuotes.Add(Quote("PQ-2", 2));
+        await db.SaveChangesAsync();
+        await SalesRequestQuoteCoverage.RefreshStatusAsync(db, TenantId, id);
+        Assert.Equal(SalesRequestStatus.Quoted, (await db.SalesRequests.AsNoTracking().SingleAsync(x => x.Id == id)).Status);
+    }
+
     private static HttpClient Client(WebApplication app)
     {
         var client = app.GetTestClient();

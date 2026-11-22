@@ -11,6 +11,7 @@ import SalesInvoicesPage from '../SalesInvoicesPage';
 import SalesDeliveriesScreenPage from '../SalesDeliveriesScreenPage';
 import SalesCustomerRequestsPage from '../sales-customer-requests/SalesCustomerRequestsPage';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
+import { setPageParams } from '../pageNavigation';
 
 /*
  * Satış belge oluşturma ekranları (taslak 02, belge düzenlenirken): kayıt formu davranışı (Ctrl+S, Esc, Enter) aynı,
@@ -42,6 +43,13 @@ function respond(url: string, init?: { method?: string }): unknown {
       currencyCode: 'TRY', status: 'Draft', grandTotal: 0, lineCount: 0, createdAt: '2026-11-17', hasSalesOrder: false, revisionNumber: 1,
       notes: null, deliveryTerms: null, subtotal: 0, discountTotal: 0, taxTotal: 0, lines: [], customFields: [] };
   if (path === '/api/sales/quotes/new1/revisions') return [];
+  if (path === '/api/customers/c1') return customers[0];
+  if (path === '/api/sales/requests/req9')
+    return { id: 'req9', code: 'ST-9', customerId: 'c1', customerName: 'Acme', currencyCode: 'TRY', description: null,
+      lines: [
+        { lineNumber: 1, stockItemId: 's1', stockCode: 'STK-1', stockName: 'Koli 40x30', unitCode: 'ADET', quantity: 3, quoteCodes: [] },
+        { lineNumber: 2, stockItemId: 's2', stockCode: 'STK-2', stockName: 'Gıda etiketi', unitCode: 'ADET', quantity: 5, quoteCodes: ['T-1'] },
+      ] };
   if (path === '/api/sales/requests/new1')
     return { id: 'new1', code: 'NEW-1', customerId: 'c1', customerName: 'Acme', requestDate: '2026-11-17', neededByDate: null, description: null,
       status: 'Open', lineCount: 1, quoteCount: 0, createdAt: '2026-11-17', currencyCode: 'TRY', cancelReason: null, lines: [], quotes: [] };
@@ -137,9 +145,27 @@ describe('Teklif oluşturma', () => {
       code: 'T-9', customerId: null, prospectCustomerName: 'Yeni Müşteri', quoteDate: body.quoteDate, validUntil: body.validUntil,
       currencyCode: 'TRY', notes: null, deliveryTerms: null, salespersonEmployeeId: null, customFields: {}, revisesQuoteId: null,
       salesRequestId: null,
-      lines: [{ stockItemId: 's1', quantity: 2, unitPrice: 100, discountPercent: 0, vatPercent: 20, isVatIncluded: false, currencyCode: 'TRY', exchangeRateToQuoteCurrency: 1, unitCode: 'ADET' }],
+      lines: [{ stockItemId: 's1', salesRequestLineNumber: null, quantity: 2, unitPrice: 100, discountPercent: 0, vatPercent: 20, isVatIncluded: false, currencyCode: 'TRY', exchangeRateToQuoteCurrency: 1, unitCode: 'ADET' }],
     });
     expect(body.quoteDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('from a request: lines already quoted start unticked and unticked lines are not sent', async () => {
+    sessionStorage.setItem('nexora.sales-quote.request-id', 'req9');
+    renderScreen(<SalesQuotesPage token="t" role="TenantUser" onNavigate={vi.fn()} createQuotePage />);
+    const second = await screen.findByRole('checkbox', { name: 'Satır 2 teklife dahil' });
+    await settle();
+    expect((screen.getByRole('checkbox', { name: 'Satır 1 teklife dahil' }) as HTMLInputElement).checked).toBe(true);
+    expect((second as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText('Teklife dahil değil')).toBeTruthy();
+    expect(screen.getByText('T-1')).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText('T-2026-0001'), { target: { value: 'T-10' } });
+    await act(async () => ctrlS());
+    await waitFor(() => expect(sentBody('/api/sales/quotes/')).toBeDefined());
+    const body = sentBody('/api/sales/quotes/');
+    expect(body.salesRequestId).toBe('req9');
+    expect(body.lines).toHaveLength(1);
+    expect(body.lines[0]).toMatchObject({ stockItemId: 's1', salesRequestLineNumber: 1, quantity: 3 });
   });
 
   it('Esc on a touched quote asks before leaving', async () => {
@@ -148,6 +174,20 @@ describe('Teklif oluşturma', () => {
     await waitFor(() => expect(enabled('save')).toBe(true));
     await escapeAsksAndStays(screen.getByPlaceholderText('T-2026-0001'));
     expect(onNavigate).not.toHaveBeenCalledWith('sales-quotes');
+  });
+});
+
+describe('Belgeler arası geçiş (sayfa parametresi)', () => {
+  it('opens the quote given by quoteId on the quote list, and the request given by requestId on the request list', async () => {
+    renderScreen(<SalesQuotesPage token="t" role="TenantUser" onNavigate={vi.fn()} />);
+    await settle();
+    act(() => setPageParams('sales-quotes', { quoteId: 'new1' }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([url]) => url === '/api/sales/quotes/new1')).toBe(true));
+    cleanup();
+    renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);
+    await settle();
+    act(() => setPageParams('sales-customer-requests', { requestId: 'new1' }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([url]) => url === '/api/sales/requests/new1')).toBe(true));
   });
 });
 
@@ -417,7 +457,7 @@ describe('Belge ekranı görünümü', () => {
     expectKitChrome('Satış talebi');
     expect(openMenu()).toEqual(['Kaydet ve YeniCtrl+F2', 'Temizle']);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Alt+İ işlemler', 'Esc kapat']);
-    expect(flowSteps()).toEqual(['Açık', 'Teklif verildi']);
+    expect(flowSteps()).toEqual(['Açık', 'Kısmen teklif verildi', 'Teklif verildi']);
     expect(form().querySelector('.dd-totals')).toBeNull();
   });
 
