@@ -2857,7 +2857,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const condOff = !owned && hiddenInSample(component, designScope());
     const element = <div key={component.id} data-flip={component.id} data-page-index={index}
       className={`pd-block ${owned ? "is-owned" : ""} ${component.type === "tabs" ? "is-container" : ""} ${isSelected ? "is-selected" : ""}${condOff ? " is-cond-off" : ""}${condOff && !isSelected && !showCondOff ? " is-cond-hidden" : ""}`}
-      style={{ gridColumn: `span ${deviceSpan(spanOf(component), device)}` }}
+      style={{ gridColumn: `${component.type === "filterBar" ? "1 / " : ""}span ${deviceSpan(spanOf(component), device)}` }}
       draggable={canEdit}
       onClick={(event) => { event.stopPropagation(); setSelectedComponentId(component.id); }}
       onDoubleClick={isFocusOwnerType(component.type) ? (event) => { event.stopPropagation(); live.current.openFocus(component.id); } : undefined}
