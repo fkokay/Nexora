@@ -9,6 +9,8 @@ import {
   DetailLinesHead,
   DetailNotes,
   DetailSection,
+  DetailTiles,
+  daysFromToday,
 } from "../../document-detail/DocumentDetailLayout";
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesRequestFlow } from "../../sales/salesDocumentDetail";
 import { formatRequestAmount, formatRequestDate, formatRequestQuantity, type SalesRequestDetail } from "../types";
@@ -20,14 +22,38 @@ type Props = {
   onDismissError: () => void;
   onDismissNotice: () => void;
   onClose: () => void;
+  /** Teklif numarası (teklifler tablosu, satır teklif sütunu, belge zinciri) bu teklifi açar. */
+  onOpenQuote: (quoteId: string) => void;
 };
 
+/** İhtiyaç tarihine kalan süre; açık olmayan talepte gösterilmez. */
+function neededByHint(detail: SalesRequestDetail) {
+  if (!detail.neededByDate || detail.status === "Cancelled" || detail.status === "Quoted") return undefined;
+  const days = daysFromToday(detail.neededByDate);
+  if (days < 0) return `${-days} gün geçti`;
+  return days === 0 ? "Bugün" : `${days} gün kaldı`;
+}
+
 /**
- * Kayıtlı bir satış talebinin tam sayfa detayı (taslak 02): durum akışı, üst bilgiler, satırlar, bağlı teklifler ve
- * bağlam panelinde belge zinciri. Teklif hazırla ve Talebi iptal et İşlem Çubuğu'nun İşlemler menüsündedir.
+ * Kayıtlı bir satış talebinin tam sayfa detayı (taslak 02): durum akışı, üst bilgi kartları (talep no, tarih, cari,
+ * ihtiyaç tarihi), bilgiler ve açıklama, satır bazında teklif kapsamı, bağlı teklifler ve bağlam panelinde belge zinciri.
+ * Düzenle / Sil İşlem Çubuğu'nda; Teklif hazırla ve Talebi iptal et İşlemler menüsündedir.
  */
-export function SalesRequestDetailSurface({ detail, error, notice, onDismissError, onDismissNotice, onClose }: Props) {
+export function SalesRequestDetailSurface({ detail, error, notice, onDismissError, onDismissNotice, onClose, onOpenQuote }: Props) {
   const cancelled = detail.status === "Cancelled";
+  const quoteIdByCode = new Map(detail.quotes.map((quote) => [quote.code, quote.id]));
+  const neededHint = neededByHint(detail);
+  const quoteLink = (code: string) => {
+    const id = quoteIdByCode.get(code);
+    return id ? (
+      <button key={code} type="button" className="dd-link nx-code" aria-label={`${code} teklif ayrıntılarını aç`} onClick={() => onOpenQuote(id)}>
+        {code}
+      </button>
+    ) : (
+      <span key={code} className="nx-code">{code}</span>
+    );
+  };
+  const customerContact = [detail.customerPhone, detail.customerEmail, detail.currencyCode].filter(Boolean).join(" · ");
   return (
     <DocumentSurface
       variant="detail"
@@ -49,6 +75,7 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
                 label: "Satış teklifi",
                 meta: formatRequestDate(quote.quoteDate),
                 status: salesQuoteStatus(quote.status),
+                onOpen: () => onOpenQuote(quote.id),
               })),
             ]}
           />
@@ -69,18 +96,45 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
           <button type="button" aria-label="Kapat" onClick={onDismissNotice}><X size={15} /></button>
         </div>
       )}
+      <DetailTiles
+        label="Talep özeti"
+        items={[
+          { label: "Talep no", value: <span className="nx-code">{detail.code}</span> },
+          { label: "Talep tarihi", value: formatRequestDate(detail.requestDate) },
+          {
+            label: "Cari",
+            value: (
+              <span>
+                {detail.customerCode && <span className="nx-code">{detail.customerCode}</span>}
+                {detail.customerCode && " · "}
+                {detail.customerName}
+              </span>
+            ),
+            hint: customerContact || undefined,
+          },
+          {
+            label: "İhtiyaç tarihi",
+            value: formatRequestDate(detail.neededByDate),
+            tone: !detail.neededByDate ? "muted" : neededHint?.endsWith("geçti") ? "danger" : "default",
+            hint: neededHint,
+          },
+        ]}
+      />
       <div className="dd-box">
         <DetailInfoGrid
-          label="Talep üst bilgileri"
+          label="Talep bilgileri"
           items={[
-            { label: "Talep tarihi", value: formatRequestDate(detail.requestDate) },
-            { label: "İhtiyaç tarihi", value: formatRequestDate(detail.neededByDate) },
             { label: "Para birimi", value: detail.currencyCode },
-            cancelled
-              ? { label: "İptal gerekçesi", value: detail.cancelReason || "—" }
-              : { label: "Teklif", value: detail.quotes.length },
+            { label: "Teklif", value: detail.quotes.length },
+            { label: "Oluşturma", value: formatRequestDate(detail.createdAt.slice(0, 10)) },
+            ...(cancelled ? [{ label: "İptal gerekçesi", value: detail.cancelReason || "—" }] : []),
           ]}
         />
+        <div className="dd-lines-footer">
+          <div className="dd-lines-aside">
+            <DetailNotes items={[{ label: "Açıklama", value: detail.description || "Belirtilmedi" }]} />
+          </div>
+        </div>
       </div>
       <div className="dd-box">
         <DetailLinesHead title="Satırlar" meta={<SalesLinesMeta lines={detail.lines.length} />} />
@@ -91,11 +145,12 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
                 <th className="dd-ix">#</th>
                 <th>Stok</th>
                 <th className="dd-num">Miktar</th>
+                <th>Teklif</th>
               </tr>
             </thead>
             <tbody>
               {detail.lines.length === 0 && (
-                <tr><td colSpan={3} className="dd-empty">Satır yok.</td></tr>
+                <tr><td colSpan={4} className="dd-empty">Satır yok.</td></tr>
               )}
               {detail.lines.map((line) => (
                 <tr key={line.lineNumber}>
@@ -110,18 +165,16 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
                       <small><span>{formatRequestQuantity(line.enteredQuantity)}</span> <span>{line.enteredUnitCode}</span></small>
                     )}
                   </td>
+                  <td>
+                    {line.quoteCodes?.length
+                      ? line.quoteCodes.map((code, index) => <span key={code}>{index > 0 && ", "}{quoteLink(code)}</span>)
+                      : <span className="dd-muted">Açık</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {detail.description && (
-          <div className="dd-lines-footer">
-            <div className="dd-lines-aside">
-              <DetailNotes items={[{ label: "Açıklama", value: detail.description }]} />
-            </div>
-          </div>
-        )}
       </div>
       <DetailSection title="Bu talepten hazırlanan teklifler" count={detail.quotes.length}>
         {detail.quotes.length === 0 ? (
@@ -140,7 +193,7 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
               <tbody>
                 {detail.quotes.map((quote) => (
                   <tr key={quote.id}>
-                    <td className="nx-code">{quote.code}</td>
+                    <td>{quoteLink(quote.code)}</td>
                     <td>{formatRequestDate(quote.quoteDate)}</td>
                     <td className="dd-num"><span>{formatRequestAmount(quote.grandTotal)}</span> <span>{quote.currencyCode}</span></td>
                     <td><DocumentStatusBadge status={salesQuoteStatus(quote.status)} /></td>
@@ -154,7 +207,7 @@ export function SalesRequestDetailSurface({ detail, error, notice, onDismissErro
       <p className="dd-muted">
         {cancelled
           ? "Bu talep iptal edildi; teklif hazırlanamaz."
-          : "Teklif hazırla (İşlemler), müşteri ve satırları dolu bir teklif taslağı açar. İlk teklifle birlikte talep “Teklif verildi” durumuna geçer."}
+          : "Teklif hazırla (İşlemler), müşteri ve satırları dolu bir teklif taslağı açar; teklife girmeyecek satırların işaretini kaldırabilirsiniz. Satırların bir kısmına teklif verilince talep “Kısmen teklif verildi”, tümüne verilince “Teklif verildi” durumuna geçer."}
       </p>
     </DocumentSurface>
   );

@@ -12,6 +12,7 @@ const cancelled: DocumentStatus = { label: "İptal", tone: "neutral" };
 export function salesRequestStatus(status: string): DocumentStatus {
   switch (status) {
     case "Open": return { label: "Açık", tone: "warning" };
+    case "PartiallyQuoted": return { label: "Kısmen teklif verildi", tone: "info" };
     case "Quoted": return { label: "Teklif verildi", tone: "success" };
     case "Cancelled": return cancelled;
     default: return unknown(status);

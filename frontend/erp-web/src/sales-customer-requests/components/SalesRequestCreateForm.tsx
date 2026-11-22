@@ -6,7 +6,7 @@ import { api } from "../../erpApi";
 import SearchableRecordPicker from "../../SearchableRecordPicker";
 import { RecordFormGroup, RecordFormPage, RequiredMark } from "../../record-form/RecordForm";
 import { PageCommandsSlot, confirmStartNew } from "../../commands/PageCommandsSlot";
-import type { SalesRequestSummary } from "../types";
+import type { SalesRequestDetail, SalesRequestSummary } from "../types";
 import { SalesRequestFlow } from "../../sales/salesDocumentDetail";
 import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines } from "../../sales/salesDocumentForm";
 
@@ -19,6 +19,8 @@ type Props = {
   onCancel: () => void;
   /** `stayForNext`: "Kaydet ve Yeni" ile kaydedildiyse form açık kalır. */
   onSaved: (created: SalesRequestSummary, stayForNext: boolean) => void;
+  /** Verilirse form bu talebi düzenler (PUT); yalnızca henüz teklif hazırlanmamış açık talepler düzenlenebilir. */
+  editing?: SalesRequestDetail;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -46,14 +48,22 @@ async function loadStockItems(token: string, term = ""): Promise<AppTypes.StockI
   return page.items.filter((item) => item.isActive);
 }
 
-/** Yeni satış talebi: müşteri, tarihler ve istenen ürün satırları. Fiyat teklif aşamasında girilir. */
-export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
-  const [code, setCode] = useState("");
-  const [customerId, setCustomerId] = useState("");
-  const [requestDate, setRequestDate] = useState(today);
-  const [neededByDate, setNeededByDate] = useState("");
-  const [description, setDescription] = useState("");
-  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+/**
+ * Satış talebi formu: müşteri, tarihler ve istenen ürün satırları. Fiyat teklif aşamasında girilir.
+ * `editing` verilirse kayıtlı talebi düzenler; satırlar temel birimdeki miktarlarıyla gelir.
+ */
+export function SalesRequestCreateForm({ token, onCancel, onSaved, editing }: Props) {
+  const [code, setCode] = useState(editing?.code ?? "");
+  const [customerId, setCustomerId] = useState(editing?.customerId ?? "");
+  const [requestDate, setRequestDate] = useState(editing?.requestDate ?? today());
+  const [neededByDate, setNeededByDate] = useState(editing?.neededByDate ?? "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [lines, setLines] = useState<Line[]>(() =>
+    editing?.lines.length ? editing.lines.map((line) => ({ stockItemId: line.stockItemId, quantity: String(line.quantity) })) : [emptyLine()],
+  );
+  // Düzenlenen talebin müşteri ve stok kartları seçicinin ilk sayfasında olmayabilir; etiketleri talepten gelir.
+  const editingStockLabels = new Map((editing?.lines ?? []).map((line) => [line.stockItemId, `${line.stockCode} · ${line.stockName}`]));
+  const editingCustomerLabel = editing ? `${editing.customerCode ? `${editing.customerCode} · ` : ""}${editing.customerName}` : undefined;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [stockItems, setStockItems] = useState<AppTypes.StockItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -104,8 +114,8 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
     setError("");
     setNotice("");
     try {
-      const created = await api<SalesRequestSummary>("/api/sales/requests/", token, {
-        method: "POST",
+      const created = await api<SalesRequestSummary>(editing ? `/api/sales/requests/${editing.id}` : "/api/sales/requests/", token, {
+        method: editing ? "PUT" : "POST",
         body: JSON.stringify({
           code: code.trim(),
           customerId,
@@ -115,7 +125,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
           lines: lines.map((line) => ({ stockItemId: line.stockItemId, quantity: Number(line.quantity) })),
         }),
       });
-      const keepOpen = stayForNext.current;
+      const keepOpen = !editing && stayForNext.current;
       if (keepOpen) {
         reset();
         setNotice(`${created.code} kaydedildi.`);
@@ -135,7 +145,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
   const dirty = Boolean(code.trim() || customerId || neededByDate || description.trim() || lines.some((line) => line.stockItemId));
   return (
     <>
-    <PageCommandsSlot
+    {!editing && <PageCommandsSlot
       commands={{
         new: {
           run: async () => {
@@ -145,10 +155,10 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
           },
         },
       }}
-    />
+    />}
     <RecordFormPage
       className="sales-rf"
-      title="Yeni Satış Talebi"
+      title={editing ? "Satış Talebini Düzenle" : "Yeni Satış Talebi"}
       document={{
         type: "Satış talebi",
         code: code.trim() || undefined,
@@ -157,13 +167,13 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
         statusFlow: <SalesRequestFlow />,
         hints: [...SALES_FORM_HINTS, "Alt+İ işlemler"],
       }}
-      mode="create"
+      mode={editing ? "edit" : "create"}
       busy={busy}
       saveLabel="Talebi kaydet"
       onSubmit={(event) => void submit(event)}
       onCancel={onCancel}
-      onSaveIntent={(stay) => { stayForNext.current = stay; }}
-      onReset={reset}
+      onSaveIntent={editing ? undefined : (stay) => { stayForNext.current = stay; }}
+      onReset={editing ? undefined : reset}
       error={error}
       onDismissError={() => setError("")}
       status={
@@ -184,6 +194,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
           <SearchableRecordPicker
             options={customers.map((customer) => ({ id: customer.id, label: `${customer.code} · ${customer.name}`, description: customer.currencyCode }))}
             selectedId={customerId}
+            selectedLabel={editing && customerId === editing.customerId ? editingCustomerLabel : undefined}
             onSelect={setCustomerId}
             onSearchChange={(term) => searchRemote(term, async (value) => {
               const found = await loadCustomers(token, value);
@@ -230,6 +241,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
                       <SearchableRecordPicker
                         options={stockItems.map((item) => ({ id: item.id, label: `${item.code} · ${item.name}`, description: item.unitCode, searchText: item.unitCode }))}
                         selectedId={line.stockItemId}
+                        selectedLabel={editingStockLabels.get(line.stockItemId)}
                         onSelect={(id) => updateLine(index, { stockItemId: id })}
                         onSearchChange={(term) => searchRemote(term, async (value) => {
                           const found = await loadStockItems(token, value);
@@ -245,7 +257,7 @@ export function SalesRequestCreateForm({ token, onCancel, onSaved }: Props) {
                     <td className="dd-num">
                       <input aria-label={`Satır ${index + 1} miktar`} type="number" min="0.0001" step="0.0001" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} required />
                     </td>
-                    <td>{card?.unitCode || "—"}</td>
+                    <td>{card?.unitCode || editing?.lines.find((item) => item.stockItemId === line.stockItemId)?.unitCode || "—"}</td>
                     <td className="dd-menu">
                       <button type="button" className="dd-line-remove" aria-label={`Satır ${index + 1} sil`} title="Satırı sil" disabled={lines.length === 1} onClick={() => setLines((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
                         <Trash2 size={13} />

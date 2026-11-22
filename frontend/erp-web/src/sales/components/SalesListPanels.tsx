@@ -10,7 +10,7 @@ import type {
 } from "../../erp-types";
 import { StatusTag } from "../../list-page/StatusTag";
 import type { ReturnDetail, ReturnListItem, ReturnSideConfig } from "../../document-returns/types";
-import type { SalesRequestDetail, SalesRequestSummary } from "../../sales-customer-requests/types";
+import { formatRequestQuantity, type SalesRequestDetail, type SalesRequestSummary } from "../../sales-customer-requests/types";
 import { salesListTag, type SalesListKind } from "../salesListStatus";
 import {
   SalesListDetailEmpty,
@@ -297,7 +297,11 @@ export function DeliveryListPanel({ row, ...controls }: SalesPanelControls<Deliv
   );
 }
 
-export function RequestListPanel({ row, ...controls }: SalesPanelControls<SalesRequestDetail> & { row: SalesRequestSummary }) {
+export function RequestListPanel({
+  row,
+  onOpenQuote,
+  ...controls
+}: SalesPanelControls<SalesRequestDetail> & { row: SalesRequestSummary; onOpenQuote?: (quoteId: string) => void }) {
   return (
     <PanelFrame
       {...controls}
@@ -307,16 +311,28 @@ export function RequestListPanel({ row, ...controls }: SalesPanelControls<SalesR
       tags={<Tag kind="request" status={row.status} />}
       tabs={SUMMARY_TABS}
       render={(tab, detail) => {
+        // Talepte fiyat yoktur: satırın sağında miktar ve birim gösterilir.
         if (tab === "lines")
           return (
-            <SalesPanelLines
-              currency=""
-              lines={linesOf(detail).map((line) => ({ key: String(line.lineNumber), ...line, lineTotal: undefined }))}
+            <SalesPanelRows
+              empty="Satır yok."
+              rows={linesOf(detail).map((line) => ({
+                key: String(line.lineNumber),
+                label: line.stockName,
+                meta: <span className="nx-code">{line.stockCode}</span>,
+                value: <><span>{formatRequestQuantity(line.quantity)}</span> <span>{line.unitCode}</span></>,
+              }))}
             />
           );
         const chain: SalesChainItem[] = [{ key: "self", code: row.code, label: "Bu talep", current: true }];
         for (const quote of Array.isArray(detail.quotes) ? detail.quotes : [])
-          chain.push({ key: quote.id, code: quote.code, label: "Satış teklifi", status: salesListTag("quote", quote.status) });
+          chain.push({
+            key: quote.id,
+            code: quote.code,
+            label: "Satış teklifi",
+            status: salesListTag("quote", quote.status),
+            onOpen: onOpenQuote ? () => onOpenQuote(quote.id) : undefined,
+          });
         return (
           <>
             <SalesPanelFacts

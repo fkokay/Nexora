@@ -3380,6 +3380,8 @@ salesQuotes.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, T
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.deleted", Resource = quote.Code });
     try { await db.SaveChangesAsync(ct); }
     catch (DbUpdateException) { return Results.Conflict(new { error = "Teklif ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip ilişkili işlemleri kontrol edin." }); }
+    // Silinen taslağın kapsadığı talep satırları yeniden açığa döner.
+    if (quote.SourceSalesRequestId is { } deletedRequestId) await SalesRequestQuoteCoverage.RefreshStatusAsync(db, tenantId, deletedRequestId, ct);
     return Results.NoContent();
 });
 salesQuotes.MapGet("/custom-fields", async (ClaimsPrincipal principal, TenantDbContext db) =>
@@ -3570,7 +3572,7 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
     var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
         x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
         x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.EnteredCurrencyCode, x.EnteredUnitPrice,
-        x.EnteredUnitCode, x.ExchangeRateToQuoteCurrency, x.IsVatIncluded)).ToList();
+        x.EnteredUnitCode, x.ExchangeRateToQuoteCurrency, x.IsVatIncluded, x.SourceSalesRequestLineNumber)).ToList();
     var customFields = await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
         join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
         from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
@@ -3641,12 +3643,17 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
             return Results.Conflict(new { error = "Yalnızca en güncel teklif revize edilebilir." });
         revisionGroupId = source.RevisionGroupId;
         revisionNumber = source.RevisionNumber + 1;
+        // Revizyon, önceki teklifin kaynak talebini devralır; satır bağlantıları talebin kapsamını korur.
+        if (sourceSalesRequest is null && source.SourceSalesRequestId is { } inheritedRequestId)
+            sourceSalesRequest = await db.SalesRequests.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == inheritedRequestId);
     }
     else
     {
         revisionGroupId = Guid.NewGuid();
         revisionNumber = 1;
     }
+    var requestLinkErrors = await SalesRequestQuoteCoverage.ValidateAsync(db, tenantId, sourceSalesRequest?.Id, request.Lines);
+    if (requestLinkErrors is not null) return Results.ValidationProblem(requestLinkErrors);
     var customDefinitions = await db.SalesQuoteCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuoteCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var customFieldErrors = new Dictionary<string, string[]>(); var normalizedCustomFields = new Dictionary<Guid, (SalesQuoteCustomFieldDefinition Definition, string Value)>();
     if (request.CustomFields is { Count: > 40 }) customFieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
@@ -3704,7 +3711,6 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
         DeliveryTerms = string.IsNullOrWhiteSpace(request.DeliveryTerms) ? null : request.DeliveryTerms.Trim(),
         Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal,
         SourceSalesRequestId = sourceSalesRequest?.Id };
-    if (sourceSalesRequest is { Status: SalesRequestStatus.Open }) sourceSalesRequest.Status = SalesRequestStatus.Quoted;
     for (var i = 0; i < request.Lines.Count; i++)
     {
         var normalized = normalizedLines[i]; var input = normalized.Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);
@@ -3713,7 +3719,8 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
             EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
             EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
             DiscountPercent = input.DiscountPercent, VatPercent = input.VatPercent, IsVatIncluded = input.IsVatIncluded, LineSubtotal = amounts.LineSubtotal,
-            DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
+            DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal,
+            SourceSalesRequestLineNumber = sourceSalesRequest is null ? null : normalized.Input.SalesRequestLineNumber });
     }
     db.SalesQuotes.Add(quote);
     foreach (var field in normalizedCustomFields.Values)
@@ -3724,6 +3731,7 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.created", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." }); }
+    if (sourceSalesRequest is not null) await SalesRequestQuoteCoverage.RefreshStatusAsync(db, tenantId, sourceSalesRequest.Id);
     await transaction.CommitAsync();
     var summary = new SalesQuoteSummary(quote.Id, quote.Code, customer?.Id, customer?.Name ?? quote.ProspectCustomerName!, quote.QuoteDate, quote.ValidUntil,
         quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt,
@@ -3776,6 +3784,8 @@ salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request,
     var missingField = definitions.FirstOrDefault(x => x.IsRequired && !normalizedFields.ContainsKey(x.Id));
     if (missingField is not null) fieldErrors[$"customFields.{missingField.Code}"] = [$"'{missingField.Label}' alanı zorunludur."];
     if (fieldErrors.Count > 0) return Results.ValidationProblem(fieldErrors);
+    var requestLinkErrors = await SalesRequestQuoteCoverage.ValidateAsync(db, tenantId, quote.SourceSalesRequestId, request.Lines);
+    if (requestLinkErrors is not null) return Results.ValidationProblem(requestLinkErrors);
 
     var itemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
     var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
@@ -3832,7 +3842,8 @@ salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request,
             EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
             EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
             Quantity = line.Quantity, UnitPrice = line.UnitPrice, DiscountPercent = line.DiscountPercent, VatPercent = line.VatPercent,
-            IsVatIncluded = line.IsVatIncluded, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal });
+            IsVatIncluded = line.IsVatIncluded, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal,
+            SourceSalesRequestLineNumber = quote.SourceSalesRequestId is null ? null : normalized.Input.SalesRequestLineNumber });
     }
     var existingValues = await db.SalesQuoteCustomFieldValues.Where(x => x.TenantId == tenantId && x.QuoteId == quote.Id).ToDictionaryAsync(x => x.DefinitionId);
     foreach (var definition in definitions)
@@ -3848,6 +3859,7 @@ salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request,
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.updated", Resource = quote.Code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu teklif numarası bu firmada zaten kullanılıyor." }); }
+    if (quote.SourceSalesRequestId is { } updatedRequestId) await SalesRequestQuoteCoverage.RefreshStatusAsync(db, tenantId, updatedRequestId);
     await transaction.CommitAsync();
     return Results.Ok(new SalesQuoteSummary(quote.Id, quote.Code, customer?.Id, customer?.Name ?? quote.ProspectCustomerName!, quote.QuoteDate,
         quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.GrandTotal, quote.Lines.Count, quote.CreatedAt, false, quote.RevisionGroupId, quote.RevisionNumber, customer?.Code));

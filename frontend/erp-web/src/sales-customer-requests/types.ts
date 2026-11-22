@@ -1,5 +1,5 @@
 /** Satış talebi: müşteriden gelen ürün talebi. Tekliften önceki ilk adımdır. */
-export type SalesRequestStatus = "Open" | "Quoted" | "Cancelled";
+export type SalesRequestStatus = "Open" | "PartiallyQuoted" | "Quoted" | "Cancelled";
 
 export type SalesRequestSummary = {
   id: string;
@@ -24,6 +24,8 @@ export type SalesRequestLine = {
   quantity: number;
   enteredQuantity?: number | null;
   enteredUnitCode?: string | null;
+  /** Bu talep satırına teklif veren tekliflerin numaraları. */
+  quoteCodes?: string[] | null;
 };
 
 export type SalesRequestQuoteLink = {
@@ -49,6 +51,9 @@ export type SalesRequestDetail = {
   createdAt: string;
   lines: SalesRequestLine[];
   quotes: SalesRequestQuoteLink[];
+  customerCode?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
 };
 
 /** Teklif formunun bu anahtarı okuyup talebi ön doldurması için kullanılır (bkz. SalesPage). */

@@ -343,6 +343,9 @@ public static class PlatformPermissionCatalog
                     || normalizedRoute.EndsWith("/{id:guid}/unlink-receipt", StringComparison.OrdinalIgnoreCase)) ? "update"
             : path.StartsWith("/api/sales/promotions/", StringComparison.OrdinalIgnoreCase)
             && routePattern.Contains("/apply", StringComparison.OrdinalIgnoreCase) ? "execute"
+            // Toplu silme POST ile gönderilir ama bir silme işlemidir.
+            : method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+                && routePattern.TrimEnd('/').EndsWith("/bulk-delete", StringComparison.OrdinalIgnoreCase) ? "delete"
             : method.ToUpperInvariant() switch
         {
             "GET" or "HEAD" => "read",
