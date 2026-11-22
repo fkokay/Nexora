@@ -113,6 +113,38 @@ export function RecordHeaderFields({ props, suggestions, buttons, owners, disabl
   </>;
 }
 
+type BulkDeleteQuery = { id: string; name: string; kind: string; runOn?: string; parameters: { name: string; binding: string }[] };
+
+/** Toplu silme sorgusu listenin seçili satırına bağlı mı (`{{<tablo>.seciliSatir.…}}`; sunucudaki kural). */
+export const bindsSelectedRow = (query: BulkDeleteQuery, tableName: string | undefined) =>
+  !!tableName && query.parameters.some((parameter) => parameter.binding.replace(/\s+/g, "").startsWith(`{{${tableName}.seciliSatir.`));
+
+/**
+ * Listenin "Toplu silme" alanı (`bulkDeleteQuery`): ızgarada işaretli satırlar için "Seçilenleri sil" çıkar; seçilen silme
+ * sorgusu tek onaydan sonra her satır için bir kez, satır `{{<liste>.seciliSatir…}}` olarak bağlanıp çalışır.
+ */
+export function BulkDeleteField({ table, queries, disabled, onPatch }: {
+  table: Component; queries: BulkDeleteQuery[]; disabled?: boolean; onPatch: (patch: { bulkDeleteQuery?: string }) => void;
+}) {
+  const value = typeof table.props.bulkDeleteQuery === "string" ? table.props.bulkDeleteQuery : "";
+  const eligible = queries.filter((query) => query.kind === "delete" && query.runOn !== "load");
+  const current = queries.find((query) => query.id === value);
+  const named = typeof table.name === "string" && table.name !== "";
+  return <div className="pd-rowact-item"><span className="pd-rowact-kind">Toplu silme</span>
+    <select value={value} disabled={disabled || !named} aria-label="Toplu silme sorgusu" onChange={(event) => onPatch({ bulkDeleteQuery: event.target.value || undefined })}>
+      <option value="">Yok</option>
+      {eligible.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}
+      {value && !eligible.includes(current!) && <option value={value}>{current ? current.name : value} (uygun değil)</option>}
+    </select>
+    <small>Izgarada satırlar işaretlenince “Seçilenleri sil” çıkar: tek onaydan sonra bu silme sorgusu her satır için ({named ? `{{${table.name}.seciliSatir…}}` : "liste adı yok"}) sırayla çalışır,
+      silinemeyenler nedenleriyle özetlenir ve liste yenilenir.</small>
+    {!named && <small className="pd-query-warning">Toplu silme için listeye bir Ad verin.</small>}
+    {value && (!current || !eligible.includes(current)) && <small className="pd-query-warning">Toplu silme sorgusu elle çalışan bir silme (delete) sorgusu olmalıdır.</small>}
+    {current && eligible.includes(current) && named && !bindsSelectedRow(current, table.name) && <small className="pd-query-warning">
+      Silme sorgusunun bir parametresi bu listenin seçili satırına (<code>{`{{${table.name}.seciliSatir.id}}`}</code>) bağlı olmalıdır.</small>}
+  </div>;
+}
+
 /** dataTable `openParam`: sayfa parametresi adı (sunucu: `^[a-z][a-zA-Z0-9]{0,31}$`, yalnız `rowOpenAction` ile). */
 export const OPEN_PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
 

@@ -539,6 +539,9 @@ internal static partial class ErpOperationCatalog
             Record(customerColumns), customerRead, Fixed(("isActive", false)));
         yield return Write(CustomerModule, "cari.aktifEt", "Cari kartı etkinleştir", "update", "PUT", customerRoute, [id],
             Record(customerColumns), customerRead, Fixed(("isActive", true)));
+        // Sil: only a card with no related records (no movement, document, history or subsidiary); otherwise 409 and Pasife al.
+        yield return Write(CustomerModule, "cari.sil", "Cari kartı sil", "delete", "DELETE", customerRoute, [id], None, null, null,
+            requiresTenantAdmin: true);
         yield return Read(CustomerModule, "cari.bakiye", "Cari bakiyesi", customerRoute + "/balance", [id],
             Record(Columns<CustomerLedgerBalance>()
                 .Append(new ErpOperationColumn("balanceAmount", Label("balanceAmount"), "decimal"))

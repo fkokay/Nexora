@@ -34,6 +34,13 @@ export function gridToolsOf(props: Record<string, unknown> | undefined): GridToo
 }
 /** Eski listelerin toplu işlemi: seçili satırları ızgaranın Excel aktarımıyla indirir (görünen sütunlar ve biçimler). */
 export const SELECTED_EXPORT_LABEL = "Excel (seçilenler)";
+/** `dataTable.bulkDeleteQuery`: işaretli satırları silen toplu işlem. */
+export const SELECTED_DELETE_LABEL = "Seçilenleri sil";
+/**
+ * Toplu silme: `run` işaretli satırlarla çağrılır (onay, satır başına silme ve özet sayfadadır); silme çalıştıysa true döner
+ * ve ızgaranın işaretleri kalkar (liste yeniden yüklenince aynı anahtarlar başka satırları gösterir). Vazgeçilirse işaretler kalır.
+ */
+export type BulkDelete = { disabledReason: string | null; run: (rows: Record<string, unknown>[]) => Promise<boolean> };
 export type DataTableGridProps = {
   tools?: GridTools;
   /** Görünüm ayarlarının anahtarı: `custom-page.<sayfaKodu>.<bileşenId>`. */
@@ -47,6 +54,8 @@ export type DataTableGridProps = {
   formats?: Record<string, ColumnFormat>; toneMap?: { key: string; tone: Tone }[]; totals?: string[]; density?: "dense" | "comfort";
   paging?: TablePaging;
   rowActions?: RowAction[];
+  /** `bulkDeleteQuery` bağlıysa İşlemler çubuğunda "Seçilenleri sil". */
+  bulkDelete?: BulkDelete;
   emptyText?: string;
   limit?: number;
   status?: ActionStatus | null;
@@ -77,7 +86,7 @@ const labeledCell = (labels: Record<string, Record<string, string>>, code: strin
 const rowKey = (index: number) => `r${index}`;
 const keyIndex = (key: string | null) => key && /^r\d+$/.test(key) ? Number(key.slice(1)) : -1;
 
-export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS }: DataTableGridProps) {
+export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS }: DataTableGridProps) {
   // Seçilen sütunlar tasarımcının seçim sırasıyla; başlık `columnLabels` ile değişebilir.
   const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
     .map((column) => columnLabels[code] ? { ...column, label: columnLabels[code] } : column)) : [];
@@ -95,8 +104,20 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   // Tıklama satırı kendisi seçer/bırakır; ızgaranın aynı tıklamadaki güncel satır isteği yok sayılır (çift seçim olmaz).
   const clickRef = useRef(false);
   const exportRef = useRef<GridExportActions | null>(null);
-  const bulkActions: BulkAction[] | undefined = tools.selectedExport
-    ? [{ id: "export-selected", label: SELECTED_EXPORT_LABEL, run: () => void exportRef.current?.exportExcel() }] : undefined;
+  const bulkList: BulkAction[] = [];
+  if (tools.selectedExport) bulkList.push({ id: "export-selected", label: SELECTED_EXPORT_LABEL, run: () => void exportRef.current?.exportExcel() });
+  if (bulkDelete) {
+    bulkList.push({
+      id: "delete-selected", label: SELECTED_DELETE_LABEL, disabledReason: bulkDelete.disabledReason ?? undefined,
+      run: (keys) => {
+        // Anahtarlar onaydan önce satırlara çevrilir: onay sırasında liste yenilense de seçilen kayıtlar silinir.
+        const rows = keys.map((key) => drawn[keyIndex(key)]).filter((row): row is Record<string, unknown> => !!row);
+        if (rows.length === 0) return;
+        void bulkDelete.run(rows).then((ran) => { if (ran) exportRef.current?.clearSelection?.(); });
+      },
+    });
+  }
+  const bulkActions: BulkAction[] | undefined = bulkList.length > 0 ? bulkList : undefined;
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
   const selectedIndex = selected ? drawn.indexOf(selected) : -1;
   const currentRowKey = onSelect ? (selectedIndex >= 0 ? rowKey(selectedIndex) : null) : undefined;

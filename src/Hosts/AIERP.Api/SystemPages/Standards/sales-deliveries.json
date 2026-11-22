@@ -14,6 +14,7 @@
     "component:iptalGostergesi": {"since": 1, "label": "İptal göstergesi", "requires": ["query:irsaliyeler"]},
     "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
     "component:secimCipleri": {"since": 1, "label": "Durum ve fatura seçimi", "requires": ["component:durumSecimi", "component:faturaSecimi"]},
+    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi", "component:faturaSecimi"]},
     "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
     "component:faturaSecimi": {"since": 1, "label": "Faturalanmamış seçimi"},
     "component:liste": {"since": 1, "label": "Satış irsaliyeleri listesi (birleşik)", "requires": ["component:acDugmesi", "component:faturaAcSatir", "query:irsaliyeler"]},
@@ -126,14 +127,12 @@
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 6,
+          "width": 4,
           "search": true,
           "searchPlaceholder": "İrsaliye, sipariş veya müşteri ara",
           "searchParam": "q" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": {
-          "width": 6,
-          "inputs": ["durumSecimi", "faturaSecimi"] } },
+      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
+        "props": { "title": "Süzgeçler", "layout": "inline", "width": 8, "inputs": ["durumSecimi", "faturaSecimi"] } },
       { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
         "props": {
           "inputType": "select",
@@ -144,6 +143,10 @@
           "inputType": "select",
           "label": "Fatura",
           "staticOptions": ["=Tümü", "true=Faturalanmamış"] } },
+      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
+        "props": {
+          "width": 12,
+          "inputs": ["durumSecimi", "faturaSecimi"] } },
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": {
           "title": "Satış irsaliyeleri",

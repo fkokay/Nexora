@@ -80,4 +80,12 @@ describe('dialogOwnedIds / rowActionIds', () => {
     expect(dialogOwned.has('z')).toBe(false);
     expect([...rowActionIds(components)]).toEqual(['r1', 'r2', 'r3', 'r4']);
   });
+  it('rowActionIds listenin "Satır açılınca" düğmesini de listeye ait sayar (üst düzeyde ayrıca çizilmez)', () => {
+    const components = [
+      { id: 't', type: 'dataTable', props: { rowActions: ['r1'], rowOpenAction: ' ac ' } },
+      { id: 't2', type: 'dataTable', props: { rowOpenAction: '' } },
+      { id: 'k', type: 'card', props: { rowOpenAction: 'baska' } },
+    ];
+    expect([...rowActionIds(components)]).toEqual(['r1', 'ac']);
+  });
 });

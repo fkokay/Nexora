@@ -34,6 +34,7 @@ const rows = () => [customer(C1, 'C-1001', 'FATİH KOKAY'), customer(C2, 'C-1002
 
 type Call = { url: string; method: string; body?: string };
 let calls: Call[] = [];
+let deleteConflicts = new Set<string>();
 let navigations: WorkspaceOpenRequest[] = [];
 const onNavigate = (event: Event) => { navigations.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
 
@@ -56,17 +57,23 @@ function respond(url: string, method: string): unknown {
     }
   } else if (method === 'PUT' && /^\/api\/customers\/[^/]+$/.test(path)) {
     return rows()[0];
+  } else if (method === 'DELETE' && /^\/api\/customers\/[^/]+$/.test(path)) {
+    const id = path.split('/').at(-1)!;
+    if (deleteConflicts.has(id)) {
+      throw Object.assign(new Error('Conflict'), { status: 409, serverError: 'İlişkili kayıt bulunan cari kart silinemez; bunun yerine pasife alın.' });
+    }
+    return null;
   }
   throw new Error(`unexpected ${method} ${url}`);
 }
 
-function setup(role = 'TenantAdmin') {
+function setup(role = 'TenantAdmin', operations: unknown = catalog) {
   api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
     if (endpoint === `/api/system-pages/${KEY}/published`) {
       return { id: 'sp', code: `@${KEY}`, name: standard.title, description: null, revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
         screenKey: KEY, source: 'standard', standardVersion: 1, definitionJson: JSON.stringify(standard.definition) };
     }
-    if (endpoint === '/api/custom-pages/erp-operations') return catalog;
+    if (endpoint === '/api/custom-pages/erp-operations') return operations;
     const method = init?.method ?? 'GET';
     calls.push({ url: endpoint, method, body: typeof init?.body === 'string' ? init.body : undefined });
     return respond(endpoint, method);
@@ -85,6 +92,7 @@ const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler 
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
+const gridRows = () => Array.from(document.querySelectorAll<HTMLElement>('.tenant-page-data-grid tbody tr'));
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 const menuItem = async (name: RegExp) => {
   fireEvent.click(command('more'));
@@ -98,7 +106,7 @@ const select = async (name: string, id: string) => {
 };
 
 beforeEach(() => {
-  calls = []; navigations = []; api.mockReset(); localStorage.clear();
+  calls = []; navigations = []; deleteConflicts = new Set(); api.mockReset(); localStorage.clear();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
 afterEach(() => {
@@ -187,5 +195,79 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
       .toContain('186.242,00 TRY B'), T);
     expect(document.body.textContent).toContain('Limit kullanımı %');
     await waitFor(() => expect(document.body.textContent).toContain('Merkez · Feritpaşa Mah. · Selçuklu / Konya'), T);
+  });
+
+  it('Sil asks first, then DELETEs the selected card', async () => {
+    setup();
+    await select('FATİH KOKAY', C1);
+    await ready('delete');
+    fireEvent.click(command('delete'));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    expect(writes()).toEqual([]);
+    fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
+    await waitFor(() => expect(writes()).toEqual([{ url: `/api/customers/${C1}`, method: 'DELETE', body: undefined }]), T);
+  });
+
+  it('Sil and Seçilenleri sil are disabled when the catalog does not allow cari.sil (not a TenantAdmin)', async () => {
+    const denied = { operations: catalog.operations.map((operation) => operation.name === 'cari.sil' ? { ...operation, allowed: false } : operation) };
+    setup('TenantUser', denied);
+    await select('FATİH KOKAY', C1);
+    expect(command('delete').getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
+    const bulk = screen.getByRole('button', { name: 'Seçilenleri sil' }) as HTMLButtonElement;
+    expect(bulk.disabled || bulk.getAttribute('aria-disabled') === 'true').toBe(true);
+  });
+
+  it('Seçilenleri sil confirms once, deletes each ticked row in turn and reloads the list', async () => {
+    setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    const listReads = gets('/api/customers').length;
+    fireEvent.click(within(gridRows()[0]).getByRole('checkbox'));
+    fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).getByRole('button', { name: 'Seçilenleri sil' }));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    expect(dialog.textContent).toContain('2 kayıt silinsin mi?');
+    expect(writes()).toEqual([]);
+    fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
+    await waitFor(() => expect(document.body.textContent).toContain('2 kayıt silindi.'), T);
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`DELETE /api/customers/${C1}`, `DELETE /api/customers/${C2}`]);
+    await waitFor(() => expect(gets('/api/customers').length).toBeGreaterThan(listReads), T);
+    // İşaretler kalkar: yenilenen listede aynı anahtarlar başka kayıtları gösterebilir.
+    await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Toplu işlemler' })).toBeNull(), T);
+  });
+
+  it('Seçilenleri sil reports the rows that could not be deleted with the server reason', async () => {
+    deleteConflicts = new Set([C2]);
+    setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    fireEvent.click(within(gridRows()[0]).getByRole('checkbox'));
+    fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).getByRole('button', { name: 'Seçilenleri sil' }));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
+    await waitFor(() => expect(document.body.textContent)
+      .toContain('1 silindi, 1 silinemedi: İlişkili kayıt bulunan cari kart silinemez; bunun yerine pasife alın.'), T);
+    expect(writes()).toHaveLength(2);
+  });
+
+  it('Seçilenleri sil sends nothing when the confirmation is cancelled and keeps the ticks', async () => {
+    setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).getByRole('button', { name: 'Seçilenleri sil' }));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    expect(dialog.textContent).toContain('1 kayıt silinsin mi?');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), T);
+    expect(writes()).toEqual([]);
+    expect(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).toBeTruthy();
+  });
+
+  it('the row open button (Aç, rowOpenAction) is not drawn as a loose button under the list', async () => {
+    setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    const looseOpen = [...document.querySelectorAll('button')].filter((button) => button.textContent?.trim() === 'Aç'
+      && !button.closest('.tenant-page-detail') && !button.closest('[role="toolbar"]'));
+    expect(looseOpen).toEqual([]);
   });
 });

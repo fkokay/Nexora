@@ -81,7 +81,9 @@ internal static class TenantCustomPageSchema
       "saveAndNew",
       // Sayfa parametresiyle kayıt açma (dataTable openParam: sayfa.parametre.<ad> doluysa o kimliği seçip satır açma eylemini
       // çalıştırır) ve ERP ekranının eski (yerleşik) sürümünü açan erpPage düğmesi (legacyScreen).
-      "openParam", "legacyScreen" };
+      "openParam", "legacyScreen",
+      // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
+      "bulkDeleteQuery" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -1640,7 +1642,7 @@ internal static class TenantCustomPageSchema
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
-        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"]
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1949,6 +1951,26 @@ internal static class TenantCustomPageSchema
                 return Fail("'openParam' küçük harfle başlayan en fazla 32 harf/rakamlık bir sayfa parametresi adı olmalıdır (ör. orderId).", out error);
             if (!props.TryGetProperty("rowOpenAction", out _))
                 return Fail($"'openParam' için veri listesinde satır açma eylemi (rowOpenAction) da tanımlı olmalıdır: {id}", out error);
+        }
+        // Toplu silme: ızgaranın işaretli satırları için silme sorgusu satır başına bir kez, satır `<tablo>.seciliSatir` olarak
+        // bağlanıp çalışır. Sorgu bu listenin seçili satırına bağlı olmalıdır (yoksa her adım aynı kaydı siler) ve kaynak kayıttan
+        // başlayamaz (kaynak kayıt tek bir okumadır, satırlarla değişmez).
+        if (props.TryGetProperty("bulkDeleteQuery", out var bulkDelete))
+        {
+            var bulkQueryId = bulkDelete.ValueKind == JsonValueKind.String ? bulkDelete.GetString() : null;
+            if (string.IsNullOrEmpty(bulkQueryId) || !context.QueryById.TryGetValue(bulkQueryId, out var bulkQuery))
+                return Fail($"'bulkDeleteQuery' sorgusu sayfada yok: {bulkQueryId ?? "?"}.", out error);
+            if (bulkQuery.Kind != "delete" || bulkQuery.RunOn != "manual")
+                return Fail($"'bulkDeleteQuery' elle çalışan delete türünde bir sorgu olmalıdır: {bulkQueryId}.", out error);
+            if (name is null) return Fail($"Toplu silme için veri listesinin adı olmalıdır: {id}", out error);
+            if (!hasQuery) return Fail($"Toplu silme yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
+            var rowPrefix = name + ".seciliSatir.";
+            if (!bulkQuery.Parameters.Any(parameter => TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path)
+                    && path.StartsWith(rowPrefix, StringComparison.Ordinal)))
+                return Fail($"'bulkDeleteQuery' sorgusu bu listenin seçili satırına bağlı olmalıdır ({{{{{name}.seciliSatir.…}}}}): {bulkQueryId}.", out error);
+            if (bulkQuery.Operation is { } bulkOperation && context.Lookup(bulkOperation, out var bulkOp) && bulkOp.SourceOperation is not null)
+                return Fail($"'bulkDeleteQuery' sorgusu kaynak kayıttan başlayan bir işlem olamaz: {bulkQueryId}.", out error);
+            context.DirectWriteQueries.Add(bulkQueryId);
         }
         if (props.TryGetProperty("emptyText", out var emptyText) && !IsStaticTextUpTo(emptyText, 120))
             return Fail("'emptyText' en fazla 120 karakterlik metin olmalıdır.", out error);

@@ -76,12 +76,18 @@ export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
-/** Veri listelerinin satır işlemi düğmeleri (`dataTable.rowActions`, en fazla 4): her satırın İşlemler hücresinde çizilir. */
+/**
+ * Veri listelerinin satır işlemi düğmeleri (`dataTable.rowActions`, en fazla 4; her satırın İşlemler hücresinde çizilir) ve
+ * "Satır açılınca" düğmesi (`dataTable.rowOpenAction`; satıra çift tıklama / Enter çalıştırır): ikisi de listeye aittir,
+ * üst düzeyde ayrıca çizilmez.
+ */
 export function rowActionIds(components: LayoutComponent[]): Set<string> {
   const owned = new Set<string>();
   for (const component of components) {
     if (component.type !== "dataTable") continue;
     for (const id of idList(component.props?.rowActions, 4)) owned.add(id);
+    const open = component.props?.rowOpenAction;
+    if (typeof open === "string" && open.trim()) owned.add(open.trim());
   }
   return owned;
 }

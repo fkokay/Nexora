@@ -19,6 +19,7 @@ cari.ozelAlanKaydet
 cari.ozelAlanTanimlari
 cari.pasifeAl
 cari.sayaclar
+cari.sil
 crm.firsat.getir
 crm.firsat.guncelle
 crm.firsat.kaybedildi

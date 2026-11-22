@@ -3,18 +3,19 @@
   "description": "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", "module": "Satış & cari",
   "version": 1, "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniTeklif", "component:yeniSiparis", "component:yeniIrsaliye", "component:yeniFatura", "component:faturalarDugmesi", "component:adreslerDugmesi", "component:pasifeAlDugmesi", "component:etkinlestirDugmesi", "component:hareketlerDugmesi", "query:cariler"]},
+    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniTeklif", "component:yeniSiparis", "component:yeniIrsaliye", "component:yeniFatura", "component:faturalarDugmesi", "component:adreslerDugmesi", "component:pasifeAlDugmesi", "component:etkinlestirDugmesi", "component:hareketlerDugmesi", "query:cariler", "query:kartSil"]},
     "component:kartGostergesi": {"since": 1, "label": "Cari kartı göstergesi", "requires": ["query:sayaclar"]},
     "component:pasifGostergesi": {"since": 1, "label": "Pasif göstergesi", "requires": ["component:durumSecimi", "query:sayaclar"]},
     "component:eFaturaGostergesi": {"since": 1, "label": "E-Fatura mükellefi göstergesi", "requires": ["query:sayaclar"]},
     "component:riskGostergesi": {"since": 1, "label": "Risk limiti tanımlı göstergesi", "requires": ["query:sayaclar"]},
     "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
     "component:secimCipleri": {"since": 1, "label": "Tür ve durum seçimi", "requires": ["component:turSecimi", "component:durumSecimi"]},
+    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:turSecimi", "component:durumSecimi"]},
     "component:turSecimi": {"since": 1, "label": "Cari türü seçimi"},
     "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
     "component:gorunumKarti": {"since": 1, "label": "Detay paneli anahtarı kartı", "requires": ["component:detayPaneli"]},
     "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:liste": {"since": 1, "label": "Cari kartları listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:cariler"]},
+    "component:liste": {"since": 1, "label": "Cari kartları listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:cariler", "query:kartSil"]},
     "component:acDugmesi": {"since": 1, "label": "Satırı aç (cari kart)", "requires": ["component:liste"]},
     "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:genelPaneli", "component:varsayilanAdres", "component:adresYok", "component:haritaKonumu", "component:finansPaneli", "component:dovizNotu", "component:iletisimPaneli", "query:bakiye"]},
     "component:genelPaneli": {"since": 1, "label": "Detay: Genel", "requires": ["component:liste"]},
@@ -38,7 +39,8 @@
     "query:kart": {"since": 1, "label": "Seçili cari kartı", "requires": ["component:liste"]},
     "query:bakiye": {"since": 1, "label": "Seçili carinin bakiyesi", "requires": ["component:liste"]},
     "query:pasifeAl": {"since": 1, "label": "Cari kartı pasife al", "requires": ["query:kart"]},
-    "query:aktifEt": {"since": 1, "label": "Cari kartı etkinleştir", "requires": ["query:kart"]}
+    "query:aktifEt": {"since": 1, "label": "Cari kartı etkinleştir", "requires": ["query:kart"]},
+    "query:kartSil": {"since": 1, "label": "Cari kartı sil (hiç kaydı olmayan)", "requires": ["component:liste"]}
   },
   "screenViews": [ { "key": "customers", "component": "liste",
                      "fields": { "code": "code", "name": "name", "groupName": "groupName", "type": "type", "currencyCode": "currencyCode",
@@ -49,13 +51,13 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{cariler.meta.totalCount}}",
+        "props": { "deleteQuery": "kartSil", "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{cariler.meta.totalCount}}",
                    "newAction": "page", "newPageCode": "@customer-create", "newTarget": "newTab",
                    "openAction": "page", "openPageCode": "@customer-create", "openTarget": "newTab", "openTable": "liste",
                    "openParams": ["customerId={{liste.seciliSatir.id}}"],
                    "moreButtons": ["yeniTeklif", "yeniSiparis", "yeniIrsaliye", "yeniFatura", "faturalarDugmesi", "adreslerDugmesi",
                                    "pasifeAlDugmesi", "etkinlestirDugmesi", "hareketlerDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
+                   "hiddenCommands": ["save", "print"] } },
 
       { "id": "kartGostergesi", "type": "metric", "name": "kartGostergesi",
         "props": { "title": "Cari kartı", "value": "{{sayaclar.rows[0].totalCount}}", "format": "number", "width": 3, "icon": "users",
@@ -71,9 +73,9 @@
                    "icon": "shield", "variant": "warning", "description": "tüm kayıtlar" } },
 
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 5, "search": true, "searchPlaceholder": "Cari kodu, unvanı veya vergi no ile ara", "searchParam": "q" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 5, "inputs": ["turSecimi", "durumSecimi"] } },
+        "props": { "table": "liste", "width": 4, "search": true, "searchPlaceholder": "Cari kodu, unvanı veya vergi no ile ara", "searchParam": "q" } },
+      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
+        "props": { "title": "Süzgeçler", "layout": "inline", "width": 6, "inputs": ["turSecimi", "durumSecimi"] } },
       { "id": "turSecimi", "type": "input", "name": "turSecimi",
         "props": { "inputType": "select", "label": "Cari türü",
                    "staticOptions": ["=Tümü", "Customer=Müşteri", "Supplier=Tedarikçi", "Both=Müşteri & Tedarikçi", "Dealer=Bayi", "Employee=Personel"] } },
@@ -83,6 +85,8 @@
         "props": { "title": "Görünüm", "layout": "inline", "width": 2, "inputs": ["detayPaneli"] } },
       { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
         "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
+      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
+        "props": { "width": 12, "inputs": ["turSecimi", "durumSecimi"] } },
 
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "Cari kartları", "query": "cariler", "paging": "server", "pageSize": 25, "width": 12,
@@ -97,7 +101,7 @@
                    "valueLabels": ["type:Customer=Müşteri", "type:Supplier=Tedarikçi", "type:Both=Müşteri & Tedarikçi", "type:Dealer=Bayi",
                                    "type:Employee=Personel", "isActive:true=Aktif", "isActive:false=Pasif"],
                    "toneMap": ["Aktif=success", "Tedarikçi=warning", "Müşteri=info", "Müşteri & Tedarikçi=info", "Bayi=info"],
-                   "rowOpenAction": "acDugmesi",
+                   "rowOpenAction": "acDugmesi", "bulkDeleteQuery": "kartSil",
                    "emptyText": "Aramanızla eşleşen cari kartı yok." } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
         "props": { "text": "Aç", "icon": "open", "actionType": "page", "pageCode": "@customer-create", "target": "newTab",
@@ -232,7 +236,9 @@
       { "id": "pasifeAl", "name": "pasifeAl", "kind": "update", "operation": "cari.pasifeAl", "runOn": "manual",
         "parameters": [ { "name": "id", "binding": "{{kart.rows[0].id}}", "type": "guid" } ] },
       { "id": "aktifEt", "name": "aktifEt", "kind": "update", "operation": "cari.aktifEt", "runOn": "manual",
-        "parameters": [ { "name": "id", "binding": "{{kart.rows[0].id}}", "type": "guid" } ] }
+        "parameters": [ { "name": "id", "binding": "{{kart.rows[0].id}}", "type": "guid" } ] },
+      { "id": "kartSil", "name": "kartSil", "kind": "delete", "operation": "cari.sil", "runOn": "manual",
+        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] }
     ]
   }
 }

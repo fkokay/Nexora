@@ -114,7 +114,9 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   /** Receives the grid's export functions while mounted, so the page can offer them (e.g. CSV in the actions menu). */
   exportActionsRef?: MutableRefObject<GridExportActions | null>;
 };
-export type GridExportActions = { exportExcel: () => Promise<void>; exportCsv: () => void };
+export type GridExportActions = { exportExcel: () => Promise<void>; exportCsv: () => void;
+  /** Clears the row checkboxes (e.g. after a bulk delete: the same keys would point at other rows once the list reloads). */
+  clearSelection?: () => void };
 type Row = {
   element: ReactElement<any>;
   key: string;
@@ -1237,7 +1239,7 @@ export default function AdvancedDataGrid({
   // Refreshed after every render so the page always calls the export over the current rows.
   useLayoutEffect(() => {
     if (!exportActionsRef) return;
-    exportActionsRef.current = { exportExcel, exportCsv };
+    exportActionsRef.current = { exportExcel, exportCsv, clearSelection };
   });
   useLayoutEffect(() => {
     if (!exportActionsRef) return;

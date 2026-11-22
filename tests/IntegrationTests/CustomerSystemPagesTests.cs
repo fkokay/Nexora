@@ -45,8 +45,15 @@ public sealed class CustomerSystemPagesTests
             Assert.Equal(("Cari", false, false), (op.Module, op.Deprecated, op.RequiresTenantAdmin));
             Assert.Null(ErpOperationCatalog.ParameterShapeError(op));
         }
-        Assert.Equal(Operations.Order(StringComparer.Ordinal), ErpOperationCatalog.All.Where(x => x.Name.StartsWith("cari.", StringComparison.Ordinal))
+        Assert.Equal(Operations.Append("cari.sil").Order(StringComparer.Ordinal), ErpOperationCatalog.All.Where(x => x.Name.StartsWith("cari.", StringComparison.Ordinal))
             .Select(x => x.Name).Order(StringComparer.Ordinal));
+        // Sil: only a TenantAdmin, the card route with its id, no source record and no result (204).
+        var delete = Op("cari.sil");
+        Assert.Equal(("Cari", "delete", "DELETE", "/api/customers/{id}", true), (delete.Module, delete.PageKind, delete.Method, delete.Route, delete.RequiresTenantAdmin));
+        Assert.Equal(new[] { "id" }, delete.Parameters.Select(x => x.Name));
+        Assert.Null(delete.SourceOperation);
+        Assert.Equal("none", delete.Result.Shape);
+        Assert.Null(ErpOperationCatalog.ParameterShapeError(delete));
 
         var list = Op("cari.listele");
         Assert.Equal(("GET", "/api/customers", "items"), (list.Method, list.Route, list.Result.RowsPath));

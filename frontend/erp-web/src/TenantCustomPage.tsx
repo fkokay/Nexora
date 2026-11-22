@@ -18,7 +18,7 @@ import { assignmentsValid, resolveAssignments } from "./custom-page/setInputActi
 import { toIsoDateTime, toLocalInputText } from "./custom-page/dateTimeInput";
 import { LookupInput, lookupCandidates, lookupOptions, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
-import { runWriteAction } from "./custom-page/writeAction";
+import { blockedInPreview, PREVIEW_ERP_WRITE_BLOCKED, PREVIEW_WRITE_WARNING, runWriteAction } from "./custom-page/writeAction";
 import { conditionHolds } from "./custom-page/conditions";
 import { applyTyping, boundInputNames, inputRules, validateInputValue, VALIDATION_BLOCKED } from "./custom-page/inputValidation";
 import { boundTab, PageTabs } from "./custom-page/PageTabs";
@@ -167,6 +167,11 @@ type PageRuntime = {
   buttonAction: (button: ComponentDefinition) => ButtonAction | null;
   /** Satır işlemi: satırı seçer, düğmeyi o satırın bindirmesiyle çalıştırır. */
   runRowAction: (table: ComponentDefinition, button: ComponentDefinition, row: Record<string, unknown>, opener: HTMLElement | null) => void;
+  /**
+   * Toplu silme (`dataTable.bulkDeleteQuery`): tek onaydan sonra silme sorgusu satır başına (satır `<tablo>.seciliSatir`)
+   * sırayla çalışır, özet listenin durum satırında gösterilir ve yükleme sorguları yenilenir. Silme çalıştıysa true.
+   */
+  bulkDelete: (table: ComponentDefinition, query: PageQueryDefinition, rows: Record<string, unknown>[]) => Promise<boolean>;
   tableStatus: Record<string, ActionStatus | null>;
   /** Düzenlenebilir tablonun ve özel alanlar bloğunun çizim verisi (kimlik/ad, durum, iletiler, geri çağrılar). */
   gridFor: (grid: ComponentDefinition) => GridView;
@@ -1120,6 +1125,13 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           }];
         }) : [];
         const limit = tableLimit(props.limit);
+        // `bulkDeleteQuery`: ızgaranın işaretli satırları için "Seçilenleri sil"; tek silme gibi sayfanın silme hakkını ve işlemin
+        // katalog iznini ister (yoksa nedeniyle pasif).
+        const bulkQuery = tableName && typeof props.bulkDeleteQuery === "string" ? runtime.queryById[props.bulkDeleteQuery.trim()] : undefined;
+        const bulkDelete = bulkQuery && bulkQuery.kind === "delete" ? {
+          disabledReason: runtime.rights.delete !== true || !runtime.queryAllowed(bulkQuery.id) ? NO_OPERATION_RIGHT : null,
+          run: (rows: Record<string, unknown>[]) => runtime.bulkDelete(component, bulkQuery, rows),
+        } : undefined;
         // `rowOpenAction`: satıra çift tıklama / Enter o düğmeyi satır işlemi olarak çalıştırır (İşlem Çubuğu Aç'ın önüne geçer).
         const openButton = tableName && typeof props.rowOpenAction === "string" ? runtime.buttonById[props.rowOpenAction.trim()] : undefined;
         const openAction = openButton ? runtime.buttonAction(openButton) : null;
@@ -1128,7 +1140,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
-          rowActions={rowActions} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
+          rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
           valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
@@ -2732,6 +2744,41 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       void queryWriteRef.current(action.query, props, overlay, onStatus, () => undefined);
     });
   };
+  const bulkDelete = async (table: ComponentDefinition, query: PageQueryDefinition, rows: Record<string, unknown>[]): Promise<boolean> => {
+    const tableName = table.name;
+    const onStatus = (status: ActionStatus | null) => setTableStatus((previous) => ({ ...previous, [table.id]: status }));
+    if (!tableName || rows.length === 0 || query.kind !== "delete" || rights.delete !== true || !runtimeQueryAllowed(query.id)) return false;
+    // ERP işlemi önizlemede yazılmaz (tek silmeyle aynı ileti); SQL sorgusu önizlemede uyarıyla sorulur.
+    if (blockedInPreview(isPreview, [query])) { onStatus({ tone: "error", text: PREVIEW_ERP_WRITE_BLOCKED }); return false; }
+    if (writeLock.current) { onStatus({ tone: "warning", text: WRITE_BUSY }); return false; }
+    writeLock.current = true;
+    try {
+      const confirmed = await confirmDialog({
+        title: "Seçilen kayıtlar silinsin mi?", message: [`${rows.length} kayıt silinsin mi?`, isPreview ? PREVIEW_WRITE_WARNING : ""].filter(Boolean).join(" "),
+        confirmLabel: "Sil", cancelLabel: "Vazgeç", tone: "danger",
+      });
+      if (!confirmed) return false;
+      onStatus(null);
+      let deleted = 0;
+      const failures: string[] = [];
+      // Sırayla: her satır kendi bindirmesiyle çözülür; bir satırın hatası diğerlerini durdurmaz.
+      for (const row of rows) {
+        try {
+          await writeWith(query, resolveQueryParameters(query, mergeOverlay(currentScope(), { [tableName]: { seciliSatir: row } })), isPreview);
+          deleted += 1;
+        } catch (cause) {
+          failures.push(writeErrorText("", cause));
+        }
+      }
+      const reasons = [...new Set(failures)];
+      onStatus(failures.length === 0 ? { tone: "success", text: `${deleted} kayıt silindi.` }
+        : { tone: deleted > 0 ? "warning" : "error", text: `${deleted} silindi, ${failures.length} silinemedi: ${reasons.join("; ")}` });
+      rerun(loadIds);
+      return true;
+    } finally {
+      writeLock.current = false;
+    }
+  };
 
   // ---- Düzenlenebilir tablolar ve özel alan blokları ----
   const gridByName = useMemo(() => Object.fromEntries(gridComponents.map((grid) => [grid.name!, grid])), [gridComponents]);
@@ -3040,7 +3087,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     dialogs, openDialog, closeDialog, saveDialog, dialogStatus, dialogBusy, dialogOpener: (id) => dialogOpeners.current[id] ?? null,
     dialogOwned, rowOwned, headerOwned, buttonById, applyAssignments,
     buttonAction: (button) => buttonActionOf(button.props ?? {}, queryById, dialogIds, inputIds),
-    runRowAction, tableStatus, tabKey,
+    runRowAction, bulkDelete, tableStatus, tabKey,
     gridFor, blockFor, cardChanges, componentErrorIds, requestCloseDialog, isDirty, startNew,
     queryAllowed: runtimeQueryAllowed,
     formDialog: formDialogId ? {

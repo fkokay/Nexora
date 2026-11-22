@@ -48,3 +48,20 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     }
   });
 });
+
+describe("Toplu silme (bulkDeleteQuery) tasarımcıda", () => {
+  const standard = JSON.parse(customersJson) as Standard;
+  const listeOf = (definition: Standard["definition"]) => definition.components.find((component) => component.id === "liste")!;
+  const reconcileWith = (queries: Standard["definition"]["queries"]) => reconcileDefinition(
+    { schemaVersion: 2, queries, components: structuredClone(standard.definition.components) } as never, { catalog: { status: "loading" }, queryEditable: true }) as unknown as Standard["definition"];
+  it("Cari Hesaplar listesi silme sorgusuna bağlıdır ve uzlaştırmada korunur", () => {
+    expect(listeOf(standard.definition).props.bulkDeleteQuery).toBe("kartSil");
+    expect(listeOf(reconcileWith(standard.definition.queries)).props.bulkDeleteQuery).toBe("kartSil");
+  });
+  it("sorgu silinince ya da silme türünden çıkınca bağ kalkar", () => {
+    const removed = reconcileWith(standard.definition.queries.filter((query) => query.id !== "kartSil"));
+    expect(listeOf(removed).props).not.toHaveProperty("bulkDeleteQuery");
+    const asUpdate = reconcileWith(standard.definition.queries.map((query) => query.id === "kartSil" ? { ...query, kind: "update" } : query));
+    expect(listeOf(asUpdate).props).not.toHaveProperty("bulkDeleteQuery");
+  });
+});
