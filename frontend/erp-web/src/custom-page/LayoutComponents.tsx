@@ -30,6 +30,7 @@ export function chipText(raw: unknown, inputType: string, options?: Option[]): s
   if (raw === true) return "Evet";
   const text = String(raw);
   if (inputType === "date") return formatCell(text, "date");
+  if (inputType === "datetime") return formatCell(text, "datetime");
   if (inputType === "select") return options?.find((option) => option.value === text)?.label ?? text;
   return text;
 }

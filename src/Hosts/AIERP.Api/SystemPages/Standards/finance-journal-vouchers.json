@@ -1,0 +1,316 @@
+{
+  "screenKey": "finance-journal-vouchers",
+  "title": "Yevmiye Fişi",
+  "description": "Manuel yevmiye fişi girişi: belge bilgileri, hesap seçicili satırlar, borç/alacak toplamı ve denge göstergesi.",
+  "module": "Genel Muhasebe",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:sonFislerDugmesi",
+        "query:fisKaydet"
+      ]
+    },
+    "component:sonFislerDugmesi": {
+      "since": 1,
+      "label": "Son fişler komutu"
+    },
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık"
+    },
+    "component:kilitUyarisi": {
+      "since": 1,
+      "label": "Yönetici olmayan kullanıcı kilidi"
+    },
+    "component:durumNotu": {
+      "since": 1,
+      "label": "Durum satırı",
+      "requires": [
+        "component:fisSatirlari"
+      ]
+    },
+    "component:belgeKarti": {
+      "since": 1,
+      "label": "Belge bilgileri",
+      "requires": [
+        "component:fisTarihi",
+        "component:standart",
+        "component:aciklama"
+      ]
+    },
+    "component:fisTarihi": {
+      "since": 1,
+      "label": "Alan: Fiş tarihi"
+    },
+    "component:standart": {
+      "since": 1,
+      "label": "Alan: Muhasebe standardı"
+    },
+    "component:aciklama": {
+      "since": 1,
+      "label": "Alan: Açıklama"
+    },
+    "component:fisSatirlari": {
+      "since": 1,
+      "label": "Fiş satırları",
+      "requires": [
+        "query:hesaplar"
+      ]
+    },
+    "component:dengeliEtiketi": {
+      "since": 1,
+      "label": "Denge: Dengeli",
+      "requires": [
+        "component:fisSatirlari"
+      ]
+    },
+    "component:dengesizEtiketi": {
+      "since": 1,
+      "label": "Denge: Dengede değil",
+      "requires": [
+        "component:fisSatirlari"
+      ]
+    },
+    "component:satirNotu": {
+      "since": 1,
+      "label": "Satır notu",
+      "requires": [
+        "query:hesaplar"
+      ]
+    },
+    "query:hesaplar": {
+      "since": 1,
+      "label": "Muhasebe hesapları (hesap seçici)"
+    },
+    "query:fisKaydet": {
+      "since": 1,
+      "label": "Yevmiye fişini kaydet",
+      "requires": [
+        "component:fisTarihi",
+        "component:standart",
+        "component:aciklama",
+        "component:fisSatirlari"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "saveQuery": "fisKaydet",
+          "afterSaveAction": "page",
+          "afterSavePageCode": "@finance-journal-ledger",
+          "afterSaveTarget": "sameTab",
+          "newAction": "page",
+          "newPageCode": "@finance-journal-vouchers",
+          "newTarget": "sameTab",
+          "moreButtons": [
+            "sonFislerDugmesi"
+          ],
+          "commandWhen": [
+            "save=kullanici.rol == 'TenantAdmin'"
+          ],
+          "hiddenCommands": [
+            "open",
+            "delete",
+            "print",
+            "export"
+          ]
+        }
+      },
+      {
+        "id": "sonFislerDugmesi",
+        "type": "button",
+        "name": "sonFislerDugmesi",
+        "props": {
+          "text": "Son fişler",
+          "actionType": "page",
+          "pageCode": "@finance-journal-ledger",
+          "target": "sameTab"
+        }
+      },
+      {
+        "id": "baslik",
+        "type": "heading",
+        "name": "baslik",
+        "props": {
+          "text": "Yeni yevmiye fişi",
+          "pageTitle": true
+        }
+      },
+      {
+        "id": "kilitUyarisi",
+        "type": "alert",
+        "name": "kilitUyarisi",
+        "props": {
+          "title": "Yetki gerekli",
+          "variant": "warning",
+          "width": 12,
+          "text": "Yevmiye fişi kaydetmek için firma yöneticisi yetkisi gerekir.",
+          "visibleWhen": "kullanici.rol != 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "durumNotu",
+        "type": "text",
+        "name": "durumNotu",
+        "props": {
+          "text": "Kaydedilen fiş değiştirilemez; düzeltme ters kayıtla yapılır. Satır: {{fisSatirlari.satirSayisi}} / 100"
+        }
+      },
+      {
+        "id": "belgeKarti",
+        "type": "formCard",
+        "name": "belgeKarti",
+        "props": {
+          "title": "Belge bilgileri",
+          "columns": 3,
+          "inputs": [
+            "fisTarihi",
+            "standart",
+            "aciklama"
+          ]
+        }
+      },
+      {
+        "id": "fisTarihi",
+        "type": "input",
+        "name": "fisTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Fiş tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "standart",
+        "type": "input",
+        "name": "standart",
+        "props": {
+          "inputType": "select",
+          "label": "Muhasebe standardı",
+          "required": true,
+          "defaultValue": "TDHP",
+          "staticOptions": [
+            "TDHP=Türkiye · TDHP",
+            "IFRS=IFRS düzeltme fişi"
+          ]
+        }
+      },
+      {
+        "id": "aciklama",
+        "type": "input",
+        "name": "aciklama",
+        "props": {
+          "inputType": "text",
+          "label": "Açıklama",
+          "required": true,
+          "maxLength": 240
+        }
+      },
+      {
+        "id": "fisSatirlari",
+        "type": "editableGrid",
+        "name": "fisSatirlari",
+        "props": {
+          "gridMode": "list",
+          "title": "Satırlar",
+          "addLabel": "Satır ekle",
+          "maxRows": 100,
+          "minRows": 2,
+          "gridColumns": [
+            "accountId|Hesap|lookup:hesaplar:id:code:name|required",
+            "description|Satır açıklaması|text|maxLength:240",
+            "debit|Borç|number|min:0,step:0.01",
+            "credit|Alacak|number|min:0,step:0.01"
+          ],
+          "columnOptionsWhen": [
+            "accountId=satir.isActive == true"
+          ],
+          "totals": [
+            "debit",
+            "credit"
+          ],
+          "disabledWhen": "kullanici.rol != 'TenantAdmin'",
+          "disabledReason": "Yevmiye fişini firma yöneticisi kaydeder."
+        }
+      },
+      {
+        "id": "dengeliEtiketi",
+        "type": "badge",
+        "name": "dengeliEtiketi",
+        "props": {
+          "text": "Borç = Alacak ✓ Dengeli",
+          "variant": "success",
+          "visibleWhen": "fisSatirlari.toplam.debit == fisSatirlari.toplam.credit && fisSatirlari.toplam.debit > 0"
+        }
+      },
+      {
+        "id": "dengesizEtiketi",
+        "type": "badge",
+        "name": "dengesizEtiketi",
+        "props": {
+          "text": "Fiş dengede değil",
+          "variant": "warning",
+          "visibleWhen": "fisSatirlari.toplam.debit != fisSatirlari.toplam.credit"
+        }
+      },
+      {
+        "id": "satirNotu",
+        "type": "text",
+        "name": "satirNotu",
+        "props": {
+          "text": "Hesap seçicide yalnız aktif hesaplar listelenir. Bir satıra yalnız borç ya da alacak girin. Boş bırakılan satır açıklaması fiş açıklamasıyla doldurulur. Kapalı döneme fiş girilmez."
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "hesaplar",
+        "name": "hesaplar",
+        "kind": "read",
+        "operation": "finans.muhasebe.hesap.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "fisKaydet",
+        "name": "fisKaydet",
+        "kind": "insert",
+        "operation": "finans.fis.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "entryDate",
+            "binding": "{{fisTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "accountingBasis",
+            "binding": "{{standart.value}}",
+            "type": "text"
+          },
+          {
+            "name": "description",
+            "binding": "{{aciklama.value}}",
+            "type": "text"
+          },
+          {
+            "name": "lines",
+            "binding": "{{fisSatirlari.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
+    ]
+  }
+}

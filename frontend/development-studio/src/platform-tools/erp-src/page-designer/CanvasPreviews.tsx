@@ -428,8 +428,10 @@ const MATRIX_SAMPLE = [{ name: "Renk", values: "Kırmızı, Mavi" }, { name: "Be
 const variantCount = (rows: { values: string }[]) => rows.reduce((total, row) => total * row.values.split(",").filter((item) => item.trim() !== "").length, 1);
 
 /** Düzenlenebilir tablo: başlık satırı ve iki örnek satır; stage kipinde ikinci satır "Yeni", matrix kipinde varyant sayısı. */
-export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLabel, style, pickerSamples = {} }: {
+export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLabel, style, pickerSamples = {}, totals = [] }: {
   title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[]; fixedRowLabel: string; addLabel: string; style: CSSProperties;
+  /** Alt toplam sütunları (`totals`): tasarımda tablo boştur, toplam satırı yer tutucu gösterir. */
+  totals?: string[];
   /** Seçim sütunlarının örnek seçenekleri (sabit seçenekler ve sorgu önizlemesi, "etiket · açıklama"), sütun koduna göre. */
   pickerSamples?: Record<string, string[]>;
 }) {
@@ -448,6 +450,7 @@ export function EditableGridPreview({ title, mode, columns, fixedRowLabel, addLa
             <td>{mode === "stage" && row === 1 ? <span className="pd-tag tone-info">Yeni</span> : null}</td>
           </tr>)}
       </tbody>
+      {!matrix && totals.length > 0 && <tfoot><tr>{columns.map((column, index) => <td key={column.code}>{totals.includes(column.code) ? <b>Σ</b> : index === 0 ? <b>Toplam</b> : null}</td>)}<td /></tr></tfoot>}
     </table></div>
     <div className="custom-page-preview-card-head">
       <span className="custom-page-preview-row-action">+ {addLabel || "Satır ekle"}</span>

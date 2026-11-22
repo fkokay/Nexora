@@ -4,6 +4,7 @@ import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
+import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { bindingPath, displayText, interpolate, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -14,6 +15,7 @@ import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList,
 import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
 import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
 import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
+import { toIsoDateTime, toLocalInputText } from "./custom-page/dateTimeInput";
 import { LookupInput, lookupCandidates, lookupOptions, lookupOptionsWithValue, staticLookupOptions, type LookupOption } from "./custom-page/LookupInput";
 import { PagedTableFooter } from "./custom-page/PagedTableFooter";
 import { runWriteAction } from "./custom-page/writeAction";
@@ -34,6 +36,7 @@ import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
+import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, validateGrid, wireRow, MATRIX_MAX_ROWS,
@@ -211,6 +214,8 @@ type GridView = {
   id: string; mode: GridMode; columns: GridColumn[]; state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string;
   dispatch: (action: GridAction) => void; errors: Record<string, Record<string, string>>; maxRows: number; loading: boolean; error?: string;
   matrixPreviewCount?: number;
+  /** Sütun toplamları (`totals`; yoksa boş). */
+  totals: Record<string, number>;
   pickerFor: (column: GridColumn, draft: GridDraft) => GridPicker;
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
 };
@@ -356,6 +361,8 @@ const scopeInputValue = (inputType: string, raw: InputRaw): unknown => {
   if (inputType === "checkbox") return raw === true;
   if (typeof raw !== "string") return null;
   if (inputType === "number") { const parsed = raw.trim() === "" ? Number.NaN : Number(raw); return Number.isFinite(parsed) ? parsed : null; }
+  // Tarih + saat: yerel ham metin (veya kaynaktan gelen ISO) UTC ISO 8601'e; boş/geçersiz → null.
+  if (inputType === "datetime") return toIsoDateTime(raw);
   return raw;
 };
 
@@ -594,12 +601,12 @@ export function PageBadge({ text, variant, toneMap, style }: { text: string; var
 }
 
 /**
- * Yazma hatasının metni. 400/403 yanıtlarında sunucunun nedeni her zaman gösterilir: yapılandırılmış hata mesajı varsa
- * "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
+ * Yazma hatasının metni. 400/403/409 yanıtlarında sunucunun nedeni (ProblemDetails `detail`/`title`) her zaman gösterilir:
+ * yapılandırılmış hata mesajı varsa "{mesaj} ({sunucu})" biçiminde, yoksa yalnız sunucu mesajı.
  */
 function writeErrorText(configured: string, cause: unknown): string {
   const failure = cause as Error & { status?: number; serverError?: string };
-  const server = failure.status === 400 || failure.status === 403 ? (failure.serverError || failure.message || "").trim() : "";
+  const server = failure.status === 400 || failure.status === 403 || failure.status === 409 ? (failure.serverError || failure.message || "").trim() : "";
   if (configured) return server ? `${configured} (${server})` : configured;
   return failure.serverError || failure.message || "İşlem tamamlanamadı.";
 }
@@ -836,11 +843,13 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       {orphan && <option value={current}>{current}</option>}
     </select>;
   } else {
-    const htmlType = inputType === "number" || inputType === "date" ? inputType : "text";
+    const htmlType = inputType === "number" || inputType === "date" ? inputType : inputType === "datetime" ? "datetime-local" : "text";
+    // Tarih + saat girişi kaynaktan gelen ISO değeri yerel saatle gösterir; ham değer kullanıcı değiştirene kadar ISO kalır.
+    const shown = typeof raw !== "string" ? "" : inputType === "datetime" ? toLocalInputText(raw) : raw;
     control = <input {...common} type={htmlType} disabled={disabled}
       step={inputType === "number" ? rules.step ?? "any" : undefined} min={limit(rules.min)} max={limit(rules.max)}
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
-      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
+      placeholder={textValue(props.placeholder)} value={shown} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
   let field = <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>;
   if (inline && inputType === "checkbox") {
@@ -1007,7 +1016,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {
         const path = bindingPath(rawValue.trim());
         const resolved = path ? resolvePath(runtime.scope, path) : value;
-        const format = props.format === "number" || props.format === "money" ? props.format : "text";
+        const format = props.format === "number" || props.format === "money" || props.format === "date" || props.format === "datetime" ? props.format : "text";
         return <MetricCard key={component.id} title={title || text || "Gösterge"} description={description} style={style} {...card}
           value={<strong>{formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format)}</strong>} />;
       }
@@ -1199,6 +1208,8 @@ type GridSpec = {
   minRows?: number;
   /** Seçim sütunlarının sabit ilk seçenekleri (`columnStaticOptions`, "değer=Etiket") ve seçenek koşulları (`columnOptionsWhen`). */
   staticOptions: Record<string, string[]>; optionsWhen: Record<string, string>;
+  /** Toplamı alınan `number` sütunları (`totals`). */
+  totals: string[];
 };
 /**
  * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), en az satır, satır anahtarı, kaynak
@@ -1208,12 +1219,14 @@ const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   const props = grid.props ?? {};
   const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
   const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 200 ? props.maxRows : 50;
+  const columns = mode === "matrix" ? [] : parseGridColumns(props.gridColumns);
   return {
-    name: grid.name ?? "", mode, columns: mode === "matrix" ? [] : parseGridColumns(props.gridColumns), maxRows,
+    name: grid.name ?? "", mode, columns, maxRows,
     rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
     ...(typeof props.minRows === "number" && Number.isInteger(props.minRows) && props.minRows >= 0 && props.minRows <= 100 ? { minRows: props.minRows } : {}),
     staticOptions: parseColumnEntries(props.columnStaticOptions),
     optionsWhen: Object.fromEntries(Object.entries(parseColumnEntries(props.columnOptionsWhen)).map(([code, conditions]) => [code, conditions[conditions.length - 1]])),
+    totals: parseGridTotals(props.totals, columns, mode),
   };
 };
 /** Satır kapsamlı okuma: bir parametresi `{{<tablo>.satir.<sütun>}}` bağlıyorsa o tablonun adı (yoksa null). */
@@ -1843,7 +1856,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const spec = gridSpecOf(grid);
       const matrix = spec.mode === "matrix"
         ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
-      scope[spec.name] = { ...gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix), arama: gridSearchText(spec) };
+      const view = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
+      scope[spec.name] = { ...view, arama: gridSearchText(spec), ...(spec.totals.length > 0 ? { toplam: gridColumnTotals(spec.totals, view.satirlar) } : {}) };
     }
     for (const block of blockComponents) {
       const data = blockData(block, states);
@@ -2821,6 +2835,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
       loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
+      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, state, sourceRows, spec.rowKey).satirlar) : {},
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -2944,6 +2959,29 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     pendingOpen.current = false;
     void openCommand.current?.();
   }, [openSignal]);
+  // dataTable `openParam`: sayfa parametresiyle gelen kaydın satır açma düğmesi, liste sorgusu yanıt verdikten sonra bir kez
+  // çalışır. Sekmeye aynı parametrelerle yeniden gelinirse (gövde yeniden kurulmaz) gezinme olayı kaydı yeniden açar.
+  const paramOpens = useMemo(() => (isV2 ? openParamTargets(flat, pageParams) : []), [isV2, flat, pageParams]);
+  const [paramOpenRound, setParamOpenRound] = useState(() => (paramOpens.length > 0 ? 1 : 0));
+  const paramOpenDone = useRef(0);
+  useEffect(() => {
+    if (paramOpenRound === 0 || paramOpenDone.current === paramOpenRound) return;
+    const stateOf = (table: ComponentDefinition) => typeof table.props?.query === "string" ? states[queryNames[table.props.query]] : undefined;
+    if (paramOpens.some(({ table }) => stateOf(table)?.loading)) return;
+    paramOpenDone.current = paramOpenRound;
+    for (const { table, button, value } of paramOpens) {
+      if (buttonById[button]) runRowAction(table, buttonById[button], openParamRow(stateOf(table)?.rows, value), null);
+    }
+  });
+  useEffect(() => {
+    if (paramOpens.length === 0) return;
+    const onOpen = (event: Event) => {
+      const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
+      if (request?.page === tabKey && !request.legacy && request.params && sameOpenRequest(request.params, pageParams)) setParamOpenRound((round) => round + 1);
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, [paramOpens, tabKey, pageParams]);
   /** Kayıt kartlarının girişleri kaynak değerlerine döner (İşlem Çubuğu Yeni düğmesi ve `afterSaveButton`). */
   const clearRecordInputs = () => {
     const owned = formCards.filter((card) => textValue(card.props?.recordKey).trim() !== "").flatMap((card) => idList(card.props?.inputs));

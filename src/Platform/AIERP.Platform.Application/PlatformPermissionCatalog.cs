@@ -165,6 +165,15 @@ public static class PlatformPermissionCatalog
             resource = Resources.First(x => x.ResourceType == "erp.purchase-invoices");
             explicitCreateAction = true;
         }
+        else if (method.Equals("GET", StringComparison.OrdinalIgnoreCase)
+            && path.StartsWith("/api/purchasing/receipts/", StringComparison.OrdinalIgnoreCase)
+            && normalizedRoute.Equals("/api/purchasing/receipts/{id:guid}/invoice-preview", StringComparison.OrdinalIgnoreCase))
+        {
+            // The invoice preview of a receipt is governed by the same permission as saving that invoice
+            // (POST /api/purchasing/receipts/{id}/invoice resolves to erp.purchase-receipts.create).
+            resource = Resources.First(x => x.ResourceType == "erp.purchase-receipts");
+            explicitCreateAction = true;
+        }
         else if (path.TrimEnd('/').Equals("/api/purchasing/standalone-invoices/suppliers", StringComparison.OrdinalIgnoreCase)
             && normalizedRoute.Equals("/api/purchasing/standalone-invoices/suppliers", StringComparison.OrdinalIgnoreCase)
             && method.Equals("GET", StringComparison.OrdinalIgnoreCase))

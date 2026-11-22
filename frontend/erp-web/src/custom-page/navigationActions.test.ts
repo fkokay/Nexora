@@ -34,6 +34,15 @@ describe('navigationTarget', () => {
       .toEqual({ kind: 'workspace', page: 'inventory-stock', params: {}, replace: true });
   });
 
+  it('erpPage legacyScreen asks for the built-in screen; other values and actions do not', () => {
+    expect(navigationTarget({ actionType: 'erpPage', pageKey: 'sales-orders', params: ['orderId=o1'], legacyScreen: true }, scope))
+      .toEqual({ kind: 'workspace', page: 'sales-orders', params: { orderId: 'o1' }, replace: true, legacy: true });
+    expect(navigationTarget({ actionType: 'erpPage', pageKey: 'sales-orders', legacyScreen: 'true' }, scope))
+      .toEqual({ kind: 'workspace', page: 'sales-orders', params: {}, replace: true });
+    expect(navigationTarget({ actionType: 'page', pageCode: '@sales-orders', legacyScreen: true }, scope))
+      .toEqual({ kind: 'workspace', page: 'sales-orders', params: {}, replace: true });
+  });
+
   it('returns null for invalid targets', () => {
     expect(navigationTarget({ actionType: 'link', href: 'javascript:alert(1)' }, scope)).toBeNull();
     expect(navigationTarget({ actionType: 'erpPage', pageKey: 'Bad Key' }, scope)).toBeNull();

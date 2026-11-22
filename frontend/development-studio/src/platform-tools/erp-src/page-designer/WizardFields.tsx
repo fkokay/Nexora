@@ -14,7 +14,7 @@ import {
 // Seçim → ayrıntı ekranlarının müfettiş alanları: Adımlar, Kayıt özeti, "Alana değer ata" atamaları ve "Satır açılınca".
 
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown> };
-const FORMAT_LABELS: Record<HeaderFieldFormat, string> = { number: "Sayı", money: "Para", date: "Tarih", text: "Metin" };
+const FORMAT_LABELS: Record<HeaderFieldFormat, string> = { number: "Sayı", money: "Para", date: "Tarih", datetime: "Tarih ve saat", text: "Metin" };
 
 /** Adımlar: etiket ve etkinlik koşulu satırları (2–6). Etkin adım, koşulu tutan son adımdır; hiçbiri tutmuyorsa ilk adım. */
 export function StepsFields({ props, pageNames, disabled, onPatch }: {
@@ -113,12 +113,16 @@ export function RecordHeaderFields({ props, suggestions, buttons, owners, disabl
   </>;
 }
 
+/** dataTable `openParam`: sayfa parametresi adı (sunucu: `^[a-z][a-zA-Z0-9]{0,31}$`, yalnız `rowOpenAction` ile). */
+export const OPEN_PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
+
 /** Listenin "Satır açılınca" düğmesi: Enter ya da çift tıklamada tıklanan satırla çalışır; İşlem Çubuğu'nun Aç'ından önce gelir. */
 export function RowOpenActionField({ table, components, labelOf, disabled, onPatch }: {
   table: Component; components: Component[]; labelOf: (component: Component) => string; disabled?: boolean;
-  onPatch: (patch: { rowOpenAction?: string }) => void;
+  onPatch: (patch: { rowOpenAction?: string; openParam?: string }) => void;
 }) {
   const value = typeof table.props.rowOpenAction === "string" ? table.props.rowOpenAction : "";
+  const openParam = typeof table.props.openParam === "string" ? table.props.openParam : "";
   const buttons = components.filter((component) => component.type === "button");
   const eligible = buttons.filter((component) => ROW_OPEN_ACTION_TYPES.includes(String(component.props.actionType ?? "")));
   const current = buttons.find((component) => component.id === value);
@@ -126,7 +130,7 @@ export function RowOpenActionField({ table, components, labelOf, disabled, onPat
   // Başka sahibi olan düğme (sekme, pencere, başka listenin satır işlemi, özet, İşlem Çubuğu menüsü) seçilemez; bu listenin satır işlemi olabilir.
   const owners = rowActionOwners(components, table.id, labelOf);
   return <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır açılınca</span>
-    <select value={value} disabled={disabled || !named} aria-label="Satır açılınca çalışan düğme" onChange={(event) => onPatch({ rowOpenAction: event.target.value || undefined })}>
+    <select value={value} disabled={disabled || !named} aria-label="Satır açılınca çalışan düğme" onChange={(event) => onPatch(event.target.value ? { rowOpenAction: event.target.value } : { rowOpenAction: undefined, openParam: undefined })}>
       <option value="">Yok (İşlem Çubuğu “Aç” komutu)</option>
       {eligible.map((item) => <option key={item.id} value={item.id} disabled={!!owners[item.id] && item.id !== value}>{labelOf(item)}{item.name ? ` (${item.name})` : ""}{owners[item.id] ? ` — ${owners[item.id]}` : ""}</option>)}
       {value && !eligible.includes(current!) && <option value={value}>{current ? labelOf(current) : value} (uygun değil)</option>}
@@ -135,5 +139,13 @@ export function RowOpenActionField({ table, components, labelOf, disabled, onPat
       Uygun düğmeler: alana değer ata, sorgu, pencere aç ve gezinme.</small>
     {!named && <small className="pd-query-warning">“Satır açılınca” için listeye bir Ad verin.</small>}
     {value && (!current || !eligible.includes(current)) && <small className="pd-query-warning">Satır açılınca çalışan düğme alana değer ata, sorgu, pencere aç ya da gezinme düğmesi olmalıdır.</small>}
+    <label className="pd-field">Sayfa parametresiyle aç
+      <input value={openParam} maxLength={32} placeholder="ör. orderId" aria-label="Sayfa parametresiyle aç" disabled={disabled || (!value && !openParam)}
+        onChange={(event) => onPatch({ openParam: event.target.value.replace(/[^a-zA-Z0-9]/g, "") || undefined })}/>
+      <small>Sayfa bu parametreyle açılınca (<code>{`{{sayfa.parametre.${openParam || "<ad>"}}}`}</code>) liste o kimliği (<code>id</code>) seçer ve “Satır açılınca” düğmesini bir kez çalıştırır.
+        Satır yüklü değilse seçimde yalnız <code>id</code> bulunur; açılan pencere kaydı kendi sorgusundan okumalıdır.</small>
+      {openParam && !value && <small className="pd-query-warning">“Sayfa parametresiyle aç” için önce “Satır açılınca” düğmesi seçin.</small>}
+      {openParam && !OPEN_PARAM_NAME.test(openParam) && <small className="pd-query-warning">Parametre adı küçük harfle başlamalı, en fazla 32 harf/rakam olmalıdır.</small>}
+    </label>
   </div>;
 }

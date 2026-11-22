@@ -295,7 +295,13 @@ public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, stri
     decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal, DateTimeOffset CreatedAt, IReadOnlyList<SalesQuoteLineView> Lines,
     bool HasSalesOrder = false, IReadOnlyList<SalesQuoteCustomFieldValueView>? CustomFields = null,
     Guid? RevisionGroupId = null, int RevisionNumber = 1, string? DeliveryTerms = null, Guid? SalespersonEmployeeId = null,
-    string? CustomerCode = null, Guid? SalesRequestId = null, string? SalesRequestCode = null);
+    string? CustomerCode = null, Guid? SalesRequestId = null, string? SalesRequestCode = null)
+{
+    /// <summary>Single-quote read only (not constructor members, so the older contract keeps its shape): "PER001 · Ad Soyad".</summary>
+    public string? SalespersonName { get; init; }
+    public Guid? SalesOrderId { get; init; }
+    public string? SalesOrderCode { get; init; }
+}
 public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
     bool HasSalesOrder = false, Guid? RevisionGroupId = null, int RevisionNumber = 1, string? CustomerCode = null,
@@ -303,7 +309,13 @@ public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, s
 public sealed record SalesQuoteRevisionSummary(Guid Id, string Code, int RevisionNumber, SalesQuoteStatus Status,
     DateOnly QuoteDate, DateOnly ValidUntil, decimal GrandTotal, string CurrencyCode, DateTimeOffset CreatedAt,
     bool HasSalesOrder);
-public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesQuotePage(IReadOnlyList<SalesQuoteSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items (every status).
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Items, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Items, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Items, x => x.CurrencyCode);
+}
 public sealed record SalesOrderSummary(Guid Id, string Code, Guid? QuoteId, string QuoteCode, Guid CustomerId,
     string CustomerName, DateOnly OrderDate, string CurrencyCode, SalesOrderStatus Status, decimal GrandTotal,
     int LineCount, DateTimeOffset CreatedAt, DateOnly? RequestedDeliveryDate = null, Guid? SalespersonEmployeeId = null);
@@ -333,7 +345,14 @@ public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string
     string? EnteredCurrencyCode = null, decimal? EnteredUnitPrice = null, string? EnteredUnitCode = null,
     bool IsVatIncluded = false,
     decimal ExchangeRateToOrderCurrency = 1m);
-public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items, cancelled orders excluded.
+    private IEnumerable<SalesOrderSummary> Counted => Items.Where(x => x.Status != SalesOrderStatus.Cancelled);
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Counted, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Counted, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Counted, x => x.CurrencyCode);
+}
 public sealed record SalesOrderReservationWriteRequest(Guid RequestId, Guid WarehouseId);
 public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Confirmation);
 public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int OrderLineNumber, Guid WarehouseId,
@@ -455,7 +474,36 @@ public static class SalesInvoiceNotesValidation
         ? new Dictionary<string, string[]> { ["notes"] = [$"Fatura notu en fazla {MaxLength} karakter olabilir."] }
         : null;
 }
-public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
+public sealed record SalesInvoicePage(IReadOnlyList<SalesInvoiceSummary> Items, int Page, int PageSize, int TotalCount)
+{
+    // "Bu sayfa" summary of the returned items, posted (Kesildi) invoices only.
+    private IEnumerable<SalesInvoiceSummary> Counted => Items.Where(x => x.Status == SalesInvoiceStatus.Posted);
+    public decimal? PageGrandTotal => SalesPageSummary.Total(Counted, x => x.CurrencyCode, x => x.GrandTotal);
+    public string? PageCurrencyCode => SalesPageSummary.Currency(Counted, x => x.CurrencyCode);
+    public bool PageMixedCurrencies => SalesPageSummary.Mixed(Counted, x => x.CurrencyCode);
+    public int PagePostedCount => Counted.Count();
+}
+/// <summary>
+/// Page summaries of the sales lists ("bu sayfa", as the legacy summary cards): a total is given only when every counted
+/// row has the same currency; mixed currencies or no counted row give null.
+/// </summary>
+public static class SalesPageSummary
+{
+    public static decimal? Total<T>(IEnumerable<T> rows, Func<T, string> currency, Func<T, decimal> amount)
+    {
+        var list = rows.ToList();
+        return Currency(list, currency) is null ? null : list.Sum(amount);
+    }
+
+    public static string? Currency<T>(IEnumerable<T> rows, Func<T, string> currency)
+    {
+        var codes = rows.Select(currency).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToList();
+        return codes.Count == 1 ? codes[0] : null;
+    }
+
+    public static bool Mixed<T>(IEnumerable<T> rows, Func<T, string> currency) =>
+        rows.Select(currency).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any();
+}
 public sealed record StandaloneSalesInvoiceWriteRequest(Guid RequestId, Guid CustomerId, Guid WarehouseId, DateOnly InvoiceDate, IReadOnlyList<SalesQuoteLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale, string? Notes = null);
 public sealed record CustomerCollectionWriteRequest(Guid RequestId, DateOnly CollectionDate, decimal Amount, string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
 public sealed record CustomerCollectionSummary(Guid Id, string Code, Guid CustomerId, string CustomerName,
@@ -541,13 +589,22 @@ public sealed record LedgerAccountWriteRequest(string Code, string Name, bool Is
     string? IfrsAccountCode = null, string? IfrsAccountName = null, string? IfrsStatementSection = null);
 public sealed record LedgerAccountView(Guid Id, string Code, string Name, bool IsActive, string StatementSection, bool HasMovements = false,
     string AccountType = "Unclassified", string NormalBalance = "Both", string? CurrencyCode = null,
-    string? IfrsAccountCode = null, string? IfrsAccountName = null, string IfrsStatementSection = "Unclassified");
+    string? IfrsAccountCode = null, string? IfrsAccountName = null, string IfrsStatementSection = "Unclassified")
+{
+    /// <summary>Tek Düzen hesap sınıfı (kodun ilk karakteri, 1–9) for the class filter; outside the constructor, so only the finans.* operations declare it.</summary>
+    public string AccountClass => LedgerAccountRules.AccountClass(Code);
+}
 public sealed record AccountingRuleProfileWriteRequest(string ProfileCode, string Name, string JurisdictionCode,
     string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
     DateOnly? EffectiveTo, string ParametersJson, string? OfficialSourceUrl = null, bool IsActive = true);
 public sealed record AccountingRuleProfileView(Guid Id, string ProfileCode, string Name, string JurisdictionCode,
     string ReportingStandard, string BaseCurrencyCode, int FiscalYearStartMonth, DateOnly EffectiveFrom,
-    DateOnly? EffectiveTo, string ParametersJson, string OfficialSourceUrl, bool IsActive, DateTimeOffset UpdatedAt);
+    DateOnly? EffectiveTo, string ParametersJson, string OfficialSourceUrl, bool IsActive, DateTimeOffset UpdatedAt)
+{
+    // Display members outside the constructor: only satinalma.faturaGirisi.mevzuatProfilleri declares them.
+    public bool HasTaxRules => PurchasingDisplay.HasTaxRules(ParametersJson);
+    public bool IsDefaultForDocuments => PurchasingDisplay.IsDefaultForDocuments(ParametersJson);
+}
 public sealed record AccountingTaxPreviewRequest(decimal TaxableAmount, DateOnly DocumentDate, string OperationType = "Sales");
 public sealed record AccountingTaxPreviewLine(string Code, string Name, decimal Rate, string Treatment,
     string CalculationBase, decimal TaxableAmount, decimal Amount);
@@ -568,10 +625,37 @@ public sealed record LedgerMappingView(string MappingKey, string Label, Guid? Ac
 public sealed record JournalEntryLineView(int LineNumber, Guid AccountId, string AccountCode, string AccountName,
     string Description, decimal Debit, decimal Credit);
 public sealed record JournalEntryView(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType,
-    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false, string AccountingBasis = "TDHP");
+    Guid SourceId, DateTimeOffset CreatedAt, decimal TotalDebit, decimal TotalCredit, IReadOnlyList<JournalEntryLineView> Lines, bool IsReversed = false, string AccountingBasis = "TDHP")
+{
+    // Members outside the constructor: the reversal rule stays in JournalReversalRules (shared with the reverse handler).
+    public bool IsSourced => JournalReversalRules.IsSourced(SourceType);
+    public bool IsReversal => JournalReversalRules.IsReversal(SourceType);
+    public bool CanReverse => JournalReversalRules.CanReverse(SourceType, IsReversed);
+    public string SourceLabel => JournalReversalRules.SourceLabel(SourceType);
+    /// <summary>The entry that reversed this one (fiş zinciri), set by the single-entry read.</summary>
+    public Guid? ReversedByEntryId { get; init; }
+    public string? ReversedByEntryCode { get; init; }
+    /// <summary>For a reversal entry: the code of the entry it reverses, set by the single-entry read.</summary>
+    public string? ReversalOfEntryCode { get; init; }
+}
+/// <summary>A journal entry list row: the former anonymous projection's wire names plus the reversal flags.</summary>
+public sealed record JournalEntryListItem(Guid Id, string Code, DateOnly EntryDate, string Description, string SourceType, Guid SourceId,
+    DateTimeOffset CreatedAt, string AccountingBasis, decimal TotalDebit, decimal TotalCredit, bool IsReversed = false)
+{
+    public bool IsSourced => JournalReversalRules.IsSourced(SourceType);
+    public bool IsReversal => JournalReversalRules.IsReversal(SourceType);
+    public bool CanReverse => JournalReversalRules.CanReverse(SourceType, IsReversed);
+    public string SourceLabel => JournalReversalRules.SourceLabel(SourceType);
+}
+public sealed record JournalEntryPage(IReadOnlyList<JournalEntryListItem> Items, int Page, int PageSize, int Total)
+{
+    /// <summary>Same as <see cref="Total"/>: the page runtime reads the top-level <c>totalCount</c> (G-F9).</summary>
+    public int TotalCount => Total;
+}
 public sealed record JournalTransferRequest(string SourceType, Guid SourceId);
 public sealed record ManualJournalEntryWriteRequest(DateOnly EntryDate, string Description, IReadOnlyList<ManualJournalLineWriteRequest> Lines, string AccountingBasis = "TDHP");
-public sealed record ManualJournalLineWriteRequest(Guid AccountId, string Description, decimal Debit, decimal Credit);
+/// <summary>An empty line description takes the entry description (G-F5); an omitted side is 0.</summary>
+public sealed record ManualJournalLineWriteRequest(Guid AccountId, string? Description = null, decimal Debit = 0m, decimal Credit = 0m);
 public sealed record ManualJournalEntryReverseRequest(DateOnly EntryDate, string Reason);
 public sealed record PurchaseRequestOrderLineRequest(int LineNumber, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent = 20);
 public sealed record PurchaseRequestOrderWriteRequest(string Code, Guid SupplierId, DateOnly OrderDate, string? Notes,
@@ -582,19 +666,45 @@ public sealed record PurchaseRequestLineView(int LineNumber, Guid StockItemId, s
 public sealed record PurchaseRequestSummary(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, Guid RequestedByUserId, string RequestedByName, PurchaseRequestStatus Status,
     Guid? ReviewedByUserId, string? ReviewedByName, string? ReviewNote, DateTimeOffset CreatedAt,
-    DateTimeOffset? ReviewedAt, int LineCount, Guid? PurchaseOrderId, string? PurchaseOrderCode);
+    DateTimeOffset? ReviewedAt, int LineCount, Guid? PurchaseOrderId, string? PurchaseOrderCode)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.talep.* operations declare them.
+
+    /// <summary>Supplier quotes of the request; set by the request list only, null elsewhere.</summary>
+    public int? QuoteCount { get; init; }
+
+    /// <summary>Days until the need date (negative once past) while the request is open; null otherwise.</summary>
+    public int? NeededByDays => PurchasingDisplay.NeededByDays(Status, NeededByDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseRequestView(Guid Id, string Code, DateOnly RequestDate, DateOnly? NeededByDate,
     string Description, Guid RequestedByUserId, string RequestedByName, PurchaseRequestStatus Status,
     Guid? ReviewedByUserId, string? ReviewedByName, string? ReviewNote, DateTimeOffset CreatedAt,
     DateTimeOffset? ReviewedAt, IReadOnlyList<PurchaseRequestLineView> Lines, Guid? PurchaseOrderId, string? PurchaseOrderCode,
-    IReadOnlyList<PurchaseRequestCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<PurchaseRequestCustomFieldValueView>? CustomFields = null)
+{
+    /// <summary>Days until the need date (negative once past) while the request is open; null otherwise.</summary>
+    public int? NeededByDays => PurchasingDisplay.NeededByDays(Status, NeededByDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseRequestPage(IReadOnlyList<PurchaseRequestSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity);
 public sealed record PurchaseOrderSummary(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
-    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.siparis.* operations declare them.
+
+    /// <summary>Ordered quantity summed over the lines; set by the order list only, null elsewhere.</summary>
+    public decimal? OrderedQuantity { get; init; }
+
+    /// <summary>Quantity received by posted receipts, summed over the lines; set by the order list only, null elsewhere.</summary>
+    public decimal? ReceivedQuantity { get; init; }
+
+    public decimal? ReceivedPercent => PurchasingDisplay.ReceivedPercent(OrderedQuantity, ReceivedQuantity);
+    public bool IsOverdue => PurchasingDisplay.IsOrderOverdue(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int DelayDays => PurchasingDisplay.OrderDelayDays(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+}
 public sealed record PurchaseOrderCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
 public sealed record PurchaseOrderCustomFieldDefinitionRevisionView(Guid Id, Guid DefinitionId, int Version, string Code, string Label,
     CustomFieldDataType DataType, int MaxLength, bool IsRequired, bool IsActive, string ChangeKind, Guid? ChangedByUserId, DateTimeOffset CreatedAt);
@@ -609,7 +719,19 @@ public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, st
     string CurrencyCode, PurchaseOrderStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal, decimal GrandTotal,
     string? Notes, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseOrderLineView> Lines,
     IReadOnlyList<PurchaseReceiptSummary> Receipts, IReadOnlyList<PurchaseOrderCustomFieldValueView>? CustomFields = null,
-    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null);
+    DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null)
+{
+    // Display members outside the constructor, computed from the lines and receipts of this view (satinalma.siparis.getir).
+    public decimal OrderedQuantity => Lines.Sum(x => x.Quantity);
+    public decimal ReceivedQuantity => Lines.Sum(x => x.ReceivedQuantity);
+    public decimal? ReceivedPercent => PurchasingDisplay.ReceivedPercent(OrderedQuantity, ReceivedQuantity);
+    public bool IsOverdue => PurchasingDisplay.IsOrderOverdue(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int DelayDays => PurchasingDisplay.OrderDelayDays(Status, ExpectedReceiptDate, PurchasingDisplay.Today);
+    public int PostedReceiptCount => Receipts.Count(x => x.Status == PurchaseReceiptStatus.Posted);
+
+    /// <summary>Posted receipts with an active (posted) invoice.</summary>
+    public int InvoicedReceiptCount => Receipts.Count(x => x.Status == PurchaseReceiptStatus.Posted && x.Invoice is { Status: PurchaseInvoiceStatus.Posted });
+}
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
     IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
@@ -651,7 +773,13 @@ public sealed record SupplierReturnSummary(Guid Id, string Code, Guid PurchaseIn
 public sealed record PurchaseInvoiceSummary(Guid Id, string Code, Guid PurchaseReceiptId, string ReceiptCode,
     Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName, DateOnly InvoiceDate,
     DateOnly DueDate, string CurrencyCode, PurchaseInvoiceStatus Status, decimal GrandTotal, decimal PaidAmount, decimal OutstandingAmount,
-    int LineCount, DateTimeOffset CreatedAt);
+    int LineCount, DateTimeOffset CreatedAt)
+{
+    // Display members outside the constructor (see InventoryTransactionView): only the satinalma.* operations declare them.
+    public string PaymentState => PurchasingDisplay.PaymentState(Status, DueDate, PaidAmount, OutstandingAmount, PurchasingDisplay.Today);
+    public int OverdueDays => PurchasingDisplay.OverdueDays(Status, DueDate, OutstandingAmount, PurchasingDisplay.Today);
+    public decimal? DisplayOutstanding => PurchasingDisplay.DisplayOutstanding(Status, OutstandingAmount);
+}
 public sealed record PurchaseInvoiceView(Guid Id, string Code, Guid PurchaseReceiptId, string ReceiptCode,
     Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName, DateOnly InvoiceDate,
     DateOnly DueDate, string CurrencyCode, PurchaseInvoiceStatus Status, decimal Subtotal, decimal DiscountTotal, decimal TaxTotal,
@@ -659,7 +787,13 @@ public sealed record PurchaseInvoiceView(Guid Id, string Code, Guid PurchaseRece
     IReadOnlyList<PurchaseInvoiceLineView> Lines, IReadOnlyList<SupplierPaymentSummary> Payments,
     IReadOnlyList<SupplierReturnSummary>? Returns = null, Guid? ProviderInvoiceUuid = null,
     string? ProviderScenario = null, string? ProviderInvoiceTypeCode = null, string? ProviderSenderAlias = null,
-    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]");
+    string? AccountingProfileCode = null, string TaxBreakdownJson = "[]")
+{
+    // Display members outside the constructor: only satinalma.fatura.getir declares them.
+    public string PaymentState => PurchasingDisplay.PaymentState(Status, DueDate, PaidAmount, OutstandingAmount, PurchasingDisplay.Today);
+    public int OverdueDays => PurchasingDisplay.OverdueDays(Status, DueDate, OutstandingAmount, PurchasingDisplay.Today);
+    public decimal? DisplayOutstanding => PurchasingDisplay.DisplayOutstanding(Status, OutstandingAmount);
+}
 public sealed record PurchaseInvoicePage(IReadOnlyList<PurchaseInvoiceSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record SupplierPaymentWriteRequest(Guid RequestId, DateOnly PaymentDate, decimal Amount,
     string PaymentMethod, string? Reference = null, Guid? FinancialAccountId = null);
@@ -671,6 +805,9 @@ public sealed record FinancialAccountTransferWriteRequest(Guid RequestId, Guid F
     DateOnly TransferDate, decimal Amount, string? Reference = null, string Description = "Hesaplar arası transfer", decimal ExchangeRate = 1m);
 public sealed record FinancialAccountSummary(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
     bool IsActive, decimal Balance, int TransactionCount, DateTimeOffset CreatedAt);
+/// <summary>Summary cards of the cash/bank list. TotalBalance is set only when every account has the same currency (CurrencyCode).</summary>
+public sealed record FinancialAccountListSummary(int AccountCount, int ActiveCount, int InactiveCount, int NegativeBalanceCount,
+    int CurrencyCount, decimal? TotalBalance, string? CurrencyCode);
 public sealed record FinancialAccountTransferSummary(Guid Id, string Code, Guid FromAccountId, string FromAccountName,
     Guid ToAccountId, string ToAccountName, string CurrencyCode, DateOnly TransferDate, decimal Amount,
     string? Reference, string Description, FinancialTransferStatus Status, DateTimeOffset CreatedAt,
@@ -693,10 +830,47 @@ public sealed record BankStatementDetail(Guid Id, string Code, Guid AccountId, s
     DateTimeOffset CreatedAt, IReadOnlyList<BankStatementLineView> Lines);
 public sealed record FinancialAccountTransactionView(Guid Id, DateOnly TransactionDate, FinancialDirection Direction,
     decimal Amount, string CurrencyCode, string Description, string? Reference, string? SourceType, string? SourceCode,
-    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified);
+    Guid? ReversalOfId, DateTimeOffset CreatedAt, Guid? TransferId = null, CashFlowCategory CashFlowCategory = CashFlowCategory.Unclassified)
+{
+    // Members outside the constructor (only the finans.* operations declare them): the void and classification rules of the
+    // handlers, so a page binds to flags instead of the Turkish SourceType text.
+
+    /// <summary>Machine code of the source (<see cref="FinancialTransactionSourceKinds"/>), set by the handler.</summary>
+    public string SourceKind { get; init; } = FinancialTransactionSourceKinds.Other;
+    /// <summary>A linked reversal of this movement exists, set by the handler.</summary>
+    public bool IsReversed { get; init; }
+    public bool IsReversal => ReversalOfId is not null;
+    public decimal? Inflow => Direction == FinancialDirection.Inflow ? Amount : null;
+    public decimal? Outflow => Direction == FinancialDirection.Outflow ? Amount : null;
+    /// <summary>The movement void accepts it: a manual movement (never a reversal) not reversed yet.</summary>
+    public bool CanVoid => SourceKind == FinancialTransactionSourceKinds.Manual && !IsReversed;
+    /// <summary>A transfer movement not reversed yet (the transfer void reverses both movements).</summary>
+    public bool CanVoidTransfer => SourceKind == FinancialTransactionSourceKinds.Transfer && TransferId is not null && !IsReversed;
+    /// <summary>The cash-flow category handler accepts it (it also requires TenantAdmin, which the operation's allowed reflects).</summary>
+    public bool CanChangeCashFlow => TransferId is null && CashFlowCategory is not (CashFlowCategory.InternalTransfer or CashFlowCategory.OpeningBalance);
+}
+/// <summary>Machine codes of <see cref="FinancialAccountTransactionView.SourceKind"/>, in the account read's precedence order.</summary>
+public static class FinancialTransactionSourceKinds
+{
+    public const string Reversal = "Reversal";
+    public const string CustomerCollection = "CustomerCollection";
+    public const string SupplierPayment = "SupplierPayment";
+    public const string Transfer = "Transfer";
+    public const string CreditFacility = "CreditFacility";
+    public const string Manual = "Manual";
+    public const string Opening = "Opening";
+    public const string Other = "Other";
+}
 public sealed record FinancialAccountDetail(Guid Id, string Code, string Name, FinancialAccountType Type, string CurrencyCode,
     bool IsActive, decimal Balance, DateTimeOffset CreatedAt, IReadOnlyList<FinancialAccountTransactionView> Transactions,
-    int TransactionPage = 1, int TransactionPageSize = 50, int TransactionTotalCount = 0);
+    int TransactionPage = 1, int TransactionPageSize = 50, int TransactionTotalCount = 0)
+{
+    /// <summary>Same as <see cref="TransactionTotalCount"/>: the page runtime reads the top-level <c>totalCount</c> (G-F9).</summary>
+    public int TotalCount => TransactionTotalCount;
+    /// <summary>Inflows and outflows of the returned page only (the legacy "Giriş / Çıkış · bu sayfa" boxes).</summary>
+    public decimal PageInflow => Transactions.Where(x => x.Direction == FinancialDirection.Inflow).Sum(x => x.Amount);
+    public decimal PageOutflow => Transactions.Where(x => x.Direction == FinancialDirection.Outflow).Sum(x => x.Amount);
+}
 
 public static class FinancialMovementValidation
 {

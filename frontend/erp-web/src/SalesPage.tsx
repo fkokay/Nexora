@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { setPageParams, usePageParams } from "./pageNavigation";
+import { dropPageParam, setPageParams, usePageParams } from "./pageNavigation";
 import { openSalesRequest } from "./sales/salesNavigation";
 import {
   Ban,
@@ -86,6 +86,7 @@ import { purchaseInvoiceStatus, purchaseOrderStatus, purchaseReceiptStatus, purc
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta, SalesOrderFlow, SalesQuoteFlow, salesTotalRows, vatByRate } from "./sales/salesDocumentDetail";
 import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines, salesFormTotalRows } from "./sales/salesDocumentForm";
 import { PurchaseCreateOrderFlow, purchaseCreateOrderTotals } from "./purchasing/purchaseCreateForms";
+import { usePurchasingPageParams } from "./sales/purchasingPageParams";
 import {
   RecordFormGroup,
   RecordFormPage,
@@ -238,7 +239,7 @@ export function SalesPage({
   useEffect(() => {
     if (!salesActionPage || !paramCustomerId) return;
     setActionCustomerId(paramCustomerId);
-    setPageParams(salesActionPage, {});
+    dropPageParam(salesActionPage, "customerId");
   }, [salesActionPage, paramCustomerId]);
   // The invoice list takes the same page param as a removable customer filter (Cari Hesaplar › Faturalar).
   const invoiceListKey = section === "sales-invoices" && !createInvoicePage ? "sales-invoices" : undefined;
@@ -247,7 +248,7 @@ export function SalesPage({
   useEffect(() => {
     if (!invoiceListKey || !paramInvoiceCustomerId) return;
     setInvoiceCustomer({ id: paramInvoiceCustomerId, label: "" });
-    setPageParams(invoiceListKey, {});
+    dropPageParam(invoiceListKey, "customerId");
   }, [invoiceListKey, paramInvoiceCustomerId]);
   const invoiceCustomerId = invoiceCustomer?.id ?? "";
   // Başka bir belgeden (talep detayı, belge zinciri) teklif açma: `quoteId` sayfa parametresi bir kez okunur.
@@ -444,6 +445,21 @@ export function SalesPage({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [detail, orderDetail, quotePrintOpen]);
+  // Karar 4: sistem sayfaları ve diğer ekranlar belgeyi sayfa parametresiyle açar (`quoteId` / `orderId` / `invoiceId`).
+  // Parametre bir kez okunur ve silinir; aynı belge yeniden istenirse yeniden açılır.
+  const listDocumentParam = section === "sales-quotes" && !createQuotePage
+    ? "quoteId"
+    : section === "sales-orders" && !createOrderPage
+      ? "orderId"
+      : invoiceListKey ? "invoiceId" : "";
+  const listDocumentId = usePageParams(listDocumentParam ? section : undefined)[listDocumentParam] ?? "";
+  useEffect(() => {
+    if (!listDocumentParam || !listDocumentId) return;
+    dropPageParam(section, listDocumentParam);
+    if (listDocumentParam === "quoteId") void openQuote(listDocumentId);
+    else if (listDocumentParam === "orderId") void openOrder(listDocumentId);
+    else setInvoiceId(listDocumentId);
+  }, [section, listDocumentParam, listDocumentId]);
   useEffect(() => {
     if (section === "sales-invoices" && initialInvoiceId) {
       setInvoiceId(initialInvoiceId);
@@ -919,8 +935,18 @@ export function SalesPage({
       setError((e as Error).message);
     }
   }
+  // The create screens take `quoteId` / `orderId` as "edit this document", like the legacy lists' sessionStorage handoff
+  // (system pages open Düzenle with erpPage `params`). Read once, then removed.
+  const editParamId = usePageParams(createQuotePage || createOrderPage ? salesActionPage : undefined)[createQuotePage ? "quoteId" : "orderId"] ?? "";
   useEffect(() => {
     if (!createQuotePage) return;
+    if (editParamId) {
+      dropPageParam("sales-quote-create", "quoteId");
+      sessionStorage.removeItem("nexora.sales-quote.edit-id");
+      quoteRequestPrefill.current = true;
+      void beginQuoteEdit(editParamId, false).finally(() => { quoteRequestPrefill.current = false; });
+      return;
+    }
     const pendingRequestId = sessionStorage.getItem("nexora.sales-quote.request-id");
     if (pendingRequestId) {
       sessionStorage.removeItem("nexora.sales-quote.request-id");
@@ -928,7 +954,7 @@ export function SalesPage({
       void beginQuoteFromRequest(pendingRequestId).finally(() => { quoteRequestPrefill.current = false; });
       return;
     }
-    // Talepten ön doldurma sürerken efektin yeniden çalışması formu boşaltmamalı.
+    // Talepten ön doldurma ya da parametreyle düzenleme yüklenirken efektin yeniden çalışması formu boşaltmamalı.
     if (quoteRequestPrefill.current) return;
     const pendingEditId = sessionStorage.getItem("nexora.sales-quote.edit-id");
     if (pendingEditId) {
@@ -937,7 +963,7 @@ export function SalesPage({
       return;
     }
     if (!revisesQuoteId && !editingQuoteId) void openQuoteCreatePage(false);
-  }, [createQuotePage, token, revisesQuoteId, editingQuoteId]);
+  }, [createQuotePage, token, revisesQuoteId, editingQuoteId, editParamId]);
   useEffect(() => {
     if (!createQuotePage) return;
     let cancelled = false;
@@ -1043,9 +1069,20 @@ export function SalesPage({
       setBusy(false);
     }
   }
+  // Removing the consumed `orderId` param re-runs this effect; that run must not load the form a second time.
+  const consumedOrderParam = useRef(false);
   useEffect(() => {
-    if (createOrderPage) void openDirectOrderModal();
-  }, [actionCustomerId, createOrderPage, token]);
+    if (!createOrderPage) return;
+    if (editParamId) {
+      sessionStorage.setItem("nexora.sales-order.edit-id", editParamId);
+      consumedOrderParam.current = true;
+      dropPageParam("sales-order-create", "orderId");
+    } else if (consumedOrderParam.current) {
+      consumedOrderParam.current = false;
+      return;
+    }
+    void openDirectOrderModal();
+  }, [actionCustomerId, createOrderPage, token, editParamId]);
   function updateDirectOrderLine(
     index: number,
     key: keyof (typeof directOrderLines)[number],
@@ -4803,6 +4840,9 @@ function PurchasingPanel({
     window.addEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(PURCHASE_REQUEST_OPEN_EVENT, onOpen);
   }, [requestsOnly]);
+  // A system page opens this tab with `requestId` / `purchaseOrderId` (K7); read once, like the hand-offs above.
+  usePurchasingPageParams(requestsOnly ? "sales-requests" : "sales-purchasing", [requestsOnly ? "requestId" : "purchaseOrderId"],
+    ({ requestId, purchaseOrderId }) => void (requestId ? openRequest(requestId) : purchaseOrderId && openOrder(purchaseOrderId)));
   useEffect(() => {
     if (requestsOnly) return;
     let cancelled = false;

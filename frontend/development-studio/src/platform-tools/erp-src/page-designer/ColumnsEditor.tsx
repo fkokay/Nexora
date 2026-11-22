@@ -7,7 +7,7 @@ import {
 } from "./gridColumnSettings";
 import "./page-designer-extras.css";
 
-const formatLabels: Record<ColumnFormat, string> = { text: "Metin", code: "Kod", number: "Sayı", money: "Tutar", date: "Tarih", status: "Durum etiketi" };
+const formatLabels: Record<ColumnFormat, string> = { text: "Metin", code: "Kod", number: "Sayı", money: "Tutar", date: "Tarih", datetime: "Tarih ve saat", status: "Durum etiketi" };
 export const toneLabels: Record<Tone, string> = { success: "Olumlu", warning: "Dikkat", danger: "Hata", info: "Bilgi" };
 const toneOrder: Tone[] = ["success", "warning", "danger", "info"];
 const ROW_HEIGHT = 38;

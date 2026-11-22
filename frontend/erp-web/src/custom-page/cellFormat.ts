@@ -1,8 +1,10 @@
 export type Tone = "info" | "success" | "warning" | "danger";
-export type ColumnFormat = "text" | "code" | "number" | "money" | "date" | "status";
+import { formatDateTime } from "./dateTimeInput";
+
+export type ColumnFormat = "text" | "code" | "number" | "money" | "date" | "datetime" | "status";
 
 export const TONES: readonly Tone[] = ["info", "success", "warning", "danger"];
-export const COLUMN_FORMATS: readonly ColumnFormat[] = ["text", "code", "number", "money", "date", "status"];
+export const COLUMN_FORMATS: readonly ColumnFormat[] = ["text", "code", "number", "money", "date", "datetime", "status"];
 
 const EMPTY = "—";
 
@@ -65,6 +67,8 @@ export function formatCell(value: unknown, format?: ColumnFormat, dataType?: str
     }
     return String(value);
   }
+  // Tarih + saat: yerel saatle "gg.aa.yyyy ss:dd"; çözülemeyen değer olduğu gibi yazılır.
+  if (effective === "datetime") return formatDateTime(value) ?? String(value);
   if (effective === "date") {
     if (typeof value === "string") {
       const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);

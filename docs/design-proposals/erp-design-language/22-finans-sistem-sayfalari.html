@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Finans sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}.mets.m3{grid-template-columns:repeat(3,1fr)}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}.ic.d{background:var(--dan-bg);color:var(--dan)}.ic.o{background:var(--ok-bg);color:var(--ok)}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 300px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 290px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right;white-space:nowrap}.neg{color:var(--dan)}
+tr.tot td{background:#f8fafc;font-weight:700}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}.t-d{background:var(--dan-bg);color:var(--dan)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px;gap:10px;flex-wrap:wrap}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px;gap:10px;flex-wrap:wrap}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ro{background:#f8fafc;color:#475467}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}.btn.w{background:var(--warn-bg);color:var(--warn);border-color:#f1dc9a}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px;flex-wrap:wrap}.status b{color:var(--ok)}
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px;flex-wrap:wrap}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.rev td{color:#475467}tr.strike td{color:#98a2b3}tr.strike td span.t{text-decoration:line-through}
+.dlg{max-width:520px;background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 10px 30px rgba(16,24,40,.12);margin-top:12px}
+.dlg .h{padding:12px 16px;border-bottom:1px solid #eef1f6;font-weight:700;font-size:14px;display:flex;justify-content:space-between}.dlg .b{padding:12px 16px}.dlg .a{padding:10px 16px;border-top:1px solid #eef1f6;display:flex;gap:8px;justify-content:flex-end}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:1150px;align-items:start}
+.al{border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:12px}.al.w{background:var(--warn-bg);color:#6b4a00;border:1px solid #f1dc9a}.al.i{background:var(--pri-soft);color:#1a4aa3;border:1px solid #bcd0f5}
+.bal{display:flex;gap:18px;justify-content:flex-end;padding:9px 12px;background:#f8fafc;border-top:1px solid #e6ebf2;font-weight:600;flex-wrap:wrap}.bal .ok{color:var(--ok)}
+.lay{display:grid;grid-template-columns:220px 1fr;gap:10px}
+.par{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px}.par .f{margin-bottom:10px}.seg{display:flex;border:1px solid #d0d8e4;border-radius:7px;overflow:hidden}.seg span{flex:1;text-align:center;padding:5px 0;font-weight:600;color:#475467}.seg .on{background:var(--pri-soft);color:var(--pri)}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+@media (max-width:820px){.split,.row2,.lay,.dec,.g3,.g2{grid-template-columns:1fr}.mets{grid-template-columns:1fr 1fr}body{padding:16px}}
+</style></head><body>
+<h1>Finans ve Genel Muhasebe → sistem sayfaları (taslak 22)</h1>
+<p class="sub">24 finans ekranından en temel dört grup Studio'da açılabilen sistem sayfalarına geçiyor: <b>Kasalar ve Bankalar</b> (yeni kasa kartı ve hesap ekstresi dahil), <b>Hesap Planı</b>, <b>Yevmiye</b> (fiş girişi ve Yevmiye Defterleri) ve <b>Mizan</b>. Görünüm bugünkü gibi kalıyor. Kasa ekstresi, Cari Hesap Hareketleri'ndeki iki adımlı akışa geçiyor. Kurallar API'de kalıyor: hareketler ve fişler silinmiyor, düzeltme ters kayıtla yapılıyor, kapalı döneme kayıt girilmiyor. Bugün hiç olmayan <code>finans.*</code> ERP işlemleri (yaklaşık 28 adet) ekleniyor.</p>
+
+<div class="lbl">1 · KASALAR / BANKALAR (LİSTE) · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Finans › Bankalar</div>
+  <div class="ttl"><h2>Bankalar</h2><small>4 hesap</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets m3">
+    <div class="met"><span class="ic">₺</span><div><span>Toplam bakiye</span><strong>—</strong> <small>birden çok para birimi</small></div></div>
+    <div class="met"><span class="ic d">−</span><div><span>Eksi bakiyeli hesap</span><strong>1</strong> <small>tıklayınca yalnız onlar</small></div></div>
+    <div class="met"><span class="ic o">✓</span><div><span>Aktif hesap</span><strong>3 / 4</strong></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Kod, hesap veya döviz ara</span><span class="chip on">Tüm durumlar<i>4</i></span><span class="chip">Aktif<i>3</i></span><span class="chip">Pasif<i>1</i></span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Kod</th><th>Hesap</th><th>Tür</th><th>Döviz</th><th class="num">Bakiye</th><th class="num">Hareket</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code"><u>BANKA-01</u></td><td>Ziraat Konya Şb.</td><td>Banka</td><td>TRY</td><td class="num">412.350,00</td><td class="num">86</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code"><u>BANKA-02</u></td><td>İş Bankası Ticari</td><td>Banka</td><td>TRY</td><td class="num neg">−18.200,00</td><td class="num">41</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code"><u>BANKA-EUR</u></td><td>Garanti EUR</td><td>Banka</td><td>EUR</td><td class="num">9.740,00</td><td class="num">12</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code"><u>BANKA-ESKI</u></td><td>Kapanan hesap</td><td>Banka</td><td>TRY</td><td class="num">0,00</td><td class="num">7</td><td><span class="tag t-off">Pasif</span></td></tr>
+    </tbody></table><div class="foot"><span>Kod veya Enter → ekstre · Boşluk işaretle · Ctrl+. detay paneli</span><span>Gösterilen 4 / 4</span></div></div>
+    <div class="card pnl"><span class="code">BANKA-01</span> <span class="tag t-ok" style="float:right">Aktif</span><h4>Ziraat Konya Şb.</h4>
+      <div class="k"><div><span>Bakiye</span><b>412.350,00 TRY</b></div><div><span>Hareket</span><b>86</b></div></div>
+      <dl class="dl"><dt>Tür</dt><dd>Banka</dd><dt>Döviz</dt><dd>TRY</dd><dt>Açılış</dt><dd>02.01.2026</dd></dl>
+      <p style="color:var(--mut);margin:10px 0 0">Hareketler ve ekstre için Aç (Enter).</p></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Kasalar</b> aynı sayfa; yalnız "Eksi bakiyeli hesap" kartı yok (sunucu kasayı eksiye düşürmez). <b>Yeni Kasa Tanımla</b> menü bağlantısı kasa kartını doğrudan açar.</li>
+  <li><b>İşlemler:</b> Düzenle, Manuel hareket, Transfer / döviz, Pasifleştir / Etkinleştir, CSV. Hareketi olan hesap silinemez; Sil nedeniyle pasif kalır: "Hareketi olan hesap silinemez; pasifleştirin."</li>
+  <li>Kasa ve banka listesini ayırmak için sunucudaki hesap listesine <code>type</code> süzgeci ekleniyor (bugün ayrım tarayıcıda yapılıyor). Transferin hedef listesinde kasa ve banka yine birlikte çıkar.</li>
+</ul>
+
+<div class="lbl">2 · HESAP EKSTRESİ · İKİ ADIM (CARİ HAREKETLERİ GİBİ)</div>
+<div class="erp">
+  <div class="steps"><span class="st done"><i>✓</i>Hesap seç</span>›<span class="st on"><i>2</i>Ekstre</span></div>
+  <div class="hdr"><span class="sq">B</span><div><h4>BANKA-01 · Ziraat Konya Şb.</h4><p>Banka · TRY · <span class="tag t-ok">Aktif</span></p></div>
+    <div class="kv"><div><span>Güncel bakiye</span><b>412.350,00</b></div><div><span>Hareket (tümü)</span><b>86</b></div><div><span>Giriş · bu sayfa</span><b>184.000,00</b></div><div><span>Çıkış · bu sayfa</span><b>61.650,00</b></div></div><span class="btn g">‹ Hesap değiştir</span></div>
+  <div class="bar" style="margin:0 0 10px"><span class="pri">Manuel hareket</span><span>Transfer / döviz</span><span>Hareketi iptal et</span><span class="dis">Transferi iptal et</span><span class="r">İşlemler ▾</span></div>
+  <div class="card"><table><thead><tr><th>Tarih</th><th>Kaynak</th><th>Açıklama</th><th>Nakit akışı</th><th>Referans</th><th class="num">Giriş</th><th class="num">Çıkış</th><th>Durum</th></tr></thead><tbody>
+    <tr><td>20.11.2026</td><td>Tahsilat TH-2026-0041</td><td>FATİH KOKAY tahsilatı</td><td>İşletme</td><td class="code">DK-88</td><td class="num">30.758,00</td><td></td><td></td></tr>
+    <tr class="pick"><td>18.11.2026</td><td>Manuel hareket</td><td>Banka masrafı</td><td>İşletme ▾</td><td></td><td></td><td class="num">450,00</td><td></td></tr>
+    <tr><td>15.11.2026</td><td>Hesap transferi TR-2026-0007</td><td>Kasa/banka döviz transferi</td><td><span style="color:var(--mut)">İç transfer</span></td><td></td><td></td><td class="num">60.000,00</td><td></td></tr>
+    <tr class="strike"><td>12.11.2026</td><td>Manuel hareket</td><td><span class="t">Hatalı giriş</span></td><td>İşletme</td><td></td><td class="num">1.200,00</td><td></td><td><span class="tag t-off">İptal edildi</span></td></tr>
+    <tr class="rev"><td>13.11.2026</td><td>↳ Ters kayıt</td><td>Finans hareketi iptali</td><td>İşletme</td><td></td><td></td><td class="num">1.200,00</td><td><span class="tag t-w">Ters kayıt</span></td></tr>
+  </tbody></table><div class="foot"><span>Hareketler silinmez; iptal ters yönlü yeni bir kayıttır. Tahsilat ve ödeme kendi ekranından iptal edilir.</span><span>Sayfa 1 / 2 · 50'şer</span></div></div>
+  <div class="row2">
+    <div class="dlg"><div class="h">Manuel hareket · BANKA-01 <span style="color:var(--mut)">✕</span></div><div class="b">
+      <div class="g2"><div class="f"><label>Yön <b>*</b></label><div class="seg"><span class="on">Giriş</span><span>Çıkış</span></div></div><div class="f"><label>Tarih <b>*</b></label><div class="in">21.11.2026</div></div>
+      <div class="f"><label>Tutar <b>*</b></label><div class="in">0,00 TRY</div></div><div class="f"><label>Referans</label><div class="in ph">Dekont no</div></div></div>
+      <div class="f" style="margin-top:10px"><label>Açıklama <b>*</b></label><div class="in ph">En fazla 240 karakter</div></div>
+      <div class="f" style="margin-top:10px"><label>Nakit akışı sınıfı</label><div class="in">Sınıflandırılmamış ▾</div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Kasadan çıkış bakiyeyi aşamaz. Kapalı döneme hareket girilemez. Bu hareket yevmiye fişi oluşturmaz.</p></div>
+      <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Kaydet</span></div></div>
+    <div class="dlg"><div class="h">Transfer / döviz · BANKA-01 <span style="color:var(--mut)">✕</span></div><div class="b">
+      <div class="f"><label>Hedef hesap <b>*</b></label><div class="in">BANKA-EUR · Garanti EUR (EUR) ▾</div></div>
+      <div class="g2" style="margin-top:10px"><div class="f"><label>Tarih <b>*</b></label><div class="in">21.11.2026</div></div><div class="f"><label>Referans</label><div class="in ph">İsteğe bağlı</div></div>
+      <div class="f"><label>Kaynak tutarı (TRY) <b>*</b></label><div class="in">36.500,00</div></div><div class="f"><label>Kur <b>*</b></label><div class="in">0,02740000</div></div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Kur alanı yalnız dövizler farklıysa görünür. Hedef tutarı sunucu hesaplar (tutar × kur, 2 hane) ve kayıttan sonra bildirir.</p></div>
+      <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Transferi kaydet</span></div></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>1. adım</b> Bankalar ya da Kasalar listesinin kendisidir. Satıra tıklayınca, Enter'a basınca veya kod bağlantısından 2. adım açılır.</li>
+  <li>"Hareketi iptal et" yalnız iptal edilmemiş <b>manuel</b> harekette, "Transferi iptal et" yalnız transfer satırında açılır. İkisi de "Ters kayıtla iptal et" onayı sorar. Ters kaydın tarihi bugündür.</li>
+  <li>Nakit akışı sınıfı satırda değiştirilebilir. Bunu yalnız firma yöneticisi yapabilir; iç transfer ve açılış satırlarında kilitli kalır.</li>
+  <li>Bugünkü gibi ekstrede açılış satırı, tarih süzgeci ve yürüyen bakiye <b>yok</b>; Giriş/Çıkış kutucukları yalnız görünen sayfanın toplamıdır.</li>
+</ul>
+
+<div class="lbl">3 · KASA / BANKA KARTI (YENİ + DÜZENLEME)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Finans › Kasalar › Yeni kasa</div>
+  <div class="rh"><div><h2>Kasa Kartı Tanımlama</h2><p>Kasa · yeni kayıt</p></div><div><span class="btn g">Vazgeç</span> <span class="btn g">Kaydet ve Yeni</span> <span class="btn p">Kasa Kartını Kaydet</span></div></div>
+  <div class="status"><span>Zorunlu alanlar: <b>3 / 3</b></span><span>Ctrl+S kaydet · Ctrl+F2 kaydet ve yeni · Esc vazgeç</span></div>
+  <div class="sec"><h5>Hesap bilgileri</h5><div class="g3"><div class="f"><label>Kod <b>*</b></label><div class="in code">KASA-02</div></div><div class="f"><label>Ad <b>*</b></label><div class="in">Şube kasası</div></div><div class="f"><label>Hesap türü</label><div class="in ro">Kasa</div></div>
+    <div class="f"><label>Döviz <b>*</b></label><div class="in">TRY</div></div><div class="f"><label>Açılış bakiyesi</label><div class="in">0,00 TRY</div></div></div>
+    <p style="color:var(--mut);margin:10px 0 0">Açılış bakiyesi yalnız yeni kartta girilir; sonra bakiye hareketlerden hesaplanır. Hareketi olan hesabın türü ve dövizi değiştirilemez.</p></div>
+</div>
+
+<div class="lbl">4 · HESAP PLANI · İLK SÜRÜMDE DÜZ LİSTE + KART</div>
+<div class="erp">
+  <div class="ttl"><h2>Hesap planı</h2><small>268 hesap · Tek Düzen Hesap Planı</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Dışa aktar</span><span class="r">İşlemler ▾</span></div>
+  <div class="fbar" style="margin-top:10px"><span class="srch">Kod veya hesap adı ara</span><span class="in" style="width:150px">Sınıf: 1 Dönen ▾</span><span class="chip on">Tümü</span><span class="chip">Hareketli</span><span class="chip">Aktif</span><span class="chip">Pasif</span></div>
+  <div class="split" style="grid-template-columns:1fr 360px">
+    <div class="card"><table><thead><tr><th>Kod</th><th>Hesap</th><th>Finansal tablo sınıfı</th><th>Çalışma</th><th>Durum</th></tr></thead><tbody>
+      <tr><td class="code">100</td><td>KASA</td><td>Varlık</td><td>Borç</td><td><span class="tag t-ok">Aktif</span> <span class="tag t-in">Hareketli</span></td></tr>
+      <tr><td class="code">100.001</td><td>Merkez kasa</td><td>Varlık</td><td>Borç</td><td><span class="tag t-ok">Aktif</span> <span class="tag t-in">Hareketli</span></td></tr>
+      <tr class="pick"><td class="code">102</td><td>BANKALAR</td><td>Varlık</td><td>Borç</td><td><span class="tag t-ok">Aktif</span> <span class="tag t-in">Hareketli</span></td></tr>
+      <tr><td class="code">120</td><td>ALICILAR</td><td>Varlık</td><td>Borç</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">121</td><td>ALACAK SENETLERİ</td><td>Varlık</td><td>Borç</td><td><span class="tag t-off">Pasif</span></td></tr>
+    </tbody></table><div class="foot"><span>Koda göre sıralı · ↑↓ gez · Enter kartı aç</span><span>Sınıf 1 · 42 hesap</span></div></div>
+    <div class="card pnl"><h4>102 · BANKALAR</h4>
+      <div class="k"><div><span>Dönem borç (yıl başından)</span><b>1.240.500,00</b></div><div><span>Dönem alacak</span><b>828.150,00</b></div></div>
+      <div class="g2"><div class="f"><label>Kod <b>*</b></label><div class="in ro code">102</div></div><div class="f"><label>Ad <b>*</b></label><div class="in ro">BANKALAR</div></div>
+      <div class="f"><label>Finansal tablo sınıfı</label><div class="in">Varlık ▾</div></div><div class="f"><label>Çalışma şekli</label><div class="in">Borç ▾</div></div>
+      <div class="f"><label>Hesap tipi</label><div class="in">Varlık ▾</div></div><div class="f"><label>Döviz</label><div class="in ph">—</div></div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Hareketli hesabın kodu ve adı değişmez; pasife alıp yeni hesap açılır. Muavin: İşlemler › Hareketleri gör.</p>
+      <div style="margin-top:10px;text-align:right"><span class="btn p">Değişiklikleri kaydet</span></div></div>
+  </div>
+</div>
+<ul class="note">
+  <li>Bugünkü <b>ağaç görünüm</b> (sınıf › grup › hesap, daralt/genişlet, alt hesaplar dahil bakiye) sayfa motorunda yok. İlk sürümde koda göre sıralı düz liste ve <b>Sınıf</b> süzgeci var. Ağaç, motora sonra eklenecek.</li>
+  <li>Alt hesap tam koduyla yazılır (ör. <code>120.001</code>); üst hesabın var olduğunu sunucu denetlemiyor, alan altındaki yardım metni bunu hatırlatır.</li>
+  <li><b>İşlemler:</b> Hareketleri gör (muavin), Pasife al / Etkinleştir, Tek Düzen Hesap Planı (eksik hesapları onayla ekle), Hesap eşleştirmeleri (eski ekran), CSV. Bütün yazmaları yalnız firma yöneticisi yapar; diğer kullanıcılara kart salt okunur gösterilir.</li>
+</ul>
+
+<div class="lbl">5 · YEVMİYE FİŞİ (GİRİŞ)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Genel Muhasebe › Yevmiye Fişi</div>
+  <div class="rh"><div><h2>Yeni yevmiye fişi</h2><p>Kaydedilen fiş değiştirilemez; düzeltme ters kayıtla yapılır.</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Fişi kaydet</span> <span class="btn g">İşlemler ▾</span></div></div>
+  <div class="sec"><h5>Belge bilgileri</h5><div class="g3"><div class="f"><label>Fiş tarihi <b>*</b></label><div class="in">21.11.2026</div></div><div class="f"><label>Muhasebe standardı</label><div class="in">Türkiye · TDHP ▾</div></div><div class="f"><label>Açıklama <b>*</b></label><div class="in">Kasım kira tahakkuku</div></div></div></div>
+  <div class="card"><table><thead><tr><th>#</th><th>Hesap</th><th>Satır açıklaması</th><th class="num">Borç</th><th class="num">Alacak</th><th></th></tr></thead><tbody>
+    <tr><td>1</td><td class="code">770.001 · Kira giderleri</td><td style="color:var(--mut)">Kasım kira tahakkuku</td><td class="num">25.000,00</td><td class="num"></td><td style="color:var(--mut)">✕</td></tr>
+    <tr><td>2</td><td class="code">191 · İndirilecek KDV</td><td style="color:var(--mut)">Kasım kira tahakkuku</td><td class="num">5.000,00</td><td class="num"></td><td style="color:var(--mut)">✕</td></tr>
+    <tr class="pick"><td>3</td><td class="code">320.014 · Mülk sahibi</td><td>Kasım kirası</td><td class="num"></td><td class="num">30.000,00</td><td style="color:var(--mut)">✕</td></tr>
+  </tbody></table>
+  <div class="bal"><span>Toplam borç 30.000,00</span><span>Toplam alacak 30.000,00</span><span class="ok">Borç = Alacak ✓ Dengeli</span></div>
+  <div class="foot"><span>+ Satır ekle (Ctrl+Shift+Enter) · Son tutarda Enter yeni satır · Bir tarafa yazınca diğeri temizlenir</span><span>Satır: 3 / 100</span></div></div>
+</div>
+<ul class="note">
+  <li>Hesap seçicide yalnız <b>aktif</b> hesaplar listelenir (koda göre önce önek eşleşmesi). Boş bırakılan satır açıklaması fiş açıklamasıyla doldurulur.</li>
+  <li><b>Dengeli / Fark</b> göstergesi fiş girişinin en önemli geri bildirimi. Düzenlenebilir ızgarada alt toplam ve fark gösterimi doğrulanmadan bu sayfa yayımlanmaz.</li>
+  <li>Firma yöneticisi dışındaki kullanıcılar bugünkü gibi kilit kartı görür: "Yevmiye fişi kaydetmek için firma yöneticisi yetkisi gerekir."</li>
+  <li>Kapalı döneme fiş girilmez (sunucu: "… dönemi kapalı; bu tarihe yevmiye eklenemez.").</li>
+</ul>
+
+<div class="lbl">6 · YEVMİYE DEFTERLERİ (LİSTE) + FİŞ + TERS KAYIT</div>
+<div class="erp">
+  <div class="ttl"><h2>Yevmiye Defterleri</h2><small>1.284 fiş</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">#</span><div><span>Fiş sayısı</span><strong>1.284</strong> <small>süzgece göre</small></div></div>
+    <div class="met"><span class="ic o">=</span><div><span>Borç = alacak</span><strong>2.418.900,00</strong> <small>bu sayfa</small></div></div>
+    <div class="met"><span class="ic">⇄</span><div><span>Aktarılmayı bekleyen</span><strong>7</strong> <small>yalnız yönetici</small></div></div>
+    <div class="met"><span class="ic">↺</span><div><span>Ters kayıt</span><strong>2</strong> <small>bu sayfa</small></div></div>
+  </div>
+  <div class="fbar"><span class="in" style="width:120px">01.11.2026</span><span class="in" style="width:120px">21.11.2026</span><span class="chip on">Tümü</span><span class="chip">TDHP</span><span class="chip">IFRS</span><span style="color:var(--mut)">Kaynak (bu sayfa):</span><span class="chip">Manuel</span><span class="chip">Satış</span><span class="chip">Tahsilat</span><span class="chip">Ödeme</span></div>
+  <div class="card"><table><thead><tr><th>Fiş</th><th>Tarih</th><th>Kaynak</th><th>Açıklama</th><th>Standart</th><th class="num">Borç</th><th class="num">Alacak</th></tr></thead><tbody>
+    <tr><td class="code">YV-2026-000412</td><td>21.11.2026</td><td><span class="tag t-in">Manuel</span></td><td>Kasım kira tahakkuku</td><td>TDHP</td><td class="num">30.000,00</td><td class="num">30.000,00</td></tr>
+    <tr class="pick"><td class="code">YV-2026-000409</td><td>20.11.2026</td><td><span class="tag t-in">Satış faturası</span></td><td>SF-2026-0031 · FATİH KOKAY</td><td>TDHP</td><td class="num">66.000,00</td><td class="num">66.000,00</td></tr>
+    <tr><td class="code">YV-2026-000398</td><td>14.11.2026</td><td><span class="tag t-in">Manuel</span> <span class="tag t-w">Ters kaydı var</span></td><td>Hatalı amortisman</td><td>TDHP</td><td class="num">4.100,00</td><td class="num">4.100,00</td></tr>
+    <tr class="tot"><td colspan="5">Sayfa toplamı</td><td class="num">100.100,00</td><td class="num">100.100,00</td></tr>
+  </tbody></table><div class="foot"><span>Sil her zaman pasif: "Kaydedilmiş fiş silinemez — İşlemler › Ters kayıt oluştur"</span><span>Sayfa 1 / 26 · 50'şer</span></div></div>
+  <div class="row2">
+    <div class="dlg" style="max-width:none"><div class="h">YV-2026-000409 · Satış faturası <span style="color:var(--mut)">✕</span></div><div class="b">
+      <dl class="dl"><dt>Fiş tarihi</dt><dd>20.11.2026</dd><dt>Kaynak belge</dt><dd>Satış faturası (bağlantı yok, bugünkü gibi)</dd><dt>Standart</dt><dd>TDHP</dd></dl>
+      <table style="margin-top:8px"><thead><tr><th>Hesap</th><th class="num">Borç</th><th class="num">Alacak</th></tr></thead><tbody>
+        <tr><td class="code">120.014 · FATİH KOKAY</td><td class="num">66.000,00</td><td></td></tr>
+        <tr><td class="code">600 · Yurt içi satışlar</td><td></td><td class="num">55.000,00</td></tr>
+        <tr><td class="code">391 · Hesaplanan KDV</td><td></td><td class="num">11.000,00</td></tr>
+      </tbody></table></div>
+      <div class="a"><span class="btn w">Ters kayıt oluştur</span><span class="btn g">Kapat</span></div></div>
+    <div class="dlg"><div class="h">Fiş ters çevrilsin mi?</div><div class="b">
+      <div class="al w"><b>Bu fiş bir satış faturasından geldi.</b> Ters kayıttan sonra faturayı Satış Faturaları ekranından iptal edin. Fatura, yevmiyesi ters çevrilmeden iptal edilemez.</div>
+      <div class="f"><label>Gerekçe <b>*</b></label><div class="in ph" style="height:54px;align-items:flex-start;padding-top:7px">Neden ters çevriliyor? (1–240 karakter)</div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Ters kayıt bugünün tarihiyle yazılır; borç ve alacak yer değiştirir. Bir fiş yalnız bir kez ters çevrilir; ters kayıt fişi yeniden çevrilemez.</p></div>
+      <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Ters kaydı oluştur</span></div></div>
+  </div>
+</div>
+<ul class="note">
+  <li>Yeni → Yevmiye Fişi ekranı; Yevmiye Fişi'nde Vazgeç → bu liste. "Aktarılabilir kaynaklar" ilk sürümde eski ekranda açılır.</li>
+  <li>Kaynak çipleri bugünkü gibi yalnız <b>görünen sayfayı</b> süzer ve öyle etiketlenir.</li>
+  <li>Dönem kapanışı ve açılış fişleri ile çek/senet, bordro, sabit kıymet ve kredi fişleri bu ekrandan ters çevrilmez (kendi ekranlarından yapılır).</li>
+</ul>
+
+<div class="lbl">7 · MİZAN</div>
+<div class="erp">
+  <div class="ttl"><h2>Mizan</h2><small>01.01.2026 – 21.11.2026 · TDHP</small></div>
+  <div class="bar"><span class="pri">Çalıştır (F9)</span><span>Yenile</span><span>Excel</span><span>CSV</span><span class="r">İşlemler ▾</span></div>
+  <div class="lay" style="margin-top:10px">
+    <div class="par">
+      <div class="f"><label>Dönem</label><div class="seg"><span class="on">Bu yıl</span><span>Bu ay</span><span>Özel</span></div></div>
+      <div class="f"><label>Standart</label><div class="seg"><span class="on">TDHP</span><span>IFRS</span></div></div>
+      <div class="f"><label>Hesap düzeyi</label><div class="seg"><span>Ana hesap</span><span class="on">Alt hesap</span></div></div>
+      <div class="f"><label>Hesap kapsamı</label><div class="seg"><span class="on">Hareketli</span><span>Tümü</span></div></div>
+      <div class="f"><label>Ara</label><div class="in ph">Kod veya hesap</div></div>
+    </div>
+    <div>
+      <div class="mets m3" style="margin-top:0">
+        <div class="met"><span class="ic">B</span><div><span>Dönem borç</span><strong>4.812.300,00</strong></div></div>
+        <div class="met"><span class="ic">A</span><div><span>Dönem alacak</span><strong>4.812.300,00</strong></div></div>
+        <div class="met"><span class="ic o">✓</span><div><span>Durum</span><strong style="color:var(--ok)">Mizan dengede</strong></div></div>
+      </div>
+      <div class="card"><table><thead><tr><th>Hesap</th><th class="num">Açılış B</th><th class="num">Açılış A</th><th class="num">Dönem B</th><th class="num">Dönem A</th><th class="num">Bakiye B</th><th class="num">Bakiye A</th></tr></thead><tbody>
+        <tr><td><span class="code">100.001</span> Merkez kasa</td><td class="num">8.000,00</td><td class="num">—</td><td class="num">142.000,00</td><td class="num">131.500,00</td><td class="num">18.500,00</td><td class="num">—</td></tr>
+        <tr class="pick"><td><span class="code">102.001</span> Ziraat Konya Şb. <span style="color:var(--pri)">› muavin</span></td><td class="num">120.000,00</td><td class="num">—</td><td class="num">1.120.500,00</td><td class="num">828.150,00</td><td class="num">412.350,00</td><td class="num">—</td></tr>
+        <tr><td><span class="code">120.014</span> FATİH KOKAY</td><td class="num">12.000,00</td><td class="num">—</td><td class="num">210.000,00</td><td class="num">35.758,00</td><td class="num">186.242,00</td><td class="num">—</td></tr>
+        <tr><td><span class="code">600</span> Yurt içi satışlar</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">2.140.000,00</td><td class="num">—</td><td class="num">2.140.000,00</td></tr>
+        <tr class="tot"><td>Genel toplam</td><td class="num">412.000,00</td><td class="num">412.000,00</td><td class="num">4.812.300,00</td><td class="num">4.812.300,00</td><td class="num">2.904.100,00</td><td class="num">2.904.100,00</td></tr>
+      </tbody></table><div class="foot"><span>Satıra tıkla / Enter → muavin (yalnız TDHP) · Genel toplam süzgeçten bağımsız</span><span>86 hareketli hesap</span></div></div>
+    </div>
+  </div>
+</div>
+<ul class="note">
+  <li>Bugünkü <b>sınıf grupları</b> ("1 Dönen varlıklar toplamı" ara satırları) ilk sürümde yok; sayfa motoru grup ara toplamı bilmiyor. Genel toplam ve denge rozeti korunur.</li>
+  <li><b>Ana hesap düzeyi</b> bugün tarayıcıda hesaplanıyor; sistem sayfası için sunucuya düzey seçimi ekleniyor (yeni mizan işlemi), motor değişmiyor.</li>
+  <li><b>Muavin</b> penceresi hesap planı ile ortak: açılış, dönem borç/alacak, kapanış, yürüyen bakiye, "Daha fazla göster". IFRS mizanında satırlar IFRS koduna göre birleştiği için muavin bağlantısı yalnız TDHP'de var (bugünkü gibi).</li>
+  <li>IFRS'te eşlemesi eksik hesap varsa sarı uyarı çıkar: "n hareketli hesapta IFRS eşlemesi eksik…".</li>
+</ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL)</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Kaynaklı fişin ters kaydı</b><p>Bugün ekran, satış faturası ya da tahsilat gibi bir belgeden gelen fişin ters kaydını engelliyor. Oysa sunucu, o belgenin iptal edilebilmesi için önce fişin ters çevrilmesini şart koşuyor. Sonuç: aktarılmış bir fatura bugün arayüzden iptal edilemiyor.</p><p class="rec">Öneri: sunucunun izin verdiği kaynak türlerinde ters kaydı aç. Onay penceresi "sonra belgeyi kendi ekranından iptal edin" uyarısını gösterir. Ters kaydın tarihi bugün kalır.</p></div>
+  <div class="d"><b class="h">2 · ERP işlem adları</b><p>Adlar kalıcı. Kasa/banka ve muhasebe aynı önek altında mı, ayrı mı toplanmalı?</p><p class="rec">Öneri: tek önek <code>finans.*</code>; alt gruplar <code>finans.hesap.*</code>, <code>finans.hareket.*</code>, <code>finans.transfer.*</code>, <code>finans.muhasebe.*</code>, <code>finans.fis.*</code>, <code>finans.mizan</code>. Tahsilat/ödeme adları satış ve satınalma modüllerinde kalır.</p></div>
+  <div class="d"><b class="h">3 · Hesap planı ağacı ve mizan grupları</b><p>İkisi de bugün tarayıcıda hesaplanıyor; sayfa motorunda ağaç ve grup ara toplamı yok. Bu ortak motor dosyalarına dokunuyor.</p><p class="rec">Öneri: ilk sürümde düz liste + sınıf süzgeci; ana hesap düzeyi sunucudan gelsin. Ağaç ve grup ara toplamı, diğer modüllerle sıralanan ayrı bir motor işi olsun.</p></div>
+  <div class="d"><b class="h">4 · Sıra ve yayın</b><p>Kasa/Banka depo transferindeki yapıyı kullanıyor ve motorda en az eksiği var. Yevmiye fişi denge göstergesine bağlı.</p><p class="rec">Öneri: önizleme aşamasında, varsayılan yine eski ekran. Sıra: Kasa/Banka → Mizan → Hesap Planı → Yevmiye. QA yalnız test firmasında.</p></div>
+</div>
+<ul class="note">
+  <li><b>Dönem kapanışı</b> için bugün ekran yok, yalnız API var (geri alınamaz; gelir/gider hesaplarını özkaynağa kapatır). Bu taslağın kapsamında değil; ayrı bir taslakla önerilecek.</li>
+  <li><b>Tahsilat ve ödeme</b> bu ekranlarda girilmiyor (satış ve satınalma tarafı). Kasa ekstresinde kaynak olarak görünür ve kendi ekranından iptal edilir.</li>
+  <li>Bugün de var olan ve değişmeyen davranışlar: kasa/banka hareketleri ve transferler yevmiye fişi üretmez; manuel yevmiye fişi çift tıklamada iki kez yazılabilir (sunucuda tekrar koruması yok); banka ekstresinden oluşan hareket "Manuel hareket" görünür ve iptal edilebilir.</li>
+</ul>
+</body></html>

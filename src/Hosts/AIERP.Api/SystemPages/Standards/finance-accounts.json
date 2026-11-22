@@ -1,0 +1,1635 @@
+{
+  "screenKey": "finance-accounts",
+  "title": "Kasalar",
+  "description": "Kasa hesaplarını, bakiyelerini ve hesap ekstresini yönetin: manuel hareket, transfer / döviz ve ters kayıtla iptal.",
+  "module": "Finans",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "component:ekstreDugmesi",
+        "component:yeniDugmesi",
+        "component:duzenleDugmesi",
+        "component:pasifeAlDugmesi",
+        "component:etkinlestirDugmesi",
+        "component:silDugmesi",
+        "component:manuelHareketDugmesi",
+        "component:transferDugmesi",
+        "query:hesaplar"
+      ]
+    },
+    "component:hesapTuru": {
+      "since": 1,
+      "label": "Hesap türü (gizli, sabit)"
+    },
+    "component:adimlar": {
+      "since": 1,
+      "label": "Adımlar (Hesap seç, Ekstre)",
+      "requires": [
+        "component:hesapSecimi"
+      ]
+    },
+    "component:hesapSecimi": {
+      "since": 1,
+      "label": "Seçili hesap (gizli)"
+    },
+    "component:toplamBakiyeGostergesi": {
+      "since": 1,
+      "label": "Toplam bakiye göstergesi",
+      "requires": [
+        "component:hesapSecimi",
+        "query:hesaplar",
+        "query:ozet"
+      ]
+    },
+    "component:cokDovizGostergesi": {
+      "since": 1,
+      "label": "Toplam bakiye (çok döviz) göstergesi",
+      "requires": [
+        "component:hesapSecimi",
+        "query:ozet"
+      ]
+    },
+    "component:aktifHesapGostergesi": {
+      "since": 1,
+      "label": "Aktif hesap göstergesi",
+      "requires": [
+        "component:hesapSecimi",
+        "query:ozet"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, durum)",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Kasa hesapları listesi",
+      "requires": [
+        "component:hesapSecimi",
+        "component:acDugmesi",
+        "query:hesaplar"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Aç (hesap ekstresi)",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste"
+      ]
+    },
+    "component:ekstreDugmesi": {
+      "since": 1,
+      "label": "Ekstre / hareketler komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste",
+        "component:hareketler"
+      ]
+    },
+    "component:yeniDugmesi": {
+      "since": 1,
+      "label": "Yeni kasa kartı komutu"
+    },
+    "component:duzenleDugmesi": {
+      "since": 1,
+      "label": "Düzenle komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste"
+      ]
+    },
+    "component:pasifeAlDugmesi": {
+      "since": 1,
+      "label": "Pasife al komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste",
+        "query:hesaplar",
+        "query:ozet",
+        "query:pasifeAl"
+      ]
+    },
+    "component:etkinlestirDugmesi": {
+      "since": 1,
+      "label": "Etkinleştir komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste",
+        "query:hesaplar",
+        "query:ozet",
+        "query:aktifEt"
+      ]
+    },
+    "component:silDugmesi": {
+      "since": 1,
+      "label": "Sil komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:liste",
+        "query:hesaplar",
+        "query:ozet",
+        "query:hesapSil"
+      ]
+    },
+    "component:manuelHareketDugmesi": {
+      "since": 1,
+      "label": "Manuel hareket komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:manuelHareketPenceresi",
+        "query:ekstre"
+      ]
+    },
+    "component:transferDugmesi": {
+      "since": 1,
+      "label": "Transfer / döviz komutu",
+      "requires": [
+        "component:hesapSecimi",
+        "component:transferPenceresi",
+        "query:ekstre"
+      ]
+    },
+    "component:hesapBasligi": {
+      "since": 1,
+      "label": "Seçili hesap özeti (2. adım)",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hesapDegistir",
+        "component:ekstreDuzenle",
+        "query:ekstre"
+      ]
+    },
+    "component:aktifEtiketi": {
+      "since": 1,
+      "label": "Durum etiketi: Aktif",
+      "requires": [
+        "component:hesapSecimi",
+        "query:ekstre"
+      ]
+    },
+    "component:pasifEtiketi": {
+      "since": 1,
+      "label": "Durum etiketi: Pasif",
+      "requires": [
+        "component:hesapSecimi",
+        "query:ekstre"
+      ]
+    },
+    "component:hesapDegistir": {
+      "since": 1,
+      "label": "Hesap değiştir düğmesi",
+      "requires": [
+        "component:hesapSecimi"
+      ]
+    },
+    "component:ekstreDuzenle": {
+      "since": 1,
+      "label": "Hesabı düzenle düğmesi (2. adım)",
+      "requires": [
+        "component:hesapSecimi"
+      ]
+    },
+    "component:hareketler": {
+      "since": 1,
+      "label": "Hesap hareketleri (ekstre)",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hareketIptalDugmesi",
+        "component:transferIptalDugmesi",
+        "component:nakitAkisiDugmesi",
+        "query:ekstre"
+      ]
+    },
+    "component:hareketIptalDugmesi": {
+      "since": 1,
+      "label": "Hareketi iptal et (satır)",
+      "requires": [
+        "component:hareketler",
+        "query:hesaplar",
+        "query:ozet",
+        "query:ekstre",
+        "query:hareketIptal"
+      ]
+    },
+    "component:transferIptalDugmesi": {
+      "since": 1,
+      "label": "Transferi iptal et (satır)",
+      "requires": [
+        "component:hareketler",
+        "query:hesaplar",
+        "query:ozet",
+        "query:ekstre",
+        "query:transferIptal"
+      ]
+    },
+    "component:nakitAkisiDugmesi": {
+      "since": 1,
+      "label": "Nakit akışı sınıfı (satır)",
+      "requires": [
+        "component:hareketler",
+        "component:nakitAkisiPenceresi"
+      ]
+    },
+    "component:altBilgi": {
+      "since": 1,
+      "label": "Ekstre alt bilgisi",
+      "requires": [
+        "component:hesapSecimi"
+      ]
+    },
+    "component:manuelHareketPenceresi": {
+      "since": 1,
+      "label": "Manuel hareket penceresi",
+      "requires": [
+        "component:hareketKarti",
+        "component:hareketIstekKimligi",
+        "component:hareketNotu",
+        "query:hesaplar",
+        "query:ozet",
+        "query:ekstre",
+        "query:hareketEkle"
+      ]
+    },
+    "component:hareketKarti": {
+      "since": 1,
+      "label": "Manuel hareket formu",
+      "requires": [
+        "component:hareketYonu",
+        "component:hareketTarihi",
+        "component:hareketTutari",
+        "component:hareketReferansi",
+        "component:hareketAciklamasi",
+        "component:hareketNakitAkisi"
+      ]
+    },
+    "component:hareketYonu": {
+      "since": 1,
+      "label": "Hareket alanı: Yön"
+    },
+    "component:hareketTarihi": {
+      "since": 1,
+      "label": "Hareket alanı: Tarih"
+    },
+    "component:hareketTutari": {
+      "since": 1,
+      "label": "Hareket alanı: Tutar",
+      "requires": [
+        "query:ekstre"
+      ]
+    },
+    "component:hareketReferansi": {
+      "since": 1,
+      "label": "Hareket alanı: Referans"
+    },
+    "component:hareketAciklamasi": {
+      "since": 1,
+      "label": "Hareket alanı: Açıklama"
+    },
+    "component:hareketNakitAkisi": {
+      "since": 1,
+      "label": "Hareket alanı: Nakit akışı sınıfı"
+    },
+    "component:hareketIstekKimligi": {
+      "since": 1,
+      "label": "Hareket tekrar deneme kimliği (gizli)"
+    },
+    "component:hareketNotu": {
+      "since": 1,
+      "label": "Manuel hareket notu"
+    },
+    "component:transferPenceresi": {
+      "since": 1,
+      "label": "Transfer / döviz penceresi",
+      "requires": [
+        "component:transferKarti",
+        "component:transferIstekKimligi",
+        "component:transferNotu",
+        "query:hesaplar",
+        "query:ozet",
+        "query:ekstre",
+        "query:transferOlustur"
+      ]
+    },
+    "component:transferKarti": {
+      "since": 1,
+      "label": "Transfer formu",
+      "requires": [
+        "component:hedefHesap",
+        "component:transferTarihi",
+        "component:transferReferansi",
+        "component:transferTutari",
+        "component:transferKuru"
+      ]
+    },
+    "component:hedefHesap": {
+      "since": 1,
+      "label": "Transfer alanı: Hedef hesap",
+      "requires": [
+        "component:hesapSecimi",
+        "query:tumHesaplar"
+      ]
+    },
+    "component:transferTarihi": {
+      "since": 1,
+      "label": "Transfer alanı: Tarih"
+    },
+    "component:transferReferansi": {
+      "since": 1,
+      "label": "Transfer alanı: Referans"
+    },
+    "component:transferTutari": {
+      "since": 1,
+      "label": "Transfer alanı: Kaynak tutarı",
+      "requires": [
+        "query:ekstre"
+      ]
+    },
+    "component:transferKuru": {
+      "since": 1,
+      "label": "Transfer alanı: Kur"
+    },
+    "component:transferIstekKimligi": {
+      "since": 1,
+      "label": "Transfer tekrar deneme kimliği (gizli)"
+    },
+    "component:transferNotu": {
+      "since": 1,
+      "label": "Transfer notu",
+      "requires": [
+        "query:hesaplar"
+      ]
+    },
+    "component:nakitAkisiPenceresi": {
+      "since": 1,
+      "label": "Nakit akışı sınıfı penceresi",
+      "requires": [
+        "component:hareketler",
+        "component:nakitAkisiKarti",
+        "component:nakitAkisiNotu",
+        "query:ekstre",
+        "query:nakitAkisiDegistir"
+      ]
+    },
+    "component:nakitAkisiKarti": {
+      "since": 1,
+      "label": "Nakit akışı formu",
+      "requires": [
+        "component:nakitAkisiSecimi"
+      ]
+    },
+    "component:nakitAkisiSecimi": {
+      "since": 1,
+      "label": "Nakit akışı alanı",
+      "requires": [
+        "component:hareketler"
+      ]
+    },
+    "component:nakitAkisiNotu": {
+      "since": 1,
+      "label": "Nakit akışı notu"
+    },
+    "query:hesaplar": {
+      "since": 1,
+      "label": "Kasa hesaplarını listele",
+      "requires": [
+        "component:hesapTuru"
+      ]
+    },
+    "query:ozet": {
+      "since": 1,
+      "label": "Kasa hesap özeti",
+      "requires": [
+        "component:hesapTuru"
+      ]
+    },
+    "query:tumHesaplar": {
+      "since": 1,
+      "label": "Transfer hedefleri (kasa ve banka)"
+    },
+    "query:ekstre": {
+      "since": 1,
+      "label": "Seçili hesabın ekstresi",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hareketler"
+      ]
+    },
+    "query:pasifeAl": {
+      "since": 1,
+      "label": "Hesabı pasife al",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:aktifEt": {
+      "since": 1,
+      "label": "Hesabı etkinleştir",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:hesapSil": {
+      "since": 1,
+      "label": "Hesabı sil",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:hareketEkle": {
+      "since": 1,
+      "label": "Manuel hareket ekle",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hareketYonu",
+        "component:hareketTarihi",
+        "component:hareketTutari",
+        "component:hareketReferansi",
+        "component:hareketAciklamasi",
+        "component:hareketNakitAkisi",
+        "component:hareketIstekKimligi"
+      ]
+    },
+    "query:hareketIptal": {
+      "since": 1,
+      "label": "Hareketi ters kayıtla iptal et",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hareketler"
+      ]
+    },
+    "query:transferIptal": {
+      "since": 1,
+      "label": "Transferi ters kayıtla iptal et",
+      "requires": [
+        "component:hareketler"
+      ]
+    },
+    "query:nakitAkisiDegistir": {
+      "since": 1,
+      "label": "Nakit akışı sınıfını değiştir",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hareketler",
+        "component:nakitAkisiSecimi"
+      ]
+    },
+    "query:transferOlustur": {
+      "since": 1,
+      "label": "Transfer oluştur",
+      "requires": [
+        "component:hesapSecimi",
+        "component:hedefHesap",
+        "component:transferTarihi",
+        "component:transferReferansi",
+        "component:transferTutari",
+        "component:transferKuru",
+        "component:transferIstekKimligi"
+      ]
+    }
+  },
+  "screenViews": [
+    {
+      "key": "finance-accounts",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "name": "name",
+        "type": "type",
+        "currencyCode": "currencyCode",
+        "balance": "balance",
+        "transactionCount": "transactionCount",
+        "status": "isActive"
+      }
+    },
+    {
+      "key": "finance-account-transactions",
+      "component": "hareketler",
+      "fields": {
+        "transactionDate": "transactionDate",
+        "source": "sourceType",
+        "description": "description",
+        "cashFlowCategory": "cashFlowCategory",
+        "reference": "reference",
+        "inflow": "inflow",
+        "outflow": "outflow"
+      }
+    }
+  ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniDugmesi",
+          "moreButtons": [
+            "ekstreDugmesi",
+            "duzenleDugmesi",
+            "pasifeAlDugmesi",
+            "etkinlestirDugmesi",
+            "silDugmesi",
+            "manuelHareketDugmesi",
+            "transferDugmesi"
+          ],
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{hesaplar.satirSayisi}}",
+          "hiddenCommands": [
+            "open",
+            "save",
+            "delete",
+            "print"
+          ]
+        }
+      },
+      {
+        "id": "hesapTuru",
+        "type": "input",
+        "name": "hesapTuru",
+        "props": {
+          "inputType": "text",
+          "label": "Hesap türü",
+          "hidden": true,
+          "defaultValue": "Cash"
+        }
+      },
+      {
+        "id": "adimlar",
+        "type": "steps",
+        "name": "adimlar",
+        "props": {
+          "steps": [
+            "Hesap seç",
+            "Ekstre"
+          ],
+          "activeWhen": [
+            "hesapSecimi.value == null",
+            "hesapSecimi.value != null"
+          ]
+        }
+      },
+      {
+        "id": "hesapSecimi",
+        "type": "input",
+        "name": "hesapSecimi",
+        "props": {
+          "inputType": "text",
+          "label": "Seçili hesap",
+          "hidden": true,
+          "defaultValue": "{{sayfa.parametre.accountId}}"
+        }
+      },
+      {
+        "id": "toplamBakiyeGostergesi",
+        "type": "metric",
+        "name": "toplamBakiyeGostergesi",
+        "props": {
+          "title": "Toplam bakiye",
+          "value": "{{ozet.rows[0].totalBalance}}",
+          "format": "money",
+          "width": 4,
+          "icon": "wallet",
+          "description": "{{ozet.rows[0].currencyCode}} · tüm kasa hesapları",
+          "visibleWhen": "hesapSecimi.value == null && ozet.rows[0].currencyCount <= 1"
+        }
+      },
+      {
+        "id": "cokDovizGostergesi",
+        "type": "metric",
+        "name": "cokDovizGostergesi",
+        "props": {
+          "title": "Toplam bakiye",
+          "value": "—",
+          "format": "text",
+          "width": 4,
+          "icon": "coins",
+          "description": "birden çok para birimi ({{ozet.rows[0].currencyCount}})",
+          "visibleWhen": "hesapSecimi.value == null && ozet.rows[0].currencyCount > 1"
+        }
+      },
+      {
+        "id": "aktifHesapGostergesi",
+        "type": "metric",
+        "name": "aktifHesapGostergesi",
+        "props": {
+          "title": "Aktif hesap",
+          "value": "{{ozet.rows[0].activeCount}}",
+          "format": "number",
+          "width": 4,
+          "icon": "check",
+          "variant": "success",
+          "description": "{{ozet.rows[0].accountCount}} hesaptan · {{ozet.rows[0].inactiveCount}} pasif",
+          "visibleWhen": "hesapSecimi.value == null"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "width": 12,
+          "search": true,
+          "searchPlaceholder": "Kod, hesap veya döviz ara",
+          "searchColumns": [
+            "code",
+            "name",
+            "currencyCode"
+          ],
+          "filters": [
+            "isActive|select|row||Durum"
+          ],
+          "visibleWhen": "hesapSecimi.value == null"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Kasa hesapları",
+          "query": "hesaplar",
+          "width": 12,
+          "visibleWhen": "hesapSecimi.value == null",
+          "columns": [
+            "code",
+            "name",
+            "type",
+            "currencyCode",
+            "balance",
+            "transactionCount",
+            "isActive"
+          ],
+          "columnLabels": [
+            "code=Kod",
+            "name=Hesap",
+            "type=Tür",
+            "currencyCode=Döviz",
+            "balance=Bakiye",
+            "transactionCount=Hareket",
+            "isActive=Durum",
+            "createdAt=Açılış"
+          ],
+          "columnUnits": [
+            "balance=currencyCode"
+          ],
+          "columnFormats": [
+            "code=code",
+            "type=status",
+            "balance=money",
+            "transactionCount=number",
+            "isActive=status",
+            "createdAt=date"
+          ],
+          "valueLabels": [
+            "type:Cash=Kasa",
+            "type:Bank=Banka",
+            "isActive:true=Aktif",
+            "isActive:false=Pasif"
+          ],
+          "toneMap": [
+            "Aktif=success",
+            "Pasif=info"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Filtreye uygun kasa veya banka hesabı yok."
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "setInput",
+          "assignments": [
+            "hesapSecimi={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "hesapSecimi.value == null",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir hesap seçin"
+        }
+      },
+      {
+        "id": "ekstreDugmesi",
+        "type": "button",
+        "name": "ekstreDugmesi",
+        "props": {
+          "text": "Ekstre / hareketler",
+          "actionType": "setInput",
+          "assignments": [
+            "hesapSecimi={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "hesapSecimi.value == null",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir hesap seçin"
+        }
+      },
+      {
+        "id": "yeniDugmesi",
+        "type": "button",
+        "name": "yeniDugmesi",
+        "props": {
+          "text": "Yeni",
+          "actionType": "page",
+          "pageCode": "@finance-account-create",
+          "target": "newTab",
+          "params": [
+            "accountType=Cash"
+          ]
+        }
+      },
+      {
+        "id": "duzenleDugmesi",
+        "type": "button",
+        "name": "duzenleDugmesi",
+        "props": {
+          "text": "Düzenle",
+          "actionType": "page",
+          "pageCode": "@finance-account-create",
+          "target": "newTab",
+          "params": [
+            "accountId={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "hesapSecimi.value == null",
+          "disabledWhen": "liste.seciliSatir.id == null",
+          "disabledReason": "Önce bir hesap seçin"
+        }
+      },
+      {
+        "id": "pasifeAlDugmesi",
+        "type": "button",
+        "name": "pasifeAlDugmesi",
+        "props": {
+          "text": "Pasife al",
+          "actionType": "query",
+          "queryId": "pasifeAl",
+          "confirmEnabled": true,
+          "confirmText": "“{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}” pasife alınsın mı? Pasif hesaba hareket girilemez ve transfer yapılamaz.",
+          "successMessage": "Hesap pasife alındı.",
+          "refreshQueries": [
+            "hesaplar",
+            "ozet"
+          ],
+          "visibleWhen": "hesapSecimi.value == null && liste.seciliSatir.isActive == true"
+        }
+      },
+      {
+        "id": "etkinlestirDugmesi",
+        "type": "button",
+        "name": "etkinlestirDugmesi",
+        "props": {
+          "text": "Etkinleştir",
+          "actionType": "query",
+          "queryId": "aktifEt",
+          "confirmEnabled": true,
+          "confirmText": "“{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}” yeniden etkinleştirilsin mi?",
+          "successMessage": "Hesap etkinleştirildi.",
+          "refreshQueries": [
+            "hesaplar",
+            "ozet"
+          ],
+          "visibleWhen": "hesapSecimi.value == null && liste.seciliSatir.isActive == false"
+        }
+      },
+      {
+        "id": "silDugmesi",
+        "type": "button",
+        "name": "silDugmesi",
+        "props": {
+          "text": "Sil",
+          "actionType": "query",
+          "queryId": "hesapSil",
+          "confirmEnabled": true,
+          "confirmText": "“{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}}” kalıcı olarak silinsin mi? Bu işlem geri alınamaz.",
+          "successMessage": "Hesap silindi.",
+          "refreshQueries": [
+            "hesaplar",
+            "ozet"
+          ],
+          "visibleWhen": "hesapSecimi.value == null",
+          "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.transactionCount > 0",
+          "disabledReason": "Hareketi olan hesap silinemez; pasifleştirin."
+        }
+      },
+      {
+        "id": "manuelHareketDugmesi",
+        "type": "button",
+        "name": "manuelHareketDugmesi",
+        "props": {
+          "text": "Manuel hareket",
+          "actionType": "openDialog",
+          "dialogId": "manuelHareketPenceresi",
+          "visibleWhen": "hesapSecimi.value != null",
+          "disabledWhen": "ekstre.meta.isActive == false",
+          "disabledReason": "Pasif hesaba hareket girilemez"
+        }
+      },
+      {
+        "id": "transferDugmesi",
+        "type": "button",
+        "name": "transferDugmesi",
+        "props": {
+          "text": "Transfer / döviz",
+          "actionType": "openDialog",
+          "dialogId": "transferPenceresi",
+          "visibleWhen": "hesapSecimi.value != null",
+          "disabledWhen": "ekstre.meta.isActive == false",
+          "disabledReason": "Pasif hesaptan transfer yapılamaz"
+        }
+      },
+      {
+        "id": "hesapBasligi",
+        "type": "recordHeader",
+        "name": "hesapBasligi",
+        "props": {
+          "visibleWhen": "hesapSecimi.value != null",
+          "icon": "wallet",
+          "title": "{{ekstre.meta.code}} · {{ekstre.meta.name}}",
+          "subtitle": "Kasa · {{ekstre.meta.currencyCode}}",
+          "fields": [
+            "Güncel bakiye={{ekstre.meta.balance}}",
+            "Hareket (tümü)={{ekstre.meta.transactionTotalCount}}",
+            "Giriş · bu sayfa={{ekstre.meta.pageInflow}}",
+            "Çıkış · bu sayfa={{ekstre.meta.pageOutflow}}"
+          ],
+          "fieldFormats": [
+            "Güncel bakiye=money",
+            "Hareket (tümü)=number",
+            "Giriş · bu sayfa=money",
+            "Çıkış · bu sayfa=money"
+          ],
+          "fieldUnits": [
+            "Güncel bakiye={{ekstre.meta.currencyCode}}",
+            "Giriş · bu sayfa={{ekstre.meta.currencyCode}}",
+            "Çıkış · bu sayfa={{ekstre.meta.currencyCode}}"
+          ],
+          "buttons": [
+            "hesapDegistir",
+            "ekstreDuzenle"
+          ]
+        }
+      },
+      {
+        "id": "aktifEtiketi",
+        "type": "badge",
+        "name": "aktifEtiketi",
+        "props": {
+          "text": "Aktif",
+          "variant": "success",
+          "visibleWhen": "hesapSecimi.value != null && ekstre.meta.isActive == true"
+        }
+      },
+      {
+        "id": "pasifEtiketi",
+        "type": "badge",
+        "name": "pasifEtiketi",
+        "props": {
+          "text": "Pasif",
+          "variant": "info",
+          "visibleWhen": "hesapSecimi.value != null && ekstre.meta.isActive == false"
+        }
+      },
+      {
+        "id": "hesapDegistir",
+        "type": "button",
+        "name": "hesapDegistir",
+        "props": {
+          "text": "‹ Hesap değiştir",
+          "actionType": "setInput",
+          "assignments": [
+            "hesapSecimi="
+          ]
+        }
+      },
+      {
+        "id": "ekstreDuzenle",
+        "type": "button",
+        "name": "ekstreDuzenle",
+        "props": {
+          "text": "Düzenle",
+          "actionType": "page",
+          "pageCode": "@finance-account-create",
+          "target": "newTab",
+          "params": [
+            "accountId={{hesapSecimi.value}}"
+          ]
+        }
+      },
+      {
+        "id": "hareketler",
+        "type": "dataTable",
+        "name": "hareketler",
+        "props": {
+          "title": "Hareketler",
+          "query": "ekstre",
+          "paging": "server",
+          "pageSize": 50,
+          "width": 12,
+          "visibleWhen": "hesapSecimi.value != null",
+          "columns": [
+            "transactionDate",
+            "sourceType",
+            "description",
+            "cashFlowCategory",
+            "reference",
+            "inflow",
+            "outflow",
+            "isReversed",
+            "isReversal"
+          ],
+          "columnLabels": [
+            "transactionDate=Tarih",
+            "sourceType=Kaynak",
+            "description=Açıklama",
+            "cashFlowCategory=Nakit akışı",
+            "reference=Referans",
+            "inflow=Giriş",
+            "outflow=Çıkış",
+            "isReversed=Durum",
+            "isReversal=Ters kayıt"
+          ],
+          "columnUnits": [
+            "sourceType=sourceCode"
+          ],
+          "columnFormats": [
+            "transactionDate=date",
+            "cashFlowCategory=status",
+            "inflow=money",
+            "outflow=money",
+            "isReversed=status",
+            "isReversal=status"
+          ],
+          "valueLabels": [
+            "cashFlowCategory:Unclassified=Sınıflandırılmamış",
+            "cashFlowCategory:Operating=İşletme",
+            "cashFlowCategory:Investing=Yatırım",
+            "cashFlowCategory:Financing=Finansman",
+            "cashFlowCategory:InternalTransfer=İç transfer",
+            "cashFlowCategory:OpeningBalance=Açılış",
+            "isReversed:true=İptal edildi",
+            "isReversed:false=—",
+            "isReversal:true=Ters kayıt",
+            "isReversal:false=—"
+          ],
+          "toneMap": [
+            "İptal edildi=warning",
+            "Ters kayıt=info"
+          ],
+          "totals": [
+            "inflow",
+            "outflow"
+          ],
+          "rowActions": [
+            "hareketIptalDugmesi",
+            "transferIptalDugmesi",
+            "nakitAkisiDugmesi"
+          ],
+          "emptyText": "Bu hesapta henüz hareket yok."
+        }
+      },
+      {
+        "id": "hareketIptalDugmesi",
+        "type": "button",
+        "name": "hareketIptalDugmesi",
+        "props": {
+          "text": "Hareketi iptal et",
+          "actionType": "query",
+          "queryId": "hareketIptal",
+          "confirmEnabled": true,
+          "confirmText": "{{hareketler.seciliSatir.description}} · Hareket ters yönlü yeni bir kayıtla iptal edilecek (Ters kayıtla iptal et). Ters kaydın tarihi bugündür; kapalı döneme ters kayıt girilemez.",
+          "successMessage": "Hareket ters kayıtla iptal edildi.",
+          "refreshQueries": [
+            "ekstre",
+            "hesaplar",
+            "ozet"
+          ],
+          "visibleWhen": "hareketler.seciliSatir.canVoid == true"
+        }
+      },
+      {
+        "id": "transferIptalDugmesi",
+        "type": "button",
+        "name": "transferIptalDugmesi",
+        "props": {
+          "text": "Transferi iptal et",
+          "actionType": "query",
+          "queryId": "transferIptal",
+          "confirmEnabled": true,
+          "confirmText": "{{hareketler.seciliSatir.sourceCode}} · Transfer iki hesapta ters kayıtla iptal edilecek (Ters kayıtla iptal et). Ters kaydın tarihi bugündür; hedef kasanın bakiyesi yetmezse işlem reddedilir.",
+          "successMessage": "Transfer ters kayıtlarla iptal edildi.",
+          "refreshQueries": [
+            "ekstre",
+            "hesaplar",
+            "ozet"
+          ],
+          "visibleWhen": "hareketler.seciliSatir.canVoidTransfer == true"
+        }
+      },
+      {
+        "id": "nakitAkisiDugmesi",
+        "type": "button",
+        "name": "nakitAkisiDugmesi",
+        "props": {
+          "text": "Nakit akışı sınıfı",
+          "actionType": "openDialog",
+          "dialogId": "nakitAkisiPenceresi",
+          "visibleWhen": "hareketler.seciliSatir.canChangeCashFlow == true && kullanici.rol == 'TenantAdmin'"
+        }
+      },
+      {
+        "id": "altBilgi",
+        "type": "text",
+        "name": "altBilgi",
+        "props": {
+          "visibleWhen": "hesapSecimi.value != null",
+          "text": "Hareketler silinmez; iptal ters yönlü yeni bir kayıttır. Tahsilat ve ödeme kendi ekranından iptal edilir. Kasa/banka hareketleri ve transferler yevmiye fişi oluşturmaz. Giriş/Çıkış toplamları yalnız görünen sayfanındır."
+        }
+      },
+      {
+        "id": "manuelHareketPenceresi",
+        "type": "dialog",
+        "name": "manuelHareketPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Manuel hareket · {{ekstre.meta.code}}",
+          "contains": [
+            "hareketKarti",
+            "hareketIstekKimligi",
+            "hareketNotu"
+          ],
+          "saveQuery": "hareketEkle",
+          "saveLabel": "Kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "ekstre",
+            "hesaplar",
+            "ozet"
+          ]
+        }
+      },
+      {
+        "id": "hareketKarti",
+        "type": "formCard",
+        "name": "hareketKarti",
+        "props": {
+          "title": "Hareket",
+          "columns": 2,
+          "inputs": [
+            "hareketYonu",
+            "hareketTarihi",
+            "hareketTutari",
+            "hareketReferansi",
+            "hareketAciklamasi",
+            "hareketNakitAkisi"
+          ]
+        }
+      },
+      {
+        "id": "hareketYonu",
+        "type": "input",
+        "name": "hareketYonu",
+        "props": {
+          "inputType": "select",
+          "label": "Yön",
+          "required": true,
+          "staticOptions": [
+            "Inflow=Giriş",
+            "Outflow=Çıkış"
+          ],
+          "defaultValue": "Inflow"
+        }
+      },
+      {
+        "id": "hareketTarihi",
+        "type": "input",
+        "name": "hareketTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Tarih",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "hareketTutari",
+        "type": "input",
+        "name": "hareketTutari",
+        "props": {
+          "inputType": "number",
+          "label": "Tutar ({{ekstre.meta.currencyCode}})",
+          "required": true,
+          "min": 0.01,
+          "step": 0.01
+        }
+      },
+      {
+        "id": "hareketReferansi",
+        "type": "input",
+        "name": "hareketReferansi",
+        "props": {
+          "inputType": "text",
+          "label": "Referans",
+          "maxLength": 100,
+          "placeholder": "Dekont no"
+        }
+      },
+      {
+        "id": "hareketAciklamasi",
+        "type": "input",
+        "name": "hareketAciklamasi",
+        "props": {
+          "inputType": "text",
+          "label": "Açıklama",
+          "required": true,
+          "maxLength": 240,
+          "placeholder": "En fazla 240 karakter"
+        }
+      },
+      {
+        "id": "hareketNakitAkisi",
+        "type": "input",
+        "name": "hareketNakitAkisi",
+        "props": {
+          "inputType": "select",
+          "label": "Nakit akışı sınıfı",
+          "staticOptions": [
+            "Unclassified=Sınıflandırılmamış",
+            "Operating=İşletme",
+            "Investing=Yatırım",
+            "Financing=Finansman"
+          ],
+          "defaultValue": "Unclassified"
+        }
+      },
+      {
+        "id": "hareketIstekKimligi",
+        "type": "input",
+        "name": "hareketIstekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true
+        }
+      },
+      {
+        "id": "hareketNotu",
+        "type": "text",
+        "name": "hareketNotu",
+        "props": {
+          "text": "Kasadan çıkış bakiyeyi aşamaz. Kapalı döneme hareket girilemez. Bu hareket yevmiye fişi oluşturmaz."
+        }
+      },
+      {
+        "id": "transferPenceresi",
+        "type": "dialog",
+        "name": "transferPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Transfer / döviz · {{ekstre.meta.code}}",
+          "contains": [
+            "transferKarti",
+            "transferIstekKimligi",
+            "transferNotu"
+          ],
+          "saveQuery": "transferOlustur",
+          "saveLabel": "Transferi kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "ekstre",
+            "hesaplar",
+            "ozet"
+          ]
+        }
+      },
+      {
+        "id": "transferKarti",
+        "type": "formCard",
+        "name": "transferKarti",
+        "props": {
+          "title": "Transfer",
+          "columns": 2,
+          "inputs": [
+            "hedefHesap",
+            "transferTarihi",
+            "transferReferansi",
+            "transferTutari",
+            "transferKuru"
+          ]
+        }
+      },
+      {
+        "id": "hedefHesap",
+        "type": "input",
+        "name": "hedefHesap",
+        "props": {
+          "inputType": "lookup",
+          "label": "Hedef hesap",
+          "required": true,
+          "optionsQuery": "tumHesaplar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "currencyCode",
+          "minChars": 0,
+          "optionsWhen": "satir.isActive == true && satir.id != hesapSecimi.value"
+        }
+      },
+      {
+        "id": "transferTarihi",
+        "type": "input",
+        "name": "transferTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Tarih",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "transferReferansi",
+        "type": "input",
+        "name": "transferReferansi",
+        "props": {
+          "inputType": "text",
+          "label": "Referans",
+          "maxLength": 100,
+          "placeholder": "İsteğe bağlı"
+        }
+      },
+      {
+        "id": "transferTutari",
+        "type": "input",
+        "name": "transferTutari",
+        "props": {
+          "inputType": "number",
+          "label": "Kaynak tutarı ({{ekstre.meta.currencyCode}})",
+          "required": true,
+          "min": 0.01,
+          "step": 0.01
+        }
+      },
+      {
+        "id": "transferKuru",
+        "type": "input",
+        "name": "transferKuru",
+        "props": {
+          "inputType": "number",
+          "label": "Kur",
+          "required": true,
+          "min": 1e-08,
+          "step": 1e-08,
+          "defaultValue": "1"
+        }
+      },
+      {
+        "id": "transferIstekKimligi",
+        "type": "input",
+        "name": "transferIstekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true
+        }
+      },
+      {
+        "id": "transferNotu",
+        "type": "text",
+        "name": "transferNotu",
+        "props": {
+          "text": "Aynı dövizli hesaplar arasında kur 1 kalmalıdır. Hedef tutarı sunucu hesaplar (tutar × kur, 2 hane). Hedef listesinde kasa ve banka hesapları birlikte çıkar."
+        }
+      },
+      {
+        "id": "nakitAkisiPenceresi",
+        "type": "dialog",
+        "name": "nakitAkisiPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "sm",
+          "title": "Nakit akışı sınıfı · {{hareketler.seciliSatir.description}}",
+          "contains": [
+            "nakitAkisiKarti",
+            "nakitAkisiNotu"
+          ],
+          "saveQuery": "nakitAkisiDegistir",
+          "saveLabel": "Kaydet",
+          "closeOnSave": true,
+          "refreshQueries": [
+            "ekstre"
+          ]
+        }
+      },
+      {
+        "id": "nakitAkisiKarti",
+        "type": "formCard",
+        "name": "nakitAkisiKarti",
+        "props": {
+          "title": "Sınıf",
+          "columns": 1,
+          "inputs": [
+            "nakitAkisiSecimi"
+          ]
+        }
+      },
+      {
+        "id": "nakitAkisiSecimi",
+        "type": "input",
+        "name": "nakitAkisiSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Nakit akışı sınıfı",
+          "required": true,
+          "staticOptions": [
+            "Unclassified=Sınıflandırılmamış",
+            "Operating=İşletme",
+            "Investing=Yatırım",
+            "Financing=Finansman"
+          ],
+          "defaultValue": "{{hareketler.seciliSatir.cashFlowCategory}}"
+        }
+      },
+      {
+        "id": "nakitAkisiNotu",
+        "type": "text",
+        "name": "nakitAkisiNotu",
+        "props": {
+          "text": "Sınıfı yalnız firma yöneticisi değiştirir; hareketin ters kaydı da aynı sınıfı alır."
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "hesaplar",
+        "name": "hesaplar",
+        "kind": "read",
+        "operation": "finans.hesap.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "type",
+            "binding": "{{hesapTuru.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ozet",
+        "name": "ozet",
+        "kind": "read",
+        "operation": "finans.hesap.ozet",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "type",
+            "binding": "{{hesapTuru.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "tumHesaplar",
+        "name": "tumHesaplar",
+        "kind": "read",
+        "operation": "finans.hesap.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "ekstre",
+        "name": "ekstre",
+        "kind": "read",
+        "operation": "finans.hesap.ekstre",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesapSecimi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "page",
+            "binding": "{{hareketler.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{hareketler.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "pasifeAl",
+        "name": "pasifeAl",
+        "kind": "update",
+        "operation": "finans.hesap.pasifeAl",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "aktifEt",
+        "name": "aktifEt",
+        "kind": "update",
+        "operation": "finans.hesap.aktifEt",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "hesapSil",
+        "name": "hesapSil",
+        "kind": "delete",
+        "operation": "finans.hesap.sil",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "hareketEkle",
+        "name": "hareketEkle",
+        "kind": "insert",
+        "operation": "finans.hareket.ekle",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesapSecimi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "requestId",
+            "binding": "{{hareketIstekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "transactionDate",
+            "binding": "{{hareketTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "direction",
+            "binding": "{{hareketYonu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "amount",
+            "binding": "{{hareketTutari.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "description",
+            "binding": "{{hareketAciklamasi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "reference",
+            "binding": "{{hareketReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "cashFlowCategory",
+            "binding": "{{hareketNakitAkisi.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "hareketIptal",
+        "name": "hareketIptal",
+        "kind": "update",
+        "operation": "finans.hareket.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesapSecimi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "transactionId",
+            "binding": "{{hareketler.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "transferIptal",
+        "name": "transferIptal",
+        "kind": "update",
+        "operation": "finans.transfer.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "transferId",
+            "binding": "{{hareketler.seciliSatir.transferId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "nakitAkisiDegistir",
+        "name": "nakitAkisiDegistir",
+        "kind": "update",
+        "operation": "finans.hareket.nakitAkisi",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{hesapSecimi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "transactionId",
+            "binding": "{{hareketler.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "cashFlowCategory",
+            "binding": "{{nakitAkisiSecimi.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "transferOlustur",
+        "name": "transferOlustur",
+        "kind": "insert",
+        "operation": "finans.transfer.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "requestId",
+            "binding": "{{transferIstekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "fromAccountId",
+            "binding": "{{hesapSecimi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "toAccountId",
+            "binding": "{{hedefHesap.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "transferDate",
+            "binding": "{{transferTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "amount",
+            "binding": "{{transferTutari.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "reference",
+            "binding": "{{transferReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "exchangeRate",
+            "binding": "{{transferKuru.value}}",
+            "type": "decimal"
+          }
+        ]
+      }
+    ]
+  }
+}

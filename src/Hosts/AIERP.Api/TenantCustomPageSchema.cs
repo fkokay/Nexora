@@ -78,7 +78,10 @@ internal static class TenantCustomPageSchema
       // (clearsOnChange), ızgarada en az satır ve seçim sütunlarının koşul/sabit seçenekleri, istemde açıklama ve uzunluk sınırı.
       "autoId", "optionsWhen", "clearsOnChange", "minRows", "columnOptionsWhen", "columnStaticOptions", "promptText", "promptMaxLength",
       // actionBar İşlemler › "Kaydet ve yeni": kaydı çalıştırır, başarıda kaydettikten sonra eylemi yerine Yeni komutunu çalıştırır.
-      "saveAndNew" };
+      "saveAndNew",
+      // Sayfa parametresiyle kayıt açma (dataTable openParam: sayfa.parametre.<ad> doluysa o kimliği seçip satır açma eylemini
+      // çalıştırır) ve ERP ekranının eski (yerleşik) sürümünü açan erpPage düğmesi (legacyScreen).
+      "openParam", "legacyScreen" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -123,7 +126,7 @@ internal static class TenantCustomPageSchema
     private const int MaxRelatedTitleLength = 60;
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
     private static readonly Regex ToneMapItem = new(@"^[^=]{1,60}=(info|success|warning|danger)\z", RegexOptions.CultureInvariant, RegexTimeout);
-    private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ColumnFormatItem = new(@"^[^=]{1,128}=(text|code|number|money|date|datetime|status)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex ContextFieldItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
@@ -137,7 +140,7 @@ internal static class TenantCustomPageSchema
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
-    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "checkbox", "select", "lookup" };
+    private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "datetime", "checkbox", "select", "lookup" };
     private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn" };
     /// <summary>Keys of a query bound to a named ERP operation: <see cref="QueryKeys"/> with operation instead of sql.</summary>
     private static readonly HashSet<string> OperationQueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "operation", "parameters", "runOn" };
@@ -148,6 +151,11 @@ internal static class TenantCustomPageSchema
     internal static string DeprecatedOperationError(string name) => $"ERP işlemi artık kullanılamıyor: {name}";
     private static readonly HashSet<string> ParameterKeys = new(StringComparer.Ordinal) { "name", "binding", "type" };
     private static readonly HashSet<string> ParameterTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
+    /// <summary>
+    /// Scalar types only ERP operation queries accept: <c>datetime</c> is an ISO 8601 date and time with offset (a body
+    /// parameter the catalog declares so, e.g. <c>nextActivityAt</c>); SQL queries have no such parameter type.
+    /// </summary>
+    private static readonly HashSet<string> OperationScalarParameterTypes = new(StringComparer.Ordinal) { "datetime" };
     /// <summary>Collection types: only ERP operation queries accept them (bound to a grid's rows or a custom-fields block's values).</summary>
     private static readonly HashSet<string> CollectionParameterTypes = new(StringComparer.Ordinal) { "list", "map" };
     /// <summary>
@@ -391,7 +399,8 @@ internal static class TenantCustomPageSchema
             if (!validName || !declared.Add(parameterName!))
             { error = $"'{name}' sorgusu: parametre adları benzersiz olmalı, harf veya _ ile başlamalı ve harf/rakam/_ içermelidir."; return false; }
             var type = StringOf(parameter, "type");
-            if (type is null || !(ParameterTypes.Contains(type) || (allowCollections && CollectionParameterTypes.Contains(type))))
+            if (type is null || !(ParameterTypes.Contains(type)
+                    || (allowCollections && (CollectionParameterTypes.Contains(type) || OperationScalarParameterTypes.Contains(type)))))
             { error = $"'{name}' sorgusundaki '{parameterName}' parametresinin türü text, int, decimal, date, bool veya guid olmalıdır."; return false; }
             var binding = StringOf(parameter, "binding");
             if (binding is null || !TenantCustomPageQueries.TryParseBindingPath(binding, out _))
@@ -732,11 +741,12 @@ internal static class TenantCustomPageSchema
                 "Ad=info|success|warning|danger", out error)) return false;
         if (props.TryGetProperty("columnFormats", out var columnFormats)
             && !ValidateMapItems("columnFormats", columnFormats, typeText == "dataTable", MaxColumnFormats, ColumnFormatItem,
-                "Sütun=text|code|number|money|date|status", out error)) return false;
+                "Sütun=text|code|number|money|date|datetime|status", out error)) return false;
         if (props.TryGetProperty("density", out var density)
             && (typeText != "dataTable" || density.ValueKind != JsonValueKind.String || density.GetString() is not ("dense" or "comfort")))
         { error = "'density' yalnızca veri listesinde dense veya comfort olabilir."; return false; }
-        if (props.TryGetProperty("totals", out var totals))
+        // An editable grid's totals name its own number columns; ValidateGridProps checks them.
+        if (typeText != "editableGrid" && props.TryGetProperty("totals", out var totals))
         {
             if (typeText != "dataTable" || totals.ValueKind != JsonValueKind.Array || totals.GetArrayLength() > MaxTotals
                 || totals.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || x.GetString()!.Length is < 1 or > 128))
@@ -1152,6 +1162,9 @@ internal static class TenantCustomPageSchema
             if (props.TryGetProperty(key, out _) && !NavigationPropAllowed(key, actionType))
                 return Fail(key == "params" ? "'params' yalnız sayfa açan (page) ya da ERP ekranı (erpPage) eylemli düğmede kullanılabilir."
                     : $"'{key}' yalnız {NavigationLabel(NavigationTypeOf(key))} eylemli düğmede kullanılabilir.", out error);
+        if (props.TryGetProperty("legacyScreen", out var legacyScreen)
+            && (actionType != "erpPage" || legacyScreen.ValueKind is not (JsonValueKind.True or JsonValueKind.False)))
+            return Fail("'legacyScreen' yalnız ERP ekranı (erpPage) eylemli düğmede doğru/yanlış (true/false) değeri olabilir.", out error);
         if (actionType is not ("link" or "erpPage" or "page")) return true;
         foreach (var key in new[] { "queryId", "refreshQueries" })
             if (props.TryGetProperty(key, out _)) return Fail($"'{key}' gezinme eylemli düğmede kullanılamaz; bu eylemler veri yazmaz.", out error);
@@ -1626,7 +1639,8 @@ internal static class TenantCustomPageSchema
         ["subtitle"] = ["recordHeader"], ["fieldFormats"] = ["recordHeader"], ["fieldUnits"] = ["recordHeader"], ["buttons"] = ["recordHeader"],
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
-        ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"]
+        ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1805,7 +1819,8 @@ internal static class TenantCustomPageSchema
     private const int MaxHeaderTextLength = 300;
     private const int MaxHeaderLabelLength = 60;
     private static readonly Regex AssignmentTarget = new(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant, RegexTimeout);
-    private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex OpenParamName = new(@"^[a-z][a-zA-Z0-9]{0,31}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex HeaderFormatItem = new(@"^([^=]{1,60})=(number|money|date|datetime|text)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private const string AssignmentsFormat = "'assignments' 1–8 adet girişKimliği=şablon öğesi içermelidir; şablon en fazla 500 karakterdir ve {{yol}} ifadeleri içerebilir (boş şablon girişi temizler).";
 
     /// <summary>
@@ -1870,7 +1885,7 @@ internal static class TenantCustomPageSchema
             var seen = new HashSet<string>(StringComparer.Ordinal);
             if (formats.ValueKind != JsonValueKind.Array || formats.GetArrayLength() > MaxHeaderFields
                 || formats.EnumerateArray().Any(x => !MatchesSafely(HeaderFormatItem, x) || !labels.Contains(x.GetString()!.Split('=')[0]) || !seen.Add(x.GetString()!.Split('=')[0])))
-                return Fail("'fieldFormats' öğeleri Etiket=number|money|date|text biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
+                return Fail("'fieldFormats' öğeleri Etiket=number|money|date|datetime|text biçiminde olmalı ve her etiket 'fields' içinde bir kez geçmelidir.", out error);
         }
         if (props.TryGetProperty("buttons", out var buttons))
         {
@@ -1926,6 +1941,15 @@ internal static class TenantCustomPageSchema
             if (!hasQuery) return Fail($"Satır açma eylemi yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowOpenActions.Add((id, rowOpen.GetString()!));
         }
+        // Sayfa parametresiyle açma: sayfa (ya da açık sekme) bu parametreyle açılınca tablo o kimliği seçer ve satır açma
+        // eylemini çalıştırır; değer bir parametre adıdır, bağlama değildir.
+        if (props.TryGetProperty("openParam", out var openParam))
+        {
+            if (openParam.ValueKind != JsonValueKind.String || !MatchesText(OpenParamName, openParam.GetString()!))
+                return Fail("'openParam' küçük harfle başlayan en fazla 32 harf/rakamlık bir sayfa parametresi adı olmalıdır (ör. orderId).", out error);
+            if (!props.TryGetProperty("rowOpenAction", out _))
+                return Fail($"'openParam' için veri listesinde satır açma eylemi (rowOpenAction) da tanımlı olmalıdır: {id}", out error);
+        }
         if (props.TryGetProperty("emptyText", out var emptyText) && !IsStaticTextUpTo(emptyText, 120))
             return Fail("'emptyText' en fazla 120 karakterlik metin olmalıdır.", out error);
         if (props.TryGetProperty("limit", out var limit))
@@ -1959,6 +1983,7 @@ internal static class TenantCustomPageSchema
                 return Fail($"'rowKey' kaynak sorgunun sütunu olmalıdır: {rowKey.GetString()}", out error);
         }
         var columns = new List<string>();
+        var numberColumns = new HashSet<string>(StringComparer.Ordinal);
         var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
         var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
         if (matrix)
@@ -1977,10 +2002,11 @@ internal static class TenantCustomPageSchema
             foreach (var item in gridColumns.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail("'gridColumns' öğesi geçersiz: metin değil", out error);
-                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out _, out var lookup, out var reason))
+                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out var inputType, out var lookup, out var reason))
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (inputType == "number") numberColumns.Add(code);
                 if (lookup is null) continue;
                 // A picker column's options come from a read query of the page; an operation query must return its columns.
                 if (!context.IsReadQuery(lookup.QueryId))
@@ -2001,6 +2027,17 @@ internal static class TenantCustomPageSchema
             }
         }
         if (matrix && props.TryGetProperty("minRows", out _)) return Fail("'minRows' varyant (matrix) kipinde kullanılamaz.", out error);
+        // Column totals (footer and {{<grid>.toplam.<code>}}): 1–12 distinct number columns of this grid; a matrix has none.
+        if (props.TryGetProperty("totals", out var totals))
+        {
+            if (matrix) return Fail("'totals' varyant (matrix) kipinde kullanılamaz.", out error);
+            if (totals.ValueKind != JsonValueKind.Array || totals.GetArrayLength() is < 1 or > MaxTotals
+                || totals.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String)
+                || totals.EnumerateArray().Select(x => x.GetString()).Distinct(StringComparer.Ordinal).Count() != totals.GetArrayLength())
+                return Fail($"'totals' 1–{MaxTotals} adet farklı sütun kodu içermelidir.", out error);
+            if (totals.EnumerateArray().Select(x => x.GetString()!).FirstOrDefault(x => !numberColumns.Contains(x)) is { } notNumber)
+                return Fail($"'totals' ızgaranın sayı (number) sütunu olmalıdır: {notNumber}", out error);
+        }
         if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);

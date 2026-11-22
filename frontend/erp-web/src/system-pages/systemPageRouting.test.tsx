@@ -5,11 +5,13 @@ import { WorkspacePageRouter } from '../WorkspacePageRouter';
 import { useSystemPageMap } from './useSystemPageMap';
 import { resetSystemPreviewForTests } from '../workspace-storage';
 import type * as AppTypes from '../erp-types';
+import { openWorkspacePage, pageParamsOf, setPageParams } from '../pageNavigation';
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 vi.mock('../InventoryWarehousesPage', () => ({ default: () => <div>Eski depo ekranı</div> }));
-vi.mock('../CrmOpportunitiesPage', () => ({ default: () => <div>Eski fırsat ekranı</div> }));
+// Standardı olmayan yerleşik ekran örneği (CRM Fırsatları artık bir sistem sayfasıdır).
+vi.mock('../BusinessRulesPage', () => ({ default: () => <div>Eski iş kuralları ekranı</div> }));
 
 const KEY = 'inventory-warehouses';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
@@ -70,8 +72,8 @@ describe('system page routing', () => {
 
   it('does not block built-in keys without a standard while the map loads', async () => {
     api.mockImplementation(() => new Promise(() => {}));
-    render(<Harness page="crm-opportunities" />);
-    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
+    render(<Harness page="business-rules" />);
+    expect(await screen.findByText('Eski iş kuralları ekranı')).toBeTruthy();
     expect(screen.queryByText('Sayfa yükleniyor…')).toBeNull();
   });
 
@@ -129,6 +131,19 @@ describe('system page routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yeni tasarıma dön' }));
     expect(await screen.findByRole('heading', { name: 'Depo Yönetimi' })).toBeTruthy();
     expect(screen.queryByText('Eski depo ekranı')).toBeNull();
+  });
+
+  it('a navigation with legacy (erpPage legacyScreen) switches that key to the legacy screen and carries the params', async () => {
+    mockServer({ runtime: { screens: { [KEY]: { mode: 'override', revision: 3 } } }, publishedResult: published('override') });
+    render(<Harness />);
+    expect(await screen.findByRole('heading', { name: 'Depo Yönetimi' })).toBeTruthy();
+    act(() => openWorkspacePage({ page: 'customers', params: {}, replace: false, legacy: true }));
+    expect(screen.queryByText('Eski depo ekranı')).toBeNull();
+    act(() => openWorkspacePage({ page: KEY, params: { warehouseId: 'w1' }, replace: true, from: KEY, legacy: true }));
+    expect(await screen.findByText('Eski depo ekranı')).toBeTruthy();
+    expect(screen.getByText('Eski ekran görüntüleniyor.')).toBeTruthy();
+    expect(pageParamsOf(KEY)).toEqual({ warehouseId: 'w1' });
+    setPageParams(KEY, {});
   });
 
   it('stale map 404 falls back to legacy', async () => {
@@ -193,7 +208,7 @@ describe('system page draft preview (Studio ERP önizlemesi)', () => {
     window.history.replaceState(null, '', `/?page=${KEY}&systemPreview=${DRAFT}`);
     resetSystemPreviewForTests();
     api.mockImplementation(() => new Promise(() => {}));
-    render(<Harness page="crm-opportunities" />);
-    expect(await screen.findByText('Eski fırsat ekranı')).toBeTruthy();
+    render(<Harness page="business-rules" />);
+    expect(await screen.findByText('Eski iş kuralları ekranı')).toBeTruthy();
   });
 });

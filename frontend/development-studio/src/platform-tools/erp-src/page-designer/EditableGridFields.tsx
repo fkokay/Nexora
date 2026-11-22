@@ -5,7 +5,7 @@ import { sanitizeSafeValue } from "./DesignLanguageFields";
 import type { ErpOperationParameter } from "./erpOperations";
 import {
   COLUMN_STATIC_OPTION, GRID_COLUMN_TYPES, LOOKUP_COLUMN, MAX_COLUMN_STATIC_OPTIONS, MAX_GRID_COLUMNS, MAX_GRID_LABEL, MAX_GRID_TEXT_LENGTH, columnEntries, gridColumnRoot, gridColumnText,
-  parseGridColumn, renamedColumnEntries, type GridColumn, type GridColumnLookup, type GridColumnType,
+  gridTotalCodes, parseGridColumn, parseGridColumns, renamedColumnEntries, renamedTotals, type GridColumn, type GridColumnLookup, type GridColumnType,
 } from "./gridColumns";
 
 export type GridMode = "stage" | "list" | "matrix";
@@ -30,7 +30,7 @@ const MAP_KEY = /^[\p{L}\p{N}_ -]{1,40}$/u;
 const forbiddenByMode: Record<GridMode, string[]> = {
   stage: ["matrixCode", "matrixName"],
   list: ["sourceQuery", "rowKey", "matrixCode", "matrixName"],
-  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions"],
+  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions", "totals"],
 };
 
 /** Katalog veri türünden sütun türü. */
@@ -300,7 +300,7 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
       <div className="pd-tabs-editor">
         {rawColumns.map((raw, index) => {
           const parsed = parseGridColumn(raw);
-          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok ? renamedColumnEntries(props, parsed.column.code, null) : {});
+          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok ? { ...renamedColumnEntries(props, parsed.column.code, null), ...renamedTotals(props, parsed.column.code, null) } : {});
           if (!parsed.ok) return <fieldset className="pd-tabs-editor-tab" key={index} disabled={disabled}>
             <div className="pd-tabs-editor-head"><code>{raw}</code><button type="button" className="pd-icon-button danger" aria-label={`Sütun ${index + 1} sil`} onClick={remove}><Trash2 size={12}/></button></div>
             <small className="pd-query-warning">{parsed.error}</small>
@@ -317,13 +317,16 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
               // Kod değişince ya da sütun seçim türünden çıkınca ızgaranın sütun ayarları da taşınır / kalkar.
               const entries = column.code !== code ? renamedColumnEntries(props, code, column.inputType === "lookup" ? column.code : null)
                 : column.inputType !== "lookup" ? renamedColumnEntries(props, code, null) : {};
-              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), entries);
+              // Alt toplam yalnız sayı sütununda kalır; kod değişince taşınır.
+              const totals = renamedTotals(props, code, column.inputType === "number" ? column.code : null);
+              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), { ...entries, ...totals });
             }}/>;
         })}
       </div>
       <button type="button" className="pd-button small" disabled={disabled || rawColumns.length >= MAX_GRID_COLUMNS} onClick={addColumn}
         title={rawColumns.length >= MAX_GRID_COLUMNS ? `En fazla ${MAX_GRID_COLUMNS} sütun olabilir.` : undefined}><Plus size={13}/>Sütun ekle</button>
     </div>}
+    {mode !== "matrix" && <GridTotalsField props={props} disabled={disabled} onPatch={onPatch}/>}
     {mode === "matrix" && <>
       {matrixMissing.length > 0 && <small className="pd-query-warning">{`Varyant matrisi için '${listParameter?.spec.name ?? ""}' parametresinde code, name ve attributes alanları olmalıdır.`}</small>}
       <label className="pd-field">Varyant kodu öneki<small>Ör. <code>{"{{kod.value}}"}</code>; değerlerle birleşerek varyant kodunu oluşturur.</small>
@@ -356,4 +359,20 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
       <input value={text("addLabel")} maxLength={MAX_ADD_LABEL} disabled={disabled} placeholder="Satır ekle"
         onChange={(event) => onPatch({ addLabel: sanitizeSafeValue(event.target.value, false).slice(0, MAX_ADD_LABEL) || undefined })}/></label>
   </>;
+}
+
+/** Alt toplam satırı (`totals`): seçilen sayı sütunlarının toplamı tablonun altında gösterilir ve {{<tablo>.toplam.<kod>}} olarak bağlanır. */
+function GridTotalsField({ props, disabled, onPatch }: { props: Patch; disabled?: boolean; onPatch: (patch: Patch) => void }) {
+  const numbers = parseGridColumns(props.gridColumns).filter((column) => column.inputType === "number");
+  const selected = gridTotalCodes(props);
+  const toggle = (code: string, on: boolean) => {
+    // Sütun sırası korunur; sayı sütunu olmayan eski girdiler yazılırken düşer.
+    const next = numbers.map((column) => column.code).filter((item) => item === code ? on : selected.includes(item));
+    onPatch({ totals: next.length > 0 ? next : undefined });
+  };
+  return <div className="pd-field">Alt toplam<small>Seçilen sayı sütunlarının toplamı tablonun altında gösterilir; <code>{"{{tablo.toplam.kod}}"}</code> olarak bağlanır (ör. borç = alacak koşulu).</small>
+    {numbers.length === 0 ? <small className="pd-query-muted">Tabloda sayı sütunu yok.</small>
+      : numbers.map((column) => <label key={column.code} className="pd-check"><input type="checkbox" checked={selected.includes(column.code)} disabled={disabled}
+        aria-label={`${column.code} alt toplamı`} onChange={(event) => toggle(column.code, event.target.checked)}/>{column.label || column.code} <code>{column.code}</code></label>)}
+  </div>;
 }

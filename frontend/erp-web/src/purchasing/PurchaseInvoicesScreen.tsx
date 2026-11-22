@@ -17,6 +17,7 @@ import { SalesListPanelToggle } from "../sales/components/SalesListDetailPanel";
 import { SalesListFooter, pageAmountHint } from "../sales/components/SalesListFooter";
 import { listAmount } from "../sales/components/salesListCells";
 import { useSalesListPanel } from "../sales/useSalesListPanel";
+import { loadSupplierName, usePurchasingPageParams } from "../sales/purchasingPageParams";
 import "../sales/sales-list-v2.css";
 import "../purchase-list-v2/purchase-list-v2.css";
 import { PurchaseInvoiceListPanel, PurchaseInvoiceListPanelEmpty } from "./PurchaseInvoiceListPanel";
@@ -106,6 +107,17 @@ export function PurchaseInvoicesScreen({
   useEffect(() => {
     if (initialSupplier) onInitialSupplierOpened?.();
   }, [initialSupplier, onInitialSupplierOpened]);
+  // A system page opens this tab with `supplierId` (removable filter) and/or `purchaseInvoiceId` (K7).
+  usePurchasingPageParams("sales-purchase-invoices", ["supplierId", "purchaseInvoiceId"], ({ supplierId, purchaseInvoiceId }) => {
+    if (supplierId) {
+      setSupplierFilter({ id: supplierId, name: "" });
+      setPage(1);
+      void loadSupplierName(token, supplierId).then((name) =>
+        setSupplierFilter((current) => current?.id === supplierId ? { id: supplierId, name: name || "Seçili tedarikçi" } : current),
+        () => setSupplierFilter((current) => current?.id === supplierId && !current.name ? { id: supplierId, name: "Seçili tedarikçi" } : current));
+    }
+    if (purchaseInvoiceId) void openInvoice(purchaseInvoiceId);
+  });
   useEffect(() => {
     let cancelled = false;
     api<{ id?: string | null; fields: BuiltInScreenLayoutField[] }>("/api/screen-views/purchase-invoices/active", token)

@@ -90,7 +90,7 @@ export function resolveKind(spec: FilterSpec, context: { format?: ColumnFormat; 
   else if (spec.options || context.hasValueLabels) kind = "select";
   else if (context.paramType === "bool") kind = "toggle";
   else if (context.format === "number" || context.format === "money") kind = "range";
-  else if (context.format === "date") kind = "date";
+  else if (context.format === "date" || context.format === "datetime") kind = "date";
   else if (context.format === "status") kind = "select";
   else {
     const type = (context.dataType ?? "").toLowerCase();

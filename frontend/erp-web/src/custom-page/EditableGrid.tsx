@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react";
 import { addBlockedMessage, MATRIX_DIMENSION_COLUMNS, type GridAction, type GridColumn, type GridDraft, type GridState } from "./gridState";
 import { displayText } from "./pageBindings";
 import { LookupInput, type LookupOption } from "./LookupInput";
+import { formatGridTotal } from "./gridTotals";
 
 /** Seçim (lookup) hücresinin çizim verisi: seçenekler, seçili değerin görünen metni ve arama/seçim geri çağrıları. */
 export type GridPicker = {
@@ -26,7 +27,7 @@ function sourceCell(row: Record<string, unknown>, code: string): string {
  * üzere işaretlenir, "Geri al" ile geri alınır), yeni satırlar düzenlenir; `list`/`matrix` kiplerinde tüm satırlar düzenlenir.
  */
 export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
-  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel }: {
+  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {} }: {
   id: string; title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
   state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string; dispatch: (action: GridAction) => void;
   errors: Record<string, Record<string, string>>; fixedRowLabel: string; addLabel: string; maxRows: number;
@@ -35,6 +36,8 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
   pickerFor?: (column: GridColumn, draft: GridDraft) => GridPicker;
   /** Seçim sütununun salt okunur metni: değerin seçenek etiketi (kaynak satırlar ve readOnly sütun). */
   pickerLabel?: (column: GridColumn, value: string, draft?: GridDraft) => string;
+  /** Sütun toplamları (`totals`): sütun kodu → toplam; boşsa alt satır çizilmez. */
+  totals?: Record<string, number>;
 }) {
   const shown = mode === "matrix" ? MATRIX_DIMENSION_COLUMNS : columns;
   const blocked = addBlockedMessage(state, { mode, maxRows });
@@ -74,6 +77,7 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
     </td>;
   };
 
+  const hasTotal = (code: string) => Object.prototype.hasOwnProperty.call(totals, code);
   const tableError = errors[""]?.[""];
   return <section className={`tenant-page-block tenant-page-grid${disabled ? " is-disabled" : ""}`} style={style} data-grid={id}>
     {title && <h3>{title}</h3>}
@@ -112,6 +116,12 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
           })}
           {!fixedRowLabel && source.length === 0 && drafts.length === 0 && <tr><td colSpan={span} className="tenant-report-state">Henüz satır yok.</td></tr>}
         </tbody>
+        {mode !== "matrix" && shown.some((column) => hasTotal(column.code)) && <tfoot><tr className="is-total">
+          {shown.map((column, index) => hasTotal(column.code)
+            ? <td key={column.code} className="num" data-total={column.code}><span className="sr-only">{column.label} toplamı </span>{formatGridTotal(totals[column.code])}</td>
+            : <td key={column.code}>{index === 0 ? "Toplam" : ""}</td>)}
+          <td /><td />
+        </tr></tfoot>}
       </table></div>}
     {tableError && <p className="tenant-page-input-error" role="alert">{tableError}</p>}
     {mode === "matrix" && matrixPreviewCount !== undefined && matrixPreviewCount > 0 && <p className="tenant-page-grid-preview" role="status">

@@ -86,6 +86,8 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
             ("erp.customers", "/api/customers") or
             ("erp.customers", "/api/customers/counts") or
             ("erp.sales-deliveries", "/api/sales/standalone-deliveries") or
+            // Unified delivery list: its handler re-decides each kind as the two old list routes would.
+            ("erp.sales-deliveries", "/api/sales/deliveries/all") or
             ("erp.purchase-receipts", "/api/purchasing/standalone-receipts") or
             ("erp.sales-quotes", "/api/sales/quotes") or
             ("erp.sales-orders", "/api/sales/orders") or

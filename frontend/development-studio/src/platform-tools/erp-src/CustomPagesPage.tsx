@@ -29,7 +29,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefau
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields, rowActionOwners as buttonOwnersOf } from "./page-designer/RowActionsFields";
 import { MAX_HEADER_BUTTONS, ROW_OPEN_ACTION_TYPES, activeStepIndex, assignmentsProblem, parseHeaderFields, prunedAssignments, recordHeaderProblem, stepsProblem } from "./page-designer/wizardParts";
-import { AssignmentsFields, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
+import { AssignmentsFields, OPEN_PARAM_NAME, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
@@ -40,7 +40,7 @@ import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
-import { COLUMN_STATIC_OPTION, columnEntries, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
+import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
 import { countRowsWhen, countText, countWhenProblem } from "./page-designer/countWhen";
 import { CountWhenField } from "./page-designer/CountWhenField";
@@ -134,7 +134,7 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
   input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" }],
   metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
-    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["text", "Metin"]] }],
+    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["date", "Tarih"], ["datetime", "Tarih ve saat"], ["text", "Metin"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   section: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   divider: [],
@@ -191,12 +191,14 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // Gezinme düğmeleri (bağlantı, ERP ekranı, sayfa): "Eylem" bölümündeki gezinme alanlarında düzenlenir.
   ...Object.values(NAVIGATION_PROPS).flat(), "target",
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
-  "saveAndNew"]);
+  "saveAndNew",
+  // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca).
+  "openParam"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
   "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle", "promptText"]);
-const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
+const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "datetime", label: "Tarih ve saat" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
 /**
@@ -604,6 +606,8 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       }
       if ("limit" in next && (!(typeof next.query === "string" && next.query !== "") || next.paging === "server")) { delete next.limit; touched = true; }
       if ("rowOpenAction" in next && rowOpenResult.get(component.id) === false) { delete next.rowOpenAction; touched = true; }
+      // Sayfa parametresiyle açma yalnız satır açılınca düğmesiyle çalışır (sunucu: openParam rowOpenAction ister).
+      if ("openParam" in next && !(typeof next.rowOpenAction === "string" && next.rowOpenAction !== "")) { delete next.openParam; touched = true; }
       if (!touched) return component;
       changed = true;
       return { ...component, props: next };
@@ -632,6 +636,11 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
           const raw = Array.isArray(next[key]) ? next[key] as unknown[] : [];
           const kept = raw.filter((entry): entry is string => { const parts = splitColumnEntry(entry); return !!parts && lookupCodes.has(parts.code); });
           if (!sameList(raw, kept)) { if (kept.length > 0) next[key] = kept; else delete next[key]; touched = true; }
+        }
+        // Alt toplam yalnız tablonun sayı sütunlarında (varyant kipinde hiç yok).
+        if ("totals" in next) {
+          const kept = gridTotalCodes(props);
+          if (!sameList(next.totals, kept)) { if (kept.length > 0) next.totals = kept; else delete next.totals; touched = true; }
         }
       }
       if (!touched) return component;
@@ -795,7 +804,7 @@ function reconcileDefinition(definition: PageDefinition, options: ReconcileOptio
   return components === reconciled.components ? reconciled : { ...reconciled, components };
 }
 /** Yalnız denemeler için: standart tanımların tasarımcıda kayıpsız açılıp kaydedildiğini doğrulamak. */
-export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL };
+export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL, inputTypeOptions };
 /** Kart tasarım ekranında kartın çocuğunu sürüklerken taşınan kimlik. */
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -900,6 +909,8 @@ const pickerGridProblem = (component: PageComponent, definition: PageDefinition)
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
   if (component.type === "dataTable" && typeof props.rowOpenAction === "string" && props.rowOpenAction !== "" && !component.name) return `Satır açma eylemi için veri listesinin adı olmalıdır: ${component.id}`;
+  if (component.type === "dataTable" && "openParam" in props && !(typeof props.openParam === "string" && OPEN_PARAM_NAME.test(props.openParam)))
+    return `'openParam' (sayfa parametresiyle aç) küçük harfle başlayan, en fazla 32 harf/rakamlık bir parametre adı olmalıdır: ${component.id}`;
   if (component.type === "recordHeader") { const problem = recordHeaderProblem(props, label); if (problem) return problem; }
   if ((component.type === "editableGrid" || component.type === "customFieldsBlock") && !component.name)
     return component.type === "editableGrid" ? `Düzenlenebilir tablonun adı olmalıdır: ${component.id}` : `Özel alanlar bloğunun adı olmalıdır: ${component.id}`;
@@ -1924,8 +1935,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ...(isPagedTable(component) ? { sayfa: 1, sayfaBoyutu: typeof component.props.pageSize === "number" ? component.props.pageSize : DEFAULT_PAGE_SIZE } : {}),
       };
     }
-    // Düzenlenebilir tablo tasarımda boştur: {{<tablo>.satirSayisi}} 0 olur.
-    for (const component of state.components) if (component.name && component.type === "editableGrid") scope[component.name] = { satirSayisi: 0 };
+    // Düzenlenebilir tablo tasarımda boştur: {{<tablo>.satirSayisi}} ve alt toplamlar ({{<tablo>.toplam.<kod>}}) 0 olur.
+    for (const component of state.components) if (component.name && component.type === "editableGrid")
+      scope[component.name] = { satirSayisi: 0, toplam: Object.fromEntries(gridTotalCodes(component.props).map((code) => [code, 0])) };
     for (const component of state.components) {
       if (!component.name || component.type !== "input") continue;
       const raw = interpolate(String(component.props.defaultValue ?? ""), scope);
@@ -1967,7 +1979,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const copyBase = requiredNameBase(duplicate.type);
     if (copyBase) { const copyName = freeName(copyBase); if (!copyName) return; duplicate.name = copyName; }
     // Satır işlemleri ve pencere içeriği tek sahiplidir; kopya bunları sahiplenmez.
-    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; }
+    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; delete duplicate.props.openParam; }
     if (duplicate.type === "recordHeader") delete duplicate.props.buttons;
     if (duplicate.type === "dialog") duplicate.props.contains = [];
     // Sayfalama sorgunun parametrelerini tablonun adıyla bağlar ve arama girişini sahiplenir; adsız kopya sayfasız başlar.
@@ -2602,8 +2614,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           if (spec.kind !== "auto") return spec.kind;
           const format = formats[spec.key];
           const dataType = (columns.find((column) => column.code === spec.key)?.dataType ?? "").toLowerCase();
-          const kind = spec.options || labeled.has(spec.key) || format === "status" ? "select" : format === "number" || format === "money" ? "range" : format === "date" ? "date"
-            : dataType === "boolean" || dataType === "bool" ? "toggle" : ["decimal", "int", "integer", "number"].includes(dataType) ? "range" : dataType === "date" ? "date" : "text";
+          const kind = spec.options || labeled.has(spec.key) || format === "status" ? "select" : format === "number" || format === "money" ? "range" : format === "date" || format === "datetime" ? "date"
+            : dataType === "boolean" || dataType === "bool" ? "toggle" : ["decimal", "int", "integer", "number"].includes(dataType) ? "range" : dataType === "date" || dataType === "datetime" ? "date" : "text";
           return spec.param && (kind === "range" || kind === "date") ? "text" : kind;
         };
         // İlk seçenek varsayılanlı seçim süzgeci tuvalde seçenek sorgusunun ilk örnek satırıyla görünür (yoksa "Tümü").
@@ -2679,7 +2691,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           return [column.code, [...fixed, ...rows]];
         }));
         return <EditableGridPreview key={component.id} style={style} title={shown(props.title, "")} mode={mode} columns={columns} pickerSamples={pickerSamples}
-          fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} />;
+          fixedRowLabel={String(props.fixedRowLabel || "")} addLabel={String(props.addLabel || "")} totals={gridTotalCodes(props)} />;
       }
       case "customFieldsBlock": {
         const columns = props.columns === 1 || props.columns === 3 ? props.columns : 2;
@@ -3035,7 +3047,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         { path: `${grid}.eklenenSayisi`, detail: "Eklenen satır sayısı", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.silinenSayisi`, detail: "Silinecek satır sayısı", group: "Düzenlenebilir tablolar" },
         { path: `${grid}.degisti`, detail: "Tabloda kaydedilmemiş değişiklik var mı", group: "Düzenlenebilir tablolar" },
-        { path: `${grid}.satirSayisi`, detail: "Tablodaki satır sayısı", group: "Düzenlenebilir tablolar" });
+        { path: `${grid}.satirSayisi`, detail: "Tablodaki satır sayısı", group: "Düzenlenebilir tablolar" },
+        ...gridTotalCodes(component.props).map((code) => ({ path: `${grid}.toplam.${code}`, detail: `${code} sütununun toplamı`, group: "Düzenlenebilir tablolar" })));
       const gridColumns = parseGridColumns(component.props.gridColumns);
       if (gridColumns.some((column) => column.inputType === "lookup")) {
         bindingSuggestions.push({ path: `${grid}.arama`, detail: "Odaktaki seçim hücresine yazılan metin (seçenek sorgusunun arama parametresine)", group: "Düzenlenebilir tablolar" });
@@ -3061,7 +3074,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     { path: "tarih.ayBasi", detail: "Bu ayın ilk günü (YYYY-AA-GG)", group: "Oturum" }, { path: "tarih.yilBasi", detail: "Bu yılın ilk günü (YYYY-AA-GG)", group: "Oturum" },
     { path: "tarih.ucAyOnce", detail: "Son 3 ayın başı: iki ay önceki ayın ilk günü (YYYY-AA-GG)", group: "Oturum" });
   // {{sayfa.parametre.x}}: bu sayfa "Sayfa aç" eylemiyle açılınca verilen parametreler; tanımda geçen adlar önerilir.
-  for (const name of new Set([...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1])))
+  // Listelerin "Sayfa parametresiyle aç" adları da bu sayfanın parametreleridir.
+  const openParams = definition.components.flatMap((component) => component.type === "dataTable" && typeof component.props.openParam === "string" && OPEN_PARAM_NAME.test(component.props.openParam) ? [component.props.openParam] : []);
+  for (const name of new Set([...[...JSON.stringify(definition.components).matchAll(/sayfa\.parametre\.([a-z][a-zA-Z0-9]{0,31})/g)].map((match) => match[1]), ...openParams]))
     bindingSuggestions.push({ path: `sayfa.parametre.${name}`, detail: "Sayfa aç eyleminin verdiği parametre", group: "Sayfa" });
   for (const source of sources) if (isCountableSource(source.code))
     bindingSuggestions.push({ path: `${COUNTS_ROOT}.${source.code}`, detail: `${source.label} · kayıt sayısı${typeof counts[source.code] === "number" ? ` (şu an ${counts[source.code].toLocaleString("tr-TR")})` : ""}`, group: "Sayılar" });

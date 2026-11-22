@@ -1,4 +1,5 @@
 // Saf (React'siz) yardımcılar: özel sayfa değişken bağlama kapsamı, yol çözümleme ve sorgu sıralama.
+import { toIsoDateTime } from "./dateTime";
 
 export type PageScope = Record<string, unknown>;
 
@@ -97,6 +98,9 @@ export function coerceParameter(value: unknown, type: string): unknown {
       return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
     case "date":
       return typeof value === "string" && value.length >= 10 ? value.slice(0, 10) : null;
+    case "datetime":
+      // Tarih + saat: saat dilimli ISO 8601 (UTC'ye normalize); dilimsiz metin yerel saattir, çözülemeyen değer null.
+      return toIsoDateTime(value);
     case "bool":
       if (typeof value === "boolean") return value;
       return value === "true" ? true : value === "false" ? false : null;

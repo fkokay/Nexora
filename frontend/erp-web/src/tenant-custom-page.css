@@ -468,6 +468,8 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-grid-table tr.is-removed td { opacity: .55; text-decoration: line-through; }
 .tenant-page-grid-table tr.is-removed td:nth-last-child(-n+2) { opacity: 1; text-decoration: none; }
 .tenant-page-grid-table td.is-invalid input { border-color: var(--nx-bad); }
+.tenant-page-grid-table tr.is-total td { font-weight: 600; background: var(--nx-table-head); border-top: 1px solid var(--nx-line); }
+.tenant-page-grid-table tr.is-total td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tenant-page-grid-actions { width: 1%; white-space: nowrap; text-align: right; }
 .tenant-page-grid-footer { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .tenant-page-grid-preview { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
