@@ -1066,6 +1066,7 @@ var customers = app.MapGroup("/api/customers").WithTags("Cari Yönetimi").Requir
 customers.RequireVisibleCustomerRows();
 customers.MapCustomerBalanceEndpoint();
 customers.MapCustomerCountsEndpoint();
+customers.MapCustomerDeleteEndpoint();
 customers.MapCustomerBulkImportEndpoint();
 var customerLocationDefinitions = app.MapGroup("/api/location-definitions").WithTags("Tanımlamalar").RequireAuthorization();
 customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>

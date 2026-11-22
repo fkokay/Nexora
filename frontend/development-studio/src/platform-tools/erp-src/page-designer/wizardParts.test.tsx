@@ -1,8 +1,8 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RecordHeaderPreview, StepsPreview } from "./CanvasPreviews";
-import { AssignmentsFields, RowOpenActionField, StepsFields } from "./WizardFields";
-import { ownableCandidates } from "./layoutRefs";
+import { AssignmentsFields, BulkDeleteField, RowOpenActionField, StepsFields, bindsSelectedRow } from "./WizardFields";
+import { ownableCandidates, rowActionIds } from "./layoutRefs";
 import { refPlacementProblem } from "./refOwners";
 import {
   activeStepIndex, assignmentsProblem, formatAssignment, freeHeaderLabel, headerFieldsPatch, renameHeaderField, parseAssignments, parseHeaderFields, parseSteps, prunedAssignments,
@@ -126,6 +126,10 @@ describe("Sahiplik", () => {
     expect(refPlacementProblem(components, "pencere", { id: "degistir", type: "button" })).toMatch(/kayıt özetinin düğmesi/);
     expect(refPlacementProblem(components, "pencere", { id: "serbest", type: "button" })).toBeNull();
   });
+  it("satır açılınca düğmesi listeye aittir: tuvalde üst düzeyde çizilmez", () => {
+    expect([...rowActionIds(components)]).toEqual(["ac"]);
+    expect([...rowActionIds([{ id: "t", type: "dataTable", props: { rowActions: ["r"], rowOpenAction: "" } }])]).toEqual(["r"]);
+  });
 });
 
 describe("Satır açılınca", () => {
@@ -142,5 +146,25 @@ describe("Satır açılınca", () => {
     const owned = renderToString(<RowOpenActionField table={{ ...table, props: { query: "q" } }} labelOf={(component) => String(component.props.text ?? component.name)} onPatch={() => {}}
       components={[...components, { id: "diger", type: "dataTable", name: "diger", props: { rowActions: ["git"] } }]}/>);
     expect(owned).toMatch(/value="git" disabled="">Git(<!-- -->)* — diger · satır işlemi/);
+  });
+});
+
+describe("Toplu silme", () => {
+  const table = { id: "liste", type: "dataTable", name: "liste", props: { query: "q", bulkDeleteQuery: "sil" } as Record<string, unknown> };
+  const rowBound = { id: "sil", name: "kartSil", kind: "delete", runOn: "manual", parameters: [{ name: "id", binding: "{{liste.seciliSatir.id}}" }] };
+  const loose = { id: "sil", name: "kartSil", kind: "delete", runOn: "manual", parameters: [{ name: "id", binding: "{{kart.rows[0].id}}" }] };
+  const update = { id: "guncelle", name: "kartGuncelle", kind: "update", runOn: "manual", parameters: [] };
+  it("yalnız silme sorgularını listeler; seçili satıra bağlı olmayan sorgu uyarılır", () => {
+    const html = renderToString(<BulkDeleteField table={table} queries={[rowBound, update]} onPatch={() => {}}/>);
+    expect(html).toContain(">kartSil<");
+    expect(html).not.toContain("kartGuncelle");
+    expect(html).not.toContain("seçili satırına");
+    const warned = renderToString(<BulkDeleteField table={table} queries={[loose]} onPatch={() => {}}/>);
+    expect(warned).toContain("seçili satırına");
+    const unnamed = renderToString(<BulkDeleteField table={{ ...table, name: undefined }} queries={[rowBound]} onPatch={() => {}}/>);
+    expect(unnamed).toContain("listeye bir Ad verin");
+    expect(bindsSelectedRow(rowBound, "liste")).toBe(true);
+    expect(bindsSelectedRow(rowBound, "diger")).toBe(false);
+    expect(bindsSelectedRow(loose, "liste")).toBe(false);
   });
 });

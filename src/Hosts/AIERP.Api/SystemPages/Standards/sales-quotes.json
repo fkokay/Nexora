@@ -11,6 +11,7 @@
     "component:yanitGostergesi": {"since": 1, "label": "Yanıt bekleyen göstergesi", "requires": ["component:durumSecimi", "query:teklifler"]},
     "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
     "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:durumSecimi"]},
+    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi"]},
     "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
     "component:gorunumKarti": {"since": 1, "label": "Detay paneli anahtarı kartı", "requires": ["component:detayPaneli"]},
     "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
@@ -109,14 +110,12 @@
       { "id": "suzgec", "type": "filterBar", "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 5,
+          "width": 6,
           "search": true,
           "searchPlaceholder": "Teklif no veya müşteriyle ara",
           "searchParam": "q" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": {
-          "width": 5,
-          "inputs": ["durumSecimi"] } },
+      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
+        "props": { "title": "Süzgeçler", "layout": "inline", "width": 4, "inputs": ["durumSecimi"] } },
       { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
         "props": {
           "inputType": "select",
@@ -148,6 +147,10 @@
         "props": {
           "inputType": "date",
           "label": "Bitiş" } },
+      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
+        "props": {
+          "width": 12,
+          "inputs": ["durumSecimi"] } },
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": {
           "title": "Satış teklifleri",

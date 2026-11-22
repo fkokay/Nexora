@@ -70,12 +70,18 @@ export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
-/** Veri listelerinin `rowActions` düğmeleri: üst düzeyde çizilmez, listenin "İşlemler" sütununda satır başına çizilir. */
+/**
+ * Veri listelerinin `rowActions` düğmeleri (listenin "İşlemler" sütununda satır başına çizilir) ve "Satır açılınca" düğmesi
+ * (`rowOpenAction`; satıra çift tıklama / Enter çalıştırır): ikisi de listeye aittir, üst düzeyde çizilmez (katmanlardan
+ * ve listenin ayarlarından seçilip düzenlenir).
+ */
 export function rowActionIds(components: LayoutComponent[]): Set<string> {
   const owned = new Set<string>();
   for (const component of components) {
     if (component.type !== "dataTable") continue;
     for (const id of idList(component.props?.rowActions, MAX_ROW_ACTIONS)) owned.add(id);
+    const open = component.props?.rowOpenAction;
+    if (typeof open === "string" && open.trim()) owned.add(open.trim());
   }
   return owned;
 }
@@ -99,10 +105,8 @@ export function headerButtonIds(components: LayoutComponent[]): Set<string> {
 export function ownableCandidates<C extends LayoutComponent>(components: C[], owner: { id: string; type: "tabs" | "dialog" }): C[] {
   const layoutOwned = ownedInputIds(components);
   const rowActions = rowActionIds(components);
-  // Kayıt özetinin düğmeleri de satır işlemleri gibi özete aittir.
+  // Kayıt özetinin düğmeleri de satır işlemleri gibi özete aittir (listenin "Satır açılınca" düğmesi rowActionIds'te).
   for (const id of headerButtonIds(components)) rowActions.add(id);
-  // Listenin "Satır açılınca" düğmesi de listeye aittir.
-  for (const component of components) if (component.type === "dataTable" && typeof component.props?.rowOpenAction === "string") rowActions.add(component.props.rowOpenAction);
   const searchInputs = new Set(components.filter((component) => component.type === "dataTable" && typeof component.props?.searchInput === "string")
     .map((component) => String(component.props?.searchInput)));
   return components.filter((component) => component.id !== owner.id && component.type !== "actionBar" && component.type !== "dialog"

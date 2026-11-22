@@ -29,7 +29,7 @@ import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefau
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields, rowActionOwners as buttonOwnersOf } from "./page-designer/RowActionsFields";
 import { MAX_HEADER_BUTTONS, ROW_OPEN_ACTION_TYPES, activeStepIndex, assignmentsProblem, parseHeaderFields, prunedAssignments, recordHeaderProblem, stepsProblem } from "./page-designer/wizardParts";
-import { AssignmentsFields, OPEN_PARAM_NAME, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
+import { AssignmentsFields, BulkDeleteField, OPEN_PARAM_NAME, RecordHeaderFields, RowOpenActionField, StepsFields } from "./page-designer/WizardFields";
 import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
@@ -192,8 +192,8 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   ...Object.values(NAVIGATION_PROPS).flat(), "target",
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
   "saveAndNew",
-  // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca).
-  "openParam"]);
+  // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
+  "openParam", "bulkDeleteQuery"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -608,6 +608,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       if ("rowOpenAction" in next && rowOpenResult.get(component.id) === false) { delete next.rowOpenAction; touched = true; }
       // Sayfa parametresiyle açma yalnız satır açılınca düğmesiyle çalışır (sunucu: openParam rowOpenAction ister).
       if ("openParam" in next && !(typeof next.rowOpenAction === "string" && next.rowOpenAction !== "")) { delete next.openParam; touched = true; }
+      // Toplu silme: adlı, sorgulu listede bir silme sorgusu (sorgu silinince ya da türü değişince bağ kalkar).
+      if ("bulkDeleteQuery" in next && !(typeof next.bulkDeleteQuery === "string" && writeKinds.get(next.bulkDeleteQuery) === "delete"
+        && !!component.name && typeof next.query === "string" && next.query !== "")) { delete next.bulkDeleteQuery; touched = true; }
       if (!touched) return component;
       changed = true;
       return { ...component, props: next };
@@ -916,6 +919,7 @@ const fazBProblem = (component: PageComponent, label: string, inputIds: Readonly
     return component.type === "editableGrid" ? `Düzenlenebilir tablonun adı olmalıdır: ${component.id}` : `Özel alanlar bloğunun adı olmalıdır: ${component.id}`;
   if (component.type === "dialog" && idList(props.contains, MAX_DIALOG_IDS).length === 0) return `${label} için pencerede gösterilecek en az bir bileşen seçin.`;
   if (component.type === "dataTable" && idList(props.rowActions, MAX_ROW_ACTIONS).length > 0 && !component.name) return `Satır işlemleri için veri listesinin adı olmalıdır: ${component.id}`;
+  if (component.type === "dataTable" && typeof props.bulkDeleteQuery === "string" && props.bulkDeleteQuery !== "" && !component.name) return `Toplu silme için veri listesinin adı olmalıdır: ${component.id}`;
   if (component.type === "actionBar") { const problem = barCommandProblem(props); if (problem) return problem; }
   if (component.type === "button") {
     if (props.actionType === "sequence" && idList(props.saveSequence, MAX_SEQUENCE_STEPS).length === 0) return "Kayıt dizisi düğmesi için 'saveSequence' gerekli.";
@@ -1979,7 +1983,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const copyBase = requiredNameBase(duplicate.type);
     if (copyBase) { const copyName = freeName(copyBase); if (!copyName) return; duplicate.name = copyName; }
     // Satır işlemleri ve pencere içeriği tek sahiplidir; kopya bunları sahiplenmez.
-    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; delete duplicate.props.openParam; }
+    if (duplicate.type === "dataTable") { delete duplicate.props.rowActions; delete duplicate.props.rowOpenAction; delete duplicate.props.openParam; delete duplicate.props.bulkDeleteQuery; }
     if (duplicate.type === "recordHeader") delete duplicate.props.buttons;
     if (duplicate.type === "dialog") duplicate.props.contains = [];
     // Sayfalama sorgunun parametrelerini tablonun adıyla bağlar ve arama girişini sahiplenir; adsız kopya sayfasız başlar.
@@ -3758,6 +3762,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {selectedQueryRef && <RowOpenActionField table={selected} components={definition.components} disabled={!canEdit}
                 labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))}
                 onPatch={(patch) => patchComponent(selected.id, patch)}/>}
+              {selectedQueryRef && <BulkDeleteField table={selected} queries={definition.queries} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>}
               {selectedQueryRef ? <RowActionsFields table={selected} components={definition.components} parts={["actions"]}
                 labelOf={(component) => String(component.props.text || component.props.label || component.name || summaryOf(component as PageComponent))} serverPaged={pagingOn} disabled={!canEdit}
                 onPatch={(patch) => patchComponent(selected.id, patch)} onAddButton={() => addRowButton(selected.id)}/> : <div className="pd-rowact-item"><span className="pd-rowact-kind">Satır düğmeleri</span><small>Yalnız bir sorguya bağlı listede kullanılabilir.</small></div>}
