@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>İK sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+/* kart */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px}
+.nav{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px}.nav div{padding:7px 9px;border-radius:6px;font-weight:600;color:#475467;display:flex;justify-content:space-between}.nav .on{background:var(--pri-soft);color:var(--pri)}.nav small{color:var(--mut);font-size:10.5px;display:block;padding:8px 9px 2px;font-weight:500}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px}.status b{color:var(--ok)}
+/* ekstre */
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.open td,tr.close td{background:#f8fafc;font-weight:600}tr.rev td{color:#475467}tr.rev td:nth-child(2){padding-left:24px}tr.strike td{color:#98a2b3}tr.strike td:nth-child(2) span.t{text-decoration:line-through}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.flow{list-style:none;margin:6px 0 0;padding:0}.flow li{display:flex;align-items:center;gap:8px;padding:4px 0;color:#98a2b3;font-weight:600}.flow li i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;background:#eef1f7}.flow li.done{color:#344054}.flow li.done i{background:var(--ok-bg);color:var(--ok)}.flow li.on{color:var(--pri)}.flow li.on i{background:var(--pri);color:#fff}
+.side{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px}.side h5{margin:0 0 6px;font-size:13px}.side .w{font-size:18px;font-weight:700}.side p{color:var(--mut);margin:8px 0 0;line-height:1.5}
+.pre{display:flex;gap:6px;margin-top:6px}.pre span{border:1px solid #d8e2ec;border-radius:6px;padding:2px 8px;font-weight:600;color:#475467;background:#fff}.pre span.on{background:var(--pri-soft);color:var(--pri);border-color:#bcd0f5}
+.form2{display:grid;grid-template-columns:1fr 260px;gap:10px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.cmp div{border-radius:8px;padding:7px 9px;font-size:12px;line-height:1.45}.cmp .old{background:#f8fafc;border:1px dashed #d0d8e4;color:#475467}.cmp .new{background:#f3f7ff;border:1px solid #bcd0f5}
+.d .tagw{font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagb{font-size:10.5px;font-weight:700;color:var(--pri);background:var(--pri-soft);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagr{font-size:10.5px;font-weight:700;color:var(--dan);background:var(--dan-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.rail{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 0}.rail span{background:#fff;border:1px solid #dfe5ee;border-radius:7px;padding:5px 10px;font-weight:600;color:#344054}.rail span.new{border-color:#bcd0f5;background:var(--pri-soft);color:var(--pri)}.rail span.old{border-style:dashed;color:#667085}
+.t-bad{background:var(--dan-bg);color:var(--dan)}
+.dlg{max-width:620px;background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.16);padding:14px 16px;margin-top:12px}.dlg h4{margin:0 0 10px;font-size:15px}.dlg .ft{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.inl{display:flex;gap:8px;align-items:flex-end;background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px 10px;margin:10px 0}.inl .f{min-width:150px}.inl .f label{font-size:11px}
+.mut{color:#98a2b3}
+</style></head><body>
+<h1>İnsan Kaynakları → sistem sayfaları (taslak 25)</h1>
+<p class="sub">İK bugün <b>tek bir ekran</b> (<code>human-resources</code>) içinde 8 sekmeden oluşuyor. En sık kullanılan dört ekran ayrı sistem sayfalarına geçiyor: <b>Personel listesi</b>, <b>Personel kartı</b> (yeni + düzenleme tek tanım), <b>İzin talepleri</b> ve <b>Puantaj</b>. Dönem özeti isteğe bağlı beşinci ekran. Ücret, bordro, kural seti ve işyeri takvimi bu dalgada <b>eski ekranda kalıyor</b> (ham JSON alanları, dosya indirmeleri, üç kişilik onay ve maaş verisi). Görünüm bugünküne yakın kalıyor; dört göz ve "yalnız kendi kaydı" kuralları API'de kalıyor. Bugün hiç olmayan <code>ik.*</code> ERP işlemleri (17 adet) ekleniyor. Görsellerdeki adlar örnektir. Aşağıdaki kararlar onayınızı bekliyor.</p>
+
+<div class="lbl">0 · MENÜ DÜZENİ (İK RAYI)</div>
+<div class="erp">
+  <div class="crumb">İK rayı › sayfalar</div>
+  <div class="rail"><span class="new">Personel</span><span class="new">İzin talepleri</span><span class="new">Puantaj</span><span class="new">Dönem özeti</span><span class="old">Bordro ve ücret (eski ekran: Ücret kayıtları · Bordro taslakları · Kural setleri · İşyeri ve takvim)</span></div>
+  <p class="note" style="margin-top:8px">Mavi: yeni sistem sayfası anahtarları (<code>hr-employees</code>, <code>hr-leave-requests</code>, <code>hr-attendance</code>, <code>hr-period-summary</code>; kart <code>hr-employee-create</code> menüde görünmez, listeden açılır). Kesikli: bugünkü <code>human-resources</code> ekranı yerinde kalır. Önizleme döneminde eski ekrandaki Personel/İzin/Puantaj sekmeleri de açık kalır.</p>
+</div>
+
+<div class="lbl">1 · PERSONEL LİSTESİ</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › İnsan Kaynakları › Personel</div>
+  <div class="ttl"><h2>Personel</h2><small>128 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis" title="Personel kaydı silinemez">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="inl"><div class="f" style="flex:1"><label>Ara</label><div class="in ph">Kod, ad, departman veya görev</div></div><div class="f"><label>Durum</label><div class="in">Aktif ▾</div></div><div class="f"><label>Departman</label><div class="in ph">Tümü</div></div></div>
+  <div class="fbar"><span class="chip on">Durum: Aktif ✕</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Personel kodu</th><th>Ad soyad</th><th>Departman</th><th>Görev</th><th>Kategori</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">P-0042</td><td><b>Deniz Arslan</b></td><td>Üretim</td><td>Vardiya amiri</td><td>Mavi yaka</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">P-0057</td><td><b>Ece Kaya</b></td><td>Muhasebe</td><td>Uzman</td><td>Beyaz yaka</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">P-0063</td><td><b>Mert Yıldız</b></td><td>Depo</td><td>Forklift operatörü</td><td>Mavi yaka</td><td><span class="tag t-ok">Aktif</span></td></tr>
+      <tr><td class="code">P-0019</td><td><b>Selin Demir</b></td><td>Satış</td><td>Temsilci</td><td>Beyaz yaka</td><td><span class="tag t-off">Ayrıldı</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Enter aç · F2 yeni · Ctrl+. detay paneli</span><span>Sayfa 1 / 3 · 128 kayıt · 50'şer</span></div></div>
+    <div class="card pnl"><span class="code">P-0042</span> <span class="btn" style="float:right;padding:1px 8px">Aç</span><h4>Deniz Arslan</h4>
+      <div style="margin-top:4px"><span class="tag t-ok">Aktif</span></div>
+      <dl class="dl" style="margin-top:10px"><dt>Departman</dt><dd>Üretim</dd><dt>Görev</dt><dd>Vardiya amiri</dd><dt>Kategori</dt><dd>Mavi yaka</dd><dt>İşe giriş</dt><dd>03.02.2021</dd><dt>İş e-postası</dt><dd>deniz.arslan@ornek.com.tr</dd></dl>
+      <span class="lnk">İzin talepleri →</span><span class="lnk">Puantaj →</span></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Sayfalama ve arama artık sunucuda:</b> bugün liste en çok 1000 kayıt çekip arama ve durum süzgecini tarayıcıda uyguluyor ("ilk 1000 kayıt" uyarısı). Yeni sayfa 50'şer sayfalı, arama ve süzgeç API'de.</li>
+  <li><b>Yönetici olmayan kullanıcı</b> bugünkü gibi yalnız kendisine bağlı personel kaydını görür (sunucu kuralı). Yeni, içe aktarma ve düzenleme yalnız yöneticide; diğerlerinde düğmeler nedenli pasif.</li>
+  <li><b>Excel'den içe aktarma</b> ve <b>ızgarada toplu düzenleme</b> sayfa motorunda yok; ilk sürümde eski ekranda kalır (karar 4).</li>
+</ul>
+
+<div class="lbl">2 · PERSONEL KARTI (YENİ + DÜZENLEME TEK TANIM, AYRI SEKME)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › İnsan Kaynakları › Personel › Kart</div>
+  <div class="rh"><div><h2>Deniz Arslan</h2><p><span class="code">P-0042</span> · <span class="tag t-ok">Aktif</span> · Üretim</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Değişiklikleri kaydet</span></div></div>
+  <div class="status"><span>* zorunlu alan</span><span>Ctrl+S kaydet · Esc vazgeç</span></div>
+  <div>
+    <div class="sec"><h5>Kimlik</h5><div class="g3"><div class="f"><label>Personel kodu <b>*</b></label><div class="in code">P-0042</div></div><div class="f" style="grid-column:span 2"><label>Ad soyad <b>*</b></label><div class="in">Deniz Arslan</div></div></div></div>
+    <div class="sec"><h5>Görev</h5><div class="g3"><div class="f"><label>Departman</label><div class="in">Üretim</div></div><div class="f"><label>Görev</label><div class="in">Vardiya amiri</div></div><div class="f"><label>Çalışan kategorisi</label><div class="in">Mavi yaka</div></div></div></div>
+    <div class="sec"><h5>Çalışma</h5><div class="g3"><div class="f"><label>İşe giriş <b>*</b></label><div class="in">03.02.2021</div></div><div class="f"><label>İşten çıkış</label><div class="in ph">Boşsa aktif</div></div><div class="f"><label>İş e-postası</label><div class="in">deniz.arslan@ornek.com.tr</div></div></div>
+      <div class="f" style="margin-top:10px"><label>Bağlı kullanıcı</label><div class="in">deniz.arslan · Deniz Arslan <span class="mut" style="margin-left:auto">yalnız yeni kayıtta seçilir</span></div></div></div>
+  </div>
+</div>
+<ul class="note">
+  <li>Yeni kartta başlık "Yeni personel", düğmeler "Kaydet" ve "Kaydet ve yeni"; işe giriş varsayılan bugün. Kayıttan sonra listeye dönülür.</li>
+  <li>Kartta <b>TC kimlik no, IBAN, adres, telefon, sağlık bilgisi yok</b> ve eklenmiyor; personel kaydı bilinçli olarak yalnız iş bilgisi tutuyor.</li>
+  <li>Bugünkü kusur gider: düzenleme formu kayıt sonucunu beklemeden kapanıyor, hata olursa girilen değerler kayboluyor.</li>
+</ul>
+
+<div class="lbl">3 · İZİN TALEPLERİ</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › İnsan Kaynakları › İzin talepleri</div>
+  <div class="ttl"><h2>İzin talepleri</h2><small>7 kayıt</small></div>
+  <div class="bar"><span class="pri">+ İzin talebi</span><span>Onayla</span><span>Reddet</span><span class="dis">İptal et</span><span>Yenile</span><span>Excel</span></div>
+  <div class="inl"><div class="f" style="flex:1"><label>Ara</label><div class="in ph">Personel veya not</div></div><div class="f"><label>Durum</label><div class="in">Bekliyor ▾</div></div><div class="f"><label>Tür</label><div class="in ph">Tümü</div></div><div class="f"><label>Tarih aralığı</label><div class="in ph">01.11 – 30.11.2026</div></div></div>
+  <div class="fbar"><span class="chip on">Durum: Bekliyor ✕</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Personel</th><th>Departman</th><th>Tür</th><th>Başlangıç</th><th>Bitiş</th><th class="num">Gün</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td><span class="code">P-0057</span> · Ece Kaya</td><td>Muhasebe</td><td>Yıllık</td><td>01.12.2026</td><td>05.12.2026</td><td class="num">5</td><td><span class="tag t-w">Bekliyor</span></td></tr>
+      <tr><td><span class="code">P-0063</span> · Mert Yıldız</td><td>Depo</td><td>Mazeret</td><td>25.11.2026</td><td>25.11.2026</td><td class="num">0,5</td><td><span class="tag t-w">Bekliyor</span></td></tr>
+      <tr><td><span class="code">P-0042</span> · Deniz Arslan</td><td>Üretim</td><td>Sağlık</td><td>24.11.2026</td><td>26.11.2026</td><td class="num">3</td><td><span class="tag t-w">Bekliyor</span></td></tr>
+    </tbody></table><div class="foot"><span>Enter panel · Ctrl+S talebi kaydet</span><span>Sayfa 1 / 1 · 7 kayıt</span></div></div>
+    <div class="card pnl"><span class="code">P-0057</span><h4>Ece Kaya · Yıllık izin</h4>
+      <div style="margin-top:4px"><span class="tag t-w">Bekliyor</span></div>
+      <div class="k"><div><span>Tarih</span><b>01–05.12.2026</b></div><div><span>Talep edilen</span><b>5 gün</b></div></div>
+      <dl class="dl"><dt>Talep eden</dt><dd>Ece Kaya</dd><dt>Not</dt><dd>Yıl sonu planı</dd></dl>
+      <div style="margin-top:10px"><span class="btn p">Onayla</span> <span class="btn g">Reddet…</span></div>
+      <p class="mut" style="margin:8px 0 0">Kendi talebinizde: "Başka bir yönetici onaylamalı" (pasif)</p></div>
+  </div>
+  <div class="dlg"><h4>İzin talebi</h4>
+    <div class="g2"><div class="f" style="grid-column:span 2"><label>Personel <b>*</b></label><div class="in">P-0057 · Ece Kaya ▾ <span class="mut" style="margin-left:auto">yalnız aktif personel</span></div></div>
+      <div class="f"><label>İzin türü <b>*</b></label><div class="in">Yıllık ▾</div></div><div class="f"><label>Talep edilen gün</label><div class="in ph">Boşsa takvim günü (5)</div></div>
+      <div class="f"><label>Başlangıç <b>*</b></label><div class="in">01.12.2026</div></div><div class="f"><label>Bitiş <b>*</b></label><div class="in">05.12.2026</div></div>
+      <div class="f" style="grid-column:span 2"><label>Not</label><div class="in ta ph">En çok 1000 karakter</div></div></div>
+    <div class="ft"><span class="btn g">Vazgeç</span><span class="btn">Kaydet ve yeni</span><span class="btn p">Talep et</span></div></div>
+</div>
+<ul class="note">
+  <li>Liste bugünkü gibi <b>"Bekliyor"</b> süzgeciyle açılır. Onay / ret yalnız yöneticide; kendi talebini onaylayamama kuralı sunucuda, düğme nedenli pasif.</li>
+  <li><b>Reddet</b> artık isteğe bağlı not soran küçük bir pencere açar (bugün not gönderilemiyor). Onayla ve İptal bugünkü gibi onay sormaz.</li>
+  <li>Yan form yerine pencere: "kaydedilmemiş izin talebi" uyarısına gerek kalmaz. "N takvim günü" canlı ipucu yerine "Boşsa takvim günü" kuralı (karar 5).</li>
+  <li><b>KVKK:</b> not sütunu listede ve Excel dışa aktarımında varsayılan gizli; not yalnız panelde. "Sağlık" türü onay için görünür kalır.</li>
+</ul>
+
+<div class="lbl">4 · PUANTAJ</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › İnsan Kaynakları › Puantaj</div>
+  <div class="ttl"><h2>Puantaj</h2><small>212 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Puantaj kaydı</span><span>Düzelt</span><span>Onayla</span><span>Yenile</span><span>Excel</span></div>
+  <div class="inl"><div class="f"><label>Başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">22.11.2026</div></div><div class="f" style="flex:1"><label>Personel</label><div class="in ph">Tümü</div></div><div class="f"><label>Onay durumu</label><div class="in ph">Tümü</div></div></div>
+  <div class="card"><table><thead><tr><th>Personel</th><th>İş günü</th><th class="num">Çalışılan (dk)</th><th class="num">Fazla mesai (dk)</th><th>Not</th><th>Onay</th></tr></thead><tbody>
+    <tr class="pick"><td><span class="code">P-0042</span> · Deniz Arslan</td><td>21.11.2026</td><td class="num">480</td><td class="num">90</td><td>Sayım günü</td><td><span class="tag t-w">Onay bekliyor</span></td></tr>
+    <tr><td><span class="code">P-0063</span> · Mert Yıldız</td><td>21.11.2026</td><td class="num">480</td><td class="num">0</td><td class="mut">—</td><td><span class="tag t-ok">Onaylandı</span></td></tr>
+    <tr><td><span class="code">P-0057</span> · Ece Kaya</td><td>20.11.2026</td><td class="num">270</td><td class="num">0</td><td>Yarım gün</td><td><span class="tag t-ok">Onaylandı</span></td></tr>
+  </tbody></table><div class="foot"><span>Ctrl+S kaydet · pencere "Kaydet ve yeni" ile açık kalır</span><span>Sayfa 1 / 5 · 212 kayıt · 50'şer</span></div></div>
+  <div class="dlg"><h4>Puantaj kaydı</h4>
+    <div class="g2"><div class="f" style="grid-column:span 2"><label>Personel <b>*</b></label><div class="in ph">Personel seçin ▾ (varsayılan boş)</div></div>
+      <div class="f"><label>İş günü <b>*</b></label><div class="in">22.11.2026</div></div><div class="f"><label>Not</label><div class="in ph">İsteğe bağlı</div></div>
+      <div class="f"><label>Çalışılan dakika <b>*</b></label><div class="in">480</div></div><div class="f"><label>Fazla mesai dakika <b>*</b></label><div class="in">0</div></div></div>
+    <p class="mut" style="margin:8px 0 0">Çalışılan + fazla mesai en çok 1440 dk. Aynı personele aynı gün ikinci kayıt girilemez.</p>
+    <div class="ft"><span class="btn g">Vazgeç</span><span class="btn">Kaydet ve yeni</span><span class="btn p">Kaydet</span></div></div>
+</div>
+<ul class="note">
+  <li>Süreler ilk sürümde <b>dakika</b> olarak gösterilir (bugün "8 sa 30 dk"); "sa dk" biçimi ortak motor işi (karar 6).</li>
+  <li><b>Düzelt</b> kaydı yeniden onaya düşürür (bugünkü sunucu kuralı); pencerede "Kayıt yeniden onaya düşer" uyarısı çıkar. Kaydeden kişi onaylayamaz.</li>
+  <li>Bugünkü iki kusur taşınmaz: kayıt formu izin formuyla aynı personel seçimini paylaşıyor ve açılışta ilk personeli seçiyor (yanlış kişiye puantaj riski); yeni pencerede personel boş başlar. Hep boş kalan "Reddedildi" çipi kalkar (puantajda ret yok).</li>
+  <li>Varsayılan tarih aralığı: ayın 1'i → bugün (bugün tarih süzgeci hiç yok, son 500 kayıt geliyor).</li>
+</ul>
+
+<div class="lbl">5 · DÖNEM ÖZETİ (İSTEĞE BAĞLI, YALNIZ YÖNETİCİ)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › İnsan Kaynakları › Dönem özeti</div>
+  <div class="inl"><div class="f"><label>Başlangıç <b>*</b></label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş <b>*</b></label><div class="in">22.11.2026</div></div><span class="btn p">Çalıştır (F9)</span><span class="mut">Her çalıştırma denetim kaydına yazılır</span></div>
+  <div class="mets"><div class="met"><span class="ic">◎</span><div><span>Dönem sonu personel</span><strong>121</strong></div></div><div class="met"><span class="ic">◷</span><div><span>Çalışılan süre</span><strong>1.214 sa</strong></div></div><div class="met"><span class="ic">+</span><div><span>Fazla mesai</span><strong>86 sa</strong></div></div><div class="met"><span class="ic">✓</span><div><span>İzin talebi / gün</span><strong>34 / 71,5</strong></div></div></div>
+</div>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL) · <span style="color:var(--pri)">mavi</span> = yalnız İK dosyası · <span style="color:var(--warn)">sarı</span> = ortak dosya, diğer modüllerle sıralanır · <span style="color:var(--dan)">kırmızı</span> = bugünkü kusur</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Kapsam ve menü düzeni<span class="tagw">ortak menü</span></b><p>İK tek bir ekran anahtarı; sistem sayfası yalnız menü kataloğundaki bir anahtara bağlanabiliyor ve <code>human-resources</code> katalogda yok. Ayrı sayfalar için yeni anahtarlar gerekiyor.</p><p class="rec">Öneri: 4 yeni anahtar (+ kart) <code>hr-employees</code>, <code>hr-employee-create</code>, <code>hr-leave-requests</code>, <code>hr-attendance</code>, (<code>hr-period-summary</code>); adlar bugünkü sütun görünümü anahtarlarıyla aynı. Bordro/ücret eski ekranda "Bordro ve ücret" adıyla kalır.</p></div>
+  <div class="d"><b class="h">2 · Sunucuda sayfalama ve arama<span class="tagb">İK API</span></b><p>Üç liste ucu da parametresiz: 1000 / 500 / 500 kayıt sınırı, arama ve süzgeç tarayıcıda. Sayfa motoru tarayıcıda süzemiyor.</p><p class="rec">Öneri: uçlara <b>ekleyerek</b> <code>q</code>, durum, tür, personel, tarih ve <code>page/pageSize</code>; sayfa istendiğinde yanıt <code>totalCount</code>'lu zarfa geçer, istenmediğinde bugünkü dizi döner (eski ekran ve AI asistanı etkilenmez).</p></div>
+  <div class="d"><b class="h">3 · Tek kayıt okuma ve "onaylayabilir" bayrağı<span class="tagb">İK API</span></b><p>Personel ve puantaj için tek kayıt okuma ucu yok (kart düzenlemesinin kaynağı). Kendi izin talebini onaylayamama göstergesi bugün tarayıcıda oturum kimliğiyle hesaplanıyor; puantajda hiç gösterilmiyor.</p><p class="rec">Öneri: <code>GET /api/hr/employees/{id}</code>, <code>GET /api/hr/attendance/{id}</code>; izin görünümüne <code>canReview</code>, puantaj görünümüne <code>canApprove</code> (kural setindeki kalıp).</p></div>
+  <div class="d"><b class="h">4 · Excel içe aktarma ve toplu düzenleme<span class="tagw">ortak motor</span></b><p>Personel listesinde Excel'den içe aktarma ve ızgarada 4 sütunluk toplu düzenleme var; sayfa motorunda karşılıkları yok.</p><p class="rec">Öneri: ilk sürümde yok; önizleme döneminde eski ekranda kullanılmaya devam eder (eski ekran varsayılan kalır). Kalıcı çözüm ayrı motor işi.</p></div>
+  <div class="d"><b class="h">5 · İzin gün sayısı<span class="tagb">İK API</span></b><p>Bugün "talep edilen gün" tarih aralığını kendiliğinden izliyor; sayfa motoru alanlar arasında hesap yapamıyor.</p><p class="rec">Öneri: alan isteğe bağlı olsun; boş bırakılırsa sunucu takvim gün sayısını yazsın. Yarım gün gibi durumlar elle girilir. İzin hakkı/bakiye takibi bugün de yok, eklenmiyor.</p>
+    <div class="cmp"><div class="old">Bugün: tarih değişince gün kendiliğinden 5 olur</div><div class="new">Yeni: alan boş → sunucu 5 yazar</div></div></div>
+  <div class="d"><b class="h">6 · Puantaj süre biçimi<span class="tagw">ortak motor</span></b><p>Hücre biçimleri metin, sayı, para, tarih, tarih-saat; "8 sa 30 dk" biçimi yok.</p><p class="rec">Öneri: ilk sürümde dakika sayısı ("dk" sütun başlığı). "sa dk" biçimi motor sırası gelince eklenir.</p></div>
+  <div class="d"><b class="h">7 · Formlar pencerede, kusurlar taşınmaz<span class="tagb">standart</span><span class="tagr">kusur</span></b><p>Bugün düzenleme formları kayıt sonucunu beklemeden kapanıyor; izin ve puantaj formları aynı personel seçimini paylaşıyor, puantaj ilk personeli kendiliğinden seçiyor.</p><p class="rec">Öneri: İzin talebi ve Puantaj kaydı "Kaydet ve yeni"li pencerede; personel varsayılan boş; form yalnız başarılı kayıttan sonra kapanır. Personel kartı ayrı sekmede (stok/CRM kalıbı).</p></div>
+  <div class="d"><b class="h">8 · Kişisel veri (KVKK)<span class="tagb">standart</span></b><p>Personel kaydında TC no, IBAN, adres, sağlık alanı yok. Hassas olanlar: "Sağlık" izin türü, serbest izin ve puantaj notları, iş e-postası. <code>ik.*</code> işlemleri kiracının Studio kataloğunda görünür olacak.</p><p class="rec">Öneri: notlar listede ve dışa aktarımda varsayılan gizli; ücret ve bordro uçları için bu dalgada <b>hiç işlem açılmaz</b> (maaş verisi kiracı sayfalarına taşınamasın); yeni kişisel alan eklenmez.</p></div>
+  <div class="d"><b class="h">9 · Ret notu ve onaylar<span class="tagb">standart</span></b><p>İzin onay/ret/iptal bugün soru sormuyor ve ret notu gönderilemiyor (sunucu kabul ediyor).</p><p class="rec">Öneri: Reddet isteğe bağlı not soran pencere açar; Onayla ve İptal onaysız kalır. İşlem adları sabit gövdeli: <code>ik.izin.onayla</code> / <code>ik.izin.reddet</code>.</p></div>
+  <div class="d"><b class="h">10 · Sıra ve yayın</b><p>Ortak dosyaları (ERP işlem kataloğu etiketleri, menü kataloğu, sistem sayfası listeleri) diğer modül oturumları da değiştiriyor.</p><p class="rec">Öneri: (1) bekleyen modül PR'ları birleşir → (2) tek İK PR'ı: API eklemeleri (karar 2, 3, 5), 17 <code>ik.*</code> işlemi, menü anahtarları, dört standart (önizleme, varsayılan eski ekran) → (3) Dönem özeti → (4) bordro/ücret ayrı envanter. QA yalnız "QA Test Firma 20261117"de, iki yönetici + kendi kaydı bağlı bir kullanıcıyla.</p></div>
+</div>
+<ul class="note">
+  <li>Değişmeden kalanlar: personel silinemez (işten çıkış tarihiyle kapanır); yönetici olmayan yalnız kendi kaydını görür; aynı tarihlerde çakışan izin ve aynı güne ikinci puantaj sunucuda reddedilir.</li>
+  <li>Kapsam dışı ve etkilenmeyen: AI asistanının İK araçları, ücret kayıtları, bordro taslakları, kural setleri, işyeri ve takvim tanımları.</li>
+</ul>
+</body></html>
