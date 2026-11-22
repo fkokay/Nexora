@@ -612,7 +612,7 @@ public sealed class ErpOperationCatalogTests
             .Where(x => x.p.Type is "list" or "map").ToArray();
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
         // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests).
-        Assert.Equal(10, collections.Length);
+        Assert.Equal(11, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
