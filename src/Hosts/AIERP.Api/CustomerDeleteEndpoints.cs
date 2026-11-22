@@ -1,9 +1,11 @@
+using System.Data;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Security.Claims;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -14,11 +16,13 @@ using Microsoft.EntityFrameworkCore.Metadata;
 /// purchase documents, CRM opportunities, contracts, payment instruments, fixed assets, projects, subsidiaries…), so a key
 /// added later blocks it as well. The card's own addresses and current custom field values carry no history of their own
 /// and are removed with it. The checks are explicit because some keys cascade in SQL (ledger entries, custom field values)
-/// and the InMemory test provider enforces none; a SQL foreign key violation (547) still answers 409.
+/// and the InMemory test provider enforces none; a SQL foreign key violation (547) still answers 409. On SQL Server the check
+/// and the delete run in one Serializable transaction (see the handler).
 /// </summary>
 public static class CustomerDeleteEndpoints
 {
     public const string RelatedRecordsError = "İlişkili kayıt bulunan cari kart silinemez; bunun yerine pasife alın.";
+    public const string BusyError = "Cari kart şu anda kullanılıyor; tekrar deneyin.";
 
     /// <summary>Dependents removed together with the card: they hold no movement or history of their own.</summary>
     private static readonly HashSet<Type> OwnedDependents = [typeof(CustomerAddress), typeof(CustomerCustomFieldValue)];
@@ -37,29 +41,43 @@ public static class CustomerDeleteEndpoints
             var userId = TryGetUserId(principal);
             if (userId is null) return Results.Forbid();
             var role = principal.FindFirstValue("role") ?? string.Empty;
-            // Row visibility first: a card the caller cannot see is "not found", never "forbidden".
-            var visible = db.CustomerAccounts.Where(x => x.TenantId == tenantId && x.Id == id);
-            visible = await CustomerCollectionPermissionFilter.ApplyAsync(platformDb, tenantId, userId.Value, role, visible, cancellationToken);
-            var customer = await visible.SingleOrDefaultAsync(cancellationToken);
-            if (customer is null) return Results.NotFound();
-            if (role != "TenantAdmin") return Results.Forbid();
-            if (await HasRelatedRecordsAsync(db, tenantId, id, cancellationToken))
-                return Results.Conflict(new { error = RelatedRecordsError });
-
-            db.CustomerAddresses.RemoveRange(await db.CustomerAddresses.Where(x => x.TenantId == tenantId && x.CustomerId == id).ToListAsync(cancellationToken));
-            db.CustomerCustomFieldValues.RemoveRange(await db.CustomerCustomFieldValues.Where(x => x.TenantId == tenantId && x.CustomerId == id).ToListAsync(cancellationToken));
-            db.CustomerAccounts.Remove(customer);
-            db.AuditEvents.Add(new AuditEvent
+            // The ledger entry and custom field value keys cascade in SQL, so no 547 would stop a delete racing a new posting:
+            // a movement inserted between the check and the delete would be removed with the card. On a relational provider
+            // the check and the delete share one Serializable transaction; the existence checks take key-range locks on the
+            // dependents of this card, which block a concurrent insert for it until commit (the InMemory test provider has
+            // no transactions and keeps the plain path).
+            await using var transaction = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+            try
             {
-                TenantId = tenantId, UserId = userId, Action = "customer.deleted",
-                Resource = AuditResourceSanitizer.Sanitize(customer.Code)
-            });
-            try { await db.SaveChangesAsync(cancellationToken); }
-            catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 547 })
+                // Row visibility first: a card the caller cannot see is "not found", never "forbidden".
+                var visible = db.CustomerAccounts.Where(x => x.TenantId == tenantId && x.Id == id);
+                visible = await CustomerCollectionPermissionFilter.ApplyAsync(platformDb, tenantId, userId.Value, role, visible, cancellationToken);
+                var customer = await visible.SingleOrDefaultAsync(cancellationToken);
+                if (customer is null) return Results.NotFound();
+                if (role != "TenantAdmin") return Results.Forbid();
+                if (await HasRelatedRecordsAsync(db, tenantId, id, cancellationToken))
+                    return Results.Conflict(new { error = RelatedRecordsError });
+
+                db.CustomerAddresses.RemoveRange(await db.CustomerAddresses.Where(x => x.TenantId == tenantId && x.CustomerId == id).ToListAsync(cancellationToken));
+                db.CustomerCustomFieldValues.RemoveRange(await db.CustomerCustomFieldValues.Where(x => x.TenantId == tenantId && x.CustomerId == id).ToListAsync(cancellationToken));
+                db.CustomerAccounts.Remove(customer);
+                db.AuditEvents.Add(new AuditEvent
+                {
+                    TenantId = tenantId, UserId = userId, Action = "customer.deleted",
+                    Resource = AuditResourceSanitizer.Sanitize(customer.Code)
+                });
+                await db.SaveChangesAsync(cancellationToken);
+                if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+                return Results.NoContent();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 547 })
             { return Results.Conflict(new { error = RelatedRecordsError }); }
             catch (DbUpdateConcurrencyException)
             { return Results.Conflict(new { error = "Cari kart başka bir işlemle değişti; listeyi yenileyip tekrar deneyin." }); }
-            return Results.NoContent();
+            // Deadlock victim (1205) or lock timeout (1222) under Serializable: a concurrent write holds this card's rows.
+            catch (Exception ex) when (IsLockConflict(ex))
+            { return Results.Conflict(new { error = BusyError }); }
         });
         return customers;
     }
@@ -109,6 +127,13 @@ public static class CustomerDeleteEndpoints
             body = body is null ? equals : Expression.AndAlso(body, equals);
         }
         return db.Set<TEntity>().AsNoTracking().AnyAsync(Expression.Lambda<Func<TEntity, bool>>(body!, row), cancellationToken);
+    }
+
+    private static bool IsLockConflict(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current is SqlException { Number: 1205 or 1222 }) return true;
+        return false;
     }
 
     private static Guid? TryGetUserId(ClaimsPrincipal principal) =>
