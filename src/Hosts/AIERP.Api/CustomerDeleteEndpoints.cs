@@ -52,7 +52,7 @@ public static class CustomerDeleteEndpoints
             db.AuditEvents.Add(new AuditEvent
             {
                 TenantId = tenantId, UserId = userId, Action = "customer.deleted",
-                Resource = AuditResourceSanitizer.Sanitize($"{customer.Code} {customer.Name}")
+                Resource = AuditResourceSanitizer.Sanitize(customer.Code)
             });
             try { await db.SaveChangesAsync(cancellationToken); }
             catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 547 })

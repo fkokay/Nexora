@@ -48,7 +48,7 @@ public sealed class CustomerDeleteIntegrationTests
         Assert.False(await db.CustomerCustomFieldValues.AnyAsync(x => x.CustomerId == Empty));
         var audit = await db.AuditEvents.SingleAsync(x => x.Action == "customer.deleted");
         Assert.Equal(TenantA, audit.TenantId);
-        Assert.Equal("E-001 Boş kart", audit.Resource);
+        Assert.Equal("E-001", audit.Resource);
         // The other cards stay.
         Assert.True(await db.CustomerAccounts.AnyAsync(x => x.Id == Busy));
     }
