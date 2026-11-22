@@ -6,7 +6,7 @@ vi.mock('../confirmDialog', () => ({ confirmDialog: (options: unknown) => confir
 import { NOTHING_TO_SAVE, STEP_NOT_ALLOWED, iterationOf, runSaveSequence, stepLabel, type SequenceStep } from './saveSequence';
 import { bindingPath, resolvePath } from './pageBindings';
 import { VALIDATION_BLOCKED } from './inputValidation';
-import { PREVIEW_WRITE_WARNING } from './writeAction';
+import { PREVIEW_ERP_WRITE_BLOCKED, PREVIEW_WRITE_WARNING } from './writeAction';
 import type { PageQueryDefinition, WriteResult } from './usePageQueries';
 import type { ErpOperation } from './erpOperations';
 
@@ -218,6 +218,16 @@ describe('runSaveSequence', () => {
     expect(await runSaveSequence(declined.opts)).toEqual({ status: 'cancelled' });
     expect(declined.write).not.toHaveBeenCalled();
     expect(declined.lock.current).toBe(false);
+  });
+
+  it('preview blocks ERP operation steps without asking the misleading confirm', async () => {
+    const steps = [step('a'), { ...step('b'), query: { ...query('b'), operation: 'cari.olustur' } }];
+    const preview = setup(steps, { isPreview: true, confirm: { enabled: true, text: 'Kaydedilsin mi?' } });
+    expect(await runSaveSequence(preview.opts)).toEqual({ status: 'blocked', message: PREVIEW_ERP_WRITE_BLOCKED });
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(preview.write).not.toHaveBeenCalled();
+    expect(preview.validate).not.toHaveBeenCalled();
+    expect(preview.lock.current).toBe(false);
   });
 
   it('prompt cancel stops silently; answer reaches overlay', async () => {

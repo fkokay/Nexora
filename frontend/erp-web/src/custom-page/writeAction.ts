@@ -3,6 +3,11 @@ import type { PageQueryDefinition, WriteResult } from "./usePageQueries";
 import { BEFORE_SAVE_TIMEOUT_MESSAGE } from "./pageEvents";
 
 export const PREVIEW_WRITE_WARNING = "Bu taslak önizlemesinde veriler gerçekten değişecek. Devam edilsin mi?";
+/** ERP işlem (`operation`) yazmaları önizlemede hiç gönderilmez: onay sorulmadan bu ileti gösterilir. */
+export const PREVIEW_ERP_WRITE_BLOCKED = "Önizlemede kayıt yapılmaz; yayımladıktan sonra çalışır.";
+/** Önizlemede engellenen yazma: ERP işlem sorgusu (SQL sorgusu önizlemede gerçekten yazar, onayla sorulur). */
+export const blockedInPreview = (isPreview: boolean, queries: readonly PageQueryDefinition[]) =>
+  isPreview && queries.some((query) => query.operation !== undefined);
 
 export type WriteConfirm = { enabled: boolean; text?: string; title?: string; confirmLabel?: string; tone?: "danger" | "default" };
 export type WriteOutcome =
@@ -30,6 +35,8 @@ export async function runWriteAction(opts: {
 }): Promise<WriteOutcome> {
   const { query, confirm, isPreview, write, inFlight } = opts;
   if (inFlight.current) return { ok: false, busy: true };
+  // ERP yazması önizlemede çalışmaz: yanıltıcı onay sorulmadan ileti hemen döner.
+  if (blockedInPreview(isPreview, [query])) return { ok: false, error: PREVIEW_ERP_WRITE_BLOCKED };
   inFlight.current = true;
   try {
     // Doğrulama yalnız kullanıcıya yardımdır (sunucu yine doğrular); beforeWrite'tan ve onaydan önce çalışır.

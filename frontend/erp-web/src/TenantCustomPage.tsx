@@ -827,7 +827,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     // Aranabilir açılır liste: yazarak süzülen seçenekler; sarmalayıcı arama kutusunun sınıflarını taşır (aynı görünüm).
     return <div className={`tenant-page-input tenant-page-input-lookup tenant-page-input-searchable${requiredClass}${invalid ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
       <SearchableSelect inputId={inputId} label={label} value={typeof raw === "string" ? raw : ""} choices={selectOptions(props, optionsState)}
-        emptyLabel={optionsState && neverRan(optionsState) && !optionsState.loading ? MANUAL_QUERY_IDLE : "Seçin"} loading={Boolean(optionsState?.loading)}
+        emptyLabel={optionsState && neverRan(optionsState) && !optionsState.loading ? MANUAL_QUERY_IDLE : selectOptions(props, optionsState).find((option) => option.value === "")?.label || "Seçin"} loading={Boolean(optionsState?.loading)}
         disabled={disabled} onChange={(next) => onChange(next)} />
       {optionsState?.error && <QueryError message={optionsState.error} />}
       {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
@@ -837,9 +837,12 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     const current = typeof raw === "string" ? raw : "";
     // Seçeneklerde olmayan geçerli değer (ör. listeden kaldırılmış kategori) silinmez; kendi seçeneğiyle gösterilir.
     const orphan = current !== "" && !optionsState?.loading && !options.some((option) => option.value === current);
-    control = <select {...common} value={current} disabled={disabled || optionsState?.loading} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{optionsState?.loading ? "Yükleniyor…" : "Seçin"}</option>
-      {options.map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
+    // Boş değerli bir sabit seçenek (ör. "=Türkiye (varsayılan)") varsa "Seçin" eklenmez: boş değer tek seçenekle gösterilir.
+    const loading = Boolean(optionsState?.loading);
+    const ownEmpty = !loading && options.some((option) => option.value === "");
+    control = <select {...common} value={current} disabled={disabled || loading} onChange={(event) => onChange(event.target.value)}>
+      {!ownEmpty && <option value="">{loading ? "Yükleniyor…" : "Seçin"}</option>}
+      {options.filter((option) => !loading || option.value !== "").map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
       {orphan && <option value={current}>{current}</option>}
     </select>;
   } else {
@@ -851,19 +854,21 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       maxLength={htmlType === "text" ? rules.maxLength : undefined}
       placeholder={textValue(props.placeholder)} value={shown} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   }
-  let field = <label htmlFor={inputId}>{label && <span>{label}</span>}{control}</label>;
+  // Etiket girişi sarar ve `htmlFor` taşımaz: açık tutulan sekmelerde aynı bileşen kimliği (`page-input-kod`) birden çok sayfada
+  // bulunabilir; `for` belgedeki ilk kimliğe (gizli sekmedeki girişe) gider ve görünen giriş adsız kalırdı.
+  let field = <label>{label && <span>{label}</span>}{control}</label>;
   if (inline && inputType === "checkbox") {
     const Icon = INLINE_TOGGLE_ICONS[textValue(props.icon)];
     const count = textValue(props.description);
     const active = raw === true ? " is-active" : "";
     field = Icon
-      ? <label htmlFor={inputId} className={`tenant-page-toggle${active}`}>{control}<Icon size={15} aria-hidden="true" /><span>{label}</span></label>
-      : <label htmlFor={inputId} className={`list-v2-chip${active}`}>{control}<span>{label}</span>
+      ? <label className={`tenant-page-toggle${active}`}>{control}<Icon size={15} aria-hidden="true" /><span>{label}</span></label>
+      : <label className={`list-v2-chip${active}`}>{control}<span>{label}</span>
         {count && <>{" "}<span className="list-v2-chip-count">{count}</span></>}</label>;
   } else if (inline && inputType === "text" && textValue(props.placeholder)) {
-    field = <label htmlFor={inputId} className="list-v2-search"><Search size={16} aria-hidden="true" />{label && <span>{label}</span>}{control}</label>;
+    field = <label className="list-v2-search"><Search size={16} aria-hidden="true" />{label && <span>{label}</span>}{control}</label>;
   } else if (inline) {
-    field = <label htmlFor={inputId} className="list-v2-filter">{label && <span>{label}</span>}{control}</label>;
+    field = <label className="list-v2-filter">{label && <span>{label}</span>}{control}</label>;
   }
   return <div className={`tenant-page-input tenant-page-input-${inputType}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
     {field}
@@ -1014,11 +1019,16 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       // Değeri bağlama olan (sorgusuz, kaynaksız) v2 gösterge: çözülen değer `format` ile (number/money; diğerleri metin) yazılır.
       const rawValue = component.props?.value;
       if (runtime && !queryName && !textValue(props.source).trim() && typeof rawValue === "string" && rawValue.includes("{{")) {
-        const path = bindingPath(rawValue.trim());
+        // Değer tek bağlamayla başlayıp metinle sürebilir (ör. "{{b.tutar}} {{b.doviz}} {{b.yon}}" → "4.050.000,00 TRY B"):
+        // baştaki bağlama `format` ile yazılır, kalan şablon çözülüp ardına eklenir.
+        const lead = /^\s*(\{\{[^{}]*\}\})([\s\S]*)$/.exec(rawValue);
+        const path = lead ? bindingPath(lead[1]) : null;
         const resolved = path ? resolvePath(runtime.scope, path) : value;
+        const rest = path && lead ? interpolate(lead[2], runtime.scope).replace(/\s+/g, " ").trim() : "";
         const format = props.format === "number" || props.format === "money" || props.format === "date" || props.format === "datetime" ? props.format : "text";
+        const shown = formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format);
         return <MetricCard key={component.id} title={title || text || "Gösterge"} description={description} style={style} {...card}
-          value={<strong>{formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format)}</strong>} />;
+          value={<strong>{rest ? `${shown} ${rest}` : shown}</strong>} />;
       }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
@@ -3018,7 +3028,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
     skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
-    blurInput: (componentId) => storeMessage(componentId, inputMessage(componentId, inputValues[componentId])),
+    // Kullanıcının hiç değiştirmediği giriş bulanıklaşınca doğrulanmaz (ör. pencere açılışında odaklanan boş zorunlu alandan
+    // sekmeye geçmek): ileti ve sekme işareti ancak değişiklikten ya da eylem denemesinden (validateFor) sonra görünür.
+    blurInput: (componentId) => { if (componentId in touchedRef.current) storeMessage(componentId, inputMessage(componentId, inputValues[componentId])); },
     tabOwned, topLevelById, ancestorsOf,
     selections, select,
     queryById, inputErrors, ownedInputs, inputById, tableById, rights, rerun, isPreview,

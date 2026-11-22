@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { activeTenantKey, getInitialPage, readSystemPreview, tokenKey, workspaceStorageKey } from '../workspace-storage';
+import { systemPageAliasKeys, systemPageScreenKeys } from './systemPageKeys';
 
 const setQuery = (query: string) => window.history.replaceState(null, '', `/${query}`);
 
@@ -41,6 +42,11 @@ describe('readSystemPreview', () => {
     expect(getInitialPage(false)).toBe('inventory-stock');
     window.history.replaceState(null, '', '/');
     localStorage.clear();
+  });
+  it('reads every system page key and alias (ör. finance-account-create)', () => {
+    for (const key of [...systemPageScreenKeys, ...systemPageAliasKeys]) {
+      expect(readSystemPreview(`?page=${key}&systemPreview=${DRAFT}`)).toEqual({ screenKey: key, previewId: DRAFT });
+    }
   });
   it.each([
     ['no draft', '?page=inventory-stock'],

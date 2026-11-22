@@ -5,7 +5,7 @@ import type { ErpOperation } from "./erpOperations";
 import { bindingPath } from "./pageBindings";
 import { BEFORE_SAVE_TIMEOUT_MESSAGE } from "./pageEvents";
 import type { PageQueryDefinition, WriteResult } from "./usePageQueries";
-import { PREVIEW_WRITE_WARNING, type WriteConfirm } from "./writeAction";
+import { blockedInPreview, PREVIEW_ERP_WRITE_BLOCKED, PREVIEW_WRITE_WARNING, type WriteConfirm } from "./writeAction";
 
 export type SequenceList = "eklenenSatir" | "silinenSatir";
 export type SequenceStep = {
@@ -86,6 +86,9 @@ export async function runSaveSequence(opts: {
     // 2. Etkin adımlar: sıfır satırlı yinelenen adım atlanır (yetkisiz olsa da istek ve hata yoktur).
     const steps = opts.steps.filter((step) => !step.iterate || step.iterate.rows.length > 0);
     if (steps.length === 0) return { status: "done", tone: "warning", message: NOTHING_TO_SAVE, calls: [], succeeded: 0 };
+
+    // ERP işlem adımı önizlemede çalışmaz: onay sorulmadan ileti döner (hiçbir adım gönderilmez).
+    if (blockedInPreview(opts.isPreview, steps.map((step) => step.query))) return { status: "blocked", message: PREVIEW_ERP_WRITE_BLOCKED };
 
     // 3. Doğrulama, bir kez.
     const invalid = opts.validate();

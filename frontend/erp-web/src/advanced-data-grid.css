@@ -379,3 +379,35 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic 
 #root .nx-bulk .nx-bulk-action:focus-visible { outline: 2px solid var(--nx-on-primary); outline-offset: 1px; }
 #root .nx-bulk .nx-bulk-clear { color: color-mix(in srgb, var(--nx-on-primary) 55%, var(--nx-ink)); }
 .nx-bulk-clear kbd { font: inherit; }
+
+/* Tek çerçeve: araç satırı, tablo gövdesi ve alt bilgi tek kutu gibi okunur. Kabuğun genel kuralı
+   (global-components.css: .advanced-grid-toolbar/-scroll/-footer → border-radius: var(--erp-radius-control) !important)
+   her parçayı ayrı yuvarlıyor, araç satırının alt çizgisi tablonun üst çizgisiyle çift çizgi oluyordu. Dış köşeler kart
+   yarıçapıyla yuvarlanır; parçalar arasında tek 1px çizgi kalır. Seçiciler #root taşımaz: ekranların kendi #root kuralları
+   (list-v2, belge detayı, pencere içi listeler) yine kazanır. */
+.app-shell .advanced-grid { --grid-frame: #D7DEE7; --grid-frame-radius: var(--nx-radius-card, 8px); }
+html[data-theme="dark"] .app-shell .advanced-grid { --grid-frame: var(--erp-border); }
+.app-shell .advanced-grid > .advanced-grid-toolbar:not(.is-external) {
+  border: 1px solid var(--grid-frame) !important;
+  border-radius: var(--grid-frame-radius) var(--grid-frame-radius) 0 0 !important;
+}
+.app-shell .advanced-grid > .advanced-grid-scroll.advanced-grid-scroll {
+  border: 1px solid var(--grid-frame) !important;
+  border-radius: var(--grid-frame-radius) !important;
+}
+/* Araç satırının alt çizgisi ayraçtır: gövdenin üst çizgisi ve üst köşeleri yok. */
+.app-shell .advanced-grid > .advanced-grid-toolbar:not(.is-external) ~ .advanced-grid-scroll {
+  border-top-width: 0 !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+/* Alt bilgi varsa alt köşeler onundur; gövdenin alt çizgisi ayraç olur. */
+.app-shell .advanced-grid:not([data-server-hide-footer="true"]) > .advanced-grid-scroll:has(~ .advanced-grid-footer) {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+.app-shell .advanced-grid > .advanced-grid-footer.advanced-grid-footer {
+  border: 1px solid var(--grid-frame) !important;
+  border-top-width: 0 !important;
+  border-radius: 0 0 var(--grid-frame-radius) var(--grid-frame-radius) !important;
+}
