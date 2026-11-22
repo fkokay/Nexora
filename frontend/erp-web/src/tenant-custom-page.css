@@ -435,8 +435,11 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-dialog-body .tenant-page-section > .tenant-page-action { justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--nx-line-soft); }
 .tenant-page-dialog-body .tenant-page-section > .tenant-page-text:has(+ .tenant-page-action) { flex: 1 1 60%; align-self: stretch; display: flex; align-items: center; padding: 12px 12px 0 0; border-top: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 12px; }
 .tenant-page-dialog-body .tenant-page-section > .tenant-page-text + .tenant-page-action { flex: 0 0 auto; }
-/* Pencere listesinin boş durumu: kesik çizgili kutu; `emptyText` iki satırsa (\n) ilk satır başlıktır. */
-#root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty { padding: 22px 16px; border: 1px dashed var(--nx-line); border-radius: var(--nx-radius-card); color: var(--nx-muted); text-align: center; white-space: pre-line; }
+/* Pencere listesinin boş durumu: tablo gövdesinde ortalanmış ileti (ızgara çerçevesiyle hizalanmayan iç kesik çizgili kutu
+   üçüncü bir çerçeve gibi görünüyordu); `emptyText` iki satırsa (\n) ilk satır başlıktır. */
+#root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty { padding: 28px 16px; border: 0; border-radius: 0; color: var(--nx-muted); text-align: center; white-space: pre-line; }
+/* Izgara kabı, ızgaranın tek çerçevesiyle aynı yarıçapla kırpar: kabuğun 12px kart kuralı (overflow: auto ile) 8px dış köşeleri kesiyordu. */
+#root .app-shell .tenant-custom-page .tenant-custom-page-content .customer-table-wrap.tenant-page-data-grid-wrap { border-radius: var(--nx-radius-card, 8px) !important; }
 #root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty::first-line { color: var(--nx-text); font-weight: 600; }
 .tenant-page-dialog-body .tenant-report-state { white-space: pre-line; }
 .tenant-page-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--nx-line); }

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const confirmDialog = vi.fn();
 vi.mock('../confirmDialog', () => ({ confirmDialog: (options: unknown) => confirmDialog(options) }));
 
-import { runWriteAction } from './writeAction';
+import { PREVIEW_ERP_WRITE_BLOCKED, runWriteAction } from './writeAction';
 import type { PageQueryDefinition } from './usePageQueries';
 
 const query: PageQueryDefinition = { id: 'q', name: 'Q', runOn: 'manual', kind: 'delete', parameters: [] };
@@ -121,5 +121,21 @@ describe('runWriteAction doğrulama', () => {
     const { write, opts } = setup({ confirm: { enabled: false }, validate: () => null });
     expect(await runWriteAction(opts)).toEqual({ ok: true, affectedRows: 2 });
     expect(write).toHaveBeenCalledOnce();
+  });
+
+  it('önizlemede ERP işlem yazması onay sormadan engellenir; SQL yazması önizleme uyarısıyla sorulur', async () => {
+    confirmDialog.mockResolvedValue(true);
+    const operation: PageQueryDefinition = { ...query, kind: 'insert', operation: 'cari.olustur' };
+    const blocked = setup({ query: operation, isPreview: true, validate: vi.fn(() => null) });
+    expect(await runWriteAction(blocked.opts)).toEqual({ ok: false, error: PREVIEW_ERP_WRITE_BLOCKED });
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(blocked.write).not.toHaveBeenCalled();
+    expect(blocked.opts.validate).not.toHaveBeenCalled();
+    expect(blocked.inFlight.current).toBe(false);
+
+    const sql = setup({ isPreview: true });
+    expect(await runWriteAction(sql.opts)).toEqual({ ok: true, affectedRows: 2 });
+    expect(confirmDialog).toHaveBeenCalledOnce();
+    expect(sql.write).toHaveBeenCalledWith(query, true);
   });
 });

@@ -157,7 +157,7 @@ export function LookupInput({ inputId, label, raw, onChange, onSearch, options, 
   return <div className={`tenant-page-lookup${isSelect ? " is-select" : ""}`}>
     {label && <label htmlFor={inputId}><span>{label}</span></label>}
     <div className="tenant-page-lookup-control" ref={controlRef}>
-      <input id={inputId} type="text" role="combobox" autoComplete="off" aria-label={!label && ariaLabel ? ariaLabel : undefined} aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
+      <input id={inputId} type="text" role="combobox" autoComplete="off" aria-label={label || ariaLabel || undefined} aria-autocomplete="list" aria-expanded={listOpen} aria-controls={listId}
         aria-activedescendant={active} disabled={disabled} placeholder={placeholder} value={text ?? display}
         onChange={(event) => { setText(event.target.value); setOpen(true); setHighlight(-1); onSearch(event.target.value); }}
         onClick={() => { if (!disabled) setOpen(true); }}

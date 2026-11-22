@@ -160,12 +160,78 @@ describe('TenantCustomPage koşullar, doğrulama ve sekmeler', () => {
     await waitFor(() => expect((screen.getByLabelText('Kod') as HTMLInputElement).value).toBe('ISTIF'));
   });
 
-  it('bulanıklaşınca ileti gösterilir', async () => {
+  it('bulanıklaşınca ileti gösterilir (yalnız kullanıcı alanı değiştirdiyse)', async () => {
     const { container } = setup([{ id: 'kod', type: 'input', name: 'kod', props: { inputType: 'text', label: 'Kod', required: true } }]);
     const input = await screen.findByLabelText('Kod');
     expect(input.hasAttribute('required')).toBe(true);
+    // Dokunulmamış alandan çıkmak (ör. pencere açılışındaki otomatik odak) ileti göstermez.
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(container.querySelector('.tenant-page-input-error')).toBeNull();
+    fireEvent.change(input, { target: { value: 'A' } });
+    fireEvent.change(input, { target: { value: '' } });
     fireEvent.blur(input);
     await waitFor(() => expect(container.querySelector('.tenant-page-input-error')?.textContent).toBe('Bu alan zorunludur.'));
+  });
+
+  it('untouched required input in another tab gets no error badge until the action is tried', async () => {
+    const { container } = setup([
+      { id: 'bar', type: 'actionBar', props: { saveQuery: 'qi' } },
+      { id: 'tb', type: 'tabs', props: { tabs: ['Birimler=kod', 'Yeniden değerleme=not'] } },
+      { id: 'kod', type: 'input', name: 'kod', props: { inputType: 'text', label: 'Kod', required: true } },
+      { id: 'not', type: 'input', name: 'not', props: { inputType: 'text', label: 'Not' } },
+    ], [insertQuery]);
+    const kod = await screen.findByLabelText('Kod');
+    fireEvent.focus(kod);
+    fireEvent.blur(kod);
+    fireEvent.click(screen.getAllByRole('tab')[1]);
+    await waitFor(() => expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true'));
+    expect(container.querySelector('.tenant-page-tab-badge')).toBeNull();
+    expect(screen.getAllByRole('tab')[0].classList.contains('is-error')).toBe(false);
+    await saveReady();
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(container.querySelector('.tenant-page-tab-badge')?.textContent).toBe('1'));
+  });
+
+  it('select with its own empty static option shows no extra "Seçin"', async () => {
+    setup([
+      { id: 'ulke', type: 'input', name: 'ulke', props: { inputType: 'select', label: 'Ülke', staticOptions: ['=Türkiye (varsayılan)', 'TR=Türkiye', 'DE=Almanya'] } },
+      { id: 'tur', type: 'input', name: 'tur', props: { inputType: 'select', label: 'Tür', staticOptions: ['A=Alıcı', 'S=Satıcı'] } },
+    ]);
+    const ulke = await screen.findByLabelText('Ülke') as HTMLSelectElement;
+    expect([...ulke.options].map((option) => [option.value, option.textContent])).toEqual([['', 'Türkiye (varsayılan)'], ['TR', 'Türkiye'], ['DE', 'Almanya']]);
+    const tur = screen.getByLabelText('Tür') as HTMLSelectElement;
+    expect([...tur.options].map((option) => option.textContent)).toEqual(['Seçin', 'Alıcı', 'Satıcı']);
+  });
+
+  it('formCard inputs keep their label name when another kept-alive page has the same component ids', async () => {
+    const components = [
+      { id: 'kart', type: 'formCard', props: { title: 'Genel', inputs: ['kod', 'doviz', 'depo'] } },
+      { id: 'kod', type: 'input', name: 'kod', props: { inputType: 'text', label: 'Kod' } },
+      { id: 'doviz', type: 'input', name: 'doviz', props: { inputType: 'select', label: 'Döviz', staticOptions: ['TRY=TRY'] } },
+      { id: 'depo', type: 'input', name: 'depo', props: { inputType: 'select', label: 'Depo', searchable: true, staticOptions: ['D1=Merkez'] } },
+    ];
+    mockPage(components);
+    const token = tokenFor({ sub: 'u', role: 'TenantAdmin' });
+    const { container } = render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="b" openKeys={['a', 'b']}><TenantCustomPage code="p" token={token} /></KeepAliveViews>
+      </CommandProvider>,
+    );
+    await waitFor(() => expect(container.querySelectorAll('[data-nx-view]').length).toBeGreaterThan(0));
+    // İkinci görünüm: aynı bileşen kimlikleriyle ikinci bir sayfa (ör. açık kalan başka sekme) önce belgeye girer.
+    const { container: second } = render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="c" openKeys={['c']}><TenantCustomPage code="p" token={token} /></KeepAliveViews>
+      </CommandProvider>,
+    );
+    const page = within(second);
+    const kod = await page.findByLabelText('Kod');
+    expect(second.contains(kod)).toBe(true);
+    expect(container.querySelector('#page-input-kod')).not.toBeNull();
+    expect(second.contains(page.getByLabelText('Döviz'))).toBe(true);
+    expect(second.contains(page.getByLabelText('Depo'))).toBe(true);
+    expect(page.getByRole('textbox', { name: 'Kod' })).toBe(kod);
   });
 });

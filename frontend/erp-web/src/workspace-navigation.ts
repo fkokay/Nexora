@@ -1,4 +1,4 @@
-import type { Locale } from './WorkspaceComponents'
+import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { InventoryPageKey, SalesPageKey, ManufacturingPageKey } from './erp-types'
 
 export const shellText: Record<Locale, Record<string, string>> = {
@@ -82,4 +82,15 @@ export function knownPageTitle(page: string, locale: Locale): string | undefined
     ?? pick(inventoryPageTitles, inventoryPageTitlesEn)
     ?? pick(salesPageTitles, salesPageTitlesEn)
     ?? pick(manufacturingPageTitles, manufacturingPageTitlesEn)
+}
+
+/**
+ * Sayfa yolunun ve sekmenin adı: sekme başlığı (ham anahtar yedeği değilse), sonra arama dizinindeki ekran adı (ör. 'Cari Hesaplar',
+ * 'Mizan'), sonra bilinen başlık; hiçbiri yoksa ham anahtar. URL ile açılan sistem sayfası önizlemesinin sekmesi olmayabilir.
+ */
+export function workspacePageLabel(page: string, locale: Locale, tabs: readonly { id: string; label: string }[], searchPages: readonly GlobalSearchResult[]): string {
+  const raw = page.replace(/[-_]/g, ' ');
+  const tabLabel = tabs.find((tab) => tab.id === page)?.label;
+  if (tabLabel && tabLabel !== raw) return tabLabel;
+  return searchPages.find((result) => result.page === page && result.kind !== 'customer')?.label || knownPageTitle(page, locale) || tabLabel || raw;
 }

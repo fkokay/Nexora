@@ -182,7 +182,9 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await select('FATİH KOKAY', C1);
     fireEvent.click(screen.getByLabelText('Detay paneli'));
     await waitFor(() => expect(gets(`/api/customers/${C1}/balance`).length).toBeGreaterThan(0), T);
-    await waitFor(() => expect(document.body.textContent).toContain('TRY B'), T);
+    // Detay panelindeki göstergenin açıklaması (small) CSS ile gizlidir: yön tutarın kendisinde (strong) görünür.
+    await waitFor(() => expect([...document.querySelectorAll('.tenant-page-detail .tenant-page-metric strong')].map((node) => node.textContent))
+      .toContain('186.242,00 TRY B'), T);
     expect(document.body.textContent).toContain('Limit kullanımı %');
     await waitFor(() => expect(document.body.textContent).toContain('Merkez · Feritpaşa Mah. · Selçuklu / Konya'), T);
   });
