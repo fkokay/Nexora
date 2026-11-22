@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Duran Varlık sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}.mets.m3{grid-template-columns:repeat(3,1fr)}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}.ic.d{background:var(--dan-bg);color:var(--dan)}.ic.o{background:var(--ok-bg);color:var(--ok)}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 300px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 290px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right;white-space:nowrap}.neg{color:var(--dan)}
+tr.tot td{background:#f8fafc;font-weight:700}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}.t-d{background:var(--dan-bg);color:var(--dan)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px;gap:10px;flex-wrap:wrap}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px;gap:10px;flex-wrap:wrap}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ro{background:#f8fafc;color:#475467}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}.btn.w{background:var(--warn-bg);color:var(--warn);border-color:#f1dc9a}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px;flex-wrap:wrap}.status b{color:var(--ok)}
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px;flex-wrap:wrap}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.rev td{color:#475467}tr.strike td{color:#98a2b3}tr.strike td span.t{text-decoration:line-through}
+.dlg{max-width:520px;background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 10px 30px rgba(16,24,40,.12);margin-top:12px}
+.dlg .h{padding:12px 16px;border-bottom:1px solid #eef1f6;font-weight:700;font-size:14px;display:flex;justify-content:space-between}.dlg .b{padding:12px 16px}.dlg .a{padding:10px 16px;border-top:1px solid #eef1f6;display:flex;gap:8px;justify-content:flex-end}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:1150px;align-items:start}
+.al{border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:12px}.al.w{background:var(--warn-bg);color:#6b4a00;border:1px solid #f1dc9a}.al.i{background:var(--pri-soft);color:#1a4aa3;border:1px solid #bcd0f5}
+.bal{display:flex;gap:18px;justify-content:flex-end;padding:9px 12px;background:#f8fafc;border-top:1px solid #e6ebf2;font-weight:600;flex-wrap:wrap}.bal .ok{color:var(--ok)}
+.lay{display:grid;grid-template-columns:220px 1fr;gap:10px}
+.par{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px}.par .f{margin-bottom:10px}.seg{display:flex;border:1px solid #d0d8e4;border-radius:7px;overflow:hidden}.seg span{flex:1;text-align:center;padding:5px 0;font-weight:600;color:#475467}.seg .on{background:var(--pri-soft);color:var(--pri)}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid #dfe5ee;margin:0 0 10px;flex-wrap:wrap}.tabs span{padding:6px 12px;font-weight:600;color:#475467}.tabs span.on{color:var(--pri);border-bottom:2px solid var(--pri)}.tabs i{font-style:normal;background:#eef1f7;border-radius:999px;padding:0 6px;margin-left:4px;font-size:10.5px}.prog{height:6px;background:#eef1f7;border-radius:4px;overflow:hidden;margin:6px 0 10px}.prog b{display:block;height:100%;background:var(--pri)}
+@media (max-width:820px){.split,.row2,.lay,.dec,.g3,.g2{grid-template-columns:1fr}.mets{grid-template-columns:1fr 1fr}body{padding:16px}}
+</style></head><body>
+<h1>Duran Varlık → sistem sayfaları (taslak 27)</h1>
+<p class="sub">Duran Varlık modülünde tek ekran var; içinde beş görünüm çiziliyor: <b>kıymet listesi</b>, <b>edinim kaydı</b>, salt okunur <b>kıymet kartı</b> (5 sekme), <b>iş akışı pencereleri</b> (amortisman, elden çıkarma, zimmet/iade) ve <b>VUK vergi amortismanı</b>. Hepsi üç sistem sayfasına bölünüyor: <code>fixed-assets</code>, <code>fixed-asset-create</code>, <code>fixed-asset-card</code>. Görünüm bugünküne yakın kalıyor. Kurallar API'de kalıyor: amortisman sırayla ve yalnız geçmiş/bu ay için yazılıyor, kapalı döneme fiş girilmiyor, elden çıkarma tekrar gönderimde ikinci fiş yazmıyor. Bugün hiç olmayan <code>duranVarlik.*</code> ERP işlemleri (yaklaşık 19) ekleniyor. <b>Transfer, yeniden değerleme, düzenleme, silme ve ters kayıt bugün yok</b>; bu taslak onları eklemiyor.</p>
+
+<div class="lbl">1 · KIYMET LİSTESİ · BUGÜNKÜ GÖRÜNÜM KORUNUR, ARAMA VE SAYAÇLAR SUNUCUYA GEÇER</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Duran Varlıklar</div>
+  <div class="ttl"><h2>Duran Varlıklar</h2><small>38 kıymet</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">₺</span><div><span>Edinim maliyeti</span><strong>4.286.400,00</strong> <small>tüm kıymetler</small></div></div>
+    <div class="met"><span class="ic">Σ</span><div><span>Birikmiş amortisman</span><strong>1.312.770,00</strong> <small>tüm kıymetler</small></div></div>
+    <div class="met"><span class="ic o">=</span><div><span>Net defter değeri</span><strong>2.973.630,00</strong> <small>maliyet − birikmiş</small></div></div>
+    <div class="met"><span class="ic">↧</span><div><span>Bu ay amortisman</span><strong>61.240,00</strong> <small>doğrusal tahmin · etkin kıymetler</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Kod, ad veya kategori (en az 2 harf)</span><span class="chip on">Tümü<i>38</i></span><span class="chip">Etkin<i>35</i></span><span class="chip">Elden çıkarılan<i>3</i></span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Kod</th><th>Kıymet</th><th>Kullanıma giriş</th><th class="num">Maliyet</th><th class="num">Net defter</th><th>Durum</th></tr></thead><tbody>
+      <tr><td class="code">DV-ARAC-01</td><td>Ford Transit kamyonet</td><td>15.03.2024</td><td class="num">1.240.000,00</td><td class="num">785.333,40</td><td><span class="tag t-ok">Etkin</span></td></tr>
+      <tr class="pick"><td class="code">DV-CNC-02</td><td>CNC torna tezgâhı</td><td>01.07.2025</td><td class="num">860.000,00</td><td class="num">710.333,32</td><td><span class="tag t-ok">Etkin</span></td></tr>
+      <tr><td class="code">DV-BLG-14</td><td>Dizüstü bilgisayar</td><td>10.01.2026</td><td class="num">48.000,00</td><td class="num">35.200,00</td><td><span class="tag t-ok">Etkin</span></td></tr>
+      <tr><td class="code">DV-ARAC-00</td><td>Eski binek araç</td><td>02.05.2019</td><td class="num">310.000,00</td><td class="num">0,00</td><td><span class="tag t-off">Elden çıkarıldı</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter / çift tık kartı açar</span><span>Sayfa 1 / 2 · 25'er</span></div></div>
+    <div class="card pnl"><span class="code">DV-CNC-02</span> <span class="tag t-ok" style="float:right">Etkin</span><h4>CNC torna tezgâhı</h4>
+      <div class="prog"><b style="width:17%"></b></div><small style="color:var(--mut)">16 / 96 ay</small>
+      <div class="k"><div><span>Maliyet</span><b>860.000,00</b></div><div><span>Aylık amortisman</span><b>8.958,33</b></div><div><span>Net defter</span><b>710.333,32</b></div><div><span>Zimmet</span><b>P-014 · Ali Er</b></div></div>
+      <dl class="dl"><dt>Kategori</dt><dd>Makine</dd><dt>Bağlı fatura</dt><dd>AF-2025-0112</dd></dl>
+      <p style="color:var(--mut);margin:10px 0 0">Enter kıymet kartını açar · işlemler İşlemler'de (Alt+İ).</p></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>İşlemler</b> (yalnız etkin kıymette): Amortismanı kaydet, Zimmetle, Elden çıkar; her zaman CSV. Elden çıkarılmış kıymette yalnız CSV.</li>
+  <li><b>Sil her zaman pasif:</b> "Kıymet silinemez; İşlemler'den elden çıkarın." Kıymet kaydı düzenlenmez.</li>
+  <li><b>Değişen:</b> bugün ilk 200 kıymet indirilip arama ve kartlar tarayıcıda hesaplanıyor. Sistem sayfasında arama, durum çipleri ve dört kart <b>sunucudan, tüm kıymetler üzerinden</b> geliyor (yeni özet ucu). Arama en az 2 harfle çalışır.</li>
+  <li>Kod sütunu ayrı gösterilir (bugün adın altına yazılıyor; tabloda iki satırlı hücre yok). Net defter bugünkü gibi <b>maliyet − birikmiş</b>; kalıntı değer düşülmez.</li>
+  <li>Bugün personel ya da hesap planı okuma izni olmayan kullanıcıda bütün liste açılmıyor. Sistem sayfasında liste yine açılır; yalnız ilgili seçici boş kalır.</li>
+</ul>
+
+<div class="lbl">2 · EDİNİM KAYDI (YENİ KIYMET) · AYRI SAYFA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Duran Varlıklar › Yeni edinim</div>
+  <div class="rh"><div><h2>Edinim kaydı oluştur</h2><p>Önce kıymet bilgilerini, ardından maliyet ve muhasebe kaynağını girin. Tutarlar firma baz para birimindedir.</p></div><div><span class="btn g">Vazgeç</span> <span class="btn g">Kaydet ve Yeni</span> <span class="btn p">Edinimi kaydet</span></div></div>
+  <div class="status"><span>Zorunlu alanlar: <b>7 / 7</b></span><span>Ctrl+S kaydet · Ctrl+F2 kaydet ve yeni · Esc vazgeç</span></div>
+  <div class="sec"><h5>Kıymet bilgileri</h5><div class="g3"><div class="f"><label>Kıymet kodu <b>*</b></label><div class="in code">DV-CNC-03</div></div><div class="f"><label>Ad <b>*</b></label><div class="in">CNC freze tezgâhı</div></div><div class="f"><label>Kategori</label><div class="in">Makine</div></div></div></div>
+  <div class="sec"><h5>Tarihler ve faydalı ömür</h5><div class="g3"><div class="f"><label>Edinim tarihi <b>*</b></label><div class="in">18.11.2026</div></div><div class="f"><label>Kullanıma giriş <b>*</b></label><div class="in">20.11.2026</div></div><div class="f"><label>Faydalı ömür (ay) <b>*</b></label><div class="in">60</div></div></div>
+    <div class="al i" style="margin:10px 0 0">GİB VUK 2026 amortisman alt sınırı: 12.000 TL (Tebliğ 588). Bilgilendirme amaçlıdır; otomatik gider yazma kararı değildir.</div></div>
+  <div class="row2" style="max-width:none">
+    <div class="sec"><h5>Maliyet ve referans</h5><div class="g2"><div class="f"><label>Edinim maliyeti <b>*</b></label><div class="in">925.000,00</div></div><div class="f"><label>Kalıntı değer <b>*</b></label><div class="in">0,00</div></div></div>
+      <div class="f" style="margin-top:10px"><label>Kaynak referansı</label><div class="in ph">Sözleşme / irsaliye no</div></div></div>
+    <div class="sec"><h5>Muhasebe kaynağı</h5><div class="f"><label>Bağlı alış faturası (isteğe bağlı)</label><div class="in">AF-2026-0201 · 18.11.2026 · 1.110.000,00 · yevmiye kayıtlı ▾</div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Fatura bağlandığında muhasebe kaynağı alış faturası olur; çift kayıt olmaması için ayrı edinim fişi engellenir.</p></div>
+  </div>
+  <div class="sec"><h5><label style="font-weight:600"><input type="checkbox" checked> Mali müşavir tarafından doğrulanmış VUK amortisman profili ekle</label></h5>
+    <div class="g3"><div class="f"><label>Tablo kodu <b>*</b></label><div class="in">Katalogdan seçin ▾</div></div><div class="f"><label>Kıymet sınıfı açıklaması <b>*</b></label><div class="in">Metal işleme makineleri</div></div><div class="f"><label>Tablo yılı <b>*</b></label><div class="in ph">ör. 2026</div></div>
+      <div class="f"><label>Tebliğ no <b>*</b></label><div class="in ph">1–999</div></div><div class="f"><label>Vergi faydalı ömrü (ay) <b>*</b></label><div class="in">120</div></div><div class="f"><label>Normal amortisman oranı (%) <b>*</b></label><div class="in">10,00</div></div>
+      <div class="f"><label>Vergi amortisman başlangıcı <b>*</b></label><div class="in ph">≥ edinim tarihi</div></div></div>
+    <p style="margin:10px 0 0"><label><input type="checkbox"> Bu profili ve vergi başlangıç tarihini firma mali müşaviriyle doğruladım.</label></p></div>
+</div>
+<ul class="note">
+  <li>Edinim kaydı <b>yevmiye yazmaz</b>. Fatura bağlı değilse fiş, kartın "Edinim muhasebesi" sekmesinden ayrıca oluşturulur.</li>
+  <li><b>Kaydet ve Yeni</b> bugünkü gibi tarihleri, ömrü, kalıntıyı ve VUK tablo alanlarını korur (toplu giriş); kod, ad, maliyet ve fatura temizlenir (motorda doğrulanacak).</li>
+  <li>VUK bölümü yalnız onay kutusu işaretliyken görünür ve zorunludur; doğrulama onayı işaretsizken Kaydet nedenli pasif: "VUK profilini mali müşavirinizle doğruladığınızı onaylayın."</li>
+  <li>Bugün tablo kodu seçilince açıklama, tebliğ, ömür ve oran kendiliğinden doluyor, tablo yılına ise <b>sabit 2026</b> yazılıyor. Sayfa motoru bir seçimle birden çok alanı dolduramıyorsa ilk sürümde yalnız kod dolar (karar 3).</li>
+</ul>
+
+<div class="lbl">3 · KIYMET KARTI · SALT OKUNUR, 5 SEKME · AYRI SAYFA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Duran Varlıklar › DV-CNC-02</div>
+  <div class="rh"><div><h2>CNC torna tezgâhı</h2><p><span class="code">DV-CNC-02</span> · <span class="tag t-ok">Etkin</span> · Makine</p></div><div><span class="btn g">Kapat</span> <span class="btn g">Yenile</span> <span class="btn">İşlemler ▾</span></div></div>
+  <div class="hdr"><span class="sq">DV</span><div><h4>16 / 96 ay</h4><div class="prog" style="width:160px;margin:4px 0 0"><b style="width:17%"></b></div></div>
+    <div class="kv"><div><span>Maliyet</span><b>860.000,00</b></div><div><span>Birikmiş</span><b>149.666,68</b></div><div><span>Net defter</span><b>710.333,32</b></div><div><span>Zimmet</span><b>P-014 · Ali Er</b></div><div><span>Bağlı fatura</span><b>AF-2025-0112</b></div></div></div>
+  <div class="tabs"><span>Genel</span><span class="on">Amortisman tablosu<i>3</i></span><span>Edinim muhasebesi</span><span>Zimmet geçmişi<i>2</i></span><span>Elden çıkarma</span></div>
+  <div class="fbar"><span class="seg" style="width:180px"><span class="on">Muhasebe</span><span>VUK</span></span><span style="color:var(--mut)">Amortismanı kaydet: İşlemler (Alt+İ)</span></div>
+  <div class="mets m3" style="margin-top:0">
+    <div class="met"><span class="ic">Σ</span><div><span>Birikmiş amortisman</span><strong>149.666,68</strong></div></div>
+    <div class="met"><span class="ic o">=</span><div><span>Net defter değeri</span><strong>710.333,32</strong></div></div>
+    <div class="met"><span class="ic">→</span><div><span>Sıradaki dönem</span><strong>2026-11</strong> <small>tek yazılabilir dönem</small></div></div>
+  </div>
+  <div class="card"><table><thead><tr><th>Dönem</th><th class="num">Tutar</th><th>Durum</th><th>Yevmiye fişi</th></tr></thead><tbody>
+    <tr><td>2026-09</td><td class="num">8.958,33</td><td><span class="tag t-ok">Kaydedildi</span></td><td class="code">FADEP-202609-3f2a91c0</td></tr>
+    <tr><td>2026-10</td><td class="num">8.958,33</td><td><span class="tag t-ok">Kaydedildi</span></td><td class="code">FADEP-202610-3f2a91c0</td></tr>
+    <tr class="pick"><td>2026-11</td><td class="num">8.958,33</td><td><span class="tag t-in">Planlandı</span></td><td>—</td></tr>
+  </tbody></table><div class="foot"><span>Aylık doğrusal; kullanıma giriş ayını izleyen aydan başlar. Kaydedilen dönem geri alınamaz.</span><span>Bugüne kadar</span></div></div>
+</div>
+<ul class="note">
+  <li>Kart <b>salt okunur</b>: Kaydet nedenli pasif "Kıymet edinimden sonra düzenlenmez; işlemler İşlemler menüsünde."</li>
+  <li><b>Genel</b> sekmesinde bugün "Hurda değeri" yazıyor, formda "Kalıntı değer". İkisi de <b>Kalıntı değer</b> olur.</li>
+  <li>Birikmiş ve net defter bugün tablonun alt satırında; sistem sayfasında tablonun üstünde kutucuk olarak (net defter bir toplam değil).</li>
+  <li><b>VUK</b> görünümü yalnız profili olan kıymette çıkar: profil satırı, "Yalnızca tahmindir; yasal beyan veya vergi danışmanlığı değildir…" uyarısı ve sıradaki vergi dönemi için "Vergi kaydı oluştur". Vergi kaydı kıymetin birikmiş amortismanını değiştirmez.</li>
+</ul>
+
+<div class="lbl">4 · KART SEKMELERİ · EDİNİM MUHASEBESİ, ZİMMET GEÇMİŞİ, ELDEN ÇIKARMA</div>
+<div class="erp">
+  <div class="row2" style="max-width:none">
+    <div class="card pnl"><h4>Edinim muhasebesi</h4>
+      <p style="color:var(--mut)">Firma sabit kıymet maliyet hesabına borç, seçtiğiniz etkin karşı hesaba alacak kaydeder.</p>
+      <div class="f"><label>Edinim karşı hesabı <b>*</b></label><div class="in">329.001 · Diğer ticari borçlar ▾</div></div>
+      <div style="margin-top:10px;text-align:right"><span class="btn p">Edinimi yevmiyeleştir</span></div>
+      <p style="color:var(--mut);margin:10px 0 0">Fiş varsa: fiş kodu, tarih ve satırlar gösterilir. Fatura bağlıysa: "Muhasebe kaynağı alış faturası … ayrıca edinim fişi oluşturulmaz." Edinim tarihi kapalı dönemdeyse fiş yazılmaz.</p></div>
+    <div class="card"><div class="pnl" style="padding-bottom:0"><h4>Zimmet geçmişi</h4></div><table><thead><tr><th>Personel</th><th>Teslim</th><th>İade</th><th>Konum</th></tr></thead><tbody>
+      <tr class="pick"><td><b>P-014 · Ali Er</b></td><td>03.02.2026</td><td>—</td><td>Atölye 2</td></tr>
+      <tr><td><b>P-009 · Ayşe Kaya</b></td><td>01.07.2025</td><td>02.02.2026</td><td>Atölye 1</td></tr>
+    </tbody></table><div class="bar" style="margin:0;border:0;border-top:1px solid #eef1f6;border-radius:0"><span class="pri">Zimmetle</span><span>İade al</span><span class="dis" style="margin-left:auto;font-weight:400">İade al yalnız açık zimmette · tarih bugün</span></div></div>
+  </div>
+  <div class="card pnl" style="margin-top:10px"><h4>Elden çıkarma</h4><p style="color:var(--mut)">Elden çıkarılmadı. Elden çıkar: İşlemler (Alt+İ). Elden çıkarılmış kıymette: tarih, açıklama, tahsilat, defter değeri, kâr/zarar ve yevmiye fişi.</p></div>
+</div>
+<ul class="note">
+  <li>Satır içindeki "İade al" düğmesi yerine tablo seçimi + düğme (satır içi düğme sayfa motorunda üst düzeyde çizilmiyor). İade bugünkü gibi onaysız ve bugünün tarihiyle; başka biri aynı anda değiştirdiyse sunucu reddeder.</li>
+  <li>Elden çıkarılmamış kıymette elden çıkarma kaydı bulunmaması hata değildir; sekme açıklama metnini gösterir.</li>
+</ul>
+
+<div class="lbl">5 · İŞ AKIŞI PENCERELERİ (LİSTEDE VE KARTTA AYNI)</div>
+<div class="erp">
+  <div class="row2" style="max-width:none">
+    <div class="dlg" style="max-width:none"><div class="h">Amortismanı kaydet · DV-CNC-02 <span style="color:var(--mut)">✕</span></div><div class="b">
+      <div class="g2"><div class="f"><label>Kaydedilecek dönem</label><div class="in ro">Kasım 2026 (2026-11)</div></div><div class="f"><label>Tutar</label><div class="in ro">8.958,33</div></div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Dönemler sırayla kaydedilir; yalnız sıradaki dönem yazılabilir. Kayıt için hesap eşleştirmeleri gerekir. Kapalı döneme fiş yazılmaz.</p>
+      <div class="al w" style="margin:10px 0 0">Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz.</div></div>
+      <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Amortismanı kaydet</span></div></div>
+    <div class="dlg" style="max-width:none"><div class="h">Elden çıkarma kaydı · DV-CNC-02 <span style="color:var(--mut)">✕</span></div><div class="b">
+      <div class="g2"><div class="f"><label>Elden çıkarma tarihi <b>*</b></label><div class="in">22.11.2026</div></div><div class="f"><label>Tahsilat (baz para birimi) <b>*</b></label><div class="in">0,00</div></div></div>
+      <div class="f" style="margin-top:10px"><label>Açıklama <b>*</b></label><div class="in ph">Satış, hurdaya ayırma… (en fazla 500)</div></div>
+      <p style="color:var(--mut);margin:8px 0 0">Defter değeri önceki son tam aya kadar hesaplanır; eksik amortisman aynı fişe yazılır. Açık zimmet kendiliğinden kapanır. Çift tıklama ikinci fiş yazmaz.</p>
+      <div class="al w" style="margin:10px 0 0"><b>Kıymet kalıcı olarak elden çıkarılır.</b> Yevmiye fişi yazılır; arayüzden geri alınamaz.</div></div>
+      <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Elden çıkarmayı kaydet</span></div></div>
+  </div>
+  <div class="dlg"><div class="h">Zimmet kaydı · DV-CNC-02 <span style="color:var(--mut)">✕</span></div><div class="b">
+    <div class="f"><label>Personel <b>*</b></label><div class="in ph">Personel kodu veya adıyla ara</div></div>
+    <div class="g2" style="margin-top:10px"><div class="f"><label>Teslim tarihi <b>*</b></label><div class="in">22.11.2026</div></div><div class="f"><label>Konum</label><div class="in ph">ör. Atölye 2</div></div></div>
+    <p style="color:var(--mut);margin:8px 0 0">Ayrılmış personel listelenmez. Kıymetin açık zimmeti varsa önce iade alınır.</p></div>
+    <div class="a"><span class="btn g">Vazgeç</span><span class="btn p">Zimmetle</span></div></div>
+</div>
+<ul class="note">
+  <li><b>Değişen:</b> bugün dönem bir ay seçicisinde, ilk planlanan dönemle dolu geliyor; başka bir ay zaten reddediliyor. Sistem sayfasında sıradaki dönemi sunucu söylüyor ve alan salt okunur (sayfa motorunda ay girişi yok).</li>
+  <li>Sarı uyarılar <b>yeni</b>: bugün hiçbir işlemde onay yok ve hiçbiri geri alınamıyor (karar 5).</li>
+  <li>Elden çıkarma bugün de tekrar gönderime karşı korumalı (işlem anahtarı). Bugünkü küçük kusur — başarısız denemeden sonra başka kıymete aynı anahtarın gitmesi — sistem sayfasında olmamalı: her pencere kendi anahtarını alır (motorda doğrulanacak).</li>
+</ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL)</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Üç sayfa</b><p>Bugün liste, form ve kart aynı sekmede yer değiştiriyor. Sistem sayfası kalıbı (stok kartı, CRM) ayrı anahtar istiyor. <code>fixed-assets</code> standart menü kataloğunda bile yok; eklenmesi şart.</p><p class="rec">Öneri: <code>fixed-assets</code> (liste + pencereler), <code>fixed-asset-create</code> (edinim), <code>fixed-asset-card</code> (kart + pencereler). Yeni ve Aç ayrı sekme açar.</p></div>
+  <div class="d"><b class="h">2 · ERP işlem adları</b><p>Adlar kalıcı.</p><p class="rec">Öneri: tek önek <code>duranVarlik.*</code>; alt gruplar <code>kiymet</code>, <code>edinim</code>, <code>amortisman</code>, <code>vergiAmortismani</code>, <code>eldenCikarma</code>, <code>zimmet</code>. Modül adı "Duran Varlık". Hesap seçicisi finansın, personel seçicisi İK'nın işlemini kullanır.</p></div>
+  <div class="d"><b class="h">3 · VUK vergi amortismanı</b><p>Az kullanılıyor ama bugün var. Katalogdan çoklu alan doldurma sayfa motorunda olmayabilir.</p><p class="rec">Öneri: v1'de kalsın (form bölümü + kart görünümü). Motor desteği yoksa tablo kodu seçilir, diğer alanlar elle yazılır; sabit "2026" tablo yılı taşınmaz.</p></div>
+  <div class="d"><b class="h">4 · Toplu amortisman</b><p>Bugün her kıymet için her ay ayrı kayıt gerekiyor. Ay sonu tek düğmeyle tüm etkin kıymetler en büyük zaman kazancı olur, ama yeni sunucu işi.</p><p class="rec">Öneri: bu taşımanın dışında; ayrı iş olarak (dönem başına tekrar korumalı çalıştırma ucu) sonra önerilsin.</p></div>
+  <div class="d"><b class="h">5 · Onay pencereleri</b><p>Amortisman, vergi kaydı, edinim fişi ve elden çıkarma yevmiye yazıyor ve geri alınamıyor (genel muhasebe ters kaydı da bu fişleri kabul etmiyor). Bugün hiçbirinde onay yok.</p><p class="rec">Öneri: bu dördünde "geri alınamaz" onayı; zimmet ve iade onaysız kalsın.</p></div>
+  <div class="d"><b class="h">6 · Sıra ve yayın</b><p>Sunucuya küçük eklemeler gerekiyor (tek kıymet ucu, özet ucu, durum süzgeci, hesaplanan alanlar, sıradaki dönem); hepsi yalnız duran varlık dosyasında.</p><p class="rec">Öneri: liste + kart önce, sonra edinim formu, İK personel listesi gelince zimmet. Hepsi önizleme; varsayılan yine eski ekran. QA yalnız test firmasında, önce hesap eşleştirmeleri tanımlanarak.</p></div>
+</div>
+<ul class="note">
+  <li><b>Bugün olmayanlar</b> (bu taslak eklemiyor): transfer (en yakını zimmet + konum), yeniden değerleme, bakım, sigorta, kategori tanımı, kıymet düzenleme/silme, kayıtların ters çevrilmesi.</li>
+  <li><b>İzin farkı (bugünden):</b> muhasebe amortismanı "çalıştır" izni isterken elden çıkarma ve vergi kaydı "oluştur" izniyle yapılabiliyor. Düzeltmek var olan izin kurallarını değiştirir; ayrı güvenlik kararı.</li>
+</ul>
+</body></html>
