@@ -170,6 +170,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("crm.", StringComparison.Ordinal)
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
                 || op.Name.StartsWith("finans.", StringComparison.Ordinal)
+                || op.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
@@ -699,6 +700,7 @@ public sealed class ErpOperationCatalogTests
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
             && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)
+            && !x.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
             && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
@@ -867,7 +869,8 @@ public sealed class ErpOperationCatalogTests
     {
         var all = ErpOperationCatalog.All;
         Assert.Equal(all.Count, all.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count());
-        var pattern = new Regex("^[a-z]+(\\.[a-zA-Z]+)+$");
+        // The module segment starts lower case and may be camelCase (disTicaret.*).
+        var pattern = new Regex("^[a-z][a-zA-Z]*(\\.[a-zA-Z]+)+$");
         var types = new HashSet<string> { "text", "int", "decimal", "date", "bool", "guid" };
         foreach (var op in all)
         {

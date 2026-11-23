@@ -1,0 +1,1072 @@
+{
+  "screenKey": "foreign-trade-case",
+  "title": "Dış ticaret dosyası",
+  "description": "İthalat veya ihracat dosyası oluşturma ve düzenleme: bağlı sipariş, güzergâh, değer, planlama ve referanslar.",
+  "module": "Dış Ticaret",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "query:kart",
+        "query:olustur",
+        "query:guncelle"
+      ]
+    },
+    "component:yeniIthalatBasligi": {
+      "since": 1,
+      "label": "Başlık: yeni ithalat dosyası",
+      "requires": [
+        "query:kart",
+        "component:yon"
+      ]
+    },
+    "component:yeniIhracatBasligi": {
+      "since": 1,
+      "label": "Başlık: yeni ihracat dosyası",
+      "requires": [
+        "query:kart",
+        "component:yon"
+      ]
+    },
+    "component:ithalatBasligi": {
+      "since": 1,
+      "label": "Başlık: ithalat dosyasını düzenle",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:ihracatBasligi": {
+      "since": 1,
+      "label": "Başlık: ihracat dosyasını düzenle",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumDraft": {
+      "since": 1,
+      "label": "Durum etiketi: Taslak",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumBooked": {
+      "since": 1,
+      "label": "Durum etiketi: Planlandı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumShipped": {
+      "since": 1,
+      "label": "Durum etiketi: Sevkte",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumCustomsClearance": {
+      "since": 1,
+      "label": "Durum etiketi: Gümrükte",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumArrived": {
+      "since": 1,
+      "label": "Durum etiketi: Ulaştı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumClosed": {
+      "since": 1,
+      "label": "Durum etiketi: Kapandı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:durumCancelled": {
+      "since": 1,
+      "label": "Durum etiketi: İptal",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:kilitUyarisi": {
+      "since": 1,
+      "label": "Sevkiyat başladı uyarısı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:ithalatSiparisYok": {
+      "since": 1,
+      "label": "Satınalma siparişi yok notu",
+      "requires": [
+        "component:yon",
+        "query:kart",
+        "query:ithalatSiparisleri"
+      ]
+    },
+    "component:ihracatSiparisYok": {
+      "since": 1,
+      "label": "Satış siparişi yok notu",
+      "requires": [
+        "component:yon",
+        "query:kart",
+        "query:ihracatSiparisleri"
+      ]
+    },
+    "component:zorunluNotu": {
+      "since": 1,
+      "label": "Zorunlu alanlar notu"
+    },
+    "component:kimlikKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Dosya kimliği",
+      "requires": [
+        "component:yon",
+        "component:ithalatSiparisi",
+        "component:ihracatSiparisi",
+        "component:referans",
+        "query:kart"
+      ]
+    },
+    "component:yon": {
+      "since": 1,
+      "label": "Alan: Yön",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:ithalatSiparisi": {
+      "since": 1,
+      "label": "Alan: Bağlı satın alma siparişi (yeni ithalat)",
+      "requires": [
+        "component:yon",
+        "query:kart",
+        "query:ithalatSiparisleri"
+      ]
+    },
+    "component:ihracatSiparisi": {
+      "since": 1,
+      "label": "Alan: Bağlı satış siparişi (yeni ihracat)",
+      "requires": [
+        "component:yon",
+        "query:kart",
+        "query:ihracatSiparisleri"
+      ]
+    },
+    "component:referans": {
+      "since": 1,
+      "label": "Alan: Dış ticaret referansı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:bagliSiparis": {
+      "since": 1,
+      "label": "Kayıtlı dosyanın bağlı siparişi",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:guzergahKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Güzergâh ve teslim",
+      "requires": [
+        "component:cikisUlkesi",
+        "component:varisUlkesi",
+        "component:incoterms",
+        "component:hsKodu",
+        "component:tasima",
+        "query:kart"
+      ]
+    },
+    "component:cikisUlkesi": {
+      "since": 1,
+      "label": "Alan: Çıkış ülkesi",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:varisUlkesi": {
+      "since": 1,
+      "label": "Alan: Varış ülkesi",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:incoterms": {
+      "since": 1,
+      "label": "Alan: Incoterms 2020",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:hsKodu": {
+      "since": 1,
+      "label": "Alan: HS kodu",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:tasima": {
+      "since": 1,
+      "label": "Alan: Taşıma",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:ulkeNotu": {
+      "since": 1,
+      "label": "Ülke kodu notu"
+    },
+    "component:degerKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Değer ve planlama",
+      "requires": [
+        "component:beyanDegeri",
+        "component:planlananSevk",
+        "component:planlananVaris",
+        "query:kart"
+      ]
+    },
+    "component:beyanDegeri": {
+      "since": 1,
+      "label": "Alan: Beyan değeri",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:planlananSevk": {
+      "since": 1,
+      "label": "Alan: Planlanan sevkiyat",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:planlananVaris": {
+      "since": 1,
+      "label": "Alan: Planlanan varış",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:degerNotu": {
+      "since": 1,
+      "label": "Beyan değeri notu"
+    },
+    "component:referansKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Referanslar ve not",
+      "requires": [
+        "component:tasiyiciReferansi",
+        "component:gumrukReferansi",
+        "component:not",
+        "query:kart"
+      ]
+    },
+    "component:tasiyiciReferansi": {
+      "since": 1,
+      "label": "Alan: Taşıyıcı / takip referansı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:gumrukReferansi": {
+      "since": 1,
+      "label": "Alan: Gümrük referansı",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "component:not": {
+      "since": 1,
+      "label": "Alan: Operasyon notu",
+      "requires": [
+        "query:kart"
+      ]
+    },
+    "query:kart": {
+      "since": 1,
+      "label": "Açılan dosya"
+    },
+    "query:ithalatSiparisleri": {
+      "since": 1,
+      "label": "Satınalma siparişi seçenekleri"
+    },
+    "query:ihracatSiparisleri": {
+      "since": 1,
+      "label": "Satış siparişi seçenekleri"
+    },
+    "query:olustur": {
+      "since": 1,
+      "label": "Dış ticaret dosyası oluştur",
+      "requires": [
+        "component:yon",
+        "component:ithalatSiparisi",
+        "component:ihracatSiparisi",
+        "component:referans",
+        "component:cikisUlkesi",
+        "component:varisUlkesi",
+        "component:incoterms",
+        "component:hsKodu",
+        "component:tasima",
+        "component:tasiyiciReferansi",
+        "component:gumrukReferansi",
+        "component:beyanDegeri",
+        "component:planlananSevk",
+        "component:planlananVaris",
+        "component:not"
+      ]
+    },
+    "query:guncelle": {
+      "since": 1,
+      "label": "Dış ticaret dosyasını güncelle",
+      "requires": [
+        "query:kart",
+        "component:referans",
+        "component:cikisUlkesi",
+        "component:varisUlkesi",
+        "component:incoterms",
+        "component:hsKodu",
+        "component:tasima",
+        "component:tasiyiciReferansi",
+        "component:gumrukReferansi",
+        "component:beyanDegeri",
+        "component:planlananSevk",
+        "component:planlananVaris",
+        "component:not"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "saveSequence": [
+            "olustur",
+            "guncelle"
+          ],
+          "stopOnError": true,
+          "sequenceWhen": [
+            "olustur=kart.rows[0].id == null && olustur.sonuc.id == null",
+            "guncelle=kart.rows[0].id != null"
+          ],
+          "commandWhen": [
+            "save=kart.rows[0].id == null || kart.rows[0].status in ['Draft', 'Booked']"
+          ],
+          "afterSaveAction": "page",
+          "afterSavePageCode": "@foreign-trade",
+          "afterSaveTarget": "sameTab",
+          "afterSaveRefresh": true,
+          "hiddenCommands": [
+            "new",
+            "delete",
+            "print",
+            "export"
+          ]
+        }
+      },
+      {
+        "id": "yeniIthalatBasligi",
+        "type": "recordHeader",
+        "name": "yeniIthalatBasligi",
+        "props": {
+          "icon": "globe",
+          "title": "İthalat dosyası oluştur",
+          "subtitle": "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
+          "visibleWhen": "kart.rows[0].id == null && yon.value == 'Import'"
+        }
+      },
+      {
+        "id": "yeniIhracatBasligi",
+        "type": "recordHeader",
+        "name": "yeniIhracatBasligi",
+        "props": {
+          "icon": "globe",
+          "title": "İhracat dosyası oluştur",
+          "subtitle": "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
+          "visibleWhen": "kart.rows[0].id == null && yon.value != 'Import'"
+        }
+      },
+      {
+        "id": "ithalatBasligi",
+        "type": "recordHeader",
+        "name": "ithalatBasligi",
+        "props": {
+          "icon": "globe",
+          "title": "İthalat dosyasını düzenle",
+          "subtitle": "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
+          "visibleWhen": "kart.rows[0].id != null && kart.rows[0].direction == 'Import'",
+          "fields": [
+            "Referans={{kart.rows[0].referenceCode}}",
+            "Sipariş={{kart.rows[0].orderCode}}",
+            "Cari={{kart.rows[0].counterpartyName}}"
+          ]
+        }
+      },
+      {
+        "id": "ihracatBasligi",
+        "type": "recordHeader",
+        "name": "ihracatBasligi",
+        "props": {
+          "icon": "globe",
+          "title": "İhracat dosyasını düzenle",
+          "subtitle": "Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.",
+          "visibleWhen": "kart.rows[0].id != null && kart.rows[0].direction == 'Export'",
+          "fields": [
+            "Referans={{kart.rows[0].referenceCode}}",
+            "Sipariş={{kart.rows[0].orderCode}}",
+            "Cari={{kart.rows[0].counterpartyName}}"
+          ]
+        }
+      },
+      {
+        "id": "durumDraft",
+        "type": "badge",
+        "name": "durumDraft",
+        "props": {
+          "text": "Taslak",
+          "variant": "info",
+          "visibleWhen": "kart.rows[0].status == 'Draft'"
+        }
+      },
+      {
+        "id": "durumBooked",
+        "type": "badge",
+        "name": "durumBooked",
+        "props": {
+          "text": "Planlandı",
+          "variant": "warning",
+          "visibleWhen": "kart.rows[0].status == 'Booked'"
+        }
+      },
+      {
+        "id": "durumShipped",
+        "type": "badge",
+        "name": "durumShipped",
+        "props": {
+          "text": "Sevkte",
+          "variant": "warning",
+          "visibleWhen": "kart.rows[0].status == 'Shipped'"
+        }
+      },
+      {
+        "id": "durumCustomsClearance",
+        "type": "badge",
+        "name": "durumCustomsClearance",
+        "props": {
+          "text": "Gümrükte",
+          "variant": "warning",
+          "visibleWhen": "kart.rows[0].status == 'CustomsClearance'"
+        }
+      },
+      {
+        "id": "durumArrived",
+        "type": "badge",
+        "name": "durumArrived",
+        "props": {
+          "text": "Ulaştı",
+          "variant": "warning",
+          "visibleWhen": "kart.rows[0].status == 'Arrived'"
+        }
+      },
+      {
+        "id": "durumClosed",
+        "type": "badge",
+        "name": "durumClosed",
+        "props": {
+          "text": "Kapandı",
+          "variant": "success",
+          "visibleWhen": "kart.rows[0].status == 'Closed'"
+        }
+      },
+      {
+        "id": "durumCancelled",
+        "type": "badge",
+        "name": "durumCancelled",
+        "props": {
+          "text": "İptal",
+          "variant": "info",
+          "visibleWhen": "kart.rows[0].status == 'Cancelled'"
+        }
+      },
+      {
+        "id": "kilitUyarisi",
+        "type": "alert",
+        "name": "kilitUyarisi",
+        "props": {
+          "title": "Düzenlenemez",
+          "variant": "warning",
+          "width": 12,
+          "text": "Sevkiyat başladıktan sonra temel dosya bilgileri değiştirilemez.",
+          "visibleWhen": "kart.rows[0].id != null && !(kart.rows[0].status in ['Draft', 'Booked'])"
+        }
+      },
+      {
+        "id": "ithalatSiparisYok",
+        "type": "alert",
+        "name": "ithalatSiparisYok",
+        "props": {
+          "title": "Sipariş bulunamadı",
+          "variant": "info",
+          "width": 12,
+          "text": "İthalat dosyası için seçilebilir satın alma siparişi bulunamadı. Önce Satın Alma → Siparişler ekranından bir sipariş oluşturun.",
+          "visibleWhen": "kart.rows[0].id == null && yon.value == 'Import' && ithalatSiparisleri.satirSayisi == 0"
+        }
+      },
+      {
+        "id": "ihracatSiparisYok",
+        "type": "alert",
+        "name": "ihracatSiparisYok",
+        "props": {
+          "title": "Sipariş bulunamadı",
+          "variant": "info",
+          "width": 12,
+          "text": "İhracat dosyası için seçilebilir satış siparişi bulunamadı. Önce Satış → Siparişler ekranından bir sipariş oluşturun.",
+          "visibleWhen": "kart.rows[0].id == null && yon.value != 'Import' && ihracatSiparisleri.satirSayisi == 0"
+        }
+      },
+      {
+        "id": "zorunluNotu",
+        "type": "text",
+        "name": "zorunluNotu",
+        "props": {
+          "text": "* işaretli alanlar zorunludur."
+        }
+      },
+      {
+        "id": "kimlikKarti",
+        "type": "formCard",
+        "name": "kimlikKarti",
+        "props": {
+          "title": "Dosya kimliği",
+          "columns": 2,
+          "inputs": [
+            "yon",
+            "ithalatSiparisi",
+            "ihracatSiparisi",
+            "referans"
+          ],
+          "recordKey": "{{kart.rows[0].id}}",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "yon",
+        "type": "input",
+        "name": "yon",
+        "props": {
+          "inputType": "select",
+          "label": "Yön",
+          "required": true,
+          "staticOptions": [
+            "Export=İhracat",
+            "Import=İthalat"
+          ],
+          "defaultValue": "{{kart.rows[0].direction}}{{sayfa.parametre.direction}}",
+          "defaultFirst": true,
+          "disabledWhen": "kart.rows[0].id != null",
+          "clearsOnChange": [
+            "ithalatSiparisi",
+            "ihracatSiparisi"
+          ]
+        }
+      },
+      {
+        "id": "ithalatSiparisi",
+        "type": "input",
+        "name": "ithalatSiparisi",
+        "props": {
+          "inputType": "select",
+          "label": "Bağlı satın alma siparişi",
+          "optionsQuery": "ithalatSiparisleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "counterpartyName",
+          "searchable": true,
+          "placeholder": "Sipariş seçin",
+          "requiredWhen": "kart.rows[0].id == null && yon.value == 'Import'",
+          "visibleWhen": "kart.rows[0].id == null && yon.value == 'Import'"
+        }
+      },
+      {
+        "id": "ihracatSiparisi",
+        "type": "input",
+        "name": "ihracatSiparisi",
+        "props": {
+          "inputType": "select",
+          "label": "Bağlı satış siparişi",
+          "optionsQuery": "ihracatSiparisleri",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "counterpartyName",
+          "searchable": true,
+          "placeholder": "Sipariş seçin",
+          "requiredWhen": "kart.rows[0].id == null && yon.value != 'Import'",
+          "visibleWhen": "kart.rows[0].id == null && yon.value != 'Import'"
+        }
+      },
+      {
+        "id": "referans",
+        "type": "input",
+        "name": "referans",
+        "props": {
+          "inputType": "text",
+          "label": "Dış ticaret referansı",
+          "required": true,
+          "maxLength": 50,
+          "upperCase": true,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$",
+          "patternMessage": "Harf veya rakamla başlayın; harf, rakam, nokta, alt çizgi, eğik çizgi ya da tire kullanın.",
+          "placeholder": "EXP-2026-001",
+          "defaultValue": "{{kart.rows[0].referenceCode}}"
+        }
+      },
+      {
+        "id": "bagliSiparis",
+        "type": "text",
+        "name": "bagliSiparis",
+        "props": {
+          "text": "Bağlı sipariş: {{kart.rows[0].orderCode}} · {{kart.rows[0].counterpartyName}} (değiştirilemez)",
+          "visibleWhen": "kart.rows[0].id != null"
+        }
+      },
+      {
+        "id": "guzergahKarti",
+        "type": "formCard",
+        "name": "guzergahKarti",
+        "props": {
+          "title": "Güzergâh ve teslim",
+          "columns": 3,
+          "inputs": [
+            "cikisUlkesi",
+            "varisUlkesi",
+            "incoterms",
+            "hsKodu",
+            "tasima"
+          ],
+          "recordKey": "{{kart.rows[0].id}}",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "cikisUlkesi",
+        "type": "input",
+        "name": "cikisUlkesi",
+        "props": {
+          "inputType": "text",
+          "label": "Çıkış ülkesi",
+          "required": true,
+          "maxLength": 2,
+          "upperCase": true,
+          "pattern": "^[A-Za-z]{2}$",
+          "patternMessage": "2 harf (ISO), ör. TR",
+          "placeholder": "TR",
+          "defaultValue": "{{kart.rows[0].originCountryCode}}"
+        }
+      },
+      {
+        "id": "varisUlkesi",
+        "type": "input",
+        "name": "varisUlkesi",
+        "props": {
+          "inputType": "text",
+          "label": "Varış ülkesi",
+          "required": true,
+          "maxLength": 2,
+          "upperCase": true,
+          "pattern": "^[A-Za-z]{2}$",
+          "patternMessage": "2 harf (ISO), ör. DE",
+          "placeholder": "DE",
+          "defaultValue": "{{kart.rows[0].destinationCountryCode}}"
+        }
+      },
+      {
+        "id": "incoterms",
+        "type": "input",
+        "name": "incoterms",
+        "props": {
+          "inputType": "select",
+          "label": "Incoterms 2020",
+          "staticOptions": [
+            "=Seçin",
+            "EXW=EXW",
+            "FCA=FCA",
+            "CPT=CPT",
+            "CIP=CIP",
+            "DAP=DAP",
+            "DPU=DPU",
+            "DDP=DDP",
+            "FAS=FAS",
+            "FOB=FOB",
+            "CFR=CFR",
+            "CIF=CIF"
+          ],
+          "defaultValue": "{{kart.rows[0].incotermsCode}}"
+        }
+      },
+      {
+        "id": "hsKodu",
+        "type": "input",
+        "name": "hsKodu",
+        "props": {
+          "inputType": "text",
+          "label": "HS kodu",
+          "maxLength": 20,
+          "placeholder": "6–10 hane; nokta yazabilirsiniz",
+          "pattern": "^[0-9. ]*$",
+          "patternMessage": "6–10 hane; nokta yazabilirsiniz (ör. 8443.32)",
+          "defaultValue": "{{kart.rows[0].harmonizedSystemCode}}"
+        }
+      },
+      {
+        "id": "tasima",
+        "type": "input",
+        "name": "tasima",
+        "props": {
+          "inputType": "select",
+          "label": "Taşıma",
+          "required": true,
+          "staticOptions": [
+            "Road=Kara",
+            "Sea=Deniz",
+            "Air=Hava",
+            "Rail=Demir yolu",
+            "Multimodal=Çok modlu"
+          ],
+          "defaultValue": "{{kart.rows[0].transportMode}}",
+          "defaultFirst": true
+        }
+      },
+      {
+        "id": "ulkeNotu",
+        "type": "text",
+        "name": "ulkeNotu",
+        "props": {
+          "text": "Ülke kodları 2 harflidir (ISO 3166-1), ör. TR, DE; çıkış ve varış ülkesi farklı olmalıdır."
+        }
+      },
+      {
+        "id": "degerKarti",
+        "type": "formCard",
+        "name": "degerKarti",
+        "props": {
+          "title": "Değer ve planlama",
+          "columns": 3,
+          "inputs": [
+            "beyanDegeri",
+            "planlananSevk",
+            "planlananVaris"
+          ],
+          "recordKey": "{{kart.rows[0].id}}",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "beyanDegeri",
+        "type": "input",
+        "name": "beyanDegeri",
+        "props": {
+          "inputType": "number",
+          "label": "Beyan değeri",
+          "min": 0,
+          "step": 0.01,
+          "placeholder": "Boşsa sipariş toplamı",
+          "defaultValue": "{{kart.rows[0].declaredValue}}"
+        }
+      },
+      {
+        "id": "planlananSevk",
+        "type": "input",
+        "name": "planlananSevk",
+        "props": {
+          "inputType": "date",
+          "label": "Planlanan sevkiyat",
+          "defaultValue": "{{kart.rows[0].plannedShipDate}}"
+        }
+      },
+      {
+        "id": "planlananVaris",
+        "type": "input",
+        "name": "planlananVaris",
+        "props": {
+          "inputType": "date",
+          "label": "Planlanan varış",
+          "defaultValue": "{{kart.rows[0].plannedArrivalDate}}"
+        }
+      },
+      {
+        "id": "degerNotu",
+        "type": "text",
+        "name": "degerNotu",
+        "props": {
+          "text": "Beyan değeri boş bırakılırsa bağlı siparişin genel toplamı yazılır; para birimi siparişten gelir."
+        }
+      },
+      {
+        "id": "referansKarti",
+        "type": "formCard",
+        "name": "referansKarti",
+        "props": {
+          "title": "Referanslar ve not",
+          "columns": 2,
+          "inputs": [
+            "tasiyiciReferansi",
+            "gumrukReferansi",
+            "not"
+          ],
+          "recordKey": "{{kart.rows[0].id}}",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "tasiyiciReferansi",
+        "type": "input",
+        "name": "tasiyiciReferansi",
+        "props": {
+          "inputType": "text",
+          "label": "Taşıyıcı / takip referansı",
+          "maxLength": 100,
+          "defaultValue": "{{kart.rows[0].carrierReference}}"
+        }
+      },
+      {
+        "id": "gumrukReferansi",
+        "type": "input",
+        "name": "gumrukReferansi",
+        "props": {
+          "inputType": "text",
+          "label": "Gümrük referansı",
+          "maxLength": 100,
+          "defaultValue": "{{kart.rows[0].customsReference}}"
+        }
+      },
+      {
+        "id": "not",
+        "type": "input",
+        "name": "not",
+        "props": {
+          "inputType": "text",
+          "label": "Operasyon notu",
+          "maxLength": 1000,
+          "placeholder": "En çok 1000 karakter",
+          "defaultValue": "{{kart.rows[0].notes}}"
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "kart",
+        "name": "kart",
+        "kind": "read",
+        "operation": "disTicaret.dosya.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{sayfa.parametre.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "ithalatSiparisleri",
+        "name": "ithalatSiparisleri",
+        "kind": "read",
+        "operation": "disTicaret.siparis.ithalatSecenekleri",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "ihracatSiparisleri",
+        "name": "ihracatSiparisleri",
+        "kind": "read",
+        "operation": "disTicaret.siparis.ihracatSecenekleri",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "olustur",
+        "name": "olustur",
+        "kind": "insert",
+        "operation": "disTicaret.dosya.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "direction",
+            "binding": "{{yon.value}}",
+            "type": "text"
+          },
+          {
+            "name": "purchaseOrderId",
+            "binding": "{{ithalatSiparisi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "salesOrderId",
+            "binding": "{{ihracatSiparisi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "referenceCode",
+            "binding": "{{referans.value}}",
+            "type": "text"
+          },
+          {
+            "name": "originCountryCode",
+            "binding": "{{cikisUlkesi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "destinationCountryCode",
+            "binding": "{{varisUlkesi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "incotermsCode",
+            "binding": "{{incoterms.value}}",
+            "type": "text"
+          },
+          {
+            "name": "harmonizedSystemCode",
+            "binding": "{{hsKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "transportMode",
+            "binding": "{{tasima.value}}",
+            "type": "text"
+          },
+          {
+            "name": "carrierReference",
+            "binding": "{{tasiyiciReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "customsReference",
+            "binding": "{{gumrukReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "declaredValue",
+            "binding": "{{beyanDegeri.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "plannedShipDate",
+            "binding": "{{planlananSevk.value}}",
+            "type": "date"
+          },
+          {
+            "name": "plannedArrivalDate",
+            "binding": "{{planlananVaris.value}}",
+            "type": "date"
+          },
+          {
+            "name": "notes",
+            "binding": "{{not.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "guncelle",
+        "name": "guncelle",
+        "kind": "update",
+        "operation": "disTicaret.dosya.guncelle",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{kart.rows[0].id}}",
+            "type": "guid"
+          },
+          {
+            "name": "direction",
+            "binding": "{{kart.rows[0].direction}}",
+            "type": "text"
+          },
+          {
+            "name": "purchaseOrderId",
+            "binding": "{{kart.rows[0].purchaseOrderId}}",
+            "type": "guid"
+          },
+          {
+            "name": "salesOrderId",
+            "binding": "{{kart.rows[0].salesOrderId}}",
+            "type": "guid"
+          },
+          {
+            "name": "referenceCode",
+            "binding": "{{referans.value}}",
+            "type": "text"
+          },
+          {
+            "name": "originCountryCode",
+            "binding": "{{cikisUlkesi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "destinationCountryCode",
+            "binding": "{{varisUlkesi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "incotermsCode",
+            "binding": "{{incoterms.value}}",
+            "type": "text"
+          },
+          {
+            "name": "harmonizedSystemCode",
+            "binding": "{{hsKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "transportMode",
+            "binding": "{{tasima.value}}",
+            "type": "text"
+          },
+          {
+            "name": "carrierReference",
+            "binding": "{{tasiyiciReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "customsReference",
+            "binding": "{{gumrukReferansi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "declaredValue",
+            "binding": "{{beyanDegeri.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "plannedShipDate",
+            "binding": "{{planlananSevk.value}}",
+            "type": "date"
+          },
+          {
+            "name": "plannedArrivalDate",
+            "binding": "{{planlananVaris.value}}",
+            "type": "date"
+          },
+          {
+            "name": "notes",
+            "binding": "{{not.value}}",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

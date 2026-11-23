@@ -55,12 +55,12 @@ internal static partial class ForeignTradeEndpoints
                     x.OrderDate, x.CurrencyCode, x.GrandTotal, x.Status.ToString())).ToListAsync(ct));
         });
 
-        group.MapGet("/cases", async (string? direction, string? status, ClaimsPrincipal user, TenantDbContext db,
+        group.MapGet("/cases", async (string? q, string? direction, string? status, ClaimsPrincipal user, TenantDbContext db,
             IPlatformPermissionAuthorizer authorizer, int page = 1, int pageSize = 50, CancellationToken ct = default) =>
         {
             if (!TryTenant(user, out var tenantId) || !await IsAllowedAsync(user, tenantId, "erp.foreign-trade.read", authorizer, ct)) return Results.Forbid();
             if (page < 1 || pageSize is < 1 or > 100) return Results.BadRequest(new { error = "Sayfa 1’den, sayfa boyutu 1–100 arasında olmalıdır." });
-            var query = db.Set<ForeignTradeCase>().AsNoTracking().Where(x => x.TenantId == tenantId);
+            var query = Search(db.Set<ForeignTradeCase>().AsNoTracking().Where(x => x.TenantId == tenantId), q);
             if (!string.IsNullOrWhiteSpace(direction))
             {
                 if (!TryDirection(direction, out var parsedDirection)) return Results.BadRequest(new { error = "Dış ticaret yönü geçersiz." });
@@ -74,14 +74,39 @@ internal static partial class ForeignTradeEndpoints
             var total = await query.CountAsync(ct);
             var rows = await query.OrderByDescending(x => x.UpdatedAt).ThenBy(x => x.ReferenceCode)
                 .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-            var items = rows.Select(ToView).ToList();
-            return Results.Ok(new { items, page, pageSize, total });
+            var items = await ToViewsAsync(db, tenantId, rows, ct);
+            return Results.Ok(new ForeignTradeCasePage(items, page, pageSize, total));
+        });
+
+        // Counts over every matching case (not one page): same q as the list; direction and status filters are not applied,
+        // so the filter selections can show how many cases each choice holds. "/summary" never matches "/{id:guid}".
+        group.MapGet("/cases/summary", async (string? q, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+            CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId) || !await IsAllowedAsync(user, tenantId, "erp.foreign-trade.read", authorizer, ct)) return Results.Forbid();
+            var groups = await Search(db.Set<ForeignTradeCase>().AsNoTracking().Where(x => x.TenantId == tenantId), q)
+                .GroupBy(x => new { x.Direction, x.Status }).Select(g => new { g.Key.Direction, g.Key.Status, Count = g.Count() }).ToListAsync(ct);
+            int Direction(ForeignTradeDirection direction) => groups.Where(x => x.Direction == direction).Sum(x => x.Count);
+            int Status(ForeignTradeStatus status) => groups.Where(x => x.Status == status).Sum(x => x.Count);
+            return Results.Ok(new ForeignTradeCaseSummary(groups.Sum(x => x.Count), Direction(ForeignTradeDirection.Import), Direction(ForeignTradeDirection.Export),
+                Status(ForeignTradeStatus.Draft), Status(ForeignTradeStatus.Booked), Status(ForeignTradeStatus.Shipped),
+                Status(ForeignTradeStatus.CustomsClearance), Status(ForeignTradeStatus.Arrived), Status(ForeignTradeStatus.Closed),
+                Status(ForeignTradeStatus.Cancelled)));
+        });
+
+        group.MapGet("/cases/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+            CancellationToken ct) =>
+        {
+            if (!TryTenant(user, out var tenantId) || !await IsAllowedAsync(user, tenantId, "erp.foreign-trade.read", authorizer, ct)) return Results.Forbid();
+            var record = await db.Set<ForeignTradeCase>().AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            return record is null ? Results.NotFound() : Results.Ok(await ToViewAsync(db, tenantId, record, ct));
         });
 
         group.MapPost("/cases", async (ForeignTradeCaseWriteRequest request, ClaimsPrincipal user, TenantDbContext db,
             IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId) || !await IsAllowedAsync(user, tenantId, "erp.foreign-trade.create", authorizer, ct)) return Results.Forbid();
+            request = Normalize(request);
             var validation = Validate(request);
             if (validation is not null) return Results.ValidationProblem(validation);
             if (await db.Set<ForeignTradeCase>().AnyAsync(x => x.TenantId == tenantId && x.ReferenceCode == request.ReferenceCode!.Trim(), ct))
@@ -95,9 +120,7 @@ internal static partial class ForeignTradeEndpoints
             else if (request.SalesOrderId is null || request.PurchaseOrderId is not null || !await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == request.SalesOrderId && x.Status != SalesOrderStatus.Cancelled, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesOrderId"] = ["İhracat için aynı firmaya ait iptal edilmemiş bir satış siparişi seçin."] });
 
-            var orderCurrency = direction == ForeignTradeDirection.Import
-                ? await db.PurchaseOrders.Where(x => x.TenantId == tenantId && x.Id == request.PurchaseOrderId).Select(x => x.CurrencyCode).SingleAsync(ct)
-                : await db.SalesOrders.Where(x => x.TenantId == tenantId && x.Id == request.SalesOrderId).Select(x => x.CurrencyCode).SingleAsync(ct);
+            var (orderCurrency, orderTotal) = await OrderValueAsync(db, tenantId, request.PurchaseOrderId, request.SalesOrderId, ct);
             var record = new ForeignTradeCase
             {
                 TenantId = tenantId, Direction = direction, PurchaseOrderId = request.PurchaseOrderId, SalesOrderId = request.SalesOrderId,
@@ -106,7 +129,7 @@ internal static partial class ForeignTradeEndpoints
                 DestinationCountryCode = request.DestinationCountryCode!.Trim().ToUpperInvariant(), IncotermsCode = NormalizeOptional(request.IncotermsCode)?.ToUpperInvariant(),
                 HarmonizedSystemCode = NormalizeOptional(request.HarmonizedSystemCode), TransportMode = request.TransportMode!,
                 CarrierReference = NormalizeOptional(request.CarrierReference), CustomsReference = NormalizeOptional(request.CustomsReference),
-                DeclaredValue = request.DeclaredValue, CurrencyCode = orderCurrency, PlannedShipDate = request.PlannedShipDate,
+                DeclaredValue = request.DeclaredValue ?? orderTotal, CurrencyCode = orderCurrency, PlannedShipDate = request.PlannedShipDate,
                 PlannedArrivalDate = request.PlannedArrivalDate, Notes = NormalizeOptional(request.Notes), CreatedByUserId = UserId(user)
             };
             db.Set<ForeignTradeCase>().Add(record);
@@ -114,13 +137,14 @@ internal static partial class ForeignTradeEndpoints
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
             { return Results.Conflict(new { error = "Bu dış ticaret referansı firma içinde zaten kullanılmış." }); }
-            return Results.Created($"/api/foreign-trade/cases/{record.Id}", ToView(record));
+            return Results.Created($"/api/foreign-trade/cases/{record.Id}", await ToViewAsync(db, tenantId, record, ct));
         });
 
         group.MapPut("/cases/{id:guid}", async (Guid id, ForeignTradeCaseWriteRequest request, ClaimsPrincipal user, TenantDbContext db,
             IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId) || !await IsAllowedAsync(user, tenantId, "erp.foreign-trade.update", authorizer, ct)) return Results.Forbid();
+            request = Normalize(request);
             var validation = Validate(request);
             if (validation is not null) return Results.ValidationProblem(validation);
             var record = await db.Set<ForeignTradeCase>().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
@@ -134,11 +158,12 @@ internal static partial class ForeignTradeEndpoints
             record.DestinationCountryCode = request.DestinationCountryCode!.Trim().ToUpperInvariant(); record.IncotermsCode = NormalizeOptional(request.IncotermsCode)?.ToUpperInvariant();
             record.HarmonizedSystemCode = NormalizeOptional(request.HarmonizedSystemCode); record.TransportMode = request.TransportMode!;
             record.CarrierReference = NormalizeOptional(request.CarrierReference); record.CustomsReference = NormalizeOptional(request.CustomsReference);
-            record.DeclaredValue = request.DeclaredValue; record.PlannedShipDate = request.PlannedShipDate; record.PlannedArrivalDate = request.PlannedArrivalDate;
+            record.DeclaredValue = request.DeclaredValue ?? (await OrderValueAsync(db, tenantId, record.PurchaseOrderId, record.SalesOrderId, ct)).GrandTotal;
+            record.PlannedShipDate = request.PlannedShipDate; record.PlannedArrivalDate = request.PlannedArrivalDate;
             record.Notes = NormalizeOptional(request.Notes); record.UpdatedAt = DateTimeOffset.UtcNow;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = UserId(user), Action = "foreign-trade.case.updated", Resource = $"{record.Direction}:{record.ReferenceCode}" });
             await db.SaveChangesAsync(ct);
-            return Results.Ok(ToView(record));
+            return Results.Ok(await ToViewAsync(db, tenantId, record, ct));
         });
 
         group.MapGet("/cases/{id:guid}/inventory-documents", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
@@ -183,7 +208,7 @@ internal static partial class ForeignTradeEndpoints
                 : await db.Set<ForeignTradeCase>().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (tradeCase is null) return Results.NotFound();
             var existingId = tradeCase.Direction == ForeignTradeDirection.Import ? tradeCase.PurchaseReceiptId : tradeCase.SalesDeliveryId;
-            if (existingId == request.DocumentId) return Results.Ok(ToView(tradeCase)); // Idempotent retry.
+            if (existingId == request.DocumentId) return Results.Ok(await ToViewAsync(db, tenantId, tradeCase, ct)); // Idempotent retry.
             if (existingId.HasValue) return Results.Conflict(new { error = "Bu dış ticaret dosyasına farklı bir stok belgesi zaten bağlanmış." });
 
             if (tradeCase.Direction == ForeignTradeDirection.Import)
@@ -220,7 +245,7 @@ internal static partial class ForeignTradeEndpoints
             catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
             { return Results.Conflict(new { error = "Bu stok belgesi başka bir dış ticaret dosyasına bağlanmış." }); }
             if (transaction is not null) await transaction.CommitAsync(ct);
-            return Results.Ok(ToView(tradeCase));
+            return Results.Ok(await ToViewAsync(db, tenantId, tradeCase, ct));
         });
 
         group.MapPost("/cases/{id:guid}/transition", async (Guid id, ForeignTradeTransitionRequest request, ClaimsPrincipal user, TenantDbContext db,
@@ -271,7 +296,7 @@ internal static partial class ForeignTradeEndpoints
             if (!string.IsNullOrWhiteSpace(request.CarrierReference)) record.CarrierReference = NormalizeOptional(request.CarrierReference);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = UserId(user), Action = "foreign-trade.case.status-changed", Resource = $"{record.ReferenceCode}:{previous}->{next}" });
             await db.SaveChangesAsync(ct);
-            return Results.Ok(ToView(record));
+            return Results.Ok(await ToViewAsync(db, tenantId, record, ct));
         });
     }
 
@@ -314,6 +339,63 @@ internal static partial class ForeignTradeEndpoints
         _ => false
     };
 
+    /// <summary>The list and summary search: reference, customs reference or carrier reference.</summary>
+    private static IQueryable<ForeignTradeCase> Search(IQueryable<ForeignTradeCase> query, string? q)
+    {
+        if (string.IsNullOrWhiteSpace(q)) return query;
+        var term = q.Trim();
+        return query.Where(x => x.ReferenceCode.Contains(term) || (x.CustomsReference != null && x.CustomsReference.Contains(term))
+            || (x.CarrierReference != null && x.CarrierReference.Contains(term)));
+    }
+
+    /// <summary>
+    /// Server-side input clean-up before validation: the HS code may be typed with dots or spaces ("8443.32"), as the legacy
+    /// form accepts; only the digits are validated and stored.
+    /// </summary>
+    private static ForeignTradeCaseWriteRequest Normalize(ForeignTradeCaseWriteRequest request) =>
+        request.HarmonizedSystemCode is null ? request
+            : request with { HarmonizedSystemCode = string.Concat(request.HarmonizedSystemCode.Where(x => x != '.' && !char.IsWhiteSpace(x))) };
+
+    /// <summary>Currency and grand total of the linked order (any status); the declared value defaults to the total.</summary>
+    private static async Task<(string CurrencyCode, decimal GrandTotal)> OrderValueAsync(TenantDbContext db, Guid tenantId, Guid? purchaseOrderId,
+        Guid? salesOrderId, CancellationToken ct)
+    {
+        if (purchaseOrderId is { } purchaseId)
+        {
+            var purchase = await db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == purchaseId)
+                .Select(x => new { x.CurrencyCode, x.GrandTotal }).SingleAsync(ct);
+            return (purchase.CurrencyCode, purchase.GrandTotal);
+        }
+        var sales = await db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == salesOrderId)
+            .Select(x => new { x.CurrencyCode, x.GrandTotal }).SingleAsync(ct);
+        return (sales.CurrencyCode, sales.GrandTotal);
+    }
+
+    private static async Task<ForeignTradeCaseView> ToViewAsync(TenantDbContext db, Guid tenantId, ForeignTradeCase record, CancellationToken ct) =>
+        (await ToViewsAsync(db, tenantId, [record], ct))[0];
+
+    /// <summary>Views with the linked order's code and counterparty joined on the server (any order status, tenant scoped).</summary>
+    private static async Task<List<ForeignTradeCaseView>> ToViewsAsync(TenantDbContext db, Guid tenantId, IReadOnlyList<ForeignTradeCase> records,
+        CancellationToken ct)
+    {
+        var purchaseIds = records.Where(x => x.PurchaseOrderId is not null).Select(x => x.PurchaseOrderId!.Value).Distinct().ToArray();
+        var salesIds = records.Where(x => x.SalesOrderId is not null).Select(x => x.SalesOrderId!.Value).Distinct().ToArray();
+        var purchaseOrders = purchaseIds.Length == 0 ? [] : await db.PurchaseOrders.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && purchaseIds.Contains(x.Id))
+            .Select(x => new OrderParty(x.Id, x.Code, x.Supplier.Name)).ToListAsync(ct);
+        var salesOrders = salesIds.Length == 0 ? [] : await db.SalesOrders.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && salesIds.Contains(x.Id))
+            .Select(x => new OrderParty(x.Id, x.Code, x.Customer.Name)).ToListAsync(ct);
+        var orders = purchaseOrders.Concat(salesOrders).ToDictionary(x => x.Id);
+        return records.Select(x =>
+        {
+            var order = (x.PurchaseOrderId ?? x.SalesOrderId) is { } orderId ? orders.GetValueOrDefault(orderId) : null;
+            return ToView(x) with { OrderCode = order?.Code, CounterpartyName = order?.CounterpartyName };
+        }).ToList();
+    }
+
+    private sealed record OrderParty(Guid Id, string Code, string CounterpartyName);
+
     private static ForeignTradeCaseView ToView(ForeignTradeCase x) => new(x.Id, x.Direction.ToString(), x.Status.ToString(), x.PurchaseOrderId, x.SalesOrderId,
         x.ReferenceCode, x.OriginCountryCode, x.DestinationCountryCode, x.IncotermsCode, x.HarmonizedSystemCode, x.TransportMode, x.CarrierReference,
         x.CustomsReference, x.DeclaredValue, x.CurrencyCode, x.PlannedShipDate, x.ActualShipDate, x.PlannedArrivalDate, x.ActualArrivalDate, x.Notes, x.UpdatedAt,
@@ -353,7 +435,7 @@ internal static partial class ForeignTradeEndpoints
 
 public sealed record ForeignTradeCaseWriteRequest(string? Direction, Guid? PurchaseOrderId, Guid? SalesOrderId, string? ReferenceCode,
     string? OriginCountryCode, string? DestinationCountryCode, string? IncotermsCode, string? HarmonizedSystemCode,
-    string? TransportMode, string? CarrierReference, string? CustomsReference, decimal DeclaredValue,
+    string? TransportMode, string? CarrierReference, string? CustomsReference, decimal? DeclaredValue,
     DateOnly? PlannedShipDate, DateOnly? PlannedArrivalDate, string? Notes);
 public sealed record ForeignTradeTransitionRequest(string? Status, DateOnly? ActualDate, string? CarrierReference, string? CustomsReference);
 public sealed record ForeignTradeInventoryDocumentRequest(Guid DocumentId);
@@ -363,4 +445,26 @@ public sealed record ForeignTradeCaseView(Guid Id, string Direction, string Stat
     string ReferenceCode, string OriginCountryCode, string DestinationCountryCode, string? IncotermsCode, string? HarmonizedSystemCode,
     string TransportMode, string? CarrierReference, string? CustomsReference, decimal DeclaredValue, string CurrencyCode,
     DateOnly? PlannedShipDate, DateOnly? ActualShipDate, DateOnly? PlannedArrivalDate, DateOnly? ActualArrivalDate, string? Notes, DateTimeOffset UpdatedAt,
-    bool InventoryPostingRequired, Guid? PurchaseReceiptId, Guid? SalesDeliveryId, DateTimeOffset? InventoryDocumentLinkedAt);
+    bool InventoryPostingRequired, Guid? PurchaseReceiptId, Guid? SalesDeliveryId, DateTimeOffset? InventoryDocumentLinkedAt)
+{
+    // Display members are deliberately not constructor parameters (as InventoryTransactionView): the ERP operation catalog
+    // derives columns from the constructor, and the disTicaret.* operations declare these explicitly.
+    /// <summary>Code of the linked purchase or sales order (any status); null if it cannot be read.</summary>
+    public string? OrderCode { get; init; }
+    /// <summary>Supplier (import) or customer (export) of the linked order.</summary>
+    public string? CounterpartyName { get; init; }
+    /// <summary>Origin and destination country, e.g. "TR → DE".</summary>
+    public string Route => $"{OriginCountryCode} → {DestinationCountryCode}";
+    /// <summary>Actual ship date, else the planned one.</summary>
+    public DateOnly? ShipDate => ActualShipDate ?? PlannedShipDate;
+    /// <summary>Actual arrival date, else the planned one.</summary>
+    public DateOnly? ArrivalDate => ActualArrivalDate ?? PlannedArrivalDate;
+}
+/// <summary>A page of cases; <see cref="TotalCount"/> repeats <see cref="Total"/> under the name system pages read.</summary>
+public sealed record ForeignTradeCasePage(IReadOnlyList<ForeignTradeCaseView> Items, int Page, int PageSize, int Total)
+{
+    public int TotalCount => Total;
+}
+/// <summary>Counts of every case matching the search, by direction and by status.</summary>
+public sealed record ForeignTradeCaseSummary(int TotalCount, int ImportCount, int ExportCount, int DraftCount, int BookedCount, int ShippedCount,
+    int CustomsClearanceCount, int ArrivedCount, int ClosedCount, int CancelledCount);

@@ -341,6 +341,10 @@ public static class PlatformPermissionCatalog
             : path.StartsWith("/api/purchasing/delivery-notes/", StringComparison.OrdinalIgnoreCase)
                 && (normalizedRoute.EndsWith("/{id:guid}/link-receipt", StringComparison.OrdinalIgnoreCase)
                     || normalizedRoute.EndsWith("/{id:guid}/unlink-receipt", StringComparison.OrdinalIgnoreCase)) ? "update"
+            // Linking an already posted stock document to a foreign trade case is a workflow step (the handler checks execute).
+            : method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+                && path.StartsWith("/api/foreign-trade/cases/", StringComparison.OrdinalIgnoreCase)
+                && normalizedRoute.Equals("/api/foreign-trade/cases/{id:guid}/inventory-document", StringComparison.OrdinalIgnoreCase) ? "execute"
             : path.StartsWith("/api/sales/promotions/", StringComparison.OrdinalIgnoreCase)
             && routePattern.Contains("/apply", StringComparison.OrdinalIgnoreCase) ? "execute"
             // Toplu silme POST ile gönderilir ama bir silme işlemidir.

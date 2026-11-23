@@ -55,6 +55,7 @@ const standalonePageTitles: Record<string, Record<Locale, string>> = {
   integrations: { tr: 'Entegrasyonlar', en: 'Integrations' },
   projects: { tr: 'Projeler', en: 'Projects' },
   'foreign-trade': { tr: 'Dış Ticaret', en: 'Foreign trade' },
+  'foreign-trade-case': { tr: 'Dış ticaret dosyası', en: 'Foreign trade case' },
   'human-resources': { tr: 'İnsan Kaynakları', en: 'Human resources' },
   'fixed-assets': { tr: 'Duran Varlıklar', en: 'Fixed assets' },
 }
