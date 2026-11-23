@@ -301,6 +301,8 @@ public sealed record SalesQuoteView(Guid Id, string Code, Guid? CustomerId, stri
     public string? SalespersonName { get; init; }
     public Guid? SalesOrderId { get; init; }
     public string? SalesOrderCode { get; init; }
+    /// <summary>Single-quote read only: the unregistered recipient's name (null when the quote has a customer), for the edit card.</summary>
+    public string? ProspectCustomerName { get; init; }
 }
 public sealed record SalesQuoteSummary(Guid Id, string Code, Guid? CustomerId, string CustomerName, DateOnly QuoteDate,
     DateOnly ValidUntil, string CurrencyCode, SalesQuoteStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,

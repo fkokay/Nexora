@@ -113,7 +113,7 @@ export function RecordHeaderFields({ props, suggestions, buttons, owners, disabl
   </>;
 }
 
-type BulkDeleteQuery = { id: string; name: string; kind: string; runOn?: string; parameters: { name: string; binding: string }[] };
+type BulkDeleteQuery = { id: string; name: string; kind: string; runOn?: string | string[]; parameters: { name: string; binding: string }[] };
 
 /** Toplu silme sorgusu listenin seçili satırına bağlı mı (`{{<tablo>.seciliSatir.…}}`; sunucudaki kural). */
 export const bindsSelectedRow = (query: BulkDeleteQuery, tableName: string | undefined) =>

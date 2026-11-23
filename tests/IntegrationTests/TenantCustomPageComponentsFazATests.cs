@@ -386,9 +386,10 @@ public sealed class TenantCustomPageComponentsFazATests
     }
 
     [Fact]
-    public void Rejects_31_queries_in_v2()
+    public void Rejects_41_queries_in_v2()
     {
-        AssertRejected(V2(Enumerable.Range(1, 31).Select(i => SqlQuery($"q{i}", $"n{i}")).ToArray()), "en fazla 30 sorgu");
+        // Satış Aşama B raised the page query limit from 30 to 40.
+        AssertRejected(V2(Enumerable.Range(1, 41).Select(i => SqlQuery($"q{i}", $"n{i}")).ToArray()), "en fazla 40 sorgu");
     }
 
     [Fact]

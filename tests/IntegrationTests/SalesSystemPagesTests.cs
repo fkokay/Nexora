@@ -259,14 +259,16 @@ public sealed class SalesSystemPagesTests
     // ---- Standards ----
 
     [Theory]
-    [InlineData("sales-quotes", "Satış Teklifleri")]
-    [InlineData("sales-orders", "Satış Siparişleri")]
-    [InlineData("sales-deliveries", "Satış İrsaliyeleri")]
-    [InlineData("sales-invoices", "Satış Faturaları")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    // Aşama B bumps sales-orders (the order card's Yeni / Düzenle params) and sales-invoices (Yeni stays legacy, P3) to version 2;
+    // their buttons changed in place, so every item stays since 1.
+    [InlineData("sales-quotes", "Satış Teklifleri", 1)]
+    [InlineData("sales-orders", "Satış Siparişleri", 2)]
+    [InlineData("sales-deliveries", "Satış İrsaliyeleri", 1)]
+    [InlineData("sales-invoices", "Satış Faturaları", 2)]
+    public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((version, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
@@ -374,6 +376,9 @@ public sealed class SalesSystemPagesTests
     [InlineData("sales-orders", "salesOrdersOperations.fixture.json")]
     [InlineData("sales-deliveries", "salesDeliveriesOperations.fixture.json")]
     [InlineData("sales-invoices", "salesInvoicesOperations.fixture.json")]
+    // Aşama B cards.
+    [InlineData("sales-invoice-create", "salesInvoiceCreateOperations.fixture.json")]
+    [InlineData("sales-order-create", "salesOrderCreateOperations.fixture.json")]
     public async Task Frontend_fixture_matches_catalog(string key, string fixtureFile)
     {
         await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();

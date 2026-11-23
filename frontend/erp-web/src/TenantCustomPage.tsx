@@ -37,9 +37,12 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
+import { initialGridState, parseInitialRowsMap, type InitialRowsMap } from "./custom-page/gridInitialRows";
+import { lookupFillValues, parseLookupFill, type LookupFillRule } from "./custom-page/gridLookupFill";
+import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
-import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, validateGrid, wireRow, MATRIX_MAX_ROWS,
+import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
@@ -223,6 +226,8 @@ type GridView = {
   totals: Record<string, number>;
   pickerFor: (column: GridColumn, draft: GridDraft) => GridPicker;
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
+  /** Hesaplanan (`calc`) hücrenin metni. */
+  calcText: (column: GridColumn, draft: GridDraft) => string;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -1232,16 +1237,23 @@ type GridSpec = {
   staticOptions: Record<string, string[]>; optionsWhen: Record<string, string>;
   /** Toplamı alınan `number` sütunları (`totals`). */
   totals: string[];
+  /** `list` kipinde başlangıç satırları sorgusu (`initialRowsQuery`, sorgu kimliği) ve hücre eşlemi (`initialRowsMap`). */
+  initialRowsQuery: string; initialRowsMap: InitialRowsMap;
+  /** Bu hücresi boş ya da 0 olan satırlar gönderilmez ve doğrulanmaz (`skipRowsWhenEmpty`). */
+  skipRowsWhenEmpty?: string;
+  /** Seçim doldurma kuralları (`lookupFill`). */
+  lookupFill: LookupFillRule[];
 };
 /**
- * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), en az satır, satır anahtarı, kaynak
+ * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–500, varsayılan 50), en az satır, satır anahtarı, kaynak
  * sorgu ve seçim sütunlarının sabit seçenekleri ile koşulları.
  */
 const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   const props = grid.props ?? {};
   const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
-  const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 200 ? props.maxRows : 50;
+  const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 500 ? props.maxRows : 50;
   const columns = mode === "matrix" ? [] : parseGridColumns(props.gridColumns);
+  const skip = mode === "list" ? textValue(props.skipRowsWhenEmpty).trim() : "";
   return {
     name: grid.name ?? "", mode, columns, maxRows,
     rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
@@ -1249,6 +1261,10 @@ const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
     staticOptions: parseColumnEntries(props.columnStaticOptions),
     optionsWhen: Object.fromEntries(Object.entries(parseColumnEntries(props.columnOptionsWhen)).map(([code, conditions]) => [code, conditions[conditions.length - 1]])),
     totals: parseGridTotals(props.totals, columns, mode),
+    initialRowsQuery: mode === "list" ? textValue(props.initialRowsQuery).trim() : "",
+    initialRowsMap: parseInitialRowsMap(props.initialRowsMap, columns),
+    ...(skip && columns.some((column) => column.code === skip) ? { skipRowsWhenEmpty: skip } : {}),
+    lookupFill: mode === "matrix" ? [] : parseLookupFill(props.lookupFill, columns),
   };
 };
 /** Satır kapsamlı okuma: bir parametresi `{{<tablo>.satir.<sütun>}}` bağlıyorsa o tablonun adı (yoksa null). */
@@ -1712,6 +1728,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const [tableStatus, setTableStatus] = useState<Record<string, ActionStatus | null>>({});
   // Düzenlenebilir tablolar (ada göre bekleyen satırlar) ve özel alan blokları (ada göre yazılan değerler).
   const [grids, setGrids] = useState<Record<string, GridState>>({});
+  // Yazma sorgusu başına gönderilen tablo satırlarının taslak anahtarları (sunucu satır hatalarını hücrelere eşlemek için).
+  const sentKeys = useRef<Record<string, Record<string, string[]>>>({});
   const [customTyped, setCustomTyped] = useState<Record<string, Record<string, string>>>({});
   const customTypedRef = useRef(customTyped);
   customTypedRef.current = customTyped;
@@ -1722,7 +1740,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Satır kapsamlı seçenek sorguları (`{{<tablo>.satir.<sütun>}}`) sayfa düzeyinde çalışmaz: satır değeri başına önbellekten okunur.
   const gridNames = useMemo(() => new Set(gridComponents.map((grid) => grid.name!)), [gridComponents]);
   const rowScopedQueries = useMemo(() => new Set(queryDefinitions.filter((query) => rowScopeOf(query, gridNames) !== null).map((query) => query.id)), [queryDefinitions, gridNames]);
-  const pageQueries = useMemo(() => queryDefinitions.filter((query) => !rowScopedQueries.has(query.id)), [queryDefinitions, rowScopedQueries]);
+  // Önizleme sorguları (`runOn` dizisi) sayfa sorgusu olarak çalışmaz; ayrı zamanlayıcıyla çalışır (previewQueries.ts).
+  const pageQueries = useMemo(() => queryDefinitions.filter((query) => !rowScopedQueries.has(query.id) && !query.preview), [queryDefinitions, rowScopedQueries]);
+  const previewQueries = useMemo(() => (isV2 ? queryDefinitions.filter((query) => !!query.preview && !!query.operation) : []), [isV2, queryDefinitions]);
   // Seçim hücresinde yazılan arama: tablo başına odaktaki hücre ve metni. `{{<tablo>.arama}}` yalnız odaktaki hücrenin sorgusu
   // onu bağlıyorsa doludur (başka sütunda yazmak sunucu aramasını yeniden çalıştırmaz).
   const [gridSearch, setGridSearch] = useState<Record<string, { cell: string; code: string; text: string }>>({});
@@ -1823,8 +1843,19 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   /** Kaynak anahtarı: kaynak okumasının çalıştığı değerler (`ranWith`). */
   const gridKey = (spec: GridSpec, states: Record<string, QueryState>) => JSON.stringify(gridSourceState(spec, states)?.ranWith ?? null);
   const gridSourceRows = (spec: GridSpec, states: Record<string, QueryState>) => (spec.mode === "stage" ? gridSourceState(spec, states)?.rows ?? [] : []);
-  /** Saklanmamış tablo, güncel kaynak anahtarıyla boş başlar. */
-  const gridStateOf = (spec: GridSpec, states: Record<string, QueryState>) => grids[spec.name] ?? emptyGridState(gridKey(spec, states));
+  /** `list` tablosunun başlangıç satırları sorgusunun durumu (`initialRowsQuery`; yoksa undefined). */
+  const gridInitialState = (spec: GridSpec, states: Record<string, QueryState>) => (spec.initialRowsQuery ? states[queryNames[spec.initialRowsQuery]] : undefined);
+  /**
+   * Tablonun durumu saklı durumdan: saklanmamış tablo güncel kaynak anahtarıyla boş başlar. Başlangıç satırlı tabloda sorgunun
+   * son başarılı sonucundan türetilir (bkz. initialGridState); böylece sıfırlama (saklı durumun silinmesi) yüklenen satırlara döner.
+   */
+  const baseGridState = (spec: GridSpec, states: Record<string, QueryState>, stored: GridState | undefined): GridState => {
+    const initial = gridInitialState(spec, states);
+    if (!spec.initialRowsQuery) return stored ?? emptyGridState(gridKey(spec, states));
+    const ready = !!initial && initial.ran && !initial.loading && !initial.error;
+    return initialGridState(stored, spec.columns, spec.initialRowsMap, JSON.stringify(initial?.ranWith ?? null), ready ? initial!.rows : null);
+  };
+  const gridStateOf = (spec: GridSpec, states: Record<string, QueryState>) => baseGridState(spec, states, grids[spec.name]);
   const blockData = (block: ComponentDefinition, states: Record<string, QueryState>) => {
     const definitionsId = textValue(block.props?.definitionsQuery).trim();
     const valuesId = textValue(block.props?.valuesQuery).trim();
@@ -1878,7 +1909,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const spec = gridSpecOf(grid);
       const matrix = spec.mode === "matrix"
         ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
-      const view = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
+      const view = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix, spec.skipRowsWhenEmpty);
       scope[spec.name] = { ...view, arama: gridSearchText(spec), ...(spec.totals.length > 0 ? { toplam: gridColumnTotals(spec.totals, view.satirlar) } : {}) };
     }
     for (const block of blockComponents) {
@@ -1899,10 +1930,16 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
   const [codeWantsOperations, setCodeWantsOperations] = useState(false);
   const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
-  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
-    queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
+  const preview = usePreviewQueries(token, erpOperations.operations);
+  // Önizleme sonuçları kapsama sorgu durumu olarak girer; eskimiş önizlemenin satırları gizlenir (`eskidi`).
+  const previewStates = useMemo<Record<string, QueryState>>(() => Object.fromEntries(previewQueries.map((query) =>
+    [query.name, previewScopeState(preview.entries[query.name])])), [previewQueries, preview.entries]);
+  const { states: pageStates, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
+    queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective({ ...current, ...previewStates }).scope,
     operations: erpOperations.operations,
   });
+  const states = useMemo<Record<string, QueryState>>(() => (previewQueries.length > 0 ? { ...pageStates, ...previewStates } : pageStates),
+    [pageStates, previewStates, previewQueries]);
   const statesRef = useRef(states);
   statesRef.current = states;
   // İlk seçenek varsayılanları: seçenekleri yüklenen girişler ve süzgeçler (bkz. firstOptions, firstFilterApplied).
@@ -1990,6 +2027,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
   const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
     const values = editMapValues(query, resolved);
+    // Gönderilen satırların taslak anahtarları: sunucunun `<liste>[i]` hataları sonradan silinen/atlanan satırlarda kaymasın.
+    sentKeys.current[query.name] = Object.fromEntries(gridComponents.filter((grid) => bindsGrid(query, grid.name!, "satirlar")).map((grid) => {
+      const spec = gridSpecOf(grid);
+      return [spec.name, gridSentRows(spec, gridStateOf(spec, statesRef.current)).map((row) => row.key)];
+    }));
     const result = await runWrite(query, values, confirmWrite, clearedParameters(query, values));
     // Başarılı yazma bağladığı tekrar deneme kimliklerini yeniler (hata fırlatırsa kimlik korunur: yeniden deneme aynı istektir).
     const boundNames = new Set(boundInputNames(query));
@@ -2165,7 +2207,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     for (const grid of gridComponents) {
       const spec = gridSpecOf(grid);
       if (!queries.some((query) => bindsGrid(query, spec.name))) continue;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
+      // Başlangıç satırları yükleniyor ya da yüklenemedi: yarım belge kaydedilmez (güncelleme tüm satır listesini gönderir).
+      const initial = gridInitialState(spec, states);
+      if (initial?.loading) return SOURCE_LOADING;
+      if (initial?.error) return SOURCE_FAILED;
+      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows, spec.skipRowsWhenEmpty);
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -2783,9 +2829,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // ---- Düzenlenebilir tablolar ve özel alan blokları ----
   const gridByName = useMemo(() => Object.fromEntries(gridComponents.map((grid) => [grid.name!, grid])), [gridComponents]);
   const dispatchGrid = (spec: GridSpec, action: GridAction) => {
-    const key = gridKey(spec, states);
     setGrids((previous) => {
-      const stored = previous[spec.name] ?? emptyGridState(key);
+      const stored = baseGridState(spec, states, previous[spec.name]);
       const next = gridReducer(stored, action, { mode: spec.mode, maxRows: spec.maxRows });
       return next === stored && previous[spec.name] ? previous : { ...previous, [spec.name]: next };
     });
@@ -2873,26 +2918,73 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       selected: stored !== undefined ? { value, label: stored } : own ? { value, label: optionText(own) } : null,
       onSearch: (text) => setGridSearch((previous) => (text === "" && previous[spec.name]?.cell !== cell ? previous
         : { ...previous, [spec.name]: { cell, code: column.code, text } })),
-      onChange: (next, _row, label) => {
+      onChange: (next, row, label) => {
         const option = lookupCandidates(props, base, "", false).find((item) => item.value === next);
         dispatchGrid(spec, { type: "edit", key: draft.key, code: column.code, value: next, label: option ? optionText(option) : label });
+        // Seçim doldurması yalnız kullanıcının seçiminde çalışır (yükleme ve sıfırlamada değil); boşaltılan seçim doldurmaz.
+        const values = next === "" ? {} : lookupFillValues(spec.lookupFill, column.code, draft, option?.row ?? row ?? null, spec.columns);
+        if (Object.keys(values).length > 0) dispatchGrid(spec, { type: "fill", key: draft.key, values });
       },
     };
+  };
+  /** Gönderilen satırlar ve taslak anahtarları (`list` kipi; atlanan satırlar hariç) — `satirlar` dizinleriyle aynı sırada. */
+  const gridSentRows = (spec: GridSpec, state: GridState) => sentDrafts(spec.mode, state, spec.skipRowsWhenEmpty)
+    .map((draft) => ({ key: draft.key, row: wireRow(spec.columns, draft) }));
+  /**
+   * Yazma sorgularının sunucu satır hataları: `{{<tablo>.satirlar}}` bağlayan liste parametresinin `<param>[i].<alan>` hataları,
+   * gönderilen i. satırın (taslak anahtarı) alanla aynı kodlu (büyük/küçük harf duyarsız) sütununa yazılır (yalnız `list` kipi).
+   */
+  const gridServerErrors = (spec: GridSpec, state: GridState): Record<string, Record<string, string>> => {
+    const result: Record<string, Record<string, string>> = {};
+    if (spec.mode !== "list") return result;
+    const present = new Set(state.rows.map((draft) => draft.key));
+    for (const query of queryDefinitions) {
+      const fieldErrors = query.kind === "read" ? undefined : states[query.name]?.fieldErrors;
+      const sent = sentKeys.current[query.name]?.[spec.name];
+      if (!fieldErrors || !sent) continue;
+      for (const parameter of query.parameters) {
+        if (bindingPath(parameter.binding) !== `${spec.name}.satirlar`) continue;
+        const prefix = parameter.name.toLowerCase();
+        for (const [key, message] of Object.entries(fieldErrors)) {
+          const match = /^([^[\]]+)\[(\d+)\]\.(.+)$/.exec(key);
+          if (!match || match[1].toLowerCase() !== prefix) continue;
+          const draftKey = sent[Number(match[2])];
+          const column = spec.columns.find((item) => item.code.toLowerCase() === match[3].toLowerCase());
+          if (draftKey !== undefined && present.has(draftKey) && column) (result[draftKey] ??= {})[column.code] = message;
+        }
+      }
+    }
+    return result;
+  };
+  /** Hesaplanan hücrenin metni: önizleme sorgusunun (eskimemiş) sonucundan, satır anahtarıyla; aksi halde "—". */
+  const gridCalcText = (column: GridColumn, draft: GridDraft): string => {
+    const query = column.calc ? queryById[column.calc.query] : undefined;
+    if (!query || !column.calc) return CALC_EMPTY;
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    const state = states[query.name];
+    if (!state || (state as { eskidi?: boolean }).eskidi === true || state.loading || state.error) return CALC_EMPTY;
+    return calcText(previewRows(op, state), draft.key, column.calc.field);
   };
   const gridFor = (grid: ComponentDefinition): GridView => {
     const spec = gridSpecOf(grid);
     const source = gridSourceState(spec, states);
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
-    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows, spec.skipRowsWhenEmpty) : {};
+    // Sunucunun satır hataları (`<liste>[i].<alan>`) hücrelerde; istemci iletisi önce gelir.
+    const serverErrors = gridServerErrors(spec, state);
+    const errors: Record<string, Record<string, string>> = { ...serverErrors };
+    for (const [key, cells] of Object.entries(clientErrors)) errors[key] = { ...errors[key], ...cells };
+    const initial = gridInitialState(spec, states);
     return {
       id: spec.name, mode: spec.mode, columns: spec.columns, state, sourceRows, rowKey: spec.rowKey, errors, maxRows: spec.maxRows,
       dispatch: (action) => dispatchGrid(spec, action),
       pickerFor: pickerFor(spec), pickerLabel: (column, value, draft) => pickerText(spec, column, value, draft),
       // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
-      loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
+      loading: (!!source && source.loading && !source.ran) || !!initial?.loading, error: source?.error || initial?.error || undefined,
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
-      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, state, sourceRows, spec.rowKey).satirlar) : {},
+      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, state, sourceRows, spec.rowKey, undefined, spec.skipRowsWhenEmpty).satirlar) : {},
+      calcText: (column, draft) => gridCalcText(column, draft),
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -2926,6 +3018,38 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     ...blockComponents.filter((block) => blockShown[block.name!] && !skipsValidation(block)
       && Object.keys(validateCustomFields(blockData(block, states).specs, blockData(block, states).values)).length > 0).map((block) => block.id),
   ];
+
+  // ---- Önizleme sorguları (`runOn` dizisi) ----
+  // İzlenen bileşenin kapsam değeri: tabloda gönderilen satırlar, girişte değeri (arama metni ve seçim etiketi tetiklemez).
+  const watchedValue = (name: string): unknown => {
+    const value = scope[name];
+    if (!isPlainObject(value)) return value ?? null;
+    if ("satirlar" in value) return value.satirlar;
+    if ("value" in value) return value.value;
+    return value;
+  };
+  const previewPlans: PreviewPlan[] = previewQueries.map((query) => {
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    const values = withRowKeys(op, query, resolveQueryParameters(query, scope), (path) => {
+      const grid = gridByName[path.replace(/\.satirlar$/, "")];
+      if (!grid || !path.endsWith(".satirlar")) return null;
+      const spec = gridSpecOf(grid);
+      return spec.mode === "list" ? gridSentRows(spec, gridStateOf(spec, states)) : null;
+    });
+    // Bağlı tabloda geçersiz satır varsa ya da başlangıç satırları yükleniyorsa önizleme çalışmaz (son sonuç eskimiş kalır, "—").
+    const blocked = gridComponents.some((grid) => {
+      if (!bindsGrid(query, grid.name!) && !query.preview!.watch.includes(grid.name!)) return false;
+      const spec = gridSpecOf(grid);
+      if (gridInitialState(spec, states)?.loading) return true;
+      const errors = validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, undefined, undefined, spec.skipRowsWhenEmpty);
+      return Object.keys(errors).length > 0;
+    });
+    return { query, values, key: JSON.stringify([values, query.preview!.watch.map(watchedValue)]), blocked, debounceMs: query.preview!.debounceMs };
+  });
+  const previewSignature = JSON.stringify([erpOperations.operations ? 1 : 0, previewPlans.map((plan) => [plan.query.name, plan.key, plan.blocked])]);
+  const latestPreviewPlans = useRef(previewPlans);
+  latestPreviewPlans.current = previewPlans;
+  useEffect(() => { if (previewQueries.length > 0) preview.sync(latestPreviewPlans.current); }, [previewSignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Kaynak değişti (`ranWith`): bekleyen satırlar sıfırlanır; aynı kaynak yenilendiyse yalnız artık olmayan silme işaretleri düşer.
   // Yüklenmekte olan kaynak beklenir (yeniden yükleme eski satırları ve `ranWith`'i korur).

@@ -55,7 +55,18 @@ internal static partial class ErpOperationCatalog
         new("collectionDate", "Tahsilat tarihi"), new("paymentMethod", "Ödeme yöntemi"), new("reference", "Referans"),
         new("financialAccountId", "Kasa / banka hesabı kimliği"), new("financialAccountName", "Kasa / banka hesabı"),
         new("salesInvoiceId", "Fatura kimliği"), new("returnDate", "İade tarihi"),
-        new("transactionCount", "Hareket sayısı")
+        new("transactionCount", "Hareket sayısı"),
+        // Aşama B: belge kartları, önizleme (hesapla / onizle), kurlar, plasiyer ve vergi profili seçenekleri.
+        new("rowKey", "Satır anahtarı"), new("exchangeRate", "Kur"), new("taxableAmount", "Matrah"),
+        new("withholdingAmount", "Tevkifat tutarı"), new("rate", "Oran"), new("treatment", "Uygulama"), new("rateDate", "Kur tarihi"),
+        new("prospectCustomerName", "Teklif alıcısı"), new("revisesQuoteId", "Revize edilen teklif"),
+        new("personnelCode", "Personel kodu"), new("fullName", "Ad soyad"), new("department", "Departman"), new("jobTitle", "Unvan"),
+        new("employmentCategory", "Çalışma türü"), new("workEmail", "İş e-postası"), new("hireDate", "İşe giriş"),
+        new("terminationDate", "İşten çıkış"), new("userId", "Kullanıcı kimliği"),
+        new("profileCode", "Profil kodu"), new("jurisdictionCode", "Ülke / bölge"), new("reportingStandard", "Raporlama standardı"),
+        new("fiscalYearStartMonth", "Mali yıl başlangıç ayı"), new("effectiveFrom", "Geçerlilik başlangıcı"),
+        new("effectiveTo", "Geçerlilik sonu"), new("officialSourceUrl", "Resmî kaynak"), new("hasTaxRules", "Vergi kuralı var"),
+        new("isDefaultForDocuments", "Belgelerde varsayılan"), new("parametersJson", "Profil parametreleri")
     ];
 
     /// <summary>
@@ -76,7 +87,9 @@ internal static partial class ErpOperationCatalog
         var quoteColumns = Columns<SalesQuoteView>()
             .Append(new ErpOperationColumn("salespersonName", Label("salespersonName"), "text"))
             .Append(new ErpOperationColumn("salesOrderId", Label("salesOrderId"), "guid"))
-            .Append(new ErpOperationColumn("salesOrderCode", Label("salesOrderCode"), "text")).ToArray();
+            .Append(new ErpOperationColumn("salesOrderCode", Label("salesOrderCode"), "text"))
+            // Aşama B: the unregistered recipient (null with a customer), for the quote edit card.
+            .Append(new ErpOperationColumn("prospectCustomerName", Label("prospectCustomerName"), "text")).ToArray();
         yield return Read(SalesModule, "satis.teklif.listele", "Satış tekliflerini listele", quotesRoute,
             [Query("q", "text"), Query("status", "text"), Query("dateFrom", "date"), Query("dateTo", "date"), .. paging],
             List(quoteSummary, "items") with { MetaPaths = pageTotals });
@@ -179,5 +192,7 @@ internal static partial class ErpOperationCatalog
             [id], None, null, null);
         yield return Read(SalesModule, "satis.fatura.ozelAlanTanimlari", "Satış faturası özel alan tanımları", invoicesRoute + "/custom-fields", [],
             List(Columns<SalesInvoiceCustomFieldDefinitionView>(), null));
+
+        foreach (var operation in BuildSalesCards()) yield return operation;
     }
 }

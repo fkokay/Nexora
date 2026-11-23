@@ -310,13 +310,14 @@ public sealed class CustomerSystemPagesTests
     // ---- Standards ----
 
     [Theory]
-    [InlineData("customers", "Cari Hesaplar")]
-    [InlineData("customer-create", "Cari kart")]
-    [InlineData("customer-ledger", "Cari Hesap Hareketleri")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    // customers v2 (Satış Aşama B): "Yeni sipariş" also sends orderDate for the order card; changed in place (since 1).
+    [InlineData("customers", "Cari Hesaplar", 2)]
+    [InlineData("customer-create", "Cari kart", 1)]
+    [InlineData("customer-ledger", "Cari Hesap Hareketleri", 1)]
+    public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((version, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
@@ -351,7 +352,8 @@ public sealed class CustomerSystemPagesTests
         {
             var p = Props("customers", button);
             Assert.Equal(("erpPage", page), ((string)p["actionType"]!, (string)p["pageKey"]!));
-            Assert.Equal(new[] { "customerId={{liste.seciliSatir.id}}" }, Strings(p["params"]));
+            Assert.Equal(button == "yeniSiparis" ? new[] { "customerId={{liste.seciliSatir.id}}", "orderDate={{bugun}}" }
+                : new[] { "customerId={{liste.seciliSatir.id}}" }, Strings(p["params"]));
         }
         Assert.True((bool)Props("customers", "pasifeAlDugmesi")["confirmEnabled"]!);
         Assert.Equal("{{kart.rows[0].id}}", Binding("customers", "pasifeAl", "id"));

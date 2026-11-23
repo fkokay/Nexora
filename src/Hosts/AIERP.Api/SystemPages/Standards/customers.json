@@ -1,7 +1,7 @@
 {
   "screenKey": "customers", "title": "Cari Hesaplar",
   "description": "Müşteri ve tedarikçi kartlarını firma bazında yönetin.", "module": "Satış & cari",
-  "version": 1, "stage": "preview",
+  "version": 2, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:yeniTeklif", "component:yeniSiparis", "component:yeniIrsaliye", "component:yeniFatura", "component:faturalarDugmesi", "component:adreslerDugmesi", "component:pasifeAlDugmesi", "component:etkinlestirDugmesi", "component:hareketlerDugmesi", "query:cariler", "query:kartSil"]},
     "component:kartGostergesi": {"since": 1, "label": "Cari kartı göstergesi", "requires": ["query:sayaclar"]},
@@ -182,7 +182,7 @@
                    "disabledReason": "Önce bir müşteri veya bayi kartı seçin; satış işlemleri yalnız müşteri ve bayi kartlarında." } },
       { "id": "yeniSiparis", "type": "button", "name": "yeniSiparis",
         "props": { "text": "Yeni sipariş", "actionType": "erpPage", "pageKey": "sales-order-create", "target": "newTab",
-                   "params": ["customerId={{liste.seciliSatir.id}}"],
+                   "params": ["customerId={{liste.seciliSatir.id}}", "orderDate={{bugun}}"],
                    "disabledWhen": "liste.seciliSatir.id == null || liste.seciliSatir.type == 'Supplier' || liste.seciliSatir.type == 'Employee'",
                    "disabledReason": "Önce bir müşteri veya bayi kartı seçin; satış işlemleri yalnız müşteri ve bayi kartlarında." } },
       { "id": "yeniIrsaliye", "type": "button", "name": "yeniIrsaliye",

@@ -1,12 +1,12 @@
 {
   "screenKey": "sales-orders", "title": "Satış Siparişleri",
   "description": "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin.", "module": "Satış & cari",
-  "version": 1, "stage": "preview",
+  "version": 2, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:duzenleDugmesi", "component:irsaliyeOlusturDugmesi", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:siparisSil", "query:siparisler"]},
-    "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu"},
+    "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (tarih bugün)"},
     "component:acDugmesi": {"since": 1, "label": "Siparişi aç komutu", "requires": ["component:liste", "component:siparisPenceresi"]},
-    "component:duzenleDugmesi": {"since": 1, "label": "Düzenle komutu (eski kart)", "requires": ["component:liste"]},
+    "component:duzenleDugmesi": {"since": 1, "label": "Düzenle komutu (sipariş kartı: kimlik, müşteri, tarih)", "requires": ["component:liste"]},
     "component:irsaliyeOlusturDugmesi": {"since": 1, "label": "İrsaliye oluştur komutu (eski ekran)", "requires": ["component:liste"]},
     "component:tutarGostergesi": {"since": 1, "label": "Sipariş tutarı göstergesi (bu sayfa)", "requires": ["query:siparisler"]},
     "component:tutarKarisik": {"since": 1, "label": "Sipariş tutarı (birden çok para birimi)", "requires": ["query:siparisler"]},
@@ -62,7 +62,7 @@
           "actionType": "erpPage",
           "pageKey": "sales-order-create",
           "target": "newTab",
-          "params": ["customerId={{sayfa.parametre.customerId}}"] } },
+          "params": ["customerId={{sayfa.parametre.customerId}}", "orderDate={{bugun}}"] } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
         "props": {
           "text": "Aç",
@@ -77,7 +77,7 @@
           "actionType": "erpPage",
           "pageKey": "sales-order-create",
           "target": "newTab",
-          "params": ["orderId={{liste.seciliSatir.id}}"],
+          "params": ["orderId={{liste.seciliSatir.id}}", "customerId={{liste.seciliSatir.customerId}}", "orderDate={{liste.seciliSatir.orderDate}}"],
           "visibleWhen": "liste.seciliSatir.status == 'Open'" } },
       { "id": "irsaliyeOlusturDugmesi", "type": "button", "name": "irsaliyeOlusturDugmesi",
         "props": {

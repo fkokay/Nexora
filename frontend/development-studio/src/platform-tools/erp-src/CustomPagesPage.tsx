@@ -34,6 +34,8 @@ import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
+import { RUN_ON_TYPES, runOnProblem } from "./page-designer/queryRunOn";
+import { calcColumnProblem, cleanRowSources } from "./page-designer/gridRowSources";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
@@ -193,7 +195,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
   "saveAndNew",
   // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
-  "openParam", "bulkDeleteQuery"]);
+  "openParam", "bulkDeleteQuery",
+  // Belge kartı kalem tablosu: kaynaktan başlangıç satırları, boş satırı atlama ve seçimin diğer hücreleri doldurması.
+  "initialRowsQuery", "initialRowsMap", "skipRowsWhenEmpty", "lookupFill"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -248,7 +252,7 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   // (yalnız okuma sorgusu olabilir) ve pencerenin kaydet sorgusu.
   const sequence = component.props.saveSequence;
   const staleSequence = writeGone && Array.isArray(sequence) && sequence.includes(queryId);
-  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery"].filter((key) => component.props[key] === queryId) : [];
+  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery", "initialRowsQuery"].filter((key) => component.props[key] === queryId) : [];
   const staleDialogSave = writeGone && component.type === "dialog" && component.props.saveQuery === queryId;
   const readRef = readGone && (component.props.query === queryId || component.props.trendQuery === queryId || component.props.optionsQuery === queryId);
   if (!readRef && !staleRefresh && !(removed && component.props.queryId === queryId)
@@ -263,6 +267,8 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
     } else { delete props.saveSequence; delete props.sequenceWhen; delete props.stopOnError; }
   }
   for (const key of readRefs) delete props[key];
+  // Başlangıç satırlarının eşlemi kaynak sorguya bağlıdır; sorgu kalkınca birlikte kalkar.
+  if (readRefs.includes("initialRowsQuery")) delete props.initialRowsMap;
   if (staleDialogSave) delete props.saveQuery;
   // Sunucu sayfalaması ERP işlemi sorgusuna bağlıdır; sorgu kalkınca sayfalama özellikleri de kalkar.
   if (readGone && props.query === queryId) { delete props.query; delete props.countWhen; delete props.totals; delete props.columnFormats; delete props.toneMap; for (const key of PAGING_PROPS) delete props[key]; }
@@ -645,6 +651,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
           const kept = gridTotalCodes(props);
           if (!sameList(next.totals, kept)) { if (kept.length > 0) next.totals = kept; else delete next.totals; touched = true; }
         }
+        // Kaynaklı satır ayarları: başlangıç sorgusu yalnız liste kipinde ve okuma sorgusu; eşlem, atlama ve doldurma tablonun sütunlarına.
+        const sources = cleanRowSources(next, readIds);
+        if (sources) { for (const key of Object.keys(next)) if (!(key in sources)) delete next[key]; Object.assign(next, sources); touched = true; }
       }
       if (!touched) return component;
       changed = true;
@@ -907,7 +916,7 @@ const pickerGridProblem = (component: PageComponent, definition: PageDefinition)
   for (const entry of columnEntries(props.columnStaticOptions))
     if (!COLUMN_STATIC_OPTION.test(entry.rest)) return "'columnStaticOptions' öğeleri sütunKodu=değer=Etiket biçiminde olmalıdır.";
   if (typeof props.minRows === "number" && typeof props.maxRows === "number" && props.minRows > props.maxRows) return "'minRows' değeri 'maxRows' değerinden büyük olamaz.";
-  return null;
+  return calcColumnProblem(props, readIds);
 };
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
@@ -1879,6 +1888,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const next = { ...query, ...patch };
         // SQL moduna dönüşte `operation` anahtarı tamamen kalkar (anahtarın varlığı ERP işlemi modunu belirler).
         if ("operation" in patch && patch.operation === undefined) delete next.operation;
+        if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
         if (isOperationQuery(next)) return next;
         // Parametre adları SQL'den gelir; var olanların (ve bu oturumda SQL'den geçici düşenlerin) bağlaması ve türü korunur.
         if (!isOperationQuery(query)) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
@@ -2123,6 +2133,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ?? pickerGridProblem(component, definition)
         ?? countWhenProblem(component.props.countWhen, component.type === "metric" ? definition.queries.find((query) => query.id === component.props.query)?.name ?? null : null, pageNamesOf(definition));
       if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+    }
+    // Bileşen listeli çalışma (önizleme sorgusu): adlar sayfadaki giriş / tablo adları, gecikme 150–3000.
+    const runOnTargets = cardTree.flattenComponents(definition.components).filter((component) => RUN_ON_TYPES.has(component.type) && !!component.name).map((component) => component.name!);
+    for (const query of definition.queries) {
+      const problem = runOnProblem(query, runOnTargets);
+      if (problem) { setError(problem); setQueryEditorOpen(true); setSelectedQueryId(query.id); return null; }
     }
     // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
     for (const query of definition.queries) {
