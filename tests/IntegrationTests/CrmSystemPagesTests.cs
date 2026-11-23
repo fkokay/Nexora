@@ -71,7 +71,9 @@ public sealed class CrmSystemPagesTests
         foreach (var op in new[] { create, update })
             Assert.Equal("datetime", op.Parameters.Single(x => x.Name == "nextActivityAt").Type);
         Assert.Equal("date", list.Result.Columns.Single(x => x.Code == "nextActivityAt").DataType);
-        Assert.DoesNotContain(ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("crm.firsat.", StringComparison.Ordinal)).SelectMany(x => x.Parameters),
+        // Satış Aşama B: the standalone invoice's e-archive payment date and due date (DateTimeOffset) are datetime too.
+        Assert.DoesNotContain(ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("crm.firsat.", StringComparison.Ordinal)).SelectMany(x => x.Parameters
+                .Where(p => !(x.Name == "satis.fatura.olustur" && p.Name is "eDocument.paymentDate" or "eDocument.paymentDueDate"))),
             x => x.Type == "datetime");
 
         foreach (var (name, stage) in new[] { ("crm.firsat.nitelikliYap", "Qualified"), ("crm.firsat.teklifeGecir", "Proposal"),

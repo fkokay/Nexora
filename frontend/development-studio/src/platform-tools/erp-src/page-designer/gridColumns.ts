@@ -3,15 +3,19 @@
 //
 // Düzenlenebilir tablo sütunu: "<kod>|<Etiket>|<tür>[|<kurallar>]".
 // Seçim sütunu: tür "lookup:<sorgu>:<değerSütunu>:<etiketSütunu>[:<açıklamaSütunu>]".
+// Hesaplanan sütun: tür "calc:<sorgu>:<alan>"; değer o sorgunun sonuç satırından (rowKey = satır anahtarı) gelir, salt okunurdur
+// ve kural almaz; kayda gönderilmez.
 
-export type GridColumnType = "text" | "number" | "date" | "checkbox" | "lookup";
+export type GridColumnType = "text" | "number" | "date" | "checkbox" | "lookup" | "calc";
 export type GridColumnRules = { required: boolean; unique: boolean; upperCase: boolean; readOnly: boolean; maxLength?: number; min?: number; max?: number; step?: number };
 /** Seçim sütununun seçenek kaynağı: sayfadaki okuma sorgusu ve sütunları. */
 export type GridColumnLookup = { query: string; valueColumn: string; labelColumn: string; descriptionColumn?: string };
-export type GridColumn = { code: string; label: string; inputType: GridColumnType; rules: GridColumnRules; lookup?: GridColumnLookup };
+/** Hesaplanan sütunun kaynağı: sayfadaki (önizleme) sorgusu ve sonuç satırının alanı. */
+export type GridColumnCalc = { query: string; field: string };
+export type GridColumn = { code: string; label: string; inputType: GridColumnType; rules: GridColumnRules; lookup?: GridColumnLookup; calc?: GridColumnCalc };
 
-export const GRID_COLUMN_TYPES: readonly GridColumnType[] = ["text", "number", "date", "checkbox", "lookup"];
-export const MAX_GRID_COLUMNS = 12;
+export const GRID_COLUMN_TYPES: readonly GridColumnType[] = ["text", "number", "date", "checkbox", "lookup", "calc"];
+export const MAX_GRID_COLUMNS = 16;
 export const MAX_GRID_LABEL = 60;
 export const MAX_GRID_TEXT_LENGTH = 4000;
 const CODE = /^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[\p{L}\p{N}_ -]{1,40})?$/u;
@@ -32,6 +36,15 @@ function parseLookupType(type: string): GridColumnLookup | null | undefined {
   return { query, valueColumn, labelColumn, ...(descriptionColumn !== undefined ? { descriptionColumn } : {}) };
 }
 
+/** "calc:<sorgu>:<alan>" türünü okur; hesaplanan tür değilse undefined, bozuksa null. */
+function parseCalcType(type: string): GridColumnCalc | null | undefined {
+  if (!type.startsWith("calc:")) return undefined;
+  const parts = type.slice("calc:".length).split(":");
+  if (parts.length !== 2) return null;
+  const [query, field] = parts;
+  if (!LOOKUP_QUERY.test(query) || !LOOKUP_COLUMN.test(field)) return null;
+  return { query, field };
+}
 
 // erp-web gridState.ts'teki adlarla (parseGridColumn birebir kopyadır).
 const COLUMN_CODE = CODE;
@@ -52,9 +65,12 @@ export function parseGridColumn(text: string): { ok: true; column: GridColumn } 
   if (label.length < 1 || label.length > MAX_LABEL || label.trim() === "") return fail("etiket 1-60 karakter olmalı");
   const lookup = parseLookupType(type);
   if (lookup === null) return fail("seçim türü lookup:<sorgu>:<değer>:<etiket>[:<açıklama>] olmalı");
-  if (lookup === undefined && !INPUT_TYPES.includes(type)) return fail("tür text, number, date, checkbox ya da lookup olmalı");
-  const inputType: GridInputType = lookup ? "lookup" : type as GridInputType;
+  const calc = lookup ? undefined : parseCalcType(type);
+  if (calc === null) return fail("hesaplanan tür calc:<sorgu>:<alan> olmalı");
+  if (lookup === undefined && calc === undefined && !INPUT_TYPES.includes(type)) return fail("tür text, number, date, checkbox, lookup ya da calc olmalı");
+  const inputType: GridInputType = lookup ? "lookup" : calc ? "calc" : type as GridInputType;
   const rules: GridColumnRules = { required: false, unique: false, upperCase: false, readOnly: false };
+  if (calc && ruleText !== undefined) return fail("hesaplanan sütun kural almaz");
   if (ruleText !== undefined) {
     for (const token of ruleText.split(",")) {
       const colon = token.indexOf(":");
@@ -86,10 +102,10 @@ export function parseGridColumn(text: string): { ok: true; column: GridColumn } 
     }
   }
   if (rules.min !== undefined && rules.max !== undefined && rules.min > rules.max) return fail("min max'tan büyük olamaz");
-  return { ok: true, column: { code, label, inputType, rules, ...(lookup ? { lookup } : {}) } };
+  return { ok: true, column: { code, label, inputType, rules, ...(lookup ? { lookup } : {}), ...(calc ? { calc } : {}) } };
 }
 
-/** `gridColumns` özelliğini okur: metin olmayan ve geçersiz girdiler atlanır, en fazla 12 sütun. */
+/** `gridColumns` özelliğini okur: metin olmayan ve geçersiz girdiler atlanır, en fazla 16 sütun. */
 export function parseGridColumns(value: unknown): GridColumn[] {
   if (!Array.isArray(value)) return [];
   const columns: GridColumn[] = [];
@@ -114,6 +130,7 @@ export function plainNumber(value: number): string {
 /** Studio: sütunu kayıt biçimine yazar (parseGridColumn'un tersi); türe uymayan kurallar yazılmaz. */
 export function gridColumnText(column: GridColumn): string {
   const { rules, inputType } = column;
+  if (inputType === "calc") return `${column.code}|${column.label}|${lookupTypeText(column)}`;
   const tokens: string[] = [];
   if (rules.required) tokens.push("required");
   if (rules.unique) tokens.push("unique");
@@ -129,8 +146,9 @@ export function gridColumnText(column: GridColumn): string {
   return tokens.length > 0 ? `${base}|${tokens.join(",")}` : base;
 }
 
-/** Sütunun tür bölümü: seçim sütununda "lookup:sorgu:değer:etiket[:açıklama]", diğerlerinde tür adı. */
+/** Sütunun tür bölümü: seçim sütununda "lookup:sorgu:değer:etiket[:açıklama]", hesaplananda "calc:sorgu:alan", diğerlerinde tür adı. */
 export function lookupTypeText(column: GridColumn): string {
+  if (column.inputType === "calc") return ["calc", column.calc?.query ?? "", column.calc?.field ?? ""].join(":");
   if (column.inputType !== "lookup") return column.inputType;
   const lookup = column.lookup ?? { query: "", valueColumn: "", labelColumn: "" };
   return ["lookup", lookup.query, lookup.valueColumn, lookup.labelColumn, ...(lookup.descriptionColumn ? [lookup.descriptionColumn] : [])].join(":");

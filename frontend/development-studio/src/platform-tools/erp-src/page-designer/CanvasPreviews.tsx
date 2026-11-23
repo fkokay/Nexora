@@ -421,6 +421,8 @@ export function ActionBarPreview({ bound, moreCount, style, title, count, hidden
 /** Seçim hücresi ERP'deki gibi kapalı açılır kutudur: ilk satır ilk örnek seçeneği, ikinci satır ikinci örneği (yoksa boş) gösterir. */
 const sampleCell = (column: GridColumn, row: number, picks: string[] = []): ReactNode => column.inputType === "lookup"
   ? (column.rules.readOnly ? (picks[row] ?? "").split(" · ")[0] : <LookupPreview placeholder="Seçin" value={picks[row] ?? ""} options={[]} ready compact/>)
+  // Hesaplanan sütun önizleme sorgusundan gelir; tasarımda sonuç yoktur ("—").
+  : column.inputType === "calc" ? <span className="pd-query-muted" title={column.calc ? `${column.calc.query} · ${column.calc.field}` : undefined}>—</span>
   : column.inputType === "checkbox" ? (row === 0 ? "✓" : "")
   : column.inputType === "number" ? String(row + 1) : column.inputType === "date" ? formatCell(`2026-01-0${row + 1}`, "date") : row === 0 ? "Örnek" : "Yeni değer";
 const MATRIX_SAMPLE = [{ name: "Renk", values: "Kırmızı, Mavi" }, { name: "Beden", values: "S, M" }];

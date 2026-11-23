@@ -55,7 +55,11 @@ internal static partial class ErpOperationCatalog
         new("collectionDate", "Tahsilat tarihi"), new("paymentMethod", "Ödeme yöntemi"), new("reference", "Referans"),
         new("financialAccountId", "Kasa / banka hesabı kimliği"), new("financialAccountName", "Kasa / banka hesabı"),
         new("salesInvoiceId", "Fatura kimliği"), new("returnDate", "İade tarihi"),
-        new("transactionCount", "Hareket sayısı")
+        new("transactionCount", "Hareket sayısı"),
+        // Aşama B: belge kartları, önizleme (hesapla / onizle) ve kurlar (plasiyer ve vergi profili seçenekleri İK ve Satınalma işlemlerinden).
+        new("rowKey", "Satır anahtarı"), new("exchangeRate", "Kur"), new("taxableAmount", "Matrah"),
+        new("withholdingAmount", "Tevkifat tutarı"), new("rate", "Oran"), new("treatment", "Uygulama"), new("rateDate", "Kur tarihi"),
+        new("prospectCustomerName", "Teklif alıcısı"), new("revisesQuoteId", "Revize edilen teklif")
     ];
 
     /// <summary>
@@ -76,7 +80,9 @@ internal static partial class ErpOperationCatalog
         var quoteColumns = Columns<SalesQuoteView>()
             .Append(new ErpOperationColumn("salespersonName", Label("salespersonName"), "text"))
             .Append(new ErpOperationColumn("salesOrderId", Label("salesOrderId"), "guid"))
-            .Append(new ErpOperationColumn("salesOrderCode", Label("salesOrderCode"), "text")).ToArray();
+            .Append(new ErpOperationColumn("salesOrderCode", Label("salesOrderCode"), "text"))
+            // Aşama B: the unregistered recipient (null with a customer), for the quote edit card.
+            .Append(new ErpOperationColumn("prospectCustomerName", Label("prospectCustomerName"), "text")).ToArray();
         yield return Read(SalesModule, "satis.teklif.listele", "Satış tekliflerini listele", quotesRoute,
             [Query("q", "text"), Query("status", "text"), Query("dateFrom", "date"), Query("dateTo", "date"), .. paging],
             List(quoteSummary, "items") with { MetaPaths = pageTotals });
@@ -179,5 +185,7 @@ internal static partial class ErpOperationCatalog
             [id], None, null, null);
         yield return Read(SalesModule, "satis.fatura.ozelAlanTanimlari", "Satış faturası özel alan tanımları", invoicesRoute + "/custom-fields", [],
             List(Columns<SalesInvoiceCustomFieldDefinitionView>(), null));
+
+        foreach (var operation in BuildSalesCards()) yield return operation;
     }
 }

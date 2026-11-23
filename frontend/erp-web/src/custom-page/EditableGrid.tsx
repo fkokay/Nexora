@@ -27,7 +27,7 @@ function sourceCell(row: Record<string, unknown>, code: string): string {
  * üzere işaretlenir, "Geri al" ile geri alınır), yeni satırlar düzenlenir; `list`/`matrix` kiplerinde tüm satırlar düzenlenir.
  */
 export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
-  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {} }: {
+  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {}, calcText }: {
   id: string; title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
   state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string; dispatch: (action: GridAction) => void;
   errors: Record<string, Record<string, string>>; fixedRowLabel: string; addLabel: string; maxRows: number;
@@ -38,6 +38,8 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
   pickerLabel?: (column: GridColumn, value: string, draft?: GridDraft) => string;
   /** Sütun toplamları (`totals`): sütun kodu → toplam; boşsa alt satır çizilmez. */
   totals?: Record<string, number>;
+  /** Hesaplanan (`calc`) hücrenin metni (sunucu önizlemesinden; yoksa "—"). */
+  calcText?: (column: GridColumn, draft: GridDraft) => string;
 }) {
   const shown = mode === "matrix" ? MATRIX_DIMENSION_COLUMNS : columns;
   const blocked = addBlockedMessage(state, { mode, maxRows });
@@ -53,6 +55,7 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
     const label = `${column.label} (satır ${n})`;
     const inputId = `page-grid-${id}-${draft.key}-${column.code}`;
     const common = { id: inputId, "aria-label": label, "aria-invalid": message ? true : undefined, disabled, readOnly: column.rules.readOnly || undefined };
+    if (column.inputType === "calc") return <td key={column.code} className="num" data-calc={column.code} aria-label={label}>{calcText ? calcText(column, draft) : "—"}</td>;
     if (column.inputType === "lookup") {
       const value = typeof raw === "string" ? raw : "";
       if (column.rules.readOnly || !pickerFor) return <td key={column.code}>{(pickerLabel ? pickerLabel(column, value, draft) : value) || "—"}</td>;
@@ -95,7 +98,7 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
             const isRemoved = removed.has(key);
             return <tr key={`s-${key}`} className={isRemoved ? "is-removed" : undefined}>
               {shown.map((column) => {
-                const text = sourceCell(row, column.code);
+                const text = column.inputType === "calc" ? "" : sourceCell(row, column.code);
                 return <td key={column.code}>{(column.inputType === "lookup" && pickerLabel && text ? pickerLabel(column, text) : text) || "—"}</td>;
               })}
               <td>{isRemoved && <span className="tenant-page-tag tone-danger">Silinecek</span>}</td>

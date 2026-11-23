@@ -616,8 +616,9 @@ public sealed class ErpOperationCatalogTests
             .Where(x => x.p.Type is "list" or "map").ToArray();
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
         // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
-        // finishedGoodsTracking (ManufacturingSystemPagesTests).
-        Assert.Equal(12, collections.Length);
+        // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
+        // (SalesCardOperationsTests).
+        Assert.Equal(31, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);

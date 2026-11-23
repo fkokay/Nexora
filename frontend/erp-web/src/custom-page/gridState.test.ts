@@ -48,10 +48,10 @@ describe('grid columns', () => {
     }
   });
 
-  it('parseGridColumns drops invalid and caps at 12', () => {
-    const texts = ['x|X|money', ...Array.from({ length: 14 }, (_, index) => `c${index}|C${index}|text`), 42];
+  it('parseGridColumns drops invalid and caps at 16', () => {
+    const texts = ['x|X|money', ...Array.from({ length: 18 }, (_, index) => `c${index}|C${index}|text`), 42];
     const parsed = parseGridColumns(texts);
-    expect(parsed).toHaveLength(12);
+    expect(parsed).toHaveLength(16);
     expect(parsed[0].code).toBe('c0');
     expect(parseGridColumns('c|C|text')).toEqual([]);
   });

@@ -5,6 +5,8 @@ import SqlQueryEditor, { type SqlSchemaTable } from "./SqlQueryEditor";
 import { bindingPath } from "./pageBindings";
 import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVIEW_BLOCKED, collectionBinding, collectionCandidates, collectionRoot, findOperation, isCollectionType, mergedParameters, type CollectionKind, type ErpCatalog, type ErpOperation, type ErpOperationParameter } from "./erpOperations";
 import { FixedOperationValues } from "./FixedOperationValues";
+import { RunOnFields } from "./RunOnFields";
+import { runOnSummary, type QueryRunOn } from "./queryRunOn";
 
 /** `list`/`map` yalnız ERP işlemi parametrelerinde (katalogdan) gelir; SQL parametre türü seçicisinde hiç sunulmaz. */
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "datetime" | "bool" | "guid" | "list" | "map";
@@ -14,14 +16,16 @@ export type QueryKind = "read" | "insert" | "update" | "delete";
  * Sayfa sorgusu: ya SQL (`sql`) ya da ERP işlemi (`operation`). Düzenleyicide `operation` anahtarı varsa (boş da olsa)
  * sorgu ERP işlemi modundadır; SQL metni mod değişiminde kaybolmasın diye durumda kalır, kayıtta atılır.
  */
-export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: "load" | "manual" };
+export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: QueryRunOn;
+  /** Yalnız bileşen listeli `runOn` ile: yeniden çalışma gecikmesi (ms, 150–3000; boşsa 400). */
+  runDebounceMs?: number };
 export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; meta?: Record<string, unknown> };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
 export const isWriteKind = (kind: QueryKind) => kind !== "read";
 // schemaVersion 2 sınırı (sunucudaki MaxQueries); Studio her zaman v2 kaydeder.
-export const MAX_QUERIES = 30;
+export const MAX_QUERIES = 40;
 export { MAX_QUERY_PARAMETERS } from "./queryDraft";
 import { MAX_QUERY_PARAMETERS } from "./queryDraft";
 export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
@@ -36,7 +40,6 @@ const collectionTypeLabels: Record<CollectionKind, string> = { list: "Liste", ma
 export const parameterTypeLabel = (type: string) => isCollectionType(type) ? collectionTypeLabels[type] : parameterTypes.find(([value]) => value === type)?.[1] ?? type;
 const collectionOptionSuffix: Record<CollectionKind, string> = { list: "Düzenlenebilir tablo", map: "Özel alanlar" };
 const collectionEmptyHint: Record<CollectionKind, string> = { list: "Önce sayfaya bir düzenlenebilir tablo ekleyin.", map: "Önce sayfaya bir özel alanlar bloğu ekleyin." };
-const runOnLabels: Record<PageQuery["runOn"], string> = { load: "Açılışta + değişince", manual: "Elle" };
 
 /** Sorgu/bileşen adı kuralları (sunucudaki şemayla aynı); sorun yoksa null. */
 export function nameProblem(value: string, taken: string[]): string | null {
@@ -185,7 +188,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
     : !operation ? `ERP işlemi bulunamadı: ${query.operation}` : operation.deprecated ? `ERP işlemi artık kullanılamıyor: ${query.operation}` : null;
   const pickOperation = (picked: ErpOperation) => {
     onUpdate({
-      operation: picked.name, kind: picked.pageKind, runOn: picked.kind === "read" ? "load" : "manual",
+      operation: picked.name, kind: picked.pageKind, runOn: picked.kind === "read" ? "load" : "manual", runDebounceMs: undefined,
       parameters: picked.parameters.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType })),
     });
   };
@@ -195,7 +198,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
     // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
     const sqlKind: QueryKind = !allowedKinds || allowedKinds.includes("read") ? "read" : allowedKinds[0];
     onUpdate(toErp ? { operation: "", parameters: [] }
-      : { operation: undefined, sql: query.sql ?? (sqlKind === "read" ? "SELECT 1 AS Deger" : ""), kind: sqlKind, runOn: sqlKind === "read" ? "load" : "manual", parameters: [] });
+      : { operation: undefined, sql: query.sql ?? (sqlKind === "read" ? "SELECT 1 AS Deger" : ""), kind: sqlKind, runOn: sqlKind === "read" ? "load" : "manual", runDebounceMs: undefined, parameters: [] });
   };
   // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
   const ownSuggestions = suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${query.name.toLowerCase()}.`));
@@ -213,14 +216,13 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
           <label className="pd-field">Ad<input className="pd-query-name" value={query.name} maxLength={64} spellCheck={false}
             onChange={(event) => onUpdate({ name: event.target.value }, `query:${query.id}:name`)}/></label>
           {write ? <div className="pd-field">Çalışma<small className="pd-query-manual">Yalnız düğmeyle çalışır.</small></div>
-            : <label className="pd-field">Çalışma<select value={query.runOn} onChange={(event) => onUpdate({ runOn: event.target.value as PageQuery["runOn"] })}>
-              <option value="load">{runOnLabels.load}</option><option value="manual">{runOnLabels.manual}</option>
-            </select></label>}
+            : <RunOnFields part="mode" query={query} components={components} onUpdate={onUpdate}/>}
         </div>
+        {!write && <RunOnFields part="names" query={query} components={components} onUpdate={onUpdate}/>}
         {erpMode ? <div className="pd-field">Tür<small>{queryKindLabels[query.kind]} · seçilen işlemden gelir.</small></div>
           : <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
             {(Object.keys(queryKindLabels) as QueryKind[]).filter((kind) => !allowedKinds || allowedKinds.includes(kind)).map((kind) => <button type="button" key={kind} aria-pressed={query.kind === kind} className={`${query.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
-              onClick={() => { if (kind !== query.kind) onUpdate(isWriteKind(kind) ? { kind, runOn: "manual" } : { kind }); }}>{queryKindLabels[kind]}</button>)}
+              onClick={() => { if (kind !== query.kind) onUpdate(isWriteKind(kind) ? { kind, runOn: "manual", runDebounceMs: undefined } : { kind }); }}>{queryKindLabels[kind]}</button>)}
           </div></div>}
         {nameProblem(query.name, takenNames) && <small className="pd-query-warning">{nameProblem(query.name, takenNames)}</small>}
       </fieldset>
@@ -360,7 +362,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
         return <li key={query.id}>
           <button type="button" className={`pd-query-card ${query.id === selectedId ? "is-selected" : ""}`} aria-pressed={query.id === selectedId} onClick={() => onSelect(query.id)}>
             <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className={`pd-query-kind${isWriteKind(query.kind) ? " is-write" : ""}`}>{queryKindLabels[query.kind]}</span></span>
-            <small>{isOperationQuery(query) ? "ERP işlemi · " : ""}{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnLabels[query.runOn]}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
+            <small>{isOperationQuery(query) ? "ERP işlemi · " : ""}{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnSummary(query.runOn)}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
           </button>
         </li>;
       })}</ul>}

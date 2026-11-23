@@ -152,7 +152,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await select('FATİH KOKAY', C1);
     fireEvent.click(await menuItem(/Yeni sipariş/));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0]).toEqual({ page: 'sales-order-create', params: { customerId: C1 }, replace: false, from: KEY });
+    // "Yeni sipariş" sipariş kartının zorunlu tarihini de verir (orderDate = bugün, yerel tarih).
+    expect(navigations[0]).toEqual({ page: 'sales-order-create', params: { customerId: C1, orderDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }, replace: false, from: KEY });
     fireEvent.click(await menuItem(/^Satış faturaları/));
     await waitFor(() => expect(navigations).toHaveLength(2), T);
     expect(navigations[1]).toEqual({ page: 'sales-invoices', params: { customerId: C1 }, replace: false, from: KEY });

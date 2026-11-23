@@ -3,12 +3,18 @@ import { api } from "../erpApi";
 import { bindingPath, coerceParameter, queryOrder, resolvePath, type PageScope } from "./pageBindings";
 import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, missingRequiredValue, sourceRecordError, staleSourceError, type ErpOperation, type OperationRequest } from "./erpOperations";
 import { SOURCE_LOADING } from "./recordMessages";
+import { readPreviewTrigger } from "./previewQueries";
 
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
   parameters: { name: string; binding: string; type: string }[];
   /** SQL yerine çağrılacak ERP işlemi (`modul.nesne.eylem`); yol ve yöntem yalnız sunucu kataloğundan gelir. */
   operation?: string;
+  /**
+   * Önizleme sorgusu (`runOn: ["<bileşen>", …]`): sayfa sorgusu olarak çalışmaz; izlenen bileşenler ya da parametreleri değişince
+   * gecikmeli (`debounceMs`) önizleme olarak çalışır (bkz. previewQueries.ts). `runOn` "manual" sayılır.
+   */
+  preview?: { watch: string[]; debounceMs: number };
 };
 export type QueryColumn = { code: string; label: string; dataType?: string };
 export type QueryState = {
@@ -45,8 +51,9 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
     const parameters = Array.isArray(item.parameters) ? (item.parameters as Record<string, unknown>[])
       .filter((p) => p && typeof p.name === "string" && typeof p.binding === "string" && typeof p.type === "string")
       .map((p) => ({ name: p.name as string, binding: p.binding as string, type: p.type as string })) : [];
-    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" ? "manual" : "load", kind, parameters,
-      ...(typeof item.operation === "string" ? { operation: item.operation } : {}) });
+    const preview = readPreviewTrigger(item);
+    result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" || preview ? "manual" : "load", kind, parameters,
+      ...(typeof item.operation === "string" ? { operation: item.operation } : {}), ...(preview ? { preview } : {}) });
   }
   return result;
 }

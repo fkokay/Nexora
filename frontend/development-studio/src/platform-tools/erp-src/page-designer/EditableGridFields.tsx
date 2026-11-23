@@ -5,8 +5,10 @@ import { sanitizeSafeValue } from "./DesignLanguageFields";
 import type { ErpOperationParameter } from "./erpOperations";
 import {
   COLUMN_STATIC_OPTION, GRID_COLUMN_TYPES, LOOKUP_COLUMN, MAX_COLUMN_STATIC_OPTIONS, MAX_GRID_COLUMNS, MAX_GRID_LABEL, MAX_GRID_TEXT_LENGTH, columnEntries, gridColumnRoot, gridColumnText,
-  gridTotalCodes, parseGridColumn, parseGridColumns, renamedColumnEntries, renamedTotals, type GridColumn, type GridColumnLookup, type GridColumnType,
+  gridTotalCodes, parseGridColumn, parseGridColumns, renamedColumnEntries, renamedTotals, type GridColumn, type GridColumnCalc, type GridColumnLookup, type GridColumnType,
 } from "./gridColumns";
+import { GridRowSourceFields, LookupFillFields } from "./GridRowSourceFields";
+import { editableColumns, lookupFillEntries, lookupFillText, renamedRowSources, type LookupFillEntry } from "./gridRowSources";
 
 export type GridMode = "stage" | "list" | "matrix";
 type Patch = Record<string, unknown>;
@@ -17,9 +19,10 @@ const gridModeHelp: Record<GridMode, string> = {
   list: "Tüm satırlar düzenlenebilir; satırlar bir liste parametresine {{ad.satirlar}} olarak gönderilir.",
   matrix: "Her satır bir özellik ve virgülle ayrılmış değerleridir; tüm birleşimler varyant olarak oluşturulur (en fazla 200).",
 };
-const typeLabels: Record<GridColumnType, string> = { text: "Metin", number: "Sayı", date: "Tarih", checkbox: "Onay kutusu", lookup: "Seçim (sorgudan)" };
+const typeLabels: Record<GridColumnType, string> = { text: "Metin", number: "Sayı", date: "Tarih", checkbox: "Onay kutusu", lookup: "Seçim (sorgudan)", calc: "Hesaplanan (önizlemeden)" };
 export const DEFAULT_MAX_ROWS = 50;
-export const MAX_GRID_ROWS = 200;
+/** Sunucu sınırı 500 (düzenleme kartlarında en az sunucunun kalem sınırı kadar, ör. satışta 200). */
+export const MAX_GRID_ROWS = 500;
 /** En az satır (`minRows`): 0–100; tabloyu bağlayan kayıt daha az satırla engellenir (sunucu kuralı). */
 export const MAX_MIN_ROWS = 100;
 const MAX_ADD_LABEL = 40;
@@ -28,9 +31,10 @@ const MAP_KEY = /^[\p{L}\p{N}_ -]{1,40}$/u;
 
 /** Kipin yasakladığı özellikler: kip değişince silinir (sunucu kuralı). */
 const forbiddenByMode: Record<GridMode, string[]> = {
-  stage: ["matrixCode", "matrixName"],
+  stage: ["matrixCode", "matrixName", "initialRowsQuery", "initialRowsMap", "skipRowsWhenEmpty"],
   list: ["sourceQuery", "rowKey", "matrixCode", "matrixName"],
-  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions", "totals"],
+  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions", "totals",
+    "initialRowsQuery", "initialRowsMap", "skipRowsWhenEmpty", "lookupFill"],
 };
 
 /** Katalog veri türünden sütun türü. */
@@ -45,11 +49,12 @@ const isValidCode = (code: string) => parseGridColumn(`${code}|x|text`).ok;
 
 /** Türe uymayan kuralları atar (tür değişince); seçim kaynağı yalnız seçim sütununda kalır. */
 function normalizeRules(column: GridColumn): GridColumn {
-  const rules = { ...column.rules };
+  const rules = column.inputType === "calc" ? { required: false, unique: false, upperCase: false, readOnly: false } : { ...column.rules };
   if (column.inputType !== "text") { rules.upperCase = false; delete rules.maxLength; }
   if (column.inputType !== "number") { delete rules.min; delete rules.max; delete rules.step; }
   const next: GridColumn = { ...column, rules };
   if (next.inputType !== "lookup") delete next.lookup;
+  if (next.inputType !== "calc") delete next.calc;
   return next;
 }
 
@@ -65,6 +70,45 @@ function defaultLookup(query: string, columns: QueryColumn[]): GridColumnLookup 
   const labelColumn = has("code") ? "code" : has("name") ? "name" : codes.find((code) => code !== valueColumn) ?? valueColumn;
   const descriptionColumn = labelColumn === "code" && has("name") ? "name" : undefined;
   return { query, valueColumn, labelColumn, ...(descriptionColumn ? { descriptionColumn } : {}) };
+}
+
+/** Hesaplanan sütunun varsayılan alanı: "total", yoksa sorgunun ilk sütunu. */
+function defaultCalc(query: string, columns: QueryColumn[]): GridColumnCalc {
+  const codes = columns.filter(pickable).map((column) => column.code);
+  return { query, field: codes.includes("total") ? "total" : codes[0] ?? "total" };
+}
+
+/**
+ * Hesaplanan sütunun kaynağı: önizleme sorgusu ve sonuç satırının alanı. Değer, sorgunun sonuç satırlarından `rowKey` alanı bu
+ * tablonun satır anahtarına eşit olandan gelir (salt okunur, sayı biçimli; sonuç yoksa ya da eskiyse "—"). Kayda gönderilmez.
+ */
+function CalcColumnFields({ column, index, queries, columnsOf, disabled, onChange }: {
+  column: GridColumn; index: number; queries: { id: string; name: string }[]; columnsOf: (queryId: string) => QueryColumn[]; disabled?: boolean;
+  onChange: (calc: GridColumnCalc) => void;
+}) {
+  const calc = column.calc ?? { query: "", field: "" };
+  const columns = calc.query ? columnsOf(calc.query).filter(pickable) : [];
+  const knownQuery = queries.some((query) => query.id === calc.query);
+  return <>
+    <label className="pd-field">Önizleme sorgusu<small>Satırlarını <code>rowKey</code> alanıyla dönen okuma sorgusu (ör. tutar hesaplama); sorgunun liste parametresindeki <code>rowKey</code> alanı satır anahtarıyla doldurulur. Sorgunun çalışmasını “Bileşen değişince” yapın.</small>
+      <select value={calc.query} disabled={disabled} aria-label={`Sütun ${index + 1} önizleme sorgusu`}
+        onChange={(event) => { if (event.target.value) onChange(defaultCalc(event.target.value, columnsOf(event.target.value))); }}>
+        {!knownQuery && <option value={calc.query}>{calc.query || "Sorgu seçin"}</option>}
+        {queries.map((query) => <option key={query.id} value={query.id}>{query.name}</option>)}
+      </select>
+      {!knownQuery && <small className="pd-query-warning">{`Hesaplanan sütunun sorgusu sayfada bir okuma sorgusu olmalıdır: ${calc.query}`}</small>}
+    </label>
+    <label className="pd-field">Sonuç alanı
+      {columns.length > 0
+        ? <select value={calc.field} disabled={disabled} aria-label={`Sütun ${index + 1} sonuç alanı`} onChange={(event) => onChange({ ...calc, field: event.target.value })}>
+          {columns.map((item) => <option key={item.code} value={item.code}>{item.label || item.code}</option>)}
+          {calc.field && !columns.some((item) => item.code === calc.field) && <option value={calc.field}>{calc.field}</option>}
+        </select>
+        : <input key={`calc:${calc.field}`} defaultValue={calc.field} maxLength={128} spellCheck={false} placeholder="total" disabled={disabled} aria-label={`Sütun ${index + 1} sonuç alanı`}
+          onBlur={(event) => { const value = event.target.value.trim(); if (value === calc.field || !LOOKUP_COLUMN.test(value)) { event.target.value = calc.field; return; } onChange({ ...calc, field: value }); }}/>}
+      <small>Salt okunur, sayı biçimli; önizleme yoksa, eskiyse ya da hata verdiyse “—”. Kural almaz, kayda gönderilmez.</small>
+    </label>
+  </>;
 }
 
 function NumberRule({ label, value, disabled, onChange, min, integer }: { label: string; value: number | undefined; disabled?: boolean; onChange: (value: number | undefined) => void; min?: number; integer?: boolean }) {
@@ -136,10 +180,13 @@ function ColumnStaticOptions({ value, disabled, onChange, index }: { value: stri
 }
 
 /** Sütun satırı: kod, etiket, tür ve kurallar; seçim sütununda kaynak, seçenek koşulu ve sabit seçenekler. */
-function ColumnEditor({ column, index, options, takenCodes, disabled, onChange, onRemove, lookupQueries, columnsOf, pageNames, suggestions, optionsWhen, staticOptions, onOptionsWhen, onStaticOptions }: {
+function ColumnEditor({ column, index, options, takenCodes, disabled, onChange, onRemove, lookupQueries, columnsOf, pageNames, suggestions, optionsWhen, staticOptions, onOptionsWhen, onStaticOptions,
+  fill, fillTargets, onFill }: {
   column: GridColumn; index: number; options: CodeOption[]; takenCodes: string[]; disabled?: boolean; onChange: (column: GridColumn) => void; onRemove: () => void;
   lookupQueries: { id: string; name: string }[]; columnsOf: (queryId: string) => QueryColumn[]; pageNames: string[]; suggestions: BindingSuggestion[];
   optionsWhen: string | undefined; staticOptions: string[]; onOptionsWhen: (next: string | undefined) => void; onStaticOptions: (next: string[]) => void;
+  /** Seçim sütununun doldurma girdileri (`lookupFill`) ve doldurulabilecek diğer sütunlar. */
+  fill: LookupFillEntry[]; fillTargets: GridColumn[]; onFill: (next: LookupFillEntry[]) => void;
 }) {
   const root = gridColumnRoot(column.code);
   const mapOption = column.code.includes(".") ? options.find((option) => option.map && option.code === root) : undefined;
@@ -181,12 +228,13 @@ function ColumnEditor({ column, index, options, takenCodes, disabled, onChange, 
         onBlur={(event) => { const label = cleanLabel(event.target.value); if (label && label !== column.label) set({ label }); else event.target.value = column.label; }}/></label>
       <label className="pd-field">Tür<select value={column.inputType} disabled={!!mapOption} onChange={(event) => {
         const inputType = event.target.value as GridColumnType;
-        if (inputType !== "lookup") { set({ inputType }); return; }
         const query = lookupQueries[0];
+        if (inputType === "calc") { if (query) set({ inputType, calc: column.calc ?? defaultCalc(query.id, columnsOf(query.id)) }); return; }
+        if (inputType !== "lookup") { set({ inputType }); return; }
         if (query) set({ inputType, lookup: column.lookup ?? defaultLookup(query.id, columnsOf(query.id)) });
       }}>
-        {GRID_COLUMN_TYPES.map((type) => <option key={type} value={type} disabled={type === "lookup" && lookupQueries.length === 0 && column.inputType !== "lookup"}
-          title={type === "lookup" && lookupQueries.length === 0 ? "Önce bir okuma sorgusu ekleyin." : undefined}>{typeLabels[type]}</option>)}
+        {GRID_COLUMN_TYPES.map((type) => <option key={type} value={type} disabled={(type === "lookup" || type === "calc") && lookupQueries.length === 0 && column.inputType !== type}
+          title={(type === "lookup" || type === "calc") && lookupQueries.length === 0 ? "Önce bir okuma sorgusu ekleyin." : undefined}>{typeLabels[type]}</option>)}
       </select></label>
     </div>
     {column.inputType === "lookup" && <>
@@ -196,13 +244,17 @@ function ColumnEditor({ column, index, options, takenCodes, disabled, onChange, 
           paths={optionPaths} onChange={onOptionsWhen}/>
       </div>
       <ColumnStaticOptions value={staticOptions} index={index} disabled={disabled} onChange={onStaticOptions}/>
+      <LookupFillFields lookup={column} entries={fill} targets={fillTargets} optionColumns={column.lookup ? columnsOf(column.lookup.query).filter(pickable) : []}
+        disabled={disabled} onChange={onFill}/>
     </>}
-    <div className="pd-field-row">
+    {column.inputType === "calc" && <CalcColumnFields column={column} index={index} queries={lookupQueries} columnsOf={columnsOf} disabled={disabled}
+      onChange={(calc) => onChange({ ...column, calc })}/>}
+    {column.inputType !== "calc" && <div className="pd-field-row">
       <label className="pd-check"><input type="checkbox" checked={column.rules.required} onChange={(event) => setRule({ required: event.target.checked })}/>Zorunlu</label>
       <label className="pd-check"><input type="checkbox" checked={column.rules.unique} onChange={(event) => setRule({ unique: event.target.checked })}/>Benzersiz</label>
       {column.inputType === "text" && <label className="pd-check"><input type="checkbox" checked={column.rules.upperCase} onChange={(event) => setRule({ upperCase: event.target.checked })}/>Büyük harf</label>}
       <label className="pd-check"><input type="checkbox" checked={column.rules.readOnly} onChange={(event) => setRule({ readOnly: event.target.checked })}/>Salt okunur</label>
-    </div>
+    </div>}
     {column.inputType === "text" && <NumberRule label="En fazla karakter" value={column.rules.maxLength} min={1} integer
       onChange={(value) => setRule({ maxLength: value === undefined ? undefined : Math.max(1, Math.min(MAX_GRID_TEXT_LENGTH, value)) })}/>}
     {column.inputType === "number" && <div className="pd-field-row">
@@ -235,7 +287,8 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
   const items = listParameter?.spec.items ?? [];
   const options: CodeOption[] = mode === "stage"
     ? sourceColumns.filter((column) => isValidCode(column.code)).map((column) => ({ code: column.code, label: column.label || column.code, type: typeFor(column.dataType), map: false }))
-    : items.map((item) => ({ code: item.code, label: item.label || item.code, type: typeFor(item.dataType), map: item.dataType === "map" }));
+    // Liste parametresinin `rowKey` alanını çalışma zamanı satır anahtarıyla doldurur (önizleme eşlemesi); sütun olarak sunulmaz.
+    : items.filter((item) => item.code !== "rowKey").map((item) => ({ code: item.code, label: item.label || item.code, type: typeFor(item.dataType), map: item.dataType === "map" }));
   const text = (key: string) => typeof props[key] === "string" ? props[key] as string : "";
   const writeColumns = (next: string[], extra: Patch = {}) => onPatch({ gridColumns: next.length > 0 ? next.slice(0, MAX_GRID_COLUMNS) : undefined, ...extra });
   const entryList = (key: "columnOptionsWhen" | "columnStaticOptions") => Array.isArray(props[key]) ? (props[key] as unknown[]).filter((item): item is string => typeof item === "string") : [];
@@ -260,7 +313,8 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
     writeColumns([...rawColumns, gridColumnText(column)]);
   };
   const missingItems = mode === "list" && listParameter ? rawColumns.map((raw) => parseGridColumn(raw)).flatMap((parsed) => {
-    if (!parsed.ok) return [];
+    // Hesaplanan sütun kayda gitmez; liste parametresinde alanı olmaz.
+    if (!parsed.ok || parsed.column.inputType === "calc") return [];
     const root = gridColumnRoot(parsed.column.code);
     const item = items.find((entry) => entry.code === root);
     return !item || (parsed.column.code.includes(".") && item.dataType !== "map") ? [parsed.column.code] : [];
@@ -300,7 +354,8 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
       <div className="pd-tabs-editor">
         {rawColumns.map((raw, index) => {
           const parsed = parseGridColumn(raw);
-          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok ? { ...renamedColumnEntries(props, parsed.column.code, null), ...renamedTotals(props, parsed.column.code, null) } : {});
+          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok ? { ...renamedColumnEntries(props, parsed.column.code, null), ...renamedTotals(props, parsed.column.code, null),
+            ...renamedRowSources(props, parsed.column.code, null, false) } : {});
           if (!parsed.ok) return <fieldset className="pd-tabs-editor-tab" key={index} disabled={disabled}>
             <div className="pd-tabs-editor-head"><code>{raw}</code><button type="button" className="pd-icon-button danger" aria-label={`Sütun ${index + 1} sil`} onClick={remove}><Trash2 size={12}/></button></div>
             <small className="pd-query-warning">{parsed.error}</small>
@@ -313,13 +368,22 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
             staticOptions={columnEntries(props.columnStaticOptions).filter((entry) => entry.code === code).map((entry) => entry.rest)}
             onOptionsWhen={(next) => setEntries("columnOptionsWhen", code, next ? [next] : [])}
             onStaticOptions={(next) => setEntries("columnStaticOptions", code, next)}
+            fill={lookupFillEntries(props.lookupFill).filter((entry) => entry.lookup === code)}
+            fillTargets={editableColumns(parseGridColumns(props.gridColumns)).filter((item) => item.code !== code)}
+            onFill={(next) => {
+              const others = lookupFillEntries(props.lookupFill).filter((entry) => entry.lookup !== code).map(lookupFillText);
+              const list = [...others, ...next.map(lookupFillText)];
+              onPatch({ lookupFill: list.length > 0 ? list : undefined });
+            }}
             onChange={(column) => {
               // Kod değişince ya da sütun seçim türünden çıkınca ızgaranın sütun ayarları da taşınır / kalkar.
               const entries = column.code !== code ? renamedColumnEntries(props, code, column.inputType === "lookup" ? column.code : null)
                 : column.inputType !== "lookup" ? renamedColumnEntries(props, code, null) : {};
               // Alt toplam yalnız sayı sütununda kalır; kod değişince taşınır.
               const totals = renamedTotals(props, code, column.inputType === "number" ? column.code : null);
-              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), { ...entries, ...totals });
+              // Başlangıç eşlemi, boş satır atlama ve doldurma: kod değişince taşınır; hesaplanan sütuna dönünce kalkar (doldurma kaynağı yalnız seçim sütunu).
+              const sources = renamedRowSources(props, code, column.inputType === "calc" ? null : column.code, column.inputType === "lookup");
+              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), { ...entries, ...totals, ...sources });
             }}/>;
         })}
       </div>
@@ -327,6 +391,7 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
         title={rawColumns.length >= MAX_GRID_COLUMNS ? `En fazla ${MAX_GRID_COLUMNS} sütun olabilir.` : undefined}><Plus size={13}/>Sütun ekle</button>
     </div>}
     {mode !== "matrix" && <GridTotalsField props={props} disabled={disabled} onPatch={onPatch}/>}
+    {mode !== "matrix" && <GridRowSourceFields mode={mode} props={props} readQueries={readQueries} columnsOf={columnsOf} disabled={disabled} onPatch={onPatch}/>}
     {mode === "matrix" && <>
       {matrixMissing.length > 0 && <small className="pd-query-warning">{`Varyant matrisi için '${listParameter?.spec.name ?? ""}' parametresinde code, name ve attributes alanları olmalıdır.`}</small>}
       <label className="pd-field">Varyant kodu öneki<small>Ör. <code>{"{{kod.value}}"}</code>; değerlerle birleşerek varyant kodunu oluşturur.</small>

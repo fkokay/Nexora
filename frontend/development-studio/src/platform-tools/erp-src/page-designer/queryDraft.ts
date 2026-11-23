@@ -61,6 +61,7 @@ export function syncParameters(sql: string, existing: PageQueryParameter[], reme
 export function applyQueryPatch(query: PageQuery, patch: Partial<PageQuery>, memory: Map<string, PageQueryParameter>, defaultBinding: (name: string) => string): PageQuery {
   const next: PageQuery = { ...query, ...patch };
   if ("operation" in patch && patch.operation === undefined) delete next.operation;
+  if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
   if (typeof next.operation === "string") return next;
   if (typeof query.operation !== "string") for (const parameter of query.parameters) memory.set(parameter.name.toLowerCase(), parameter);
   if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => memory.get(name.toLowerCase()), defaultBinding);

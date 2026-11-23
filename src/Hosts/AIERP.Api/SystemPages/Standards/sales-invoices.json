@@ -1,10 +1,10 @@
 {
   "screenKey": "sales-invoices", "title": "Satış Faturaları",
   "description": "Kesilen satış faturalarını ve cari borç kayıtlarını izleyin.", "module": "Satış & cari",
-  "version": 1, "stage": "preview",
+  "version": 2, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:iptalMenu", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:faturaSil", "query:faturalar"]},
-    "component:yeniDugmesi": {"since": 1, "label": "Yeni fatura komutu (eski kart)"},
+    "component:yeniDugmesi": {"since": 1, "label": "Yeni fatura komutu (eski kart; yeni kart G-SI6 düzeltmesine kadar önizlemede)"},
     "component:acDugmesi": {"since": 1, "label": "Faturayı aç komutu", "requires": ["component:faturaPenceresi", "component:liste"]},
     "component:iptalMenu": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:fatura", "query:faturaIptal", "query:faturalar"]},
     "component:kesilenGostergesi": {"since": 1, "label": "Kesilen göstergesi (bu sayfa)", "requires": ["query:faturalar"]},
@@ -65,6 +65,7 @@
           "actionType": "erpPage",
           "pageKey": "sales-invoice-create",
           "target": "newTab",
+          "legacyScreen": true,
           "params": ["customerId={{sayfa.parametre.customerId}}"] } },
       { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
         "props": {
