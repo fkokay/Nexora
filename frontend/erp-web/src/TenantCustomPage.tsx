@@ -386,7 +386,8 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
   const number = (key: string, fallback: number, max: number) => bounded(props[key], fallback, 0, max);
   const color = (key: string) => typeof props[key] === "string" && /^#[\da-f]{6}$/i.test(props[key] as string) ? props[key] as string : undefined;
   return {
-    gridColumn: `span ${Math.max(1, Math.min(12, span))}`,
+    // Süzgeç alanı her zaman yeni bir satırda başlar: üstündeki göstergeler satırı doldurmasa da yanlarına kaymaz.
+    gridColumn: `${type === "filterBar" ? "1 / " : ""}span ${Math.max(1, Math.min(12, span))}`,
     margin: `${number("margin", 0, 64)}px`,
     padding: `${number("padding", ["card", "section", "dataTable", "metric", "form", "alert", "list", "progress", "formCard", "facetPanel", "contextPanel", "tabs", "editableGrid", "customFieldsBlock", "recordHeader"].includes(type) ? DEFAULT_BLOCK_PADDING : 0, 64)}px`,
     backgroundColor: color("backgroundColor"),
@@ -404,7 +405,7 @@ const visualStyle = (type: string, props: Record<string, unknown>): CSSPropertie
 const withConditionalWidth = (style: CSSProperties, raw: unknown, scope: PageScope | undefined): CSSProperties => {
   if (!scope || typeof raw !== "string") return style;
   const match = /^([1-9]|1[0-2])=([\s\S]+)$/.exec(raw);
-  return match && conditionHolds(match[2], scope, false) ? { ...style, gridColumn: `span ${match[1]}` } : style;
+  return match && conditionHolds(match[2], scope, false) ? { ...style, gridColumn: `${String(style.gridColumn ?? "").startsWith("1 / ") ? "1 / " : ""}span ${match[1]}` } : style;
 };
 
 /** `valueLabels: ["kolon:değer=Etiket"]`: kolon başına ham değerin gösterilen etiketi (ör. "stockItem.trackingMode:None=Yok"). */

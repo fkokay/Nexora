@@ -311,7 +311,8 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(toolbar.contains(input('suzgec'))).toBe(true);
     expect(within(toolbar).getByLabelText('Depo').tagName).toBe('SELECT');
     expect(within(toolbar).getByLabelText('Pasif kartları da göster')).toBeTruthy();
-    expect(toolbar.style.gridColumn).toBe('span 8');
+    // Süzgeç alanı her zaman yeni bir satırda başlar.
+    expect(toolbar.style.gridColumn).toBe('1 / span 8');
     const side = input('detayPaneli').closest('.tenant-page-form-card') as HTMLElement;
     expect(side.classList.contains('is-inline')).toBe(true);
     expect(side.querySelector('h3')).toBeNull();
