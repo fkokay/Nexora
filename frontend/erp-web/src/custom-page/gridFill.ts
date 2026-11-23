@@ -87,14 +87,16 @@ export function withFormulaColumns(columns: GridColumn[], engine: GridEngine): G
   return columns.map((column) => (codes.has(column.code) ? { ...column, rules: { ...column.rules, readOnly: true } } : column));
 }
 
-/** Satırdaki değer: önce düz "a.b" anahtarı, sonra iç içe nesne. */
+/** Satırdaki değer: önce düz "a.b" anahtarı (düzleştirilmiş alan), sonra iç içe nesne yolu (her derinlikte). */
 function rowValue(row: Record<string, unknown>, code: string): unknown {
   if (Object.prototype.hasOwnProperty.call(row, code)) return row[code];
-  const dot = code.indexOf(".");
-  if (dot < 0) return undefined;
-  const nested = row[code.slice(0, dot)];
-  const key = code.slice(dot + 1);
-  return isRecord(nested) && Object.prototype.hasOwnProperty.call(nested, key) ? nested[key] : undefined;
+  if (!code.includes(".")) return undefined;
+  let current: unknown = row;
+  for (const part of code.split(".")) {
+    if (UNSAFE_KEYS.has(part) || !isRecord(current) || !Object.prototype.hasOwnProperty.call(current, part)) return undefined;
+    current = current[part];
+  }
+  return current;
 }
 
 /**
@@ -181,12 +183,16 @@ export function applyFormulas(engine: GridEngine, draft: GridDraft): GridDraft {
   return cells ? { ...draft, cells } : draft;
 }
 
-/** Doldurma anahtarı ve kaynak satırlarından tablo durumu: kaynak satır başına bir düzenlenebilir taslak. */
+/**
+ * Doldurma anahtarı ve kaynak satırlarından tablo durumu: kaynak satır başına bir düzenlenebilir taslak. Doldurulan hücreler
+ * `filled` olarak işaretlenir: kullanıcı değiştirmedikçe seçimle doldurma (`lookupFills`) onları yenileyebilir.
+ */
 export function filledGridState(columns: GridColumn[], engine: GridEngine, fillKey: string, rows: Record<string, unknown>[]): GridState {
   const drafts = rows.map((row, index): GridDraft => {
     const cells = fillCells(columns, engine, row);
     const labels = fillLabelsOf(engine, row, cells);
-    return applyFormulas(engine, Object.keys(labels).length > 0 ? { key: `dolu-${index + 1}`, cells, labels } : { key: `dolu-${index + 1}`, cells });
+    const draft: GridDraft = { key: `dolu-${index + 1}`, cells, ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(Object.keys(cells).length > 0 ? { filled: { ...cells } } : {}) };
+    return applyFormulas(engine, draft);
   });
   return { ...emptyGridState(null), rows: numberRows(engine, drafts), fillKey };
 }

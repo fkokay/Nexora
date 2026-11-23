@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countedGridState, EMPTY_GRID_ENGINE, filledGridState, fillCells, gridEngineReducer, isSkippedRow, lookupFillCells, parseGridEngine, withFormulaColumns } from "./gridFill";
+import { countedGridState, EMPTY_GRID_ENGINE, filledGridState, fillCells, fillLabelsOf, gridEngineReducer, isSkippedRow, lookupFillCells, parseGridEngine, withFormulaColumns } from "./gridFill";
 import { emptyGridState, gridScope, parseGridColumns, validateGrid, type GridState } from "./gridState";
 
 const raw = parseGridColumns([
@@ -159,5 +159,67 @@ describe("formül zinciri ve rowNumberColumn", () => {
     // Doldurma sorgusunun değeri sıra numarasını ezmez.
     const filled = filledGridState(chainColumns, chainEngine, "K", [{ lineNumber: 7, quantity: 1 }, { lineNumber: 9, quantity: 2 }]);
     expect(filled.rows.map((draft) => draft.cells.lineNumber)).toEqual(["1", "2"]);
+  });
+});
+
+// Satış belge kartlarının (Aşama B) ihtiyaçları — eski gridInitialRows / gridLookupFill testlerinden: hesaplanan (calc) sütunlar,
+// seçim hücresinin görünen metni ("kod@label"), iç içe kaynak alanları ve yazılan değerin korunması.
+describe("belge kartı: hesaplanan sütun, görünen metin ve yazılan değer", () => {
+  const card = parseGridColumns([
+    "stockItemId|Stok|lookup:stoklar:id:code:name|required", "warehouseId|Depo|lookup:depolar:id:name", "quantity|Miktar|number|required",
+    "unitCode|Birim|text", "unitPrice|Birim fiyat|number", "vatPercent|KDV %|number", "deliveryDate|Teslim|date", "free|Bedelsiz|checkbox",
+    "lineTotal|Tutar|calc:onizleme:lineTotal",
+  ]);
+  const cardEngine = parseGridEngine({
+    fillQuery: "kalemler",
+    fillColumns: { quantity: "remainingQuantity", "stockItemId@label": "stockName", "quantity@label": "x", lineTotal: "lineTotal", nope: "x", deliveryDate: "line.date" },
+    lookupFills: { stockItemId: { unitCode: "baseUnitCode", unitPrice: "listPrice", vatPercent: "vatRate", deliveryDate: "meta.due", lineTotal: "total",
+      warehouseId: "defaultWarehouseId", stockItemId: "id", nope: "x" }, unitCode: { unitPrice: "x" } },
+  }, card, "list");
+
+  it("eşlemler: hesaplanan sütun, bilinmeyen kod ve seçim olmayan @label atlanır", () => {
+    expect(cardEngine.fillColumns).toEqual({ quantity: "remainingQuantity", deliveryDate: "line.date" });
+    expect(cardEngine.fillLabels).toEqual({ stockItemId: "stockName" });
+    expect(cardEngine.lookupFills).toEqual({ stockItemId: { unitCode: "baseUnitCode", unitPrice: "listPrice", vatPercent: "vatRate", deliveryDate: "meta.due",
+      warehouseId: "defaultWarehouseId" } });
+  });
+
+  it("kaynak satırlar hücre metnine çevrilir; hesaplanan sütun doldurulmaz, seçim hücresi görünen metnini alır", () => {
+    const rows = [
+      { stockItemId: "s1", stockName: "Koli", remainingQuantity: 10.5, unitCode: "ADET", line: { date: "2026-11-04T00:00:00" }, free: true, lineTotal: 99 },
+      { stockItemId: "s2", remainingQuantity: 0, unitCode: null },
+    ];
+    const state = filledGridState(card, cardEngine, "k1", rows);
+    expect(state.rows.map((draft) => ({ key: draft.key, cells: draft.cells, labels: draft.labels }))).toEqual([
+      { key: "dolu-1", cells: { stockItemId: "s1", quantity: "10.5", unitCode: "ADET", deliveryDate: "2026-11-04", free: true }, labels: { stockItemId: "Koli" } },
+      { key: "dolu-2", cells: { stockItemId: "s2", quantity: "0" }, labels: undefined },
+    ]);
+    expect(fillLabelsOf(cardEngine, { stockName: "" }, { stockItemId: "s1" })).toEqual({});
+    expect(fillCells(card, cardEngine, { lineTotal: 5, deep: { a: { b: 1 } } })).toEqual({});
+    expect(fillCells(card, parseGridEngine({ fillQuery: "q", fillColumns: { unitCode: "deep.a.b" } }, card, "list"), { deep: { a: { b: "X" } } })).toEqual({ unitCode: "X" });
+    // Doldurulan (dokunulmamış) tablo değişmiş sayılmaz: kapsamda `satirlar` gönderilecek değerlerdir.
+    expect(gridScope("list", card, state, [], "id").satirlar[0]).toEqual({ stockItemId: "s1", quantity: 10.5, unitCode: "ADET", deliveryDate: "2026-11-04", free: true });
+  });
+
+  it("seçimle doldurma boş hedefleri doldurur, yazılan değeri ezmez, önceki doldurmanınkini yeniler", () => {
+    const stock = { id: "s1", baseUnitCode: "ADET", vatRate: 20, listPrice: 14, meta: { due: "2026-12-01T00:00:00" }, defaultWarehouseId: "w1" };
+    expect(lookupFillCells(card, cardEngine, "stockItemId", stock, { key: "yeni-1", cells: { stockItemId: "s1" } }))
+      .toEqual({ unitCode: "ADET", unitPrice: "14", vatPercent: "20", deliveryDate: "2026-12-01", warehouseId: "w1" });
+    const typed = { key: "yeni-1", cells: { unitCode: "KOLI", unitPrice: "14", vatPercent: "10", deliveryDate: "2026-12-01", warehouseId: "w1" },
+      filled: { unitPrice: "14", vatPercent: "20", deliveryDate: "2026-12-01", warehouseId: "w1" } };
+    expect(lookupFillCells(card, cardEngine, "stockItemId", { ...stock, listPrice: 30, vatRate: 1 }, typed))
+      .toEqual({ unitPrice: "30", deliveryDate: "2026-12-01", warehouseId: "w1" });
+    expect(lookupFillCells(card, cardEngine, "warehouseId", stock, typed)).toEqual({});
+    expect(lookupFillCells(card, cardEngine, "stockItemId", null, typed)).toEqual({});
+  });
+
+  it("kaynaktan doldurulan satırda seçim yenilenince doldurulan hücreler güncellenir, kullanıcının değiştirdiği kalır", () => {
+    const opts = { mode: "list" as const, maxRows: 50 };
+    let state: GridState = filledGridState(card, cardEngine, "k1", [{ stockItemId: "s1", remainingQuantity: 2, unitPrice: 10, vatPercent: 20 }]);
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-1", code: "vatPercent", value: "8" }, opts, cardEngine);
+    const option = { id: "s2", baseUnitCode: "KOLI", listPrice: 30, vatRate: 1 };
+    state = gridEngineReducer(state, { type: "pick", key: "dolu-1", code: "stockItemId", value: "s2", label: "S2",
+      fills: lookupFillCells(card, cardEngine, "stockItemId", option, state.rows[0]) }, opts, cardEngine);
+    expect(state.rows[0].cells).toMatchObject({ stockItemId: "s2", unitCode: "KOLI", unitPrice: "30", vatPercent: "8", quantity: "2" });
   });
 });
