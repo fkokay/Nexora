@@ -25,7 +25,7 @@ export const workbenchRailItems = [
   { id: "finance", page: "finance-accounts", label: ["Finans", "Finance"], icon: Landmark },
   { id: "warehouse", page: "inventory-warehouses", label: ["Depo", "Warehousing"], icon: Package },
   { id: "manufacturing", page: "manufacturing-orders", label: ["Üretim", "Production"], icon: Factory },
-  { id: "human-resources", page: "human-resources", label: ["İK", "HR"], icon: UsersRound },
+  { id: "human-resources", page: "hr-employees", label: ["İK", "HR"], icon: UsersRound },
   { id: "fixed-assets", page: "fixed-assets", label: ["Duran Varlık", "Fixed Assets"], icon: Warehouse },
   { id: "foreign-trade", page: "foreign-trade", label: ["Dış Ticaret", "Foreign Trade"], icon: Globe },
   { id: "reports", page: "reports", label: ["Raporlar", "Reports"], icon: BarChart3 },
