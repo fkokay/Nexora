@@ -688,7 +688,23 @@ public sealed record PurchaseRequestView(Guid Id, string Code, DateOnly RequestD
 public sealed record PurchaseRequestPage(IReadOnlyList<PurchaseRequestSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, string StockCode, string StockName, string UnitCode,
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
-    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity);
+    decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity)
+{
+    // Members outside the constructor: only satinalma.malKabul.siparisSatirlari declares them (the receipt line grid's fill source).
+
+    /// <summary>The line number under the receipt line's own field name (<c>lines[].orderLineNumber</c>).</summary>
+    public int OrderLineNumber => LineNumber;
+
+    /// <summary>The stock card's lot/serial tracking; set by the single order read only, null elsewhere.</summary>
+    public InventoryTrackingMode? TrackingMode { get; init; }
+}
+/// <summary>
+/// A purchase invoice line with the quantity still returnable: invoiced minus the lines of posted supplier returns, the
+/// same rule as <c>POST /api/purchasing/invoices/{id}/returns</c> (base unit quantities).
+/// </summary>
+public sealed record PurchaseInvoiceReturnableLineView(Guid PurchaseInvoiceLineId, int OrderLineNumber, Guid StockItemId,
+    string StockCode, string StockName, string UnitCode, decimal InvoicedQuantity, decimal ReturnedQuantity,
+    decimal RemainingQuantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent);
 public sealed record PurchaseOrderSummary(Guid Id, string Code, Guid SupplierId, string SupplierName, DateOnly OrderDate,
     string CurrencyCode, PurchaseOrderStatus Status, decimal GrandTotal, int LineCount, DateTimeOffset CreatedAt,
     DateOnly? ExpectedReceiptDate = null, Guid? TargetWarehouseId = null)

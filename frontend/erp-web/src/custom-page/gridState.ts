@@ -131,7 +131,9 @@ export type GridDraft = { key: string; cells: Record<string, string | boolean>; 
  * `stage`: `added` yeni satırlar, `removed` silinmek üzere işaretlenen kaynak satır anahtarları (`rows` kullanılmaz).
  * `list`/`matrix`: `rows` tüm satırlar (`added`/`removed` kullanılmaz). `sourceKey` kaynak sorgunun `ranWith` anahtarıdır.
  */
-export type GridState = { added: GridDraft[]; removed: string[]; rows: GridDraft[]; sourceKey: string | null; nextKey: number };
+export type GridState = { added: GridDraft[]; removed: string[]; rows: GridDraft[]; sourceKey: string | null; nextKey: number;
+  /** `list` tablosunun doldurma (`fillQuery`) anahtarı: satırlar bu `ranWith` sonucundan dolduruldu (bkz. gridFill.ts). */
+  fillKey?: string };
 export type GridAction =
   | { type: "add" } | { type: "edit"; key: string; code: string; value: string | boolean; label?: string } | { type: "remove"; key: string }
   | { type: "undoRemove"; key: string }

@@ -8,7 +8,7 @@ using AIERP.Api;
 /// sandboxed at runtime. schemaVersion 1 is the original static format; schemaVersion 2 adds named read queries,
 /// component names, label/input components and <c>{{PATH}}</c> bindings in a fixed set of text properties.
 /// </summary>
-internal static class TenantCustomPageSchema
+internal static partial class TenantCustomPageSchema
 {
     private const int MaxBytesV1 = 64 * 1024;
     private const int MaxBytesV2 = 128 * 1024;
@@ -83,7 +83,9 @@ internal static class TenantCustomPageSchema
       // çalıştırır) ve ERP ekranının eski (yerleşik) sürümünü açan erpPage düğmesi (legacyScreen).
       "openParam", "legacyScreen",
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
-      "bulkDeleteQuery" };
+      "bulkDeleteQuery",
+      // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -262,6 +264,10 @@ internal static class TenantCustomPageSchema
     {
         /// <summary>Picker (lookup) columns by code.</summary>
         public IReadOnlyDictionary<string, GridColumnSpec.Lookup> Lookups { get; init; } = new Dictionary<string, GridColumnSpec.Lookup>();
+        /// <summary>Formula (<c>formulas</c>) column codes: computed, sent only when the list item has the code.</summary>
+        public IReadOnlySet<string> Formulas { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>Read-only (<c>readOnly</c> rule) column codes: display-only when the list item lacks the code.</summary>
+        public IReadOnlySet<string> ReadOnly { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     }
 
     private sealed record FilterBarInfo(string Id, string Name, string TableId, List<string> Parameters);
@@ -579,6 +585,9 @@ internal static class TenantCustomPageSchema
                     { error = "'hidden' yalnızca kod ve giriş bileşeninde, doğru/yanlış değeriyle kullanılabilir."; return false; }
                     continue;
                 }
+                // Izgaranın nesne değerli motor özellikleri ValidateGridEngineProps içinde tümüyle denetlenir.
+                if (context.V2 && typeText == "editableGrid" && GridEngineObjectProps.Contains(prop.Name))
+                    continue;
                 // Öğeleri {{yol}} şablonu taşıyan listeler; kendi doğrulayıcıları her şablonu SafeBindableText ile denetler.
                 if (context.V2 && (prop.Name is "assignments" or "fieldUnits" || prop.Name == "fields" && typeText == "recordHeader"))
                     continue;
@@ -1642,7 +1651,9 @@ internal static class TenantCustomPageSchema
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
-        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"]
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"],
+        ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
+        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -2006,6 +2017,7 @@ internal static class TenantCustomPageSchema
         }
         var columns = new List<string>();
         var numberColumns = new HashSet<string>(StringComparer.Ordinal);
+        var readOnlyColumns = new HashSet<string>(StringComparer.Ordinal);
         var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
         var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
         if (matrix)
@@ -2028,6 +2040,7 @@ internal static class TenantCustomPageSchema
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (item.GetString()!.Split('|') is { Length: 4 } columnParts && columnParts[3].Split(',').Contains("readOnly")) readOnlyColumns.Add(code);
                 if (inputType == "number") numberColumns.Add(code);
                 if (lookup is null) continue;
                 // A picker column's options come from a read query of the page; an operation query must return its columns.
@@ -2061,9 +2074,10 @@ internal static class TenantCustomPageSchema
                 return Fail($"'totals' ızgaranın sayı (number) sütunu olmalıdır: {notNumber}", out error);
         }
         if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
+        if (!ValidateGridEngineProps(props, mode, columns, numberColumns, lookups, context, out var formulas, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery) { Lookups = lookups };
+        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery) { Lookups = lookups, Formulas = formulas, ReadOnly = readOnlyColumns };
         return true;
     }
 
@@ -2405,6 +2419,8 @@ internal static class TenantCustomPageSchema
             foreach (var code in grid.Columns)
             {
                 var item = items.FirstOrDefault(x => x.Code == GridColumnSpec.RootOf(code));
+                // A formula or read-only column without a matching item is display-only: the runtime leaves it out of the row.
+                if (item is null && (grid.Formulas.Contains(code) || grid.ReadOnly.Contains(code))) continue;
                 // A dotted column writes into a map item; a plain column into a scalar item.
                 if (item is null || code.Contains('.') != (item.DataType == "map"))
                     return Fail($"'{grid.Name}' tablosunun '{code}' sütunu '{parameterName}' parametresinin alanlarında yok.", out error);

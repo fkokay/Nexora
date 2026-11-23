@@ -291,6 +291,7 @@ app.MapPurchaseInvoiceEntryEndpoints();
 app.MapPurchaseInvoicePreviewEndpoints();
 app.MapPurchaseInvoiceDraftEndpoints();
 app.MapPurchaseDeliveryNoteEndpoints();
+app.MapPurchasingLineSourceEndpoints();
 app.MapDocumentListEndpoints();
 app.MapPurchaseSupplierQuoteEndpoints();
 app.MapSalesRequestEndpoints();
@@ -6543,9 +6544,13 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, T
     if (order is null) return Results.NotFound();
     var received = await db.PurchaseReceiptLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.Receipt.Status == PurchaseReceiptStatus.Posted)
         .GroupBy(x => x.OrderLineNumber).Select(g => new { LineNumber = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.LineNumber, x => x.Quantity);
+    var lineStockIds = order.Lines.Select(x => x.StockItemId).Distinct().ToArray();
+    var trackingModes = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && lineStockIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.TrackingMode);
     var lines = order.Lines.OrderBy(x => x.LineNumber).Select(x => new PurchaseOrderLineView(x.LineNumber, x.StockItemId, x.StockCode,
         x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount,
-        x.TaxAmount, x.LineTotal, received.GetValueOrDefault(x.LineNumber), Math.Max(0m, x.Quantity - received.GetValueOrDefault(x.LineNumber)))).ToList();
+        x.TaxAmount, x.LineTotal, received.GetValueOrDefault(x.LineNumber), Math.Max(0m, x.Quantity - received.GetValueOrDefault(x.LineNumber)))
+        { TrackingMode = trackingModes.TryGetValue(x.StockItemId, out var trackingMode) ? trackingMode : null }).ToList();
     var activeInvoices = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.Status == PurchaseInvoiceStatus.Posted)
         .Select(x => new { x.Id, x.Code, x.PurchaseReceiptId, ReceiptCode = x.PurchaseReceipt.Code, x.PurchaseOrderId, OrderCode = x.PurchaseReceipt.PurchaseOrder.Code,
             x.SupplierId, SupplierName = x.Supplier.Name, x.InvoiceDate, x.DueDate, x.CurrencyCode, x.Status, x.GrandTotal,
@@ -7733,10 +7738,22 @@ var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
     [LedgerMappingKeys.FixedAssetDisposalGain] = "Sabit kıymet · elden çıkarma kârı",
     [LedgerMappingKeys.FixedAssetDisposalLoss] = "Sabit kıymet · elden çıkarma zararı"
 };
-generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbContext db) =>
+// statementSection and activeOnly are optional filters (the purchase invoice draft's expense account picker); without them
+// the response is unchanged.
+generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbContext db, string? statementSection = null, bool activeOnly = false) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
+    LedgerAccountStatementSection? section = null;
+    if (!string.IsNullOrWhiteSpace(statementSection))
+    {
+        if (!Enum.TryParse<LedgerAccountStatementSection>(statementSection.Trim(), ignoreCase: true, out var parsedSection) || !Enum.IsDefined(parsedSection))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["statementSection"] = ["Finansal tablo sınıfı geçersiz."] });
+        section = parsedSection;
+    }
+    var accounts = db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
+    if (section is { } requiredSection) accounts = accounts.Where(x => x.StatementSection == requiredSection);
+    if (activeOnly) accounts = accounts.Where(x => x.IsActive);
+    return Results.Ok(await accounts
         .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive, x.StatementSection.ToString(),
             db.JournalEntryLines.Any(line => line.TenantId == tenantId && line.AccountId == x.Id), x.AccountType.ToString(), x.NormalBalance.ToString(),
             x.CurrencyCode, x.IfrsAccountCode, x.IfrsAccountName, x.IfrsStatementSection.ToString())).ToListAsync());

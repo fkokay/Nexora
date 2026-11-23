@@ -37,6 +37,12 @@ public sealed class PurchasingDocumentSystemPagesTests
         { "sales-purchase-returns", "Satınalma İadeleri" },
     };
 
+    /// <summary>Faz 2 bumped the invoices and returns standards to version 2 (return from the returnable lines).</summary>
+    private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
+    {
+        ["sales-purchase-receipts"] = 1, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 2, ["sales-purchase-returns"] = 2,
+    };
+
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
     private static readonly Dictionary<string, string[]> LegacyReaders = new(StringComparer.Ordinal)
     {
@@ -60,12 +66,12 @@ public sealed class PurchasingDocumentSystemPagesTests
 
     [Theory]
     [MemberData(nameof(Keys))]
-    public void Standard_is_preview_version_1_and_validates(string key, string title)
+    public void Standard_is_preview_at_its_version_and_validates(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Satın Alma"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((Versions[key], "preview", title, "Satın Alma"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since >= 1 && x.Since <= Versions[key] && x.Label.Length is > 0 and <= 80, x.Key));
         Assert.Contains(key, StandardMenuEndpoints.PageKeys);
         // Within the schema limits the standards are designed to.
         var definition = Definition(key);
@@ -84,7 +90,8 @@ public sealed class PurchasingDocumentSystemPagesTests
         {
             var name = (string)query["operation"]!;
             Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name);
-            Assert.StartsWith("satinalma.", name, StringComparison.Ordinal);
+            // Faz 2: the return dialogs also pick a warehouse and its locations.
+            Assert.True(name.StartsWith("satinalma.", StringComparison.Ordinal) || name is "depo.listele" or "depo.konumlari", name);
             Assert.Equal(op.Kind == "read" ? "read" : op.PageKind, (string)query["kind"]!);
             var bound = query["parameters"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["name"]!).ToArray();
             Assert.All(bound, parameter => Assert.Contains(op.Parameters, x => x.Name == parameter));
@@ -147,13 +154,15 @@ public sealed class PurchasingDocumentSystemPagesTests
     }
 
     [Fact]
-    public void Only_the_payment_write_carries_a_request_id()
+    public void Only_the_payment_and_return_writes_carry_a_request_id()
     {
         var writes = KeyList().SelectMany(x => Queries(Definition(x.Key))).Where(x => (string)x["kind"]! != "read")
             .Where(x => x["parameters"]!.AsArray().OfType<JsonObject>().Any(p => (string)p["name"]! == "requestId"))
             .Select(x => (string)x["operation"]!).Distinct().ToArray();
-        Assert.Equal(new[] { "satinalma.fatura.odemeEkle" }, writes);
+        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur" }, writes.Order(StringComparer.Ordinal));
         Assert.Equal("{{istekKimligi.value}}", Binding("sales-purchase-invoices", "odemeEkle", "requestId"));
+        Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-invoices", "iadeOlustur", "requestId"));
+        Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-returns", "iadeOlustur", "requestId"));
     }
 
     // ---- Mal kabul faturası girişi ----
@@ -339,9 +348,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         { "sales-purchase-receipts", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"] },
         { "sales-purchase-invoice-entry", "eskiEkranDugmesi", "sales-purchase-invoice-entry", ["receiptId={{kabulSecimi.value}}"] },
         { "sales-purchase-invoices", "eskiEkranDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.id}}", "supplierId={{tedarikciSecimi.value}}"] },
-        { "sales-purchase-invoices", "iadeDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.id}}"] },
         { "sales-purchase-returns", "eskiEkranDugmesi", "sales-purchase-returns", [] },
-        { "sales-purchase-returns", "yeniIadeDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
         { "sales-purchase-returns", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
     };
 
@@ -390,7 +397,7 @@ public sealed class PurchasingDocumentSystemPagesTests
             foreach (var (key, title) in KeyList())
             {
                 Assert.True(catalog.TryGetValue(key, out var entry), key);
-                Assert.Equal((title, "preview", 1), (entry.GetProperty("title").GetString(), entry.GetProperty("stage").GetString(), entry.GetProperty("version").GetInt32()));
+                Assert.Equal((title, "preview", Versions[key]), (entry.GetProperty("title").GetString(), entry.GetProperty("stage").GetString(), entry.GetProperty("version").GetInt32()));
             }
             // Preview: the legacy screen stays the default.
             var screens = (await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime")).GetProperty("screens");
@@ -407,7 +414,7 @@ public sealed class PurchasingDocumentSystemPagesTests
                 {
                     Assert.Equal("standard", screens.GetProperty(key).GetProperty("mode").GetString());
                     var page = await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{key}/published");
-                    Assert.Equal(("@" + key, 1), (page.GetProperty("code").GetString(), page.GetProperty("standardVersion").GetInt32()));
+                    Assert.Equal(("@" + key, Versions[key]), (page.GetProperty("code").GetString(), page.GetProperty("standardVersion").GetInt32()));
                     var definitionJson = page.GetProperty("definitionJson").GetString()!;
                     Assert.True(JsonNode.DeepEquals(JsonNode.Parse(SystemPageStandards.All[key].DefinitionJson), JsonNode.Parse(definitionJson)), key);
                     Assert.DoesNotContain("\"sql\"", definitionJson);

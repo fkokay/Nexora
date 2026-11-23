@@ -10,6 +10,15 @@ export type ErpOperationParameterItem = { code: string; label: string; dataType:
 export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean;
   items?: ErpOperationParameterItem[] | null };
 const isCollection = (parameter: ErpOperationParameter) => parameter.type === "list" || parameter.type === "map";
+/**
+ * `list` parametresinin satırları yalnız öğe alanlarını taşır (büyük/küçük harf duyarsız): ör. öğesi olmayan formül sütunu
+ * (`formulas`) gönderilmez. Öğeleri bilinmeyen (eski sunucu) parametrede satırlar olduğu gibi kalır.
+ */
+function listItemFields(parameter: ErpOperationParameter, value: unknown): unknown {
+  if (parameter.type !== "list" || !parameter.items || parameter.items.length === 0 || !Array.isArray(value)) return value;
+  const codes = new Set(parameter.items.map((item) => item.code.toLowerCase()));
+  return value.map((row) => (isRecord(row) ? Object.fromEntries(Object.entries(row).filter(([key]) => codes.has(key.toLowerCase()))) : row));
+}
 export type ErpOperation = {
   name: string; label: string; module: string; kind: "read" | "write"; pageKind: "read" | "insert" | "update" | "delete";
   method: string; route: string; parameters: ErpOperationParameter[];
@@ -172,7 +181,7 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     const dotted = dottedBodyName(parameter.name);
     if (!dotted && !safeKey(parameter.name)) continue;
     if (parameter === mapParameter) continue;
-    const value = values[parameter.name];
+    const value = listItemFields(parameter, values[parameter.name]);
     // Çözülemeyen koleksiyon (list/map) anahtarı hiç yazılmaz.
     if (isCollection(parameter) && (value === null || value === undefined)) continue;
     const target = dotted ? nestedOf(dotted[0]) : body;

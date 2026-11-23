@@ -82,7 +82,9 @@ public sealed class FinanceSystemPagesTests
             Assert.Equal(new Dictionary<string, object?> { ["isActive"] = active }, op.FixedQuery);
             Assert.Null(op.FixedBody);
         }
-        Assert.All(ErpOperationCatalog.All.Where(x => x.Name is not ("finans.hesap.pasifeAl" or "finans.hesap.aktifEt")), x => Assert.Null(x.FixedQuery));
+        // satinalma.faturaTaslagi.giderHesaplari fixes its expense filter (PurchasingErpOperationCatalogTests).
+        Assert.All(ErpOperationCatalog.All.Where(x => x.Name is not ("finans.hesap.pasifeAl" or "finans.hesap.aktifEt" or "satinalma.faturaTaslagi.giderHesaplari")),
+            x => Assert.Null(x.FixedQuery));
 
         // G-F8: neither void has a source read, so both route parameters are required bindings of the page.
         var voidMovement = Op("finans.hareket.iptal");

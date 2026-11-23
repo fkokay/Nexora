@@ -34,6 +34,7 @@ import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
+import { GRID_ENGINE_PROPS } from "./page-designer/gridEngine";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
@@ -193,7 +194,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
   "saveAndNew",
   // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
-  "openParam", "bulkDeleteQuery"]);
+  "openParam", "bulkDeleteQuery",
+  // Listeli tablonun motor ekleri (Düzenlenebilir tablo bölümü): sorgudan doldurma, seçimle doldurma ve formüller.
+  ...GRID_ENGINE_PROPS]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -633,6 +636,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       if (component.type === "editableGrid") {
         // Seçim sütunu ayarları yalnız tablonun seçim (lookup) sütunlarına; varyant kipinde sütun ve satır sınırı yoktur.
         if (props.gridMode === "matrix") for (const key of ["minRows", "columnOptionsWhen", "columnStaticOptions"]) if (key in next) { delete next[key]; touched = true; }
+        // Motor ekleri yalnız listeli kipte; doldurma sorgusu sayfanın okuma sorgusu olmalı (sunucu kuralı).
+        if (props.gridMode === "stage" || props.gridMode === "matrix") for (const key of GRID_ENGINE_PROPS) if (key in next) { delete next[key]; touched = true; }
+        if ("fillQuery" in next && !(typeof next.fillQuery === "string" && readIds.has(next.fillQuery))) { delete next.fillQuery; delete next.fillColumns; touched = true; }
         const lookupCodes = new Set(parseGridColumns(props.gridColumns).filter((column) => column.inputType === "lookup").map((column) => column.code));
         for (const key of ["columnOptionsWhen", "columnStaticOptions"]) {
           if (!(key in next)) continue;
@@ -828,6 +834,8 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
     return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };
   }),
 });
+/** Yükleme (normalizeDefinition) ve kayıt (wireDefinition) dönüşümleri; testler için. */
+export const designerPersistence = { normalizeDefinition, wireDefinition };
 const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
 // erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı,
 // rol oturumdaki üyelik rolü (Studio'da `role` özelliği; ERP'de belirteçteki role iddiası).

@@ -7,6 +7,8 @@ import {
   COLUMN_STATIC_OPTION, GRID_COLUMN_TYPES, LOOKUP_COLUMN, MAX_COLUMN_STATIC_OPTIONS, MAX_GRID_COLUMNS, MAX_GRID_LABEL, MAX_GRID_TEXT_LENGTH, columnEntries, gridColumnRoot, gridColumnText,
   gridTotalCodes, parseGridColumn, parseGridColumns, renamedColumnEntries, renamedTotals, type GridColumn, type GridColumnLookup, type GridColumnType,
 } from "./gridColumns";
+import { GridEngineFields } from "./GridEngineFields";
+import { GRID_ENGINE_PROPS, formulaCodes, renamedEngineProps } from "./gridEngine";
 
 export type GridMode = "stage" | "list" | "matrix";
 type Patch = Record<string, unknown>;
@@ -28,9 +30,9 @@ const MAP_KEY = /^[\p{L}\p{N}_ -]{1,40}$/u;
 
 /** Kipin yasakladığı özellikler: kip değişince silinir (sunucu kuralı). */
 const forbiddenByMode: Record<GridMode, string[]> = {
-  stage: ["matrixCode", "matrixName"],
+  stage: ["matrixCode", "matrixName", ...GRID_ENGINE_PROPS],
   list: ["sourceQuery", "rowKey", "matrixCode", "matrixName"],
-  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions", "totals"],
+  matrix: ["sourceQuery", "rowKey", "gridColumns", "maxRows", "fixedRowLabel", "minRows", "columnOptionsWhen", "columnStaticOptions", "totals", ...GRID_ENGINE_PROPS],
 };
 
 /** Katalog veri türünden sütun türü. */
@@ -259,8 +261,10 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
     const column: GridColumn = { code, label: cleanLabel(option?.label ?? code) || code, inputType: option?.type ?? "text", rules: { required: false, unique: false, upperCase: false, readOnly: false } };
     writeColumns([...rawColumns, gridColumnText(column)]);
   };
+  // Formül ve salt okunur sütunun liste öğesi olmayabilir (yalnız gösterilir, gönderilmez).
+  const computed = formulaCodes(props);
   const missingItems = mode === "list" && listParameter ? rawColumns.map((raw) => parseGridColumn(raw)).flatMap((parsed) => {
-    if (!parsed.ok) return [];
+    if (!parsed.ok || computed.has(parsed.column.code) || parsed.column.rules.readOnly) return [];
     const root = gridColumnRoot(parsed.column.code);
     const item = items.find((entry) => entry.code === root);
     return !item || (parsed.column.code.includes(".") && item.dataType !== "map") ? [parsed.column.code] : [];
@@ -300,7 +304,8 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
       <div className="pd-tabs-editor">
         {rawColumns.map((raw, index) => {
           const parsed = parseGridColumn(raw);
-          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok ? { ...renamedColumnEntries(props, parsed.column.code, null), ...renamedTotals(props, parsed.column.code, null) } : {});
+          const remove = () => writeColumns(rawColumns.filter((_, i) => i !== index), parsed.ok
+            ? { ...renamedColumnEntries(props, parsed.column.code, null), ...renamedTotals(props, parsed.column.code, null), ...renamedEngineProps(props, parsed.column.code, null) } : {});
           if (!parsed.ok) return <fieldset className="pd-tabs-editor-tab" key={index} disabled={disabled}>
             <div className="pd-tabs-editor-head"><code>{raw}</code><button type="button" className="pd-icon-button danger" aria-label={`Sütun ${index + 1} sil`} onClick={remove}><Trash2 size={12}/></button></div>
             <small className="pd-query-warning">{parsed.error}</small>
@@ -319,7 +324,9 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
                 : column.inputType !== "lookup" ? renamedColumnEntries(props, code, null) : {};
               // Alt toplam yalnız sayı sütununda kalır; kod değişince taşınır.
               const totals = renamedTotals(props, code, column.inputType === "number" ? column.code : null);
-              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), { ...entries, ...totals });
+              // Motor özellikleri (doldurma, formül, seçimle doldurma) kod ve tür değişikliğini izler.
+              const engine = renamedEngineProps(props, code, column.code, column.inputType === "number", column.inputType === "lookup");
+              writeColumns(rawColumns.map((item, i) => i === index ? gridColumnText(column) : item), { ...entries, ...totals, ...engine });
             }}/>;
         })}
       </div>
@@ -327,6 +334,7 @@ export function EditableGridFields({ name, props, readQueries, sourceColumns, li
         title={rawColumns.length >= MAX_GRID_COLUMNS ? `En fazla ${MAX_GRID_COLUMNS} sütun olabilir.` : undefined}><Plus size={13}/>Sütun ekle</button>
     </div>}
     {mode !== "matrix" && <GridTotalsField props={props} disabled={disabled} onPatch={onPatch}/>}
+    {mode === "list" && <GridEngineFields props={props} readQueries={readQueries} columnsOf={columnsOf} disabled={disabled} onPatch={onPatch}/>}
     {mode === "matrix" && <>
       {matrixMissing.length > 0 && <small className="pd-query-warning">{`Varyant matrisi için '${listParameter?.spec.name ?? ""}' parametresinde code, name ve attributes alanları olmalıdır.`}</small>}
       <label className="pd-field">Varyant kodu öneki<small>Ör. <code>{"{{kod.value}}"}</code>; değerlerle birleşerek varyant kodunu oluşturur.</small>
