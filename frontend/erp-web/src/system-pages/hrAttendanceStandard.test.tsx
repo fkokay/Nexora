@@ -59,7 +59,8 @@ describe('Puantaj standart tanımı', { timeout: 30000 }, () => {
     expect(first.get('pageSize')).toBe('50');
     expect(first.get('approvalStatus')).toBeNull();
     const headers = [...document.querySelectorAll('.tenant-page-data-grid th')].map((th) => th.textContent?.trim());
-    for (const label of ['Personel', 'İş günü', 'Çalışılan (dk)', 'Fazla mesai (dk)', 'Not', 'Onay']) expect(headers).toContain(label);
+    for (const label of ['Personel', 'İş günü', 'Çalışılan (dk)', 'Fazla mesai (dk)', 'Onay']) expect(headers).toContain(label);
+    expect(headers).not.toContain('Not'); // karar 8: not listede ve dışa aktarımda yok
     expect(within(await h.row('Ayşe Yılmaz')).getByText('Onay bekliyor')).toBeTruthy();
     // Kayıt okuması satır seçilmeden yapılmaz.
     expect(h.gets(`/api/hr/attendance/${A1}`)).toEqual([]);

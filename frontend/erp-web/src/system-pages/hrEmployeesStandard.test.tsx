@@ -84,7 +84,7 @@ describe('Personel standart tanımı', { timeout: 30000 }, () => {
   it('a non-admin without a linked record sees the empty-list text', async () => {
     items = [];
     h.setup(respond, { role: 'TenantUser' });
-    await waitFor(() => expect(document.body.textContent).toContain('kullanıcınıza bağlı personel kaydı yok'), T);
+    await waitFor(() => expect(document.body.textContent).toContain('Kullanıcınıza bağlı personel kaydı yok'), T);
   });
 
   it('detail panel: key values and links to the leave and attendance pages with employeeId', async () => {
