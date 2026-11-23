@@ -6019,7 +6019,13 @@ public static class ReportEndpoints
 public sealed record ReportColumn(string Code, string Label, string DataType, IReadOnlyList<string>? Options = null);
 public sealed record ManufacturingCostVarianceReport(DateOnly From, DateOnly To, string PeriodBasis, string BaseCurrencyCode,
     int Page, int PageSize, int TotalCount, IReadOnlyList<ManufacturingCostVarianceOrder> Orders,
-    ManufacturingCostVarianceTotals PageTotals, string Limitations);
+    ManufacturingCostVarianceTotals PageTotals, string Limitations)
+{
+    // Flat copies of the page totals for page metrics (an ERP operation's meta paths are top-level properties).
+    public decimal PagePlannedMaterialBase => PageTotals.PlannedMaterialBase;
+    public decimal PagePlannedConversionBase => PageTotals.PlannedLaborBase + PageTotals.PlannedOverheadBase + PageTotals.PlannedEnergyBase;
+    public decimal? PageActualMaterialBase => PageTotals.ActualMaterialBase;
+}
 public sealed record ManufacturingCostVarianceOrder(string OrderCode, DateOnly PlannedDate, string Status, decimal PlannedQuantity,
     int OperationCount, string CurrencyCode, decimal PlannedLaborBase, decimal? ActualLaborBase,
     decimal PlannedOverheadBase, decimal? ActualOverheadBase, decimal? PlannedEnergyBase, decimal? ActualEnergyBase,
