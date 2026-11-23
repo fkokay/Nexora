@@ -87,6 +87,7 @@ import "./manufacturing/manufacturing-list-v2.css";
 export type { ManufacturingPageKey } from "./manufacturing/types";
 import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
+import { dropPageParam, pageParamsOf, usePageParams } from "./pageNavigation";
 
 type Item = {
   id: string;
@@ -1006,6 +1007,25 @@ export default function ManufacturingPage({
       workCenterSettingsSavePending.current = false;
     };
   }, [section]);
+  // G-U20: the recipe list system page opens this legacy recipe card with the page param `bomId` (erpPage `params` +
+  // `legacyScreen`). Once the BOM list is loaded the card opens that recipe for editing and drops only that param, so
+  // the next visit starts clean and an open tab re-reads it when it is opened again with another recipe.
+  const recipeParamsPage = section === "manufacturing-recipe-create" ? section : undefined;
+  const recipeParams = usePageParams(recipeParamsPage);
+  useEffect(() => {
+    if (!recipeParamsPage || loading) return;
+    // Read the store, not the render's snapshot: a re-run effect (StrictMode) must not open the recipe twice.
+    const paramBomId = pageParamsOf(recipeParamsPage).bomId;
+    if (!paramBomId) return;
+    dropPageParam(recipeParamsPage, "bomId");
+    const bom = boms.find((candidate) => candidate.id === paramBomId);
+    if (bom) beginEditBom(bom);
+    else {
+      resetBomForm();
+      setError((current) => current || "Reçete bulunamadı; silinmiş olabilir.");
+    }
+    // beginEditBom / resetBomForm only set state.
+  }, [recipeParamsPage, recipeParams, loading, boms]);
   // Definition screen: no work centre is opened by itself (the user picks one); one that left the list is dropped.
   useEffect(() => {
     if (

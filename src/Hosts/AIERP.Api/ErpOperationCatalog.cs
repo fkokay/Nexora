@@ -79,7 +79,7 @@ internal static partial class ErpOperationCatalog
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
-    // Shared labels. A module's own codes live in its label block (CrmLabels, PurchasingLabel, SalesLabelMap, FinanceLabels)
+    // Shared labels. A module's own codes live in its label block (CrmLabels, PurchasingLabel, SalesLabelMap, FinanceLabels, ManufacturingLabelMap)
     // and apply to that module's operations only (see InModule), so two modules may label the same code differently.
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -193,6 +193,7 @@ internal static partial class ErpOperationCatalog
     });
 
     private static readonly IReadOnlyDictionary<string, string> SalesLabelMap = ModuleLabels("Satış", SalesLabels());
+    private static readonly IReadOnlyDictionary<string, string> ManufacturingLabelMap = ModuleLabels("Üretim", ManufacturingLabels());
 
     /// <summary>A module label block: its codes must be new (the shared dictionary wins on a shared code) and appear once.</summary>
     private static IReadOnlyDictionary<string, string> ModuleLabels(string module, IEnumerable<KeyValuePair<string, string>> block)
@@ -270,6 +271,7 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(InModule(PurchasingLabel, () => BuildPurchasing(paging)));
         operations.AddRange(InModule(code => SalesLabelMap.GetValueOrDefault(code), () => BuildSales(paging)));
         operations.AddRange(InModule(code => FinanceLabels.GetValueOrDefault(code), () => BuildFinance(paging)));
+        operations.AddRange(InModule(code => ManufacturingLabelMap.GetValueOrDefault(code), () => BuildManufacturing(paging)));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

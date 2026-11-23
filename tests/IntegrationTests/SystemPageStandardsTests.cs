@@ -33,6 +33,7 @@ public sealed class SystemPageStandardsTests
             locations.ScreenViews.Select(x => x.Key));
         Assert.Equal(new[] { "crm-opportunities", "crm-opportunity-create", "customer-create", "customer-ledger", "customers", "finance-account-create", "finance-accounts", "finance-banks",
             "finance-journal-ledger", "finance-journal-vouchers", "finance-ledger-chart", "finance-trial-balance", "inventory-cost", "inventory-locations", "inventory-stock", "inventory-stock-create", "inventory-stock-movements", "inventory-tracking", "inventory-transfers", Key,
+            "manufacturing-cost-variance", "manufacturing-order-create", "manufacturing-orders", "manufacturing-recipes",
             "sales-deliveries", "sales-invoices", "sales-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-entry", "sales-purchase-invoices", "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-quotes", "sales-requests" }, SystemPageStandards.All.Keys.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var each in SystemPageStandards.All.Values)
             Assert.True(TenantCustomPageSchema.Validate(each.DefinitionJson, out var eachError), $"{each.ScreenKey}: {eachError}");

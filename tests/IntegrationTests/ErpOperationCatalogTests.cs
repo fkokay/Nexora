@@ -170,6 +170,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("crm.", StringComparison.Ordinal)
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
                 || op.Name.StartsWith("finans.", StringComparison.Ordinal)
+                || ManufacturingSystemPagesTests.IsNewOperation(op.Name)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
@@ -611,8 +612,9 @@ public sealed class ErpOperationCatalogTests
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
-        // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests).
-        Assert.Equal(11, collections.Length);
+        // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
+        // finishedGoodsTracking (ManufacturingSystemPagesTests).
+        Assert.Equal(12, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -694,11 +696,12 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.*, crm.*, satis.*, finans.* and Satınalma Faz 1 operations are new names with their own contract tests
+        // The cari.*, crm.*, satis.*, finans.*, new uretim.* and Satınalma Faz 1 operations are new names with their own contract tests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
             && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)
+            && !ManufacturingSystemPagesTests.IsNewOperation(x.Name)
             && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
