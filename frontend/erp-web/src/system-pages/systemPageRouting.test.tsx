@@ -12,6 +12,8 @@ vi.mock('../erpApi', () => ({ api }));
 vi.mock('../InventoryWarehousesPage', () => ({ default: () => <div>Eski depo ekranı</div> }));
 // Standardı olmayan yerleşik ekran örneği (CRM Fırsatları artık bir sistem sayfasıdır).
 vi.mock('../BusinessRulesPage', () => ({ default: () => <div>Eski iş kuralları ekranı</div> }));
+// İK sistem sayfası anahtarlarının kendi eski ekranı yok: İK ekranı ilgili sekmesiyle açılır.
+vi.mock('../HumanResourcesPage', () => ({ default: ({ initialSection }: { initialSection?: string }) => <div>Eski İK ekranı: {initialSection ?? 'yok'}</div> }));
 
 const KEY = 'inventory-warehouses';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
@@ -179,6 +181,32 @@ describe('system page routing', () => {
     expect(await screen.findByRole('heading', { name: 'Özel sayfa' })).toBeTruthy();
     rerender(<Harness page="custom-page:ozel" tenantId="t2" />);
     await waitFor(() => expect(api.mock.calls.filter(([endpoint]) => endpoint === '/api/system-pages/runtime')).toHaveLength(2));
+  });
+});
+
+describe('İK system page keys', () => {
+  it.each([
+    ['hr-employees', 'employees'],
+    ['hr-employee-create', 'employees'],
+    ['hr-leave-requests', 'leave'],
+    ['hr-attendance', 'attendance'],
+    ['hr-period-summary', 'report'],
+  ])('%s without a map entry renders the HR screen on its tab (%s)', async (page, section) => {
+    api.mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/api/system-pages/runtime') return { screens: {} };
+      throw new Error(`unexpected ${endpoint}`);
+    });
+    render(<Harness page={page} />);
+    expect(await screen.findByText(`Eski İK ekranı: ${section}`)).toBeTruthy();
+  });
+
+  it('human-resources keeps the HR screen on its default tab', async () => {
+    api.mockImplementation(async (endpoint: string) => {
+      if (endpoint === '/api/system-pages/runtime') return { screens: {} };
+      throw new Error(`unexpected ${endpoint}`);
+    });
+    render(<Harness page="human-resources" />);
+    expect(await screen.findByText('Eski İK ekranı: yok')).toBeTruthy();
   });
 });
 

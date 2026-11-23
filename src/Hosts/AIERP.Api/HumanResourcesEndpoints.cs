@@ -104,16 +104,52 @@ public static partial class HumanResourcesEndpoints
             return Results.File(BuildSummaryCsv(summary), "text/csv; charset=utf-8", $"hr-summary-{from:yyyyMMdd}-{to:yyyyMMdd}.csv");
         });
 
-        employees.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        // Without page/pageSize the response stays the plain array (first 1000) the legacy screen and the AI assistant read;
+        // with either one it is the paged envelope {items, page, pageSize, totalCount} the system pages read.
+        employees.MapGet("/", async (string? q, string? status, string? department, int? page, int? pageSize, ClaimsPrincipal user,
+            TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             var admin = IsTenantAdmin(user);
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            return Results.Ok(await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId &&
-                    (admin || x.UserId == userId)).OrderBy(x => x.PersonnelCode).Take(1000)
+            var query = db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId && (admin || x.UserId == userId));
+            if (Clean(q) is { } search)
+                query = query.Where(x => x.PersonnelCode.Contains(search) || x.FullName.Contains(search) ||
+                    (x.Department != null && x.Department.Contains(search)) || (x.JobTitle != null && x.JobTitle.Contains(search)) ||
+                    (x.EmploymentCategory != null && x.EmploymentCategory.Contains(search)));
+            if (Clean(status) is { } statusText)
+            {
+                // Same computation as EmployeeView.Status (the stored column is not kept current).
+                if (string.Equals(statusText, "Active", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(x => x.TerminationDate == null || x.TerminationDate >= today);
+                else if (string.Equals(statusText, "Terminated", StringComparison.OrdinalIgnoreCase))
+                    query = query.Where(x => x.TerminationDate != null && x.TerminationDate < today);
+                else return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Durum Active veya Terminated olmalıdır."] });
+            }
+            if (Clean(department) is { } departmentText)
+                query = query.Where(x => x.Department != null && x.Department.Contains(departmentText));
+            if (!TryPaging(page, pageSize, out var paging, out var pagingError)) return Results.ValidationProblem(pagingError!);
+            var ordered = query.OrderBy(x => x.PersonnelCode);
+            var rows = paging is { } window ? ordered.Skip((window.Page - 1) * window.PageSize).Take(window.PageSize) : ordered.Take(1000);
+            var items = await rows.Select(x => new EmployeeView(x.Id, x.PersonnelCode, x.FullName, x.Department, x.JobTitle, x.EmploymentCategory, x.WorkEmail,
+                    x.HireDate, x.TerminationDate, x.TerminationDate == null || x.TerminationDate >= today ? "Active" : "Terminated",
+                    x.UserId, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
+            return paging is { } current
+                ? Results.Ok(new HrPage<EmployeeView>(items, current.Page, current.PageSize, await query.CountAsync(ct)))
+                : Results.Ok(items);
+        });
+
+        employees.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var admin = IsTenantAdmin(user);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            // Same row rule as the list: a non-admin reads only the personnel record linked to their own user.
+            var employee = await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id && (admin || x.UserId == userId))
                 .Select(x => new EmployeeView(x.Id, x.PersonnelCode, x.FullName, x.Department, x.JobTitle, x.EmploymentCategory, x.WorkEmail,
                     x.HireDate, x.TerminationDate, x.TerminationDate == null || x.TerminationDate >= today ? "Active" : "Terminated",
-                    x.UserId, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
+                    x.UserId, Convert.ToBase64String(x.RowVersion))).SingleOrDefaultAsync(ct);
+            return employee is null ? Results.NotFound() : Results.Ok(employee);
         });
 
         employees.MapPost("/", async (EmployeeWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -173,25 +209,52 @@ public static partial class HumanResourcesEndpoints
                 employee.UserId, Convert.ToBase64String(employee.RowVersion)));
         });
 
-        leaves.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        // Plain array (latest 500) without page/pageSize, paged envelope with either one (see the employee list).
+        leaves.MapGet("/", async (string? q, string? status, string? leaveType, Guid? employeeId, DateOnly? from, DateOnly? to,
+            int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var admin = IsTenantAdmin(user);
+            if (from is not null && to is not null && to < from) return Results.BadRequest(new { error = "Bitiş tarihi başlangıç tarihinden önce olamaz." });
             var query = db.EmployeeLeaveRequests.AsNoTracking().Where(x => x.TenantId == tenantId);
-            if (!IsTenantAdmin(user)) query = query.Where(x => db.EmployeeRecords.Any(e => e.TenantId == tenantId && e.Id == x.EmployeeId && e.UserId == userId));
-            var rows = await query.OrderByDescending(x => x.CreatedAt).Take(500).Select(x => new LeaveView(x.Id, x.EmployeeId,
+            if (!admin) query = query.Where(x => db.EmployeeRecords.Any(e => e.TenantId == tenantId && e.Id == x.EmployeeId && e.UserId == userId));
+            if (Clean(q) is { } search)
+                query = query.Where(x => (x.Note != null && x.Note.Contains(search)) || db.EmployeeRecords.Any(e => e.TenantId == tenantId &&
+                    e.Id == x.EmployeeId && (e.PersonnelCode.Contains(search) || e.FullName.Contains(search))));
+            if (Clean(status) is { } statusText)
+            {
+                if (!Enum.TryParse<EmployeeLeaveStatus>(statusText, ignoreCase: true, out var leaveStatus) || !Enum.IsDefined(leaveStatus) || int.TryParse(statusText, out _))
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Durum Requested, Approved, Rejected veya Cancelled olmalıdır."] });
+                query = query.Where(x => x.Status == leaveStatus);
+            }
+            if (Clean(leaveType) is { } typeText) query = query.Where(x => x.LeaveType == typeText);
+            if (employeeId is { } employee) query = query.Where(x => x.EmployeeId == employee);
+            // Requests overlapping [from, to].
+            if (from is not null) query = query.Where(x => x.EndDate >= from);
+            if (to is not null) query = query.Where(x => x.StartDate <= to);
+            if (!TryPaging(page, pageSize, out var paging, out var pagingError)) return Results.ValidationProblem(pagingError!);
+            var ordered = query.OrderByDescending(x => x.CreatedAt);
+            var window = paging is { } current ? ordered.Skip((current.Page - 1) * current.PageSize).Take(current.PageSize) : ordered.Take(500);
+            var rows = await window.Select(x => new LeaveView(x.Id, x.EmployeeId,
                 db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault() ?? "",
                 x.LeaveType, x.StartDate, x.EndDate, x.RequestedDays, x.Note, x.Status.ToString(), x.RequestedByUserId,
                 x.ReviewedByUserId, x.CreatedAt, x.ReviewedAt, x.ReviewNote, Convert.ToBase64String(x.RowVersion),
-                x.Status == EmployeeLeaveStatus.Requested && x.RequestedByUserId == userId)).ToListAsync(ct);
-            return Results.Ok(rows);
+                x.Status == EmployeeLeaveStatus.Requested && x.RequestedByUserId == userId,
+                db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.Department).FirstOrDefault(),
+                admin && x.Status == EmployeeLeaveStatus.Requested && x.RequestedByUserId != userId)).ToListAsync(ct);
+            return paging is { } envelope
+                ? Results.Ok(new HrPage<LeaveView>(rows, envelope.Page, envelope.PageSize, await query.CountAsync(ct)))
+                : Results.Ok(rows);
         });
 
         leaves.MapPost("/", async (LeaveCreateRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
             var type = request.LeaveType?.Trim();
-            if (request.EmployeeId == Guid.Empty || request.EndDate < request.StartDate || request.RequestedDays is <= 0m or > 366m ||
-                request.EndDate >= request.StartDate && request.RequestedDays > request.EndDate.DayNumber - request.StartDate.DayNumber + 1 ||
+            // An empty requestedDays means the inclusive calendar days of the range (the page cannot compute it).
+            var requestedDays = request.RequestedDays ?? (request.EndDate.DayNumber - request.StartDate.DayNumber + 1);
+            if (request.EmployeeId == Guid.Empty || request.EndDate < request.StartDate || requestedDays is <= 0m or > 366m ||
+                request.EndDate >= request.StartDate && requestedDays > request.EndDate.DayNumber - request.StartDate.DayNumber + 1 ||
                 type is not ("Annual" or "Health" or "Unpaid" or "Excuse" or "Other") || (request.Note?.Length ?? 0) > 1000)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["leaveRequest"] = ["Çalışan, standart izin türü (Annual/Health/Unpaid/Excuse/Other), geçerli tarih aralığı ve pozitif izin günü girin; gün sayısı tarih aralığındaki takvim gününü aşamaz."] });
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -205,7 +268,7 @@ public static partial class HumanResourcesEndpoints
                 ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct)
                 : null;
             var leave = new EmployeeLeaveRequest { TenantId = tenantId, EmployeeId = employee.Id, LeaveType = type!,
-                StartDate = request.StartDate, EndDate = request.EndDate, RequestedDays = request.RequestedDays,
+                StartDate = request.StartDate, EndDate = request.EndDate, RequestedDays = requestedDays,
                 Note = Clean(request.Note), RequestedByUserId = userId };
             try
             {
@@ -265,18 +328,42 @@ public static partial class HumanResourcesEndpoints
             return Results.Ok(new { leave.Id, status = leave.Status.ToString() });
         });
 
-        attendance.MapGet("/", async (DateOnly? from, DateOnly? to, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        // Plain array (latest 500) without page/pageSize, paged envelope with either one (see the employee list).
+        attendance.MapGet("/", async (DateOnly? from, DateOnly? to, Guid? employeeId, string? approvalStatus, string? q, int? page, int? pageSize,
+            ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var admin = IsTenantAdmin(user);
             if (from is not null && to is not null && to < from) return Results.BadRequest(new { error = "Bitiş tarihi başlangıç tarihinden önce olamaz." });
-            var query = db.EmployeeAttendanceRecords.AsNoTracking().Where(x => x.TenantId == tenantId);
-            if (!IsTenantAdmin(user)) query = query.Where(x => db.EmployeeRecords.Any(e => e.TenantId == tenantId && e.Id == x.EmployeeId && e.UserId == userId));
+            var query = AttendanceRows(db, tenantId, userId, admin);
             if (from is not null) query = query.Where(x => x.WorkDate >= from);
             if (to is not null) query = query.Where(x => x.WorkDate <= to);
-            return Results.Ok(await query.OrderByDescending(x => x.WorkDate).Take(500).Select(x => new AttendanceView(x.Id, x.EmployeeId,
-                db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault() ?? "",
-                x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes, x.Note, x.RecordedByUserId, x.ApprovalStatus, x.ApprovedByUserId, x.ApprovedAt,
-                x.CreatedAt, Convert.ToBase64String(x.RowVersion))).ToListAsync(ct));
+            if (employeeId is { } employee) query = query.Where(x => x.EmployeeId == employee);
+            if (Clean(approvalStatus) is { } approval)
+            {
+                if (approval is not ("PendingApproval" or "Approved"))
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["approvalStatus"] = ["Onay durumu PendingApproval veya Approved olmalıdır."] });
+                query = query.Where(x => x.ApprovalStatus == approval);
+            }
+            if (Clean(q) is { } search)
+                query = query.Where(x => (x.Note != null && x.Note.Contains(search)) || db.EmployeeRecords.Any(e => e.TenantId == tenantId &&
+                    e.Id == x.EmployeeId && (e.PersonnelCode.Contains(search) || e.FullName.Contains(search))));
+            if (!TryPaging(page, pageSize, out var paging, out var pagingError)) return Results.ValidationProblem(pagingError!);
+            var ordered = query.OrderByDescending(x => x.WorkDate);
+            var window = paging is { } current ? ordered.Skip((current.Page - 1) * current.PageSize).Take(current.PageSize) : ordered.Take(500);
+            var rows = await AttendanceViews(window, db, tenantId, userId, admin).ToListAsync(ct);
+            return paging is { } envelope
+                ? Results.Ok(new HrPage<AttendanceView>(rows, envelope.Page, envelope.PageSize, await query.CountAsync(ct)))
+                : Results.Ok(rows);
+        });
+
+        attendance.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out var userId)) return Results.Forbid();
+            var admin = IsTenantAdmin(user);
+            var record = await AttendanceViews(AttendanceRows(db, tenantId, userId, admin).Where(x => x.Id == id), db, tenantId, userId, admin)
+                .SingleOrDefaultAsync(ct);
+            return record is null ? Results.NotFound() : Results.Ok(record);
         });
 
         attendance.MapPost("/", async (AttendanceWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -2104,6 +2191,44 @@ public static partial class HumanResourcesEndpoints
         return System.Text.Encoding.UTF8.GetBytes(string.Join("\r\n", rows) + "\r\n");
     }
 
+    /// <summary>Attendance rows the caller may read: all for a TenantAdmin, otherwise those of the personnel linked to the caller.</summary>
+    private static IQueryable<EmployeeAttendanceRecord> AttendanceRows(TenantDbContext db, Guid tenantId, Guid userId, bool admin)
+    {
+        var query = db.EmployeeAttendanceRecords.AsNoTracking().Where(x => x.TenantId == tenantId);
+        return admin ? query : query.Where(x => db.EmployeeRecords.Any(e => e.TenantId == tenantId && e.Id == x.EmployeeId && e.UserId == userId));
+    }
+
+    /// <summary>
+    /// <c>canApprove</c> mirrors the approve endpoint: TenantAdmin, still pending and recorded by someone else (four eyes).
+    /// </summary>
+    private static IQueryable<AttendanceView> AttendanceViews(IQueryable<EmployeeAttendanceRecord> rows, TenantDbContext db, Guid tenantId,
+        Guid userId, bool admin) =>
+        rows.Select(x => new AttendanceView(x.Id, x.EmployeeId,
+            db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId).Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault() ?? "",
+            x.WorkDate, x.WorkedMinutes, x.OvertimeMinutes, x.Note, x.RecordedByUserId, x.ApprovalStatus, x.ApprovedByUserId, x.ApprovedAt,
+            x.CreatedAt, Convert.ToBase64String(x.RowVersion),
+            admin && x.ApprovalStatus == "PendingApproval" && x.RecordedByUserId != userId));
+
+    private readonly record struct HrPaging(int Page, int PageSize);
+
+    /// <summary>
+    /// Paging of the HR lists: null (unpaged, legacy plain array) when neither value is given; otherwise page ≥ 1 (default 1)
+    /// and pageSize 1–100 (default 50).
+    /// </summary>
+    private static bool TryPaging(int? page, int? pageSize, out HrPaging? paging, out Dictionary<string, string[]>? error)
+    {
+        paging = null;
+        error = null;
+        if (page is null && pageSize is null) return true;
+        if (page is < 1 || pageSize is < 1 or > 100)
+        {
+            error = new Dictionary<string, string[]> { ["page"] = ["Sayfa 1 veya daha büyük, sayfa boyutu 1–100 olmalıdır."] };
+            return false;
+        }
+        paging = new HrPaging(page ?? 1, pageSize ?? 50);
+        return true;
+    }
+
     private static bool TryIdentity(ClaimsPrincipal user, out Guid tenantId, out Guid userId)
     {
         var hasTenant = Guid.TryParse(user.FindFirstValue("tenant_id"), out tenantId);
@@ -2149,18 +2274,26 @@ public sealed record EmployeeWriteRequest(string? PersonnelCode, string? FullNam
     string? EmploymentCategory = null);
 public sealed record EmployeeView(Guid Id, string PersonnelCode, string FullName, string? Department, string? JobTitle,
     string? EmploymentCategory, string? WorkEmail, DateOnly HireDate, DateOnly? TerminationDate, string Status, Guid? UserId, string RowVersion);
-public sealed record LeaveCreateRequest(Guid EmployeeId, string? LeaveType, DateOnly StartDate, DateOnly EndDate, decimal RequestedDays, string? Note = null);
+/// <summary>Paged HR list response (only when the request asks for <c>page</c> or <c>pageSize</c>).</summary>
+public sealed record HrPage<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
+/// <summary><c>RequestedDays</c> null: the server writes the inclusive calendar days of the range.</summary>
+public sealed record LeaveCreateRequest(Guid EmployeeId, string? LeaveType, DateOnly StartDate, DateOnly EndDate, decimal? RequestedDays = null, string? Note = null);
 public sealed record LeaveReviewRequest(bool Approve, string? Note, string? RowVersion);
 public sealed record LeaveCancelRequest(string? RowVersion);
+/// <summary>
+/// <c>CanReview</c> mirrors the review endpoint: TenantAdmin, still requested and not requested by the caller (four eyes).
+/// <c>Department</c> is the employee's department (appended; earlier positions unchanged).
+/// </summary>
 public sealed record LeaveView(Guid Id, Guid EmployeeId, string Employee, string LeaveType, DateOnly StartDate, DateOnly EndDate,
     decimal RequestedDays, string? Note, string Status, Guid RequestedByUserId, Guid? ReviewedByUserId, DateTimeOffset CreatedAt,
-    DateTimeOffset? ReviewedAt, string? ReviewNote, string RowVersion, bool CanCancel);
+    DateTimeOffset? ReviewedAt, string? ReviewNote, string RowVersion, bool CanCancel, string? Department = null, bool CanReview = false);
 public sealed record AttendanceWriteRequest(Guid EmployeeId, DateOnly WorkDate, int WorkedMinutes, int OvertimeMinutes,
     string? Note = null, string? RowVersion = null);
 public sealed record AttendanceApproveRequest(string? RowVersion);
+/// <summary><c>CanApprove</c>: TenantAdmin, pending and recorded by someone else (appended).</summary>
 public sealed record AttendanceView(Guid Id, Guid EmployeeId, string Employee, DateOnly WorkDate, int WorkedMinutes,
     int OvertimeMinutes, string? Note, Guid RecordedByUserId, string ApprovalStatus, Guid? ApprovedByUserId, DateTimeOffset? ApprovedAt,
-    DateTimeOffset CreatedAt, string RowVersion);
+    DateTimeOffset CreatedAt, string RowVersion, bool CanApprove = false);
 public sealed record PayrollRuleSetCreateRequest(string? TaxYear, DateOnly EffectiveFrom, DateOnly? EffectiveTo,
     string? OfficialSourceUrl, JsonElement? Rules);
 public sealed record PayrollRuleSetApproveRequest(string? RowVersion);

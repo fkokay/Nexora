@@ -720,14 +720,17 @@ export default function HumanResourcesPage({
   token,
   role,
   locale = "tr",
+  initialSection = "employees",
 }: {
   token: string;
   role: string;
   locale?: "tr" | "en";
+  /** Opening tab; the hr-* system page keys open their own tab when they render this legacy screen. */
+  initialSection?: "employees" | "leave" | "attendance" | "report";
 }) {
   const isEn = locale === "en",
     admin = role === "TenantAdmin";
-  const [section, setSection] = useState<Section>("employees"),
+  const [section, setSection] = useState<Section>(initialSection === "report" && !admin ? "employees" : initialSection),
     [employees, setEmployees] = useState<Employee[]>([]),
     [leaves, setLeaves] = useState<Leave[]>([]),
     [attendance, setAttendance] = useState<Attendance[]>([]),

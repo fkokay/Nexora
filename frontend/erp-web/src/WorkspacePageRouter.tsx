@@ -316,6 +316,15 @@ function LegacyPageRouter({
     return (
       <HumanResourcesPage token={token} role={tenant.role} locale={locale} />
     );
+  // The hr-* system page keys have no legacy screen of their own: they open the matching tab of the HR screen.
+  if (page === "hr-employees" || page === "hr-employee-create")
+    return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="employees" />;
+  if (page === "hr-leave-requests")
+    return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="leave" />;
+  if (page === "hr-attendance")
+    return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="attendance" />;
+  if (page === "hr-period-summary")
+    return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="report" />;
   if (page === "manufacturing-cost-variance")
     return <ManufacturingCostVariancePage token={token} />;
   const manufacturingPageProps = { token, onNavigate };

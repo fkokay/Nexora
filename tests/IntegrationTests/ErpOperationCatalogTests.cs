@@ -170,6 +170,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("crm.", StringComparison.Ordinal)
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
                 || op.Name.StartsWith("finans.", StringComparison.Ordinal)
+                || op.Name.StartsWith("ik.", StringComparison.Ordinal)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
@@ -694,11 +695,11 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.*, crm.*, satis.*, finans.* and Satınalma Faz 1 operations are new names with their own contract tests
+        // The cari.*, crm.*, satis.*, finans.*, ik.* and Satınalma Faz 1 operations are new names with their own contract tests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
-            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)
+            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal)
             && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
