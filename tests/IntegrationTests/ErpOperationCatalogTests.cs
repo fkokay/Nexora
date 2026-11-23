@@ -173,6 +173,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("ik.", StringComparison.Ordinal)
                 || op.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
                 || ManufacturingSystemPagesTests.IsNewOperation(op.Name)
+                || op.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
@@ -703,6 +704,7 @@ public sealed class ErpOperationCatalogTests
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
             && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal) && !x.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
+            && !x.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
             && !ManufacturingSystemPagesTests.IsNewOperation(x.Name)
             && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
@@ -872,7 +874,7 @@ public sealed class ErpOperationCatalogTests
     {
         var all = ErpOperationCatalog.All;
         Assert.Equal(all.Count, all.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count());
-        // The module prefix starts lower case; a two-word module is camelCase (duranVarlik, decision K2 of taslak 27).
+        // The module prefix starts lower case; a two-word module is camelCase (duranVarlik, disTicaret; decision K2 of taslak 27).
         var pattern = new Regex("^[a-z][a-zA-Z]*(\\.[a-zA-Z]+)+$");
         var types = new HashSet<string> { "text", "int", "decimal", "date", "bool", "guid" };
         foreach (var op in all)

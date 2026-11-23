@@ -61,6 +61,7 @@ const standalonePageTitles: Record<string, Record<Locale, string>> = {
   'hr-leave-requests': { tr: 'İzin talepleri', en: 'Leave requests' },
   'hr-attendance': { tr: 'Puantaj', en: 'Attendance' },
   'hr-period-summary': { tr: 'Dönem özeti', en: 'Period summary' },
+  'foreign-trade-case': { tr: 'Dış ticaret dosyası', en: 'Foreign trade case' },
   'fixed-assets': { tr: 'Duran Varlıklar', en: 'Fixed assets' },
   'fixed-asset-card': { tr: 'Kıymet kartı', en: 'Fixed asset card' },
 }

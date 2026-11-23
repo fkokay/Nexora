@@ -1,0 +1,1612 @@
+{
+  "screenKey": "foreign-trade",
+  "title": "Dış Ticaret Dosyaları",
+  "description": "Satın alma ve satış siparişlerine bağlı lojistik, gümrük referansı ve sevkiyat adımlarını izleyin.",
+  "module": "Dış Ticaret",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:yeniDugmesi",
+        "component:acDugmesi",
+        "component:suzgec",
+        "component:liste",
+        "query:dosyalar",
+        "component:ithalatDugmesi",
+        "component:ihracatDugmesi",
+        "component:planlaDugmesi",
+        "component:sevkDugmesi",
+        "component:gumrukDugmesi",
+        "component:varisDugmesi",
+        "component:kapatDugmesi",
+        "component:belgeBaglaDugmesi",
+        "component:iptalDugmesi"
+      ]
+    },
+    "component:yeniDugmesi": {
+      "since": 1,
+      "label": "Yeni dosya komutu",
+      "requires": [
+        "component:yonSecimi"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Satırı aç (dosya kartı)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:suzgecSecimleri": {
+      "since": 1,
+      "label": "Süzgeç seçimleri kartı",
+      "requires": [
+        "component:yonSecimi",
+        "component:durumSecimi"
+      ]
+    },
+    "component:yonSecimi": {
+      "since": 1,
+      "label": "Yön seçimi"
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "Aşama seçimi"
+    },
+    "component:gorunumKarti": {
+      "since": 1,
+      "label": "Detay paneli anahtarı kartı",
+      "requires": [
+        "component:detayPaneli"
+      ]
+    },
+    "component:detayPaneli": {
+      "since": 1,
+      "label": "Detay paneli anahtarı"
+    },
+    "component:secimCipleri": {
+      "since": 1,
+      "label": "Yön ve aşama seçimi çipleri",
+      "requires": [
+        "component:yonSecimi",
+        "component:durumSecimi"
+      ]
+    },
+    "component:ozetSayilari": {
+      "since": 1,
+      "label": "Yön ve aşama sayıları (aramayla)",
+      "requires": [
+        "query:ozet"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Dış ticaret dosyaları listesi",
+      "requires": [
+        "component:detayPaneli",
+        "component:acDugmesi",
+        "query:dosyalar"
+      ]
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Detay paneli (seçili dosya)",
+      "requires": [
+        "component:detayPaneli",
+        "component:liste",
+        "query:dosya"
+      ]
+    },
+    "component:bosSecim": {
+      "since": 1,
+      "label": "Detay paneli: seçim yok notu",
+      "requires": [
+        "component:detayPaneli",
+        "component:liste"
+      ]
+    },
+    "component:ithalatDugmesi": {
+      "since": 1,
+      "label": "Yeni ithalat dosyası komutu"
+    },
+    "component:ihracatDugmesi": {
+      "since": 1,
+      "label": "Yeni ihracat dosyası komutu"
+    },
+    "component:planlaDugmesi": {
+      "since": 1,
+      "label": "Planlandı aşamasına geçir komutu",
+      "requires": [
+        "component:liste",
+        "query:dosya",
+        "query:planla"
+      ]
+    },
+    "component:sevkDugmesi": {
+      "since": 1,
+      "label": "Sevkte aşamasına geçir komutu",
+      "requires": [
+        "component:liste",
+        "component:sevkPenceresi",
+        "query:dosya"
+      ]
+    },
+    "component:gumrukDugmesi": {
+      "since": 1,
+      "label": "Gümrükte aşamasına geçir komutu",
+      "requires": [
+        "component:liste",
+        "component:gumrukPenceresi",
+        "query:dosya"
+      ]
+    },
+    "component:varisDugmesi": {
+      "since": 1,
+      "label": "Varışı kaydet komutu",
+      "requires": [
+        "component:liste",
+        "component:varisPenceresi",
+        "query:dosya"
+      ]
+    },
+    "component:kapatDugmesi": {
+      "since": 1,
+      "label": "Kapat komutu",
+      "requires": [
+        "component:liste",
+        "query:dosya",
+        "query:kapat"
+      ]
+    },
+    "component:belgeBaglaDugmesi": {
+      "since": 1,
+      "label": "Stok belgesi bağla komutu",
+      "requires": [
+        "component:liste",
+        "component:belgePenceresi",
+        "query:dosya"
+      ]
+    },
+    "component:iptalDugmesi": {
+      "since": 1,
+      "label": "İptal et komutu",
+      "requires": [
+        "component:liste",
+        "query:dosya",
+        "query:iptalEt"
+      ]
+    },
+    "component:sevkPenceresi": {
+      "since": 1,
+      "label": "Sevkte aşamasına geçir penceresi",
+      "requires": [
+        "component:sevkBilgileri",
+        "component:sevkNotu",
+        "query:sevkEt"
+      ]
+    },
+    "component:sevkBilgileri": {
+      "since": 1,
+      "label": "Sevk penceresi alanları",
+      "requires": [
+        "component:sevkTarihi",
+        "component:sevkTasiyici"
+      ]
+    },
+    "component:sevkTarihi": {
+      "since": 1,
+      "label": "Alan: Gerçek sevk tarihi"
+    },
+    "component:sevkTasiyici": {
+      "since": 1,
+      "label": "Alan: Taşıyıcı / takip referansı",
+      "requires": [
+        "query:dosya"
+      ]
+    },
+    "component:sevkNotu": {
+      "since": 1,
+      "label": "Sevk penceresi notu"
+    },
+    "component:gumrukPenceresi": {
+      "since": 1,
+      "label": "Gümrükte aşamasına geçir penceresi",
+      "requires": [
+        "component:gumrukBilgileri",
+        "query:gumrugeGecir"
+      ]
+    },
+    "component:gumrukBilgileri": {
+      "since": 1,
+      "label": "Gümrük penceresi alanları",
+      "requires": [
+        "component:gumrukReferansi"
+      ]
+    },
+    "component:gumrukReferansi": {
+      "since": 1,
+      "label": "Alan: Gümrük referansı",
+      "requires": [
+        "query:dosya"
+      ]
+    },
+    "component:varisPenceresi": {
+      "since": 1,
+      "label": "Varışı kaydet penceresi",
+      "requires": [
+        "component:varisBilgileri",
+        "component:varisNotu",
+        "query:varisKaydet"
+      ]
+    },
+    "component:varisBilgileri": {
+      "since": 1,
+      "label": "Varış penceresi alanları",
+      "requires": [
+        "component:varisTarihi"
+      ]
+    },
+    "component:varisTarihi": {
+      "since": 1,
+      "label": "Alan: Gerçek varış tarihi"
+    },
+    "component:varisNotu": {
+      "since": 1,
+      "label": "Varış penceresi notu"
+    },
+    "component:belgePenceresi": {
+      "since": 1,
+      "label": "Stok belgesi seç penceresi",
+      "requires": [
+        "component:belgeTuruMalKabul",
+        "component:belgeTuruIrsaliye",
+        "component:belgeNotu",
+        "component:belgeListesi",
+        "query:bagla"
+      ]
+    },
+    "component:belgeTuruMalKabul": {
+      "since": 1,
+      "label": "Belge türü: Mal kabul",
+      "requires": [
+        "query:dosya"
+      ]
+    },
+    "component:belgeTuruIrsaliye": {
+      "since": 1,
+      "label": "Belge türü: İrsaliye",
+      "requires": [
+        "query:dosya"
+      ]
+    },
+    "component:belgeNotu": {
+      "since": 1,
+      "label": "Belge penceresi notu"
+    },
+    "component:belgeListesi": {
+      "since": 1,
+      "label": "Stok belgesi listesi",
+      "requires": [
+        "query:belgeler"
+      ]
+    },
+    "query:dosyalar": {
+      "since": 1,
+      "label": "Dış ticaret dosyalarını listele",
+      "requires": [
+        "component:suzgec",
+        "component:yonSecimi",
+        "component:durumSecimi",
+        "component:liste"
+      ]
+    },
+    "query:ozet": {
+      "since": 1,
+      "label": "Dış ticaret dosyası özeti",
+      "requires": [
+        "component:suzgec"
+      ]
+    },
+    "query:dosya": {
+      "since": 1,
+      "label": "Seçili dosya",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:belgeler": {
+      "since": 1,
+      "label": "Seçili dosyaya bağlanabilir stok belgeleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:planla": {
+      "since": 1,
+      "label": "Planlandı aşamasına geçir",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:sevkEt": {
+      "since": 1,
+      "label": "Sevkte aşamasına geçir",
+      "requires": [
+        "component:liste",
+        "component:sevkTarihi",
+        "component:sevkTasiyici"
+      ]
+    },
+    "query:gumrugeGecir": {
+      "since": 1,
+      "label": "Gümrükte aşamasına geçir",
+      "requires": [
+        "component:liste",
+        "component:gumrukReferansi"
+      ]
+    },
+    "query:varisKaydet": {
+      "since": 1,
+      "label": "Varışı kaydet",
+      "requires": [
+        "component:liste",
+        "component:varisTarihi"
+      ]
+    },
+    "query:kapat": {
+      "since": 1,
+      "label": "Dosyayı kapat",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:iptalEt": {
+      "since": 1,
+      "label": "Dosyayı iptal et",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:bagla": {
+      "since": 1,
+      "label": "Stok belgesi bağla",
+      "requires": [
+        "component:liste",
+        "component:belgeListesi"
+      ]
+    }
+  },
+  "screenViews": [
+    {
+      "key": "foreign-trade-files",
+      "component": "liste",
+      "fields": {
+        "reference": "referenceCode",
+        "direction": "direction",
+        "linkedOrder": "orderCode",
+        "countries": "route",
+        "status": "status",
+        "transportMode": "transportMode"
+      }
+    }
+  ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "newButton": "yeniDugmesi",
+          "openButton": "acDugmesi",
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{dosyalar.meta.totalCount}}",
+          "moreButtons": [
+            "ithalatDugmesi",
+            "ihracatDugmesi",
+            "planlaDugmesi",
+            "sevkDugmesi",
+            "gumrukDugmesi",
+            "varisDugmesi",
+            "kapatDugmesi",
+            "belgeBaglaDugmesi",
+            "iptalDugmesi"
+          ],
+          "hiddenCommands": [
+            "save",
+            "print",
+            "delete"
+          ]
+        }
+      },
+      {
+        "id": "yeniDugmesi",
+        "type": "button",
+        "name": "yeniDugmesi",
+        "props": {
+          "text": "Yeni",
+          "actionType": "page",
+          "pageCode": "@foreign-trade-case",
+          "target": "newTab",
+          "params": [
+            "direction={{yonSecimi.value}}"
+          ]
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "page",
+          "pageCode": "@foreign-trade-case",
+          "target": "newTab",
+          "params": [
+            "id={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.id != null",
+          "disabledWhen": "!(liste.seciliSatir.status in ['Draft', 'Booked'])",
+          "disabledReason": "Yalnız Taslak ve Planlandı dosyalar düzenlenebilir"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "width": 5,
+          "search": true,
+          "searchPlaceholder": "Referans, gümrük veya taşıyıcı referansı ara",
+          "searchParam": "q"
+        }
+      },
+      {
+        "id": "suzgecSecimleri",
+        "type": "formCard",
+        "name": "suzgecSecimleri",
+        "props": {
+          "title": "Süzgeçler",
+          "layout": "inline",
+          "width": 5,
+          "inputs": [
+            "yonSecimi",
+            "durumSecimi"
+          ]
+        }
+      },
+      {
+        "id": "yonSecimi",
+        "type": "input",
+        "name": "yonSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Yön",
+          "staticOptions": [
+            "=Tümü",
+            "Import=İthalat",
+            "Export=İhracat"
+          ]
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
+        "props": {
+          "inputType": "select",
+          "label": "Aşama",
+          "staticOptions": [
+            "=Tümü",
+            "Draft=Taslak",
+            "Booked=Planlandı",
+            "Shipped=Sevkte",
+            "CustomsClearance=Gümrükte",
+            "Arrived=Ulaştı",
+            "Closed=Kapandı",
+            "Cancelled=İptal"
+          ]
+        }
+      },
+      {
+        "id": "gorunumKarti",
+        "type": "formCard",
+        "name": "gorunumKarti",
+        "props": {
+          "title": "Görünüm",
+          "layout": "inline",
+          "width": 2,
+          "inputs": [
+            "detayPaneli"
+          ]
+        }
+      },
+      {
+        "id": "detayPaneli",
+        "type": "input",
+        "name": "detayPaneli",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Detay paneli",
+          "icon": "panel",
+          "defaultWhen": "sayfa.genis == true"
+        }
+      },
+      {
+        "id": "secimCipleri",
+        "type": "filterChips",
+        "name": "secimCipleri",
+        "props": {
+          "width": 12,
+          "inputs": [
+            "yonSecimi",
+            "durumSecimi"
+          ]
+        }
+      },
+      {
+        "id": "ozetSayilari",
+        "type": "text",
+        "name": "ozetSayilari",
+        "props": {
+          "width": 12,
+          "text": "Tümü {{ozet.rows[0].totalCount}} · İthalat {{ozet.rows[0].importCount}} · İhracat {{ozet.rows[0].exportCount}} · Taslak {{ozet.rows[0].draftCount}} · Planlandı {{ozet.rows[0].bookedCount}} · Sevkte {{ozet.rows[0].shippedCount}} · Gümrükte {{ozet.rows[0].customsClearanceCount}} · Ulaştı {{ozet.rows[0].arrivedCount}} · Kapandı {{ozet.rows[0].closedCount}} · İptal {{ozet.rows[0].cancelledCount}}"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Dış ticaret dosyaları",
+          "query": "dosyalar",
+          "paging": "server",
+          "pageSize": 50,
+          "width": 12,
+          "widthWhen": "8=detayPaneli.value == true",
+          "columns": [
+            "referenceCode",
+            "direction",
+            "orderCode",
+            "counterpartyName",
+            "route",
+            "incotermsCode",
+            "shipDate",
+            "arrivalDate",
+            "status"
+          ],
+          "columnLabels": [
+            "referenceCode=Dosya",
+            "direction=Yön",
+            "orderCode=Sipariş",
+            "counterpartyName=Cari",
+            "route=Rota",
+            "incotermsCode=Incoterms",
+            "shipDate=Sevk",
+            "arrivalDate=Varış",
+            "status=Durum",
+            "transportMode=Taşıma",
+            "plannedShipDate=Planlanan sevk",
+            "actualShipDate=Gerçek sevk",
+            "plannedArrivalDate=Planlanan varış",
+            "actualArrivalDate=Gerçek varış",
+            "harmonizedSystemCode=HS kodu",
+            "customsReference=Gümrük ref.",
+            "carrierReference=Taşıyıcı ref.",
+            "declaredValue=Beyan değeri"
+          ],
+          "columnFormats": [
+            "referenceCode=code",
+            "orderCode=code",
+            "shipDate=date",
+            "arrivalDate=date",
+            "status=status",
+            "plannedShipDate=date",
+            "actualShipDate=date",
+            "plannedArrivalDate=date",
+            "actualArrivalDate=date",
+            "declaredValue=money"
+          ],
+          "columnUnits": [
+            "declaredValue=currencyCode"
+          ],
+          "valueLabels": [
+            "direction:Import=İthalat",
+            "direction:Export=İhracat",
+            "status:Draft=Taslak",
+            "status:Booked=Planlandı",
+            "status:Shipped=Sevkte",
+            "status:CustomsClearance=Gümrükte",
+            "status:Arrived=Ulaştı",
+            "status:Closed=Kapandı",
+            "status:Cancelled=İptal",
+            "transportMode:Road=Kara",
+            "transportMode:Sea=Deniz",
+            "transportMode:Air=Hava",
+            "transportMode:Rail=Demir yolu",
+            "transportMode:Multimodal=Çok modlu"
+          ],
+          "toneMap": [
+            "Taslak=info",
+            "Planlandı=warning",
+            "Sevkte=warning",
+            "Gümrükte=warning",
+            "Ulaştı=warning",
+            "Kapandı=success"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "openParam": "id",
+          "emptyText": "Henüz dış ticaret dosyası yok ya da arama ve süzgeçlerle eşleşen dosya bulunamadı."
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{dosya.rows[0].referenceCode}}",
+          "closeInput": "detayPaneli",
+          "width": 4,
+          "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null"
+        },
+        "children": [
+          {
+            "id": "detayAc",
+            "type": "button",
+            "name": "detayAc",
+            "props": {
+              "text": "Aç",
+              "icon": "open",
+              "actionType": "page",
+              "pageCode": "@foreign-trade-case",
+              "target": "newTab",
+              "params": [
+                "id={{liste.seciliSatir.id}}"
+              ],
+              "disabledWhen": "!(liste.seciliSatir.status in ['Draft', 'Booked'])",
+              "disabledReason": "Yalnız Taslak ve Planlandı dosyalar düzenlenebilir"
+            }
+          },
+          {
+            "id": "seciliIthalat",
+            "type": "text",
+            "name": "seciliIthalat",
+            "props": {
+              "text": "Seçili dosya · İthalat",
+              "visibleWhen": "dosya.rows[0].direction == 'Import'"
+            }
+          },
+          {
+            "id": "seciliIhracat",
+            "type": "text",
+            "name": "seciliIhracat",
+            "props": {
+              "text": "Seçili dosya · İhracat",
+              "visibleWhen": "dosya.rows[0].direction == 'Export'"
+            }
+          },
+          {
+            "id": "asamaAkisi",
+            "type": "steps",
+            "name": "asamaAkisi",
+            "props": {
+              "steps": [
+                "Taslak",
+                "Planlandı",
+                "Sevkte",
+                "Gümrükte",
+                "Ulaştı",
+                "Kapandı"
+              ],
+              "activeWhen": [
+                "dosya.rows[0].status == 'Draft'",
+                "dosya.rows[0].status == 'Booked'",
+                "dosya.rows[0].status == 'Shipped'",
+                "dosya.rows[0].status == 'CustomsClearance'",
+                "dosya.rows[0].status == 'Arrived'",
+                "dosya.rows[0].status == 'Closed'"
+              ],
+              "visibleWhen": "dosya.rows[0].status != 'Cancelled'"
+            }
+          },
+          {
+            "id": "iptalNotu",
+            "type": "alert",
+            "name": "iptalNotu",
+            "props": {
+              "title": "İptal edildi",
+              "variant": "info",
+              "width": 12,
+              "text": "İptal edildi · sevk başlamadan kapatıldı",
+              "visibleWhen": "dosya.rows[0].status == 'Cancelled'"
+            }
+          },
+          {
+            "id": "durumTaslak",
+            "type": "badge",
+            "name": "durumTaslak",
+            "props": {
+              "text": "Taslak · sıradaki: Planlandı",
+              "variant": "info",
+              "visibleWhen": "dosya.rows[0].status == 'Draft'"
+            }
+          },
+          {
+            "id": "durumPlanlandi",
+            "type": "badge",
+            "name": "durumPlanlandi",
+            "props": {
+              "text": "Planlandı · sıradaki: Sevkte",
+              "variant": "warning",
+              "visibleWhen": "dosya.rows[0].status == 'Booked'"
+            }
+          },
+          {
+            "id": "durumSevkte",
+            "type": "badge",
+            "name": "durumSevkte",
+            "props": {
+              "text": "Sevkte · sıradaki: Gümrükte",
+              "variant": "warning",
+              "visibleWhen": "dosya.rows[0].status == 'Shipped'"
+            }
+          },
+          {
+            "id": "durumGumrukte",
+            "type": "badge",
+            "name": "durumGumrukte",
+            "props": {
+              "text": "Gümrükte · sıradaki: Ulaştı",
+              "variant": "warning",
+              "visibleWhen": "dosya.rows[0].status == 'CustomsClearance'"
+            }
+          },
+          {
+            "id": "durumUlasti",
+            "type": "badge",
+            "name": "durumUlasti",
+            "props": {
+              "text": "Ulaştı · sıradaki: Kapandı",
+              "variant": "warning",
+              "visibleWhen": "dosya.rows[0].status == 'Arrived'"
+            }
+          },
+          {
+            "id": "durumKapandi",
+            "type": "badge",
+            "name": "durumKapandi",
+            "props": {
+              "text": "Kapandı",
+              "variant": "success",
+              "visibleWhen": "dosya.rows[0].status == 'Closed'"
+            }
+          },
+          {
+            "id": "durumIptal",
+            "type": "badge",
+            "name": "durumIptal",
+            "props": {
+              "text": "İptal",
+              "variant": "info",
+              "visibleWhen": "dosya.rows[0].status == 'Cancelled'"
+            }
+          },
+          {
+            "id": "siparisBilgisi",
+            "type": "text",
+            "name": "siparisBilgisi",
+            "props": {
+              "text": "Sipariş: {{dosya.rows[0].orderCode}} · {{dosya.rows[0].counterpartyName}}"
+            }
+          },
+          {
+            "id": "rotaBilgisi",
+            "type": "text",
+            "name": "rotaBilgisi",
+            "props": {
+              "text": "Rota: {{dosya.rows[0].route}} · {{dosya.rows[0].incotermsCode}}",
+              "visibleWhen": "dosya.rows[0].incotermsCode != null"
+            }
+          },
+          {
+            "id": "rotaBilgisiIncotermssiz",
+            "type": "text",
+            "name": "rotaBilgisiIncotermssiz",
+            "props": {
+              "text": "Rota: {{dosya.rows[0].route}} · Incoterms girilmedi",
+              "visibleWhen": "dosya.rows[0].incotermsCode == null"
+            }
+          },
+          {
+            "id": "tasimaRoad",
+            "type": "text",
+            "name": "tasimaRoad",
+            "props": {
+              "text": "Taşıma: Kara",
+              "visibleWhen": "dosya.rows[0].transportMode == 'Road'"
+            }
+          },
+          {
+            "id": "tasimaSea",
+            "type": "text",
+            "name": "tasimaSea",
+            "props": {
+              "text": "Taşıma: Deniz",
+              "visibleWhen": "dosya.rows[0].transportMode == 'Sea'"
+            }
+          },
+          {
+            "id": "tasimaAir",
+            "type": "text",
+            "name": "tasimaAir",
+            "props": {
+              "text": "Taşıma: Hava",
+              "visibleWhen": "dosya.rows[0].transportMode == 'Air'"
+            }
+          },
+          {
+            "id": "tasimaRail",
+            "type": "text",
+            "name": "tasimaRail",
+            "props": {
+              "text": "Taşıma: Demir yolu",
+              "visibleWhen": "dosya.rows[0].transportMode == 'Rail'"
+            }
+          },
+          {
+            "id": "tasimaMultimodal",
+            "type": "text",
+            "name": "tasimaMultimodal",
+            "props": {
+              "text": "Taşıma: Çok modlu",
+              "visibleWhen": "dosya.rows[0].transportMode == 'Multimodal'"
+            }
+          },
+          {
+            "id": "hsBilgisi",
+            "type": "text",
+            "name": "hsBilgisi",
+            "props": {
+              "text": "HS kodu: {{dosya.rows[0].harmonizedSystemCode}}",
+              "visibleWhen": "dosya.rows[0].harmonizedSystemCode != null"
+            }
+          },
+          {
+            "id": "beyanBilgisi",
+            "type": "metric",
+            "name": "beyanBilgisi",
+            "props": {
+              "title": "Beyan değeri",
+              "value": "{{dosya.rows[0].declaredValue}}",
+              "format": "money",
+              "width": 12,
+              "icon": "wallet",
+              "description": "{{dosya.rows[0].currencyCode}}"
+            }
+          },
+          {
+            "id": "tasiyiciBilgisi",
+            "type": "text",
+            "name": "tasiyiciBilgisi",
+            "props": {
+              "text": "Taşıyıcı / takip: {{dosya.rows[0].carrierReference}}",
+              "visibleWhen": "dosya.rows[0].carrierReference != null"
+            }
+          },
+          {
+            "id": "tasiyiciYok",
+            "type": "text",
+            "name": "tasiyiciYok",
+            "props": {
+              "text": "Taşıyıcı / takip: Girilmedi",
+              "visibleWhen": "dosya.rows[0].carrierReference == null"
+            }
+          },
+          {
+            "id": "gumrukBilgisi",
+            "type": "text",
+            "name": "gumrukBilgisi",
+            "props": {
+              "text": "Gümrük referansı: {{dosya.rows[0].customsReference}}",
+              "visibleWhen": "dosya.rows[0].customsReference != null"
+            }
+          },
+          {
+            "id": "gumrukYok",
+            "type": "text",
+            "name": "gumrukYok",
+            "props": {
+              "text": "Gümrük referansı: Girilmedi",
+              "visibleWhen": "dosya.rows[0].customsReference == null"
+            }
+          },
+          {
+            "id": "belgeBagli",
+            "type": "text",
+            "name": "belgeBagli",
+            "props": {
+              "text": "Stok belgesi: Bağlı (mevcut belge; stok ikinci kez işlenmedi)",
+              "visibleWhen": "dosya.rows[0].purchaseReceiptId != null || dosya.rows[0].salesDeliveryId != null"
+            }
+          },
+          {
+            "id": "belgeYok",
+            "type": "text",
+            "name": "belgeYok",
+            "props": {
+              "text": "Stok belgesi: Bağlanmadı",
+              "visibleWhen": "dosya.rows[0].purchaseReceiptId == null && dosya.rows[0].salesDeliveryId == null"
+            }
+          },
+          {
+            "id": "sevkOnKosulu",
+            "type": "alert",
+            "name": "sevkOnKosulu",
+            "props": {
+              "title": "Sevke geçmek için gerekli",
+              "variant": "warning",
+              "width": 12,
+              "text": "Planlanan sevk tarihi, sıfırdan büyük beyan değeri ve Incoterms. Dosyayı Aç ile açıp girin.",
+              "visibleWhen": "dosya.rows[0].status == 'Booked' && (dosya.rows[0].plannedShipDate == null || dosya.rows[0].declaredValue <= 0 || dosya.rows[0].incotermsCode == null)"
+            }
+          },
+          {
+            "id": "gumrukOnKosulu",
+            "type": "alert",
+            "name": "gumrukOnKosulu",
+            "props": {
+              "title": "Gümrüğe geçmek için gerekli",
+              "variant": "warning",
+              "width": 12,
+              "text": "Kayıtlı teslimat belgesini bu dosyaya bağlayın (İşlemler › Stok belgesi bağla…). Gümrük referansı geçişte istenir.",
+              "visibleWhen": "dosya.rows[0].status == 'Shipped' && dosya.rows[0].direction == 'Export' && dosya.rows[0].salesDeliveryId == null"
+            }
+          },
+          {
+            "id": "kapatOnKosulu",
+            "type": "alert",
+            "name": "kapatOnKosulu",
+            "props": {
+              "title": "Kapatmak için gerekli",
+              "variant": "warning",
+              "width": 12,
+              "text": "Gerçek varış tarihi kayıtlı olmalı; ithalatta kayıtlı mal kabul belgesi bu dosyaya bağlanmalı (İşlemler › Stok belgesi bağla…).",
+              "visibleWhen": "dosya.rows[0].status == 'Arrived' && (dosya.rows[0].actualArrivalDate == null || dosya.rows[0].direction == 'Import' && dosya.rows[0].purchaseReceiptId == null)"
+            }
+          },
+          {
+            "id": "yasalNot",
+            "type": "text",
+            "name": "yasalNot",
+            "props": {
+              "text": "İç operasyon kaydıdır; resmî gümrük beyannamesi değildir. Gümrük beyannamesi, akreditif ve masraf dağıtımı bu dosyada tutulmaz."
+            }
+          }
+        ]
+      },
+      {
+        "id": "bosSecim",
+        "type": "text",
+        "name": "bosSecim",
+        "props": {
+          "text": "Dosya seçin. Aşamasını, ön koşullarını ve bağlı stok belgesini görmek için listeden bir dosya seçin. İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.",
+          "width": 4,
+          "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null"
+        }
+      },
+      {
+        "id": "ithalatDugmesi",
+        "type": "button",
+        "name": "ithalatDugmesi",
+        "props": {
+          "text": "İthalat dosyası",
+          "actionType": "page",
+          "pageCode": "@foreign-trade-case",
+          "target": "newTab",
+          "params": [
+            "direction=Import"
+          ]
+        }
+      },
+      {
+        "id": "ihracatDugmesi",
+        "type": "button",
+        "name": "ihracatDugmesi",
+        "props": {
+          "text": "İhracat dosyası",
+          "actionType": "page",
+          "pageCode": "@foreign-trade-case",
+          "target": "newTab",
+          "params": [
+            "direction=Export"
+          ]
+        }
+      },
+      {
+        "id": "planlaDugmesi",
+        "type": "button",
+        "name": "planlaDugmesi",
+        "props": {
+          "text": "Planlandı aşamasına geçir",
+          "actionType": "query",
+          "queryId": "planla",
+          "visibleWhen": "dosya.rows[0].status == 'Draft'",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id",
+          "disabledReason": "Dosya yükleniyor…",
+          "successMessage": "{{dosya.rows[0].referenceCode}}: Planlandı aşamasına geçirildi.",
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "sevkDugmesi",
+        "type": "button",
+        "name": "sevkDugmesi",
+        "props": {
+          "text": "Sevkte aşamasına geçir…",
+          "actionType": "openDialog",
+          "dialogId": "sevkPenceresi",
+          "visibleWhen": "dosya.rows[0].status == 'Booked'",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id || dosya.rows[0].plannedShipDate == null || dosya.rows[0].declaredValue <= 0 || dosya.rows[0].incotermsCode == null",
+          "disabledReason": "Önce dosyayı açıp planlanan sevk tarihi, beyan değeri ve Incoterms girin"
+        }
+      },
+      {
+        "id": "gumrukDugmesi",
+        "type": "button",
+        "name": "gumrukDugmesi",
+        "props": {
+          "text": "Gümrükte aşamasına geçir…",
+          "actionType": "openDialog",
+          "dialogId": "gumrukPenceresi",
+          "visibleWhen": "dosya.rows[0].status == 'Shipped'",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id || dosya.rows[0].direction == 'Export' && dosya.rows[0].salesDeliveryId == null",
+          "disabledReason": "Önce kayıtlı teslimat belgesini bu dosyaya bağlayın"
+        }
+      },
+      {
+        "id": "varisDugmesi",
+        "type": "button",
+        "name": "varisDugmesi",
+        "props": {
+          "text": "Varışı kaydet…",
+          "actionType": "openDialog",
+          "dialogId": "varisPenceresi",
+          "visibleWhen": "dosya.rows[0].status == 'CustomsClearance'",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id",
+          "disabledReason": "Dosya yükleniyor…"
+        }
+      },
+      {
+        "id": "kapatDugmesi",
+        "type": "button",
+        "name": "kapatDugmesi",
+        "props": {
+          "text": "Kapat",
+          "actionType": "query",
+          "queryId": "kapat",
+          "visibleWhen": "dosya.rows[0].status == 'Arrived'",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id || dosya.rows[0].actualArrivalDate == null || dosya.rows[0].direction == 'Import' && dosya.rows[0].purchaseReceiptId == null",
+          "disabledReason": "Kapatmak için gerçek varış tarihi ve ithalatta bağlı mal kabul belgesi gerekir",
+          "successMessage": "{{dosya.rows[0].referenceCode}}: dosya kapatıldı.",
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "belgeBaglaDugmesi",
+        "type": "button",
+        "name": "belgeBaglaDugmesi",
+        "props": {
+          "text": "Stok belgesi bağla…",
+          "actionType": "openDialog",
+          "dialogId": "belgePenceresi",
+          "visibleWhen": "dosya.rows[0].purchaseReceiptId == null && dosya.rows[0].salesDeliveryId == null && (dosya.rows[0].direction == 'Import' && dosya.rows[0].status in ['Arrived', 'Closed'] || dosya.rows[0].direction == 'Export' && dosya.rows[0].status in ['Shipped', 'CustomsClearance', 'Arrived', 'Closed'])",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id",
+          "disabledReason": "Dosya yükleniyor…"
+        }
+      },
+      {
+        "id": "iptalDugmesi",
+        "type": "button",
+        "name": "iptalDugmesi",
+        "props": {
+          "text": "İptal et",
+          "actionType": "query",
+          "queryId": "iptalEt",
+          "confirmEnabled": true,
+          "confirmText": "Dosyayı iptal et: {{dosya.rows[0].referenceCode}} iptal edilsin mi? Bu işlem geri alınamaz.",
+          "visibleWhen": "dosya.rows[0].status in ['Draft', 'Booked']",
+          "disabledWhen": "dosya.rows[0].id != liste.seciliSatir.id",
+          "disabledReason": "Dosya yükleniyor…",
+          "successMessage": "{{dosya.rows[0].referenceCode}}: dosya iptal edildi.",
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "sevkPenceresi",
+        "type": "dialog",
+        "name": "sevkPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "sm",
+          "title": "Sevkte aşamasına geçir · {{dosya.rows[0].referenceCode}}",
+          "contains": [
+            "sevkBilgileri",
+            "sevkNotu"
+          ],
+          "saveQuery": "sevkEt",
+          "saveLabel": "Geçir",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "sevkBilgileri",
+        "type": "formCard",
+        "name": "sevkBilgileri",
+        "props": {
+          "title": "Sevkiyat",
+          "columns": 1,
+          "inputs": [
+            "sevkTarihi",
+            "sevkTasiyici"
+          ]
+        }
+      },
+      {
+        "id": "sevkTarihi",
+        "type": "input",
+        "name": "sevkTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Gerçek tarih",
+          "placeholder": "Boş bırakılırsa bugün"
+        }
+      },
+      {
+        "id": "sevkTasiyici",
+        "type": "input",
+        "name": "sevkTasiyici",
+        "props": {
+          "inputType": "text",
+          "label": "Taşıyıcı / takip referansı",
+          "maxLength": 100,
+          "defaultValue": "{{dosya.rows[0].carrierReference}}"
+        }
+      },
+      {
+        "id": "sevkNotu",
+        "type": "text",
+        "name": "sevkNotu",
+        "props": {
+          "text": "Gerçek tarih boş bırakılırsa bugün yazılır. Geçmiş tarih girilebilir; gelecek tarih reddedilir."
+        }
+      },
+      {
+        "id": "gumrukPenceresi",
+        "type": "dialog",
+        "name": "gumrukPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "sm",
+          "title": "Gümrükte aşamasına geçir · {{dosya.rows[0].referenceCode}}",
+          "contains": [
+            "gumrukBilgileri"
+          ],
+          "saveQuery": "gumrugeGecir",
+          "saveLabel": "Geçir",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "gumrukBilgileri",
+        "type": "formCard",
+        "name": "gumrukBilgileri",
+        "props": {
+          "title": "Gümrük",
+          "columns": 1,
+          "inputs": [
+            "gumrukReferansi"
+          ]
+        }
+      },
+      {
+        "id": "gumrukReferansi",
+        "type": "input",
+        "name": "gumrukReferansi",
+        "props": {
+          "inputType": "text",
+          "label": "Gümrük referansı",
+          "required": true,
+          "maxLength": 100,
+          "placeholder": "ör. 26TR3400…",
+          "defaultValue": "{{dosya.rows[0].customsReference}}"
+        }
+      },
+      {
+        "id": "varisPenceresi",
+        "type": "dialog",
+        "name": "varisPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "sm",
+          "title": "Varışı kaydet · {{dosya.rows[0].referenceCode}}",
+          "contains": [
+            "varisBilgileri",
+            "varisNotu"
+          ],
+          "saveQuery": "varisKaydet",
+          "saveLabel": "Kaydet",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "varisBilgileri",
+        "type": "formCard",
+        "name": "varisBilgileri",
+        "props": {
+          "title": "Varış",
+          "columns": 1,
+          "inputs": [
+            "varisTarihi"
+          ]
+        }
+      },
+      {
+        "id": "varisTarihi",
+        "type": "input",
+        "name": "varisTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Gerçek tarih",
+          "placeholder": "Boş bırakılırsa bugün"
+        }
+      },
+      {
+        "id": "varisNotu",
+        "type": "text",
+        "name": "varisNotu",
+        "props": {
+          "text": "Gerçek tarih boş bırakılırsa bugün yazılır. Geçmiş tarih girilebilir; gelecek tarih reddedilir."
+        }
+      },
+      {
+        "id": "belgePenceresi",
+        "type": "dialog",
+        "name": "belgePenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "lg",
+          "title": "Stok belgesi seç · {{dosya.rows[0].referenceCode}}",
+          "contains": [
+            "belgeTuruMalKabul",
+            "belgeTuruIrsaliye",
+            "belgeNotu",
+            "belgeListesi"
+          ],
+          "saveQuery": "bagla",
+          "saveLabel": "Bağla",
+          "closeOnSave": true,
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "dosyalar",
+            "ozet",
+            "dosya",
+            "belgeler"
+          ]
+        }
+      },
+      {
+        "id": "belgeTuruMalKabul",
+        "type": "text",
+        "name": "belgeTuruMalKabul",
+        "props": {
+          "text": "Mal kabul. Bu dosyanın satınalma siparişine ait kayıtlı mal kabul belgeleri.",
+          "visibleWhen": "dosya.rows[0].direction == 'Import'"
+        }
+      },
+      {
+        "id": "belgeTuruIrsaliye",
+        "type": "text",
+        "name": "belgeTuruIrsaliye",
+        "props": {
+          "text": "İrsaliye. Bu dosyanın satış siparişine ait kayıtlı teslimat (irsaliye) belgeleri.",
+          "visibleWhen": "dosya.rows[0].direction == 'Export'"
+        }
+      },
+      {
+        "id": "belgeNotu",
+        "type": "text",
+        "name": "belgeNotu",
+        "props": {
+          "text": "Bu adım yalnızca mevcut belgeyi bağlar; stok ikinci kez işlenmez."
+        }
+      },
+      {
+        "id": "belgeListesi",
+        "type": "dataTable",
+        "name": "belgeListesi",
+        "props": {
+          "title": "Stok belgeleri",
+          "query": "belgeler",
+          "width": 12,
+          "columns": [
+            "code",
+            "documentDate",
+            "warehouseName",
+            "lineCount"
+          ],
+          "columnLabels": [
+            "code=Belge",
+            "documentDate=Belge tarihi",
+            "warehouseName=Depo",
+            "lineCount=Satır"
+          ],
+          "columnFormats": [
+            "code=code",
+            "documentDate=date",
+            "lineCount=number"
+          ],
+          "emptyText": "Uygun kayıtlı stok belgesi yok",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "dosyalar",
+        "name": "dosyalar",
+        "kind": "read",
+        "operation": "disTicaret.dosya.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "direction",
+            "binding": "{{yonSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "ozet",
+        "name": "ozet",
+        "kind": "read",
+        "operation": "disTicaret.dosya.ozet",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "dosya",
+        "name": "dosya",
+        "kind": "read",
+        "operation": "disTicaret.dosya.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "belgeler",
+        "name": "belgeler",
+        "kind": "read",
+        "operation": "disTicaret.dosya.stokBelgeleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "planla",
+        "name": "planla",
+        "kind": "update",
+        "operation": "disTicaret.dosya.planla",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "sevkEt",
+        "name": "sevkEt",
+        "kind": "update",
+        "operation": "disTicaret.dosya.sevkEt",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "actualDate",
+            "binding": "{{sevkTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "carrierReference",
+            "binding": "{{sevkTasiyici.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "gumrugeGecir",
+        "name": "gumrugeGecir",
+        "kind": "update",
+        "operation": "disTicaret.dosya.gumrugeGecir",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "customsReference",
+            "binding": "{{gumrukReferansi.value}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "varisKaydet",
+        "name": "varisKaydet",
+        "kind": "update",
+        "operation": "disTicaret.dosya.varisKaydet",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "actualDate",
+            "binding": "{{varisTarihi.value}}",
+            "type": "date"
+          }
+        ]
+      },
+      {
+        "id": "kapat",
+        "name": "kapat",
+        "kind": "update",
+        "operation": "disTicaret.dosya.kapat",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "iptalEt",
+        "name": "iptalEt",
+        "kind": "update",
+        "operation": "disTicaret.dosya.iptalEt",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "bagla",
+        "name": "bagla",
+        "kind": "update",
+        "operation": "disTicaret.dosya.stokBelgesiBagla",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "documentId",
+            "binding": "{{belgeListesi.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      }
+    ]
+  }
+}

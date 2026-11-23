@@ -15,6 +15,7 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "customer-edit": "customers",
   "crm-opportunity-create": "crm-opportunities",
   "hr-employee-create": "hr-employees",
+  "foreign-trade-case": "foreign-trade",
   "inventory-stock-create": "inventory-stock",
   "sales-quote-create": "sales-quotes",
   "sales-order-create": "sales-orders",
@@ -100,7 +101,7 @@ export const moduleMenus: ModuleMenu[] = [
     pages: ["hr-employees", "hr-employee-create", "hr-leave-requests", "hr-attendance", "hr-period-summary", "human-resources"],
   },
   { railId: "fixed-assets", title: ["Duran Varlıklar", "Fixed assets"], pages: ["fixed-assets", "fixed-asset-create", "fixed-asset-card"] },
-  { railId: "foreign-trade", title: ["Dış Ticaret", "Foreign trade"], pages: ["foreign-trade"] },
+  { railId: "foreign-trade", title: ["Dış Ticaret", "Foreign trade"], pages: ["foreign-trade", "foreign-trade-case"] },
   { railId: "reports", title: ["Raporlar", "Reports"], pages: ["reports"] },
   { railId: "modules", title: ["Tanımlar", "Definitions"], pages: ["location-definitions", "address-definitions"] },
 ];

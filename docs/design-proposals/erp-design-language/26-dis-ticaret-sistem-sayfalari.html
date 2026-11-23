@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dış Ticaret sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.desc{color:var(--mut);margin:0 0 4px}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.fcard{display:flex;gap:18px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:8px 12px;margin:10px 0 8px;flex-wrap:wrap}
+.fcard .grp{display:flex;gap:6px;align-items:center}.fcard .grp>span{color:var(--mut);font-weight:600;font-size:11.5px;margin-right:2px}
+.seg{border:1px solid #d8e2ec;background:#fff;border-radius:6px;padding:3px 10px;font-weight:600;color:#475467}.seg.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.seg i{font-style:normal;color:var(--mut);margin-left:4px;font-weight:500}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 340px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #bcd0f5;background:var(--pri-soft);border-radius:999px;padding:2px 9px;font-weight:600;color:var(--pri);font-size:11.5px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 310px;gap:10px;min-width:960px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 10px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid #eef1f6;white-space:nowrap}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}.m{color:#98a2b3}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:2px 0 0;font-size:15px}.pnl .eyebrow{color:var(--mut);font-size:11px;font-weight:600}
+.dl{display:grid;grid-template-columns:104px 1fr;gap:5px 8px;font-size:12px;margin:10px 0}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}.btn.d{color:var(--dan);border-color:#f3c3bb}
+.steps{display:flex;gap:3px;margin:10px 0 4px}.steps span{flex:1;height:6px;border-radius:3px;background:#e6ebf2}.steps .done{background:var(--ok)}.steps .on{background:var(--pri)}
+.stl{display:flex;justify-content:space-between;font-size:10px;color:var(--mut);margin-bottom:6px}
+.al{border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.45;margin:8px 0}.al.w{background:var(--warn-bg);color:#6b4b00;border:1px solid #f1dc9a}.al.i{background:var(--pri-soft);color:#1e3f86;border:1px solid #bcd0f5}.al.o{background:var(--off-bg);color:#3b475c;border:1px solid #d8dfeb}
+.al b{display:block;margin-bottom:2px}
+.disc{color:var(--mut);font-size:11px;border-top:1px solid #eef1f6;padding-top:8px;margin-top:10px}
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}.f small{color:var(--mut);font-size:10.5px;display:block;margin-top:3px}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}.in.ro{background:#f3f5f9;color:#475467}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px;flex-wrap:wrap}
+.dlgs{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;max-width:1150px}
+.dlg{background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 10px 30px rgba(20,30,60,.12);overflow:hidden}
+.dlg header{padding:12px 14px;border-bottom:1px solid #eef1f6}.dlg header h5{margin:0;font-size:14px}.dlg header p{margin:4px 0 0;color:var(--mut);font-size:11.5px}
+.dlg .body{padding:12px 14px}.dlg footer{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:1px solid #eef1f6;color:var(--mut);font-size:11.5px}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.cmp div{border-radius:8px;padding:7px 9px;font-size:12px;line-height:1.45}.cmp .old{background:#f8fafc;border:1px dashed #d0d8e4;color:#475467}.cmp .new{background:#f3f7ff;border:1px solid #bcd0f5}
+.d .tagw{font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagb{font-size:10.5px;font-weight:700;color:var(--pri);background:var(--pri-soft);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagr{font-size:10.5px;font-weight:700;color:var(--dan);background:var(--dan-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.scope{max-width:1150px;background:#fff;border:1px solid #dfe5ee;border-left:4px solid var(--warn);border-radius:10px;padding:12px 14px;line-height:1.55;color:#344054}
+.scope ul{margin:6px 0 0;padding-left:18px}
+@media (max-width:760px){.dec,.dlgs,.g4,.g3,.g2{grid-template-columns:1fr}body{padding:16px}}
+</style></head><body>
+<h1>Dış Ticaret → sistem sayfaları (taslak 26)</h1>
+<p class="sub">Dış Ticaret modülü bugün <b>tek ekrandan</b> oluşuyor: <b>İthalat ve ihracat dosyaları</b> (liste, detay paneli, dosya formu, stok belgesi seçme penceresi). İki standart öneriliyor: <b>Dış ticaret dosyaları</b> listesi ve <b>Dış ticaret dosyası</b> kartı (yeni ve düzenleme tek tanımda, ayrı sekmede). Aşama kuralları API'de kalıyor. Bugün hiç olmayan <code>disTicaret.*</code> ERP işlemleri (15 adet) ekleniyor. Yeni ortak motor özelliği gerekmiyor. Aşağıdaki kararlar sizin onayınızı bekliyor.</p>
+
+<div class="scope"><b>Kapsam notu: görevde sayılan üç ekran kodda yok.</b>
+<ul>
+<li><b>Gümrük beyannamesi:</b> ayrı kayıt yok. Dosyada yalnız serbest metin "gümrük referansı" tutuluyor ve ekran kendini "resmî gümrük beyannamesi değildir" diye tanımlıyor.</li>
+<li><b>Akreditif:</b> kodda hiç geçmiyor.</li>
+<li><b>Masraf dağıtımı:</b> Satınalma'da "mal kabul ek maliyeti" olarak var ve zaten sistem sayfası olan <b>Stok Değerleme</b> ekranında duruyor. Dış ticaret dosyasına bağlı değil.</li>
+</ul>
+Bu üçü yeni kayıt türü, uç ve yetki gerektiren ayrı alan işleri. Bu taşımanın parçası değiller (karar 10).</div>
+
+<div class="lbl">1 · DIŞ TİCARET DOSYALARI (LİSTE + PANEL) · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Dış Ticaret › Dış Ticaret Dosyaları</div>
+  <div class="ttl"><h2>İthalat ve ihracat dosyaları</h2><small>37 dosya</small></div>
+  <p class="desc">Satın alma ve satış siparişlerine bağlı lojistik, gümrük referansı ve sevkiyat adımlarını izleyin.</p>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis" title="Dosya silinemez; İşlemler'den iptal edin.">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="fcard">
+    <div class="grp"><span>Yön</span><span class="seg on">Tümü<i>37</i></span><span class="seg">İthalat<i>15</i></span><span class="seg">İhracat<i>22</i></span></div>
+    <div class="grp"><span>Aşama</span><span class="seg on">Tümü</span><span class="seg">Taslak<i>6</i></span><span class="seg">Planlandı<i>5</i></span><span class="seg">Sevkte<i>9</i></span><span class="seg">Gümrükte<i>4</i></span><span class="seg">Ulaştı<i>3</i></span><span class="seg">Kapandı<i>8</i></span><span class="seg">İptal<i>2</i></span></div>
+  </div>
+  <div class="fbar"><span class="srch">Referans, gümrük veya taşıyıcı referansı ara</span><span class="tool">Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Dosya</th><th>Yön</th><th>Sipariş</th><th>Cari</th><th>Rota</th><th>Incoterms</th><th>Sevk</th><th>Varış</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">EXP-2026-014</td><td>İhracat</td><td class="code">SS-2026-0211</td><td>MÜLLER GMBH</td><td>TR → DE</td><td>FCA</td><td>18.11.2026</td><td>27.11.2026</td><td><span class="tag t-w">Sevkte</span></td></tr>
+      <tr><td class="code">IMP-2026-009</td><td>İthalat</td><td class="code">SA-2026-0087</td><td>SHENZHEN PARTS CO.</td><td>CN → TR</td><td>CIF</td><td>02.11.2026</td><td>24.11.2026</td><td><span class="tag t-w">Gümrükte</span></td></tr>
+      <tr><td class="code">EXP-2026-016</td><td>İhracat</td><td class="code">SS-2026-0230</td><td>NORD TRADING AB</td><td>TR → SE</td><td class="m">—</td><td>05.12.2026</td><td>15.12.2026</td><td><span class="tag t-in">Taslak</span></td></tr>
+      <tr><td class="code">IMP-2026-004</td><td>İthalat</td><td class="code">SA-2026-0031</td><td>MILANO TESSUTI SPA</td><td>IT → TR</td><td>DAP</td><td>01.10.2026</td><td>09.10.2026</td><td><span class="tag t-ok">Kapandı</span></td></tr>
+      <tr><td class="code">EXP-2026-007</td><td>İhracat</td><td class="code">SS-2026-0102</td><td>GULF FOODS LLC</td><td>TR → AE</td><td>EXW</td><td class="m">—</td><td class="m">—</td><td><span class="tag t-off">İptal</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Enter aç · Çift tık aç · Ctrl+. detay paneli</span><span>Sayfa 1 / 1 · 37 dosya · 50'şer</span></div></div>
+    <div class="card pnl">
+      <div class="eyebrow">Seçili dosya · İhracat <span class="btn" style="float:right;padding:1px 8px">Aç</span></div>
+      <h4 class="code">EXP-2026-014</h4>
+      <div class="steps"><span class="done"></span><span class="done"></span><span class="on"></span><span></span><span></span><span></span></div>
+      <div class="stl"><span>Taslak</span><span>Planlandı</span><span>Sevkte</span><span>Gümrükte</span><span>Ulaştı</span><span>Kapandı</span></div>
+      <div><span class="tag t-w">Sevkte</span> <span class="m">· sıradaki: Gümrükte</span></div>
+      <dl class="dl"><dt>Sipariş</dt><dd><span class="code">SS-2026-0211</span> · MÜLLER GMBH</dd><dt>Rota</dt><dd>TR → DE · FCA · Kara</dd><dt>HS kodu</dt><dd class="code">844332</dd><dt>Beyan değeri</dt><dd>48.750,00 EUR</dd><dt>Taşıyıcı / takip</dt><dd>ABC-LOJ-77812</dd><dt>Gümrük referansı</dt><dd class="m">Girilmedi</dd><dt>Stok belgesi</dt><dd class="m">Bağlanmadı</dd></dl>
+      <div class="al w"><b>Gümrüğe geçmek için gerekli</b>Kayıtlı teslimat belgesini bu dosyaya bağlayın (İşlemler › Stok belgesi bağla…). Gümrük referansı geçişte istenir.</div>
+      <div class="disc">İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.</div>
+    </div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Yön ve aşama seçimleri</b> son QA kuralına göre satır içi süzgeç kartında. Sayılar artık <b>tüm dosyaları</b> sayıyor; bugün yön sayıları yalnız yüklenen ilk 100 dosyadan, aşama çiplerinde ise hiç sayı yok (karar 2).</li>
+  <li><b>İşlemler menüsü</b> (seçili dosyada): "<b>Gümrükte aşamasına geçir</b>" (düğme sonraki aşamanın adını taşır), "Stok belgesi bağla…", "İptal et" (yalnız Taslak/Planlandı, "geri alınamaz" onayıyla), "İthalat dosyası", "İhracat dosyası", CSV. Ön koşul eksikse düğme nedenini söyleyerek pasif kalır.</li>
+  <li><b>Sütunlar ayrıldı:</b> bugün "Rota" hücresinde rota, Incoterms ve taşıma birlikte; "Sevk → varış" tek hücrede. Sistem tablosunda birleşik hücre yok, bu yüzden ayrı sütunlar kullanılıyor. Sevk ve varış "gerçek, yoksa planlanan" tarihi gösteriyor. Taşıma ve gerçek/planlanan tarihler Sütunlar menüsünden açılabiliyor.</li>
+  <li><b>İptal edilen dosyada</b> aşama şeridi yerine "İptal edildi · sevk başlamadan kapatıldı" notu çıkıyor.</li>
+  <li>Sil düğmesi bugünkü gibi hep pasif: "Dosya silinemez; İşlemler'den iptal edin."</li>
+</ul>
+
+<div class="lbl">2 · PENCERELER (LİSTE SAYFASINDA)</div>
+<div class="dlgs">
+  <div class="dlg"><header><h5>Stok belgesi seç</h5><p>EXP-2026-014 · İrsaliye. Bu adım yalnızca mevcut belgeyi bağlar; stok ikinci kez işlenmez.</p></header>
+    <div class="body" style="padding:0"><table><thead><tr><th>Belge</th><th>Belge tarihi</th><th>Depo</th><th class="num">Satır</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">IRS-2026-0412</td><td>17.11.2026</td><td>Merkez Depo</td><td class="num">4</td></tr>
+      <tr><td class="code">IRS-2026-0398</td><td>12.11.2026</td><td>Gebze Depo</td><td class="num">1</td></tr>
+    </tbody></table></div>
+    <footer><span>↑↓ gez · Enter bağla · Esc kapat · 2 belge</span><span><span class="btn g">Vazgeç</span> <span class="btn p">Bağla</span></span></footer></div>
+  <div class="dlg"><header><h5>Gümrükte aşamasına geçir</h5><p>EXP-2026-014</p></header>
+    <div class="body"><div class="f"><label>Gümrük referansı <b>*</b></label><div class="in ph">ör. 26TR3400…</div><small>Kayıtta varsa dolu gelir; en çok 100 karakter.</small></div>
+      <div class="f" style="margin-top:10px"><label>Gerçek tarih (Sevk ve Varış pencerelerinde)</label><div class="in ph">Boş bırakılırsa bugün</div><small>Geçmiş tarih girilebilir; gelecek tarih reddedilir.</small></div></div>
+    <footer><span>Ctrl+Enter geçir</span><span><span class="btn g">Vazgeç</span> <span class="btn p">Geçir</span></span></footer></div>
+</div>
+<ul class="note">
+  <li>Belge listesinde yalnız bu dosyanın siparişine ait, kayıtlı ve stok hareketi etkin, henüz bağlanmamış belgeler var. İthalatta başlık "Mal kabul" oluyor.</li>
+  <li><b>Gerçek tarih alanı yeni.</b> Bugünkü ekran gerçek sevk ve varış tarihini hep "bugün" yazıyor; sunucu geçmiş tarih kabul ediyor ama ekran sormuyor (karar 5).</li>
+</ul>
+
+<div class="lbl">3 · DIŞ TİCARET DOSYASI (YENİ + DÜZENLEME TEK TANIM, AYRI SEKME)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Dış Ticaret › Dış Ticaret Dosyaları › Dosya</div>
+  <div class="rh"><div><h2>İhracat dosyası oluştur</h2><p>Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Dosya oluştur</span></div></div>
+  <div class="status"><span>* zorunlu alan</span><span>Ctrl+S kaydet · Esc vazgeç</span><span style="color:var(--warn)">Kaydetmek için bağlı sipariş seçin.</span></div>
+  <div class="sec"><h5>Dosya kimliği</h5><div class="g4"><div class="f" style="grid-column:span 2"><label>Bağlı satış siparişi <b>*</b></label><div class="in">SS-2026-0211 · MÜLLER GMBH · 48.750,00 EUR ▾</div></div><div class="f" style="grid-column:span 2"><label>Dış ticaret referansı <b>*</b></label><div class="in code ph">EXP-2026-001</div></div></div></div>
+  <div class="sec"><h5>Güzergâh ve teslim</h5><div class="g4"><div class="f"><label>Çıkış ülkesi <b>*</b></label><div class="in code">TR</div><small>2 harf (ISO), ör. TR</small></div><div class="f"><label>Varış ülkesi <b>*</b></label><div class="in code">DE</div><small>2 harf (ISO), ör. DE</small></div><div class="f"><label>Incoterms 2020</label><div class="in">FCA ▾</div></div><div class="f"><label>HS kodu</label><div class="in code">8443.32</div><small>6–10 hane; nokta yazabilirsiniz</small></div></div>
+    <div class="g4" style="margin-top:10px"><div class="f"><label>Taşıma</label><div class="in">Kara ▾</div></div></div></div>
+  <div class="sec"><h5>Değer ve planlama</h5><div class="g3"><div class="f"><label>Beyan değeri (EUR)</label><div class="in ph">Boşsa sipariş toplamı: 48.750,00</div></div><div class="f"><label>Planlanan sevkiyat</label><div class="in">18.11.2026</div></div><div class="f"><label>Planlanan varış</label><div class="in">27.11.2026</div></div></div></div>
+  <div class="sec"><h5>Referanslar ve not</h5><div class="g2"><div class="f"><label>Taşıyıcı / takip referansı</label><div class="in">ABC-LOJ-77812</div></div><div class="f"><label>Gümrük referansı</label><div class="in ph">—</div></div></div><div class="f" style="margin-top:10px"><label>Operasyon notu</label><div class="in ta ph">En çok 1000 karakter</div></div></div>
+</div>
+<ul class="note">
+  <li>Yön, Yeni düğmesinden gelir (yön süzgeci İthalat ise İthalat, değilse İhracat) ve formda değişmez. Sipariş seçici yöne göre satın alma ya da satış siparişlerini listeler. Düzenlemede yön ve sipariş salt okunur, başlık "İhracat dosyasını düzenle" olur.</li>
+  <li>Para birimi siparişten gelir (formda döviz seçimi yok); beyan değerinin başlığında görünür. Kur ve TL karşılığı yok (bugünkü gibi).</li>
+  <li>Seçilebilir sipariş yoksa formun üstünde bugünkü yönlendirici not çıkar: "Önce Satış → Siparişler ekranından bir sipariş oluşturun."</li>
+  <li>Kayıttan sonra listeye dönülür ve yeni dosya seçili gelir.</li>
+</ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL) · <span style="color:var(--pri)">mavi</span> = yalnız Dış Ticaret dosyası · <span style="color:var(--warn)">sarı</span> = ortak dosya, diğer modüllerle sıralanır · <span style="color:var(--dan)">kırmızı</span> = bugünkü kusur</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Liste API'sine eklemeler<span class="tagb">DT API</span></b><p>Sayfa motoru toplamı <code>totalCount</code> adıyla okuyor; liste <code>total</code> döndürüyor. Aramada <code>q</code> parametresi yok; bugün arama ve süzgeçler yalnız ilk 100 dosyada tarayıcıda çalışıyor. Tek kayıt okuma ucu da yok, düzenleme formu bunu gerektiriyor.</p><p class="rec">Öneri: <code>totalCount</code> eklensin (<code>total</code> kalsın), <code>q</code> araması eklensin (referans, gümrük ve taşıyıcı referansında), <code>GET /cases/{id}</code> açılsın. Hepsi geriye uyumlu; eski ekran etkilenmez.</p></div>
+  <div class="d"><b class="h">2 · Yön ve aşama sayıları<span class="tagb">DT API</span></b><p>Sunucu sayfalamasıyla bugünkü yön sayıları yanlış olur. Aşama çiplerinde ise bugün bilerek hiç sayı yok.</p><p class="rec">Öneri: tek özet ucu (<code>/cases/summary</code>): yön ve 7 aşama sayısı tek istekte gelir, çipler tüm dosyaları sayar. İstemezseniz çipler sayısız kalır, başlıkta yalnız toplam görünür.</p></div>
+  <div class="d"><b class="h">3 · Sipariş ve cari sütunu<span class="tagb">DT API</span><span class="tagr">kusur</span></b><p>Bugün sipariş kodu ve cari adı tarayıcıda, son 100 iptal edilmemiş siparişle eşleniyor. Daha eski ya da iptal edilmiş siparişin dosyasında sütun "—" gösteriyor.</p><p class="rec">Öneri: dosya kaydına sunucuda sipariş kodu ve cari adı eklensin; ayrıca birleşik hücreler için hesaplanan rota ("TR → DE"), sevk ve varış (gerçek, yoksa planlanan) alanları eklensin.</p>
+    <div class="cmp"><div class="old">Bugün: eski siparişli dosyada "Sipariş / cari: —"</div><div class="new">Yeni: her dosyada "SA-2026-0031 · MILANO TESSUTI SPA"</div></div></div>
+  <div class="d"><b class="h">4 · Sevke geçiş ön koşulları<span class="tagb">standart</span></b><p>Bugünkü panel, eksik sevk tarihi, beyan değeri ve Incoterms'i panelde alıp önce dosyayı kaydediyor, sonra aşamayı geçiriyor. İki adım atomik değil: geçiş başarısız olsa da alanlar kaydedilmiş kalıyor. Sayfa motorunda bir düğmeden iki yazma zinciri yok.</p><p class="rec">Öneri: eksik alan varken "Sevkte aşamasına geçir" nedenli pasif ("Önce dosyayı açıp … girin"), panelde eksikler uyarı olarak listelenir, Aç düğmesi formu açar. Gümrük referansı ise geçiş penceresinde istenir (yukarıdaki pencere).</p></div>
+  <div class="d"><b class="h">5 · Gerçek sevk / varış tarihi<span class="tagb">standart</span><span class="tagr">risk</span></b><p>Sunucu geçmiş tarih kabul ediyor, bugünkü ekran hiç sormuyor. Sunucu "gelecek tarih" denetimini UTC'ye göre yapıyor: Türkiye'de gece 00:00–03:00 arası yerel "bugün" seçilirse istek reddedilir.</p><p class="rec">Öneri: Sevk ve Varış geçişleri küçük pencere açsın, "Gerçek tarih" alanı <b>boş</b> gelsin (boş = sunucunun bugünü), Sevk'te taşıyıcı referansı da girilebilsin. Firma saat dilimine geçiş ayrı küçük iş.</p></div>
+  <div class="d"><b class="h">6 · Belge bağlama izni<span class="tagw">ortak dosya</span></b><p>Belge bağlamak bugün <b>hem "oluştur" hem "çalıştır"</b> iznini istiyor. Genel izin denetimi bu yolu "oluştur" sayıyor, işlem ise "çalıştır" istiyor. Sistem sayfası düğmenin açık/pasif durumunu yalnız "oluştur"a göre belirler, yani yanıltıcı olur.</p><p class="rec">Öneri: yol "çalıştır" sayılsın (işlemin kendi niyeti). Bu, "oluştur" hakkı olmayan ama "çalıştır" hakkı olan kullanıcıya bağlamayı açar. Onaylarsanız QA'da tam bu kombinasyonla denenecek.</p></div>
+  <div class="d"><b class="h">7 · Formda sipariş toplamı ve HS kodu<span class="tagb">DT API</span></b><p>Bugünkü form, sipariş seçilince beyan değerini sipariş toplamıyla dolduruyor ve "8443.32" yazımını rakama çeviriyor. Sayfa motoru seçimden komşu alanı dolduramıyor; sunucu ise noktalı HS kodunu reddediyor.</p><p class="rec">Öneri: beyan değeri boş gelirse sunucu sipariş toplamını yazsın (alanda "Boşsa sipariş toplamı" ipucu). Sunucu HS kodundaki nokta ve boşlukları silsin. İkisi de geriye uyumlu.</p></div>
+  <div class="d"><b class="h">8 · Form ayrı sekmede<span class="tagb">standart</span><span class="tagw">menü kataloğu</span></b><p>Bugün form listenin üstünde açılan bir pencere. Ayrıca <code>foreign-trade</code> anahtarı standart menü kataloğunda yok; kataloğa eklenmeden sistem sayfası yüklenmez.</p><p class="rec">Öneri: stok, cari ve CRM kartlarındaki kanıtlanmış kalıp: yeni anahtar <code>foreign-trade-case</code> (Yeni ve Aç bu sekmeyi açar; Aç dosya kimliğiyle). Menü kataloğuna "Dış Ticaret" grubunda iki anahtar eklenir. Görünür fark: form artık yeni sekmede açılıyor.</p></div>
+  <div class="d"><b class="h">9 · İşlem adları (kalıcı)<span class="tagw">ortak katalog</span></b><p>Aşamalar CRM'deki gibi her hedef için ayrı, sabit gövdeli işlem olacak. Böylece düğmeye yanlış aşama bağlanamaz.</p><p class="rec">Öneri: <code>disTicaret.dosya.</code> + <code>listele, getir, ozet, olustur, guncelle, planla, sevkEt, gumrugeGecir, varisKaydet, kapat, iptalEt, stokBelgeleri, stokBelgesiBagla</code>; sipariş seçenekleri <code>disTicaret.siparis.ithalatSecenekleri / ihracatSecenekleri</code>. Modül adı "Dış Ticaret".</p></div>
+  <div class="d"><b class="h">10 · Kapsam dışı ve bugünkü kusur<span class="tagr">kusur</span></b><p>Gümrük beyannamesi, akreditif ve dosyaya bağlı masraf dağıtımı ayrı alan işleri. Ayrıca bağlı stok belgesi sonradan ters çevrilirse dosya ilerleyemiyor ve başka belge de bağlanamıyor; dosya kalıcı olarak takılıyor.</p><p class="rec">Öneri: bu taşımaya katılmasınlar. Takılan dosya için ayrı küçük iş: bağlı belge geçersizse yeniden bağlamaya izin verilsin. Üç yeni ekran isterseniz ayrı tasarım turu.</p></div>
+</div>
+<ul class="note">
+  <li><b>Sıra:</b> (1) yalnız Dış Ticaret API eklemeleri (karar 1, 2, 3, 7) → (2) ortak küçük değişiklikler: menü kataloğu, izin eşlemesi, <code>disTicaret.*</code> katalog dosyası ve etiketler (Üretim, İK ve Duran Varlık oturumlarıyla sıralanır) → (3) iki standart önizlemede, varsayılan yine eski ekran. QA yalnız "QA Test Firma 20261117"de.</li>
+  <li>Değişmeyen bugünkü davranışlar: silme yok; iptal yalnız sevk başlamadan; eşzamanlı düzenlemede son kaydeden kazanır; modül stok ya da muhasebe kaydı atmaz, yalnız var olan belgeyi bağlar.</li>
+  <li>Kapsam dışı ve etkilenmeyen: AI asistanının dış ticaret dosyası araması.</li>
+</ul>
+</body></html>

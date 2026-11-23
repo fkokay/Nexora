@@ -82,7 +82,9 @@ public sealed class FinanceSystemPagesTests
             Assert.Equal(new Dictionary<string, object?> { ["isActive"] = active }, op.FixedQuery);
             Assert.Null(op.FixedBody);
         }
-        Assert.All(ErpOperationCatalog.All.Where(x => x.Name is not ("finans.hesap.pasifeAl" or "finans.hesap.aktifEt")), x => Assert.Null(x.FixedQuery));
+        // The Dış Ticaret order options also fix their direction in the query (ForeignTradeSystemPagesTests).
+        Assert.All(ErpOperationCatalog.All.Where(x => x.Name is not ("finans.hesap.pasifeAl" or "finans.hesap.aktifEt"
+            or "disTicaret.siparis.ithalatSecenekleri" or "disTicaret.siparis.ihracatSecenekleri")), x => Assert.Null(x.FixedQuery));
 
         // G-F8: neither void has a source read, so both route parameters are required bindings of the page.
         var voidMovement = Op("finans.hareket.iptal");

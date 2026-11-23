@@ -254,7 +254,7 @@ function LegacyPageRouter({
   };
   if (page === "projects")
     return <OperationalProjectsPage token={token} locale={locale} />;
-  if (page === "foreign-trade")
+  if (page === "foreign-trade" || page === "foreign-trade-case")
     return <ForeignTradePage token={token} role={tenant.role} />;
   if (page === "integrations")
     return <IntegrationQueuePage token={token} requestApi={requestApi} />;
