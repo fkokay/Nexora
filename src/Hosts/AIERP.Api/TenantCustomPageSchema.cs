@@ -8,7 +8,7 @@ using AIERP.Api;
 /// sandboxed at runtime. schemaVersion 1 is the original static format; schemaVersion 2 adds named read queries,
 /// component names, label/input components and <c>{{PATH}}</c> bindings in a fixed set of text properties.
 /// </summary>
-internal static class TenantCustomPageSchema
+internal static partial class TenantCustomPageSchema
 {
     private const int MaxBytesV1 = 64 * 1024;
     private const int MaxBytesV2 = 128 * 1024;
@@ -84,9 +84,8 @@ internal static class TenantCustomPageSchema
       "openParam", "legacyScreen",
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
       "bulkDeleteQuery",
-      // Satır kaynaklı belge kartları (Satış Aşama B): ızgara satırlarını bir sorgudan başlatma (initialRowsQuery/initialRowsMap),
-      // gönderimde boş satırı atlama (skipRowsWhenEmpty) ve seçimde diğer hücreleri doldurma (lookupFill).
-      "initialRowsQuery", "initialRowsMap", "skipRowsWhenEmpty", "lookupFill" };
+      // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -277,6 +276,10 @@ internal static class TenantCustomPageSchema
         public IReadOnlySet<string> CalcColumns { get; init; } = new HashSet<string>(StringComparer.Ordinal);
         /// <summary>Picker (lookup) columns by code.</summary>
         public IReadOnlyDictionary<string, GridColumnSpec.Lookup> Lookups { get; init; } = new Dictionary<string, GridColumnSpec.Lookup>();
+        /// <summary>Formula (<c>formulas</c>) column codes: computed, sent only when the list item has the code.</summary>
+        public IReadOnlySet<string> Formulas { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>Read-only (<c>readOnly</c> rule) column codes: display-only when the list item lacks the code.</summary>
+        public IReadOnlySet<string> ReadOnly { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     }
 
     private sealed record FilterBarInfo(string Id, string Name, string TableId, List<string> Parameters);
@@ -612,6 +615,9 @@ internal static class TenantCustomPageSchema
                     { error = "'hidden' yalnızca kod ve giriş bileşeninde, doğru/yanlış değeriyle kullanılabilir."; return false; }
                     continue;
                 }
+                // Izgaranın nesne değerli motor özellikleri ValidateGridEngineProps içinde tümüyle denetlenir.
+                if (context.V2 && typeText == "editableGrid" && GridEngineObjectProps.Contains(prop.Name))
+                    continue;
                 // Öğeleri {{yol}} şablonu taşıyan listeler; kendi doğrulayıcıları her şablonu SafeBindableText ile denetler.
                 if (context.V2 && (prop.Name is "assignments" or "fieldUnits" || prop.Name == "fields" && typeText == "recordHeader"))
                     continue;
@@ -1652,10 +1658,8 @@ internal static class TenantCustomPageSchema
     private const int MaxGridColumns = 16;
     /// <summary>Grid rows per document (sales documents carry up to 200 lines).</summary>
     private const int MaxGridRows = 500;
-    private const int MaxGridMaps = 16;
     /// <summary>PageQuery.RunOn of a query whose <c>runOn</c> is a list of component names.</summary>
     internal const string RunOnChange = "change";
-    private static readonly Regex FieldPath = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[A-Za-z_][A-Za-z0-9_]{0,63})*\z", RegexOptions.CultureInvariant, RegexTimeout);
     private const int MaxDialogContains = 20;
     private static readonly Regex SequenceWhenItem = new(@"^([A-Za-z0-9_-]{1,64})=(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex IterationBindingPath = new(@"^([A-Za-z_][A-Za-z0-9_]*)\.(eklenenSatir|silinenSatir)\.(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1684,7 +1688,9 @@ internal static class TenantCustomPageSchema
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
-        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"]
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"],
+        ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
+        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -2048,6 +2054,7 @@ internal static class TenantCustomPageSchema
         }
         var columns = new List<string>();
         var numberColumns = new HashSet<string>(StringComparer.Ordinal);
+        var readOnlyColumns = new HashSet<string>(StringComparer.Ordinal);
         var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
         var columnTypes = new Dictionary<string, string>(StringComparer.Ordinal);
         var calcColumns = new HashSet<string>(StringComparer.Ordinal);
@@ -2072,6 +2079,7 @@ internal static class TenantCustomPageSchema
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (item.GetString()!.Split('|') is { Length: 4 } columnParts && columnParts[3].Split(',').Contains("readOnly")) readOnlyColumns.Add(code);
                 columnTypes[code] = inputType;
                 if (calc is not null)
                 {
@@ -2113,92 +2121,11 @@ internal static class TenantCustomPageSchema
                 return Fail($"'totals' ızgaranın sayı (number) sütunu olmalıdır: {notNumber}", out error);
         }
         if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
-        if (!ValidateGridRowSources(props, mode, columnTypes, calcColumns, lookups, context, out error)) return false;
+        if (!ValidateGridEngineProps(props, mode, columns, numberColumns, calcColumns, lookups, context, out var formulas, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery) { Lookups = lookups, CalcColumns = calcColumns };
-        return true;
-    }
-
-    /// <summary>
-    /// Satır kaynaklı belge kartları: <c>initialRowsQuery</c> (list kipinde satırları bir okuma sorgusunun sonucundan başlatır),
-    /// <c>initialRowsMap</c> "hücre=kaynakAlan" (yalnız farklı adlı alanlar; diğerleri aynı adlı alandan), <c>skipRowsWhenEmpty</c>
-    /// (o hücresi boş ya da 0 olan satır gönderilmez) ve <c>lookupFill</c> "seçimSütunu:hedefSütun=seçenekAlanı" (kullanıcının
-    /// seçimi aynı satırın diğer hücrelerini doldurur). Hesaplanan (calc) sütunlar hiçbirinin hedefi olamaz.
-    /// </summary>
-    private static bool ValidateGridRowSources(JsonElement props, string mode, IReadOnlyDictionary<string, string> columnTypes,
-        IReadOnlySet<string> calcColumns, IReadOnlyDictionary<string, GridColumnSpec.Lookup> lookups, Context context, out string? error)
-    {
-        error = null;
-        bool Editable(string code) => columnTypes.ContainsKey(code) && !calcColumns.Contains(code);
-        static string Text(JsonElement item) => item.ValueKind == JsonValueKind.String ? item.GetString()! : "";
-        string? initialQuery = null;
-        if (props.TryGetProperty("initialRowsQuery", out var initial))
-        {
-            if (mode != "list") return Fail("'initialRowsQuery' yalnız list kipinde kullanılabilir.", out error);
-            initialQuery = initial.ValueKind == JsonValueKind.String ? initial.GetString() : null;
-            if (!context.IsReadQuery(initialQuery))
-                return Fail($"'initialRowsQuery' sayfadaki bir okuma sorgusu olmalıdır: {initialQuery ?? "?"}", out error);
-            if (context.QueryById.TryGetValue(initialQuery!, out var query) && query.Operation is { } operationName
-                && context.Lookup(operationName, out var operation) && operation.Result.Shape != "list")
-                return Fail($"'initialRowsQuery' liste döndüren bir sorgu olmalıdır: {initialQuery}", out error);
-        }
-        if (props.TryGetProperty("initialRowsMap", out var map))
-        {
-            if (initialQuery is null) return Fail("'initialRowsMap' yalnız 'initialRowsQuery' ile kullanılabilir.", out error);
-            if (map.ValueKind != JsonValueKind.Array || map.GetArrayLength() is < 1 or > MaxGridMaps)
-                return Fail($"'initialRowsMap' 1–{MaxGridMaps} adet hücre=kaynakAlan öğesi içermelidir.", out error);
-            var sourceColumns = OperationColumns(initialQuery, context);
-            var cells = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var item in map.EnumerateArray())
-            {
-                var text = Text(item);
-                var at = text.IndexOf('=');
-                if (at <= 0) return Fail("'initialRowsMap' öğeleri hücre=kaynakAlan biçiminde olmalıdır.", out error);
-                var (cell, field) = (text[..at], text[(at + 1)..]);
-                // "<lookupCol>@label=<field>": the shown label of a loaded picker cell (otherwise the raw id is shown).
-                if (cell.EndsWith("@label", StringComparison.Ordinal))
-                {
-                    if (!lookups.ContainsKey(cell[..^"@label".Length]))
-                        return Fail($"'initialRowsMap' @label yalnız ızgaranın bir seçim (lookup) sütununda kullanılabilir: {cell}", out error);
-                }
-                else if (!Editable(cell)) return Fail($"'initialRowsMap' hücresi ızgaranın hesaplanmayan bir sütunu olmalıdır: {cell}", out error);
-                if (!cells.Add(cell)) return Fail($"'initialRowsMap' her hücre için bir kez yazılabilir: {cell}", out error);
-                if (!MatchesText(FieldPath, field)) return Fail($"'initialRowsMap' kaynak alanı geçersiz: {field}", out error);
-                if (sourceColumns is not null && !sourceColumns.Contains(field, StringComparer.Ordinal))
-                    return Fail($"'initialRowsMap' kaynak alanı '{initialQuery}' sorgusunun sonucunda yok: {field}", out error);
-            }
-        }
-        if (props.TryGetProperty("skipRowsWhenEmpty", out var skip))
-        {
-            if (mode != "list") return Fail("'skipRowsWhenEmpty' yalnız list kipinde kullanılabilir.", out error);
-            var code = Text(skip);
-            if (!Editable(code) || columnTypes[code] == "checkbox")
-                return Fail($"'skipRowsWhenEmpty' ızgaranın hesaplanmayan ve onay kutusu olmayan bir sütunu olmalıdır: {code}", out error);
-        }
-        if (props.TryGetProperty("lookupFill", out var fill))
-        {
-            if (mode == "matrix") return Fail("'lookupFill' varyant (matrix) kipinde kullanılamaz.", out error);
-            if (fill.ValueKind != JsonValueKind.Array || fill.GetArrayLength() is < 1 or > MaxGridMaps)
-                return Fail($"'lookupFill' 1–{MaxGridMaps} adet seçimSütunu:hedefSütun=seçenekAlanı öğesi içermelidir.", out error);
-            var targets = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var item in fill.EnumerateArray())
-            {
-                var text = Text(item);
-                var colon = text.IndexOf(':');
-                var at = colon < 0 ? -1 : text.IndexOf('=', colon + 1);
-                if (colon <= 0 || at <= colon + 1) return Fail("'lookupFill' öğeleri seçimSütunu:hedefSütun=seçenekAlanı biçiminde olmalıdır.", out error);
-                var (source, target, field) = (text[..colon], text[(colon + 1)..at], text[(at + 1)..]);
-                if (!lookups.TryGetValue(source, out var lookup))
-                    return Fail($"'lookupFill' kaynağı ızgaranın bir seçim (lookup) sütunu olmalıdır: {source}", out error);
-                if (target == source || !Editable(target))
-                    return Fail($"'lookupFill' hedefi ızgaranın seçim sütunundan başka, hesaplanmayan bir sütunu olmalıdır: {target}", out error);
-                if (!targets.Add(source + ":" + target)) return Fail($"'lookupFill' her hedef için bir kez yazılabilir: {source}:{target}", out error);
-                if (!MatchesText(FieldPath, field)) return Fail($"'lookupFill' seçenek alanı geçersiz: {field}", out error);
-                if (OperationColumns(lookup.QueryId, context) is { } optionColumns && !optionColumns.Contains(field, StringComparer.Ordinal))
-                    return Fail($"'lookupFill' seçenek alanı '{lookup.QueryId}' sorgusunun sonucunda yok: {field}", out error);
-            }
-        }
+        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery)
+            { Lookups = lookups, CalcColumns = calcColumns, Formulas = formulas, ReadOnly = readOnlyColumns };
         return true;
     }
 
@@ -2572,6 +2499,8 @@ internal static class TenantCustomPageSchema
             foreach (var code in grid.Columns.Where(x => !grid.CalcColumns.Contains(x)))
             {
                 var item = items.FirstOrDefault(x => x.Code == GridColumnSpec.RootOf(code));
+                // A formula or read-only column without a matching item is display-only: the runtime leaves it out of the row.
+                if (item is null && (grid.Formulas.Contains(code) || grid.ReadOnly.Contains(code))) continue;
                 // A dotted column writes into a map item; a plain column into a scalar item.
                 if (item is null || code.Contains('.') != (item.DataType == "map"))
                     return Fail($"'{grid.Name}' tablosunun '{code}' sütunu '{parameterName}' parametresinin alanlarında yok.", out error);

@@ -174,7 +174,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
                 || ManufacturingSystemPagesTests.IsNewOperation(op.Name)
                 || op.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
-                || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
+                || PurchasingErpOperationCatalogTests.IsSystemPageOperation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -617,8 +617,8 @@ public sealed class ErpOperationCatalogTests
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
         // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
         // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
-        // (SalesCardOperationsTests).
-        Assert.Equal(31, collections.Length);
+        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests).
+        Assert.Equal(45, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -700,14 +700,14 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.*, crm.*, satis.*, finans.*, ik.*, new uretim.* and Satınalma Faz 1 operations are new names with their own contract tests
+        // The cari.*, crm.*, satis.*, finans.*, ik.*, new uretim.* and Satınalma system page operations are new names with their own contract tests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, ManufacturingSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
             && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal) && !x.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
             && !x.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
             && !ManufacturingSystemPagesTests.IsNewOperation(x.Name)
-            && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
+            && !PurchasingErpOperationCatalogTests.IsSystemPageOperation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);

@@ -415,13 +415,13 @@
           "addLabel": "Satır ekle",
           "maxRows": 200,
           "minRows": 1,
-          "initialRowsQuery": "kalemKaynak",
-          "initialRowsMap": [
-            "stockItemId@label=stockCode",
-            "unitPrice=enteredUnitPrice",
-            "unitCode=enteredUnitCode",
-            "currencyCode=enteredCurrencyCode"
-          ],
+          "fillQuery": "kalemKaynak",
+          "fillColumns": {
+            "stockItemId@label": "stockCode",
+            "unitPrice": "enteredUnitPrice",
+            "unitCode": "enteredUnitCode",
+            "currencyCode": "enteredCurrencyCode"
+          },
           "gridColumns": [
             "stockItemId|Stok|lookup:stoklar:id:code:name|required",
             "quantity|Miktar|number|required,min:0.0001,step:0.0001",
@@ -443,12 +443,14 @@
           "columnStaticOptions": [
             "unitCode==Ana birim"
           ],
-          "lookupFill": [
-            "stockItemId:unitPrice=salesListPrice",
-            "stockItemId:vatPercent=salesVatPercent",
-            "stockItemId:discountPercent=salesDiscountPercent",
-            "stockItemId:currencyCode=priceCurrencyCode"
-          ],
+          "lookupFills": {
+            "stockItemId": {
+              "unitPrice": "salesListPrice",
+              "vatPercent": "salesVatPercent",
+              "discountPercent": "salesDiscountPercent",
+              "currencyCode": "priceCurrencyCode"
+            }
+          },
           "disabledWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'",
           "disabledReason": "Yalnızca açık siparişler düzenlenebilir."
         }

@@ -142,17 +142,17 @@ export function parseGridColumns(value: unknown): GridColumn[] {
 export type GridMode = "stage" | "list" | "matrix";
 /**
  * `labels`: seçim hücrelerinin seçim anındaki görünen metni (tel biçimine girmez; değer değişince ya da silinince düşer).
- * `origin: "source"`: satır başlangıç satırları sorgusundan (`initialRowsQuery`) yüklendi. `filled`: seçimin doldurduğu
- * (`lookupFill`) hücrelerin yazılan değerleri; kullanıcının yazdığı değer bir sonraki seçimde ezilmesin diye tutulur.
+ * `filled`: seçimle doldurmanın (`lookupFills`, gridFill.ts) yazdığı hücre değerleri; kullanıcının yazdığı değer bir sonraki
+ * seçimde ezilmesin diye tutulur.
  */
-export type GridDraft = { key: string; cells: Record<string, string | boolean>; labels?: Record<string, string>; origin?: "source"; filled?: Record<string, string> };
+export type GridDraft = { key: string; cells: Record<string, string | boolean>; labels?: Record<string, string>; filled?: Record<string, string | boolean> };
 /**
  * `stage`: `added` yeni satırlar, `removed` silinmek üzere işaretlenen kaynak satır anahtarları (`rows` kullanılmaz).
  * `list`/`matrix`: `rows` tüm satırlar (`added`/`removed` kullanılmaz). `sourceKey` kaynak sorgunun `ranWith` anahtarıdır.
  */
 export type GridState = { added: GridDraft[]; removed: string[]; rows: GridDraft[]; sourceKey: string | null; nextKey: number;
-  /** `list` kipinde başlangıç satırları sorgusundan yüklenen satırlar (değişiklik ve sıfırlama bunlara göredir). */
-  loaded?: GridDraft[] };
+  /** `list` tablosunun doldurma (`fillQuery`) anahtarı: satırlar bu `ranWith` sonucundan dolduruldu (bkz. gridFill.ts). */
+  fillKey?: string };
 export type GridAction =
   | { type: "add" } | { type: "edit"; key: string; code: string; value: string | boolean; label?: string } | { type: "remove"; key: string }
   | { type: "undoRemove"; key: string }
@@ -164,9 +164,7 @@ export type GridAction =
    * açık sıfırlamadır (İşlem Çubuğu Yeni): her şey temizlenir. `list`/`matrix` kiplerinde satırlar her zaman temizlenir.
    */
   | { type: "reset"; sourceKey: string | null; sourceKeys?: string[] }
-  | { type: "commit"; list: "eklenenSatir" | "silinenSatir"; keys: string[] }
-  /** Seçim doldurması (`lookupFill`): hücreler yazılır ve doldurulan değer olarak işaretlenir. */
-  | { type: "fill"; key: string; values: Record<string, string> };
+  | { type: "commit"; list: "eklenenSatir" | "silinenSatir"; keys: string[] };
 export type GridOptions = { mode: GridMode; maxRows: number };
 
 export const GRID_UNIQUE = "Bu değer başka bir satırda da var.";
@@ -194,7 +192,7 @@ export function addBlockedMessage(state: GridState, opts: GridOptions): string |
   return editableRows(opts.mode, state).length >= limit ? gridMaxRowsMessage(limit) : null;
 }
 
-/** Etiketleri boşsa `labels` alanı olmadan taslağın kopyası (diğer alanlar — `origin`, `filled` — korunur). */
+/** Etiketleri boşsa `labels` alanı olmadan taslağın kopyası (diğer alanlar — `filled` — korunur). */
 function withLabels(draft: GridDraft, cells: Record<string, string | boolean>, labels: Record<string, string>): GridDraft {
   const next: GridDraft = { ...draft, cells };
   if (Object.keys(labels).length > 0) next.labels = labels; else delete next.labels;
@@ -219,16 +217,6 @@ export function gridReducer(state: GridState, action: GridAction, opts: GridOpti
       const labels = { ...previous.labels };
       if (action.label !== undefined) labels[action.code] = action.label; else delete labels[action.code];
       next[index] = withLabels(previous, { ...previous.cells, [action.code]: action.value }, labels);
-      return { ...state, [field]: next };
-    }
-    case "fill": {
-      const index = drafts.findIndex((draft) => draft.key === action.key);
-      if (index < 0 || Object.keys(action.values).length === 0) return state;
-      const next = drafts.slice();
-      const previous = drafts[index];
-      const labels = { ...previous.labels };
-      for (const code of Object.keys(action.values)) delete labels[code];
-      next[index] = { ...withLabels(previous, { ...previous.cells, ...action.values }, labels), filled: { ...previous.filled, ...action.values } };
       return { ...state, [field]: next };
     }
     case "clearColumn": {
@@ -271,33 +259,11 @@ export function gridReducer(state: GridState, action: GridAction, opts: GridOpti
 // ---- Değerler ----
 
 /**
- * `skipRowsWhenEmpty`: hücresi boş ya da sayısal 0 olan satır gönderilmez ve doğrulanmaz (ör. siparişten irsaliyede kalan miktar).
- * Kod verilmezse hiçbir satır atlanmaz.
+ * Gönderilen `stage`/`list` satır taslakları; `satirlar` dizinleriyle aynı sırada (`list`). Atlanan (`skipWhenZero`) satırları
+ * çağıran `countedGridState` (gridFill.ts) ile önceden çıkarır.
  */
-export function isSkippedRow(draft: GridDraft, skipCode: string | undefined): boolean {
-  if (!skipCode) return false;
-  const raw = draft.cells[skipCode];
-  if (raw === undefined || raw === null) return true;
-  if (typeof raw === "boolean") return false;
-  const text = String(raw).trim();
-  return text === "" || (Number.isFinite(Number(text)) && Number(text) === 0);
-}
-
-/** Gönderilen `stage`/`list` satır taslakları (atlanan satırlar hariç); `satirlar` dizinleriyle aynı sırada (`list`). */
-export function sentDrafts(mode: string, state: GridState, skipCode?: string): GridDraft[] {
-  return editableRows(mode, state).filter((draft) => !isSkippedRow(draft, skipCode));
-}
-
-/** İki taslak listesi aynı satırları aynı değerlerle mi taşıyor (sıra dahil; etiketler ve doldurma izleri sayılmaz). */
-export function sameDrafts(a: GridDraft[], b: GridDraft[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let index = 0; index < a.length; index += 1) {
-    if (a[index].key !== b[index].key) return false;
-    const left = a[index].cells;
-    const right = b[index].cells;
-    for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) if ((left[key] ?? "") !== (right[key] ?? "")) return false;
-  }
-  return true;
+export function sentDrafts(mode: string, state: GridState): GridDraft[] {
+  return editableRows(mode, state);
 }
 
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -397,12 +363,10 @@ function inputRulesOf(column: GridColumn): InputRules {
  * satırlar) ondan azsa tablo düzeyi ileti aynı anahtardadır.
  */
 export function validateGrid(mode: string, columns: GridColumn[], state: GridState, sourceRows: Record<string, unknown>[], rowKey: string,
-  maxRows?: number, fixedValues?: Record<string, string[]>, minRows?: number, skipCode?: string): Record<string, Record<string, string>> {
+  maxRows?: number, fixedValues?: Record<string, string[]>, minRows?: number): Record<string, Record<string, string>> {
   const result: Record<string, Record<string, string>> = {};
   const set = (key: string, code: string, message: string) => { (result[key] ??= {})[code] = message; };
-  const all = editableRows(mode, state);
-  // Atlanan satırlar (`skipRowsWhenEmpty`) gönderilmez ve doğrulanmaz; en fazla satır sınırı tüm satırlara uygulanır.
-  const drafts = mode === "matrix" ? all : all.filter((draft) => !isSkippedRow(draft, skipCode));
+  const drafts = editableRows(mode, state);
   const kept = mode === "stage" ? keptSourceRows(state, sourceRows, rowKey) : [];
   for (const column of columnsFor(mode, columns)) {
     if (column.rules.readOnly || column.inputType === "calc") continue;
@@ -425,7 +389,7 @@ export function validateGrid(mode: string, columns: GridColumn[], state: GridSta
   }
   if (maxRows !== undefined) {
     const limit = mode === "matrix" ? Math.min(maxRows, MATRIX_MAX_ROWS) : maxRows;
-    if (all.length > limit) set("", "", gridMaxRowsMessage(limit));
+    if (drafts.length > limit) set("", "", gridMaxRowsMessage(limit));
   }
   if (minRows !== undefined && minRows > 0 && mode !== "matrix" && kept.length + drafts.length < minRows && !result[""]?.[""]) {
     set("", "", gridMinRowsMessage(minRows));
@@ -440,7 +404,7 @@ export function validateGrid(mode: string, columns: GridColumn[], state: GridSta
  * tablonun gösterilen satır sayısıdır (`stage`: silinmeyen kaynak + yeni satırlar; `list`/`matrix`: satırlar).
  */
 export function gridScope(mode: string, columns: GridColumn[], state: GridState, sourceRows: Record<string, unknown>[], rowKey: string,
-  matrix?: { code: string; name: string }, skipCode?: string): { satirlar: unknown[]; eklenenler: Record<string, unknown>[]; silinenler: Record<string, unknown>[]; eklenenSayisi: number; silinenSayisi: number; satirSayisi: number; degisti: boolean } {
+  matrix?: { code: string; name: string }): { satirlar: unknown[]; eklenenler: Record<string, unknown>[]; silinenler: Record<string, unknown>[]; eklenenSayisi: number; silinenSayisi: number; satirSayisi: number; degisti: boolean } {
   if (mode === "stage") {
     const eklenenler = state.added.map((draft) => wireRow(columns, draft));
     const silinenler = removedSourceRows(state, sourceRows, rowKey);
@@ -454,10 +418,9 @@ export function gridScope(mode: string, columns: GridColumn[], state: GridState,
     ? makeVariantDrafts(matrix?.code ?? "", matrix?.name ?? "", state.rows.map((draft) => ({
       name: String(cellRaw(MATRIX_DIMENSION_COLUMNS[0], draft)), values: String(cellRaw(MATRIX_DIMENSION_COLUMNS[1], draft)),
     })))
-    : sentDrafts(mode, state, skipCode).map((draft) => wireRow(columns, draft));
-  // Başlangıç satırları yüklenmiş tablo yalnız yüklenen satırlardan farklıysa değişmiştir (açılan düzenleme kartı kirli sayılmaz).
-  const degisti = mode === "list" && state.loaded ? !sameDrafts(state.rows, state.loaded) : state.rows.length > 0;
-  return { satirlar, eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, satirSayisi: state.rows.length, degisti };
+    : sentDrafts(mode, state).map((draft) => wireRow(columns, draft));
+  // Doldurma satırlarından türetilen (dokunulmamış) tablo değişmiş sayılmaz: bunu çağıran (TenantCustomPage) düzeltir.
+  return { satirlar, eklenenler: [], silinenler: [], eklenenSayisi: 0, silinenSayisi: 0, satirSayisi: state.rows.length, degisti: state.rows.length > 0 };
 }
 
 /** Yinelenen dizi adımının satırları: yeni satırlar tel biçiminde ya da kaynakta hâlâ bulunan silinecek kaynak satırlar. */

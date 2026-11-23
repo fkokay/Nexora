@@ -5,8 +5,8 @@ using Xunit;
 namespace AIERP.Api.IntegrationTests;
 
 /// <summary>
-/// Satış Aşama B: the engine additions in the page schema (editableGrid initialRowsQuery / initialRowsMap / skipRowsWhenEmpty /
-/// lookupFill, calc:&lt;query&gt;:&lt;field&gt; columns, query runOn as component names + runDebounceMs, 16 columns, 40 queries,
+/// Satış Aşama B: the engine additions in the page schema (the editableGrid fill engine shared with Satınalma Faz 2 — fillQuery /
+/// fillColumns with "lookupCol@label" / lookupFills — calc:&lt;query&gt;:&lt;field&gt; columns, query runOn as component names + runDebounceMs, 16 columns, 40 queries,
 /// 500 rows), the card operations and the card standards.
 /// </summary>
 public sealed class SalesCardStandardsTests
@@ -50,7 +50,7 @@ public sealed class SalesCardStandardsTests
         Valid(definition);
         var grid = Props(definition, "kalemler");
         Assert.Contains("lineTotal|Tutar|calc:onizleme:lineTotal", grid["gridColumns"]!.AsArray().Select(x => (string)x!));
-        Assert.Contains("stockItemId:unitPrice=salesListPrice", grid["lookupFill"]!.AsArray().Select(x => (string)x!));
+        Assert.Equal("salesListPrice", (string)grid["lookupFills"]!["stockItemId"]!["unitPrice"]!);
         Assert.Equal(200, (int)grid["maxRows"]!);
         var preview = Query(definition, "onizleme");
         Assert.Equal(("read", "satis.fatura.onizle"), ((string)preview["kind"]!, (string)preview["operation"]!));
@@ -74,10 +74,11 @@ public sealed class SalesCardStandardsTests
         var definition = Definition("sales-order-create");
         Valid(definition);
         var grid = Props(definition, "kalemler");
-        Assert.Equal("kalemKaynak", (string)grid["initialRowsQuery"]!);
+        Assert.Equal("kalemKaynak", (string)grid["fillQuery"]!);
         Assert.Equal(("satis.siparis.kalemleri", "{{sayfa.parametre.orderId}}"), ((string)Query(definition, "kalemKaynak")["operation"]!,
             (string)Query(definition, "kalemKaynak")["parameters"]![0]!["binding"]!));
-        Assert.Contains("unitPrice=enteredUnitPrice", grid["initialRowsMap"]!.AsArray().Select(x => (string)x!));
+        Assert.Equal("enteredUnitPrice", (string)grid["fillColumns"]!["unitPrice"]!);
+        Assert.Equal("stockCode", (string)grid["fillColumns"]!["stockItemId@label"]!);
         Assert.Equal(4, grid["gridColumns"]!.AsArray().Count(x => ((string)x!).Contains("|calc:onizleme:", StringComparison.Ordinal)));
         Assert.Equal(["olustur", "guncelle"], Props(definition, "komutlar")["saveSequence"]!.AsArray().Select(x => (string)x!));
         Assert.Equal("{{musteriKarti.rows[0].currencyCode}}", (string)Query(definition, "olustur")["parameters"]!.AsArray().OfType<JsonObject>()
@@ -127,10 +128,10 @@ public sealed class SalesCardStandardsTests
         Assert.Equal("/api/hr/employees", Op("ik.personel.listele").Route);
     }
 
-    // ---- Schema: E1 initial rows, skip empty rows ----
+    // ---- Schema: fill engine on a card with computed (calc) columns ----
 
     [Fact]
-    public void Initial_rows_query_and_map_are_checked()
+    public void Fill_query_and_columns_are_checked_on_a_card()
     {
         JsonObject Page(Action<JsonObject, JsonObject> change)
         {
@@ -139,65 +140,63 @@ public sealed class SalesCardStandardsTests
             change(definition, Props(definition, "kalemler"));
             return definition;
         }
-        Valid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("unitCode=enteredUnitCode"); }));
-        Valid(Page((_, grid) => grid["initialRowsQuery"] = "kaynak"));
-        Valid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("stockItemId@label=stockName"); }));
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("quantity@label=stockName"); }), "@label");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("stockItemId@label=yokAlan"); }), "sonucunda yok");
-        Invalid(Page((_, grid) => grid["initialRowsQuery"] = "faturaKes"), "'initialRowsQuery' sayfadaki bir okuma sorgusu");
-        Invalid(Page((_, grid) => grid["initialRowsQuery"] = "yok"), "'initialRowsQuery' sayfadaki bir okuma sorgusu");
+        static JsonNode Map(string json) => JsonNode.Parse(json)!;
+        Valid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"unitCode":"enteredUnitCode"}"""); }));
+        Valid(Page((_, grid) => grid["fillQuery"] = "kaynak"));
+        Valid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"stockItemId@label":"stockName"}"""); }));
+        Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"quantity@label":"stockName"}"""); }), "@label");
+        Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"stockItemId@label":"yokAlan"}"""); }), "sonucunda yok");
+        Invalid(Page((_, grid) => grid["fillQuery"] = "faturaKes"), "'fillQuery' sayfadaki bir okuma sorgusu");
+        Invalid(Page((_, grid) => grid["fillQuery"] = "yok"), "'fillQuery' sayfadaki bir okuma sorgusu");
         Invalid(Page((definition, grid) =>
         {
             definition["queries"]!.AsArray().Add(JsonNode.Parse("""{"id":"kayit","name":"kayit","kind":"read","operation":"satis.teklif.getir","runOn":"load","parameters":[{"name":"id","binding":"{{sayfa.parametre.quoteId}}","type":"guid"}]}"""));
-            grid["initialRowsQuery"] = "kayit";
+            grid["fillQuery"] = "kayit";
         }), "liste döndüren");
-        Invalid(Page((_, grid) => grid["initialRowsMap"] = Strings("unitCode=unitCode")), "'initialRowsMap' yalnız 'initialRowsQuery' ile");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("lineTotal=lineTotal"); }), "hesaplanmayan");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("yok=unitCode"); }), "hesaplanmayan");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("unitCode=olmayanAlan"); }), "sonucunda yok");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("unitCode=unitCode", "unitCode=stockCode"); }), "bir kez");
-        Invalid(Page((_, grid) => { grid["initialRowsQuery"] = "kaynak"; grid["initialRowsMap"] = Strings("unitCode"); }), "hücre=kaynakAlan");
+        Invalid(Page((_, grid) => grid["fillColumns"] = Map("""{"unitCode":"unitCode"}""")), "'fillColumns' yalnız 'fillQuery' ile");
+        // A computed (calc) column comes from the preview: never a fill target.
+        Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"lineTotal":"lineTotal"}"""); }), "hesaplanan (calc)");
+        Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"yok":"unitCode"}"""); }), "ızgarada yok");
+        Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"unitCode":"olmayanAlan"}"""); }), "sonucunda yok");
 
-        Valid(Page((_, grid) => grid["skipRowsWhenEmpty"] = "quantity"));
-        Invalid(Page((_, grid) => grid["skipRowsWhenEmpty"] = "lineTotal"), "'skipRowsWhenEmpty'");
-        Invalid(Page((_, grid) => grid["skipRowsWhenEmpty"] = "yok"), "'skipRowsWhenEmpty'");
+        Valid(Page((_, grid) => grid["skipWhenZero"] = "quantity"));
+        Invalid(Page((_, grid) => grid["skipWhenZero"] = "lineTotal"), "'skipWhenZero'");
+        Invalid(Page((_, grid) => grid["skipWhenZero"] = "yok"), "'skipWhenZero'");
     }
 
     [Fact]
-    public void Initial_rows_and_skip_need_list_mode()
+    public void Fill_and_skip_need_list_mode()
     {
         var definition = Definition("inventory-stock-create");
         var stage = definition["components"]!.AsArray().OfType<JsonObject>().FirstOrDefault(x => (string)x["type"]! == "editableGrid"
             && (string?)x["props"]!["gridMode"] == "stage");
         if (stage is null) return;
         var props = stage["props"]!.AsObject();
-        props["initialRowsQuery"] = (string)props["sourceQuery"]!;
-        Invalid(definition, "'initialRowsQuery' yalnız list kipinde");
-        props.Remove("initialRowsQuery");
-        props["skipRowsWhenEmpty"] = props["gridColumns"]!.AsArray()[0]!.GetValue<string>().Split('|')[0];
-        Invalid(definition, "'skipRowsWhenEmpty' yalnız list kipinde");
+        props["fillQuery"] = (string)props["sourceQuery"]!;
+        Invalid(definition, "'fillQuery' yalnız listeli (list) kipte");
+        props.Remove("fillQuery");
+        props["skipWhenZero"] = props["gridColumns"]!.AsArray()[0]!.GetValue<string>().Split('|')[0];
+        Invalid(definition, "'skipWhenZero' yalnız listeli (list) kipte");
     }
 
-    // ---- Schema: E2 lookup fill ----
+    // ---- Schema: lookup fill on a card ----
 
     [Fact]
-    public void Lookup_fill_items_are_checked()
+    public void Lookup_fills_are_checked_on_a_card()
     {
-        JsonObject Page(params string[] fill)
+        JsonObject Page(string fills)
         {
             var definition = Definition("sales-invoice-create");
-            Props(definition, "kalemler")["lookupFill"] = Strings(fill);
+            Props(definition, "kalemler")["lookupFills"] = JsonNode.Parse(fills);
             return definition;
         }
-        Valid(Page("stockItemId:unitCode=unitCode", "warehouseId:unitCode=code"));
-        Invalid(Page("quantity:unitCode=unitCode"), "seçim (lookup) sütunu");
-        Invalid(Page("stockItemId:stockItemId=id"), "hedefi");
-        Invalid(Page("stockItemId:lineTotal=salesListPrice"), "hedefi");
-        Invalid(Page("stockItemId:yok=salesListPrice"), "hedefi");
-        Invalid(Page("stockItemId:unitPrice=olmayanAlan"), "sonucunda yok");
-        Invalid(Page("stockItemId:unitPrice=salesListPrice", "stockItemId:unitPrice=purchaseListPrice"), "bir kez");
-        Invalid(Page("stockItemId=unitCode"), "seçimSütunu:hedefSütun=seçenekAlanı");
-        Invalid(Page("stockItemId:unitCode="), "seçenek alanı geçersiz");
+        Valid(Page("""{"stockItemId":{"unitCode":"unitCode"},"warehouseId":{"unitCode":"code"}}"""));
+        Invalid(Page("""{"quantity":{"unitCode":"unitCode"}}"""), "seçim (lookup) sütunu");
+        Invalid(Page("""{"stockItemId":{"stockItemId":"id"}}"""), "hedefi");
+        Invalid(Page("""{"stockItemId":{"lineTotal":"salesListPrice"}}"""), "hedefi");
+        Invalid(Page("""{"stockItemId":{"yok":"salesListPrice"}}"""), "hedefi");
+        Invalid(Page("""{"stockItemId":{"unitPrice":"olmayanAlan"}}"""), "sonucunda yok");
+        Invalid(Page("""{"stockItemId":{"unitCode":""}}"""), "'lookupFills'");
     }
 
     // ---- Schema: E3 preview (runOn list, calc column) ----

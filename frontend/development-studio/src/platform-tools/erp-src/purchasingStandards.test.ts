@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { designerInternals } from "./CustomPagesPage";
+import { designerInternals, designerPersistence } from "./CustomPagesPage";
 import { conditionProblem } from "./page-designer/conditions";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
@@ -12,13 +12,15 @@ import salesPurchaseReceiptsJson from "../../../../../src/Hosts/AIERP.Api/System
 import salesPurchaseInvoiceEntryJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoice-entry.json?raw";
 import salesPurchaseInvoicesJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoices.json?raw";
 import salesPurchaseReturnsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-returns.json?raw";
+import salesPurchaseOrderCreateJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-order-create.json?raw";
+import salesPurchaseInvoiceDraftsJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-purchase-invoice-drafts.json?raw";
 
-// Satınalma standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json, Faz 1): tasarımcıda tanınmayan tür/özellik
+// Satınalma standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json, Faz 1 + Faz 2): tasarımcıda tanınmayan tür/özellik
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Standard = { definition: { queries: { id: string; name: string }[]; components: Component[] } };
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
-const standards: [string, Standard][] = [["sales-requests", JSON.parse(salesRequestsJson)], ["sales-purchase-quotes", JSON.parse(salesPurchaseQuotesJson)], ["sales-purchasing", JSON.parse(salesPurchasingJson)], ["sales-purchase-delivery-notes", JSON.parse(salesPurchaseDeliveryNotesJson)], ["sales-purchase-receipts", JSON.parse(salesPurchaseReceiptsJson)], ["sales-purchase-invoice-entry", JSON.parse(salesPurchaseInvoiceEntryJson)], ["sales-purchase-invoices", JSON.parse(salesPurchaseInvoicesJson)], ["sales-purchase-returns", JSON.parse(salesPurchaseReturnsJson)]];
+const standards: [string, Standard][] = [["sales-requests", JSON.parse(salesRequestsJson)], ["sales-purchase-quotes", JSON.parse(salesPurchaseQuotesJson)], ["sales-purchasing", JSON.parse(salesPurchasingJson)], ["sales-purchase-delivery-notes", JSON.parse(salesPurchaseDeliveryNotesJson)], ["sales-purchase-receipts", JSON.parse(salesPurchaseReceiptsJson)], ["sales-purchase-invoice-entry", JSON.parse(salesPurchaseInvoiceEntryJson)], ["sales-purchase-invoices", JSON.parse(salesPurchaseInvoicesJson)], ["sales-purchase-returns", JSON.parse(salesPurchaseReturnsJson)], ["sales-purchase-order-create", JSON.parse(salesPurchaseOrderCreateJson)], ["sales-purchase-invoice-drafts", JSON.parse(salesPurchaseInvoiceDraftsJson)]];
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
 
@@ -46,6 +48,21 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
       expect(added, component.id).toEqual(component.type === "formCard" && added.length > 0 ? ["columns"] : []);
     }
     expect(reconciled.queries).toEqual(queries);
+  });
+  it("yükle → uzlaştır → kaydet gidiş-dönüşü bütün özellikleri ve sorguları korur", () => {
+    const stored = JSON.stringify({ schemaVersion: 2, queries, components });
+    const loaded = designerPersistence.normalizeDefinition(JSON.parse(stored));
+    const reconciled = reconcileDefinition(loaded, { catalog: { status: "loading" }, queryEditable: false });
+    const saved = JSON.parse(JSON.stringify(designerPersistence.wireDefinition(reconciled, { status: "loading" }))) as Standard["definition"];
+    const after = new Map(flatten(saved.components).map((component) => [component.id, component]));
+    expect(after.size).toBe(all.length);
+    for (const component of all) {
+      const next = after.get(component.id);
+      expect(next, component.id).toBeDefined();
+      expect(next!.type, component.id).toBe(component.type);
+      for (const [prop, value] of Object.entries(component.props)) expect(JSON.stringify(next!.props[prop]), `${component.id}.${prop}`).toBe(JSON.stringify(value));
+    }
+    expect(saved.queries).toEqual(queries);
   });
   it("koşullar yalnız sayfadaki adlara ve ayrılmış köklere başvurur", () => {
     const names = [...queries.map((query) => query.name), ...all.map((component) => component.name).filter((name): name is string => !!name)];

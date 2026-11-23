@@ -35,7 +35,8 @@ import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBa
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { RUN_ON_TYPES, runOnProblem } from "./page-designer/queryRunOn";
-import { calcColumnProblem, cleanRowSources } from "./page-designer/gridRowSources";
+import { calcColumnProblem } from "./page-designer/gridRowSources";
+import { GRID_ENGINE_PROPS } from "./page-designer/gridEngine";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
@@ -196,8 +197,8 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "saveAndNew",
   // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
   "openParam", "bulkDeleteQuery",
-  // Belge kartı kalem tablosu: kaynaktan başlangıç satırları, boş satırı atlama ve seçimin diğer hücreleri doldurması.
-  "initialRowsQuery", "initialRowsMap", "skipRowsWhenEmpty", "lookupFill"]);
+  // Listeli tablonun motor ekleri (Düzenlenebilir tablo bölümü): sorgudan doldurma, seçimle doldurma ve formüller.
+  ...GRID_ENGINE_PROPS]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -252,7 +253,7 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   // (yalnız okuma sorgusu olabilir) ve pencerenin kaydet sorgusu.
   const sequence = component.props.saveSequence;
   const staleSequence = writeGone && Array.isArray(sequence) && sequence.includes(queryId);
-  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery", "initialRowsQuery"].filter((key) => component.props[key] === queryId) : [];
+  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery", "fillQuery"].filter((key) => component.props[key] === queryId) : [];
   const staleDialogSave = writeGone && component.type === "dialog" && component.props.saveQuery === queryId;
   const readRef = readGone && (component.props.query === queryId || component.props.trendQuery === queryId || component.props.optionsQuery === queryId);
   if (!readRef && !staleRefresh && !(removed && component.props.queryId === queryId)
@@ -267,8 +268,8 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
     } else { delete props.saveSequence; delete props.sequenceWhen; delete props.stopOnError; }
   }
   for (const key of readRefs) delete props[key];
-  // Başlangıç satırlarının eşlemi kaynak sorguya bağlıdır; sorgu kalkınca birlikte kalkar.
-  if (readRefs.includes("initialRowsQuery")) delete props.initialRowsMap;
+  // Doldurma eşlemi doldurma sorgusuna bağlıdır; sorgu kalkınca birlikte kalkar.
+  if (readRefs.includes("fillQuery")) delete props.fillColumns;
   if (staleDialogSave) delete props.saveQuery;
   // Sunucu sayfalaması ERP işlemi sorgusuna bağlıdır; sorgu kalkınca sayfalama özellikleri de kalkar.
   if (readGone && props.query === queryId) { delete props.query; delete props.countWhen; delete props.totals; delete props.columnFormats; delete props.toneMap; for (const key of PAGING_PROPS) delete props[key]; }
@@ -639,6 +640,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       if (component.type === "editableGrid") {
         // Seçim sütunu ayarları yalnız tablonun seçim (lookup) sütunlarına; varyant kipinde sütun ve satır sınırı yoktur.
         if (props.gridMode === "matrix") for (const key of ["minRows", "columnOptionsWhen", "columnStaticOptions"]) if (key in next) { delete next[key]; touched = true; }
+        // Motor ekleri yalnız listeli kipte; doldurma sorgusu sayfanın okuma sorgusu olmalı (sunucu kuralı).
+        if (props.gridMode === "stage" || props.gridMode === "matrix") for (const key of GRID_ENGINE_PROPS) if (key in next) { delete next[key]; touched = true; }
+        if ("fillQuery" in next && !(typeof next.fillQuery === "string" && readIds.has(next.fillQuery))) { delete next.fillQuery; delete next.fillColumns; touched = true; }
         const lookupCodes = new Set(parseGridColumns(props.gridColumns).filter((column) => column.inputType === "lookup").map((column) => column.code));
         for (const key of ["columnOptionsWhen", "columnStaticOptions"]) {
           if (!(key in next)) continue;
@@ -651,9 +655,6 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
           const kept = gridTotalCodes(props);
           if (!sameList(next.totals, kept)) { if (kept.length > 0) next.totals = kept; else delete next.totals; touched = true; }
         }
-        // Kaynaklı satır ayarları: başlangıç sorgusu yalnız liste kipinde ve okuma sorgusu; eşlem, atlama ve doldurma tablonun sütunlarına.
-        const sources = cleanRowSources(next, readIds);
-        if (sources) { for (const key of Object.keys(next)) if (!(key in sources)) delete next[key]; Object.assign(next, sources); touched = true; }
       }
       if (!touched) return component;
       changed = true;
@@ -837,6 +838,8 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
     return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };
   }),
 });
+/** Yükleme (normalizeDefinition) ve kayıt (wireDefinition) dönüşümleri; testler için. */
+export const designerPersistence = { normalizeDefinition, wireDefinition };
 const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
 // erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı,
 // rol oturumdaki üyelik rolü (Studio'da `role` özelliği; ERP'de belirteçteki role iddiası).

@@ -43,8 +43,8 @@ const definition = (gridProps: Record<string, unknown> = {}) => ({
   components: [
     { id: 'rid', type: 'input', name: 'rid', props: { inputType: 'text', autoId: true, hidden: true } },
     { id: 'g', type: 'editableGrid', name: 'kalemler', props: {
-      gridMode: 'list', title: 'Kalemler', maxRows: 300, initialRowsQuery: 'qLines', initialRowsMap: ['stockItemId@label=stockName', 'quantity=remaining'],
-      skipRowsWhenEmpty: 'quantity', lookupFill: ['stockItemId:unitPrice=salesPrice'],
+      gridMode: 'list', title: 'Kalemler', maxRows: 300, fillQuery: 'qLines', fillColumns: { 'stockItemId@label': 'stockName', quantity: 'remaining' },
+      skipWhenZero: 'quantity', lookupFills: { stockItemId: { unitPrice: 'salesPrice' } },
       gridColumns: ['stockItemId|Stok|lookup:qStock:id:code:name|required', 'quantity|Miktar|number|min:0', 'unitPrice|Fiyat|number|min:0', 'lineTotal|Tutar|calc:qPrev:lineTotal'],
       ...gridProps } },
     { id: 'toplam', type: 'text', props: { text: 'Genel toplam: {{onizleme.meta.grandTotal}}' } },
@@ -107,22 +107,22 @@ describe('editableGrid engine: initial rows, lookup fill, server preview', { tim
   it('loads editable rows from the source query, previews by row key and saves only the user inputs', async () => {
     setPageParams('custom-page:p', { docId: D1 });
     setup();
-    await waitFor(() => expect(cell('kaynak-1', 'quantity')?.value).toBe('2'), T);
-    expect(cell('kaynak-2', 'quantity').value).toBe('0');
-    expect(cell('kaynak-1', 'unitPrice').value).toBe('10');
+    await waitFor(() => expect(cell('dolu-1', 'quantity')?.value).toBe('2'), T);
+    expect(cell('dolu-2', 'quantity').value).toBe('0');
+    expect(cell('dolu-1', 'unitPrice').value).toBe('10');
     expect((screen.getByLabelText('Stok (satır 1)') as HTMLInputElement).value).toContain('Koli');
     // Satır 2 (miktar 0) atlanır: önizlemeye ve kayda gitmez; önizleme yanıtı anahtarla eşlenir.
     await waitFor(() => expect(calc(1)).toBe('20,00'), T);
     expect(calc(2)).toBe('—');
-    expect(previews()[0].body).toEqual({ lines: [{ stockItemId: S1, quantity: 2, unitPrice: 10, rowKey: 'kaynak-1' }] });
+    expect(previews()[0].body).toEqual({ lines: [{ stockItemId: S1, quantity: 2, unitPrice: 10, rowKey: 'dolu-1' }] });
     expect(screen.getByText('Genel toplam: 20')).toBeTruthy();
 
-    type(cell('kaynak-2', 'quantity'), '4');
+    type(cell('dolu-2', 'quantity'), '4');
     await waitFor(() => expect(calc(2)).toBe('12,00'), T);
     expect(calc(1)).toBe('20,00');
     expect(screen.getByText('Genel toplam: 32')).toBeTruthy();
     expect(previews().at(-1)!.body!.lines).toEqual([
-      { stockItemId: S1, quantity: 2, unitPrice: 10, rowKey: 'kaynak-1' }, { stockItemId: S2, quantity: 4, unitPrice: 3, rowKey: 'kaynak-2' }]);
+      { stockItemId: S1, quantity: 2, unitPrice: 10, rowKey: 'dolu-1' }, { stockItemId: S2, quantity: 4, unitPrice: 3, rowKey: 'dolu-2' }]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(saves()).toHaveLength(1), T);
@@ -130,7 +130,7 @@ describe('editableGrid engine: initial rows, lookup fill, server preview', { tim
     expect(body.lines).toEqual([{ stockItemId: S1, quantity: 2, unitPrice: 10 }, { stockItemId: S2, quantity: 4, unitPrice: 3 }]);
     expect(typeof body.requestId).toBe('string');
     // Kayıttan sonra tablo son yüklenen satırlara döner.
-    await waitFor(() => expect(cell('kaynak-2', 'quantity').value).toBe('0'), T);
+    await waitFor(() => expect(cell('dolu-2', 'quantity').value).toBe('0'), T);
   });
 
   it('a pending or failed preview never blocks save; invalid rows skip the preview', async () => {
@@ -145,10 +145,10 @@ describe('editableGrid engine: initial rows, lookup fill, server preview', { tim
     // Geçersiz satır (negatif miktar) önizlemeyi çalıştırmaz.
     previewResponse = echoPreview;
     const before = previews().length;
-    type(cell('kaynak-1', 'quantity'), '-1');
+    type(cell('dolu-1', 'quantity'), '-1');
     await new Promise((done) => setTimeout(done, 400));
     expect(previews()).toHaveLength(before);
-    type(cell('kaynak-1', 'quantity'), '3');
+    type(cell('dolu-1', 'quantity'), '3');
     await waitFor(() => expect(calc(1)).toBe('30,00'), T);
   });
 
@@ -174,14 +174,14 @@ describe('editableGrid engine: initial rows, lookup fill, server preview', { tim
     await waitFor(() => expect(screen.getByText('Kaynak kayıt yükleniyor; biraz sonra yeniden deneyin.')).toBeTruthy(), T);
     expect(saves()).toHaveLength(0);
     release({ lines: [{ stockItemId: S1, stockName: 'Koli', remaining: 0 }, { stockItemId: S2, stockName: 'Bant', remaining: 5, unitPrice: 3 }] });
-    await waitFor(() => expect(cell('kaynak-2', 'quantity')?.value).toBe('5'), T);
+    await waitFor(() => expect(cell('dolu-2', 'quantity')?.value).toBe('5'), T);
     saveResponse = () => Promise.reject(Object.assign(new Error('Doğrulama'), { status: 400, fieldErrors: { 'Lines[0].Quantity': ['Stok yetersiz.'] } }));
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(saves()).toHaveLength(1), T);
     // Gönderilen 0. satır tablonun 2. satırıdır (1. satır miktarı 0 olduğu için atlandı).
-    const row2 = cell('kaynak-2', 'quantity').closest('td')!;
+    const row2 = cell('dolu-2', 'quantity').closest('td')!;
     await waitFor(() => expect(row2.textContent).toContain('Stok yetersiz.'), T);
-    expect(cell('kaynak-1', 'quantity').closest('td')!.textContent).not.toContain('Stok yetersiz.');
+    expect(cell('dolu-1', 'quantity').closest('td')!.textContent).not.toContain('Stok yetersiz.');
   });
 
   it('a user choice in the lookup fills empty or previously filled cells, never typed ones', async () => {

@@ -91,20 +91,20 @@ describe('Satış siparişi standart kartı', { timeout: 40000 }, () => {
   it('orderId opens the order for edit: header and editable lines load, preview by row key, Kaydet PUTs the full line list', async () => {
     setPageParams(KEY, { orderId: O1, customerId: C1, orderDate: '2026-11-01' });
     h.setup();
-    await waitFor(() => expect(cell('kaynak-2', 'unitPrice')?.value).toBe('5'), T);
+    await waitFor(() => expect(cell('dolu-2', 'unitPrice')?.value).toBe('5'), T);
     expect(input('siparisNo').value).toBe('SIP-7');
     expect(input('siparisTarihi').value).toBe('2026-11-01');
     expect(input('teslimTarihi').value).toBe('2026-11-20');
-    expect(cell('kaynak-1', 'quantity').value).toBe('2');
-    expect(cell('kaynak-2', 'currencyCode').value).toBe('USD');
-    // Yüklenen stok hücresi `stockItemId@label=stockCode` ile seçicinin etiket sütunu (kod) olarak görünür.
+    expect(cell('dolu-1', 'quantity').value).toBe('2');
+    expect(cell('dolu-2', 'currencyCode').value).toBe('USD');
+    // Yüklenen stok hücresi `fillColumns` "stockItemId@label": "stockCode" ile seçicinin etiket sütunu (kod) olarak görünür.
     expect((screen.getByLabelText('Stok (satır 1)') as HTMLInputElement).value).toContain('STK-1');
     await waitFor(() => expect(calc('Tutar', 1)).toBe('24,00'), T);
     expect(calc('Tutar', 2)).toBe('6,00');
     const sent = JSON.parse(calls('POST', '/api/sales/orders/preview').at(-1)!.body!) as Body;
-    expect(sent.lines!.map((line) => line.rowKey)).toEqual(['kaynak-1', 'kaynak-2']);
+    expect(sent.lines!.map((line) => line.rowKey)).toEqual(['dolu-1', 'dolu-2']);
 
-    fireEvent.change(cell('kaynak-1', 'quantity'), { target: { value: '3' } });
+    fireEvent.change(cell('dolu-1', 'quantity'), { target: { value: '3' } });
     await waitFor(() => expect(calc('Tutar', 1)).toBe('36,00'), T);
     // Toplamlar önizleme kaydından (meta): 36 + 6.
     await waitFor(() => expect(screen.getByText('Genel toplam').closest('article')!.textContent).toContain('42,00'), T);
@@ -122,9 +122,9 @@ describe('Satış siparişi standart kartı', { timeout: 40000 }, () => {
   it('a loaded line whose stock is not on the option page shows its code, not the raw id', async () => {
     setPageParams(KEY, { orderId: O1, customerId: C1, orderDate: '2026-11-01' });
     h.setup();
-    await waitFor(() => expect(cell('kaynak-2', 'unitPrice')?.value).toBe('5'), T);
+    await waitFor(() => expect(cell('dolu-2', 'unitPrice')?.value).toBe('5'), T);
     await waitFor(() => expect(h.gets('/api/stock/items').length).toBeGreaterThan(0), T);
-    // `initialRowsMap` @label eşlemi: seçenek sayfasında olmayan stok da kodla görünür (ham kimlik değil).
+    // `fillColumns` "stockItemId@label" eşlemi: seçenek sayfasında olmayan stok da kodla görünür (ham kimlik değil).
     expect((screen.getByLabelText('Stok (satır 2)') as HTMLInputElement).value).toBe('STK-9');
   });
 

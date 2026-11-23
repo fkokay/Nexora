@@ -6,8 +6,8 @@ import { calcColumnProblem } from "./page-designer/gridRowSources";
 import { RUN_ON_TYPES, runOnProblem } from "./page-designer/queryRunOn";
 
 // Satış belge kartı standartları (Aşama B: src/Hosts/AIERP.Api/SystemPages/Standards/sales-*-create.json): tasarımcıda tanınmayan
-// tür/özellik olmadan açılmalı, uzlaştırmadan sorgu ya da özellik kaybetmeden geçmeli; yeni motor özellikleri (başlangıç
-// satırları, seçim doldurması, önizleme sorgusu, hesaplanan sütun) tasarımcının denetimine takılmamalıdır.
+// tür/özellik olmadan açılmalı, uzlaştırmadan sorgu ya da özellik kaybetmeden geçmeli; yeni motor özellikleri (kaynaktan
+// doldurma, seçimle doldurma, önizleme sorgusu, hesaplanan sütun) tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Query = { id: string; name: string; kind: string; runOn?: unknown; runDebounceMs?: unknown };
 type Standard = { definition: { queries: Query[]; components: Component[] } };
@@ -15,7 +15,9 @@ const { reconcileDefinition, managedKeys, contentFields, palette } = designerInt
 // Kartlar API tarafında aşama aşama eklenir (P6); glob mevcut olanları okur, kart anahtarları aşağıda sabittir.
 const files = import.meta.glob<string>("../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-*-create.json", { eager: true, query: "?raw", import: "default" });
 const CARD_KEYS = ["sales-quote-create", "sales-order-create", "sales-delivery-create", "sales-invoice-create"];
-const standards: [string, Standard][] = Object.entries(files).map(([path, json]) => [path.slice(path.lastIndexOf("/") + 1, -".json".length), JSON.parse(json) as Standard]);
+// Satınalma kartları (sales-purchase-*-create) aynı desene uyar; purchasingStandards.test.ts denetler.
+const standards: [string, Standard][] = Object.entries(files).map(([path, json]): [string, Standard] => [path.slice(path.lastIndexOf("/") + 1, -".json".length), JSON.parse(json) as Standard])
+  .filter(([key]) => !key.startsWith("sales-purchase-"));
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
 const CONDITION_PROPS = ["visibleWhen", "disabledWhen", "requiredWhen", "activeWhen", "sequenceWhen", "defaultWhen", "countWhen"];
 

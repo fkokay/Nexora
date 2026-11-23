@@ -784,12 +784,14 @@
             "stockItemId=satir.isActive == true",
             "warehouseId=satir.isActive == true"
           ],
-          "lookupFill": [
-            "stockItemId:unitCode=unitCode",
-            "stockItemId:unitPrice=salesListPrice",
-            "stockItemId:vatPercent=salesVatPercent",
-            "stockItemId:discountPercent=salesDiscountPercent"
-          ]
+          "lookupFills": {
+            "stockItemId": {
+              "unitCode": "unitCode",
+              "unitPrice": "salesListPrice",
+              "vatPercent": "salesVatPercent",
+              "discountPercent": "salesDiscountPercent"
+            }
+          }
         }
       },
       {
