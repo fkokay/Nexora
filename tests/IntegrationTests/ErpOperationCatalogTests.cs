@@ -171,6 +171,7 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
                 || op.Name.StartsWith("finans.", StringComparison.Ordinal)
                 || op.Name.StartsWith("ik.", StringComparison.Ordinal)
+                || op.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
                 || ManufacturingSystemPagesTests.IsNewOperation(op.Name)
                 || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
@@ -701,7 +702,7 @@ public sealed class ErpOperationCatalogTests
         // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, ManufacturingSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
-            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal)
+            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal) && !x.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
             && !ManufacturingSystemPagesTests.IsNewOperation(x.Name)
             && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
         {
