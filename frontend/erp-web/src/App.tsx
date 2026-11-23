@@ -413,6 +413,12 @@ function AppContent() {
         description: tx("finance"),
       },
       {
+        page: "fixed-asset-create",
+        parentPage: "fixed-assets",
+        label: locale === "en" ? "New fixed asset acquisition" : "Yeni edinim",
+        description: locale === "en" ? "Fixed assets" : "Duran Varlık",
+      },
+      {
         page: "foreign-trade",
         label: locale === "en" ? "Foreign trade" : "Dış Ticaret",
         description: locale === "en" ? "Foreign trade" : "Dış Ticaret",
@@ -625,6 +631,8 @@ function AppContent() {
       "crm-opportunities": "CRM Fırsatları",
       "human-resources": "İnsan Kaynakları",
       "fixed-assets": "Sabit Kıymetler",
+      "fixed-asset-create": "Yeni edinim",
+      "fixed-asset-card": "Kıymet kartı",
       "manufacturing-recipes": "Tanımlı Reçeteler",
       "manufacturing-recipe-create": "Reçete Oluştur",
       "manufacturing-work-centers": "İş Merkezleri",

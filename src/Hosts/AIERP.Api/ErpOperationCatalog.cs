@@ -270,6 +270,7 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(InModule(PurchasingLabel, () => BuildPurchasing(paging)));
         operations.AddRange(InModule(code => SalesLabelMap.GetValueOrDefault(code), () => BuildSales(paging)));
         operations.AddRange(InModule(code => FinanceLabels.GetValueOrDefault(code), () => BuildFinance(paging)));
+        operations.AddRange(InModule(FixedAssetLabel, () => BuildFixedAssets(paging)));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

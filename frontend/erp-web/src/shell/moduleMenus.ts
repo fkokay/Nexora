@@ -29,6 +29,8 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "manufacturing-recipe-create": "manufacturing-recipes",
   "manufacturing-work-center-create": "manufacturing-work-centers",
   "manufacturing-order-create": "manufacturing-orders",
+  "fixed-asset-create": "fixed-assets",
+  "fixed-asset-card": "fixed-assets",
 };
 
 /** Screens outside every module: home, assistant, settings and platform/customization tools. */
@@ -92,7 +94,7 @@ export const moduleMenus: ModuleMenu[] = [
     pages: Object.keys(manufacturingPageTitles),
   },
   { railId: "human-resources", title: ["İnsan Kaynakları", "Human resources"], pages: ["human-resources"] },
-  { railId: "fixed-assets", title: ["Duran Varlıklar", "Fixed assets"], pages: ["fixed-assets"] },
+  { railId: "fixed-assets", title: ["Duran Varlıklar", "Fixed assets"], pages: ["fixed-assets", "fixed-asset-create", "fixed-asset-card"] },
   { railId: "foreign-trade", title: ["Dış Ticaret", "Foreign trade"], pages: ["foreign-trade"] },
   { railId: "reports", title: ["Raporlar", "Reports"], pages: ["reports"] },
   { railId: "modules", title: ["Tanımlar", "Definitions"], pages: ["location-definitions", "address-definitions"] },

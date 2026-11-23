@@ -867,7 +867,8 @@ public sealed class ErpOperationCatalogTests
     {
         var all = ErpOperationCatalog.All;
         Assert.Equal(all.Count, all.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count());
-        var pattern = new Regex("^[a-z]+(\\.[a-zA-Z]+)+$");
+        // The module prefix starts lower case; a two-word module is camelCase (duranVarlik, decision K2 of taslak 27).
+        var pattern = new Regex("^[a-z][a-zA-Z]*(\\.[a-zA-Z]+)+$");
         var types = new HashSet<string> { "text", "int", "decimal", "date", "bool", "guid" };
         foreach (var op in all)
         {

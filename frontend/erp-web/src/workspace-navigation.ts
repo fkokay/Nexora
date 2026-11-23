@@ -57,6 +57,7 @@ const standalonePageTitles: Record<string, Record<Locale, string>> = {
   'foreign-trade': { tr: 'Dış Ticaret', en: 'Foreign trade' },
   'human-resources': { tr: 'İnsan Kaynakları', en: 'Human resources' },
   'fixed-assets': { tr: 'Duran Varlıklar', en: 'Fixed assets' },
+  'fixed-asset-card': { tr: 'Kıymet kartı', en: 'Fixed asset card' },
 }
 
 export function standalonePageTitle(page: string, locale: Locale): string | undefined {

@@ -310,7 +310,8 @@ function LegacyPageRouter({
         onNavigate={onNavigate}
       />
     );
-  if (page === "fixed-assets")
+  // The legacy screen has no separate create page or card; both keys open it.
+  if (page === "fixed-assets" || page === "fixed-asset-create" || page === "fixed-asset-card")
     return <FixedAssetsPage token={token} locale={locale} />;
   if (page === "human-resources")
     return (
