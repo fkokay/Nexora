@@ -248,6 +248,28 @@ describe('Satınalma Siparişleri list', () => {
     await waitFor(() => expect(posts()).toHaveLength(1));
   });
 
+  it('taslak 20: the Mal kabul sub-form suggests the PO price; a Bedelsiz line is costed "fatura gelince" and posts only the flag', async () => {
+    await openOrderList();
+    const surface = await openOrderDocument('SA-o1');
+    runMenu('Mal kabul ekle');
+    await settle();
+    const form = surface.querySelector<HTMLElement>('.sales-rf-embedded')!;
+    expect(within(form).getByLabelText<HTMLInputElement>('AMB-2040 birim fiyat').value).toBe('85');
+    expect(within(form).getByText('siparişte 85,00')).toBeTruthy();
+    expect(within(form).getByText('85,00 / ADET')).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText('AMB-2040 mal kabul miktarı'), { target: { value: '2' } });
+    expect(within(form).getByRole('group', { name: 'Mal kabul fiyat toplamları' }).textContent).toContain('170,00 TRY');
+    fireEvent.click(within(form).getByLabelText('AMB-2040 bedelsiz'));
+    expect(within(form).queryByLabelText('AMB-2040 birim fiyat')).toBeNull();
+    expect(within(form).getByText('fatura gelince')).toBeTruthy();
+    fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    const post = () => calls.find((call) => call.method === 'POST' && call.url === '/api/purchasing/orders/o1/receipts');
+    await waitFor(() => expect(post()).toBeTruthy());
+    expect(JSON.parse(post()!.body!).lines).toEqual([
+      { orderLineNumber: 1, quantity: 2, unitCode: 'ADET', tracking: [], storageLocationId: null, isFreeOfCharge: true },
+    ]);
+  });
+
   it('Faturala still posts to /receipts/{id}/invoice; a cancelled order is the İptal end state without Mal kabul ekle', async () => {
     await openOrderList();
     const surface = await openOrderDocument('SA-o1');

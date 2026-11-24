@@ -89,7 +89,7 @@ public sealed class PurchasingErpOperationCatalogTests
         { "satinalma.malKabul.getir", "GET", "/api/purchasing/receipts/{id}", "id:route:guid*", "record", null, "" },
         { "satinalma.malKabul.satirlari", "GET", "/api/purchasing/receipts/{id}", "id:route:guid*", "list", "lines", "" },
         { "satinalma.malKabul.iptal", "POST", "/api/purchasing/receipts/{id}/void", "id:route:guid*", "none", null, "" },
-        { "satinalma.malKabul.faturala", "POST", "/api/purchasing/receipts/{id}/invoice", "id:route:guid*,code:body:text*,invoiceDate:body:date*,providerInvoiceUuid:body:guid,providerScenario:body:text,providerInvoiceTypeCode:body:text,providerSenderAlias:body:text,accountingProfileCode:body:text", "record", null, "" },
+        { "satinalma.malKabul.faturala", "POST", "/api/purchasing/receipts/{id}/invoice", "id:route:guid*,code:body:text*,invoiceDate:body:date*,providerInvoiceUuid:body:guid,providerScenario:body:text,providerInvoiceTypeCode:body:text,providerSenderAlias:body:text,accountingProfileCode:body:text,lines:body:list", "record", null, "" },
         { "satinalma.malKabul.ozelAlanTanimlari", "GET", "/api/purchasing/receipts/custom-fields", "", "list", null, "" },
         { "satinalma.faturaGirisi.malKabulleri", "GET", "/api/purchasing/invoices/entry/receipts", "q:query:text,page:query:int*,pageSize:query:int*", "list", "items", "page,pageSize,totalCount" },
         { "satinalma.faturaGirisi.onizleme", "GET", "/api/purchasing/receipts/{id}/invoice-preview", "id:route:guid*,invoiceDate:query:date,accountingProfileCode:query:text", "record", null, "" },
@@ -127,7 +127,8 @@ public sealed class PurchasingErpOperationCatalogTests
             Assert.Empty(op.RouteVariants);
             Assert.Null(op.BodyMap);
             Assert.Null(op.SourceOperation);
-            Assert.DoesNotContain(op.Parameters, x => x.Type is "list" or "map");
+            // Only the receipt invoice takes a list: optional per-line prices (free / unpriced receipt lines need an amount).
+            Assert.DoesNotContain(op.Parameters, x => (x.Type is "list" or "map") && !(name == "satinalma.malKabul.faturala" && x.Name == "lines"));
             Assert.Equal(name is "satinalma.talep.onayla" or "satinalma.talep.reddet", op.RequiresTenantAdmin);
             // Every column has a label; a missing one would already have failed startup.
             Assert.All(op.Result.Columns, x => Assert.False(string.IsNullOrWhiteSpace(x.Label), $"{name}.{x.Code}"));
@@ -449,10 +450,10 @@ public sealed class PurchasingErpOperationCatalogTests
         { "satinalma.siparis.olustur", "POST", "/api/purchasing/orders",
             "code:body:text*,supplierId:body:guid*,orderDate:body:date*,currencyCode:body:text*,notes:body:text,expectedReceiptDate:body:date,targetWarehouseId:body:guid,lines:body:list[stockItemId:guid*|quantity:decimal*|unitPrice:decimal*|discountPercent:decimal|vatPercent:decimal|unitCode:text],customFields:body:map", "record", null },
         { "satinalma.malKabul.olustur", "POST", "/api/purchasing/orders/{id}/receipts",
-            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid],customFields:body:map", "record", null },
+            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool],customFields:body:map", "record", null },
         { "satinalma.malKabul.siparisSatirlari", "GET", "/api/purchasing/orders/{id}", "id:route:guid*", "list", "lines" },
         { "satinalma.irsaliye.olustur", "POST", "/api/purchasing/delivery-notes/orders/{orderId}",
-            "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text]", "record", null },
+            "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool]", "record", null },
         { "satinalma.irsaliye.siparisIrsaliyeleri", "GET", "/api/purchasing/delivery-notes/orders/{orderId}", "orderId:route:guid*", "list", null },
         { "satinalma.irsaliye.siparisSatirlari", "GET", "/api/purchasing/delivery-notes/orders/{orderId}/lines", "orderId:route:guid*", "list", null },
         { "satinalma.irsaliye.malKabulBagla", "POST", "/api/purchasing/delivery-notes/{id}/link-receipt", "id:route:guid*,purchaseReceiptId:body:guid*", "none", null },

@@ -84,6 +84,12 @@ internal static partial class ErpOperationCatalog
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["salesRequestLineNumber"] = "Talep satır no",
+        // İrsaliye / mal kabul satır fiyatı ve bedelsiz satır
+        ["isFreeOfCharge"] = "Bedelsiz", ["lineNetAmount"] = "Tutar", ["lineVatAmount"] = "Satır KDV tutarı",
+        ["orderUnitPrice"] = "Sipariş birim fiyatı", ["receiptUnitPrice"] = "Mal kabul birim fiyatı", ["requiresAmount"] = "Tutar girilmeli",
+        ["costPending"] = "Maliyet bekliyor", ["pricedNetTotal"] = "Tutar (KDV hariç)", ["pricedVatTotal"] = "KDV toplamı",
+        ["pricedGrandTotal"] = "Tutar (KDV dahil)", ["freeLineCount"] = "Bedelsiz satır", ["unpricedLineCount"] = "Fiyatsız satır",
+        ["pricingState"] = "Fiyat durumu",
         ["id"] = "Kimlik", ["code"] = "Kod", ["name"] = "Ad", ["barcode"] = "Barkod", ["unitCode"] = "Birim",
         ["category"] = "Kategori", ["minimumStock"] = "Minimum stok", ["isActive"] = "Etkin", ["createdAt"] = "Oluşturulma",
         ["rowVersion"] = "Satır sürümü", ["trackingMode"] = "İzleme türü", ["procurementLeadTimeDays"] = "Tedarik süresi (gün)",

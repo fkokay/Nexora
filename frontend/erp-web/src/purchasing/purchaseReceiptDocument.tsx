@@ -22,6 +22,8 @@ import {
   type SalesChainItem,
 } from "../sales/components/SalesListDetailPanel";
 import { SALES_DETAIL_HINTS, SalesFooterStatus, SalesLinesMeta } from "../sales/salesDocumentDetail";
+import { formatMoneyWithCurrency, headerTotals, priceDraftFrom, type DeliveryHeaderPricing } from "../delivery-pricing/deliveryPricing";
+import { FreeTag, PriceHeadCells, PriceReadCells, PricingStateTag, PricingTotalsCards, ReceiptCostTag } from "../delivery-pricing/DeliveryPricingCells";
 
 /*
  * Mal kabulleri (taslak 07 / 02): listenin sağ paneli ve kayıtlı mal kabulün belge ekranı. Liste satırında satır ve
@@ -41,7 +43,7 @@ export type PurchaseReceiptRow = {
   status: "Posted" | "Voided";
   lineCount: number;
   createdAt: string;
-};
+} & DeliveryHeaderPricing;
 
 type OrderDetail = AppTypes.PurchaseOrderDetail;
 type Receipt = AppTypes.PurchaseReceipt;
@@ -122,7 +124,7 @@ export function PurchaseReceiptListPanel({
             empty="Satır yok."
             rows={(receipt?.lines ?? []).map((line, index) => ({
               key: `${line.orderLineNumber}-${index}`,
-              label: line.stockName,
+              label: line.isFreeOfCharge ? <>{line.stockName} <FreeTag /></> : line.stockName,
               meta: <span className="nx-code">{line.stockCode}</span>,
               value: quantityOf(line),
             }))}
@@ -135,6 +137,12 @@ export function PurchaseReceiptListPanel({
                 { label: "Depo", value: row.warehouseName },
                 { label: "Kabul tarihi", value: formatDate(row.receiptDate) },
                 { label: "Satır sayısı", value: row.lineCount },
+                ...(row.pricedGrandTotal !== null && row.pricedGrandTotal !== undefined
+                  ? [{ label: "Tutar", value: formatMoneyWithCurrency(row.pricedGrandTotal, row.currencyCode) }]
+                  : []),
+                ...(row.pricingState && row.pricingState !== "Priced"
+                  ? [{ label: "Fiyat durumu", value: <PricingStateTag state={row.pricingState} /> }]
+                  : []),
                 {
                   label: "Alış faturası",
                   value: invoice ? (
@@ -175,6 +183,8 @@ export function PurchaseReceiptDocument({
 }) {
   const lines = receipt.lines ?? [];
   const invoice = receipt.invoice;
+  // Taslak 20: price columns once the server sends line prices (or a line is Bedelsiz).
+  const showPrices = lines.some((line) => line.unitPrice !== undefined || line.isFreeOfCharge);
   const chain: DetailChainItem[] = [
     { key: "order", code: order.code, label: "Satınalma siparişi", status: purchaseOrderStatus(order.status) },
     { key: "self", code: receipt.code, label: "Bu mal kabul", kind: "Mal kabul", current: true, status: purchaseReceiptStatus(receipt.status) },
@@ -212,6 +222,9 @@ export function PurchaseReceiptDocument({
               label: "Alış faturası",
               value: invoice ? invoice.code : receipt.status === "Posted" ? "Henüz faturalanmadı" : "—",
             },
+            ...(receipt.pricingState && receipt.pricingState !== "Priced"
+              ? [{ label: "Fiyat durumu", value: <PricingStateTag state={receipt.pricingState} /> }]
+              : []),
           ]}
         />
       </div>
@@ -225,28 +238,46 @@ export function PurchaseReceiptDocument({
                 <th>Stok kartı</th>
                 <th className="dd-num">Sipariş satırı</th>
                 <th className="dd-num">Kabul miktarı</th>
+                {showPrices && (
+                  <>
+                    <PriceHeadCells />
+                    <th>Stok maliyeti</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {lines.map((line, index) => (
-                <tr key={`${line.orderLineNumber}-${index}`}>
+                <tr key={`${line.orderLineNumber}-${index}`} className={line.isFreeOfCharge ? "dp-free-row" : undefined}>
                   <td className="dd-ix">{index + 1}</td>
                   <td className="dd-stock">
-                    <b>{line.stockCode}</b>
+                    <b>{line.stockCode}{line.isFreeOfCharge && <> <FreeTag /></>}</b>
                     <small>{line.stockName}</small>
                   </td>
                   <td className="dd-num">{line.orderLineNumber}</td>
                   <td className="dd-num">{quantityOf(line)}</td>
+                  {showPrices && (
+                    <>
+                      <PriceReadCells line={line} />
+                      <td>
+                        {/* A free / unpriced line carries a provisional cost until its purchase invoice is posted (server CostPending). */}
+                        <ReceiptCostTag price={priceDraftFrom(line)} unitCode={line.enteredUnitCode ?? line.unitCode} pending={line.costPending ?? (!!line.isFreeOfCharge && !invoice)} />
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
               {lines.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="dd-empty">Satır yok.</td>
+                  <td colSpan={showPrices ? 10 : 4} className="dd-empty">Satır yok.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        {showPrices && receipt.pricingState && (
+          <PricingTotalsCards totals={headerTotals(receipt)} currency={receipt.currencyCode ?? order.currencyCode} label="Mal kabul fiyat toplamları" />
+        )}
       </div>
     </DocumentSurface>
   );

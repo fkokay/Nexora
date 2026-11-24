@@ -25,6 +25,8 @@ import {
   type PurchaseReceiptRow,
 } from "./purchasing/purchaseReceiptDocument";
 import { formatDate } from "./document-detail/DocumentDetailLayout";
+import { formatMoneyWithCurrency } from "./delivery-pricing/deliveryPricing";
+import { PricingStateTag } from "./delivery-pricing/DeliveryPricingCells";
 import "./sales/sales-list-v2.css";
 import "./purchasing/purchase-receipts.css";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
@@ -34,10 +36,10 @@ type StockItem = AppTypes.StockItem;
 type Warehouse = AppTypes.Warehouse;
 
 const pageSize = 25;
-const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount"]);
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount", "pricedGrandTotal"]);
 const CODE_FIELDS: ReadonlySet<string> = new Set(["code", "purchaseOrderCode"]);
 const COLUMN_WIDTHS: Record<string, number> = {
-  code: 150, purchaseOrderCode: 130, receiptDate: 105, warehouseName: 200, lineCount: 60, status: 115,
+  code: 150, purchaseOrderCode: 130, receiptDate: 105, warehouseName: 200, lineCount: 60, pricedGrandTotal: 150, status: 115,
 };
 
 /**
@@ -68,12 +70,13 @@ export function PurchaseReceiptsScreen({
     { key: "receiptDate", label: "Kabul tarihi", visible: true, position: 2 },
     { key: "warehouseName", label: "Depo", visible: true, position: 3 },
     { key: "lineCount", label: "Satır", visible: true, position: 4 },
-    { key: "status", label: "Durum", visible: true, position: 5 },
+    { key: "pricedGrandTotal", label: "Tutar", visible: true, position: 5 },
+    { key: "status", label: "Durum", visible: true, position: 6 },
     {
       key: "actions",
       label: "İşlemler",
       visible: true,
-      position: 6,
+      position: 7,
       fixed: true,
     },
   ];
@@ -122,14 +125,18 @@ export function PurchaseReceiptsScreen({
       token,
     )
       .then((view) => {
-        if (!cancelled && view.fields?.length)
-          setScreenFields(
-            view.fields.map((field, index) => ({
-              ...field,
-              fixed: field.key === "actions",
-              position: field.position ?? index,
-            })),
-          );
+        if (!cancelled && view.fields?.length) {
+          const saved = view.fields.map((field, index) => ({
+            ...field,
+            fixed: field.key === "actions",
+            position: field.position ?? index,
+          }));
+          // Columns added after the layout was saved (e.g. Tutar) are kept, at the end.
+          const missing = defaultScreenFields
+            .filter((field) => !saved.some((item) => item.key === field.key))
+            .map((field, index) => ({ ...field, position: saved.length + index }));
+          setScreenFields([...saved, ...missing]);
+        }
       })
       .catch(() => {});
     return () => {
@@ -222,6 +229,20 @@ export function PurchaseReceiptsScreen({
         return item.warehouseName;
       case "lineCount":
         return item.lineCount;
+      case "pricedGrandTotal":
+        return (
+          <>
+            {item.pricedGrandTotal === null || item.pricedGrandTotal === undefined || item.pricingState === "Free" || item.pricingState === "Unpriced"
+              ? "—"
+              : formatMoneyWithCurrency(item.pricedGrandTotal, item.currencyCode)}
+            {item.pricingState && item.pricingState !== "Priced" && (
+              <>
+                {" "}
+                <PricingStateTag state={item.pricingState} />
+              </>
+            )}
+          </>
+        );
       case "status":
         return purchaseReceiptTag(item.status);
       default:

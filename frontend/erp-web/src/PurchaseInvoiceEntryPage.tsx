@@ -27,6 +27,17 @@ import { csvExportCommand, focusedRecordId } from "./commands/gridCommands";
 import { PurchaseCreateInvoiceFlow } from "./purchasing/purchaseCreateForms";
 import { loadPurchasingReceiptRef, usePurchasingPageParams } from "./sales/purchasingPageParams";
 import "./sales/sales-list-v2.css";
+import {
+  invoicePriceFields,
+  invoicePriceLine,
+  lineAmounts,
+  missingInvoiceAmounts,
+  parseCell,
+  type DeliveryHeaderPricing,
+  type DeliveryLinePricing,
+  type InvoicePriceLine,
+} from "./delivery-pricing/deliveryPricing";
+import { FreeTag, InvoiceAmountsAlert, InvoicePriceCells, PricingStateTag } from "./delivery-pricing/DeliveryPricingCells";
 
 type ReceiptOption = {
   id: string;
@@ -68,17 +79,24 @@ type OrderLine = {
 };
 type OrderReceiptLine = {
   orderLineNumber: number;
+  stockItemId?: string;
   stockCode: string;
   stockName: string;
   unitCode: string;
   quantity: number;
-};
+  enteredQuantity?: number | null;
+  enteredUnitCode?: string | null;
+  /** Taslak 20: a free / unpriced line's stock cost waits for this invoice. */
+  costPending?: boolean;
+} & DeliveryLinePricing;
 type OrderReceipt = {
   id: string;
   status: string;
   lines?: OrderReceiptLine[] | null;
   invoice?: { id: string } | null;
-};
+} & DeliveryHeaderPricing;
+/** An invoice line of the form: prefilled from the receipt line price (else the PO line); free / unpriced lines need an amount. */
+type EntryLine = { orderLineNumber: number; quantity: number; initial: InvoicePriceLine } & InvoicePriceLine;
 type OrderDetail = {
   id: string;
   currencyCode: string;
@@ -192,6 +210,15 @@ function receiptAmounts(order: OrderDetail, receiptId: string): ReceiptAmounts |
   }
   const lines: ReceiptAmountLine[] = [];
   for (const source of receipt.lines) {
+    // Taslak 20: a free line has no amount until the invoice gives one; a receipt-priced line has its own amounts.
+    if (source.isFreeOfCharge) {
+      lines.push({ ...source, net: 0, tax: 0 });
+      continue;
+    }
+    if (source.unitPrice !== undefined && source.unitPrice !== null && source.lineNetAmount !== undefined && source.lineNetAmount !== null) {
+      lines.push({ ...source, net: source.lineNetAmount, tax: source.lineVatAmount ?? 0 });
+      continue;
+    }
     const orderLine = order.lines.find((line) => line.lineNumber === source.orderLineNumber);
     if (!orderLine) return null;
     const previous = invoicedQty.get(source.orderLineNumber) ?? 0;
@@ -284,6 +311,7 @@ export default function PurchaseInvoiceEntryPage({
   const [accountingProfileCode, setAccountingProfileCode] = useState("");
   const [screenFields, setScreenFields] =
     useState<ReceiptScreenField[]>(defaultReceiptFields);
+  const [entryLines, setEntryLines] = useState<{ receiptId: string; lines: EntryLine[] } | null>(null);
   const pageSize = 25;
   // The row the user chose in the list (click, ↑/↓): the right panel shows it; Aç / Enter / double click opens its
   // invoice form (`selected`).
@@ -402,6 +430,29 @@ export default function PurchaseInvoiceEntryPage({
     },
     [orders],
   );
+  const receiptOf = (item: ReceiptOption) => {
+    const order = orders[item.purchaseOrderId];
+    return order && order !== "error" ? order.receipts.find((receipt) => receipt.id === item.id) : undefined;
+  };
+  // The form's lines once the receipt's order is loaded: receipt price, else PO price; free / unpriced lines start empty.
+  const selectedOrder = selected ? orders[selected.purchaseOrderId] : undefined;
+  useEffect(() => {
+    if (!selected || !selectedOrder || selectedOrder === "error" || entryLines?.receiptId === selected.id) return;
+    const receipt = selectedOrder.receipts.find((item) => item.id === selected.id);
+    if (!receipt?.lines) return;
+    setEntryLines({
+      receiptId: selected.id,
+      lines: receipt.lines.map((line) => {
+        const orderLine = selectedOrder.lines.find((item) => item.lineNumber === line.orderLineNumber);
+        const prefill = invoicePriceLine(line, orderLine);
+        return { orderLineNumber: line.orderLineNumber, quantity: line.enteredQuantity ?? line.quantity, initial: prefill, ...prefill };
+      }),
+    });
+  }, [selected, selectedOrder, entryLines?.receiptId]);
+  const formLines = selected && entryLines?.receiptId === selected.id ? entryLines.lines : null;
+  const lineChanged = (line: EntryLine) =>
+    line.needsAmount ||
+    (["unitPrice", "discountPercent", "vatPercent"] as const).some((key) => parseCell(line[key]) !== parseCell(line.initial[key]));
 
   function selectReceipt(item: ReceiptOption) {
     if (selected?.id === item.id) return;
@@ -448,6 +499,14 @@ export default function PurchaseInvoiceEntryPage({
   async function createInvoice(event: React.FormEvent) {
     event.preventDefault();
     if (!selected) return;
+    if (formLines && missingInvoiceAmounts(formLines) > 0) {
+      setFormError("Bedelsiz/fiyatsız satırların tutarını girin.");
+      return;
+    }
+    // Only changed lines (and free / unpriced ones) go as price overrides; the rest keep the receipt / PO price.
+    const overrides = (formLines ?? [])
+      .filter(lineChanged)
+      .map((line) => ({ orderLineNumber: line.orderLineNumber, ...invoicePriceFields(line) }));
     setBusy(true);
     setFormError("");
     setNotice("");
@@ -460,11 +519,13 @@ export default function PurchaseInvoiceEntryPage({
           body: JSON.stringify({ code: invoiceCode.trim(), invoiceDate,
             accountingProfileCode: accountingProfileCode || null,
             providerInvoiceUuid: providerInvoiceUuid || null, providerScenario: providerScenario || null,
-            providerInvoiceTypeCode: providerTypeCode || null, providerSenderAlias: providerSenderAlias || null }),
+            providerInvoiceTypeCode: providerTypeCode || null, providerSenderAlias: providerSenderAlias || null,
+            ...(overrides.length ? { lines: overrides } : {}) }),
         },
       );
       const orderId = selected.purchaseOrderId;
       setSelected(null);
+      setEntryLines(null);
       setInvoiceCode("");
       setInvoiceDate(localDate());
       setProviderInvoiceUuid(""); setProviderScenario(""); setProviderTypeCode(""); setProviderSenderAlias("");
@@ -509,12 +570,29 @@ export default function PurchaseInvoiceEntryPage({
     if (key === "receiptDate") return displayDate(item.receiptDate);
     if (key === "invoiceAmount") {
       const amounts = amountsFor(item);
-      return amounts ? `${money(amounts.total)} ${item.currencyCode}` : "—";
+      const receipt = receiptOf(item);
+      const tag = receipt?.pricingState && receipt.pricingState !== "Priced" ? <> <PricingStateTag state={receipt.pricingState} /></> : null;
+      if (receipt?.pricingState === "Free" || receipt?.pricingState === "Unpriced") return <>—{tag}</>;
+      return <>{amounts ? `${money(amounts.total)} ${item.currencyCode}` : "—"}{tag}</>;
     }
     return null;
   };
 
-  const selectedAmounts = selected ? amountsFor(selected) : undefined;
+  const orderAmounts = selected ? amountsFor(selected) : undefined;
+  // Edited prices (or free / unpriced lines) are previewed per line; untouched receipts keep the server-mirroring figures.
+  const selectedAmounts: ReceiptAmounts | null | undefined =
+    orderAmounts && formLines && formLines.some(lineChanged)
+      ? (() => {
+          const lines = orderAmounts.lines.map((line, index) => {
+            const edited = formLines[index];
+            const amounts = edited ? lineAmounts(edited.quantity, { ...edited, isFreeOfCharge: false }) : null;
+            return edited ? { ...line, net: amounts?.net ?? 0, tax: amounts?.vat ?? 0 } : line;
+          });
+          const net = round2(lines.reduce((sum, line) => sum + line.net, 0));
+          const tax = round2(lines.reduce((sum, line) => sum + line.tax, 0));
+          return { lines, net, tax, total: round2(net + tax) };
+        })()
+      : orderAmounts;
   const termDays = selected ? paymentTerms[selected.supplierId] : undefined;
   const dueDate = useMemo(
     () => (typeof termDays === "number" && invoiceDate ? addDays(invoiceDate, termDays) : null),
@@ -573,6 +651,7 @@ export default function PurchaseInvoiceEntryPage({
           // Not while the invoice is being saved (the draft form does the same).
           if (busy) return;
           setSelected(null);
+          setEntryLines(null);
           setFormError("");
         }}
         error={formError}
@@ -580,6 +659,9 @@ export default function PurchaseInvoiceEntryPage({
         status={
           <>
             <span>Yalnızca siparişe bağlı, işlenmiş mal kabuller listelenir.</span>
+            {formLines && missingInvoiceAmounts(formLines) > 0 && (
+              <span className="rf-status-warning">Bedelsiz/fiyatsız satırların tutarını girin.</span>
+            )}
             <span className="rf-status-end">
               Satır: <b>{selected.lineCount}</b>
             </span>
@@ -639,6 +721,7 @@ export default function PurchaseInvoiceEntryPage({
           totals={totals}
           totalsLabel="Fatura toplamları"
         >
+          {formLines && <InvoiceAmountsAlert missing={missingInvoiceAmounts(formLines)} />}
           <table className="dd-lines">
             <thead>
               <tr>
@@ -646,28 +729,54 @@ export default function PurchaseInvoiceEntryPage({
                 <th>Stok</th>
                 <th className="dd-num">Miktar</th>
                 <th>Birim</th>
+                {formLines && (
+                  <>
+                    <th className="dd-num">Birim fiyat</th>
+                    <th className="dd-num">İsk. %</th>
+                    <th className="dd-num">KDV %</th>
+                  </>
+                )}
                 <th className="dd-num">Tutar</th>
                 <th className="dd-num">KDV</th>
               </tr>
             </thead>
             <tbody>
               {selectedAmounts ? (
-                selectedAmounts.lines.map((line, index) => (
-                  <tr key={`${line.orderLineNumber}-${index}`}>
-                    <td className="dd-ix">{index + 1}</td>
-                    <td className="dd-stock">
-                      <b>{line.stockCode}</b>
-                      <small>{line.stockName}</small>
-                    </td>
-                    <td className="dd-num">{quantity(line.quantity)}</td>
-                    <td>{line.unitCode}</td>
-                    <td className="dd-num">{money(line.net)}</td>
-                    <td className="dd-num">{money(line.tax)}</td>
-                  </tr>
-                ))
+                selectedAmounts.lines.map((line, index) => {
+                  const entry = formLines?.[index];
+                  return (
+                    <tr key={`${line.orderLineNumber}-${index}`} className={entry?.isFreeOfCharge ? "dp-free-row" : undefined}>
+                      <td className="dd-ix">{index + 1}</td>
+                      <td className="dd-stock">
+                        <b>{line.stockCode}{entry?.isFreeOfCharge && <> <FreeTag /></>}</b>
+                        <small>{line.stockName}</small>
+                      </td>
+                      <td className="dd-num">{quantity(entry?.quantity ?? line.quantity)}</td>
+                      <td>{line.unitCode}</td>
+                      {entry ? (
+                        <InvoicePriceCells
+                          label={line.stockCode}
+                          quantity={entry.quantity}
+                          line={entry}
+                          disabled={busy}
+                          onChange={(patch) =>
+                            setEntryLines((current) =>
+                              current
+                                ? { ...current, lines: current.lines.map((row, i) => (i === index ? { ...row, ...patch } : row)) }
+                                : current,
+                            )
+                          }
+                        />
+                      ) : (
+                        <td className="dd-num">{money(line.net)}</td>
+                      )}
+                      <td className="dd-num">{entry && entry.needsAmount && parseCell(entry.unitPrice) === null ? "—" : money(line.tax)}</td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={6} className="pie-create-lines-state">
+                  <td colSpan={formLines ? 9 : 6} className="pie-create-lines-state">
                     {selectedAmounts === undefined ? "Satırlar yükleniyor…" : "Mal kabul satırları alınamadı."}
                   </td>
                 </tr>

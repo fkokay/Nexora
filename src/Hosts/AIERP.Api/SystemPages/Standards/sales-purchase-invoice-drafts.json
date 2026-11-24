@@ -1,5 +1,5 @@
 {
-  "screenKey": "sales-purchase-invoice-drafts", "title": "Bağımsız fatura taslakları",
+  "screenKey": "sales-purchase-invoice-drafts", "title": "Satınalma faturası taslakları",
   "description": "Mal kabulsüz hizmet ve masraf faturalarını gider hesaplı satırlarla taslak olarak girin, düzenleyin ve muhasebeleştirin.", "module": "Satın Alma",
   "version": 1, "stage": "preview",
   "items": {
@@ -160,7 +160,7 @@
       { "id": "yeniTaslakDugmesi", "type": "button", "name": "yeniTaslakDugmesi",
         "props": { "text": "Yeni taslak", "actionType": "openDialog", "dialogId": "yeniTaslakPenceresi" } },
       { "id": "yeniTaslakPenceresi", "type": "dialog", "name": "yeniTaslakPenceresi",
-        "props": { "presentation": "dialog", "size": "xl", "title": "Yeni bağımsız alış faturası taslağı",
+        "props": { "presentation": "dialog", "size": "xl", "title": "Yeni satınalma faturası taslağı",
                    "contains": ["yeniBilgiler", "yeniIstekKimligi", "yeniSatirlar", "yeniToplamlar", "yeniNotu"],
                    "saveQuery": "taslakOlustur", "saveLabel": "Taslağı kaydet", "closeOnSave": true, "resetOnOpen": true,
                    "refreshQueries": ["taslaklar"] } },

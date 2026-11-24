@@ -6,15 +6,19 @@ import { SalesListFooter } from "../../sales/components/SalesListFooter";
 import { formatDate } from "../../document-detail/DocumentDetailLayout";
 import { DeliveryNoteLinkTag } from "../../purchasing/purchaseDeliveryNotePanel";
 import { deliveryNotePageSize, type Note, type ScreenField } from "../types";
+import { formatMoneyWithCurrency } from "../../delivery-pricing/deliveryPricing";
+import { PricingStateTag } from "../../delivery-pricing/DeliveryPricingCells";
 
-const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount"]);
+const NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount", "pricedGrandTotal"]);
 const CODE_FIELDS: ReadonlySet<string> = new Set(["documentNumber", "purchaseOrderCode", "purchaseReceiptCode"]);
 /** Page column (not in the tenant layout): the state derived from the receipt link. */
 const LINK_STATUS_KEY = "receiptLinkStatus";
+/** Page column (taslak 20): the priced total with the Bedelsiz / Kısmen bedelsiz / Fiyatsız tag. */
+const AMOUNT_KEY = "pricedGrandTotal";
 /** Default widths (fields without a tenant width): the list fits beside the menu at 1440 with the panel closed. */
 const COLUMN_WIDTHS: Record<string, number> = {
   documentNumber: 150, documentDate: 100, purchaseOrderCode: 130, supplierName: 220, lineCount: 60, purchaseReceiptCode: 150,
-  [LINK_STATUS_KEY]: 140,
+  [LINK_STATUS_KEY]: 140, [AMOUNT_KEY]: 150,
 };
 
 /**
@@ -85,14 +89,33 @@ export function DeliveryNotesListPanel({
         return note.purchaseReceiptCode ?? "—";
       case LINK_STATUS_KEY:
         return <DeliveryNoteLinkTag note={note} />;
+      case AMOUNT_KEY:
+        return (
+          <>
+            {note.pricedGrandTotal === null || note.pricedGrandTotal === undefined || note.pricingState === "Free" || note.pricingState === "Unpriced"
+              ? "—"
+              : formatMoneyWithCurrency(note.pricedGrandTotal, note.currencyCode)}
+            {note.pricingState && note.pricingState !== "Priced" && (
+              <>
+                {" "}
+                <PricingStateTag state={note.pricingState} />
+              </>
+            )}
+          </>
+        );
       default:
         return null;
     }
   };
   // The derived tag is its own column after the tenant's columns, so a layout that hides the receipt column keeps it.
+  const tenantFields = fields as BuiltInScreenLayoutField[];
   const shownFields = [
-    ...(fields as BuiltInScreenLayoutField[]),
-    { key: LINK_STATUS_KEY, label: "Durum", visible: true, position: fields.length, fixed: true },
+    ...tenantFields,
+    // A tenant layout that already has the amount column keeps its own place.
+    ...(tenantFields.some((field) => field.key === AMOUNT_KEY)
+      ? []
+      : [{ key: AMOUNT_KEY, label: "Tutar", visible: true, position: fields.length, fixed: true }]),
+    { key: LINK_STATUS_KEY, label: "Durum", visible: true, position: fields.length + 1, fixed: true },
   ];
   return (
     <section className="list-v2-list">

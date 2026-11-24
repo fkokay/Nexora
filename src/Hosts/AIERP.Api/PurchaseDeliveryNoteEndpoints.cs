@@ -109,7 +109,9 @@ public static class PurchaseDeliveryNoteEndpoints
                 .Skip((page - 1) * pageSize).Take(pageSize).Select(x => new PurchaseDeliveryNoteView(
                     x.Id, x.DocumentNumber, x.DocumentDate, x.PurchaseOrderId, x.PurchaseOrder.Code,
                     x.PurchaseOrder.Supplier.Name, x.PurchaseReceiptId, x.PurchaseReceipt == null ? null : x.PurchaseReceipt.Code,
-                    x.Lines.Count, x.CreatedAt)).ToListAsync(ct);
+                    x.Lines.Count, x.CreatedAt, null, x.CurrencyCode ?? x.PurchaseOrder.CurrencyCode)).ToListAsync(ct);
+            var pricing = await AIERP.Api.DeliveryPricingViews.PurchaseDeliveryNotesAsync(db, tenantId, notes.Select(x => x.Id).ToList(), ct);
+            notes = notes.Select(x => x.WithSummary(pricing[x.Id])).ToList();
             return Results.Ok(new PurchaseDeliveryNotePage(notes, page, pageSize, total));
         });
 
@@ -126,9 +128,10 @@ public static class PurchaseDeliveryNoteEndpoints
                     x.PurchaseOrder.Code, x.PurchaseOrder.Supplier.Name, x.PurchaseReceiptId,
                     x.PurchaseReceipt == null ? null : x.PurchaseReceipt.Code, x.Lines.Count, x.CreatedAt,
                     x.Lines.OrderBy(l => l.OrderLineNumber).Select(l => new PurchaseDeliveryNoteLineView(
-                        l.OrderLineNumber, l.PurchaseOrderId == orderId ? l.UnitCode : "", l.Quantity)).ToList()))
+                        l.OrderLineNumber, l.PurchaseOrderId == orderId ? l.UnitCode : "", l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatPercent,
+                        l.IsFreeOfCharge, null, null, null, null)).ToList(), x.CurrencyCode ?? x.PurchaseOrder.CurrencyCode))
                 .ToListAsync(ct);
-            return Results.Ok(notes);
+            return Results.Ok(notes.Select(x => x.WithLinePricing()).ToList());
         });
 
         group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
@@ -140,9 +143,14 @@ public static class PurchaseDeliveryNoteEndpoints
                     x.PurchaseOrder.Code, x.PurchaseOrder.Supplier.Name, x.PurchaseReceiptId,
                     x.PurchaseReceipt == null ? null : x.PurchaseReceipt.Code, x.Lines.Count, x.CreatedAt,
                     x.Lines.OrderBy(l => l.OrderLineNumber).Select(l => new PurchaseDeliveryNoteLineView(
-                        l.OrderLineNumber, l.UnitCode, l.Quantity)).ToList()))
+                        l.OrderLineNumber, l.UnitCode, l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatPercent, l.IsFreeOfCharge,
+                        null, null, null, null)).ToList(), x.CurrencyCode ?? x.PurchaseOrder.CurrencyCode))
                 .SingleOrDefaultAsync(ct);
             if (note is null) return Results.NotFound();
+            var orderPrices = await db.PurchaseOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == note.PurchaseOrderId)
+                .ToDictionaryAsync(x => x.LineNumber, x => x.UnitPrice, ct);
+            note = (note with { Lines = note.Lines!.Select(l => l with { OrderUnitPrice = orderPrices.TryGetValue(l.OrderLineNumber, out var p) ? p : null }).ToList() })
+                .WithLinePricing();
             var accessibleOrders = await AccessibleOrdersAsync(user, tenantId, db, platformDb, ct);
             if (!await accessibleOrders.AnyAsync(x => x.Id == note.PurchaseOrderId, ct)) return Results.NotFound();
             return Results.Ok(note);
@@ -159,6 +167,9 @@ public static class PurchaseDeliveryNoteEndpoints
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["deliveryNote"] = ["Belge numarası ve en az bir pozitif, en fazla dört ondalık basamaklı miktar içeren satır gereklidir."] });
             if (request.Lines.Select(x => x.OrderLineNumber).Distinct().Count() != request.Lines.Count)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Aynı sipariş satırı irsaliyede bir kez bulunabilir."] });
+            var priceErrors = new Dictionary<string, string[]>();
+            for (var index = 0; index < request.Lines.Count; index++) DeliveryLinePricing.Validate(request.Lines[index].Price, $"lines[{index}]", priceErrors);
+            if (priceErrors.Count > 0) return Results.ValidationProblem(priceErrors);
 
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
             var accessibleOrders = await AccessibleOrdersAsync(user, tenantId, db, platformDb, ct);
@@ -194,10 +205,15 @@ public static class PurchaseDeliveryNoteEndpoints
             }
 
             var note = new PurchaseDeliveryNote { TenantId = tenantId, PurchaseOrderId = orderId,
-                DocumentNumber = request.DocumentNumber.Trim(), DocumentDate = request.DocumentDate };
+                DocumentNumber = request.DocumentNumber.Trim(), DocumentDate = request.DocumentDate, CurrencyCode = order.CurrencyCode };
             foreach (var input in request.Lines)
+            {
+                // The supplier's delivery note price; no default (an omitted price stays unpriced). A free line stores no price.
+                var price = DeliveryLinePricing.Resolve(input.Price, new DeliveryLinePrice(null, null, orderLines[input.OrderLineNumber].VatPercent, false));
                 note.Lines.Add(new PurchaseDeliveryNoteLine { TenantId = tenantId, PurchaseOrderId = orderId,
-                    OrderLineNumber = input.OrderLineNumber, Quantity = input.Quantity, UnitCode = orderLines[input.OrderLineNumber].UnitCode });
+                    OrderLineNumber = input.OrderLineNumber, Quantity = input.Quantity, UnitCode = orderLines[input.OrderLineNumber].UnitCode,
+                    UnitPrice = price.UnitPrice, DiscountPercent = price.DiscountPercent, VatPercent = price.VatPercent, IsFreeOfCharge = price.IsFreeOfCharge });
+            }
             db.PurchaseDeliveryNotes.Add(note);
             if (request.PurchaseReceiptId.HasValue)
             {
@@ -215,7 +231,9 @@ public static class PurchaseDeliveryNoteEndpoints
             return Results.Created($"/api/purchasing/delivery-notes/{note.Id}", new PurchaseDeliveryNoteView(note.Id,
                 note.DocumentNumber, note.DocumentDate, order.Id, order.Code, order.Supplier.Name, note.PurchaseReceiptId,
                 request.PurchaseReceiptId.HasValue ? await db.PurchaseReceipts.Where(x => x.TenantId == tenantId && x.Id == request.PurchaseReceiptId).Select(x => x.Code).SingleAsync(ct) : null,
-                note.Lines.Count, note.CreatedAt, note.Lines.Select(x => new PurchaseDeliveryNoteLineView(x.OrderLineNumber, x.UnitCode, x.Quantity)).ToList()));
+                note.Lines.Count, note.CreatedAt, note.Lines.Select(x => new PurchaseDeliveryNoteLineView(x.OrderLineNumber, x.UnitCode, x.Quantity,
+                    x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, OrderUnitPrice: orderLines[x.OrderLineNumber].UnitPrice)).ToList(),
+                note.CurrencyCode).WithLinePricing());
         });
 
         group.MapPost("/{id:guid}/link-receipt", async (Guid id, PurchaseDeliveryNoteLinkReceiptRequest request,
@@ -301,12 +319,43 @@ public static class PurchaseDeliveryNoteEndpoints
     }
 }
 
+internal static class PurchaseDeliveryNoteViewPricing
+{
+    internal static PurchaseDeliveryNoteView WithSummary(this PurchaseDeliveryNoteView view, DeliveryPricingSummary pricing) => view with
+    {
+        PricedNetTotal = pricing.PricedNetTotal, PricedVatTotal = pricing.PricedVatTotal, PricedGrandTotal = pricing.PricedGrandTotal,
+        FreeLineCount = pricing.FreeLineCount, UnpricedLineCount = pricing.UnpricedLineCount, PricingState = pricing.PricingState
+    };
+
+    /// <summary>Fills the line amounts and the header summary from the lines' stored prices.</summary>
+    internal static PurchaseDeliveryNoteView WithLinePricing(this PurchaseDeliveryNoteView view)
+    {
+        if (view.Lines is null) return view;
+        var lines = view.Lines.Select(l =>
+        {
+            var price = AIERP.Api.DeliveryPricingViews.Line(l.UnitPrice, l.DiscountPercent, l.VatPercent, l.IsFreeOfCharge, l.Quantity, null);
+            return l with { LineNetAmount = price.LineNetAmount, LineVatAmount = price.LineVatAmount, LineTotal = price.LineTotal };
+        }).ToList();
+        return (view with { Lines = lines }).WithSummary(AIERP.Api.DeliveryPricingViews.Summary(
+            view.Lines.Select(l => (l.UnitPrice, l.DiscountPercent, l.VatPercent, l.IsFreeOfCharge, l.Quantity, (decimal?)null))));
+    }
+}
+
 public sealed record PurchaseDeliveryNotePage(IReadOnlyList<PurchaseDeliveryNoteView> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseDeliveryNoteView(Guid Id, string DocumentNumber, DateOnly DocumentDate, Guid PurchaseOrderId,
     string PurchaseOrderCode, string SupplierName, Guid? PurchaseReceiptId, string? PurchaseReceiptCode,
-    int LineCount, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseDeliveryNoteLineView>? Lines = null);
-public sealed record PurchaseDeliveryNoteLineView(int OrderLineNumber, string UnitCode, decimal Quantity);
-public sealed record PurchaseDeliveryNoteWriteLine(int OrderLineNumber, decimal Quantity, string? UnitCode);
+    int LineCount, DateTimeOffset CreatedAt, IReadOnlyList<PurchaseDeliveryNoteLineView>? Lines = null,
+    string? CurrencyCode = null, decimal PricedNetTotal = 0, decimal PricedVatTotal = 0, decimal PricedGrandTotal = 0,
+    int FreeLineCount = 0, int UnpricedLineCount = 0, string PricingState = DeliveryLinePricing.Priced);
+/// <summary>Delivery note line; prices are the supplier's (PO currency, base unit, as the quantity). No stock or cost effect.</summary>
+public sealed record PurchaseDeliveryNoteLineView(int OrderLineNumber, string UnitCode, decimal Quantity,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool IsFreeOfCharge = false,
+    decimal? LineNetAmount = null, decimal? LineVatAmount = null, decimal? LineTotal = null, decimal? OrderUnitPrice = null);
+public sealed record PurchaseDeliveryNoteWriteLine(int OrderLineNumber, decimal Quantity, string? UnitCode,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool? IsFreeOfCharge = null)
+{
+    public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent, IsFreeOfCharge);
+}
 public sealed record PurchaseDeliveryNoteWriteRequest(string DocumentNumber, DateOnly DocumentDate,
     List<PurchaseDeliveryNoteWriteLine> Lines, Guid? PurchaseReceiptId = null);
 public sealed record PurchaseDeliveryNoteLinkReceiptRequest(Guid PurchaseReceiptId);

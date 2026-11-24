@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './purchasingInvoiceDraftsOperations.fixture.json';
 import { T, createHarness, page } from './purchasingStandardHarness';
 
-// "Bağımsız fatura taslakları" standart tanımı (sales-purchase-invoice-drafts.json): liste, yeni taslak (rowNumberColumn 1..n,
+// "Satınalma faturası taslakları" standart tanımı (sales-purchase-invoice-drafts.json): liste, yeni taslak (rowNumberColumn 1..n,
 // gider hesabı ve mal kabul satırı seçimiyle dolma, formüller, belge tutarları satır toplamlarından, autoId requestId), taslak
 // düzenleme (satırlardan doldurma, expectedRowVersion) ve onaylı muhasebeleştirme.
 
@@ -60,7 +60,7 @@ const lineKey = (grid: string) => {
   return /page-grid-[^-]+-(yeni-\d+)-description/.exec(cells[cells.length - 1].id)![1];
 };
 
-describe('Bağımsız fatura taslakları standart tanımı', { timeout: 60000 }, () => {
+describe('Satınalma faturası taslakları standart tanımı', { timeout: 60000 }, () => {
   it('uses only operations from the catalog fixture', () => h.usesOnlyCatalog());
 
   it('lists the drafts with status labels; the expense account picker reads the fixed Expense filter', async () => {
@@ -77,7 +77,7 @@ describe('Bağımsız fatura taslakları standart tanımı', { timeout: 60000 },
     await h.cell('HZM-0001');
     await h.ready('new');
     fireEvent.click(h.command('new'));
-    const dialog = await screen.findByRole('dialog', { name: 'Yeni bağımsız alış faturası taslağı' }, T);
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni satınalma faturası taslağı' }, T);
     await h.pick(h.input('yeniTedarikci'), 'Ege Hizmet');
     h.type(h.input('yeniFaturaNo'), 'HZM-2026-0042');
     h.type(h.input('yeniVade'), '2026-12-31');
@@ -142,7 +142,7 @@ describe('Bağımsız fatura taslakları standart tanımı', { timeout: 60000 },
     // Mal kabul satırı seçenekleri tedarikçi ve fatura tarihiyle okunur.
     const receipts = new URLSearchParams(h.gets(`${BASE}/receipts`).at(-1)!.url.split('?')[1]);
     expect([receipts.get('supplierId'), receipts.get('invoiceDate')]).toEqual([SUP, today()]);
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Yeni bağımsız alış faturası taslağı' })).toBeNull(), T);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Yeni satınalma faturası taslağı' })).toBeNull(), T);
   });
 
   it('Düzenle fills the header and lines from the draft and puts all lines back with expectedRowVersion and renumbered lines', async () => {

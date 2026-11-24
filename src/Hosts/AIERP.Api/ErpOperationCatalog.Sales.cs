@@ -37,7 +37,7 @@ internal static partial class ErpOperationCatalog
         new("remainingReservedQuantity", "Kalan rezerve"), new("releasedAt", "Bırakılma"),
         new("deliveryId", "İrsaliye kimliği"), new("deliveryCode", "İrsaliye no"), new("deliveryDate", "Sevk tarihi"),
         new("hasSalesInvoice", "Faturalı"), new("invoiceId", "Fatura kimliği"), new("invoiceCode", "Fatura no"),
-        new("invoiceStatus", "Fatura durumu"), new("isStandalone", "Siparişsiz irsaliye"), new("salesDeliveryId", "Satış irsaliyesi kimliği"),
+        new("invoiceStatus", "Fatura durumu"), new("isStandalone", "Siparişe bağlı olmayan irsaliye"), new("salesDeliveryId", "Satış irsaliyesi kimliği"),
         new("invoiceDate", "Fatura tarihi"), new("invoiceType", "Fatura türü"), new("ledgerEntryId", "Cari hareket kimliği"),
         new("paidAmount", "Tahsil edilen"), new("returnedAmount", "İade edilen"), new("outstandingAmount", "Açık bakiye"),
         new("accountingProfileCode", "Vergi mevzuatı profili"), new("taxBreakdownJson", "Vergi dökümü"),
@@ -135,7 +135,7 @@ internal static partial class ErpOperationCatalog
         const string deliveriesRoute = "/api/sales/deliveries";
         const string deliveryRoute = deliveriesRoute + "/{id}";
         // Order-based and standalone deliveries in one list; each kind is shown only if the caller may read its old list.
-        yield return Read(SalesModule, "satis.irsaliye.listele", "Satış irsaliyelerini listele (siparişli ve siparişsiz)",
+        yield return Read(SalesModule, "satis.irsaliye.listele", "Satış irsaliyelerini listele (siparişten irsaliyeler dahil)",
             SalesDeliveryListEndpoints.Route, [Query("q", "text"), Query("status", "text"), Query("unbilledOnly", "bool"), .. paging],
             List(Columns<SalesDeliveryListItem>(), "items") with { MetaPaths = pageMeta });
         // The {id} routes read SalesDeliveries only: a standalone (siparişsiz) delivery id is not found there.
@@ -148,13 +148,14 @@ internal static partial class ErpOperationCatalog
         // The DELETE handler itself only accepts TenantAdmin (and only a voided delivery).
         yield return Write(SalesModule, "satis.irsaliye.sil", "Satış irsaliyesini sil", "delete", "DELETE", deliveryRoute, [id], None, null, null,
             requiresTenantAdmin: true);
-        // Order-based deliveries only: prices come from the order lines and the invoice date is today, so customerId,
-        // invoiceDate and lines are not parameters. A delivery has one invoice: a repeat call returns it (no requestId).
+        // Order-based deliveries: prices come from the delivery lines (old rows: the order lines) and the invoice date is today,
+        // so customerId and invoiceDate are not parameters; free / unpriced lines take their price from the lines body
+        // (409 "Bedelsiz/fiyatsız satırların tutarını girin." otherwise). A delivery has one invoice: a repeat call returns it (no requestId).
         // The e-document fields are dotted body parameters nested into eDocument.
-        yield return Write(SalesModule, "satis.irsaliye.faturalastir", "Siparişli satış irsaliyesini faturalaştır", "insert", "POST",
+        yield return Write(SalesModule, "satis.irsaliye.faturalastir", "Siparişten irsaliyeyi faturalaştır", "insert", "POST",
             deliveryRoute + "/invoice",
             [id, .. BodyParameters<SalesDeliveryInvoiceWriteRequest>(sourceBacked: false, exclude: ["customerId", "invoiceDate"]),
-                MapParameter("customFields"), .. NestedBodyParameters<SalesInvoiceEDocumentFields>("eDocument")],
+                ListParameter<SalesDeliveryInvoiceLineWriteRequest>("lines"), MapParameter("customFields"), .. NestedBodyParameters<SalesInvoiceEDocumentFields>("eDocument")],
             Record(Columns<SalesInvoiceSummary>()), null, null);
 
         // ---- Fatura ----

@@ -24,6 +24,7 @@
     "component:turKodu": {"since": 1, "label": "E-belge alanı: Belge tür kodu"},
     "component:gonderen": {"since": 1, "label": "E-belge alanı: Gönderen e-Fatura etiketi"},
     "component:satirlar": {"since": 1, "label": "Fatura satırları (önizleme)", "requires": ["component:kabulSecimi", "query:onizlemeSatirlari"]},
+    "component:tutarGirisi": {"since": 1, "label": "Fatura fiyatları (bedelsiz/fiyatsız satır tutarı)", "requires": ["component:kabulSecimi", "query:onizlemeSatirlari"]},
     "component:onizlemeNotu": {"since": 1, "label": "Sunucu önizlemesi notu", "requires": ["component:kabulSecimi"]},
     "component:eskiEkranDugmesi": {"since": 1, "label": "Eski ekranda aç komutu", "requires": ["component:kabulSecimi"]},
     "query:kabuller": {"since": 1, "label": "Faturalanabilir mal kabulleri listele", "requires": ["component:suzgec", "component:liste"]},
@@ -32,7 +33,7 @@
     "query:profiller": {"since": 1, "label": "Vergi mevzuatı profilleri"},
     "query:faturala": {"since": 1, "label": "Mal kabulü faturala",
       "requires": ["component:kabulSecimi", "component:faturaNo", "component:faturaTarihi", "component:profil", "component:belgeUuid",
-                   "component:senaryo", "component:turKodu", "component:gonderen"]}
+                   "component:senaryo", "component:turKodu", "component:gonderen", "component:tutarGirisi"]}
   },
   "screenViews": [ { "key": "purchase-invoice-receipt-selection", "component": "liste",
                      "fields": { "receipt": "receiptCode", "supplier": "supplierName", "receiptDate": "receiptDate", "warehouse": "warehouseName",
@@ -125,16 +126,30 @@
       { "id": "satirlar", "type": "dataTable", "name": "satirlar",
         "props": { "title": "Fatura satırları", "query": "onizlemeSatirlari", "width": 12, "visibleWhen": "kabulSecimi.value != null",
                    "showPivot": false,
-                   "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "unitPrice", "discountAmount", "lineSubtotal", "vatPercent", "taxAmount", "lineTotal"],
+                   "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "unitPrice", "discountAmount", "lineSubtotal", "vatPercent", "taxAmount", "lineTotal", "requiresAmount"],
                    "columnLabels": ["orderLineNumber=#", "stockCode=Stok kodu", "stockName=Stok adı", "quantity=Miktar", "unitPrice=Birim fiyat",
                                     "discountAmount=İskonto", "lineSubtotal=Ara toplam", "vatPercent=KDV %", "taxAmount=Vergi", "lineTotal=Toplam",
-                                    "discountPercent=İskonto %"],
+                                    "discountPercent=İskonto %", "requiresAmount=Tutar", "isFreeOfCharge=Bedelsiz"],
                    "columnUnits": ["quantity=unitCode"],
                    "columnFormats": ["orderLineNumber=number", "stockCode=code", "quantity=number", "unitPrice=number", "discountAmount=money",
-                                     "lineSubtotal=money", "vatPercent=number", "taxAmount=money", "lineTotal=money", "discountPercent=number"],
+                                     "lineSubtotal=money", "vatPercent=number", "taxAmount=money", "lineTotal=money", "discountPercent=number",
+                                     "requiresAmount=status", "isFreeOfCharge=status"],
+                   "valueLabels": ["requiresAmount:true=Tutar girin", "requiresAmount:false=—", "isFreeOfCharge:true=Bedelsiz", "isFreeOfCharge:false=—"],
+                   "toneMap": ["Tutar girin=warning", "Bedelsiz=info"],
                    "emptyText": "Önizleme satırı yok." } },
+      { "id": "tutarGirisi", "type": "editableGrid", "name": "tutarGirisi",
+        "props": { "gridMode": "list", "title": "Fatura fiyatları", "maxRows": 100, "minRows": 0, "visibleWhen": "kabulSecimi.value != null",
+                   "gridColumns": ["orderLineNumber|#|number|required,readOnly",
+                                   "stockName|Stok adı|text|readOnly",
+                                   "enteredQuantity|Miktar|number|readOnly",
+                                   "enteredUnitCode|Birim|text|readOnly",
+                                   "isFreeOfCharge|Bedelsiz|checkbox|readOnly",
+                                   "unitPrice|Birim fiyat|number|min:0,step:0.0001",
+                                   "discountPercent|İsk. %|number|min:0,max:100,step:0.01",
+                                   "vatPercent|KDV %|number|min:0,max:100,step:0.01"],
+                   "fillQuery": "onizlemeSatirlari", "fillColumns": { "unitPrice": "receiptUnitPrice" } } },
       { "id": "onizlemeNotu", "type": "text", "name": "onizlemeNotu",
-        "props": { "text": "Tutarlar ve vade sunucu önizlemesidir: kaydedilecek faturayla aynı hesap (artımlı satır tutarı, mevzuat profili vergileri ve tevkifat) kullanılır.",
+        "props": { "text": "Tutarlar ve vade sunucu önizlemesidir: kaydedilecek faturayla aynı hesap (artımlı satır tutarı, mevzuat profili vergileri ve tevkifat) kullanılır. Fiyatlar mal kabul satırlarından dolar; bedelsiz veya fiyatsız satırın birim fiyatını “Fatura fiyatları” tablosunda girin (0 girilebilir). Değiştirdiğiniz fiyatlar kayıtta uygulanır, önizleme mal kabul fiyatlarını gösterir.",
                    "visibleWhen": "kabulSecimi.value != null" } },
 
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
@@ -167,7 +182,8 @@
           { "name": "providerInvoiceUuid", "binding": "{{belgeUuid.value}}", "type": "guid" },
           { "name": "providerScenario", "binding": "{{senaryo.value}}", "type": "text" },
           { "name": "providerInvoiceTypeCode", "binding": "{{turKodu.value}}", "type": "text" },
-          { "name": "providerSenderAlias", "binding": "{{gonderen.value}}", "type": "text" } ] }
+          { "name": "providerSenderAlias", "binding": "{{gonderen.value}}", "type": "text" },
+          { "name": "lines", "binding": "{{tutarGirisi.satirlar}}", "type": "list" } ] }
     ]
   }
 }

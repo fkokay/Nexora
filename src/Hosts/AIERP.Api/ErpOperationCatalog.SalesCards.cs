@@ -36,7 +36,7 @@ internal static partial class ErpOperationCatalog
         const string invoicesRoute = "/api/sales/invoices";
         // requestId is page-made (autoId): a retry with the same content returns the invoice (200), other content 409.
         // The e-archive payment date and due date are DateTimeOffset: datetime parameters (ISO date and time with offset).
-        yield return Write(SalesModule, "satis.fatura.olustur", "Siparişsiz satış faturası kes (irsaliyeli)", "insert", "POST", invoicesRoute,
+        yield return Write(SalesModule, "satis.fatura.olustur", "Satış faturası kes (irsaliyeli)", "insert", "POST", invoicesRoute,
             [.. BodyParameters<StandaloneSalesInvoiceWriteRequest>(sourceBacked: false), MapParameter("customFields"),
                 .. NestedBodyParameters<SalesInvoiceEDocumentFields>("eDocument")
                     .Select(x => x.Name is "eDocument.paymentDate" or "eDocument.paymentDueDate" ? x with { Type = "datetime" } : x),

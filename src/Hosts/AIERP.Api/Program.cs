@@ -4226,7 +4226,8 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
                 currentBalance = current, reservedQuantity = reservedElsewhereByStock.GetValueOrDefault(required.Key), availableQuantity = available, requestedQuantity = required.Value });
     }
     var code = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesDelivery", null, request.DeliveryDate, ct);
-    var delivery = new SalesDelivery { TenantId = tenantId, RequestId = request.RequestId, OrderId = order.Id, WarehouseId = warehouse.Id, Code = code, DeliveryDate = request.DeliveryDate };
+    var delivery = new SalesDelivery { TenantId = tenantId, RequestId = request.RequestId, OrderId = order.Id, WarehouseId = warehouse.Id, Code = code, DeliveryDate = request.DeliveryDate,
+        CurrencyCode = order.CurrencyCode };
     foreach (var input in request.Lines.OrderBy(x => x.OrderLineNumber))
     {
         var orderLine = orderLinesByNumber[input.OrderLineNumber];
@@ -4234,6 +4235,10 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
         var line = new SalesDeliveryLine { TenantId = tenantId, Delivery = delivery, OrderId = id, OrderLineNumber = orderLine.LineNumber,
             ReservationId = reservation?.Id, StockItemId = orderLine.StockItemId, StockCode = orderLine.StockCode, StockName = orderLine.StockName, UnitCode = orderLine.UnitCode, Quantity = input.Quantity,
             EnteredQuantity = enteredQuantities[input.OrderLineNumber].Quantity, EnteredUnitCode = enteredQuantities[input.OrderLineNumber].UnitCode };
+        // Omitted price fields copy the order line (per entered unit); a free line stores no price.
+        var linePrice = DeliveryLinePricing.Resolve(input.Price, new DeliveryLinePrice(
+            DeliveryLinePricing.FromBaseUnitPrice(orderLine.UnitPrice, input.Quantity, line.EnteredQuantity), orderLine.DiscountPercent, orderLine.VatPercent, false));
+        (line.UnitPrice, line.DiscountPercent, line.VatPercent, line.IsFreeOfCharge) = (linePrice.UnitPrice, linePrice.DiscountPercent, linePrice.VatPercent, linePrice.IsFreeOfCharge);
         if (reservation is not null) reservation.FulfilledQuantity += input.Quantity;
         delivery.Lines.Add(line);
         var unitCostBase = await GetWeightedAverageUnitCostBaseAsync(db, tenantId, orderLine.StockItemId, request.DeliveryDate);
@@ -4324,7 +4329,11 @@ salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly,
         .Select(x => new SalesDeliverySummary(x.Id, x.Code, x.OrderId, x.Order == null ? null : x.Order.Code, x.WarehouseId, x.Warehouse.Name,
             x.DeliveryDate, x.Status, x.Lines.Count, x.CreatedAt, db.SalesInvoices.Any(y => y.TenantId == x.TenantId && y.DeliveryId == x.Id),
             db.SalesInvoices.Where(y => y.TenantId == x.TenantId && y.DeliveryId == x.Id).Select(y => (SalesInvoiceStatus?)y.Status).FirstOrDefault(),
-            db.SalesInvoices.Where(y => y.TenantId == x.TenantId && y.DeliveryId == x.Id).Select(y => (Guid?)y.Id).FirstOrDefault())).ToListAsync();
+            db.SalesInvoices.Where(y => y.TenantId == x.TenantId && y.DeliveryId == x.Id).Select(y => (Guid?)y.Id).FirstOrDefault(),
+            x.CurrencyCode ?? (x.Order == null ? null : x.Order.CurrencyCode))).ToListAsync();
+    var rowPricing = await DeliveryPricingViews.SalesDeliveriesAsync(db, tenantId, rows.Select(x => x.Id).ToList());
+    rows = rows.Select(x => rowPricing[x.Id] is var p ? x with { PricedNetTotal = p.PricedNetTotal, PricedVatTotal = p.PricedVatTotal,
+        PricedGrandTotal = p.PricedGrandTotal, FreeLineCount = p.FreeLineCount, UnpricedLineCount = p.UnpricedLineCount, PricingState = p.PricingState } : x).ToList();
     return Results.Ok(new SalesDeliveryPage(rows, page, pageSize, total));
 });
 salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -4337,15 +4346,23 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
     var locationByDeliveryLine = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId
             && x.SalesDeliveryLineId.HasValue && lineIds.Contains(x.SalesDeliveryLineId.Value) && x.ReversalOfId == null)
         .ToDictionaryAsync(x => x.SalesDeliveryLineId!.Value, x => x.StorageLocationId);
-    var lines = delivery.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new SalesDeliveryLineView(x.OrderLineNumber,
-        x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity,
-        StorageLocationId: locationByDeliveryLine.GetValueOrDefault(x.Id),
-        UnitPrice: x.OrderLine?.UnitPrice,
-        DiscountPercent: x.OrderLine?.DiscountPercent,
-        VatPercent: x.OrderLine?.VatPercent,
-        CurrencyCode: delivery.Order?.CurrencyCode)).ToList();
+    var deliveryCurrency = delivery.CurrencyCode ?? delivery.Order?.CurrencyCode;
+    var lines = delivery.Lines.OrderBy(x => x.OrderLineNumber).Select(x =>
+    {
+        // Stored delivery prices (per entered unit); orderUnitPrice is the order line price in the same unit for the "siparişte X" hint.
+        var price = DeliveryPricingViews.Line(x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity);
+        return new SalesDeliveryLineView(x.OrderLineNumber,
+            x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.EnteredQuantity, x.EnteredUnitCode,
+            StorageLocationId: locationByDeliveryLine.GetValueOrDefault(x.Id),
+            UnitPrice: price.UnitPrice, DiscountPercent: price.DiscountPercent, VatPercent: price.VatPercent,
+            CurrencyCode: deliveryCurrency, IsFreeOfCharge: price.IsFreeOfCharge, LineNetAmount: price.LineNetAmount,
+            LineVatAmount: price.LineVatAmount, LineTotal: price.LineTotal,
+            OrderUnitPrice: x.OrderLine is null ? null : DeliveryLinePricing.FromBaseUnitPrice(x.OrderLine.UnitPrice, x.Quantity, x.EnteredQuantity));
+    }).ToList();
+    var pricing = DeliveryPricingViews.Summary(delivery.Lines.Select(x => (x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity)));
     return Results.Ok(new SalesDeliveryView(delivery.Id, delivery.Code, delivery.OrderId, delivery.Order?.Code, delivery.WarehouseId,
-        delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id));
+        delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id,
+        deliveryCurrency, pricing.PricedNetTotal, pricing.PricedVatTotal, pricing.PricedGrandTotal, pricing.FreeLineCount, pricing.UnpricedLineCount, pricing.PricingState));
 });
 salesDeliveries.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
@@ -4469,8 +4486,8 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     if (delivery.Status != SalesDeliveryStatus.Posted) return Results.Conflict(new { error = "İptal edilmiş irsaliyeden fatura oluşturulamaz." });
     var order = await db.SalesOrders.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == delivery.OrderId);
     if (delivery.OrderId is not null && order is null) return Results.NotFound();
-    if (order is null && (request is null || request.CustomerId == Guid.Empty || request.Lines is null || request.Lines.Count == 0 || request.Lines.Count > 200))
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["invoice"] = ["Siparişsiz irsaliye için müşteri ve 1–200 fiyatlandırılmış fatura satırı gereklidir."] });
+    if ((order is null && (request is null || request.CustomerId == Guid.Empty)) || request?.Lines?.Count > 200)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["invoice"] = ["Siparişe bağlı olmayan irsaliye için müşteri seçilmeli; en fazla 200 fatura satırı gönderilebilir."] });
     var requestedInvoiceDate = request?.InvoiceDate;
     var invoiceDate = requestedInvoiceDate is { } suppliedInvoiceDate && suppliedInvoiceDate != default
         ? suppliedInvoiceDate
@@ -4491,28 +4508,34 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         .Where(x => x.TenantId == tenantId && x.DeliveryId == id).OrderBy(x => x.OrderLineNumber).ToListAsync();
     if (deliveryLines.Count == 0) return Results.Conflict(new { error = "Satır içermeyen irsaliyeden fatura oluşturulamaz." });
     if (order is not null && deliveryLines.Any(x => x.OrderLine is null)) return Results.Conflict(new { error = "Sipariş satırı bağlantısı bulunmayan irsaliyeden bu akışla fatura oluşturulamaz." });
-    if (order is null && deliveryLines.Any(x => x.OrderLine is not null)) return Results.Conflict(new { error = "Siparişsiz irsaliye satır bağlantıları tutarsız." });
-    if (order is null && requestedInvoiceLines.Any(x => x.UnitPrice < 0 || x.UnitPrice > 99999999999999.9999m || x.UnitPrice != decimal.Round(x.UnitPrice, 4)
-        || x.DiscountPercent is < 0 or > 100 || x.DiscountPercent != decimal.Round(x.DiscountPercent, 2)
-        || x.VatPercent is < 0 or > 100 || x.VatPercent != decimal.Round(x.VatPercent, 2)))
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Birim fiyat 4; iskonto ve KDV oranları 2 ondalık basamağı aşmamalı ve oranlar 0–100 arasında olmalıdır."] });
-    if (order is null && (requestedInvoiceLines.Select(x => x.OrderLineNumber).Distinct().Count() != requestedInvoiceLines.Count
-        || requestedInvoiceLines.Count != deliveryLines.Count || deliveryLines.Any(deliveryLine => !requestedInvoiceLines.Any(x => x.OrderLineNumber == deliveryLine.OrderLineNumber))))
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Fatura satırları irsaliye satırlarıyla birebir eşleşmelidir."] });
-    var invoiceLines = deliveryLines.Select(x =>
+    if (order is null && deliveryLines.Any(x => x.OrderLine is not null)) return Results.Conflict(new { error = "Siparişe bağlı olmayan irsaliyenin satır bağlantıları tutarsız." });
+    // Invoice price per line: the request override, else the delivery line price, else the order line price (old rows).
+    // Free or unpriced lines need an entered amount; the delivery itself is not changed.
+    var invoiceLineErrors = new Dictionary<string, string[]>();
+    for (var index = 0; index < requestedInvoiceLines.Count; index++)
+        DeliveryLinePricing.Validate(requestedInvoiceLines[index].Price, $"lines[{index}]", invoiceLineErrors);
+    if (invoiceLineErrors.Count > 0) return Results.ValidationProblem(invoiceLineErrors);
+    if (requestedInvoiceLines.Select(x => x.OrderLineNumber).Distinct().Count() != requestedInvoiceLines.Count
+        || requestedInvoiceLines.Any(x => deliveryLines.All(deliveryLine => deliveryLine.OrderLineNumber != x.OrderLineNumber)))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Fatura satırları irsaliye satırlarıyla eşleşmelidir; her satır en fazla bir kez gönderilebilir."] });
+    var resolvedInvoicePrices = deliveryLines.Select(x => (Line: x, Price: DeliveryLinePricing.ResolveInvoicePrice(
+        requestedInvoiceLines.FirstOrDefault(line => line.OrderLineNumber == x.OrderLineNumber)?.Price,
+        DeliveryLinePricing.FromStored(x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge),
+        x.OrderLine is null ? null : (x.OrderLine.UnitPrice, x.OrderLine.DiscountPercent, x.OrderLine.VatPercent),
+        x.Quantity, x.EnteredQuantity))).ToArray();
+    if (resolvedInvoicePrices.Where(x => x.Price is null).Select(x => x.Line.OrderLineNumber).ToArray() is { Length: > 0 } missingPriceLines)
+        return Results.Conflict(new { error = DeliveryLinePricing.InvoiceAmountRequiredMessage, lines = missingPriceLines });
+    var invoiceLines = resolvedInvoicePrices.Select(resolved =>
     {
-        var pricing = x.OrderLine;
-        var entered = order is null ? requestedInvoiceLines.Single(line => line.OrderLineNumber == x.OrderLineNumber) : null;
-        var unitPrice = pricing?.UnitPrice ?? entered!.UnitPrice;
-        var discountPercent = pricing?.DiscountPercent ?? entered!.DiscountPercent;
-        var vatPercent = pricing?.VatPercent ?? entered!.VatPercent;
+        var x = resolved.Line;
+        var (unitPrice, discountPercent, vatPercent) = resolved.Price!.Value;
         var invoiceType = request?.InvoiceType ?? SalesInvoiceType.Wholesale;
         var isVatIncluded = invoiceType == SalesInvoiceType.Retail;
         var amounts = SalesQuoteValidation.Calculate(new SalesQuoteLineWriteRequest(x.StockItemId, x.Quantity,
             unitPrice, discountPercent, vatPercent, IsVatIncluded: isVatIncluded));
         var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, vatPercent, invoiceDate, "Sales");
         amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
-        return (DeliveryLine: x, Pricing: pricing, UnitPrice: unitPrice, DiscountPercent: discountPercent, VatPercent: vatPercent, Amounts: amounts, TaxBreakdownJson: assessment.TaxBreakdownJson);
+        return (DeliveryLine: x, UnitPrice: unitPrice, DiscountPercent: discountPercent, VatPercent: vatPercent, Amounts: amounts, TaxBreakdownJson: assessment.TaxBreakdownJson);
     }).ToArray();
     SalesQuoteTotals totals;
     try { totals = SalesQuoteValidation.Sum(invoiceLines.Select(x => x.Amounts)); }
@@ -4858,7 +4881,7 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
     var code = await TenantDocumentNumbering.NextAsync(db, tenantId, invoiceSeries.Type, invoiceSeries.Scenario, request.InvoiceDate, ct);
     var deliveryCode = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesDelivery", null, request.InvoiceDate, ct);
     var delivery = new SalesDelivery { TenantId = tenantId, RequestId = request.RequestId, WarehouseId = warehouse.Id,
-        Code = deliveryCode, DeliveryDate = request.InvoiceDate };
+        Code = deliveryCode, DeliveryDate = request.InvoiceDate, CurrencyCode = customer.CurrencyCode };
     var invoice = new SalesInvoice { TenantId = tenantId, Delivery = delivery, CustomerId = customer.Id, Code = code, InvoiceDate = request.InvoiceDate,
         InvoiceType = request.InvoiceType,
         CurrencyCode = customer.CurrencyCode, AccountingProfileCode = taxProfile?.ProfileCode,
@@ -4881,7 +4904,12 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         var row = invoiceLines[i];
         var deliveryLine = new SalesDeliveryLine { TenantId = tenantId, Delivery = delivery, OrderLineNumber = i + 1,
             StockItemId = row.Item.Id, StockCode = row.Item.Code, StockName = row.Item.Name, UnitCode = row.Item.UnitCode, Quantity = row.Input.Quantity,
-            EnteredQuantity = row.Input.Quantity, EnteredUnitCode = row.Item.UnitCode };
+            EnteredQuantity = row.Input.Quantity, EnteredUnitCode = row.Item.UnitCode,
+            // The delivery an invoice writes carries the invoice's own prices (base unit = entered unit here), VAT-exclusive like
+            // every delivery price: a retail (VAT-included) price is converted.
+            UnitPrice = row.Input.IsVatIncluded && row.Input.VatPercent > 0
+                ? decimal.Round(row.Input.UnitPrice / (1m + row.Input.VatPercent / 100m), 4, MidpointRounding.AwayFromZero) : row.Input.UnitPrice,
+            DiscountPercent = row.Input.DiscountPercent, VatPercent = row.Input.VatPercent };
         delivery.Lines.Add(deliveryLine);
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLine = deliveryLine, OrderLineNumber = i + 1,
             StockItemId = row.Item.Id, StockCode = row.Item.Code, StockName = row.Item.Name, UnitCode = row.Item.UnitCode,
@@ -6610,7 +6638,8 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     var purchaseRate = await GetTenantRateAsync(db, tenantId, order.CurrencyCode, request.ReceiptDate);
     if (purchaseRate is null) return Results.Conflict(new { error = $"{order.CurrencyCode} için {request.ReceiptDate:yyyy-MM-dd} tarihinde veya öncesinde tenant baz para birimine çevrilebilen kur yok. Önce Finans ekranından kuru kaydedin." });
     var code = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.PurchaseReceipt, null, request.ReceiptDate, CancellationToken.None);
-    var receipt = new PurchaseReceipt { TenantId = tenantId, RequestId = request.RequestId, PurchaseOrderId = id, WarehouseId = warehouse.Id, Code = code, ReceiptDate = request.ReceiptDate };
+    var receipt = new PurchaseReceipt { TenantId = tenantId, RequestId = request.RequestId, PurchaseOrderId = id, WarehouseId = warehouse.Id, Code = code, ReceiptDate = request.ReceiptDate,
+        CurrencyCode = order.CurrencyCode };
     foreach (var (definitionId, value) in receiptFieldValues)
     {
         var field = receiptFieldDefinitions.Single(x => x.Id == definitionId);
@@ -6623,10 +6652,18 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         var receiptLine = new PurchaseReceiptLine { TenantId = tenantId, Receipt = receipt, PurchaseOrderId = id, OrderLineNumber = line.LineNumber,
             StockItemId = line.StockItemId, StockCode = line.StockCode, StockName = line.StockName, UnitCode = line.UnitCode, Quantity = input.Quantity,
             EnteredQuantity = enteredReceiptQuantities[input.OrderLineNumber].Quantity, EnteredUnitCode = enteredReceiptQuantities[input.OrderLineNumber].UnitCode };
+        // Omitted price fields copy the PO line (per entered unit); a free line stores no price.
+        var receiptPrice = DeliveryLinePricing.Resolve(input.Price, new DeliveryLinePrice(
+            DeliveryLinePricing.FromBaseUnitPrice(line.UnitPrice, input.Quantity, receiptLine.EnteredQuantity), line.DiscountPercent, line.VatPercent, false));
+        (receiptLine.UnitPrice, receiptLine.DiscountPercent, receiptLine.VatPercent, receiptLine.IsFreeOfCharge) =
+            (receiptPrice.UnitPrice, receiptPrice.DiscountPercent, receiptPrice.VatPercent, receiptPrice.IsFreeOfCharge);
         receipt.Lines.Add(receiptLine);
-        decimal? unitCostBase = purchaseRate is null ? null : decimal.Round(line.UnitPrice * (1m - line.DiscountPercent / 100m) * purchaseRate.Value, 8, MidpointRounding.AwayFromZero);
-        if (unitCostBase > 9999999999.99999999m) return Results.Conflict(new { error = $"Sipariş satırı {line.LineNumber} maliyeti decimal(18,8) sınırını aşıyor." });
         var item = stockItems[line.StockItemId];
+        // Priced line: cost from the receipt price (discount + FX to base). Free / unpriced line: provisional cost, marked pending.
+        var receiptCost = await PurchaseReceiptCosting.ResolveAsync(db, tenantId, item, receiptPrice, input.Quantity, receiptLine.EnteredQuantity,
+            line.UnitPrice, purchaseRate.Value, request.ReceiptDate);
+        decimal? unitCostBase = receiptCost.UnitCostBase;
+        if (unitCostBase > 9999999999.99999999m) return Results.Conflict(new { error = $"Sipariş satırı {line.LineNumber} maliyeti decimal(18,8) sınırını aşıyor." });
         var trackingError = ValidateTrackingAllocations(item.TrackingMode, input.Tracking, input.Quantity);
         if (trackingError is not null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.OrderLineNumber}].tracking"] = [trackingError] });
         foreach (var trace in input.Tracking ?? [])
@@ -6639,7 +6676,7 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
         }
         var stockMovement = new InventoryTransaction { TenantId = tenantId, WarehouseId = warehouse.Id, StockItemId = line.StockItemId,
             EntryDate = request.ReceiptDate, Direction = InventoryDirection.Receipt, Quantity = input.Quantity,
-            UnitCostBase = unitCostBase, Description = $"Satın alma mal kabul {code}", PurchaseReceiptLine = receiptLine,
+            UnitCostBase = unitCostBase, CostPending = receiptCost.CostPending, Description = $"Satın alma mal kabul {code}", PurchaseReceiptLine = receiptLine,
             StorageLocationId = input.StorageLocationId };
         stockMovement.Tracking = ToTraceEntities(tenantId, item, input.Tracking ?? []);
         db.InventoryTransactions.Add(stockMovement);
@@ -6665,8 +6702,11 @@ purchaseReceipts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext d
     var total = await query.CountAsync();
     var rows = await query.OrderByDescending(x => x.ReceiptDate).ThenByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
         .Select(x => new PurchaseReceiptSummary(x.Id, x.Code, x.PurchaseOrderId, x.PurchaseOrder.Code, x.WarehouseId, x.Warehouse.Name,
-            x.ReceiptDate, x.Status, x.Lines.Count, x.CreatedAt))
+            x.ReceiptDate, x.Status, x.Lines.Count, x.CreatedAt, null, null, null, x.CurrencyCode ?? x.PurchaseOrder.CurrencyCode))
         .ToListAsync();
+    var receiptPricing = await DeliveryPricingViews.PurchaseReceiptsAsync(db, tenantId, rows.Select(x => x.Id).ToList());
+    rows = rows.Select(x => receiptPricing[x.Id] is var p ? x with { PricedNetTotal = p.PricedNetTotal, PricedVatTotal = p.PricedVatTotal,
+        PricedGrandTotal = p.PricedGrandTotal, FreeLineCount = p.FreeLineCount, UnpricedLineCount = p.UnpricedLineCount, PricingState = p.PricingState } : x).ToList();
     return Results.Ok(new PurchaseReceiptPage(rows, page, pageSize, total));
 });
 purchaseReceipts.MapGet("/{id:guid}/landed-costs", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -6910,15 +6950,21 @@ purchaseReceipts.MapPost("/{id:guid}/invoice", async (Guid id, PurchaseInvoiceCr
         ProviderInvoiceUuid = request.ProviderInvoiceUuid, ProviderScenario = request.ProviderScenario?.Trim(),
         ProviderInvoiceTypeCode = request.ProviderInvoiceTypeCode?.Trim(), ProviderSenderAlias = request.ProviderSenderAlias?.Trim() };
     var invoiceAmounts = new List<SalesQuoteLineAmounts>();
-    foreach (var calculated in PurchaseInvoiceCalculation.CalculateLines(receiptLines, historicalLines, taxProfile, request.InvoiceDate))
+    if (request.Lines?.FirstOrDefault(x => receiptLines.All(line => line.OrderLineNumber != x.OrderLineNumber)) is not null)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Fatura satırları mal kabul satırlarıyla eşleşmelidir."] });
+    // Price per line: the request override, else the receipt line price, else the PO line price. Free / unpriced lines need an amount.
+    var calculatedLines = PurchaseInvoiceCalculation.CalculateLines(receiptLines, historicalLines, taxProfile, request.InvoiceDate,
+        request.Lines?.ToDictionary(x => x.OrderLineNumber, x => x.Price));
+    if (calculatedLines.Where(x => x.RequiresAmount).Select(x => x.Source.OrderLineNumber).ToArray() is { Length: > 0 } missingPriceLines)
+        return Results.Conflict(new { error = DeliveryLinePricing.InvoiceAmountRequiredMessage, lines = missingPriceLines });
+    foreach (var calculated in calculatedLines)
     {
         var (source, amounts, taxBreakdownJson) = (calculated.Source, calculated.Amounts, calculated.TaxBreakdownJson);
-        var orderLine = source.OrderLine;
         invoiceAmounts.Add(amounts);
         invoice.Lines.Add(new PurchaseInvoiceLine { TenantId = tenantId, PurchaseInvoice = invoice, PurchaseReceiptLineId = source.Id,
             PurchaseReceiptId = receipt.Id, OrderLineNumber = source.OrderLineNumber, StockItemId = source.StockItemId,
             StockCode = source.StockCode, StockName = source.StockName, UnitCode = source.UnitCode, Quantity = source.Quantity,
-            UnitPrice = orderLine.UnitPrice, DiscountPercent = orderLine.DiscountPercent, VatPercent = orderLine.VatPercent,
+            UnitPrice = calculated.UnitPrice, DiscountPercent = calculated.DiscountPercent, VatPercent = calculated.VatPercent,
             LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount,
             TaxBreakdownJson = taxBreakdownJson, LineTotal = amounts.LineTotal });
         invoice.TaxBreakdownJson = AccountingRuleTaxCalculator.Aggregate(invoice.Lines.Select(x => x.TaxBreakdownJson));
@@ -7932,7 +7978,7 @@ generalLedger.MapGet("/sources", async (ClaimsPrincipal principal, TenantDbConte
             id = x.Id, code = x.Code, entryDate = x.DeliveryDate,
             amount = x.Lines.SelectMany(l => l.InventoryTransactions).Where(t => t.UnitCostBase.HasValue && t.Direction == InventoryDirection.Issue && t.ReversalOfId == null)
                 .Sum(t => t.Quantity * t.UnitCostBase!.Value),
-            currencyCode = tenantBaseCurrency, description = x.Invoice != null ? x.Invoice.Customer.Name : x.Order != null ? x.Order.Customer.Name : "Siparişsiz satış",
+            currencyCode = tenantBaseCurrency, description = x.Invoice != null ? x.Invoice.Customer.Name : x.Order != null ? x.Order.Customer.Name : "Satış irsaliyesi",
             requiredMappings = new[] { LedgerMappingKeys.InventoryAsset, LedgerMappingKeys.SalesCost }
         }).ToListAsync();
     var purchaseInvoiceRows = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status == PurchaseInvoiceStatus.Posted && !purchaseDone.Contains(x.Id))
@@ -9053,21 +9099,8 @@ static bool IsNvidiaChatModel(string id)
         .Any(excluded => model.Contains(excluded, StringComparison.Ordinal));
 }
 static Guid? GetUserId(ClaimsPrincipal principal) => Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var id) ? id : null;
-static async Task<decimal?> GetWeightedAverageUnitCostBaseAsync(TenantDbContext db, Guid tenantId, Guid stockItemId, DateOnly asOfDate)
-{
-    var totals = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId && x.EntryDate <= asOfDate)
-        .GroupBy(_ => 1).Select(g => new
-        {
-            OnHand = g.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity),
-            Unvalued = g.Sum(x => (decimal?)(x.UnitCostBase == null ? (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) : 0m)) ?? 0m,
-            Value = g.Sum(x => (decimal?)(x.UnitCostBase == null ? 0m : (x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity) * x.UnitCostBase.Value)) ?? 0m
-        }).SingleOrDefaultAsync();
-    if (totals is null || totals.OnHand <= 0m || totals.Unvalued > 0m) return null;
-    var costAdjustments = await db.InventoryCostAdjustmentLines.AsNoTracking()
-        .Where(x => x.TenantId == tenantId && x.StockItemId == stockItemId && x.Adjustment.EntryDate <= asOfDate)
-        .SumAsync(x => (decimal?)x.AmountBase) ?? 0m;
-    return decimal.Round((totals.Value + costAdjustments) / totals.OnHand, 8, MidpointRounding.AwayFromZero);
-}
+static Task<decimal?> GetWeightedAverageUnitCostBaseAsync(TenantDbContext db, Guid tenantId, Guid stockItemId, DateOnly asOfDate) =>
+    PurchaseReceiptCosting.WeightedAverageUnitCostBaseAsync(db, tenantId, stockItemId, asOfDate);
 static Task<bool> HasUnreversedJournalEntryAsync(TenantDbContext db, Guid tenantId, string sourceType, Guid sourceId) =>
     GeneralLedgerTransferEndpoints.HasUnreversedJournalEntryAsync(db, tenantId, sourceType, sourceId);
 

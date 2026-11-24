@@ -14,6 +14,7 @@ import { SalesListPanelToggle } from "./sales/components/SalesListDetailPanel";
 import "./sales/sales-list-v2.css";
 import "./purchase-delivery-notes.css";
 import { DeliveryNoteComposePanel } from "./purchase-delivery-notes/components/DeliveryNoteComposePanel";
+import { priceDraftFrom, priceWriteFields, setFree, toggleAllFree, type PriceDraft } from "./delivery-pricing/deliveryPricing";
 import { DeliveryNoteCreateView } from "./purchase-delivery-notes/components/DeliveryNoteCreateView";
 import { DeliveryNoteDocument } from "./purchase-delivery-notes/components/DeliveryNoteDocument";
 import { DeliveryNotesListPanel } from "./purchase-delivery-notes/components/DeliveryNotesListPanel";
@@ -90,7 +91,9 @@ export default function PurchaseDeliveryNotesPage({
   const [documentNumber, setDocumentNumber] = useState(""),
     [documentDate, setDocumentDate] = useState(localDateString()),
     [receiptId, setReceiptId] = useState(""),
-    [quantities, setQuantities] = useState<Record<number, string>>({});
+    [quantities, setQuantities] = useState<Record<number, string>>({}),
+    // Taslak 20: line prices of the note being written (suggested from the order line).
+    [notePrices, setNotePrices] = useState<Record<number, PriceDraft>>({});
   const [loading, setLoading] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -200,6 +203,7 @@ export default function PurchaseDeliveryNotesPage({
       setNotes([]);
       setReceiptId("");
       setQuantities({});
+      setNotePrices({});
       if (!id) {
         setError("");
         setMutationOrderError("");
@@ -375,6 +379,11 @@ export default function PurchaseDeliveryNotesPage({
       !["Cancelled", "PendingApproval", "Rejected"].includes(order.status),
   );
 
+  const notePriceSuggestion = (lineNumber: number): PriceDraft => {
+    const line = detail?.lines.find((item) => item.lineNumber === lineNumber);
+    return priceDraftFrom(line ? { unitPrice: line.unitPrice ?? null, discountPercent: line.discountPercent ?? null, vatPercent: line.vatPercent ?? null } : null);
+  };
+  const notePriceOf = (lineNumber: number) => notePrices[lineNumber] ?? notePriceSuggestion(lineNumber);
   async function createNote(event: FormEvent) {
     event.preventDefault();
     if (!detail) return;
@@ -388,6 +397,7 @@ export default function PurchaseDeliveryNotesPage({
               orderLineNumber: line.lineNumber,
               quantity,
               unitCode: line.unitCode,
+              ...priceWriteFields(notePriceOf(line.lineNumber)),
             },
           ]
         : [];
@@ -421,6 +431,7 @@ export default function PurchaseDeliveryNotesPage({
         );
         setDocumentNumber("");
         setQuantities({});
+        setNotePrices({});
       }
       await refreshDeliveryNotes();
       await reloadMutatedOrder(orderToReload, generation);
@@ -509,6 +520,7 @@ export default function PurchaseDeliveryNotesPage({
         if (!(await confirmStartNew(formDirty))) return;
         setDocumentNumber("");
         setQuantities({});
+        setNotePrices({});
         setNotice("");
         setError("");
       },
@@ -614,6 +626,18 @@ export default function PurchaseDeliveryNotesPage({
                 onDocumentNumberChange={setDocumentNumber}
                 onDocumentDateChange={setDocumentDate}
                 onReceiptChange={setReceiptId}
+                priceOf={notePriceOf}
+                onPriceChange={(lineNumber, patch) =>
+                  setNotePrices((current) => ({ ...current, [lineNumber]: { ...notePriceOf(lineNumber), ...patch } }))
+                }
+                onFreeChange={(lineNumber, free) =>
+                  setNotePrices((current) => ({ ...current, [lineNumber]: setFree(notePriceOf(lineNumber), free, notePriceSuggestion(lineNumber)) }))
+                }
+                onToggleAllFree={() => {
+                  const lineNumbers = (detail?.lines ?? []).map((line) => line.lineNumber);
+                  const next = toggleAllFree(lineNumbers.map(notePriceOf), (index) => notePriceSuggestion(lineNumbers[index]));
+                  setNotePrices(Object.fromEntries(lineNumbers.map((lineNumber, index) => [lineNumber, next[index]])));
+                }}
                 onQuantityChange={(lineNumber, value) =>
                   setQuantities((current) => ({ ...current, [lineNumber]: value }))
                 }

@@ -179,6 +179,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.CustomerId, x.DeliveryDate, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(40).IsRequired(); e.Property(x => x.Status).HasConversion<int>();
+            DeliveryLinePricingConfiguration.ConfigureHeaderCurrency(e);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Customer).WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -192,6 +193,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.UnitCode).HasMaxLength(8).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.EnteredQuantity).HasPrecision(18, 4); e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
             e.Property(x => x.TrackingCode).HasMaxLength(80);
+            DeliveryLinePricingConfiguration.ConfigureLinePrice(e, "StandaloneSalesDeliveryLines");
             e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
@@ -243,6 +245,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.SupplierId, x.ReceiptDate, x.CreatedAt });
             e.Property(x => x.Code).HasMaxLength(40).IsRequired(); e.Property(x => x.Status).HasConversion<int>();
+            DeliveryLinePricingConfiguration.ConfigureHeaderCurrency(e);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Supplier).WithMany().HasForeignKey(x => new { x.TenantId, x.SupplierId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -260,6 +263,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.UnitCode).HasMaxLength(8).IsRequired(); e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.UnitCostBase).HasPrecision(18, 8); e.Property(x => x.EnteredQuantity).HasPrecision(18, 4); e.Property(x => x.EnteredUnitCode).HasMaxLength(8);
             e.Property(x => x.TrackingCode).HasMaxLength(80);
+            DeliveryLinePricingConfiguration.ConfigureLinePrice(e, "StandalonePurchaseReceiptLines");
             e.HasOne(x => x.Receipt).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ReceiptId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<StockItem>().WithMany().HasForeignKey(x => new { x.TenantId, x.StockItemId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.StorageLocation).WithMany().HasForeignKey(x => new { x.TenantId, x.StorageLocationId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);

@@ -160,7 +160,7 @@ export const english: Record<string, string> = {
   // Journal source types
   'Çek/senet': 'Check/note',
   'Stok maliyet düzeltmesi': 'Inventory cost adjustment',
-  'Bağımsız alış faturası': 'Standalone purchase invoice',
+  'Satınalma faturası (taslaktan)': 'Purchase invoice (from draft)',
   // Checks and promissory notes (redesigned list)
   '30 gün içinde vade': 'Due within 30 days',
   'Tahsil edilemeyen alınan ve verilen kayıtlar': 'Received and given items that bounced',

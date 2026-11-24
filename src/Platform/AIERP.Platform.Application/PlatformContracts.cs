@@ -360,20 +360,36 @@ public sealed record SalesOrderReservationReleaseRequest(string Reason, bool Con
 public sealed record SalesOrderReservationSummary(Guid Id, Guid OrderId, int OrderLineNumber, Guid WarehouseId,
     string WarehouseName, Guid StockItemId, string StockCode, decimal ReservedQuantity, decimal FulfilledQuantity,
     decimal RemainingReservedQuantity, SalesOrderReservationStatus Status, DateTimeOffset CreatedAt, DateTimeOffset? ReleasedAt);
-public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null);
+public sealed record SalesDeliveryLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null, Guid? StorageLocationId = null,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool? IsFreeOfCharge = null)
+{
+    public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent, IsFreeOfCharge);
+}
 public sealed record SalesDeliveryWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly DeliveryDate, IReadOnlyList<SalesDeliveryLineWriteRequest> Lines);
 public sealed record SalesDeliveryLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity, decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null,
     Guid? WarehouseId = null, string? WarehouseName = null, decimal? UnitPrice = null, decimal? DiscountPercent = null,
-    decimal? VatPercent = null, string? CurrencyCode = null);
+    decimal? VatPercent = null, string? CurrencyCode = null, bool IsFreeOfCharge = false, decimal? LineNetAmount = null,
+    decimal? LineVatAmount = null, decimal? LineTotal = null, decimal? OrderUnitPrice = null);
 public sealed record SalesDeliverySummary(Guid Id, string Code, Guid? OrderId, string? OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, int LineCount, DateTimeOffset CreatedAt,
-    bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
+    bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null,
+    string? CurrencyCode = null, decimal? PricedNetTotal = null, decimal? PricedVatTotal = null, decimal? PricedGrandTotal = null,
+    int? FreeLineCount = null, int? UnpricedLineCount = null, string? PricingState = null);
 public sealed record SalesDeliveryView(Guid Id, string Code, Guid? OrderId, string? OrderCode, Guid WarehouseId,
     string WarehouseName, DateOnly DeliveryDate, SalesDeliveryStatus Status, DateTimeOffset CreatedAt,
-    IReadOnlyList<SalesDeliveryLineView> Lines, bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null);
+    IReadOnlyList<SalesDeliveryLineView> Lines, bool HasSalesInvoice = false, SalesInvoiceStatus? InvoiceStatus = null, Guid? InvoiceId = null,
+    string? CurrencyCode = null, decimal PricedNetTotal = 0, decimal PricedVatTotal = 0, decimal PricedGrandTotal = 0,
+    int FreeLineCount = 0, int UnpricedLineCount = 0, string PricingState = DeliveryLinePricing.Priced);
 public sealed record SalesDeliveryPage(IReadOnlyList<SalesDeliverySummary> Items, int Page, int PageSize, int TotalCount);
-public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal UnitPrice, decimal DiscountPercent = 0, decimal VatPercent = 20, bool IsVatIncluded = false);
+/// <summary>
+/// Invoice line price of a delivery line (per entered unit of the delivery line). Order-based deliveries take it as an optional override;
+/// omitted fields fall back to the delivery line, then the order line. Free / unpriced lines need a unit price here (0 is allowed).
+/// </summary>
+public sealed record SalesDeliveryInvoiceLineWriteRequest(int OrderLineNumber, decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool IsVatIncluded = false)
+{
+    public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent);
+}
 public sealed record SalesDeliveryInvoiceWriteRequest(Guid CustomerId, DateOnly InvoiceDate, IReadOnlyList<SalesDeliveryInvoiceLineWriteRequest>? Lines, IReadOnlyDictionary<string, string?>? CustomFields = null, SalesInvoiceEDocumentFields? EDocument = null, string? AccountingProfileCode = null, SalesInvoiceType InvoiceType = SalesInvoiceType.Wholesale, string? Notes = null);
 public sealed record SalesInvoiceSummary(Guid Id, string Code, Guid? DeliveryId, string? DeliveryCode, Guid? OrderId,
     string? OrderCode, Guid CustomerId, string CustomerName, DateOnly InvoiceDate, string CurrencyCode,
@@ -752,7 +768,11 @@ public sealed record PurchaseOrderView(Guid Id, string Code, Guid SupplierId, st
 }
 public sealed record PurchaseOrderPage(IReadOnlyList<PurchaseOrderSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseReceiptLineWriteRequest(int OrderLineNumber, decimal Quantity, string? UnitCode = null,
-    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null);
+    IReadOnlyList<InventoryTrackingAllocationRequest>? Tracking = null, Guid? StorageLocationId = null,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool? IsFreeOfCharge = null)
+{
+    public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent, IsFreeOfCharge);
+}
 public sealed record PurchaseReceiptWriteRequest(Guid RequestId, Guid WarehouseId, DateOnly ReceiptDate,
     IReadOnlyList<PurchaseReceiptLineWriteRequest> Lines, IReadOnlyDictionary<string, string?>? CustomFields = null);
 public sealed record PurchaseReceiptCustomFieldDefinitionView(Guid Id, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int Version, bool IsRequired, bool IsActive);
@@ -761,17 +781,34 @@ public sealed record PurchaseReceiptCustomFieldDefinitionRevisionView(Guid Id, G
 public sealed record PurchaseReceiptCustomFieldValueView(Guid DefinitionId, string Code, string Label, CustomFieldDataType DataType, int MaxLength, int DefinitionVersion, bool IsRequired, string Value);
 public sealed record PurchaseReceiptCustomFieldCreateRequest(string? Code, string? Label, CustomFieldDataType DataType, int MaxLength = 200, bool IsRequired = false);
 public sealed record PurchaseReceiptCustomFieldUpdateRequest(string? Label, int MaxLength, bool? IsRequired = null);
+/// <summary>
+/// Receipt line. Prices are per entered unit in the PO currency; <c>CostPending</c> marks a free / unpriced line whose stock movement
+/// carries a provisional weighted-average cost until the purchase invoice is posted (the movement itself is never revalued).
+/// </summary>
 public sealed record PurchaseReceiptLineView(int OrderLineNumber, Guid StockItemId, string StockCode, string StockName,
     string UnitCode, decimal Quantity, IReadOnlyList<InventoryTrackingAllocationView>? Tracking = null,
-    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null);
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, Guid? StorageLocationId = null,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool IsFreeOfCharge = false,
+    decimal? LineNetAmount = null, decimal? LineVatAmount = null, decimal? LineTotal = null, decimal? OrderUnitPrice = null,
+    bool CostPending = false);
 public sealed record PurchaseReceiptSummary(Guid Id, string Code, Guid PurchaseOrderId, string PurchaseOrderCode,
     Guid WarehouseId, string WarehouseName, DateOnly ReceiptDate, PurchaseReceiptStatus Status, int LineCount,
     DateTimeOffset CreatedAt, IReadOnlyList<PurchaseReceiptLineView>? Lines = null, PurchaseInvoiceSummary? Invoice = null,
-    IReadOnlyList<PurchaseReceiptCustomFieldValueView>? CustomFields = null);
+    IReadOnlyList<PurchaseReceiptCustomFieldValueView>? CustomFields = null,
+    string? CurrencyCode = null, decimal? PricedNetTotal = null, decimal? PricedVatTotal = null, decimal? PricedGrandTotal = null,
+    int? FreeLineCount = null, int? UnpricedLineCount = null, string? PricingState = null);
 public sealed record PurchaseReceiptPage(IReadOnlyList<PurchaseReceiptSummary> Items, int Page, int PageSize, int TotalCount);
 public sealed record PurchaseInvoiceCreateRequest(string Code, DateOnly InvoiceDate, Guid? ProviderInvoiceUuid = null,
     string? ProviderScenario = null, string? ProviderInvoiceTypeCode = null, string? ProviderSenderAlias = null,
-    string? AccountingProfileCode = null);
+    string? AccountingProfileCode = null, IReadOnlyList<PurchaseInvoiceLinePriceRequest>? Lines = null);
+/// <summary>
+/// Optional invoice price of a receipt line (per entered unit of the receipt line, PO currency). Omitted fields fall back to the
+/// receipt line, then the PO line. Free / unpriced receipt lines need a unit price here (0 is allowed).
+/// </summary>
+public sealed record PurchaseInvoiceLinePriceRequest(int OrderLineNumber, decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null)
+{
+    public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent);
+}
 public sealed record PurchaseInvoiceLineView(Guid Id, Guid PurchaseReceiptLineId, int OrderLineNumber, string StockCode,
     string StockName, string UnitCode, decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent,
     decimal LineSubtotal, decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, Guid StockItemId, string TaxBreakdownJson = "[]");
@@ -1350,6 +1387,7 @@ public static class SalesDeliveryValidation
                 var line = request.Lines[i];
                 if (line.OrderLineNumber <= 0) errors[$"lines[{i}].orderLineNumber"] = ["Sipariş satırı seçilmelidir."];
                 if (line.Quantity <= 0 || line.Quantity > MaxQuantity || line.Quantity != decimal.Round(line.Quantity, 4)) errors[$"lines[{i}].quantity"] = ["Teslim miktarı pozitif olmalı ve en fazla 4 ondalık basamak içermelidir."];
+                DeliveryLinePricing.Validate(line.Price, $"lines[{i}]", errors);
             }
             if (request.Lines.Select(x => x.OrderLineNumber).Distinct().Count() != request.Lines.Count)
                 errors["lines"] = ["Her sipariş satırı irsaliyede yalnızca bir kez bulunabilir."];
@@ -1564,6 +1602,7 @@ public static class PurchaseReceiptValidation
                 if (line.OrderLineNumber <= 0) errors[$"lines[{i}].orderLineNumber"] = ["Sipariş satırı seçilmelidir."];
                 if (line.Quantity <= 0 || line.Quantity > MaxQuantity || line.Quantity != decimal.Round(line.Quantity, 4))
                     errors[$"lines[{i}].quantity"] = ["Kabul miktarı pozitif olmalı ve en fazla 4 ondalık basamak içermelidir."];
+                DeliveryLinePricing.Validate(line.Price, $"lines[{i}]", errors);
             }
             if (request.Lines.Select(x => x.OrderLineNumber).Distinct().Count() != request.Lines.Count)
                 errors["lines"] = ["Her sipariş satırı mal kabulde yalnızca bir kez bulunabilir."];
@@ -1597,6 +1636,12 @@ public static class PurchaseInvoiceValidation
             errors["providerSenderAlias"] = ["Gönderen etiketi en fazla 255 karakter olabilir."];
         if (request.AccountingProfileCode?.Trim().Length > 32 || request.AccountingProfileCode?.Any(char.IsControl) == true)
             errors["accountingProfileCode"] = ["Mevzuat profili kodu en fazla 32 karakter olabilir."];
+        if (request.Lines is { } lines)
+        {
+            if (lines.Count > 100 || lines.Select(x => x.OrderLineNumber).Distinct().Count() != lines.Count)
+                errors["lines"] = ["Fatura satırları mal kabul satırlarıyla eşleşmeli ve her satır en fazla bir kez gönderilmelidir."];
+            for (var i = 0; i < lines.Count; i++) DeliveryLinePricing.Validate(lines[i].Price, $"lines[{i}]", errors);
+        }
         return errors.Count == 0 ? null : errors;
     }
 
@@ -1690,7 +1735,9 @@ public sealed record PurchaseSupplierQuoteDetail(Guid Id, Guid? PurchaseRequestI
     DateOnly? AppliedRateDate, IReadOnlyList<PurchaseSupplierQuoteCustomFieldValueView> CustomFields, Guid? PurchaseOrderId, string? PurchaseOrderCode);
 public sealed record PurchaseReceiptDetail(Guid Id, string Code, Guid PurchaseOrderId, string PurchaseOrderCode, Guid SupplierId, string SupplierName,
     Guid WarehouseId, string WarehouseName, DateOnly ReceiptDate, PurchaseReceiptStatus Status, DateTimeOffset CreatedAt,
-    IReadOnlyList<PurchaseReceiptLineView> Lines, PurchaseInvoiceSummary? Invoice, IReadOnlyList<PurchaseReceiptCustomFieldValueView> CustomFields);
+    IReadOnlyList<PurchaseReceiptLineView> Lines, PurchaseInvoiceSummary? Invoice, IReadOnlyList<PurchaseReceiptCustomFieldValueView> CustomFields,
+    string? CurrencyCode = null, decimal PricedNetTotal = 0, decimal PricedVatTotal = 0, decimal PricedGrandTotal = 0,
+    int FreeLineCount = 0, int UnpricedLineCount = 0, string PricingState = DeliveryLinePricing.Priced);
 
 // Satış talebi: tekliften önceki adım.
 public sealed record SalesRequestLineWriteRequest(Guid StockItemId, decimal Quantity, string? UnitCode = null);

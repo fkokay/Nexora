@@ -16,7 +16,7 @@ const R1 = '66666666-0000-0000-0000-000000000001';
 const R2 = '66666666-0000-0000-0000-000000000002';
 const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
 const note = { id: N1, documentNumber: 'IRS-0001', documentDate: '2026-11-03', purchaseOrderId: PO, purchaseOrderCode: 'SA-0001', supplierName: 'Ege Ambalaj',
-  purchaseReceiptId: R1, purchaseReceiptCode: 'MK-0001', lineCount: 1 };
+  purchaseReceiptId: R1, purchaseReceiptCode: 'MK-0001', lineCount: 1, currencyCode: 'TRY', pricedGrandTotal: 480, pricingState: 'PartlyFree' };
 const unlinked = { ...note, id: N2, documentNumber: 'IRS-0002', purchaseReceiptId: null, purchaseReceiptCode: null };
 const receipt = (id: string, code: string, status: string) => ({ id, code, purchaseOrderId: PO, purchaseOrderCode: 'SA-0001', warehouseId: 'w1', warehouseName: 'Ana depo',
   receiptDate: '2026-11-04', status, lineCount: 1, invoice: null });
@@ -93,6 +93,28 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
       lines: [{ orderLineNumber: 1, quantity: 6, unitCode: 'ADET' }, { orderLineNumber: 3, quantity: 3, unitCode: 'RULO' }],
     });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Siparişten tedarikçi irsaliyesi' })).toBeNull(), T);
+  });
+
+  it('taslak 20: the list shows the pricing state; a Bedelsiz line and a typed price go with the posted lines', async () => {
+    h.setup(respond);
+    await h.cell('IRS-0001');
+    expect(screen.getAllByText('Kısmen bedelsiz').length).toBeGreaterThan(0);
+    await h.ready('new');
+    fireEvent.click(h.command('new'));
+    const dialog = await screen.findByRole('dialog', { name: 'Siparişten tedarikçi irsaliyesi' }, T);
+    await h.pick(h.input('irsaliyeSiparisi'), 'SA-0001');
+    await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'quantity')?.value).toBe('6'), T);
+    h.type(h.input('belgeNo'), 'IRS-2026-0043');
+    fireEvent.click(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'isFreeOfCharge')!);
+    h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'quantity')!, '3');
+    h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'unitPrice')!, '12');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'İrsaliyeyi kaydet' }));
+    const url = `/api/purchasing/delivery-notes/orders/${PO}`;
+    await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
+    const lines = h.bodyOf(h.sent(url)[0]).lines as Array<Record<string, unknown>>;
+    expect(lines[0]).toMatchObject({ orderLineNumber: 1, quantity: 6, isFreeOfCharge: true });
+    expect(lines[0].unitPrice ?? null).toBeNull();
+    expect(lines[1]).toMatchObject({ orderLineNumber: 3, quantity: 3, unitPrice: 12 });
   });
 
   it('Yeni irsaliye can name a posted receipt of the order', async () => {

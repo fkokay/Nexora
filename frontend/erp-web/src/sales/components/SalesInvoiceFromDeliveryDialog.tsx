@@ -707,7 +707,7 @@ export default function SalesInvoiceFromDeliveryDialog({
             className={mode === "standalone" ? "active" : ""}
             onClick={() => setMode("standalone")}
           >
-            Siparişsiz fatura + irsaliye
+            Fatura + irsaliye
           </button>
         </nav>}
         {mode !== "standalone" && <div className="form-two sales-invoice-type-field">

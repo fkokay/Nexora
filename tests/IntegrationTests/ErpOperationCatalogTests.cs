@@ -617,8 +617,9 @@ public sealed class ErpOperationCatalogTests
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
         // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
         // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
-        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests).
-        Assert.Equal(45, collections.Length);
+        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests);
+        // + the optional invoice line prices of satis.irsaliye.faturalastir and satinalma.malKabul.faturala.
+        Assert.Equal(47, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);

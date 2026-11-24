@@ -11,7 +11,7 @@ import StandaloneSupplierInvoiceDraftPage from '../StandaloneSupplierInvoiceDraf
 import { commandReason } from '../action-bar/commandReason';
 
 /*
- * Satınalma oluşturma ekranları: yeni satınalma siparişi, mal kabul faturası girişi, bağımsız fatura taslakları.
+ * Satınalma oluşturma ekranları: yeni satınalma siparişi, mal kabul faturası girişi, satınalma faturası taslakları.
  * Kaydetme isteklerinin gövdesi ve Esc onayı temel sürümle aynı kalmalıdır.
  */
 
@@ -35,6 +35,9 @@ const draftDetail = {
   lines: [{ lineNumber: 1, description: 'Nakliye', quantity: null, unitCode: null, unitPrice: null, subtotal: 1000, discountAmount: 0, taxAmount: 200, total: 1200, expenseAccountId: null, vatRate: 20, standalonePurchaseReceiptLineId: null }],
 };
 
+/** A test's own answer for the order detail (e.g. a receipt with a free line). */
+let orderOverride: unknown = null;
+
 function respond(url: string, init?: { method?: string }): unknown {
   const path = url.split('?')[0];
   const method = init?.method ?? 'GET';
@@ -53,7 +56,7 @@ function respond(url: string, init?: { method?: string }): unknown {
   if (path === '/api/finance/general-ledger/rule-profiles') return [];
   if (path === '/api/finance/general-ledger/accounts') return [{ id: 'a1', code: '770.01', name: 'Genel giderler', isActive: true, statementSection: 'Expense' }];
   if (path === '/api/purchasing/invoices/entry/receipts') return page([receipt]);
-  if (path === '/api/purchasing/orders/po1') return order;
+  if (path === '/api/purchasing/orders/po1') return orderOverride ?? order;
   if (path === '/api/purchasing/standalone-invoices/') return page([draftRow('d1', 'Draft'), draftRow('d2', 'Posted')]);
   if (path === '/api/purchasing/standalone-invoices/suppliers') return { items: [supplier], totalCount: 1 };
   if (path === '/api/purchasing/standalone-invoices/receipts') return [];
@@ -207,7 +210,46 @@ describe('Mal kabul faturası girişi', () => {
   });
 });
 
-describe('Bağımsız fatura taslakları', () => {
+describe('Mal kabul faturası girişi: bedelsiz satır (taslak 20)', () => {
+  it('prefills the receipt price, asks an amount for a free line and sends only the changed lines', async () => {
+    orderOverride = {
+      ...order,
+      lines: [...order.lines, { lineNumber: 2, unitPrice: 12, discountPercent: 0, vatPercent: 10 }],
+      receipts: [{
+        id: 'r1', status: 'Posted', invoice: null, pricingState: 'PartlyFree',
+        lines: [
+          { orderLineNumber: 1, stockCode: 'AMB-1', stockName: 'Koli 40x30', unitCode: 'ADET', quantity: 200, unitPrice: 34, discountPercent: 0, vatPercent: 20, isFreeOfCharge: false, lineNetAmount: 6800, lineVatAmount: 1360, lineTotal: 8160 },
+          { orderLineNumber: 2, stockCode: 'PRM-1', stockName: 'Promosyon kutusu', unitCode: 'ADET', quantity: 50, unitPrice: null, discountPercent: null, vatPercent: null, isFreeOfCharge: true, costPending: true },
+        ],
+      }],
+    };
+    try {
+      renderScreen(<PurchaseInvoiceEntryPage token="t" role="TenantUser" />);
+      await openReceipt();
+      await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>('AMB-1 birim fiyat').value).toBe('34'));
+      expect(screen.getByText('irsaliyeden')).toBeTruthy();
+      expect(screen.getByText('1 satırın tutarı eksik')).toBeTruthy();
+      const free = screen.getByLabelText<HTMLInputElement>('PRM-1 birim fiyat');
+      expect(free.value).toBe('');
+      expect(free.placeholder).toBe('tutar girin');
+      type(screen.getByLabelText(/Tedarikçi fatura no/), 'TF-7');
+      await act(async () => ctrlS());
+      await settle();
+      expect(sent('/api/purchasing/receipts/r1/invoice')).toBeUndefined();
+      type(free, '8');
+      await act(async () => ctrlS());
+      await waitFor(() => expect(sent('/api/purchasing/receipts/r1/invoice')).toBeDefined());
+      expect((sent('/api/purchasing/receipts/r1/invoice') as { lines: unknown }).lines).toEqual([
+        // The free line's discount / VAT come from its PO line (10 %), not a fixed 20.
+        { orderLineNumber: 2, unitPrice: 8, discountPercent: 0, vatPercent: 10 },
+      ]);
+    } finally {
+      orderOverride = null;
+    }
+  });
+});
+
+describe('Satınalma faturası taslakları', () => {
   const renderDrafts = () => renderScreen(<StandaloneSupplierInvoiceDraftPage token="t" role="TenantUser" />);
 
   it('Ctrl+S posts the same new draft body', async () => {
@@ -364,7 +406,8 @@ describe('Mal kabul faturası girişi: liste ve belge oluşturma görünümü', 
       ['Genel toplam', '8.400,00 TRY'],
     ]));
     expect(Array.from(grid.querySelectorAll('tbody tr')[0].querySelectorAll('td')).map((td) => words(td))).toEqual(
-      ['1', 'AMB-1 Koli 40x30', '200', 'ADET', '7.000,00', '1.400,00'],
+      // Taslak 20: the price cells are editable; an old receipt without its own price shows the PO price.
+      ['1', 'AMB-1 Koli 40x30', '200', 'ADET', 'siparişten', '', '', '7.000,00', '1.400,00'],
     );
     // Vade from the supplier's payment term, as today.
     type(screen.getByLabelText(/Fatura tarihi/), '2026-11-10');
@@ -389,7 +432,7 @@ describe('Mal kabul faturası girişi: liste ve belge oluşturma görünümü', 
   });
 });
 
-describe('Bağımsız fatura taslakları: liste tipi ve belge oluşturma görünümü', () => {
+describe('Satınalma faturası taslakları: liste tipi ve belge oluşturma görünümü', () => {
   const renderDrafts = () => renderScreen(<StandaloneSupplierInvoiceDraftPage token="t" role="TenantUser" />);
 
   it('status tags, footer without a pager, İşlemler follow the current row', async () => {
@@ -479,7 +522,7 @@ describe('English text of the purchasing create screens', () => {
       'Satır 1 KDV oranı', 'Satır 1 gider hesabı', 'Satır 1 satır toplamı', 'Satır 1 ara toplam', 'Satır 1 iskonto tutarı', 'Satır 1 sil',
       'Siparişsiz mal kabul satırı', 'Açıklama *', 'Ara toplam *', 'İskonto *', 'Vergi tutarı *', 'Satır toplamı *', 'Gider hesabı',
       'İsk. %', 'Tutar', 'Stok', 'Taslak', 'Muhasebeleştirildi', 'Düzenle', 'Muhasebeleştir', 'Kaydedilme', 'Vade tarihi', 'Fatura tarihi',
-      'Faturalanabilir mal kabuller', 'Seçili mal kabul ayrıntıları', 'Bağımsız tedarikçi faturası özeti', 'Bağımsız tedarikçi faturaları',
+      'Faturalanabilir mal kabuller', 'Seçili mal kabul ayrıntıları', 'Satınalma faturası taslağı özeti', 'Satınalma faturası taslakları',
       'Özetini görmek için listeden bir fatura seçin.', 'Fatura girmek için listeden bir mal kabul seçin.',
       'Yalnızca muhasebeleştirilmemiş taslaklar düzenlenebilir.', 'Satırlar yükleniyor…', 'Mal kabul satırları alınamadı.',
       'Miktar ve birim fiyat isteğe bağlıdır; satır tutarları kaynak belgeden girilir, yeniden hesaplanmaz.',
