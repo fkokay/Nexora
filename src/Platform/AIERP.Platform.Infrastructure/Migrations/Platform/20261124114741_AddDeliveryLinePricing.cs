@@ -97,6 +97,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
             // to the line's entered unit; the header currency is the order currency. Orderless and standalone rows stay unpriced
             // ("fiyatsız", not free). No row is marked free.
             migrationBuilder.Sql(@"
+-- Ayrı derlenir (EXEC): idempotent betikte yeni sütunlar aynı toplu işte eklenir.
+EXEC(N'
 UPDATE l SET
     l.[UnitPrice] = CASE WHEN l.[EnteredQuantity] IS NULL OR l.[EnteredQuantity] = 0 OR l.[EnteredQuantity] = l.[Quantity] THEN o.[UnitPrice]
                          ELSE ROUND(o.[UnitPrice] * l.[Quantity] / l.[EnteredQuantity], 4) END,
@@ -125,7 +127,8 @@ WHERE l.[UnitPrice] IS NULL AND l.[IsFreeOfCharge] = 0;
 UPDATE r SET r.[CurrencyCode] = o.[CurrencyCode]
 FROM [dbo].[PurchaseReceipts] AS r
 INNER JOIN [dbo].[PurchaseOrders] AS o ON o.[TenantId] = r.[TenantId] AND o.[Id] = r.[PurchaseOrderId]
-WHERE r.[CurrencyCode] IS NULL;");
+WHERE r.[CurrencyCode] IS NULL;')
+");
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_SalesDeliveryLines_FreeOfChargeUnpriced",
