@@ -140,9 +140,10 @@ const namesWhen = (check: (names: string[]) => void) => waitFor(() => {
   closeMenu();
   check(names);
 }, T);
+/** Detay paneli tablonun araç çubuğundaki basılı/bırakılmış düğmedir (taslak 21). */
 const panelOn = () => {
-  const panel = screen.getByLabelText('Detay paneli') as HTMLInputElement;
-  if (!panel.checked) fireEvent.click(panel);
+  const panel = screen.getByRole('button', { name: 'Detay paneli' });
+  if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
 };
 const text = () => document.body.textContent ?? '';
 

@@ -113,7 +113,13 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   hidePivot?: boolean;
   /** Receives the grid's export functions while mounted, so the page can offer them (e.g. CSV in the actions menu). */
   exportActionsRef?: MutableRefObject<GridExportActions | null>;
+  /**
+   * Pressed/unpressed toolbar buttons after the column chooser (e.g. a page's "Detay paneli"). They stay on the toolbar
+   * (also in full screen and when the other tools collapse into the view menu); `aria-pressed` reflects `pressed`.
+   */
+  toolbarToggles?: GridToolbarToggle[];
 };
+export type GridToolbarToggle = { id: string; label: string; pressed: boolean; onToggle: () => void; icon?: ReactNode };
 export type GridExportActions = { exportExcel: () => Promise<void>; exportCsv: () => void;
   /** Clears the row checkboxes (e.g. after a bulk delete: the same keys would point at other rows once the list reloads). */
   clearSelection?: () => void };
@@ -493,6 +499,7 @@ export default function AdvancedDataGrid({
   hideColumnChooser = false,
   hidePivot = false,
   exportActionsRef,
+  toolbarToggles,
   ...tableProps
 }: Props) {
   const tableElement = Children.toArray(children).find(
@@ -2140,6 +2147,18 @@ export default function AdvancedDataGrid({
           </div>
         </details>
         )}
+        {toolbarToggles?.map((toggle) => (
+          <button
+            key={toggle.id}
+            type="button"
+            className={`advanced-grid-action advanced-grid-toggle${toggle.pressed ? " active" : ""}`}
+            aria-pressed={toggle.pressed}
+            onClick={toggle.onToggle}
+          >
+            {toggle.icon}
+            <span>{toggle.label}</span>
+          </button>
+        ))}
         <span className="advanced-grid-count">
           {totalRows} {labels.rows}
           {selectedRows.length > 0 && (

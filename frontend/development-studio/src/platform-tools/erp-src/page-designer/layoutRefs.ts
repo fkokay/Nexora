@@ -86,6 +86,23 @@ export function rowActionIds(components: LayoutComponent[]): Set<string> {
   return owned;
 }
 
+/**
+ * Veri listelerinin "Detay paneli" düğmesine bağlı onay kutusu girişleri (`dataTable.detailToggleInput`): düğme listenin araç
+ * çubuğunda çizilir ve girişin değerini okur/yazar; giriş listeye aittir, üst düzeyde ayrıca çizilmez.
+ */
+export function tableDetailToggleIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dataTable") continue;
+    // Düğme yalnız sorguya bağlı tam ızgarada çizilir (dar `bars`/`list` görünümlerinde araç çubuğu yoktur).
+    const props = component.props;
+    if (typeof props?.query !== "string" || props.variant === "bars" || props.variant === "list") continue;
+    const id = props.detailToggleInput;
+    if (typeof id === "string" && id.trim()) owned.add(id.trim());
+  }
+  return owned;
+}
+
 /** Kayıt özetlerinin düğmeleri (`recordHeader.buttons`, en fazla 3): özetin sağında çizilir, üst düzeyde ayrıca çizilmez. */
 export function headerButtonIds(components: LayoutComponent[]): Set<string> {
   const owned = new Set<string>();
@@ -109,6 +126,8 @@ export function ownableCandidates<C extends LayoutComponent>(components: C[], ow
   for (const id of headerButtonIds(components)) rowActions.add(id);
   const searchInputs = new Set(components.filter((component) => component.type === "dataTable" && typeof component.props?.searchInput === "string")
     .map((component) => String(component.props?.searchInput)));
+  // Listenin "Detay paneli" düğmesine bağlı onay kutusu da listeye aittir.
+  for (const id of tableDetailToggleIds(components)) searchInputs.add(id);
   return components.filter((component) => component.id !== owner.id && component.type !== "actionBar" && component.type !== "dialog"
     && !(owner.type === "tabs" && component.type === "tabs")
     && !(component.type === "input" && (layoutOwned.has(component.id) || searchInputs.has(component.id)))

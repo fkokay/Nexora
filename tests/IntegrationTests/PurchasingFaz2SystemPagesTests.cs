@@ -215,9 +215,17 @@ public sealed class PurchasingFaz2SystemPagesTests
         Assert.Equal(("kabulKaynak", "quantity"), ((string)grid["fillQuery"]!, (string)grid["skipWhenZero"]!));
         // F2-17: the source also has quantity (ordered); the grid's quantity must come from remainingQuantity.
         Assert.Equal("remainingQuantity", MapOf(grid["fillColumns"])["quantity"]);
-        Assert.Equal(("satinalma.malKabul.siparisSatirlari", "{{siparisSecimi.value}}"),
+        // The order lines read (the retired satinalma.malKabul.siparisSatirlari was its duplicate).
+        Assert.Equal(("satinalma.siparis.satirlari", "{{siparisSecimi.value}}"),
             ((string)Query(key, "kabulKaynak")["operation"]!, Bindings(Query(key, "kabulKaynak"))["id"]));
         Assert.Contains("trackingMode", GridColumns(grid).Keys);
+        // Line prices: filled from the PO line (same codes), locked and left out of the body on a free line; Tutar is display-only.
+        var columns = GridColumns(grid);
+        Assert.Equal("checkbox", GridColumnType(grid, "isFreeOfCharge"));
+        foreach (var code in new[] { "unitPrice", "discountPercent", "vatPercent" })
+            Assert.True(columns.ContainsKey(code) && !MapOf(grid["fillColumns"]).ContainsKey(code) && Columns(key, "kabulKaynak").Contains(code), code);
+        Assert.Equal("quantity * unitPrice * (1 - discountPercent / 100)", MapOf(grid["formulas"])["lineNetAmount"]);
+        Assert.Equal(["unitPrice,discountPercent,vatPercent,lineNetAmount=satir.isFreeOfCharge == true"], Strings(grid["lockColumnsWhen"]));
 
         var save = Query(key, "malKabulOlustur");
         Assert.Equal(new Dictionary<string, string>
@@ -361,14 +369,14 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly Dictionary<string, HashSet<string>> Faz1Ids = new(StringComparer.Ordinal)
     {
         ["sales-requests"] = [.. new[] { "komutlar", "onayBekliyorGostergesi", "onaylandiGostergesi", "siparisGostergesi", "reddedildiGostergesi", "durumOnayBekliyor",
-            "durumOnaylandi", "durumDonustu", "durumReddedildi", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gorunumKarti",
+            "durumOnaylandi", "durumDonustu", "durumReddedildi", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi",
             "detayPaneli", "liste", "acDugmesi", "detayKarti", "ozetPaneli", "enIyiTeklif", "kalemTablosu", "teklifTablosu", "alanTablosu", "panelOnayla",
             "panelReddet", "yeniTalepDugmesi", "onaylaDugmesi", "reddetDugmesi", "teklifEkleDugmesi", "siparisOlusturDugmesi", "siparisiAcDugmesi",
             "alanlarDugmesi" }.Select(x => "component:" + x),
             .. new[] { "talepler", "sayOnayBekliyor", "sayOnaylandi", "sayDonustu", "sayReddedildi", "kalemler", "teklifler", "ozelDegerler", "onay", "ret",
             "panelOnay", "panelRet" }.Select(x => "query:" + x)],
         ["sales-purchasing"] = [.. new[] { "komutlar", "siparisSecimi", "acikGostergesi", "kismenGostergesi", "gecikmisGostergesi", "durumAcik", "durumKismen",
-            "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gorunumKarti", "gecikmisSecimi", "detayPaneli",
+            "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gecikmisSecimi", "detayPaneli",
             "liste", "acDugmesi", "detayKarti", "ozetPaneli", "belgeBasligi", "belgeMalKabulDugmesi", "listeyeDonDugmesi", "durumAdimlari", "kapaliUyarisi",
             "toplamGostergesi", "teslimGostergesi", "faturaGostergesi", "gecikmeGostergesi", "belgeSekmeleri", "satirTablosu", "kabulTablosu", "kabulAcDugmesi",
             "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "yeniSiparisDugmesi", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),

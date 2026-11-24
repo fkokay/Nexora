@@ -261,8 +261,9 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
   it('detail panel: progress, monthly depreciation, current assignee and linked invoice of the selected asset', async () => {
     setup();
     await select('CNC tezgâhı');
-    const panel = screen.getByLabelText('Detay paneli') as HTMLInputElement;
-    if (!panel.checked) fireEvent.click(panel);
+    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
+    const panel = screen.getByRole('button', { name: 'Detay paneli' });
+    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     const text = () => document.body.textContent ?? '';
     await waitFor(() => expect(text()).toContain('P-001 · Ayşe Yılmaz'), T);
     expect(text()).toContain('9 / 60 ay');

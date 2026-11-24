@@ -411,6 +411,8 @@ internal static class SystemPageStandards
             if (type is "formCard" or "filterChips" or "facetPanel") StripList(props, "inputs", removed, dropWhenEmpty: false);
             if (type == "dataTable" && props["bulkDeleteQuery"] is JsonValue bulkDelete && bulkDelete.TryGetValue<string>(out var bulkDeleteId)
                 && removed.Contains(bulkDeleteId)) props.Remove("bulkDeleteQuery");
+            if (type == "dataTable" && props["detailToggleInput"] is JsonValue detailToggle && detailToggle.TryGetValue<string>(out var detailToggleId)
+                && removed.Contains(detailToggleId)) props.Remove("detailToggleInput");
         }
         if (component["children"] is JsonArray children)
             foreach (var child in children.OfType<JsonObject>()) StripReferences(child, removed);

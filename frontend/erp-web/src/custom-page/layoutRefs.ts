@@ -36,6 +36,23 @@ export function tableSearchInputIds(components: LayoutComponent[]): Set<string> 
   return owned;
 }
 
+/**
+ * Veri listelerinin "Detay paneli" düğmesine bağlı onay kutusu girişleri (`dataTable.detailToggleInput`): düğme listenin araç
+ * çubuğunda çizilir ve girişin değerini okur/yazar; giriş üst düzeyde ayrıca çizilmez.
+ */
+export function tableDetailToggleIds(components: LayoutComponent[]): Set<string> {
+  const owned = new Set<string>();
+  for (const component of components) {
+    if (component.type !== "dataTable") continue;
+    // Düğme yalnız sorguya bağlı tam ızgarada çizilir (dar `bars`/`list` görünümlerinde araç çubuğu yoktur).
+    const props = component.props;
+    if (typeof props?.query !== "string" || props.variant === "bars" || props.variant === "list") continue;
+    const id = props.detailToggleInput;
+    if (typeof id === "string" && id.trim()) owned.add(id.trim());
+  }
+  return owned;
+}
+
 const MAX_TABS = 8;
 const MAX_TAB_IDS = 20;
 

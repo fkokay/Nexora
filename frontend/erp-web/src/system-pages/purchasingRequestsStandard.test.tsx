@@ -193,8 +193,9 @@ describe('Satınalma talepleri standart tanımı', { timeout: 60000 }, () => {
 
   const openQuoteTab = async () => {
     await h.select('TLP-0003');
-    const panel = h.input('detayPaneli');
-    if (!panel.checked) fireEvent.click(panel);
+    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21).
+    const panel = screen.getByRole('button', { name: 'Detay paneli' });
+    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     fireEvent.click(await screen.findByRole('tab', { name: /^Teklifler/ }, T));
     return document.getElementById('page-tabs-detaySekmeleri-panel-2')!;
   };

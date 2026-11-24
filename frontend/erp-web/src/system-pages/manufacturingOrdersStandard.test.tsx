@@ -147,9 +147,10 @@ const confirm = async (expected: string) => {
 const openDetail = async (code: string) => {
   await select(code);
   // İşlem Çubuğu Aç'a bağlı değil; detay paneli "Detay paneli" anahtarıyla (ya da satırı açarak, rowOpenAction) açılır.
-  const panel = screen.getByLabelText('Detay paneli') as HTMLInputElement;
-  if (!panel.checked) fireEvent.click(panel);
-  await waitFor(() => expect(input('detayPaneli').checked).toBe(true), T);
+  // Düğme tablonun araç çubuğundadır (taslak 21); onay kutusu girişi ayrıca çizilmez.
+  const panel = screen.getByRole('button', { name: 'Detay paneli' });
+  if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true'), T);
   await waitFor(() => expect(screen.getAllByRole('tab').some((tab) => /^Rota/.test(tab.textContent ?? ''))).toBe(true), T);
 };
 const routeTab = async () => {

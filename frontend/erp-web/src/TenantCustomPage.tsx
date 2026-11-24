@@ -12,7 +12,7 @@ import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQuery
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
-import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableDetailToggleIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
 import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
 import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
 import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
@@ -43,7 +43,7 @@ import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
-import { countedGridState, filledGridState, gridEngineReducer, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns,
+import { countedGridState, filledGridState, gridEngineReducer, lockedColumns, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns, withoutLockedErrors,
   type GridEngine, type GridEngineAction } from "./custom-page/gridFill";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
@@ -229,6 +229,8 @@ type GridView = {
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
   /** Hesaplanan (`calc`) hücrenin metni. */
   calcText: (column: GridColumn, draft: GridDraft) => string;
+  /** Satırın kilitli sütunları (`lockColumnsWhen`). */
+  lockedFor: (draft: GridDraft) => ReadonlySet<string>;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -1161,11 +1163,19 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         const openAction = openButton ? runtime.buttonAction(openButton) : null;
         const openByAction = openButton && openAction && ROW_OPEN_ACTIONS.has(openAction.type) && actionAllowed(openAction, runtime.rights)
           ? (row: Record<string, unknown>) => runtime.runRowAction(component, openButton, row, null) : undefined;
+        // `detailToggleInput`: araç çubuğundaki "Detay paneli" düğmesi bağlı onay kutusunu açıp kapatır (etiket girişin etiketidir);
+        // panelin `visibleWhen`/`closeInput` koşulları aynı girişe bağlı kaldığından davranış onay kutusuyla aynıdır.
+        const toggleInput = typeof props.detailToggleInput === "string" ? runtime.inputById[props.detailToggleInput.trim()] : undefined;
+        const toolbarToggles = toggleInput && inputIsCheckbox(toggleInput) ? [{
+          id: toggleInput.id, label: textValue(toggleInput.props?.label).trim() || "Detay paneli", pressed: runtime.inputValues[toggleInput.id] === true,
+          icon: <PanelRight size={15} aria-hidden="true" />,
+          onToggle: () => runtime.changeInput(toggleInput.id, runtime.inputValues[toggleInput.id] !== true),
+        }] : undefined;
         return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)}
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
@@ -1662,10 +1672,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     : [], [isV2, components, queryDefinitions]);
   const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
-  // formCard/facetPanel girişleri ve sayfalı listelerin arama girişleri üst düzeyde ayrıca çizilmez.
+  // formCard/facetPanel girişleri, sayfalı listelerin arama girişleri ve listelerin "Detay paneli" düğmesine bağlı onay kutuları
+  // üst düzeyde ayrıca çizilmez.
   const ownedInputs = useMemo(() => {
     const layout = flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }));
-    return new Set([...ownedInputIds(layout), ...(isV2 ? tableSearchInputIds(layout) : [])]);
+    return new Set([...ownedInputIds(layout), ...(isV2 ? [...tableSearchInputIds(layout), ...tableDetailToggleIds(layout)] : [])]);
   }, [components, isV2]);
   const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);
@@ -2240,7 +2251,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const fill = gridFillState(spec, states);
       if (fill?.loading) return SOURCE_LOADING;
       if (fill?.error) return SOURCE_FAILED;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = skipsValidation(grid) ? {} : withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows));
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -3000,7 +3012,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
     const counted = countedGridState(spec.engine, state);
-    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows)) : {};
     // Sunucunun satır hataları (`<liste>[i].<alan>`) hücrelerde; istemci iletisi önce gelir.
     const serverErrors = gridServerErrors(spec, state);
     const errors: Record<string, Record<string, string>> = { ...serverErrors };
@@ -3015,6 +3027,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
       totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, counted, sourceRows, spec.rowKey).satirlar) : {},
       calcText: (column, draft) => gridCalcText(column, draft),
+      lockedFor: (draft) => lockedColumns(spec.engine, draft),
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -3071,7 +3084,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       if (!bindsGrid(query, grid.name!) && !query.preview!.watch.includes(grid.name!)) return false;
       const spec = gridSpecOf(grid);
       if (gridFillState(spec, states)?.loading) return true;
-      const errors = validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows));
       return Object.keys(errors).length > 0;
     });
     return { query, values, key: JSON.stringify([values, query.preview!.watch.map(watchedValue)]), blocked, debounceMs: query.preview!.debounceMs };

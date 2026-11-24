@@ -33,7 +33,8 @@ test("Stok Kartları: hareketPenceresi ve gorunumKarti değişmeden döner", () 
   const dialog = components.find((component) => component.id === "hareketPenceresi");
   const filter = components.find((component) => component.id === "gorunumKarti");
   assert.deepEqual(refIds(dialog), ["hareketFormu", "izlemeSatirlari", "hareketTablosu"]);
-  assert.deepEqual(refIds(filter), ["minimumAlti", "detayPaneli"]);
+  // Detay paneli listenin araç çubuğundadır (taslak 21): kartta yalnız Minimum altı kalır.
+  assert.deepEqual(refIds(filter), ["minimumAlti"]);
   for (const owner of [dialog, filter]) {
     const ids = refIds(owner);
     for (const [index, id] of ids.entries()) {
@@ -70,8 +71,9 @@ test("standartlardaki bütün pencere/form kartı/yan paneller için işlemsiz �
 });
 
 const page = () => [
-  { id: "liste", type: "dataTable", props: { title: "Liste", searchInput: "ara", rowActions: ["satirDugmesi"] } },
+  { id: "liste", type: "dataTable", props: { title: "Liste", searchInput: "ara", rowActions: ["satirDugmesi"], detailToggleInput: "detay" } },
   { id: "ara", type: "input", props: { inputType: "text" } },
+  { id: "detay", type: "input", props: { inputType: "checkbox", label: "Detay paneli" } },
   { id: "satirDugmesi", type: "button", props: { actionType: "query" } },
   { id: "pencere", type: "dialog", props: { title: "Pencere", contains: ["metin", "form"] } },
   { id: "diger", type: "dialog", props: { title: "Diğer", contains: ["gosterge"] } },
@@ -115,6 +117,8 @@ test("pencere kuralları: İşlem Çubuğu/Pencere, arama kutusu, satır işlemi
   assert.ok(refPlacementProblem(components, "pencere", { id: "pencere", type: "dialog" }));
   assert.ok(refPlacementProblem(components, "pencere", { id: "ara", type: "input" }), "arama kutusu");
   assert.ok(refPlacementProblem(components, "pencere", { id: "satirDugmesi", type: "button" }), "satır işlemi");
+  assert.match(refPlacementProblem(components, "pencere", { id: "detay", type: "input" }) ?? "", /Detay paneli düğmesi/, "listenin Detay paneli düğmesi");
+  assert.match(refPlacementProblem(components, "form", { id: "detay", type: "input" }) ?? "", /Detay paneli düğmesi/, "form kartına da alınamaz");
   assert.ok(refPlacementProblem(components, "pencere", { id: "ad", type: "input" }), "form kartı girişi");
   assert.equal(refPlacementProblem(components, "pencere", { id: "serbest", type: "input" }), null);
   const adopted = adoptRef(components, "pencere", "gosterge", 0);

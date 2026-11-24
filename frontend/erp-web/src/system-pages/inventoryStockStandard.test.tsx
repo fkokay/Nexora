@@ -303,7 +303,8 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
   it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
     const { container } = setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
-    // One compact toolbar row (no card heading): the Süzgeç alanı (search, Depo, Pasif) and, right of it, Minimum altı and Detay paneli.
+    // One compact toolbar row (no card heading): the Süzgeç alanı (search, Depo, Pasif) and, right of it, Minimum altı. Detay
+    // paneli is the list toolbar's toggle (draft 21), so the filter row stays on one line (9 + 3).
     const toolbar = screen.getByRole('region', { name: 'Süzgeçler' });
     expect(toolbar.classList.contains('tenant-page-filter-bar')).toBe(true);
     expect(toolbar.classList.contains('is-inline')).toBe(true);
@@ -312,16 +313,21 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(within(toolbar).getByLabelText('Depo').tagName).toBe('SELECT');
     expect(within(toolbar).getByLabelText('Pasif kartları da göster')).toBeTruthy();
     // Süzgeç alanı her zaman yeni bir satırda başlar.
-    expect(toolbar.style.gridColumn).toBe('1 / span 8');
-    const side = input('detayPaneli').closest('.tenant-page-form-card') as HTMLElement;
+    expect(toolbar.style.gridColumn).toBe('1 / span 9');
+    const side = input('minimumAlti').closest('.tenant-page-form-card') as HTMLElement;
     expect(side.classList.contains('is-inline')).toBe(true);
     expect(side.querySelector('h3')).toBeNull();
     expect(side.contains(input('minimumAlti'))).toBe(true);
-    expect(side.style.gridColumn).toBe('span 4');
+    expect(side.style.gridColumn).toBe('span 3');
+    expect(input('detayPaneli')).toBeNull();
     expect(toolbar.compareDocumentPosition(side) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelector('.tenant-page-table-search')).toBeNull();
     const list = container.querySelector('.tenant-page-data-grid') as HTMLElement;
     expect(list.style.gridColumn).toBe('span 12');
+    // The toggle sits on the grid toolbar right after Sütunlar (pressed = open).
+    const detailToggle = within(list).getByRole('button', { name: 'Detay paneli' });
+    expect(detailToggle.closest('.advanced-grid-toolbar')).toBeTruthy();
+    expect(detailToggle.previousElementSibling?.querySelector('summary')?.textContent).toBe('Sütunlar');
     expect(Array.from(list.querySelectorAll('th:not(.advanced-grid-select-cell)')).map((th) => th.textContent)).toEqual([
       'Stok kodu', 'Stok adı', 'Kategori', 'Depo bakiyesi', 'Rezerve', 'Kullanılabilir', 'Minimum', 'Stok değeri', 'Maliyetsiz miktar', 'Durum',
     ]);
@@ -337,9 +343,10 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     // Legacy: on a narrow list area (here unmeasured) the panel stays closed until the toggle opens it, so the list keeps
     // its full width and never scrolls sideways.
     expect(list.style.gridColumn).toBe('span 12');
-    expect((input('detayPaneli') as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(input('detayPaneli'));
+    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(within(list).getByRole('button', { name: 'Detay paneli' }));
     await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
+    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true');
     // Legacy InventoryStockDetailPanel: code, Aç and ×, the card name, status tag, then Özet / Depolar / Hareketler.
     const panel = screen.getByRole('complementary', { name: 'Kalem' });
     expect(panel.classList.contains('tenant-page-detail')).toBe(true);
@@ -365,6 +372,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Detay panelini kapat' }));
     await waitFor(() => expect(list.style.gridColumn).toBe('span 12'), T);
     expect(screen.queryByRole('complementary', { name: 'Kalem' })).toBeNull();
+    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
   });
 
   it('Sil names the selected stock card in the confirmation', async () => {

@@ -85,11 +85,13 @@ internal static partial class TenantCustomPageSchema
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
       "bulkDeleteQuery",
       // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
-      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn",
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn", "lockColumnsWhen",
       // Boş çözülen varsayılanın sabit yedeği (emptyDefault: yeni kartta "TRY"), parçalı metin (parts: boş bağlamalı parça düşer)
       // ve İşlem Çubuğu Sil onayının bağlanabilir metni (deleteConfirmText). Göstergenin açıklamasındaki sayıların biçimi
       // (descriptionFormat: number/money; ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00").
-      "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat" };
+      "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat",
+      // Veri listesi araç çubuğunun "Detay paneli" düğmesi: bağlı onay kutusu girişini açıp kapatır (giriş ayrıca çizilmez).
+      "detailToggleInput" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -263,6 +265,8 @@ internal static partial class TenantCustomPageSchema
         public List<(string ButtonId, string InputId)> PendingAssignments { get; } = [];
         /// <summary>dataTable <c>rowOpenAction</c> buttons; resolved after the row actions (the same table may own both).</summary>
         public List<(string TableId, string ButtonId)> PendingRowOpenActions { get; } = [];
+        /// <summary>dataTable <c>detailToggleInput</c> checkboxes (table id, input id); owned by the table's toolbar button.</summary>
+        public List<(string TableId, string InputId)> PendingDetailToggles { get; } = [];
         /// <summary>recordHeader <c>buttons</c> lists; owned by the header like row actions.</summary>
         public List<(string HeaderId, List<string> Ids)> PendingHeaderButtons { get; } = [];
         /// <summary>input <c>clearsOnChange</c> targets (input id, target); resolved after the component loop.</summary>
@@ -1748,9 +1752,10 @@ internal static partial class TenantCustomPageSchema
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
-        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"],
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"], ["detailToggleInput"] = ["dataTable"],
         ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
-        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"]
+        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"],
+        ["lockColumnsWhen"] = ["editableGrid"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -2050,6 +2055,16 @@ internal static partial class TenantCustomPageSchema
             if (name is null) return Fail($"Satır açma eylemi için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır açma eylemi yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowOpenActions.Add((id, rowOpen.GetString()!));
+        }
+        // Araç çubuğundaki "Detay paneli" düğmesi: sayfadaki bir onay kutusu girişini açıp kapatır; giriş listeye aittir.
+        if (props.TryGetProperty("detailToggleInput", out var detailToggle))
+        {
+            if (detailToggle.ValueKind != JsonValueKind.String || detailToggle.GetString() is not { Length: >= 1 and <= 64 })
+                return Fail("'detailToggleInput' sayfadaki bir onay kutusu girişinin kimliği olmalıdır.", out error);
+            // Düğme gelişmiş ızgaranın araç çubuğundadır: dar panel görünümlerinde (bars/list) ve rapor kaynaklı listede çubuk yoktur.
+            if (!hasQuery || StringOf(props, "variant") is "bars" or "list")
+                return Fail($"Detay paneli düğmesi yalnız sorguya bağlı, tam (gelişmiş ızgaralı) veri listesinde kullanılabilir: {id}", out error);
+            context.PendingDetailToggles.Add((id, detailToggle.GetString()!));
         }
         // Sayfa parametresiyle açma: sayfa (ya da açık sekme) bu parametreyle açılınca tablo o kimliği seçer ve satır açma
         // eylemini çalıştırır; değer bir parametre adıdır, bağlama değildir.
@@ -2444,6 +2459,13 @@ internal static partial class TenantCustomPageSchema
             if (!owners.TryAdd(buttonId, tableId) && owners[buttonId] != tableId)
                 return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
         }
+        foreach (var (tableId, inputId) in context.PendingDetailToggles)
+        {
+            if (!context.InputTypesById.TryGetValue(inputId, out var toggleType) || toggleType != "checkbox")
+                return Fail($"'detailToggleInput' sayfadaki bir onay kutusu girişi olmalıdır: {inputId}", out error);
+            if (!owners.TryAdd(inputId, tableId))
+                return Fail($"'{inputId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
+        }
         foreach (var (headerId, ids) in context.PendingHeaderButtons)
             foreach (var buttonId in ids)
             {
@@ -2638,7 +2660,7 @@ internal static partial class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen", "optionsWhen", "columnOptionsWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen", "optionsWhen", "columnOptionsWhen", "lockColumnsWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted
