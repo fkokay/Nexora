@@ -25,7 +25,13 @@ export function actionBarOf(components: Component[]): { id: string; props: Recor
  * İşlem Çubuğu'nda gizlenebilen komutlar (`hiddenCommands`, `commandWhen`): sekiz standart komut, İşlemler menüsü ve
  * çubuktaki Kaydet ve yeni düğmesi (`saveNew`, `saveAndNew: true` ile).
  */
-export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more", "saveNew"] as const;
+export const BAR_COMMAND_IDS = ["new", "open", "view", "save", "delete", "refresh", "filter", "print", "export", "more", "saveNew"] as const;
+/** Studio sayfalarında Aç komutunun adı: kaydı düzenlemek için açar; yanındaki Görüntüle aynı kaydı salt okunur açar. */
+export const EDIT_LABEL = "Düzenle";
+/** Görüntüle'nin açtığı sayfaya eklediği parametre: hedef sayfa görüntüleme kipinde (salt okunur) çalışır. */
+export const VIEW_MODE_PARAM = "mode";
+export const VIEW_MODE_VALUE = "view";
+export const VIEW_MODE_REASON = "Görüntüleme kipinde kullanılamaz";
 export type BarCommandId = (typeof BAR_COMMAND_IDS)[number];
 const STANDARD_BAR_IDS = BAR_COMMAND_IDS.filter((id) => id !== "more" && id !== "saveNew") as StandardCommandId[];
 /** Çubuktaki Kaydet ve yeni düğmesi (`actionBar.saveAndNew`): kaydeder, başarıda kayıttan sonra eylemi yerine Yeni komutunu çalıştırır. */
@@ -179,6 +185,11 @@ export type PageActionDeps = {
   tableSelected?: (tableId: string) => boolean;
   /** `commandWhen` koşulu sayfa kapsamında doğru mu (koşulsuz komut için true); her çizimde yeniden hesaplanır. */
   commandVisible?: (id: BarCommandId) => boolean;
+  /**
+   * Sayfa görüntüleme kipinde (Görüntüle ile açıldı, `mode=view`): kayıt salt okunurdur; Yeni, Düzenle, Görüntüle, Kaydet,
+   * Sil ve Kaydet ve yeni çubukta yoktur.
+   */
+  readOnly?: boolean;
   run: {
     /** Yeni / Aç'ın açtığı sayfa: "Sayfa aç" düğmesiyle aynı gezinme yolu. */
     navigate?(page: BarPageNavigation): void;
@@ -260,6 +271,12 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     : plan.open.mode === "dialog" ? dialogOpen
     : plan.open.mode === "button" ? openButton ?? unbound
     : unbound;
+  // Görüntüle: Aç'ın açtığı sayfayı aynı satırla görüntüleme kipinde açar. Yalnız sayfa açan Aç'ta vardır (pencere ve düğme
+  // kiplerinde salt okunur bir karşılığı yoktur); Aç gizliyse o da gizlidir (bkz. applyBarVisibility).
+  const viewPage = plan.open.mode === "page" && plan.open.page
+    ? { ...plan.open.page, params: [...(plan.open.page.params ?? []).filter((item) => !item.startsWith(`${VIEW_MODE_PARAM}=`)), `${VIEW_MODE_PARAM}=${VIEW_MODE_VALUE}`] }
+    : undefined;
+  const viewCommand: CommandSpec = viewPage ? pageCommand(viewPage, plan.open.table) : { hidden: true };
 
   const barItems: MenuCommand[] = [];
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
@@ -295,7 +312,9 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
 
   const built: PageCommands = {
     new: newSpec,
-    open: openCommand,
+    // Studio sayfalarında Aç "Düzenle"dir (yanında Görüntüle); bağlanmamışken de aynı adla soluk çizilir.
+    open: { ...openCommand, label: EDIT_LABEL },
+    view: viewCommand,
     save: saveSpec,
     delete: !deleteBound ? unbound
       : !deps.queryAllowed(deleteId) ? { disabledReason: NO_RIGHT }
@@ -308,6 +327,11 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     ...(more.length > 0 ? { more } : {}),
     ...(barItems.length > 0 ? { barItems } : {}),
   };
+  // Görüntüleme kipi: kayıt salt okunurdur; yazan ve başka kayıt açan komutlar çubukta yoktur.
+  if (deps.readOnly) {
+    for (const id of ["new", "open", "view", "save", "delete"] as const) built[id] = { hidden: true };
+    if (built.more) built.more = built.more.filter((item) => item.id !== SAVE_AND_NEW_COMMAND_ID);
+  }
   return applyBarVisibility(props, built, deps.commandVisible);
 }
 
@@ -323,7 +347,9 @@ function applyBarVisibility(props: Record<string, unknown>, built: PageCommands,
   const hideUnbound = look?.unbound === "hide";
   const result: PageCommands = { ...built };
   for (const id of STANDARD_BAR_IDS) {
-    if (barCommandHidden(props, id as BarCommandId, commandVisible) || (hideUnbound && result[id]?.disabledReason === UNBOUND)) {
+    // Görüntüle, Aç'ın kardeşidir: Aç gizlenince (hiddenCommands / commandWhen) o da gizlenir.
+    const hidden = barCommandHidden(props, id as BarCommandId, commandVisible) || (id === "view" && barCommandHidden(props, "open", commandVisible));
+    if (hidden || (hideUnbound && result[id]?.disabledReason === UNBOUND)) {
       result[id] = { hidden: true } satisfies CommandSpec;
     }
   }

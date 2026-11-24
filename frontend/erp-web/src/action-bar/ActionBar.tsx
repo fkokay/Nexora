@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, CopyPlus, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
+import { ChevronDown, CopyPlus, Eye, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
 import { useActivePageCommands, useCommandRegistry } from '../commands/CommandProvider';
 import { formatShortcut, MORE_MENU_SHORTCUT, STANDARD_SHORTCUTS } from '../commands/shortcuts';
 import { ACTION_BAR_ORDER, offersCommand, type BarLook, type CommandSpec, type MenuCommand, type PageCommands, type StandardCommandId } from '../commands/types';
@@ -14,7 +14,7 @@ type Locale = 'tr' | 'en';
 type IconType = ComponentType<{ size?: number; 'aria-hidden'?: boolean }>;
 
 const ICONS: Record<StandardCommandId, IconType> = {
-  new: Plus, open: SquarePen, save: Save, delete: Trash2, refresh: RefreshCw, filter: Filter, print: Printer, export: FileSpreadsheet, undo: Undo2,
+  new: Plus, open: SquarePen, view: Eye, save: Save, delete: Trash2, refresh: RefreshCw, filter: Filter, print: Printer, export: FileSpreadsheet, undo: Undo2,
 };
 const SEPARATOR_BEFORE: ReadonlySet<StandardCommandId> = new Set(['refresh', 'print']);
 const UNAVAILABLE = 'Bu ekranda kullanılamaz';
@@ -118,7 +118,7 @@ function CommandButton({ id, spec, locale, hints = true }: { id: StandardCommand
   const reasonId = useId();
   const { enabled, reason } = stateOf(spec);
   const Icon = ICONS[id];
-  const label = COMMAND_LABELS[id];
+  const label = spec?.label || COMMAND_LABELS[id];
   // The shortcut is no longer a badge on the button: it shows in the hover/focus tooltip ("Kaydet · Ctrl+S").
   const tip = useActionTooltip<HTMLButtonElement>(tipText(hints, label, formatShortcut(STANDARD_SHORTCUTS[id], locale), enabled ? undefined : reason));
   return (

@@ -4145,7 +4145,7 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
             return Results.Conflict(new { error = "Bu sevkiyat istek anahtarı farklı bir irsaliye içeriğiyle daha önce kullanılmış." });
         return Results.Created($"/api/sales/deliveries/{replay.Id}", new SalesDeliverySummary(replay.Id, replay.Code,
             replay.OrderId, replay.Order?.Code, replay.WarehouseId, replay.Warehouse.Name, replay.DeliveryDate,
-            replay.Status, replay.Lines.Count, replay.CreatedAt));
+            replay.Status, replay.Lines.Count, replay.CreatedAt).WithPricing(replay.CurrencyCode ?? replay.Order?.CurrencyCode, DeliveryPricingViews.Summary(replay.Lines)));
     }
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
             await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.DeliveryDate), "satış irsaliyesi") is { } closedDeliveryConflict)
@@ -4273,7 +4273,8 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
     }
     await transaction.CommitAsync();
     return Results.Created($"/api/sales/deliveries/{delivery.Id}", new SalesDeliverySummary(delivery.Id, delivery.Code, order.Id, order.Code,
-        warehouse.Id, warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.Lines.Count, delivery.CreatedAt));
+        warehouse.Id, warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.Lines.Count, delivery.CreatedAt)
+        .WithPricing(delivery.CurrencyCode ?? order.CurrencyCode, DeliveryPricingViews.Summary(delivery.Lines)));
 });
 salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platformDb, int page = 1, int pageSize = 25) =>
 {
@@ -4367,7 +4368,7 @@ salesDeliveries.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, 
             LineVatAmount: price.LineVatAmount, LineTotal: price.LineTotal,
             OrderUnitPrice: x.OrderLine is null ? null : DeliveryLinePricing.FromBaseUnitPrice(x.OrderLine.UnitPrice, x.Quantity, x.EnteredQuantity));
     }).ToList();
-    var pricing = DeliveryPricingViews.Summary(delivery.Lines.Select(x => (x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity)));
+    var pricing = DeliveryPricingViews.Summary(delivery.Lines);
     return Results.Ok(new SalesDeliveryView(delivery.Id, delivery.Code, delivery.OrderId, delivery.Order?.Code, delivery.WarehouseId,
         delivery.Warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.CreatedAt, lines, delivery.Invoice is not null, delivery.Invoice?.Status, delivery.Invoice?.Id,
         deliveryCurrency, pricing.PricedNetTotal, pricing.PricedVatTotal, pricing.PricedGrandTotal, pricing.FreeLineCount, pricing.UnpricedLineCount, pricing.PricingState));
@@ -4915,8 +4916,8 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
             EnteredQuantity = row.Input.Quantity, EnteredUnitCode = row.Item.UnitCode,
             // The delivery an invoice writes carries the invoice's own prices (base unit = entered unit here), VAT-exclusive like
             // every delivery price: a retail (VAT-included) price is converted.
-            UnitPrice = row.Input.IsVatIncluded && row.Input.VatPercent > 0
-                ? decimal.Round(row.Input.UnitPrice / (1m + row.Input.VatPercent / 100m), 4, MidpointRounding.AwayFromZero) : row.Input.UnitPrice,
+            UnitPrice = DeliveryLinePricing.FromInvoiceLinePrice(row.Input.UnitPrice, row.Input.VatPercent, row.Input.IsVatIncluded,
+                row.Input.Quantity, row.Input.Quantity),
             DiscountPercent = row.Input.DiscountPercent, VatPercent = row.Input.VatPercent };
         delivery.Lines.Add(deliveryLine);
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLine = deliveryLine, OrderLineNumber = i + 1,
@@ -6540,13 +6541,32 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, T
             Paid = x.Payments.Where(p => p.Status == SupplierPaymentStatus.Posted).Sum(p => (decimal?)p.Amount) ?? 0m,
             Returned = x.Returns.Where(r => r.Status == SupplierReturnStatus.Posted).Sum(r => (decimal?)r.GrandTotal) ?? 0m,
             LineCount = x.Lines.Count, x.CreatedAt }).ToListAsync();
-    var receipts = await db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id)
+    // Raw rows first, views in memory: the stored line prices, amounts and header pricing come from the same helpers as
+    // GET /api/purchasing/receipts and /receipts/{id} (DeliveryPricingViews), so the order detail never shows them empty.
+    var receiptRows = await db.PurchaseReceipts.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id)
         .OrderByDescending(x => x.ReceiptDate).ThenByDescending(x => x.CreatedAt)
-        .Select(x => new PurchaseReceiptSummary(x.Id, x.Code, x.PurchaseOrderId, x.PurchaseOrder.Code, x.WarehouseId, x.Warehouse.Name,
-            x.ReceiptDate, x.Status, x.Lines.Count, x.CreatedAt,
-            x.Lines.OrderBy(l => l.OrderLineNumber).Select(l => new PurchaseReceiptLineView(l.OrderLineNumber, l.StockItemId, l.StockCode, l.StockName,
-                l.UnitCode, l.Quantity, null, l.EnteredQuantity, l.EnteredUnitCode,
-                l.InventoryTransactions.Select(m => m.StorageLocationId).FirstOrDefault())).ToList())).ToListAsync();
+        .Select(x => new
+        {
+            x.Id, x.Code, x.WarehouseId, WarehouseName = x.Warehouse.Name, x.ReceiptDate, x.Status, x.CreatedAt, x.CurrencyCode,
+            Lines = x.Lines.OrderBy(l => l.OrderLineNumber).Select(l => new
+            {
+                Line = l, StorageLocationId = l.InventoryTransactions.Select(m => m.StorageLocationId).FirstOrDefault()
+            }).ToList()
+        }).ToListAsync();
+    var orderLinePrices = order.Lines.ToDictionary(x => x.LineNumber, x => x.UnitPrice);
+    // A free / unpriced line keeps its provisional cost until the receipt's purchase invoice is posted (same rule as /receipts/{id}).
+    var pendingReceiptLineIds = (await db.InventoryTransactions.AsNoTracking()
+        .Where(x => x.TenantId == tenantId && x.PurchaseReceiptLineId != null && x.PurchaseReceiptLine!.PurchaseOrderId == id
+            && x.ReversalOfId == null && x.CostPending)
+        .Select(x => x.PurchaseReceiptLineId!.Value).ToListAsync()).ToHashSet();
+    var receipts = receiptRows.Select(x =>
+    {
+        var invoiced = activeInvoices.Any(i => i.PurchaseReceiptId == x.Id);
+        var receiptLines = x.Lines.Select(l => DeliveryPricingViews.ReceiptLine(l.Line, orderLinePrices,
+            !invoiced && pendingReceiptLineIds.Contains(l.Line.Id), l.StorageLocationId)).ToList();
+        return new PurchaseReceiptSummary(x.Id, x.Code, order.Id, order.Code, x.WarehouseId, x.WarehouseName, x.ReceiptDate, x.Status,
+            x.Lines.Count, x.CreatedAt, receiptLines).WithPricing(x.CurrencyCode ?? order.CurrencyCode, DeliveryPricingViews.Summary(x.Lines.Select(l => l.Line)));
+    }).ToList();
     var receiptFieldDefinitions = await db.PurchaseReceiptCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label).ToListAsync();
     var receiptFieldValues = await db.PurchaseReceiptCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.Receipt.PurchaseOrderId == id)
         .ToDictionaryAsync(x => (x.ReceiptId, x.DefinitionId), x => x.Value);
@@ -6581,8 +6601,10 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     if (prior is not null)
     {
         if (prior.PurchaseOrderId != order.Id) return Results.Conflict(new { error = "Bu istek anahtarı başka bir satın alma siparişinde kullanılmış." });
+        var priorPricing = (await DeliveryPricingViews.PurchaseReceiptsAsync(db, tenantId, [prior.Id]))[prior.Id];
         return Results.Ok(new PurchaseReceiptSummary(prior.Id, prior.Code, prior.PurchaseOrderId, order.Code, prior.WarehouseId,
-            prior.Warehouse.Name, prior.ReceiptDate, prior.Status, await db.PurchaseReceiptLines.CountAsync(x => x.TenantId == tenantId && x.ReceiptId == prior.Id), prior.CreatedAt));
+            prior.Warehouse.Name, prior.ReceiptDate, prior.Status, await db.PurchaseReceiptLines.CountAsync(x => x.TenantId == tenantId && x.ReceiptId == prior.Id), prior.CreatedAt)
+            .WithPricing(prior.CurrencyCode ?? order.CurrencyCode, priorPricing));
     }
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(
             await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.ReceiptDate), "mal kabul") is { } closedReceiptConflict)
@@ -6699,7 +6721,8 @@ purchaseOrders.MapPost("/{id:guid}/receipts", async (Guid id, PurchaseReceiptWri
     await transaction.CommitAsync();
     return Results.Created($"/api/purchasing/receipts/{receipt.Id}", new PurchaseReceiptSummary(receipt.Id, receipt.Code, order.Id, order.Code,
         warehouse.Id, warehouse.Name, receipt.ReceiptDate, receipt.Status, receipt.Lines.Count, receipt.CreatedAt, CustomFields: receiptFieldDefinitions.Select(field => new PurchaseReceiptCustomFieldValueView(field.Id,
-            field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired, receiptFieldValues.GetValueOrDefault(field.Id) ?? "")).ToList()));
+            field.Code, field.Label, field.DataType, field.MaxLength, field.Version, field.IsRequired, receiptFieldValues.GetValueOrDefault(field.Id) ?? "")).ToList())
+        .WithPricing(receipt.CurrencyCode ?? order.CurrencyCode, DeliveryPricingViews.Summary(receipt.Lines)));
 });
 var purchaseReceipts = app.MapGroup("/api/purchasing/receipts").RequireAuthorization();
 purchaseReceipts.MapGet("/", async (ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 50) =>

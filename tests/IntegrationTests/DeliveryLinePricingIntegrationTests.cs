@@ -294,6 +294,40 @@ public sealed class DeliveryLinePricingIntegrationTests
         }
     }
 
+    [Fact]
+    public void Invoiced_delivery_backfill_is_data_only_and_prices_only_unpriced_lines_of_posted_invoices()
+    {
+        var platform = new AIERP.Platform.Infrastructure.Migrations.Platform.BackfillInvoicedDeliveryLinePrices();
+        var tenant = new AIERP.Platform.Infrastructure.Migrations.Tenant.BackfillTenantInvoicedDeliveryLinePrices();
+        foreach (var migration in new Microsoft.EntityFrameworkCore.Migrations.Migration[] { platform, tenant })
+        {
+            // Data only: no schema operation, every UPDATE inside EXEC(N'...') so idempotent scripts compile; Down changes nothing.
+            var operations = migration.UpOperations;
+            Assert.NotEmpty(operations);
+            Assert.All(operations, x => Assert.IsType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>(x));
+            Assert.Empty(migration.DownOperations);
+            var statements = operations.Cast<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>().Select(x => x.Sql.Trim()).ToList();
+            Assert.All(statements, x => { Assert.StartsWith("EXEC(N'", x); Assert.EndsWith("');", x); });
+            var sql = string.Join("\n", statements);
+            // Orderless sales delivery lines take their posted invoice line (DeliveryLineId), VAT taken out of retail prices.
+            Assert.Contains("INNER JOIN [dbo].[SalesInvoiceLines] AS il ON il.[TenantId] = l.[TenantId] AND il.[DeliveryLineId] = l.[Id]", sql);
+            Assert.Contains("l.[OrderId] IS NULL AND d.[OrderId] IS NULL AND l.[UnitPrice] IS NULL AND l.[IsFreeOfCharge] = 0", sql);
+            Assert.Contains("i.[Status] = 1", sql);
+            Assert.Contains("i.[InvoiceType] = N''Retail''", sql);
+            Assert.Contains("ROUND(il.[UnitPrice] / (1 + il.[VatPercent] / 100), 4)", sql);
+            Assert.Contains("ROUND(p.[BasePrice] * l.[Quantity] / l.[EnteredQuantity], 4)", sql);
+            Assert.Contains("UPDATE d SET d.[CurrencyCode] = i.[CurrencyCode]", sql);
+            Assert.DoesNotContain("[IsFreeOfCharge] = 1", sql);
+            Assert.DoesNotContain("ALTER ", sql, StringComparison.OrdinalIgnoreCase);
+        }
+        // The Platform model has no standalone documents; the tenant backfill also prices invoiced standalone lines.
+        var platformSql = string.Join("\n", platform.UpOperations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>().Select(x => x.Sql));
+        var tenantSql = string.Join("\n", tenant.UpOperations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.SqlOperation>().Select(x => x.Sql));
+        Assert.DoesNotContain("Standalone", platformSql);
+        Assert.Contains("il.[StandaloneDeliveryLineId] = l.[Id]", tenantSql);
+        Assert.Contains("FROM [dbo].[StandaloneSalesDeliveryLines] AS l", tenantSql);
+    }
+
     private sealed class PricingTestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {

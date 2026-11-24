@@ -144,6 +144,22 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
 
+  it('view mode (Görüntüle, mode=view): the card is read-only, Kaydet/Sil/Yeni are gone and Düzenle switches to editing', async () => {
+    setup(C1);
+    // Görüntüle'nin açtığı gibi: kart parametresinin yanında mode=view.
+    setPageParams(KEY, { customerId: C1, mode: 'view' });
+    await waitFor(() => expect(document.querySelector('.tenant-page-view-mode')?.textContent).toContain('Görüntüleme kipi: kayıt salt okunur.'), T);
+    await waitFor(() => expect(input('unvan').value).toBe('FATİH KOKAY'), T);
+    expect(input('unvan').disabled).toBe(true);
+    for (const id of ['save', 'delete', 'new', 'open', 'view']) expect(command(id)).toBeNull();
+    fireEvent.click(within(document.querySelector<HTMLElement>('.tenant-page-view-mode')!).getByRole('button', { name: 'Düzenle' }));
+    await waitFor(() => expect(document.querySelector('.tenant-page-view-mode')).toBeNull(), T);
+    await waitFor(() => expect(input('unvan').value).toBe('FATİH KOKAY'), T);
+    expect(input('unvan').disabled).toBe(false);
+    await ready('save');
+    expect(writes()).toEqual([]);
+  });
+
   it('new card: title, no card read, and the address list only after saving', async () => {
     await openNew();
     expect(title()).toBe('Yeni cari kart');

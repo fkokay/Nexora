@@ -125,16 +125,16 @@ export function BarCommandFields({ props, pages, screens, tables, dialogs, butto
         {targetField("newTarget")}
       </>}
     </fieldset>}
-    {(!only || only === "open") && <fieldset className="pd-bar-group" aria-label="Aç">
-      <legend>Aç<span className="pd-action-key" aria-hidden="true">Enter · çift tıklama</span></legend>
-      <Segment label="Aç ne yapsın" value={modes.open} disabled={disabled} onChange={setOpen}
+    {(!only || only === "open") && <fieldset className="pd-bar-group" aria-label="Düzenle">
+      <legend>Düzenle<span className="pd-action-key" aria-hidden="true">Enter · çift tıklama</span></legend>
+      <Segment label="Düzenle ne yapsın" value={modes.open} disabled={disabled} onChange={setOpen}
         options={[["off", "Kapalı"], ["dialog", "Pencere aç"], ["page", "Sayfa aç"]]}/>
       {legacyNote("openButton")}
       {modes.open === "dialog" && modes.new !== "dialog" && dialogSelect}
       {modes.open === "page" && <>
-        <PagePicker label="Aç: açılacak sayfa" value={text(props.openPageCode)} pages={pages} screens={screens} disabled={disabled} onChange={(code) => onPatch({ openPageCode: code })}/>
+        <PagePicker label="Düzenle: açılacak sayfa" value={text(props.openPageCode)} pages={pages} screens={screens} disabled={disabled} onChange={(code) => onPatch({ openPageCode: code })}/>
         {targetField("openTarget")}
-        <label className="pd-field">Hangi liste<small>Satır seçili değilse Aç soluk görünür.</small>
+        <label className="pd-field">Hangi liste<small>Satır seçili değilse Düzenle ve Görüntüle soluk görünür.</small>
           <select value={text(props.openTable)} disabled={disabled} onChange={(event) => onPatch({ openTable: event.target.value || undefined })}>
             <option value="">Liste seçin</option>
             {props.openTable && !openTable && <option value={text(props.openTable)}>{text(props.openTable)}</option>}

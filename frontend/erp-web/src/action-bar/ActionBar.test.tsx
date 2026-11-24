@@ -51,10 +51,18 @@ describe('ActionBar', () => {
   const layout = () => Array.from(bar().querySelectorAll('.nx-action-bar__commands > *')).map((el) =>
     el.classList.contains('nx-action-bar__sep') ? '|' : el.getAttribute('data-command'));
 
-  it('renders the eight standard buttons in fixed order plus the actions menu', () => {
+  it('renders the standard buttons in fixed order plus the actions menu', () => {
     setup(all());
     expect(commandIds()).toEqual([...ACTION_BAR_ORDER, 'more']);
-    expect(layout()).toEqual(['new', 'open', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(button('view').textContent).toBe('Görüntüle');
+  });
+
+  it('a source label replaces the standard one (Studio pages: Aç reads Düzenle)', () => {
+    setup({ open: { run: vi.fn(), label: 'Düzenle' }, view: { run: vi.fn() } });
+    expect(button('open').textContent).toBe('Düzenle');
+    expect(button('open').getAttribute('aria-label')).toBe('Düzenle');
+    expect(button('view').getAttribute('aria-keyshortcuts')).toBe('Shift+Enter');
   });
 
   it('hides every command no source registered; no İşlemler when the page registered nothing', () => {
@@ -69,7 +77,7 @@ describe('ActionBar', () => {
     const { save: _save, ...list } = all();
     setup({ ...list, open: { run: open }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
     expect(button('save')).toBeNull();
-    expect(layout()).toEqual(['new', 'open', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
     expect(isDisabled(button('delete'))).toBe(true);
     const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
     document.body.dispatchEvent(event);
@@ -373,7 +381,7 @@ describe('ActionBar compaction (narrow bar)', () => {
       expect(button('save')).toBeNull();
       expect(button('export')).toBeNull();
       expect(button('refresh')).toBeNull();
-      expect(layout()).toEqual(['new', 'open', 'delete', '|', 'filter', '|', 'print']);
+      expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'filter', '|', 'print']);
       const event = new KeyboardEvent('keydown', { key: 'F5', bubbles: true, cancelable: true });
       document.body.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(true);
