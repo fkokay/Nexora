@@ -19,6 +19,7 @@ export const english: Record<string, string> = {
   'Açılış bakiyesi': 'Opening balance', 'Kapanış bakiyesi': 'Closing balance',
   'ters kayıt dahil': 'reversals included', 'Son 3 ay': 'Last 3 months',
   'Yıl başından': 'Year to date', 'Hesap hareketleri': 'Account transactions', 'Devir — açılış bakiyesi': 'Brought forward — opening balance',
+  'Belgeye git ›': 'Go to document ›', 'Elle girilen hareket; bağlı belge yok': 'Manual movement; no linked document', 'Bağlı belge açılamıyor.': 'The linked document cannot be opened.', 'Alış faturası taslağı': 'Purchase invoice draft',
   'Dönem toplamı': 'Period total', Açılış: 'Opening', Kapanış: 'Closing',
   'B borç bakiyesi · A alacak bakiyesi · Ters kayıt orijinal hareketin karşı kaydıdır, hareketler silinmez':
     'B debit balance · A credit balance · A reversal is the counter entry of the original transaction; transactions are never deleted',
