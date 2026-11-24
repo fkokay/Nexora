@@ -96,7 +96,7 @@ vi.mock('../authApi', async (original) => ({
 
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
 const noop = () => {};
-const TOUCHED = ['customer-create', 'crm-opportunity-create', 'hr-employee-create', 'fixed-asset-card', 'foreign-trade-case', 'finance-account-create'];
+const TOUCHED = ['customer-ledger', 'customer-create', 'crm-opportunity-create', 'hr-employee-create', 'fixed-asset-card', 'foreign-trade-case', 'finance-account-create'];
 const T = { timeout: 10000 };
 
 function renderPage(page: string, onNavigate: (page: string) => void = noop) {
@@ -320,5 +320,20 @@ describe('kart sekmesinde açık kayıttan sonra Yeni ve yeniden açma', { timeo
     await heading('İthalat dosyasını düzenle');
     await openNew('foreign-trade-case', { direction: 'Import' });
     expect(await heading('İthalat dosyası oluştur')).toBeTruthy();
+  });
+});
+
+describe('eski Cari Hesap Hareketleri ekranı cari parametresi', { timeout: 30000 }, () => {
+  it('customer-ledger + customerId selects that customer and loads its statement', async () => {
+    setPageParams('customer-ledger', { customerId: C1 });
+    renderPage('customer-ledger');
+    await waitFor(() => expect(fetched(`/api/customers/${C1}`)).toBe(true), T);
+    await waitFor(() => expect(fetched(`/api/customers/${C1}/statement`)).toBe(true), T);
+    expect(pageParamsOf('customer-ledger').customerId).toBeUndefined();
+  });
+  it('customer-ledger without the param selects nobody', async () => {
+    renderPage('customer-ledger');
+    await settle();
+    expect(urls.some((url) => url.includes('/statement'))).toBe(false);
   });
 });
