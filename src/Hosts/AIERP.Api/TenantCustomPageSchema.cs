@@ -87,8 +87,9 @@ internal static partial class TenantCustomPageSchema
       // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
       "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn",
       // Boş çözülen varsayılanın sabit yedeği (emptyDefault: yeni kartta "TRY"), parçalı metin (parts: boş bağlamalı parça düşer)
-      // ve İşlem Çubuğu Sil onayının bağlanabilir metni (deleteConfirmText).
-      "emptyDefault", "parts", "deleteConfirmText" };
+      // ve İşlem Çubuğu Sil onayının bağlanabilir metni (deleteConfirmText). Göstergenin açıklamasındaki sayıların biçimi
+      // (descriptionFormat: number/money; ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00").
+      "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -629,6 +630,10 @@ internal static partial class TenantCustomPageSchema
                 if (context.V2 && prop.Name == "tabs" && typeText == "tabs" && prop.Value.ValueKind == JsonValueKind.Array
                     && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeBindableText(x.GetString()!)))
                     continue;
+                // Tarih girişinin boş varsayılanı tek bir tarih bağlaması olabilir ({{bugun}}); biçimi ValidateTextFallbackProps denetler.
+                if (context.V2 && prop.Name == "emptyDefault" && typeText == "input" && StringOf(props, "inputType") == "date"
+                    && prop.Value.ValueKind == JsonValueKind.String && EmptyDefaultDate.IsMatch(prop.Value.GetString()!))
+                    continue;
                 // Parçalı metin: her parça {{yol}} taşıyabilir; biçimi ValidateTextFallbackProps denetler.
                 if (context.V2 && prop.Name == "parts" && typeText == "text" && prop.Value.ValueKind == JsonValueKind.Array
                     && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeBindableText(x.GetString()!)))
@@ -865,10 +870,14 @@ internal static partial class TenantCustomPageSchema
     private const int MaxTextParts = 12;
     private const int MaxTextPartLength = 200;
     private const int MaxEmptyDefaultLength = 200;
+    private static readonly Regex EmptyDefaultDate = new(
+        @"^(?:\d{4}-\d{2}-\d{2}|\{\{\s*(?:bugun|tarih\.(?:ayBasi|yilBasi|ucAyOnce))\s*\}\})$", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// <c>emptyDefault</c>: a text/number input's static value used while <c>defaultValue</c> resolves empty (a new card's
-    /// "TRY" / "0"); a number input's value must parse. <c>parts</c>: a text component's 1–12 bindable parts, joined with " · "
+    /// "TRY" / "0"); a number input's value must parse. A date input's value is a YYYY-MM-DD date or exactly one date-scope
+    /// binding (<c>{{bugun}}</c>, <c>{{tarih.ayBasi}}</c>, <c>{{tarih.yilBasi}}</c>, <c>{{tarih.ucAyOnce}}</c>): a card that
+    /// edits a record's date and starts a new one on today. <c>parts</c>: a text component's 1–12 bindable parts, joined with " · "
     /// at runtime, a part whose bindings all resolve empty being dropped.
     /// </summary>
     private static bool ValidateTextFallbackProps(JsonElement props, string typeText, out string? error)
@@ -878,14 +887,22 @@ internal static partial class TenantCustomPageSchema
         {
             var inputType = StringOf(props, "inputType") ?? "text";
             var text = emptyDefault.ValueKind == JsonValueKind.String ? emptyDefault.GetString()! : null;
-            if (typeText != "input" || inputType is not ("text" or "number"))
-            { error = "'emptyDefault' yalnız metin ve sayı girişinde kullanılabilir."; return false; }
-            if (text is null || text.Length > MaxEmptyDefaultLength || text.Contains("{{", StringComparison.Ordinal))
+            if (typeText != "input" || inputType is not ("text" or "number" or "date"))
+            { error = "'emptyDefault' yalnız metin, sayı ve tarih girişinde kullanılabilir."; return false; }
+            if (inputType == "date")
+            {
+                if (text is null || text.Length > 0 && !EmptyDefaultDate.IsMatch(text))
+                { error = "'emptyDefault' tarih girişinde YYYY-AA-GG tarihi ya da tek bir tarih bağlaması ({{bugun}}, {{tarih.ayBasi}}, {{tarih.yilBasi}}, {{tarih.ucAyOnce}}) olmalıdır."; return false; }
+            }
+            else if (text is null || text.Length > MaxEmptyDefaultLength || text.Contains("{{", StringComparison.Ordinal))
             { error = $"'emptyDefault' en fazla {MaxEmptyDefaultLength} karakterlik sabit metin olmalıdır (bağlama içeremez)."; return false; }
             if (inputType == "number" && text.Trim().Length > 0
                 && !decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out _))
             { error = "'emptyDefault' sayı girişinde geçerli bir sayı olmalıdır (ör. 0)."; return false; }
         }
+        if (props.TryGetProperty("descriptionFormat", out var descriptionFormat)
+            && (typeText != "metric" || descriptionFormat.ValueKind != JsonValueKind.String || descriptionFormat.GetString() is not ("" or "number" or "money")))
+        { error = "'descriptionFormat' yalnız göstergede, 'number' ya da 'money' değeriyle (boş: biçimsiz) kullanılabilir."; return false; }
         if (props.TryGetProperty("parts", out var parts))
         {
             if (typeText != "text")

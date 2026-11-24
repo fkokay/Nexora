@@ -21,6 +21,7 @@ public sealed class TenantCustomPageSchemaTextFallbackTests
     private static readonly object Table = new { id = "t1", type = "dataTable", name = "liste", props = new { query = "q1", columns = new[] { "Code" } } };
     private static object Input(object props) => new { id = "i1", type = "input", name = "doviz", props };
     private static object Text(object props) => new { id = "x1", type = "text", name = "ozet", props };
+    private static object Metric(object props) => new { id = "m1", type = "metric", name = "gosterge", props };
     private static object Bar(object props) => new { id = "ab", type = "actionBar", name = "komutlar", props };
 
     private static void AssertValid(string json) => Assert.True(TenantCustomPageSchema.Validate(json, out var error), error);
@@ -42,14 +43,40 @@ public sealed class TenantCustomPageSchemaTextFallbackTests
     [Fact]
     public void Rejects_empty_default_on_other_types_bindings_or_bad_numbers()
     {
-        AssertRejected(V2([Card], Input(new { inputType = "select", staticOptions = new[] { "a=A" }, emptyDefault = "a" })), "'emptyDefault' yalnız metin ve sayı");
-        AssertRejected(V2([Card], Input(new { inputType = "checkbox", emptyDefault = "true" })), "'emptyDefault' yalnız metin ve sayı");
-        AssertRejected(V2([Card], Text(new { text = "x", emptyDefault = "TRY" })), "'emptyDefault' yalnız metin ve sayı");
+        AssertRejected(V2([Card], Input(new { inputType = "select", staticOptions = new[] { "a=A" }, emptyDefault = "a" })), "'emptyDefault' yalnız metin, sayı ve tarih");
+        AssertRejected(V2([Card], Input(new { inputType = "checkbox", emptyDefault = "true" })), "'emptyDefault' yalnız metin, sayı ve tarih");
+        AssertRejected(V2([Card], Text(new { text = "x", emptyDefault = "TRY" })), "'emptyDefault' yalnız metin, sayı ve tarih");
         AssertRejected(V2([Card], Input(new { inputType = "number", emptyDefault = "sıfır" })), "geçerli bir sayı");
         AssertRejected(V2([Card], Input(new { inputType = "text", emptyDefault = 3 })), "'emptyDefault' en fazla");
         AssertRejected(V2([Card], Input(new { inputType = "text", emptyDefault = new string('A', 201) })), "'emptyDefault' en fazla");
         // Sabit değerdir: bağlama taşıyamaz.
         Assert.False(TenantCustomPageSchema.Validate(V2([Card], Input(new { inputType = "text", emptyDefault = "{{kart.rows[0].Code}}" })), out _));
+    }
+
+    [Fact]
+    public void Metric_description_format_is_number_or_money_on_metrics_only()
+    {
+        AssertValid(V2([Card], Metric(new { title = "İskonto", value = "{{kart.rows[0].Code}}", format = "money", description = "matrah {{kart.rows[0].Code}}", descriptionFormat = "money" })));
+        AssertValid(V2([Card], Metric(new { title = "Adet", descriptionFormat = "number" })));
+        AssertValid(V2([Card], Metric(new { title = "Adet", descriptionFormat = "" })));
+        AssertRejected(V2([Card], Metric(new { title = "Adet", descriptionFormat = "date" })), "'descriptionFormat' yalnız göstergede");
+        AssertRejected(V2([Card], Text(new { text = "x", descriptionFormat = "money" })), "'descriptionFormat' yalnız göstergede");
+    }
+
+    [Fact]
+    public void Date_input_empty_default_is_a_date_or_one_date_scope_binding()
+    {
+        // Kayıtlı belgenin tarihini düzenleyen kart yeni belgede bugünle başlar.
+        AssertValid(V2([Card], Input(new { inputType = "date", required = true, defaultValue = "{{kart.rows[0].Code}}", emptyDefault = "{{bugun}}" })));
+        AssertValid(V2([Card], Input(new { inputType = "date", emptyDefault = "{{ tarih.ayBasi }}" })));
+        AssertValid(V2([Card], Input(new { inputType = "date", emptyDefault = "2026-01-01" })));
+        AssertValid(V2([Card], Input(new { inputType = "date", emptyDefault = "" })));
+        // Başka bağlama ya da birden çok bağlama sabit değer denetiminde düşer.
+        Assert.False(TenantCustomPageSchema.Validate(V2([Card], Input(new { inputType = "date", emptyDefault = "{{kart.rows[0].Code}}" })), out _));
+        Assert.False(TenantCustomPageSchema.Validate(V2([Card], Input(new { inputType = "date", emptyDefault = "{{bugun}} {{bugun}}" })), out _));
+        AssertRejected(V2([Card], Input(new { inputType = "date", emptyDefault = "yarın" })), "tek bir tarih bağlaması");
+        Assert.False(TenantCustomPageSchema.Validate(V2([Card], Input(new { inputType = "datetime", emptyDefault = "{{bugun}}" })), out _));
+        AssertRejected(V2([Card], Input(new { inputType = "datetime", emptyDefault = "2026-01-01" })), "'emptyDefault' yalnız metin, sayı ve tarih");
     }
 
     [Fact]

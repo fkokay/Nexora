@@ -726,7 +726,8 @@ public static class FixedAssetEndpoints
         var values = new object?[] { request.VukUsefulLifeCode, request.VukUsefulLifeDescription, request.VukUsefulLifeTableYear,
             request.VukUsefulLifeCommuniqueNumber, request.VukUsefulLifeMonths, request.VukNormalDepreciationRatePercent,
             request.VukTaxDepreciationStartDate };
-        if (values.All(x => x is null)) return true;
+        // Blank text counts as not given (stored as null by Clean): an all-blank profile is "no VUK profile", not a partial one.
+        if (values.All(x => x is null || x is string text && string.IsNullOrWhiteSpace(text))) return true;
         return !string.IsNullOrWhiteSpace(request.VukUsefulLifeCode) && request.VukUsefulLifeCode.Length <= 40 &&
             !string.IsNullOrWhiteSpace(request.VukUsefulLifeDescription) && request.VukUsefulLifeDescription.Length <= 500 &&
             request.VukUsefulLifeTableYear is >= 2004 and <= 2100 && request.VukUsefulLifeCommuniqueNumber is > 0 and <= 999 &&

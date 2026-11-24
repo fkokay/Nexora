@@ -51,7 +51,7 @@
       { "id": "tedarikciDurumu", "type": "input", "name": "tedarikciDurumu",
         "props": { "inputType": "text", "label": "Tedarikçi seçici durumu", "hidden": true, "defaultValue": "Active" } },
       { "id": "siparisNo", "type": "input", "name": "siparisNo",
-        "props": { "inputType": "text", "label": "Sipariş no", "required": true, "maxLength": 32, "upperCase": true, "placeholder": "PO-2026-001" } },
+        "props": { "inputType": "text", "label": "Sipariş no", "required": true, "maxLength": 32, "upperCase": true, "placeholder": "Örn. PO-2026-001" } },
       { "id": "doviz", "type": "input", "name": "doviz",
         "props": { "inputType": "text", "label": "Döviz", "required": true, "maxLength": 3, "upperCase": true,
                    "pattern": "^[A-Z]{3}$", "patternMessage": "Üç harfli para birimi kodu girin (ör. TRY).", "placeholder": "TRY",

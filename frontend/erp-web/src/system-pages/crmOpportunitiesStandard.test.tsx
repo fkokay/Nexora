@@ -232,6 +232,8 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     await ready('delete');
     fireEvent.click(command('delete'));
     const dialog = await screen.findByRole('alertdialog', {}, T);
+    // Onay kaydı adlandırır (deleteConfirmText).
+    expect(within(dialog).getByRole('heading').textContent).toBe('FRS-001 · Depo otomasyonu fırsatı silinsin mi?');
     expect(writes()).toEqual([]);
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(writes()).toHaveLength(1), T);

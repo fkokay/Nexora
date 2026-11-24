@@ -88,6 +88,31 @@ describe('buildOperationRequest', () => {
     expect(JSON.parse(buildOperationRequest(withCategory, { category: null }, null).body!)).toEqual({ category: null });
   });
 
+  it('blank text of a nullable body parameter is sent as null (create and source-backed update)', () => {
+    const create = op({ method: 'POST', kind: 'write', pageKind: 'insert', route: '/api/hr/employees', parameters: [
+      { name: 'fullName', in: 'body', type: 'text', required: false, nullable: true },
+      { name: 'workEmail', in: 'body', type: 'text', required: false, nullable: true },
+      { name: 'notes', in: 'body', type: 'text', required: false, nullable: false },
+      { name: 'legacy', in: 'body', type: 'text', required: false },
+    ] });
+    expect(JSON.parse(buildOperationRequest(create, { fullName: 'Ayşe', workEmail: '', notes: '', legacy: '' }, null).body!))
+      .toEqual({ fullName: 'Ayşe', workEmail: null, notes: '', legacy: '' });
+    // Yalnız boşluk da boştur; dolu değer olduğu gibi gider.
+    expect(JSON.parse(buildOperationRequest(create, { workEmail: '   ' }, null).body!)).toEqual({ workEmail: null });
+    expect(JSON.parse(buildOperationRequest(create, { workEmail: ' a@b.co ' }, null).body!)).toEqual({ workEmail: ' a@b.co ' });
+    // Kaynaklı güncelleme: boşaltılan alan kaynaktaki değeri null ile ezer (temizler); null (çözülemeyen) kaynağı korur.
+    const sourced = op({ method: 'PUT', kind: 'write', pageKind: 'update', route: '/api/hr/employees/{id}', sourceOperation: 'ik.personel.getir',
+      parameters: [{ name: 'id', in: 'route', type: 'guid', required: true }, ...create.parameters] });
+    const source = { id: guid, fullName: 'Ayşe', workEmail: 'a@b.co', notes: 'n', legacy: 'l', rowVersion: 'AAA=' };
+    expect(JSON.parse(buildOperationRequest(sourced, { workEmail: '', notes: '', legacy: '' }, source).body!))
+      .toEqual({ id: guid, fullName: 'Ayşe', workEmail: null, notes: '', legacy: '', rowVersion: 'AAA=' });
+    expect(JSON.parse(buildOperationRequest(sourced, { workEmail: null }, source).body!).workEmail).toBe('a@b.co');
+    // Koleksiyon ve iç içe parametreler bu kuralın dışındadır.
+    const nested = op({ method: 'POST', kind: 'write', pageKind: 'insert', route: '/api/x',
+      parameters: [{ name: 'address.city', in: 'body', type: 'text', required: false, nullable: true }] });
+    expect(JSON.parse(buildOperationRequest(nested, { 'address.city': '' }, null).body!)).toEqual({});
+  });
+
   it('reports missing route values without throwing', () => {
     expect(missingRouteValue(update, { name: 'B' }, null)).toBe(true);
     expect(missingRouteValue(update, { id: '' }, { Id: guid })).toBe(false);

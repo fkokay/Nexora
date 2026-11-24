@@ -74,6 +74,24 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     expect(h.state.navigations[0]).toMatchObject({ page: 'hr-employees', replace: true, refresh: true });
   });
 
+  it('new: an employee without e-mail posts workEmail null (optional text sent as null, not "")', async () => {
+    await openNew();
+    type('kod', 'p-0004');
+    type('ad', 'Ali Veli');
+    fireEvent.click(h.command('save'));
+    await waitFor(() => expect(posts()).toHaveLength(1), T);
+    const body = h.bodyOf(posts()[0]);
+    expect(body).toMatchObject({ personnelCode: 'P-0004', fullName: 'Ali Veli', workEmail: null, department: null, userId: null });
+  });
+
+  it('every input has an accessible name from its label', async () => {
+    await openNew();
+    for (const name of ['Personel kodu', 'Ad soyad', 'Departman', 'Görev', 'Çalışan kategorisi', 'İş e-postası', 'Bağlı kullanıcı kimliği']) {
+      expect(screen.getByRole('textbox', { name: new RegExp(`^${name}`) })).toBeTruthy();
+    }
+    expect(screen.getByLabelText(/^İşe giriş/)).toBe(input('iseGirisYeni'));
+  });
+
   it('new: required fields block the save', async () => {
     await openNew();
     type('kod', 'P-9');

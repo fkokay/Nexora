@@ -149,6 +149,34 @@ public sealed class FixedAssetAcquisitionPostingIntegrationTests
     }
 
     [Fact]
+    public async Task Blank_vuk_profile_text_counts_as_no_profile_and_a_partial_profile_is_rejected()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var app = await StartAsync(tenantId);
+        using var client = Client(app, tenantId);
+
+        // A page form with the VUK section unticked sends its empty text inputs as "" (older runtime) or whitespace.
+        using var blank = await client.PostAsJsonAsync("/api/fixed-assets", new
+        {
+            assetCode = "VUK-BLANK", name = "No tax profile", acquisitionDate = new DateOnly(2026, 1, 1),
+            inServiceDate = new DateOnly(2026, 1, 1), acquisitionCostBase = 1000m, residualValueBase = 0m, usefulLifeMonths = 12,
+            vukUsefulLifeCode = "", vukUsefulLifeDescription = "  "
+        });
+        Assert.Equal(HttpStatusCode.Created, blank.StatusCode);
+        using var blankJson = JsonDocument.Parse(await blank.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Null, blankJson.RootElement.GetProperty("vukUsefulLifeCode").ValueKind);
+        Assert.Equal(JsonValueKind.Null, blankJson.RootElement.GetProperty("vukUsefulLifeDescription").ValueKind);
+
+        using var partial = await client.PostAsJsonAsync("/api/fixed-assets", new
+        {
+            assetCode = "VUK-PARTIAL", name = "Partial profile", acquisitionDate = new DateOnly(2026, 1, 1),
+            inServiceDate = new DateOnly(2026, 1, 1), acquisitionCostBase = 1000m, residualValueBase = 0m, usefulLifeMonths = 12,
+            vukUsefulLifeCode = "", vukUsefulLifeMonths = 60
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, partial.StatusCode);
+    }
+
+    [Fact]
     public async Task Acquisition_posting_requires_active_tenant_cost_mapping_and_offset_account()
     {
         var tenantId = Guid.NewGuid();

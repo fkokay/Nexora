@@ -158,7 +158,7 @@ describe('Satınalma talepleri standart tanımı', { timeout: 60000 }, () => {
     const url = `/api/purchasing/requests/${Q3}/supplier-quotes`;
     await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
     expect(h.bodyOf(h.sent(url)[0])).toEqual({
-      code: 'TKL-9', supplierId: SUP, quoteDate: today(), validUntil: null, notes: '',
+      code: 'TKL-9', supplierId: SUP, quoteDate: today(), validUntil: null, notes: null,
       lines: [
         { requestLineNumber: 1, unitPrice: 35, discountPercent: 0, vatPercent: 20 },
         { requestLineNumber: 2, unitPrice: 10, discountPercent: 5, vatPercent: 20 },
@@ -186,7 +186,7 @@ describe('Satınalma talepleri standart tanımı', { timeout: 60000 }, () => {
     const url = `/api/purchasing/requests/${Q3}/order`;
     await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
     expect(h.bodyOf(h.sent(url)[0])).toEqual({
-      code: 'PO-9', supplierId: SUP, orderDate: today(), notes: '', expectedReceiptDate: '2026-11-30', targetWarehouseId: W1,
+      code: 'PO-9', supplierId: SUP, orderDate: today(), notes: null, expectedReceiptDate: '2026-11-30', targetWarehouseId: W1,
       lines: [{ lineNumber: 1, unitPrice: 35, discountPercent: 0 }, { lineNumber: 2, unitPrice: 10, discountPercent: 0 }],
     });
   });
@@ -222,7 +222,7 @@ describe('Satınalma talepleri standart tanımı', { timeout: 60000 }, () => {
     const url = `/api/purchasing/requests/${Q3}/order`;
     await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
     expect(h.bodyOf(h.sent(url)[0])).toEqual({
-      code: 'PO-10', supplierId: SUP, supplierQuoteId: SQ, orderDate: today(), notes: '', expectedReceiptDate: '2026-11-30', targetWarehouseId: null,
+      code: 'PO-10', supplierId: SUP, supplierQuoteId: SQ, orderDate: today(), notes: null, expectedReceiptDate: '2026-11-30', targetWarehouseId: null,
       lines: [
         { lineNumber: 1, unitPrice: 35, discountPercent: 0, vatPercent: 20 },
         { lineNumber: 2, unitPrice: 10, discountPercent: 5, vatPercent: 20 },

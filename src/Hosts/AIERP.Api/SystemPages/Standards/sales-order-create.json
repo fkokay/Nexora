@@ -354,7 +354,8 @@
           "inputType": "date",
           "label": "Sipariş tarihi",
           "required": true,
-          "defaultValue": "{{sayfa.parametre.orderDate}}"
+          "defaultValue": "{{sayfa.parametre.orderDate}}",
+          "emptyDefault": "{{bugun}}"
         }
       },
       {
@@ -497,7 +498,8 @@
           "format": "money",
           "width": 3,
           "icon": "percent",
-          "description": "matrah {{onizleme.meta.taxableTotal}}"
+          "description": "matrah {{onizleme.meta.taxableTotal}}",
+          "descriptionFormat": "money"
         }
       },
       {

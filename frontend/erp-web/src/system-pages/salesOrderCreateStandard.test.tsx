@@ -108,6 +108,8 @@ describe('Satış siparişi standart kartı', { timeout: 40000 }, () => {
     await waitFor(() => expect(calc('Tutar', 1)).toBe('36,00'), T);
     // Toplamlar önizleme kaydından (meta): 36 + 6.
     await waitFor(() => expect(screen.getByText('Genel toplam').closest('article')!.textContent).toContain('42,00'), T);
+    // Açıklamadaki matrah da para biçimiyle yazılır (ham "35" değil).
+    expect(screen.getByText('Toplam iskonto').closest('article')!.textContent).toContain('matrah 35,00');
     fireEvent.click(h.command('save'));
     await waitFor(() => expect(calls('PUT', `/api/sales/orders/${O1}`)).toHaveLength(1), T);
     expect(calls('POST', '/api/sales/orders')).toHaveLength(0);
@@ -150,6 +152,15 @@ describe('Satış siparişi standart kartı', { timeout: 40000 }, () => {
     expect(body).toMatchObject({ customerId: C1, orderDate: '2026-11-22', currencyCode: 'TRY' });
     expect(body.lines).toEqual([{ stockItemId: S2, quantity: 4, unitPrice: 5, currencyCode: 'EUR', discountPercent: 5, vatPercent: 10 }]);
     await waitFor(() => expect(h.state.navigations.some((item) => item.page === 'sales-orders')).toBe(true), T);
+  });
+
+  it('a new order opened without params (menu) starts on today', async () => {
+    setPageParams(KEY, {});
+    h.setup();
+    expect(await screen.findByText('Yeni satış siparişi', {}, T)).toBeTruthy();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    await waitFor(() => expect(input('siparisTarihi').value).toBe(today), T);
   });
 
   it('an order that is not open shows the warning and offers no save', async () => {
