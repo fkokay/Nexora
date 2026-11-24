@@ -300,6 +300,63 @@ public sealed class CustomerSystemPagesTests
     }
 
     [Fact]
+    public async Task Supplier_statement_lines_open_the_purchase_document_and_never_another_tenants()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await ErpOperationCatalogTests.SeedAsync(factory, _ => { });
+        await SeedCustomersAsync(factory);
+        var tenantA = ErpOperationCatalogTests.TenantA;
+        var invoiceId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid();
+        var returnId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var foreignInvoiceId = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PurchaseInvoices.AddRange(
+                new PurchaseInvoice { Id = invoiceId, TenantId = tenantA, SupplierId = SupplierA, Code = "AF-T1", InvoiceDate = new DateOnly(2026, 7, 1), DueDate = new DateOnly(2026, 8, 1) },
+                // Another tenant's invoice: an entry pointing at it must not reveal its number or open it.
+                new PurchaseInvoice { Id = foreignInvoiceId, TenantId = ErpOperationCatalogTests.TenantB, SupplierId = OtherTenantCustomer, Code = "AF-B",
+                    InvoiceDate = new DateOnly(2026, 7, 1), DueDate = new DateOnly(2026, 8, 1) });
+            db.SupplierPayments.Add(new SupplierPayment { Id = paymentId, TenantId = tenantA, SupplierId = SupplierA, PurchaseInvoiceId = invoiceId, Code = "TO-T1",
+                PaymentDate = new DateOnly(2026, 7, 2) });
+            db.SupplierReturns.Add(new SupplierReturn { Id = returnId, TenantId = tenantA, SupplierId = SupplierA, PurchaseInvoiceId = invoiceId, Code = "AI-T1",
+                ReturnDate = new DateOnly(2026, 7, 3) });
+            db.PurchaseInvoiceDrafts.Add(new PurchaseInvoiceDraft { Id = draftId, TenantId = tenantA, SupplierId = SupplierA, InvoiceNumber = "TF-T1",
+                InvoiceDate = new DateOnly(2026, 7, 4) });
+            CustomerLedgerEntry Line(int day, CustomerLedgerDirection direction) => new()
+            {
+                TenantId = tenantA, CustomerId = SupplierA, EntryDate = new DateOnly(2026, 7, day), Direction = direction, Amount = 10m, CurrencyCode = "EUR",
+                Description = "Kaynaklı", CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(day)
+            };
+            var invoice = Line(1, CustomerLedgerDirection.Credit); invoice.PurchaseInvoiceId = invoiceId;
+            var payment = Line(2, CustomerLedgerDirection.Debit); payment.SupplierPaymentId = paymentId;
+            var supplierReturn = Line(3, CustomerLedgerDirection.Debit); supplierReturn.SupplierReturnId = returnId;
+            var draft = Line(4, CustomerLedgerDirection.Credit); draft.PurchaseInvoiceDraftId = draftId;
+            var foreign = Line(5, CustomerLedgerDirection.Credit); foreign.PurchaseInvoiceId = foreignInvoiceId;
+            db.CustomerLedgerEntries.AddRange(invoice, payment, supplierReturn, draft, foreign);
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, ErpOperationCatalogTests.Admin, "TenantAdmin");
+
+        var statement = await client.GetFromJsonAsync<JsonElement>($"/api/customers/{SupplierA:D}/statement?from=2026-07-01&to=2026-07-31");
+        static string? Text(JsonElement line, string name) => line.GetProperty(name).ValueKind == JsonValueKind.Null ? null : line.GetProperty(name).GetString();
+        var lines = statement.GetProperty("items").EnumerateArray()
+            .Select(x => (Text(x, "sourceType"), Text(x, "sourceCode"), Text(x, "sourceOpenId"))).ToArray();
+        string Id(Guid id) => id.ToString("D");
+        Assert.Equal(new (string?, string?, string?)[]
+        {
+            ("PurchaseInvoice", "AF-T1", Id(invoiceId)),
+            ("SupplierPayment", "TO-T1", Id(invoiceId)),
+            ("SupplierReturn", "AI-T1", Id(returnId)),
+            ("PurchaseInvoiceDraft", "TF-T1", Id(draftId)),
+            ("PurchaseInvoice", null, null),
+        }, lines);
+    }
+
+    [Fact]
     public async Task Card_read_returns_the_primary_address_and_the_statement_its_display_members()
     {
         await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
@@ -499,6 +556,10 @@ public sealed class CustomerSystemPagesTests
             Assert.Equal(string.Join(" || ", kinds.Split('|').Select(k => $"liste.seciliSatir.sourceType == '{k}'")), (string)props["visibleWhen"]!);
             Assert.Equal("liste.seciliSatir.sourceOpenId == null", (string)props["disabledWhen"]!);
         }
+        // A firm's v1 design has no row buttons: the restricted v1 table drops them and still validates.
+        var v1 = SystemPageStandards.Restrict(SystemPageStandards.All["customer-ledger"], 1);
+        Assert.True(TenantCustomPageSchema.Validate(v1, out var v1Error), v1Error);
+        Assert.Null(Props(JsonNode.Parse(v1)!.AsObject(), "liste")["rowActions"]);
     }
 
     // ---- Schema additions ----
