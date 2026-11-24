@@ -87,7 +87,7 @@ import "./manufacturing/manufacturing-list-v2.css";
 export type { ManufacturingPageKey } from "./manufacturing/types";
 import { confirmDialog } from "./confirmDialog";
 import { problemDetail } from "./erpApi";
-import { dropPageParam, pageParamsOf, usePageParams } from "./pageNavigation";
+import { dropPageParam, pageParamsOf, usePageParams, useTabRecord } from "./pageNavigation";
 
 type Item = {
   id: string;
@@ -1012,6 +1012,8 @@ export default function ManufacturingPage({
   // the next visit starts clean and an open tab re-reads it when it is opened again with another recipe.
   const recipeParamsPage = section === "manufacturing-recipe-create" ? section : undefined;
   const recipeParams = usePageParams(recipeParamsPage);
+  // The param is dropped once read: the recipe card reports the recipe it edits, so deleting that recipe closes the tab.
+  useTabRecord(recipeParamsPage, editingBomId);
   useEffect(() => {
     if (!recipeParamsPage || loading) return;
     // Read the store, not the render's snapshot: a re-run effect (StrictMode) must not open the recipe twice.

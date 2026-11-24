@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { FinancePage } from "./FinancePages";
 import { api } from "./erpApi";
 import type { FinancialAccount } from "./erp-types";
-import { pageParamsOf, useTakePageParam } from "./pageNavigation";
+import { pageParamsOf, useTabRecord, useTakePageParam } from "./pageNavigation";
 
 const CREATE_PAGE = "finance-account-create";
 
@@ -57,6 +57,8 @@ export default function FinanceAccountsPage({
         if (current === requestId.current) setPendingAccountId("");
       });
   });
+  // Parametre okununca silinir: kartın açtığı hesap ayrıca bildirilir, hesap silinince kart sekmesi kapanır.
+  useTabRecord(paramPage, editRequest?.account.id ?? pendingAccountId);
   if (pendingAccountId)
     return <div className="panel page-loading" role="status">Hesap yükleniyor…</div>;
   const shownSection = createOnOpen ? (kind === "Bank" ? "finance-banks" : "finance-accounts") : section;

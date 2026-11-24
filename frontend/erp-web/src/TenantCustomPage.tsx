@@ -56,11 +56,14 @@ import { applyFirstChoices, firstChoiceValue, applyClientFilters, filterChoices,
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { OPEN_PAGE_EVENT, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, publishRecordsDeleted, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { deletedRecordIds } from "./custom-page/deletedRecords";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 import "./custom-page/detail-panel.css";
 
+/** Yazmanın kaynağı: `recordDelete` İşlem Çubuğu "Sil" komutudur (sayfanın gösterdiği kaydın silmesi). */
+type WriteOptions = { recordDelete?: boolean };
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
   isRequired: boolean; maxLength?: number; options?: string[] | null; placeholder?: string | null;
@@ -112,7 +115,8 @@ type PageRuntime = {
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
   isPreview: boolean;
-  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<WriteResult>;
+  /** `recordDelete`: İşlem Çubuğu "Sil" (kaydın kendi silmesi); kaydı gösteren bu sekme de kapanır. */
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean, options?: WriteOptions) => Promise<WriteResult>;
   /** Kod bileşenleri arası olay merkezi (load/select/beforeSave/afterSave) ve köprünün sayfa tarafı. */
   events: PageEvents;
   codeHost: BridgeHost;
@@ -1416,13 +1420,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     navigateBar(afterSavePlan.page!, afterSavePlan.refresh ? { refreshTarget: true } : undefined);
   } : undefined;
 
-  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void) => {
+  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void, options?: WriteOptions) => {
     onStatus(null);
     const result = await runWriteAction({
       query, isPreview: latest.current.isPreview, inFlight, confirm,
       write: async (target, confirmWrite) => {
         if (mounted.current) onBusy(true);
-        try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
+        try { return await latest.current.writeFor(target, confirmWrite, options); } finally { if (mounted.current) onBusy(false); }
       },
       errorText: (cause) => writeErrorText(errorPrefix, cause),
       validate: () => latest.current.validateFor(query),
@@ -1556,7 +1560,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         const query = latest.current.queryById[queryId];
         if (!query) return;
         if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
-        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
+        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "", [], undefined, { recordDelete: true });
       },
       saveSequence: () => {
         onStatus(null);
@@ -2059,7 +2063,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     return cleared;
   };
   // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
-  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
+  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean, options?: WriteOptions) => {
     const values = editMapValues(query, resolved);
     // Gönderilen satırların taslak anahtarları: sunucunun `<liste>[i]` hataları sonradan silinen/atlanan satırlarda kaymasın.
     sentKeys.current[query.name] = Object.fromEntries(gridComponents.filter((grid) => bindsGrid(query, grid.name!, "satirlar")).map((grid) => {
@@ -2067,6 +2071,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       return [spec.name, gridSentRows(spec, gridStateOf(spec, statesRef.current)).map((row) => row.key)];
     }));
     const result = await runWrite(query, values, confirmWrite, clearedParameters(query, values));
+    // Silinen kaydın kart sekmeleri kapanır (her silme yolu: İşlem Çubuğu, toplu/satır silme, düğme, dizi). Bu sekme yalnız
+    // kendi kaydını sildiğinde (`recordDelete`) kapanır; satır silmesi belgeyi gösteren kartı kapatmaz.
+    const recordDelete = options?.recordDelete === true;
+    publishRecordsDeleted({ ids: deletedRecordIds(query, values, { recordDelete }), from: tabKey, closeSource: recordDelete });
     // Yazma sonucu (`<sorgu>.sonuc`) bir sonraki çizime kadar güncel kapsama bindirilir: kayıttan hemen sonra çalışan eylem
     // (ör. `afterSaveButton` gezinmesi `{{olustur.sonuc.id}}`) sonucu görür.
     if (result && typeof result === "object" && "sonuc" in result && result.sonuc !== undefined) freshResults.current[query.name] = { sonuc: result.sonuc };
@@ -2080,7 +2088,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     }
     return result;
   };
-  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean) => trackedWrite(query, resolveQueryParameters(query, scope), confirmWrite);
+  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean, options?: WriteOptions) => trackedWrite(query, resolveQueryParameters(query, scope), confirmWrite, options);
   const writeWith = (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => trackedWrite(query, values, confirmWrite);
   // Bekleyen işlemler (dizi adımları, istem/onay sonrası) render anındaki değil en güncel kapsamı okur.
   const scopeRef = useRef(scope);

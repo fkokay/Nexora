@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
 import { standalonePageTitle } from './workspace-navigation'
-import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from './pageNavigation'
+import { OPEN_PAGE_EVENT, RECORDS_DELETED_EVENT, setPageParams, tabRecordIds, type RecordsDeletedDetail, type WorkspaceOpenRequest } from './pageNavigation'
 
 type Tab = { id: string; label: string }
 type Props = {
@@ -28,6 +28,11 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   const [pendingCloseTab, setPendingCloseTab] = useState<string | null>(null)
   // The tab-limit warning is only true while the limit blocks a screen: opening one or closing a tab removes it.
   const clearTabLimitNotice = useCallback(() => setNotice(current => isTabLimitNotice(current) ? '' : current), [])
+  // The tab that opened each tab through a page action (list → card): closing a deleted record's card returns there.
+  const openers = useRef(new Map<string, string>())
+  // Several deletes may land before the next render (bulk delete): the handler reads and advances these, not the render's values.
+  const latestTabs = useRef({ moduleTabs, page })
+  latestTabs.current = { moduleTabs, page }
 
   const setPage = useCallback((nextPage: string, labelOverride?: string) => {
     if (nextPage === 'launcher' || nextPage === 'dashboard') {
@@ -65,6 +70,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       const request = (event as CustomEvent<WorkspaceOpenRequest>).detail
       if (!request || typeof request.page !== 'string' || request.page === '') return
       const from = request.from
+      if (from && from !== request.page) openers.current.set(request.page, from)
       const canReplace = request.replace && !!from && from !== request.page && request.page !== 'launcher' && request.page !== 'dashboard'
         && moduleTabs.some(tab => tab.id === from) && !moduleTabs.some(tab => tab.id === request.page) && !dirtyTabs.has(from)
       if (!canReplace) { setPage(request.page); return }
@@ -74,6 +80,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       clearTabLimitNotice()
       setActivePage(request.page)
       setModuleTabs(current => current.map(tab => tab.id === from ? { id: request.page, label } : tab))
+      if (from) openers.current.delete(request.page)
     }
     window.addEventListener(OPEN_PAGE_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen)
@@ -86,10 +93,45 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     // A closed tab forgets its page params: reopening it from the menu or the rail starts without the last record (e.g. a
     // card opened for editing with `customerId` reopens as a new card).
     setPageParams(tabId, {})
+    openers.current.delete(tabId)
     clearTabLimitNotice()
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
     if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')
   }, [moduleTabs, page, setPage, clearTabLimitNotice])
+
+  /**
+   * A deleted record's tabs close without the unsaved-changes prompt (the record no longer exists); other tabs keep their
+   * state. `from` (the deleting tab, else the active one) stays open unless `closeSource`. An active closed tab hands over
+   * to the tab that opened it, else to the deleting tab, else to the last remaining tab.
+   */
+  useEffect(() => {
+    const onDeleted = (event: Event) => {
+      const detail = (event as CustomEvent<RecordsDeletedDetail>).detail
+      if (!detail || !Array.isArray(detail.ids) || detail.ids.length === 0) return
+      const deleted = new Set(detail.ids)
+      const { moduleTabs, page } = latestTabs.current
+      const source = detail.from ?? page
+      const closing = new Set(moduleTabs.filter(tab => tab.id !== 'dashboard' && (tab.id !== source || detail.closeSource === true)
+        && [...tabRecordIds(tab.id)].some(id => deleted.has(id))).map(tab => tab.id))
+      if (closing.size === 0) return
+      const nextTabs = moduleTabs.filter(tab => !closing.has(tab.id))
+      let nextPage = page
+      setModuleTabs(nextTabs)
+      for (const tabId of closing) setPageParams(tabId, {})
+      clearTabLimitNotice()
+      setDirtyTabs(current => { const next = new Set(current); for (const tabId of closing) next.delete(tabId); return next })
+      setPendingCloseTab(current => current && closing.has(current) ? null : current)
+      if (closing.has(page)) {
+        const open = (tabId: string | undefined) => tabId && nextTabs.some(tab => tab.id === tabId) ? tabId : undefined
+        nextPage = open(openers.current.get(page)) || open(source) || nextTabs.at(-1)?.id || 'launcher'
+        setPage(nextPage)
+      }
+      for (const tabId of closing) openers.current.delete(tabId)
+      latestTabs.current = { moduleTabs: nextTabs, page: nextPage === 'dashboard' ? 'launcher' : nextPage }
+    }
+    window.addEventListener(RECORDS_DELETED_EVENT, onDeleted)
+    return () => window.removeEventListener(RECORDS_DELETED_EVENT, onDeleted)
+  }, [setPage, clearTabLimitNotice])
 
   const closeModuleTab = useCallback((tabId: string) => {
     if (tabId === 'dashboard') return

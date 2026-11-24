@@ -7,7 +7,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
-import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from '../pageNavigation';
+import { OPEN_PAGE_EVENT, RECORDS_DELETED_EVENT, setPageParams, type RecordsDeletedDetail, type WorkspaceOpenRequest } from '../pageNavigation';
 import catalog from './customersOperations.fixture.json';
 
 // "Cari Hesaplar" standart tanımı (customers.json) gerçek çalışma zamanıyla çizilir; API sahte yanıtlar döner.
@@ -37,6 +37,9 @@ let calls: Call[] = [];
 let deleteConflicts = new Set<string>();
 let navigations: WorkspaceOpenRequest[] = [];
 const onNavigate = (event: Event) => { navigations.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
+// Silinen kayıt olayları: çalışma alanı bu kayıtların kart sekmelerini kapatır.
+let deletions: RecordsDeletedDetail[] = [];
+const onDeleted = (event: Event) => { deletions.push((event as CustomEvent<RecordsDeletedDetail>).detail); };
 
 function respond(url: string, method: string): unknown {
   const [path] = url.split('?');
@@ -106,13 +109,15 @@ const select = async (name: string, id: string) => {
 };
 
 beforeEach(() => {
-  calls = []; navigations = []; deleteConflicts = new Set(); api.mockReset(); localStorage.clear();
+  calls = []; navigations = []; deletions = []; deleteConflicts = new Set(); api.mockReset(); localStorage.clear();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
+  window.addEventListener(RECORDS_DELETED_EVENT, onDeleted);
 });
 afterEach(() => {
   for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog')) fireEvent.click(within(open).getAllByRole('button')[0]);
   cleanup();
   window.removeEventListener(OPEN_PAGE_EVENT, onNavigate);
+  window.removeEventListener(RECORDS_DELETED_EVENT, onDeleted);
   for (const page of ['customer-create', 'customer-ledger', 'sales-order-create', 'sales-invoices']) setPageParams(page, {});
 });
 
@@ -210,6 +215,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     expect(writes()).toEqual([]);
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(writes()).toEqual([{ url: `/api/customers/${C1}`, method: 'DELETE', body: undefined }]), T);
+    // Silinen carinin açık kart sekmesi kapanır (İşlem Çubuğu "Sil": kaydın kendi silmesi; liste sekmesi onu göstermez).
+    await waitFor(() => expect(deletions).toEqual([{ ids: [C1], from: KEY, closeSource: true }]), T);
   });
 
   it('Sil and Seçilenleri sil are disabled when the catalog does not allow cari.sil (not a TenantAdmin)', async () => {
@@ -235,6 +242,7 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(document.body.textContent).toContain('2 kayıt silindi.'), T);
     expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`DELETE /api/customers/${C1}`, `DELETE /api/customers/${C2}`]);
+    expect(deletions).toEqual([{ ids: [C1], from: KEY, closeSource: false }, { ids: [C2], from: KEY, closeSource: false }]);
     await waitFor(() => expect(gets('/api/customers').length).toBeGreaterThan(listReads), T);
     // İşaretler kalkar: yenilenen listede aynı anahtarlar başka kayıtları gösterebilir.
     await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Toplu işlemler' })).toBeNull(), T);
@@ -252,6 +260,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(document.body.textContent)
       .toContain('1 silindi, 1 silinemedi: İlişkili kayıt bulunan cari kart silinemez; bunun yerine pasife alın.'), T);
     expect(writes()).toHaveLength(2);
+    // Silinemeyen carinin kartı açık kalır.
+    expect(deletions).toEqual([{ ids: [C1], from: KEY, closeSource: false }]);
   });
 
   it('Seçilenleri sil sends nothing when the confirmation is cancelled and keeps the ticks', async () => {
