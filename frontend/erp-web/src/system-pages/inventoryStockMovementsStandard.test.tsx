@@ -12,7 +12,7 @@ import TenantCustomPage from '../TenantCustomPage';
 import catalog from './inventoryStockMovementsOperations.fixture.json';
 
 // Stok Hareketleri standart tanımı (inventory-stock-movements.json) gerçek çalışma zamanıyla çizilir; API sahte yanıtlar döner.
-// İki adım: 1) stok listesi (stok.bakiye.sayfa), 2) seçili stokun özeti (stok.bakiye.kart) ve hareketleri (stok.hareket.gecmisi).
+// Tek ekran: üstte stok seçici (seçenekler stok.bakiye.sayfa); seçilince özet (stok.bakiye.kart) ve hareketler (stok.hareket.gecmisi).
 // `inventoryStockMovementsOperations.fixture.json`, ErpOperationCatalog'un bu sayfanın kullandığı işlemlerinin anlık
 // görüntüsüdür (allowed: true); InventoryStockMovementsStandardTests.Frontend_fixture_matches_catalog canlı katalogla karşılaştırır.
 
@@ -116,16 +116,12 @@ const choose = async (id: string, option: string) => {
   fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
 };
 const grid = () => document.querySelector('.tenant-page-data-grid') as HTMLElement | null;
-const steps = () => screen.getByRole('list', { name: 'Adımlar' });
-const activeStep = () => within(steps()).getAllByRole('listitem').find((item) => item.getAttribute('aria-current') === 'step');
 const header = () => document.querySelector('.tenant-page-record-header') as HTMLElement | null;
-const stockRow = async (code: string) => {
-  await screen.findByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
-  return within(grid()!).getAllByRole('row').find((row) => row.querySelector('td') && within(row).queryByText(code)) as HTMLElement;
-};
-/** 1. adımdan "Hareketleri gör ›" ile 2. adıma geçer ve hareket listesinin gelmesini bekler. */
+const HINT = 'Hareketleri görmek için yukarıdan bir stok seçin.';
+/** Stok seçicisinden bir stok seçer ve özetin gelmesini bekler. */
 const openMovements = async (code = 'KLM') => {
-  fireEvent.click(within(await stockRow(code)).getByRole('button', { name: 'Hareketleri gör ›' }));
+  await waitFor(() => expect(combo('stokSecimi')).not.toBeNull(), T);
+  await choose('stokSecimi', code === 'KLM' ? 'Kalem' : 'Defter');
   await waitFor(() => expect(header()).not.toBeNull(), T);
 };
 
@@ -135,34 +131,28 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); setPageParams(KEY, {}); });
 
-describe('Stok Hareketleri standart tanımı (iki adım)', { timeout: 30000 }, () => {
+describe('Stok Hareketleri standart tanımı', { timeout: 30000 }, () => {
   it('uses only operations from the catalog fixture', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
 
-  it('opens on step 1: a stock list with search and depot, no summary or movements read, no Excel', async () => {
+  it('opens with the stock lookup and a hint: no steps, no stock list, no summary or movements read, no Excel', async () => {
     setup();
-    await stockRow('KLM');
-    expect(activeStep()?.textContent).toContain('Stok seç');
-    expect(listCalls().length).toBeGreaterThan(0);
-    expect(query(listCalls()[0].url).get('page')).toBe('1');
-    expect(query(listCalls()[0].url).get('pageSize')).toBe('25');
+    expect(await screen.findByText(HINT, {}, T)).toBeTruthy();
+    expect(screen.queryByRole('list', { name: 'Adımlar' })).toBeNull();
+    expect(grid()).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hareketleri gör ›' })).toBeNull();
+    expect(combo('stokSecimi').placeholder).toBe('Stok kodu veya adıyla ara');
+    expect(combo('depoSecimi').value).toBe('Tüm depolar');
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0), T);
     expect(summaryCalls()).toEqual([]);
     expect(transactionCalls()).toEqual([]);
     expect(header()).toBeNull();
-    // The hidden selection input is never drawn.
-    expect(document.getElementById('page-input-stokSecimi')).toBeNull();
-    expect(combo('stokArama').placeholder).toBe('Stok kodu veya adıyla ara');
-    expect(combo('depoSecimi').value).toBe('Tüm depolar');
-    const headers = within(grid()!).getAllByRole('columnheader').map((cell) => cell.textContent?.trim());
-    expect(headers).toEqual(expect.arrayContaining(['Stok kodu', 'Stok adı', 'Kategori', 'Mevcut', 'Stok değeri']));
-    expect((await stockRow('KLM')).textContent).toContain('1.100 ADET');
-    // The movements list is not on screen, so its Excel command is not offered either.
     expect(screen.queryByRole('button', { name: /Excel/ })).toBeNull();
   });
 
-  it('"Hareketleri gör" moves to step 2: summary header from the stockItemId-filtered balance and the movements', async () => {
+  it('choosing a stock shows its summary header and movements at once', async () => {
     setup();
     await openMovements();
     await waitFor(() => expect(gets(`/api/stock/items/${S1}/transactions`)).toHaveLength(1), T);
@@ -176,68 +166,41 @@ describe('Stok Hareketleri standart tanımı (iki adım)', { timeout: 30000 }, (
     const fields = within(header()!).getAllByRole('definition').map((field) => field.textContent);
     expect(within(header()!).getAllByRole('term').map((term) => term.textContent)).toEqual(['Mevcut', 'Stok değeri']);
     expect(fields).toEqual(['1.100 ADET', '5.500,00 TRY']);
-    expect(within(header()!).getByRole('button', { name: '‹ Stok değiştir' })).toBeTruthy();
+    expect(within(header()!).queryByRole('button', { name: '‹ Stok değiştir' })).toBeNull();
 
-    // Step indicator: step 1 done, step 2 active.
-    expect(activeStep()?.textContent).toContain('Hareketler');
-    expect(within(steps()).getAllByRole('listitem')[0].className).toContain('is-done');
-    // The stock list is gone; the movements list is drawn with the legacy row.
     await screen.findByText('Hareket 1', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
-    expect(screen.queryByRole('button', { name: 'Hareketleri gör ›' })).toBeNull();
+    expect(screen.queryByText(HINT)).toBeNull();
     expect(await screen.findByRole('button', { name: /Excel/ }, T)).toBeTruthy();
   });
 
-  it('a double-click on a stock row opens its movements (rowOpenAction)', async () => {
+  it('the lookup searches stocks on the server and the depot carries over to summary and movements', async () => {
     setup();
-    fireEvent.doubleClick(await stockRow('DFT'));
-    await waitFor(() => expect(gets(`/api/stock/items/${S2}/transactions`)).toHaveLength(1), T);
-    await waitFor(() => expect(header()!.textContent).toContain('DFT'), T);
-    await screen.findByText('Seçili stok ve depoda hareket bulunmuyor.', undefined, T);
-  });
-
-  it('"Stok değiştir" returns to step 1 and keeps the search text and depot', async () => {
-    setup();
-    await stockRow('KLM');
-    fireEvent.change(combo('stokArama'), { target: { value: 'kal' } });
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0), T);
+    fireEvent.change(combo('stokSecimi'), { target: { value: 'kal' } });
     await waitFor(() => expect(listCalls().some((call) => query(call.url).get('q') === 'kal')).toBe(true), T);
-    await waitFor(() => expect(within(grid()!).queryByText('DFT')).toBeNull(), T);
     await choose('depoSecimi', 'Merkez');
-    await waitFor(() => expect(listCalls(WAREHOUSE_BALANCES).some((call) => query(call.url).get('q') === 'kal')).toBe(true), T);
+    await waitFor(() => expect(listCalls(WAREHOUSE_BALANCES).length).toBeGreaterThan(0), T);
 
-    await openMovements();
-    // The depot carries over: both the summary and the movements use the warehouse routes.
+    await openMovements('KLM');
     await waitFor(() => expect(gets(`/api/warehouses/${W}/stock/${S1}/transactions`)).toHaveLength(1), T);
     await waitFor(() => expect(summaryCalls(WAREHOUSE_BALANCES)).toHaveLength(1), T);
-
-    // The title count follows the movements list: shown in step 2, gone in step 1.
     await waitFor(() => expect(document.querySelector('.list-v2-count')).not.toBeNull(), T);
-    fireEvent.click(within(header()!).getByRole('button', { name: '‹ Stok değiştir' }));
-    await waitFor(() => expect(header()).toBeNull(), T);
-    expect(activeStep()?.textContent).toContain('Stok seç');
-    expect(document.querySelector('.list-v2-count')).toBeNull();
-    expect(combo('stokArama').value).toBe('kal');
-    expect(combo('depoSecimi').value).toContain('Merkez');
-    await stockRow('KLM');
-    expect(within(grid()!).queryByText('DFT')).toBeNull();
-    expect(screen.queryByRole('button', { name: /Excel/ })).toBeNull();
-    // No further movement read once the selection is cleared.
-    const before = transactionCalls().length;
-    await new Promise((done) => setTimeout(done, 50));
-    expect(transactionCalls().length).toBe(before);
   });
 
-  it('opens straight in step 2 with the stockItemId page parameter', async () => {
+  it('opens straight on the movements with the stockItemId page parameter', async () => {
     setup({ stockItemId: S1 });
     await waitFor(() => expect(header()!.textContent).toContain('KLM'), T);
-    expect(activeStep()?.textContent).toContain('Hareketler');
     await waitFor(() => expect(gets(`/api/stock/items/${S1}/transactions`)).toHaveLength(1), T);
     expect(summaryCalls().map((call) => query(call.url).get('stockItemId'))).toEqual([S1]);
-    expect(screen.queryByRole('button', { name: 'Hareketleri gör ›' })).toBeNull();
+    expect(screen.queryByText(HINT)).toBeNull();
+    // The lookup shows the chosen stock's name.
+    await waitFor(() => expect(combo('stokSecimi').value).toContain('Kalem'), T);
+  });
 
-    // "Stok değiştir" still goes back to the list even though the page was opened with a parameter.
-    fireEvent.click(within(header()!).getByRole('button', { name: '‹ Stok değiştir' }));
-    await stockRow('DFT');
-    expect(header()).toBeNull();
+  it('an empty movement history shows the empty text', async () => {
+    setup({ stockItemId: S2 });
+    await waitFor(() => expect(gets(`/api/stock/items/${S2}/transactions`)).toHaveLength(1), T);
+    await screen.findByText('Seçili stok ve depoda hareket bulunmuyor.', undefined, T);
   });
 
   it('draws the legacy movement columns: date, direction tag, reversal, entered quantity with unit, warehouse, lot / serial', async () => {

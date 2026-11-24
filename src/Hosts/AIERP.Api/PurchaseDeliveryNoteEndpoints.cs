@@ -131,7 +131,12 @@ public static class PurchaseDeliveryNoteEndpoints
                         l.OrderLineNumber, l.PurchaseOrderId == orderId ? l.UnitCode : "", l.Quantity, l.UnitPrice, l.DiscountPercent, l.VatPercent,
                         l.IsFreeOfCharge, null, null, null, null)).ToList(), x.CurrencyCode ?? x.PurchaseOrder.CurrencyCode))
                 .ToListAsync(ct);
-            return Results.Ok(notes.Select(x => x.WithLinePricing()).ToList());
+            var orderPrices = await db.PurchaseOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == orderId)
+                .ToDictionaryAsync(x => x.LineNumber, x => x.UnitPrice, ct);
+            return Results.Ok(notes.Select(x => (x with { Lines = x.Lines!.Select(l => l with
+            {
+                OrderUnitPrice = orderPrices.TryGetValue(l.OrderLineNumber, out var p) ? p : null
+            }).ToList() }).WithLinePricing()).ToList());
         });
 
         group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,

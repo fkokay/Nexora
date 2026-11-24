@@ -2015,7 +2015,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     },
     operation: (operationName) => findOperation(erpCatalog, operationName)?.kind,
   };
-  const removeComponent = (id: string) => { commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
+  const removeComponent = (id: string) => { commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = cardTree.findComponent(definitionRef.current.components, id);
     if (!original || !canEdit || original.type === "actionBar") return;
@@ -2710,7 +2710,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       }
       case "actionBar": return <ActionBarPreview key={component.id} style={style} bound={{
         new: barBound(props).new,
-        open: barBound(props).open, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
+        open: barBound(props).open, view: barBound(props).view, save: (typeof props.saveQuery === "string" && props.saveQuery !== "") || idList(props.saveSequence, MAX_SEQUENCE_STEPS).length > 0, remove: typeof props.deleteQuery === "string" && props.deleteQuery !== "",
         filter: typeof props.focusInput === "string" && props.focusInput !== "", print: props.printEnabled === true, excel: typeof props.exportTable === "string" && props.exportTable !== "",
       }} moreCount={idList(props.moreButtons, 10).length + (barCsvExport(props) ? 1 : 0)} hidden={hiddenForPreview(props)} look={barLookMap(props.barLook)} />;
       case "tabs": return <TabsPreview key={component.id} style={style} tabs={parseTabs(props.tabs).map((tab) => ({ ...tab, label: shown(tab.label, tab.label).trim() || tab.label }))} defaultTab={Number(props.defaultTab ?? 0)}
@@ -3189,7 +3189,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Göstergenin "Değer" modu: sorgu ve rapor kaynağı yok, değer metni (sabit sayı ya da {{değişken}}) var.
   const metricValueMode = !!selected && selected.type === "metric" && !selectedQueryRef && !selected.props.source && typeof selected.props.value === "string";
   const filterInputId = selected && typeof selected.props.filterInput === "string" ? selected.props.filterInput : "";
-  const namedInputs = definition.components.filter((component) => component.type === "input" && !!component.name).map((component) => ({ id: component.id, name: component.name as string }));
+  // Göstergenin süzeceği hedefler: adlı girişler ve süzgeç alanlarının süzgeçleri ("<süzgeçAlanı>.<anahtar>", ERP ve sunucuyla aynı).
+  const namedInputs = [
+    ...definition.components.filter((component) => component.type === "input" && !!component.name).map((component) => ({ id: component.id, name: component.name as string })),
+    ...definition.components.filter((component) => component.type === "filterBar").flatMap((component) => parseFilterEntries(component.props.filters)
+      .map((spec) => ({ id: `${component.id}.${spec.key}`, name: `${component.name ?? component.id} · ${spec.label ?? spec.key}` }))),
+  ];
   const toneMapEntries = selected && Array.isArray(selected.props.toneMap) ? selected.props.toneMap.filter((item): item is string => typeof item === "string") : [];
   const columnFormatEntries = selected && Array.isArray(selected.props.columnFormats) ? selected.props.columnFormats.filter((item): item is string => typeof item === "string") : [];
   const totalsSelected = selected && Array.isArray(selected.props.totals) ? selected.props.totals.filter((item): item is string => typeof item === "string") : [];
@@ -3255,6 +3260,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const more = idList(props.moreButtons, 10).length;
     return {
       new: plan(props.newAction, props.newPageCode, modes.new), open: plan(props.openAction, props.openPageCode, modes.open),
+      view: modes.view === null ? "Düzenle sayfa açmıyor: çubukta yok" : `Salt okunur · ${pageOf(props.openPageCode) || "sayfa seçilmedi"}`,
       save: sequence > 0 ? `Kaydet dizisi · ${sequence} adım` : queryName(props.saveQuery) ? `Sorgu: ${queryName(props.saveQuery)}` : "Bağlı değil",
       delete: queryName(props.deleteQuery) ? `Sorgu: ${queryName(props.deleteQuery)}` : "Bağlı değil",
       refresh: "Sayfa sorgularını yeniler",
@@ -3975,6 +3981,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               pageNames={pageNamesOf(definition)} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}
               summaries={barSummaries(selected.props)}
               renderDetail={(id) => id === "new" || id === "open" || id === "afterSave" ? (barCommandFields && cloneElement(barCommandFields, { only: id }))
+                : id === "view" ? <div className="pd-field"><small>Görüntüle, Düzenle'nin açtığı sayfayı seçili satırla <b>görüntüleme kipinde</b> açar: girişler kilitli,
+                  Kaydet / Sil / Yeni yoktur. Yalnız Düzenle "Sayfa aç" iken çubukta görünür; Düzenle gizlenince o da gizlenir.</small></div>
                 : id === "save" ? <>
               <div className="pd-field">Kaydet<span className="pd-action-key" aria-hidden="true">Ctrl+S</span>
                 <div className="pd-segment" role="group" aria-label="Kaydetme yolu">{([["query", "Tek sorgu"], ["sequence", "Kaydet dizisi"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit}

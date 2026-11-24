@@ -1,4 +1,5 @@
 import { matchesShortcut, parseShortcut, STANDARD_SHORTCUTS } from './shortcuts';
+import { armRecordView, clearRecordView } from './recordView';
 import { offersCommand, type StandardCommandId, type CommandSource, type CommandSpec, type PageCommands } from './types';
 
 export type DispatchEnv = {
@@ -110,6 +111,14 @@ export function createCommandRegistry(): CommandRegistry {
           break;
         }
       }
+    }
+    // Aç is "Düzenle" everywhere; a screen that offers Aç but no Görüntüle of its own (legacy lists) gets one: it runs the
+    // same Aç action after asking the record form it opens to start read-only (recordView.ts). Düzenle drops that request.
+    const open = merged.open;
+    if (open && !open.hidden && !merged.view) {
+      const run = open.run;
+      merged.open = { ...open, run: run ? () => { clearRecordView(); return run(); } : undefined };
+      merged.view = { disabledReason: open.disabledReason, run: run ? () => { armRecordView(); return run(); } : undefined };
     }
     const formCommands = effective('form');
     const pageCommands = effective('page');
@@ -260,7 +269,7 @@ export function createCommandRegistry(): CommandRegistry {
       if (active) {
         for (const { id, chord } of STANDARD_CHORDS) {
           if (!matchesShortcut(event, chord)) continue;
-          if (id === 'open' && env.onInteractive) continue;
+          if ((id === 'open' || id === 'view') && env.onInteractive) continue;
           if (!offersCommand(active, id)) continue;
           const spec = active[id];
           if (isEnabled(spec)) {
