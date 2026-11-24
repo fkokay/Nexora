@@ -12,6 +12,7 @@ Taslak ekranlar (tıklanabilir HTML): `docs/design-proposals/studio-sadelestirme
 | `04-sayfa-kaliplari.html` | Sayfa kalıpları: sabit iskelet (gri) ve danışman alanları (mor) |
 | `05-belge-kurallari.html` | Belge kuralları: durum çizgisi, üç katman, cümle kurucu, "Dene", işlem günlüğü |
 | `06-yazilimci-ekrani.html` | Yazılımcı ekranı: talep, firma modülü, veri kaynağı formu, uzantı, sürüm yayınlama |
+| `07-studio-yapisi.html` | Studio'nun rol bazlı yeni menüsü ve ekranları; eski araçların yeni yerleri |
 
 ---
 
@@ -285,12 +286,64 @@ Mevcut sayfalardaki sayfa içi sorgular çalışmaya devam eder. Yeni tasarımc�
 - Önizlemede yazma işlemleri bugünkü gibi engellenir.
 - Studio'daki kopya çizim kodu (`CanvasPreviews.tsx`, `useCanvasSamples`, `canvasSamples`, `preview-samples.ts` ve `CustomPagesPage.tsx` içindeki çizim dalları) bu iş tamamlandıktan sonra silinir.
 
+### 6.9 Studio'nun yapısı (taslak 07, kullanıcı onayladı)
+
+Studio rol bazlı çalışır. Her rol yalnızca kendi menüsünü görür. Bugünkü 10 araçlık liste, "Platform uyarlama" ekranı ve akış kartları kalkar.
+
+| Danışman | Yazılımcı | Yönetici |
+|---|---|---|
+| Ana sayfa | Ana sayfa | Ana sayfa |
+| Ekranlar | Gelen talepler | Kişiler ve roller |
+| Kurallar | Firma modülü | Modül pazaryeri |
+| Menüler | Ekranlar | Bağlantılar |
+| Taleplerim | Kurallar | Yapay zekâ |
+| Yayınlar | Yayınlar | Yayınlar |
+
+Menüler:
+- **Ana sayfa** her role göre farklı kartlar gösterir.
+  - Danışman: taslakta bekleyenler, açık talepler, yeni yapı taşları, son çalışılanlar.
+  - Yazılımcı: gelen talepler, modül sürümü, son 24 saatteki uzantı hataları.
+  - Yönetici: kullanıcılar, kurulu modüller, aylık yayın sayısı.
+  - Bugünkü Analitik ekranı bu kartlara dönüşür.
+- **Ekranlar:** sistem ekranları ve özel ekranlar tek bir listede durur. Liste kalıba (Liste, Kayıt kartı, Belge, Rapor, Serbest) göre süzülür ve her ekranın taslak/yayında durumu görünür. Bir satıra tıklayınca tasarımcı açılır. Yeni ekran oluştururken ilk adım kalıp seçmektir.
+- **Kurallar:** §6.6.
+- **Menüler:** ERP gezinme menüsü. Ekranlar sürüklenerek gruplanır, her menü öğesinin adı, simgesi ve kimin göreceği ayarlanır. Bugünkü Özel menüler'in yerini alır.
+- **Taleplerim / Gelen talepler:** bugünkü Geliştirme talepleri ekranıdır. Danışman talep açar, yazılımcı gelenleri görür. Her talebin durumu görünür: yeni, deneme ortamında, yayında.
+- **Firma modülü:** §6.7. Veritabanı mühendisi ve kaynak eşlemeleri bu ekranın "Araçlar" bölümüne taşınır.
+- **Yayınlar:** taslaktan canlıya giden her şey (ekranlar, kurallar, modül sürümleri) bekleyen ve geçmiş olarak tek yerde listelenir. Geçmişte her yayın için "önceki sürüme dön" bulunur.
+- **Kişiler ve roller:** davet etme ve rol verme. Roller §10'da tanımlı olanlardır (Danışman, Yazılımcı, ayrıca Yönetici).
+- **Bağlantılar:** GitHub ve dış sistemler. Yazılımcı uzantıları yalnızca burada yöneticinin onayladığı bağlantıları kullanabilir.
+- **Modül pazaryeri** ve **Yapay zekâ:** bugünkü ekranlar, yalnızca yöneticiye görünür.
+
+Eski araçların yeni yerleri:
+
+| Bugün | Yeni yer |
+|---|---|
+| Sayfa tasarımcısı, LowCodeDesigner, UIDesigner | Ekranlar |
+| Özel formlar | Ekranlar (Kayıt kartı kalıbı) |
+| Hazır ekran görünümleri | Ekranlar (sistem ekranları aynı listede) |
+| Rapor oluşturucu | Ekranlar (Rapor kalıbı) |
+| İş akışları, İş kuralları | Kurallar |
+| Özel menüler | Menüler |
+| Veri modelleri | Firma modülü, yazılımcıya ait "kayıt türü" yapı taşı (benim kararım). Var olan bir kayda alan eklemek danışmanda kalır (Form → firmaya özel alanlar). |
+| Kod çalışma alanları | Firma modülü |
+| Veritabanı mühendisi, kaynak eşlemeleri | Firma modülü → Araçlar |
+| Geliştirme talepleri | Taleplerim / Gelen talepler |
+| Analitik | Ana sayfa kartları |
+| Modül pazaryeri, Yapay zekâ tanımlaması | Yönetici menüsü |
+
 ## 7. Alt projeler ve sıra
 
 Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
 
 1. **Tuvalde gerçek ERP sayfası (§6.8).** Bugünkü tasarımcıyla da çalışır, kayma sorununu hemen çözer ve sonraki her adımın temelidir.
 2. **Yapı taşları kataloğu (§6.7):** dosya formatı, sunucunun firma modülünden okuması, yazılımcı formları, ERP'nin katalog başvurularını çözmesi.
+2b. **Studio'nun yeni yapısı (§6.9):**
+   - rol bazlı menüler ve sunucuda zorlanan roller
+   - Ana sayfa, Taleplerim / Gelen talepler, Yayınlar, Kişiler ve roller, Bağlantılar
+   - Ekranlar listesi: önce bugünkü tasarımcıyı açar, 3. projeyle yeni tasarımcıyı açar
+   
+   Eski araçlar menüden ancak yerlerini alan ekranlar hazır olunca kalkar (§11). 1. projeden bağımsızdır, onunla paralel yürüyebilir.
 3. **Sayfa kalıpları (§6.1) + yeni panel kabuğu + Liste (§6.3).**
 4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).**
 5. **Kalan bileşenlerin birleştirilmesi (§6.2).**
