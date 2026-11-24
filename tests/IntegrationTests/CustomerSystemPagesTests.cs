@@ -389,15 +389,22 @@ public sealed class CustomerSystemPagesTests
     }
 
     [Fact]
-    public void Ledger_is_a_two_step_statement()
+    public void Ledger_shows_the_statement_once_a_customer_is_chosen()
     {
         var standard = SystemPageStandards.All["customer-ledger"];
         var view = Assert.Single(standard.ScreenViews);
         Assert.Equal(("customer-ledger-entries", "liste"), (view.Key, view.Component));
         Assert.Equal(new Dictionary<string, string> { ["entryDate"] = "entryDate", ["description"] = "description", ["direction"] = "direction",
             ["debit"] = "debitAmount", ["credit"] = "creditAmount", ["balance"] = "balanceAmount", ["currencyCode"] = "currencyCode" }, view.Fields);
-        Assert.Equal(new[] { "cariSecimi.value == null", "cariSecimi.value != null" }, Strings(Props("customer-ledger", "adimlar")["activeWhen"]));
-        Assert.Equal("{{sayfa.parametre.customerId}}", (string)Props("customer-ledger", "cariSecimi")["defaultValue"]!);
+        // No wizard: the customer lookup sits in the filter card; the statement shows as soon as it has a value.
+        var selection = Props("customer-ledger", "cariSecimi");
+        Assert.Equal(("lookup", "cariListesi", "id"), ((string)selection["inputType"]!, (string)selection["optionsQuery"]!, (string)selection["optionValueColumn"]!));
+        Assert.Equal("{{sayfa.parametre.customerId}}", (string)selection["defaultValue"]!);
+        Assert.Equal("{{cariSecimi.search}}", Binding("customer-ledger", "cariListesi", "q"));
+        Assert.Equal(new[] { "cariSecimi", "baslangic", "bitis" }, Strings(Props("customer-ledger", "suzgecKarti")["inputs"]));
+        Assert.Equal("cariSecimi.value == null", (string)Props("customer-ledger", "secimIpucu")["visibleWhen"]!);
+        foreach (var id in new[] { "secilenCari", "liste" }) Assert.Equal("cariSecimi.value != null", (string)Props("customer-ledger", id)["visibleWhen"]!);
+        Assert.False(Props("customer-ledger", "secilenCari").ContainsKey("buttons"));
         Assert.Equal(("{{cariSecimi.value}}", "{{baslangic.value}}", "{{bitis.value}}"),
             (Binding("customer-ledger", "ekstre", "id"), Binding("customer-ledger", "ekstre", "from"), Binding("customer-ledger", "ekstre", "to")));
         Assert.Equal("{{tarih.yilBasi}}", (string)Props("customer-ledger", "baslangic")["defaultValue"]!);
