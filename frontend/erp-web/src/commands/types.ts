@@ -1,6 +1,6 @@
 /**
- * `view` (Görüntüle) opens the selected record read-only. Only Studio pages register it (İşlem Çubuğu, next to `open`, which
- * those pages label "Düzenle"); other screens keep their single "Aç".
+ * `open` reads "Düzenle"; `view` (Görüntüle) opens the selected record read-only. Studio pages register their own `view`
+ * (mode=view); for any other screen that offers `open` the registry adds one that opens the record form read-only.
  */
 export type StandardCommandId = 'new' | 'open' | 'view' | 'save' | 'delete' | 'refresh' | 'filter' | 'print' | 'export' | 'undo';
 

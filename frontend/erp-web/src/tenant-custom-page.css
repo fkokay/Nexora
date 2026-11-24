@@ -66,7 +66,7 @@
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-error { color: var(--nx-bad); background: var(--nx-bad-bg); }
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
 /* Görüntüleme kipi şeridi (İşlem Çubuğu Görüntüle ile açılan salt okunur kayıt) */
-.tenant-page-view-mode { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px 4px 10px; border: 1px solid var(--custom-page-line, #d7dee7); border-radius: 6px; background: var(--nx-surface-soft, #f6f8fb); color: var(--nx-text-muted, #526174); font-size: 12px; }
+.tenant-page-view-mode { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px 4px 10px; border: 1px solid var(--custom-page-line); border-radius: 6px; background: var(--nx-line-soft); color: var(--nx-muted); font-size: 12px; }
 .tenant-page-view-mode > span { flex: 1 1 auto; min-width: 0; }
 .tenant-page-view-mode > .tenant-page-button { flex: none; min-height: 26px; padding: 0 10px; font-size: 12px; }
 .tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
