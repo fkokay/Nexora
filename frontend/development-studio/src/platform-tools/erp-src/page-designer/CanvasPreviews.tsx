@@ -1,6 +1,6 @@
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useFlip } from "./useFlip";
-import { AlertTriangle, CheckCircle2, ChevronDown, ImageIcon, Info, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ImageIcon, Info, PanelRight, Search, ShieldAlert, ShieldCheck, type LucideIcon } from "lucide-react";
 import { METRIC_ICONS as ICONS } from "./metricIcons";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, parseToneMap, sparklinePath, toneFor, trendPoints, type Tone } from "./cellFormat";
 import type { GridColumn } from "./gridColumns";
@@ -40,12 +40,14 @@ type PreviewColumn = { code: string; label?: string; dataType?: string };
 export type GridPaging = { pageSize: number; total: number; meta: { label: string; value: string }[]; search?: ReactNode };
 
 /** `advanced`: sorguya bağlı tablo ERP'de gelişmiş ızgarayla çizilir; tuvalde de araç satırı ve onay kutusu sütunu görünür. */
-export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style, advanced = false }: {
+export function GridPreview({ title, subtitle, columns, rows, truncated, props, emptyText, rowAction, rowActionLabels, showTotals, paging, style, advanced = false, detailToggleLabel }: {
   title: string; subtitle: string; columns: PreviewColumn[]; rows: Record<string, unknown>[]; truncated: boolean;
   props: Record<string, unknown>; emptyText: string; rowAction?: string;
   /** Satır işlemi düğmelerinin (rowActions) etiketleri: "İşlemler" sütununda satır başına çip olarak çizilir. */
   rowActionLabels?: string[];
   showTotals?: boolean; paging?: GridPaging; style: CSSProperties; advanced?: boolean;
+  /** `detailToggleInput`: araç çubuğunda Sütunlar'ın yanında çizilen "Detay paneli" düğmesinin etiketi (ERP'de açıkken mavi). */
+  detailToggleLabel?: string;
 }) {
   const actionChips = [...(rowAction ? [rowAction] : []), ...(rowActionLabels ?? [])];
   const hasActions = actionChips.length > 0;
@@ -73,6 +75,7 @@ export function GridPreview({ title, subtitle, columns, rows, truncated, props, 
     {advanced && <div className="pd-adv-toolbar" aria-hidden="true">
       {props.showGridSearch !== false && <span className="pd-adv-search"><Search size={13}/>Tüm sütunlarda ara</span>}
       {props.showColumnFilters !== false && <span className="pd-adv-menu">Sütun filtreleri</span>}{props.showColumnChooser !== false && <span className="pd-adv-menu">Sütunlar</span>}
+      {detailToggleLabel && <span className="pd-adv-btn pd-adv-toggle"><PanelRight size={13}/>{detailToggleLabel}</span>}
       <span className="pd-adv-count">{paging ? number(paging.total) : rows.length} kayıt</span>
       {props.showExport !== false && <><span className="pd-adv-btn">XLSX</span>{props.showCsv !== false && <span className="pd-adv-btn">CSV</span>}</>}{props.showPivot !== false && <span className="pd-adv-btn">Pivot görünümü</span>}
     </div>}

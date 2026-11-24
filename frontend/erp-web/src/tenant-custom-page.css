@@ -239,7 +239,8 @@ html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-sta
 /* Arama kutusu eski `.list-v2-search` gibi esner (240px'ten başlar, en çok 340px). */
 .tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:has(> .tenant-page-input > .list-v2-search) { flex: 1 1 240px; max-width: 340px; }
 /* Son öğe satırın sağına yaslanır (eski satırda liste araçlarının yeri; ör. "Pasif kartları da göster"). */
-.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child) { margin-left: auto; }
+/* Yalnız sondaki onay kutusu/aç-kapa sağa yaslanır; seçimler arama ve birbirinin yanında kalır (taslak 21). */
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child):has(.tenant-page-input-checkbox) { margin-left: auto; }
 /* Yer tutuculu metin girişinin (arama) etiketi görsel olarak gizlenir; erişilebilir ad olarak kalır. */
 .tenant-page-form-card-grid.is-inline .tenant-page-input-text > label:has(input[placeholder]:not([placeholder=""])) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-search { box-sizing: border-box; width: 100%; max-width: none; color: var(--lv2-muted) !important; font-size: 12.5px !important; font-weight: 400 !important; cursor: text; }
@@ -248,7 +249,10 @@ html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-sta
 .tenant-page-form-card-grid.is-inline .tenant-page-lookup { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 #root .app-shell .tenant-page-form-card-grid.is-inline .tenant-page-lookup > label,
 #root .app-shell .tenant-page-form-card-grid.is-inline label.list-v2-filter { margin: 0; color: var(--lv2-muted) !important; font-size: 12px !important; font-weight: 600 !important; }
-.tenant-page-form-card-grid.is-inline .tenant-page-input-select select { width: 220px; max-width: 100%; }
+/* Seçimler dar ekranda alt satıra kaymak yerine daralır (160–300 px), hücreyi doldurur. */
+.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:has(.tenant-page-input-select) { flex: 1 1 160px; min-width: 0; max-width: 300px; }
+#root .app-shell .tenant-page-form-card-grid.is-inline .tenant-page-input-select label.list-v2-filter { display: flex; align-items: center; gap: 8px; width: 100%; }
+#root .app-shell .tenant-page-form-card-grid.is-inline .tenant-page-input-select select { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; }
 /* Açılır liste görünümlü arama kutusu (eski depo seçicisi `.searchable-record-trigger`: 220×32, 13px, sağda ⌄). */
 .tenant-page-lookup.is-select .tenant-page-lookup-control { width: 220px; max-width: 100%; }
 #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input {

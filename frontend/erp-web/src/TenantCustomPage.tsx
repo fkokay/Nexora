@@ -12,7 +12,7 @@ import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQuery
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
 import { chipText, ContextPanel, facetCount, FacetPanel, FilterChips, FormCard, type FacetGroup } from "./custom-page/LayoutComponents";
-import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
+import { dialogOwnedIds, headerButtonIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableDetailToggleIds, tableSearchInputIds, tabOwnedIds } from "./custom-page/layoutRefs";
 import { activeStepIndex, stepLabels, StepsIndicator } from "./custom-page/StepsIndicator";
 import { RecordHeader, recordHeaderFields, templateText } from "./custom-page/RecordHeader";
 import { assignmentsValid, resolveAssignments } from "./custom-page/setInputAction";
@@ -1163,11 +1163,19 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         const openAction = openButton ? runtime.buttonAction(openButton) : null;
         const openByAction = openButton && openAction && ROW_OPEN_ACTIONS.has(openAction.type) && actionAllowed(openAction, runtime.rights)
           ? (row: Record<string, unknown>) => runtime.runRowAction(component, openButton, row, null) : undefined;
+        // `detailToggleInput`: araç çubuğundaki "Detay paneli" düğmesi bağlı onay kutusunu açıp kapatır (etiket girişin etiketidir);
+        // panelin `visibleWhen`/`closeInput` koşulları aynı girişe bağlı kaldığından davranış onay kutusuyla aynıdır.
+        const toggleInput = typeof props.detailToggleInput === "string" ? runtime.inputById[props.detailToggleInput.trim()] : undefined;
+        const toolbarToggles = toggleInput && inputIsCheckbox(toggleInput) ? [{
+          id: toggleInput.id, label: textValue(toggleInput.props?.label).trim() || "Detay paneli", pressed: runtime.inputValues[toggleInput.id] === true,
+          icon: <PanelRight size={15} aria-hidden="true" />,
+          onToggle: () => runtime.changeInput(toggleInput.id, runtime.inputValues[toggleInput.id] !== true),
+        }] : undefined;
         return <DataTableGrid key={component.id} gridId={`custom-page.${pageCode}.${component.id}`} state={state} columns={columns} title={title || "Kayıtlar"} description={description} style={style}
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)}
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
@@ -1664,10 +1672,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     : [], [isV2, components, queryDefinitions]);
   const counts = usePageCounts(countCodes, token);
   const queryNames = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query.name])), [queryDefinitions]);
-  // formCard/facetPanel girişleri ve sayfalı listelerin arama girişleri üst düzeyde ayrıca çizilmez.
+  // formCard/facetPanel girişleri, sayfalı listelerin arama girişleri ve listelerin "Detay paneli" düğmesine bağlı onay kutuları
+  // üst düzeyde ayrıca çizilmez.
   const ownedInputs = useMemo(() => {
     const layout = flattenComponents(components).map((component) => ({ id: component.id, type: component.type, props: component.props }));
-    return new Set([...ownedInputIds(layout), ...(isV2 ? tableSearchInputIds(layout) : [])]);
+    return new Set([...ownedInputIds(layout), ...(isV2 ? [...tableSearchInputIds(layout), ...tableDetailToggleIds(layout)] : [])]);
   }, [components, isV2]);
   const pagedTables = useMemo(() => (isV2 ? flat.filter((component) => component.type === "dataTable" && component.props?.paging === "server" && !!component.name) : []), [isV2, flat]);
   const inputById = useMemo(() => Object.fromEntries(inputs.map((input) => [input.id, input])), [inputs]);

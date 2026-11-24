@@ -83,6 +83,8 @@ body:has(.advanced-grid-menu[open])::before{content:"";position:fixed;z-index:10
 .advanced-grid-fallback { min-width: 0; overflow: auto; }
 .advanced-grid-file-input { display: none !important; }
 .advanced-grid-action.active { border-color: #1475c9; background: #eaf4ff; color: #075da8; }
+/* Page toggles on the toolbar (e.g. "Detay paneli"): icon + label; never collapsed into the view menu. */
+.advanced-grid-toggle { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 /* Narrow toolbars: the grid tools collapse into one "Görünüm" menu (AdvancedDataGrid measures the fit). */
 .advanced-grid-toolbar [data-grid-tool] { white-space: nowrap; }
 .advanced-grid-view-menu { display: none; flex: none; }
@@ -217,6 +219,8 @@ html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-filter
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-density select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-column-setting select,
 html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-logic select { border-color: var(--erp-border); background: var(--erp-surface); color: var(--erp-text); }
+/* Pressed page toggle ("Detay paneli") keeps its blue look over the dark surface rule above. */
+html[data-theme="dark"] .app-shell:not(.standalone-studio) .advanced-grid-toggle[aria-pressed="true"] { border-color: #3b8fdb; background: rgba(20, 117, 201, 0.22); color: #a9d2ff; }
 
 /* ---- Table look (mockup 01): light header, dense rows, tabular numbers, current row with a left bar ----
    One rule set for every grid in the app (light and dark through the --nx tokens). The global table rules in

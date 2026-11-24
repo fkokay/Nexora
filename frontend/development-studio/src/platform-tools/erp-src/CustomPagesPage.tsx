@@ -25,7 +25,7 @@ import { CodePreviewFrame } from "./page-designer/CodePreviewFrame";
 import { MAX_JAVASCRIPT_LENGTH, type StubHostData } from "./page-designer/codeBridgeStub";
 import { FieldListEditor, InputPicker, isSafeColumnCode, type PickerInput } from "./page-designer/LayoutFields";
 import { actionBarOf, movedButtonIds } from "./page-designer/pageActions";
-import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, headerButtonIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
+import { MAX_DIALOG_IDS, MAX_ROW_ACTIONS, MAX_TABS, addTab, chipText, clampDefaultTab, dialogOwnedIds, headerButtonIds, idList, moveWithinTab, ownedInputIds, parseFieldList, parseTabs, placeInTab, removeFromTabs, renameTab, rowActionIds, tabLocation, tableDetailToggleIds, tabOwnedIds, tabPlacementProblem } from "./page-designer/layoutRefs";
 import { MAX_SEQUENCE_STEPS, SequenceFields, parseSequenceWhen } from "./page-designer/SequenceFields";
 import { RowActionsFields, rowActionOwners as buttonOwnersOf } from "./page-designer/RowActionsFields";
 import { MAX_HEADER_BUTTONS, ROW_OPEN_ACTION_TYPES, activeStepIndex, assignmentsProblem, parseHeaderFields, prunedAssignments, recordHeaderProblem, stepsProblem } from "./page-designer/wizardParts";
@@ -64,7 +64,7 @@ import { ConditionBuilder } from "./page-designer/ConditionBuilder";
 import { DialogLookFields } from "./page-designer/DialogLookFields";
 import { BarLookFields } from "./page-designer/BarLookFields";
 import { BarCommandRows } from "./page-designer/BarCommandRows";
-import { GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
+import { DetailToggleField, GridToolsField, OpenRowField, RawWidthWhenField, VisibilityField, WidthSegment, WidthWhenField } from "./page-designer/GridSettingsFields";
 import { conditionTerms, stringEntries } from "./page-designer/gridColumnSettings";
 import { ColumnsEditor } from "./page-designer/ColumnsEditor";
 import { designerShortcutsBlocked } from "./page-designer/designerModals";
@@ -182,6 +182,8 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "newButton", "openButton", "afterSaveButton", "pageTitle", ...BAR_COMMAND_PROPS,
   // Izgara tablo araçları (yoksa açık; kapalıysa false yazılır).
   "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport",
+  // Listenin araç çubuğundaki "Detay paneli" düğmesinin onay kutusu girişi.
+  "detailToggleInput",
   // İşlem Çubuğu İşlemler › "CSV olarak dışa aktar" (Excel bağlıyken; kapalıysa false yazılır).
   "exportCsv",
   // Süzgeç alanı: bağlı tablonun arama kutusu ve süzgeçleri.
@@ -498,6 +500,20 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   // Sahiplik sunucudaki sırayla çözülür: sekmeler, pencere içerikleri, liste satır işlemleri. Bir kimliğin tek sahibi olur.
   const preLayoutOwned = ownedInputIds(buttoned);
   const preSearchInputs = new Set(buttoned.filter((component) => component.type === "dataTable" && typeof component.props.searchInput === "string").map((component) => String(component.props.searchInput)));
+  // Listenin "Detay paneli" düğmesi: var olan, onay kutusu türünde, form kartı / yan filtre paneline ve başka listeye ait olmayan
+  // bir giriş; geçerli olanlar sekme ve pencerelere alınmaz (liste sahiplenir).
+  const detailToggleResult = new Map<string, boolean>();
+  const preDetailToggles = new Set<string>();
+  for (const component of buttoned) {
+    if (component.type !== "dataTable" || !("detailToggleInput" in component.props)) continue;
+    const id = typeof component.props.detailToggleInput === "string" ? component.props.detailToggleInput : "";
+    const target = byId.get(id);
+    // Düğme sorguya bağlı tam ızgaranın araç çubuğundadır (sunucu kuralı): dar `bars`/`list` görünümünde ve sorgusuz listede kalkar.
+    const fullGrid = typeof component.props.query === "string" && component.props.query !== "" && component.props.variant !== "bars" && component.props.variant !== "list";
+    const ok = fullGrid && !!target && target.type === "input" && target.props.inputType === "checkbox" && !preLayoutOwned.has(id) && !preSearchInputs.has(id) && !preDetailToggles.has(id);
+    if (ok) preDetailToggles.add(id);
+    detailToggleResult.set(component.id, ok);
+  }
   const claimed = new Set<string>();
   const tabResult = new Map<string, TabEntry[]>();
   for (const component of buttoned) {
@@ -505,7 +521,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     tabResult.set(component.id, parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids.filter((id) => {
       const target = byId.get(id);
       if (!target || target.type === "tabs" || target.type === "actionBar" || target.type === "dialog" || claimed.has(id)) return false;
-      if (target.type === "input" && (preLayoutOwned.has(id) || preSearchInputs.has(id))) return false;
+      if (target.type === "input" && (preLayoutOwned.has(id) || preSearchInputs.has(id) || preDetailToggles.has(id))) return false;
       claimed.add(id);
       return true;
     }) })));
@@ -516,7 +532,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     dialogResult.set(component.id, idList(component.props.contains, MAX_DIALOG_IDS).filter((id) => {
       const target = byId.get(id);
       if (!target || id === component.id || target.type === "dialog" || target.type === "actionBar" || claimed.has(id)) return false;
-      if (target.type === "input" && (preLayoutOwned.has(id) || preSearchInputs.has(id))) return false;
+      if (target.type === "input" && (preLayoutOwned.has(id) || preSearchInputs.has(id) || preDetailToggles.has(id))) return false;
       claimed.add(id);
       return true;
     }));
@@ -618,6 +634,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       }
       if ("limit" in next && (!(typeof next.query === "string" && next.query !== "") || next.paging === "server")) { delete next.limit; touched = true; }
       if ("rowOpenAction" in next && rowOpenResult.get(component.id) === false) { delete next.rowOpenAction; touched = true; }
+      if ("detailToggleInput" in next && detailToggleResult.get(component.id) === false) { delete next.detailToggleInput; touched = true; }
       // Sayfa parametresiyle açma yalnız satır açılınca düğmesiyle çalışır (sunucu: openParam rowOpenAction ister).
       if ("openParam" in next && !(typeof next.rowOpenAction === "string" && next.rowOpenAction !== "")) { delete next.openParam; touched = true; }
       // Toplu silme: adlı, sorgulu listede bir silme sorgusu (sorgu silinince ya da türü değişince bağ kalkar).
@@ -1604,7 +1621,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Palet'ten eklenen düzen bileşenleri sunucunun kabul etmediği boş liste yerine sayfanın uygun girişleri/tablosuyla başlar.
   const fillLayoutDefaults = (type: ComponentType, props: PageComponent["props"], state: PageDefinition) => {
     // Sekmedeki girişler de sahipli sayılır: yeni form kartı onları sekmeden çekip almaz.
-    const owned = new Set([...ownedInputIds(state.components), ...tabOwnedIds(state.components), ...dialogOwnedIds(state.components), ...tableSearchInputIds(state.components)]);
+    const owned = new Set([...ownedInputIds(state.components), ...tabOwnedIds(state.components), ...dialogOwnedIds(state.components), ...tableSearchInputIds(state.components), ...tableDetailToggleIds(state.components)]);
     const inputs = state.components.filter((component) => component.type === "input");
     if (type === "formCard") props.inputs = inputs.filter((component) => !owned.has(component.id)).slice(0, 12).map((component) => component.id);
     else if (type === "filterChips") props.inputs = inputs.slice(0, 12).map((component) => component.id);
@@ -2351,8 +2368,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  // Form kartı / yan filtre paneli girişleri ve sunucu sayfalı listelerin arama girişleri üst düzeyde çizilmez.
-  const ownedIds = useMemo(() => new Set([...ownedInputIds(definition.components), ...tableSearchInputIds(definition.components)]), [definition]);
+  // Form kartı / yan filtre paneli girişleri, sunucu sayfalı listelerin arama girişleri ve listelerin "Detay paneli" düğmesine
+  // bağlı onay kutuları üst düzeyde çizilmez.
+  const ownedIds = useMemo(() => new Set([...ownedInputIds(definition.components), ...tableSearchInputIds(definition.components), ...tableDetailToggleIds(definition.components)]), [definition]);
   // "İşlemler" menüsüne taşınan düğmeler ERP'de kendi yerinde çizilmez; tuvalde de gizlenir (katmanlardan seçilebilir kalır).
   const movedIds = useMemo(() => movedButtonIds(definition.components), [definition]);
   // Sekmelere alınan bileşenler üst düzeyde çizilmez; Sekmeler bileşeninin içinde varsayılan (ya da tıklanan) sekmede görünür.
@@ -2435,6 +2453,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const owned = ownedInputIds(definition.components);
   // Sunucu sayfalı listenin arama girişi listenin başlığında çizilir (ERP ile aynı), üst düzeyde değil.
   const searchOwned = tableSearchInputIds(definition.components);
+  // Listenin "Detay paneli" düğmesine bağlı onay kutusu ERP'de listenin araç çubuğunda düğme olarak çizilir.
+  for (const id of tableDetailToggleIds(definition.components)) searchOwned.add(id);
   const inputById = new Map(definition.components.filter((item) => item.type === "input").map((item) => [item.id, item]));
   const optionRows = (inputProps: Record<string, PropValue>) => {
     const preview = typeof inputProps.optionsQuery === "string" ? queryPreviews[inputProps.optionsQuery] : undefined;
@@ -2588,7 +2608,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const visible = (picked.length > 0 ? picked : preview?.columns ?? []).slice(0, 20);
         // Arama girişi üst düzeyde çizilmez; önizleme yokken de listenin başlığında görünür.
         const searchInput = isPagedTable(component) && typeof props.searchInput === "string" ? inputById.get(props.searchInput) : undefined;
-        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small></div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
+        // "Detay paneli" düğmesi (ERP ile aynı): listenin araç çubuğunda, bağlı onay kutusunun etiketiyle.
+        const toggleInput = typeof props.detailToggleInput === "string" ? inputById.get(props.detailToggleInput) : undefined;
+        const detailToggleLabel = toggleInput && toggleInput.props.inputType === "checkbox" ? String(toggleInput.props.label || "Detay paneli") : undefined;
+        if (!preview) return <article key={component.id} className="custom-page-preview-card" style={style}><div className="custom-page-preview-card-head"><b>{shown(props.title, "Liste")}</b><small>{query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"}</small>{detailToggleLabel && <span className="pd-adv-btn pd-adv-toggle">{detailToggleLabel}</span>}</div>{searchInput && <div className="pd-grid-search">{renderInput(searchInput, {})}</div>}<p>{sampleHint(String(props.query)) ?? "Örnek satırlar için Sorgular sekmesinde “Çalıştır ve önizle”yi kullanın."}</p>
           {rowActionLabelsOf(props).length > 0 && <p>İşlemler: {rowActionLabelsOf(props).map((label, index) => <span key={index} className="custom-page-preview-row-action" style={index > 0 ? { marginLeft: 4 } : undefined}>{label}</span>)}</p>}</article>;
         const shownRows = preview.rows.slice(0, 5);
         const paging = isPagedTable(component) ? {
@@ -2598,7 +2621,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         } : undefined;
         const limited = typeof props.limit === "number" && props.limit > 0 ? shownRows.slice(0, props.limit) : shownRows;
         return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={query ? `Sorgu · ${query.name}` : "Sorgu seçilmedi"} columns={visible} rows={limited} truncated={!paging && (preview.truncated || limited.length < preview.rows.length)} props={props}
-          emptyText={typeof props.emptyText === "string" && props.emptyText ? props.emptyText : "Sorgu kayıt döndürmedi."} showTotals paging={paging} rowActionLabels={rowActionLabelsOf(props)} style={style} advanced />;
+          emptyText={typeof props.emptyText === "string" && props.emptyText ? props.emptyText : "Sorgu kayıt döndürmedi."} showTotals paging={paging} rowActionLabels={rowActionLabelsOf(props)} style={style} advanced detailToggleLabel={detailToggleLabel} />;
       } else {
         const source = sources.find((item) => item.code === props.source);
         const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string") : [];
@@ -3187,6 +3210,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (component.id === selected.id || !isPagedTable(component) || typeof component.props.searchInput !== "string") continue;
     layoutOwners[component.props.searchInput] = `${summaryOf(component)} · arama`;
   }
+  // Listenin "Detay paneli" düğmesine bağlı onay kutusu da listeye aittir.
+  if (selected) for (const component of definition.components) {
+    if (component.id === selected.id || component.type !== "dataTable" || typeof component.props.detailToggleInput !== "string") continue;
+    layoutOwners[component.props.detailToggleInput] = `${summaryOf(component)} · Detay paneli`;
+  }
   const layoutInputIds = selected ? idList(selected.props.inputs) : [];
   // İşlem Çubuğu müfettişi: bağlanabilir düğmeler, sorgulu ızgaralar ve seçili listeler.
   const pageButtons: PickerInput[] = definition.components.filter((component) => component.type === "button").map((component) => ({
@@ -3469,6 +3497,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (component.type !== "dialog") continue;
     for (const id of idList(component.props.contains, MAX_DIALOG_IDS)) searchOwners[id] ??= `${summaryOf(component)} · pencere`;
   }
+  // "Detay paneli düğmesi" adayları: onay kutusu girişleri; form kartı / yan filtre paneli / sekme / pencere / başka listeye ait
+  // olanlar seçilemez (sahibiyle gösterilir).
+  const toggleOwners: Record<string, string> = { ...layoutOwners };
+  for (const component of definition.components) {
+    if (component.type === "tabs") for (const tab of parseTabs(component.props.tabs)) for (const id of tab.ids) toggleOwners[id] ??= `${summaryOf(component)} · ${tab.label}`;
+    if (component.type === "dialog") for (const id of idList(component.props.contains, MAX_DIALOG_IDS)) toggleOwners[id] ??= `${summaryOf(component)} · pencere`;
+  }
+  const detailToggleCandidates = pageInputs.filter((input) => input.inputType === "checkbox")
+    .map((input) => ({ id: input.id, label: input.label, takenBy: toggleOwners[input.id] }));
   const pageSizeValue = selected && typeof selected.props.pageSize === "number" ? selected.props.pageSize : DEFAULT_PAGE_SIZE;
   const pageSizeProblem = !Number.isInteger(pageSizeValue) || pageSizeValue < MIN_PAGE_SIZE || pageSizeValue > MAX_PAGE_SIZE ? `Sayfa boyutu ${MIN_PAGE_SIZE} ile ${MAX_PAGE_SIZE} arasında bir tam sayı olmalıdır.` : null;
   const metaColumns = (pagedOp?.result.metaPaths ?? []).filter((key) => identifier.test(key) && key.length <= 64).map((key) => ({ code: key, label: key }));
@@ -4103,6 +4140,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <div className="pd-field">Yoğunluk<div className="pd-segment">{([["comfort", "Rahat"], ["dense", "Sık"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit} className={(selected.props.density === "comfort" ? "comfort" : "dense") === value ? "active" : ""} onClick={() => patchComponent(selected.id, { density: value === "dense" ? undefined : value })}>{label}</button>)}</div></div>
               <RowActionsFields table={selected} components={definition.components} parts={["empty"]} serverPaged={pagingOn} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
               <GridToolsField props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
+              {selectedQueryRef && selected.props.variant !== "bars" && selected.props.variant !== "list" && <DetailToggleField value={typeof selected.props.detailToggleInput === "string" ? selected.props.detailToggleInput : ""} disabled={!canEdit}
+                inputs={detailToggleCandidates} onChange={(next) => patchComponent(selected.id, { detailToggleInput: next })}/>}
               <details className="pd-settings-advanced">
                 <summary>Gelişmiş (iç boşluk, dış boşluk, köşe, renkler, ham koşul ifadesi)</summary>
                 {boxFields}

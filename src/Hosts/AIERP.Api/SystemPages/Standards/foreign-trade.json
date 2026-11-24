@@ -63,13 +63,6 @@
       "since": 1,
       "label": "Aşama seçimi"
     },
-    "component:gorunumKarti": {
-      "since": 1,
-      "label": "Detay paneli anahtarı kartı",
-      "requires": [
-        "component:detayPaneli"
-      ]
-    },
     "component:detayPaneli": {
       "since": 1,
       "label": "Detay paneli anahtarı"
@@ -469,7 +462,7 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 5,
+          "width": 6,
           "search": true,
           "searchPlaceholder": "Referans, gümrük veya taşıyıcı referansı ara",
           "searchParam": "q"
@@ -482,7 +475,7 @@
         "props": {
           "title": "Süzgeçler",
           "layout": "inline",
-          "width": 5,
+          "width": 6,
           "inputs": [
             "yonSecimi",
             "durumSecimi"
@@ -519,19 +512,6 @@
             "Arrived=Ulaştı",
             "Closed=Kapandı",
             "Cancelled=İptal"
-          ]
-        }
-      },
-      {
-        "id": "gorunumKarti",
-        "type": "formCard",
-        "name": "gorunumKarti",
-        "props": {
-          "title": "Görünüm",
-          "layout": "inline",
-          "width": 2,
-          "inputs": [
-            "detayPaneli"
           ]
         }
       },
@@ -578,6 +558,7 @@
           "pageSize": 50,
           "width": 12,
           "widthWhen": "8=detayPaneli.value == true",
+          "detailToggleInput": "detayPaneli",
           "columns": [
             "referenceCode",
             "direction",

@@ -189,7 +189,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
   it('detail panel shows the balance with its B/A side, risk limit usage and the default address', async () => {
     setup();
     await select('FATİH KOKAY', C1);
-    fireEvent.click(screen.getByLabelText('Detay paneli'));
+    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21).
+    fireEvent.click(screen.getByRole('button', { name: 'Detay paneli' }));
     await waitFor(() => expect(gets(`/api/customers/${C1}/balance`).length).toBeGreaterThan(0), T);
     // Detay panelindeki göstergenin açıklaması (small) CSS ile gizlidir: yön tutarın kendisinde (strong) görünür.
     await waitFor(() => expect([...document.querySelectorAll('.tenant-page-detail .tenant-page-metric strong')].map((node) => node.textContent))

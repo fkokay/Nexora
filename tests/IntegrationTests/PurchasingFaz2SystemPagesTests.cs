@@ -369,14 +369,14 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly Dictionary<string, HashSet<string>> Faz1Ids = new(StringComparer.Ordinal)
     {
         ["sales-requests"] = [.. new[] { "komutlar", "onayBekliyorGostergesi", "onaylandiGostergesi", "siparisGostergesi", "reddedildiGostergesi", "durumOnayBekliyor",
-            "durumOnaylandi", "durumDonustu", "durumReddedildi", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gorunumKarti",
+            "durumOnaylandi", "durumDonustu", "durumReddedildi", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi",
             "detayPaneli", "liste", "acDugmesi", "detayKarti", "ozetPaneli", "enIyiTeklif", "kalemTablosu", "teklifTablosu", "alanTablosu", "panelOnayla",
             "panelReddet", "yeniTalepDugmesi", "onaylaDugmesi", "reddetDugmesi", "teklifEkleDugmesi", "siparisOlusturDugmesi", "siparisiAcDugmesi",
             "alanlarDugmesi" }.Select(x => "component:" + x),
             .. new[] { "talepler", "sayOnayBekliyor", "sayOnaylandi", "sayDonustu", "sayReddedildi", "kalemler", "teklifler", "ozelDegerler", "onay", "ret",
             "panelOnay", "panelRet" }.Select(x => "query:" + x)],
         ["sales-purchasing"] = [.. new[] { "komutlar", "siparisSecimi", "acikGostergesi", "kismenGostergesi", "gecikmisGostergesi", "durumAcik", "durumKismen",
-            "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gorunumKarti", "gecikmisSecimi", "detayPaneli",
+            "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gecikmisSecimi", "detayPaneli",
             "liste", "acDugmesi", "detayKarti", "ozetPaneli", "belgeBasligi", "belgeMalKabulDugmesi", "listeyeDonDugmesi", "durumAdimlari", "kapaliUyarisi",
             "toplamGostergesi", "teslimGostergesi", "faturaGostergesi", "gecikmeGostergesi", "belgeSekmeleri", "satirTablosu", "kabulTablosu", "kabulAcDugmesi",
             "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "yeniSiparisDugmesi", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),

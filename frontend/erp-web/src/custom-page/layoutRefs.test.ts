@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tabOwnedIds } from './layoutRefs';
+import { dialogOwnedIds, idList, ownedInputIds, parseFieldList, parseTabs, rowActionIds, tableDetailToggleIds, tabOwnedIds } from './layoutRefs';
+
+describe('tableDetailToggleIds', () => {
+  it('veri listelerinin "Detay paneli" düğmesine bağlı girişlerini verir (üst düzeyde çizilmez)', () => {
+    expect([...tableDetailToggleIds([
+      { id: 'liste', type: 'dataTable', props: { query: 'q', detailToggleInput: ' detayPaneli ' } },
+      { id: 'diger', type: 'dataTable', props: { query: 'q', detailToggleInput: '' } },
+      // Dar görünümde ve sorgusuz listede düğme çizilmez: giriş de sahiplenilmez (kendi yerinde çizilir).
+      { id: 'dar', type: 'dataTable', props: { query: 'q', variant: 'list', detailToggleInput: 'dar' } },
+      { id: 'rapor', type: 'dataTable', props: { source: 'x', detailToggleInput: 'rapor' } },
+      { id: 'kart', type: 'formCard', props: { detailToggleInput: 'x', inputs: ['y'] } },
+      { id: 'bos', type: 'dataTable' },
+    ])]).toEqual(['detayPaneli']);
+  });
+});
 
 describe('idList', () => {
   it('tekil, boş olmayan metinleri sırayla verir', () => {

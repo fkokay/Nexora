@@ -402,3 +402,27 @@ describe('Özel alanlar bloğu', () => {
     expect(writes()[0].body).toBe('{"name":"Kalem","customFields":{"IHRAC":"false"}}');
   });
 });
+
+describe('Detay paneli düğmesi (detailToggleInput)', () => {
+  it('listenin araç çubuğundaki düğme onay kutusunu açıp kapatır; giriş ayrıca çizilmez, panelin × düğmesi de aynı girişi kapatır', async () => {
+    const detay = { id: 'detay', type: 'input', name: 'detay', props: { inputType: 'checkbox', label: 'Detay paneli' } };
+    const table = { ...listeTable, props: { ...listeTable.props, width: 12, widthWhen: '8=detay.value == true', detailToggleInput: 'detay' } };
+    const panel = { id: 'panel', type: 'card', name: 'panel', props: { title: 'Panel', variant: 'panel', closeInput: 'detay', width: 4, visibleWhen: 'detay.value == true' },
+      children: [{ id: 'icerik', type: 'text', props: { text: 'Panel içeriği' } }] };
+    setup([detay, table, panel], [liste]);
+    await screen.findByText('Var olan');
+    expect(document.getElementById('page-input-detay')).toBeNull();
+    const list = document.querySelector('.tenant-page-data-grid') as HTMLElement;
+    const toggle = within(list).getByRole('button', { name: 'Detay paneli' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByText('Panel içeriği')).toBeNull();
+    fireEvent.click(toggle);
+    await screen.findByText('Panel içeriği');
+    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true');
+    expect(list.style.gridColumn).toBe('span 8');
+    fireEvent.click(screen.getByRole('button', { name: 'Detay panelini kapat' }));
+    await waitFor(() => expect(screen.queryByText('Panel içeriği')).toBeNull());
+    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
+    expect(list.style.gridColumn).toBe('span 12');
+  });
+});
