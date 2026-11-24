@@ -1,3 +1,5 @@
+import { deletedRecordIdFromUrl, publishRecordsDeleted } from './pageNavigation'
+
 const accessTokenKey = 'aierp.accessToken'
 const refreshTokenKey = 'aierp.refreshToken'
 const platformSessionKey = 'aierp.platformSession'
@@ -139,14 +141,19 @@ export async function authenticatedFetch(url: string, token?: string, init?: Req
 }
 
 /**
- * A successful write means the active workspace tab's form was saved, so its unsaved-changes mark is cleared.
+ * A successful write means the active workspace tab's form was saved, so its unsaved-changes mark is cleared; a successful
+ * DELETE also announces the deleted record.
  * Pages call this helper through their own fetch wrappers too, not only through erpApi's `api`.
  */
 function markWorkspaceSaved<T extends Response | Promise<Response>>(url: string, init: RequestInit | undefined, response: T): T {
   const method = init?.method?.toUpperCase()
   if (!method || method === 'GET' || method === 'HEAD' || url.startsWith('/api/auth/')) return response
   void Promise.resolve(response).then(result => {
-    if (result.ok) window.dispatchEvent(new CustomEvent('nexora:workspace-clean'))
+    if (!result.ok) return
+    window.dispatchEvent(new CustomEvent('nexora:workspace-clean'))
+    // A successful DELETE of a record (`…/{guid}`) closes the card tabs that show it (the deleting tab stays open).
+    const deletedId = method === 'DELETE' ? deletedRecordIdFromUrl(url) : null
+    if (deletedId) publishRecordsDeleted({ ids: [deletedId] })
   })
   return response
 }
