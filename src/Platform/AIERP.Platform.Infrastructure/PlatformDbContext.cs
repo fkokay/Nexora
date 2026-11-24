@@ -1228,7 +1228,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasKey(x => new { x.TenantId, x.CustomerId, x.DefinitionId });
             e.Property(x => x.Value).HasMaxLength(500);
             e.HasOne<CustomerAccount>().WithMany().HasForeignKey(x => new { x.TenantId, x.CustomerId })
-                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<CustomerCustomFieldDefinition>().WithMany().HasForeignKey(x => new { x.TenantId, x.DefinitionId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -1300,7 +1300,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.CurrencyCode).HasMaxLength(3).IsFixedLength();
             e.Property(x => x.Description).HasMaxLength(240);
             e.ToTable(t => t.HasCheckConstraint("CK_CustomerLedgerEntries_AmountPositive", "[Amount] > 0"));
-            e.HasOne(x => x.Customer).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id });
+            e.HasOne(x => x.Customer).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.CustomerId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.ReversalOf).WithOne(x => x.ReversalEntry).HasForeignKey<CustomerLedgerEntry>(x => new { x.TenantId, x.ReversalOfId }).HasPrincipalKey<CustomerLedgerEntry>(x => new { x.TenantId, x.Id }).IsRequired(false);
             e.HasOne(x => x.SalesInvoice).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.SalesInvoiceId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.CustomerCollection).WithMany(x => x.LedgerEntries).HasForeignKey(x => new { x.TenantId, x.CustomerCollectionId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);

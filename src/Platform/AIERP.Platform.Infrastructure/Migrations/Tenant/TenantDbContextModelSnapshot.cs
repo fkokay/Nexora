@@ -19473,7 +19473,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithMany()
                         .HasForeignKey("TenantId", "CustomerId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.CustomerCustomFieldDefinition", null)
@@ -19530,7 +19530,7 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .WithMany("LedgerEntries")
                         .HasForeignKey("TenantId", "CustomerId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.PurchaseInvoiceDraft", "PurchaseInvoiceDraft")
