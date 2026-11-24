@@ -15,9 +15,10 @@ using Microsoft.EntityFrameworkCore.Metadata;
 /// that points at <see cref="CustomerAccount"/> blocks the delete (ledger entries, custom field value history, sales and
 /// purchase documents, CRM opportunities, contracts, payment instruments, fixed assets, projects, subsidiaries…), so a key
 /// added later blocks it as well. The card's own addresses and current custom field values carry no history of their own
-/// and are removed with it. The checks are explicit because some keys cascade in SQL (ledger entries, custom field values)
-/// and the InMemory test provider enforces none; a SQL foreign key violation (547) still answers 409. On SQL Server the check
-/// and the delete run in one Serializable transaction (see the handler).
+/// and are removed with it explicitly. No key to the card cascades in SQL (ON DELETE NO ACTION), so a missed reference fails
+/// with a foreign key violation (547, answered 409) instead of removing ledger rows; the checks are still explicit because the
+/// InMemory test provider enforces no keys and a 409 should not depend on that error. On SQL Server the check and the delete
+/// run in one Serializable transaction (see the handler).
 /// </summary>
 public static class CustomerDeleteEndpoints
 {
@@ -41,11 +42,10 @@ public static class CustomerDeleteEndpoints
             var userId = TryGetUserId(principal);
             if (userId is null) return Results.Forbid();
             var role = principal.FindFirstValue("role") ?? string.Empty;
-            // The ledger entry and custom field value keys cascade in SQL, so no 547 would stop a delete racing a new posting:
-            // a movement inserted between the check and the delete would be removed with the card. On a relational provider
-            // the check and the delete share one Serializable transaction; the existence checks take key-range locks on the
-            // dependents of this card, which block a concurrent insert for it until commit (the InMemory test provider has
-            // no transactions and keeps the plain path).
+            // On a relational provider the check and the delete share one Serializable transaction: the existence checks
+            // take key-range locks on the dependents of this card, which block a concurrent insert for it until commit, so a
+            // racing posting waits instead of turning the delete into a 547 (the keys are NO ACTION, so it could never remove
+            // the posting). The InMemory test provider has no transactions and keeps the plain path.
             await using var transaction = db.Database.IsRelational()
                 ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
             try
