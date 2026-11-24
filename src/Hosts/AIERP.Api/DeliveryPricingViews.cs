@@ -31,6 +31,38 @@ internal static class DeliveryPricingViews
         decimal Quantity, decimal? EnteredQuantity)> lines) =>
         DeliveryLinePricing.Summarize(lines.Select(x => (Price(x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge), x.Quantity, x.EnteredQuantity)));
 
+    /// <summary>
+    /// One purchase receipt line view from the stored line (prices per entered unit). The receipt detail and the order detail's
+    /// receipts both use it, so the two never drift. <paramref name="orderPrices"/> is the order's base-unit line price by line number.
+    /// </summary>
+    internal static PurchaseReceiptLineView ReceiptLine(PurchaseReceiptLine x, IReadOnlyDictionary<int, decimal> orderPrices, bool costPending,
+        Guid? storageLocationId = null)
+    {
+        var price = Line(x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity);
+        return new PurchaseReceiptLineView(x.OrderLineNumber, x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity, null,
+            x.EnteredQuantity, x.EnteredUnitCode, storageLocationId,
+            UnitPrice: price.UnitPrice, DiscountPercent: price.DiscountPercent, VatPercent: price.VatPercent, IsFreeOfCharge: price.IsFreeOfCharge,
+            LineNetAmount: price.LineNetAmount, LineVatAmount: price.LineVatAmount, LineTotal: price.LineTotal,
+            OrderUnitPrice: orderPrices.TryGetValue(x.OrderLineNumber, out var orderPrice) ? DeliveryLinePricing.FromBaseUnitPrice(orderPrice, x.Quantity, x.EnteredQuantity) : null,
+            CostPending: costPending);
+    }
+
+    /// <summary>Header pricing of a purchase receipt from its stored lines.</summary>
+    internal static DeliveryPricingSummary Summary(IEnumerable<PurchaseReceiptLine> lines) =>
+        Summary(lines.Select(x => (x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity)));
+
+    /// <summary>Header pricing of a sales delivery from its stored lines.</summary>
+    internal static DeliveryPricingSummary Summary(IEnumerable<SalesDeliveryLine> lines) =>
+        Summary(lines.Select(x => (x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity)));
+
+    internal static PurchaseReceiptSummary WithPricing(this PurchaseReceiptSummary summary, string? currencyCode, DeliveryPricingSummary p) =>
+        summary with { CurrencyCode = currencyCode, PricedNetTotal = p.PricedNetTotal, PricedVatTotal = p.PricedVatTotal, PricedGrandTotal = p.PricedGrandTotal,
+            FreeLineCount = p.FreeLineCount, UnpricedLineCount = p.UnpricedLineCount, PricingState = p.PricingState };
+
+    internal static SalesDeliverySummary WithPricing(this SalesDeliverySummary summary, string? currencyCode, DeliveryPricingSummary p) =>
+        summary with { CurrencyCode = currencyCode, PricedNetTotal = p.PricedNetTotal, PricedVatTotal = p.PricedVatTotal, PricedGrandTotal = p.PricedGrandTotal,
+            FreeLineCount = p.FreeLineCount, UnpricedLineCount = p.UnpricedLineCount, PricingState = p.PricingState };
+
     private static Dictionary<Guid, DeliveryPricingSummary> Group(IEnumerable<PricedRow> rows, IEnumerable<Guid> ids)
     {
         var byParent = rows.GroupBy(x => x.ParentId).ToDictionary(g => g.Key, g => Summary(g.Select(x =>
