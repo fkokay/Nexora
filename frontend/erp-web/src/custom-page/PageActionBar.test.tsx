@@ -4,7 +4,7 @@ import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
-import TenantCustomPage from '../TenantCustomPage';
+import TenantCustomPage, { BAR_DELETE_CONFIRM, barDeleteConfirmTitle } from '../TenantCustomPage';
 
 const { api, downloadXlsx, downloadCsv } = vi.hoisted(() => ({ api: vi.fn(), downloadXlsx: vi.fn(), downloadCsv: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -104,6 +104,29 @@ describe('Sayfa İşlem Çubuğu bağlama', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sil/ }));
     await waitFor(() => expect(writes).toEqual(['qd']));
     expect((await screen.findByRole('status')).textContent).toContain('(1 kayıt)');
+  });
+
+  it('deleteConfirmText Sil onayını tıklama anındaki değerlerle adlandırır; değer yoksa genel başlık kalır', async () => {
+    setup([...baseComponents, { ...bar, props: { ...bar.props, deleteConfirmText: '{{baslik.value}} kaydı silinsin mi?' } }]);
+    await waitFor(() => expect(disabled(button('delete'))).toBe(false));
+    fireEvent.click(button('delete'));
+    let dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('heading').textContent).toBe('Kayıt silinsin mi?');
+    fireEvent.click(within(dialog).getByRole('button', { name: /Vazgeç/ }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+    fireEvent.change(document.getElementById('page-input-in1')!, { target: { value: 'Ocak' } });
+    fireEvent.click(button('delete'));
+    dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByRole('heading').textContent).toBe('Ocak kaydı silinsin mi?');
+  });
+
+  it('barDeleteConfirmTitle: boş metin, bağlamasız metin ve boş bağlamalar', () => {
+    const scope = { liste: { seciliSatir: { code: 'C-1', name: 'ACME', bos: '' } } };
+    expect(barDeleteConfirmTitle(undefined, scope)).toBe(BAR_DELETE_CONFIRM);
+    expect(barDeleteConfirmTitle('  ', scope)).toBe(BAR_DELETE_CONFIRM);
+    expect(barDeleteConfirmTitle('Kart silinsin mi?', scope)).toBe('Kart silinsin mi?');
+    expect(barDeleteConfirmTitle('{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} cari kartı silinsin mi?', scope)).toBe('C-1 · ACME cari kartı silinsin mi?');
+    expect(barDeleteConfirmTitle('{{liste.seciliSatir.bos}} {{yok.alan}} silinsin mi?', scope)).toBe(BAR_DELETE_CONFIRM);
   });
 
   it('moreButtons düğmesi sayfada çizilmez, İşlemler menüsünde bulunur; actionBar yoksa sayfaya döner', async () => {

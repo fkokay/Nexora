@@ -55,7 +55,7 @@
       { "id": "doviz", "type": "input", "name": "doviz",
         "props": { "inputType": "text", "label": "Döviz", "required": true, "maxLength": 3, "upperCase": true,
                    "pattern": "^[A-Z]{3}$", "patternMessage": "Üç harfli para birimi kodu girin (ör. TRY).", "placeholder": "TRY",
-                   "defaultValue": "{{tedarikci.seciliSatir.currencyCode}}" } },
+                   "defaultValue": "{{tedarikci.seciliSatir.currencyCode}}", "emptyDefault": "TRY" } },
       { "id": "siparisTarihi", "type": "input", "name": "siparisTarihi",
         "props": { "inputType": "date", "label": "Sipariş tarihi", "required": true, "defaultValue": "{{bugun}}" } },
       { "id": "teslimTarihi", "type": "input", "name": "teslimTarihi",

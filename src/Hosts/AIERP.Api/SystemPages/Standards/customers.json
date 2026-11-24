@@ -51,7 +51,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "deleteQuery": "kartSil", "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{cariler.meta.totalCount}}",
+        "props": { "deleteQuery": "kartSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} cari kartı silinsin mi?", "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{cariler.meta.totalCount}}",
                    "newAction": "page", "newPageCode": "@customer-create", "newTarget": "newTab",
                    "openAction": "page", "openPageCode": "@customer-create", "openTarget": "newTab", "openTable": "liste",
                    "openParams": ["customerId={{liste.seciliSatir.id}}"],

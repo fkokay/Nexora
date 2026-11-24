@@ -43,6 +43,8 @@ beforeEach(() => { h.before(); createFailure = null; });
 afterEach(() => h.after(['sales-purchasing']));
 
 const fillHeader = async () => {
+  // Tedarikçi seçilmeden döviz TRY'dir (emptyDefault); seçilince tedarikçinin dövizi gelir.
+  await waitFor(() => expect(h.input('doviz').value).toBe('TRY'), T);
   await h.pick(h.input('tedarikci'), 'Ege Ambalaj');
   await waitFor(() => expect(h.input('doviz').value).toBe('EUR'), T);
   h.type(h.input('siparisNo'), 'po-2026-001');

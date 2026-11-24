@@ -1,4 +1,4 @@
-import { createElement, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -6,7 +6,8 @@ import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
 import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
 import TenantWorkflowAction from "./TenantWorkflowAction";
-import { bindingPath, displayText, interpolate, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
+import { setWorkspacePageTitle } from "./workspacePageTitles";
+import { bindingPath, bindingsAllEmpty, displayText, interpolate, joinTextParts, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
@@ -942,7 +943,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
   switch (component.type) {
     // `pageTitle`: başlık sayfa üst bilgisinde (h1) çizilir, gövdede tekrarlanmaz.
     case "heading": return runtime && component.props?.pageTitle === true ? null : <h2 key={component.id} className="tenant-page-heading" style={style}>{title || text}</h2>;
-    case "text": return <p key={component.id} className="tenant-page-text" style={style}>{text || description}</p>;
+    // `parts`: boş bağlamalı parçalar (etiketleri ve ayraçlarıyla) düşer; varsa `text` yerine çizilir.
+    case "text": return <p key={component.id} className="tenant-page-text" style={style}>{runtime && Array.isArray(component.props?.parts) ? joinTextParts(component.props.parts, runtime.scope) : text || description}</p>;
     case "label": return <p key={component.id} className="tenant-page-text tenant-page-label" style={style}>{text}</p>;
     case "input": return runtime?.ownedInputs.has(component.id) ? null : renderPageInput(component, props, style, runtime);
     case "formCard": {
@@ -1528,7 +1530,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         const query = latest.current.queryById[queryId];
         if (!query) return;
         if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
-        else void writeThroughBar(query, { enabled: true, title: "Kayıt silinsin mi?", confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
+        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
       },
       saveSequence: () => {
         onStatus(null);
@@ -1598,7 +1600,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   /** İşlem çubuklu sayfada başlık satırına konan "Eski ekranda aç" bağlantısı. */
   legacyLink?: ReactNode;
   /** Görünen ilk `pageTitle` başlığının metni (yoksa null): sayfa üst bilgisinin başlığı olur. */
-  onTitle?: (title: string | null) => void;
+  onTitle?: (title: string | null, recordTitle: boolean) => void;
 }) {
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   // Sayfa içerik alanının genişliği (`{{sayfa.genislik}}`, px); ölçülemezse 0. Eski liste ekranları detay panelini yalnız
@@ -1898,7 +1900,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         : inputType === "checkbox" && typeof input.props?.defaultWhen === "string" && input.props.defaultWhen.trim()
         // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
         ? conditionHolds(input.props.defaultWhen, base, false)
-        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base));
+        // `emptyDefault`: varsayılan değer boş çözülürse (ör. yeni kayıtta `{{kart.rows[0].currencyCode}}`) kullanılan sabit değer
+        // ("TRY"); kayıt yüklenince saklı değer geçerli olur (her çizimde yeniden çözülür, kullanıcı değiştirene dek).
+        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base) || textValue(input.props?.emptyDefault));
       if (defaults[input.id] === "" && input.id in firstOptions) defaults[input.id] = firstOptions[input.id];
       raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
       if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);
@@ -2808,7 +2812,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     writeLock.current = true;
     try {
       const confirmed = await confirmDialog({
-        title: "Seçilen kayıtlar silinsin mi?", message: [`${rows.length} kayıt silinsin mi?`, isPreview ? PREVIEW_WRITE_WARNING : ""].filter(Boolean).join(" "),
+        // Başlık kaç kaydın silineceğini söyler (ör. "Seçilen 3 kayıt silinsin mi?").
+        title: `Seçilen ${rows.length} kayıt silinsin mi?`, message: isPreview ? PREVIEW_WRITE_WARNING : undefined,
         confirmLabel: "Sil", cancelLabel: "Vazgeç", tone: "danger",
       });
       if (!confirmed) return false;
@@ -3209,12 +3214,14 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
 
   const pageTitleComponent = isV2 ? flat.find((component) => component.type === "heading" && component.props?.pageTitle === true
     && conditionHolds(component.props?.visibleWhen, scope, true)) : undefined;
-  const pageTitle = pageTitleComponent
-    ? interpolate(textValue(pageTitleComponent.props?.title) || textValue(pageTitleComponent.props?.text), scope).trim() || null : null;
+  const pageTitleTemplate = pageTitleComponent ? textValue(pageTitleComponent.props?.title) || textValue(pageTitleComponent.props?.text) : "";
+  const pageTitle = pageTitleComponent ? interpolate(pageTitleTemplate, scope).trim() || null : null;
+  // Bağlamalı başlık (ör. "{{kart.rows[0].name}}") açık kaydı adlandırır; sabit başlık ("Yeni cari kart") sayfanın kendi adıdır.
+  const recordTitle = pageTitle !== null && pageTitleTemplate.includes("{{");
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
-  useEffect(() => { onTitleRef.current?.(pageTitle); }, [pageTitle]);
-  useEffect(() => () => onTitleRef.current?.(null), []);
+  useEffect(() => { onTitleRef.current?.(pageTitle, recordTitle); }, [pageTitle, recordTitle]);
+  useEffect(() => () => onTitleRef.current?.(null, false), []);
 
   const runtime: PageRuntime | undefined = isV2 ? {
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
@@ -3308,6 +3315,19 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
 export const WIDE_PAGE = 1440;
 
 /** İşlem çubuğunun `titleCount` bağlaması sayıya çözülürse başlığın yanındaki kayıt sayısı; boş/sayı değilse gösterilmez. */
+/** Sil komutunun varsayılan onay başlığı (`deleteConfirmText` yoksa ya da bütün bağlamaları boşsa). */
+export const BAR_DELETE_CONFIRM = "Kayıt silinsin mi?";
+
+/**
+ * İşlem Çubuğu Sil onayının başlığı: `deleteConfirmText` tıklama anındaki kapsamla çözülür (ör. "{{liste.seciliSatir.code}} ·
+ * {{liste.seciliSatir.name}} cari kartı silinsin mi?"). Metin yoksa ya da bağlamalarının hiçbiri çözülmediyse genel başlık kalır.
+ */
+export function barDeleteConfirmTitle(raw: unknown, scope: PageScope): string {
+  const template = textValue(raw).trim();
+  if (!template) return BAR_DELETE_CONFIRM;
+  return bindingsAllEmpty(template, scope) ? BAR_DELETE_CONFIRM : interpolate(template, scope).trim() || BAR_DELETE_CONFIRM;
+}
+
 export function pageTitleCount(raw: unknown, scope: PageScope): number | null {
   const template = textValue(raw);
   if (!template) return null;
@@ -3351,12 +3371,25 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [titleOverride, setTitleOverride] = useState<string | null>(null);
+  // Kaydı adlandıran (bağlamalı) başlık: çalışma sekmesinin adı ve sayfa yolu olur.
+  const [recordTitle, setRecordTitle] = useState<string | null>(null);
   // The router passes inline callbacks; keep them out of the load effect's dependencies.
   const onMissingRef = useRef(onSystemPageMissing);
   onMissingRef.current = onSystemPageMissing;
   // A system page (published or a Studio draft preview) lives in its built-in screen's tab.
   const tabKey = (systemScreenKey && aliasTabKey) || (systemScreenKey ?? (previewId ? `custom-page-preview:${previewId}` : code ? `custom-page:${code}` : undefined));
   const pageParams = usePageParams(tabKey);
+  // Görünen bağlamalı `pageTitle` başlığı (düzenlenen kaydın adı) çalışma sekmesinin adı ve sayfa yolu olur. Sabit başlıkta
+  // (ör. yeni kartta "Yeni cari kart"), başlık yokken ya da sayfa kapanınca sekme sabit adında kalır ("Yeni Cari Kart").
+  useEffect(() => {
+    if (!tabKey) return;
+    setWorkspacePageTitle(tabKey, recordTitle);
+    return () => setWorkspacePageTitle(tabKey, null);
+  }, [tabKey, recordTitle]);
+  const onPageTitle = useCallback((title: string | null, fromRecord: boolean) => {
+    setTitleOverride(title);
+    setRecordTitle(fromRecord ? title : null);
+  }, []);
   // Sekme başka parametrelerle yeniden açıldı (ör. başka bir kayıt): sayfa gövdesi baştan kurulur, yazılanlar ve sonuçlar taşınmaz.
   const paramKeys = useRef(new WeakMap<object, number>());
   const paramCounter = useRef(0);
@@ -3415,6 +3448,6 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
     {!(isV2 && hasActionBar(components)) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
-    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={setTitleOverride} />
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }

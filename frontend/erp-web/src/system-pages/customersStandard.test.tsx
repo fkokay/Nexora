@@ -204,6 +204,8 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await ready('delete');
     fireEvent.click(command('delete'));
     const dialog = await screen.findByRole('alertdialog', {}, T);
+    // Onay silinecek kartı adlandırır (deleteConfirmText).
+    expect(within(dialog).getByRole('heading').textContent).toBe('C-1001 · FATİH KOKAY cari kartı silinsin mi?');
     expect(writes()).toEqual([]);
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(writes()).toEqual([{ url: `/api/customers/${C1}`, method: 'DELETE', body: undefined }]), T);
@@ -227,7 +229,7 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
     fireEvent.click(within(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).getByRole('button', { name: 'Seçilenleri sil' }));
     const dialog = await screen.findByRole('alertdialog', {}, T);
-    expect(dialog.textContent).toContain('2 kayıt silinsin mi?');
+    expect(within(dialog).getByRole('heading').textContent).toBe('Seçilen 2 kayıt silinsin mi?');
     expect(writes()).toEqual([]);
     fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
     await waitFor(() => expect(document.body.textContent).toContain('2 kayıt silindi.'), T);
@@ -257,7 +259,7 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(within(gridRows()[1]).getByRole('checkbox'));
     fireEvent.click(within(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).getByRole('button', { name: 'Seçilenleri sil' }));
     const dialog = await screen.findByRole('alertdialog', {}, T);
-    expect(dialog.textContent).toContain('1 kayıt silinsin mi?');
+    expect(within(dialog).getByRole('heading').textContent).toBe('Seçilen 1 kayıt silinsin mi?');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), T);
     expect(writes()).toEqual([]);

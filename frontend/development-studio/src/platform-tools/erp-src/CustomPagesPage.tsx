@@ -135,7 +135,8 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   heading: [{ key: "text", label: "Başlık metni", kind: "text" }],
   text: [{ key: "text", label: "Metin", kind: "textarea" }],
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
-  input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" }],
+  input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" },
+    { key: "emptyDefault", label: "Boşsa varsayılan (sabit)", kind: "text" }],
   metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
     { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["date", "Tarih"], ["datetime", "Tarih ve saat"], ["text", "Metin"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
@@ -198,11 +199,14 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
   "openParam", "bulkDeleteQuery",
   // Listeli tablonun motor ekleri (Düzenlenebilir tablo bölümü): sorgudan doldurma, seçimle doldurma ve formüller.
-  ...GRID_ENGINE_PROPS]);
+  ...GRID_ENGINE_PROPS,
+  // Boş çözülen varsayılanın sabit yedeği (İçerik › "Boşsa varsayılan"), parçalı metin (İçerik › "Parçalar") ve İşlem Çubuğu
+  // Sil onayının metni (Komutlar › Sil).
+  "emptyDefault", "parts", "deleteConfirmText"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle", "promptText"]);
+  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "subtitle", "promptText", "deleteConfirmText"]);
 const inputTypeOptions = [{ value: "text", label: "Metin" }, { value: "number", label: "Sayı" }, { value: "date", label: "Tarih" }, { value: "datetime", label: "Tarih ve saat" }, { value: "checkbox", label: "Onay kutusu" }, { value: "select", label: "Açılır liste" }, { value: "lookup", label: "Arama kutusu" }];
 /** Yalnız arama kutusunda (inputType lookup) geçerli özellikler; tür değişince silinir. */
 const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefined, minChars: undefined, staticOptions: undefined, allowClear: undefined };
@@ -1957,7 +1961,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       scope[component.name] = { satirSayisi: 0, toplam: Object.fromEntries(gridTotalCodes(component.props).map((code) => [code, 0])) };
     for (const component of state.components) {
       if (!component.name || component.type !== "input") continue;
-      const raw = interpolate(String(component.props.defaultValue ?? ""), scope);
+      // ERP gibi: varsayılan boş çözülürse `emptyDefault` (sabit) kullanılır.
+      const raw = interpolate(String(component.props.defaultValue ?? ""), scope) || String(component.props.emptyDefault ?? "");
       const inputType = String(component.props.inputType ?? "text");
       const value = inputType === "checkbox" ? /^(true|1|evet)$/i.test(raw.trim())
         : inputType === "number" ? (raw.trim() === "" || !Number.isFinite(Number(raw)) ? null : Number(raw)) : raw === "" ? null : raw;
@@ -2503,7 +2508,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const style = componentStyle(component.type, props);
     switch (component.type) {
       case "heading": return <h2 key={component.id} className="custom-page-preview-heading" style={style}>{shown(props.text || props.title, "Başlık")}</h2>;
-      case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{shown(props.text, "Metin")}</p>;
+      case "text": return <p key={component.id} className="custom-page-preview-text" style={style}>{Array.isArray(props.parts) && props.parts.length > 0 ? shown(props.parts.join(" · "), "Metin") : shown(props.text, "Metin")}</p>;
       case "label": return <p key={component.id} className="custom-page-preview-text pd-binding-label" style={style}>{shown(props.text, "Etiket")}</p>;
       case "input": return owned.has(component.id) || searchOwned.has(component.id) ? null : renderInput(component, style);
       case "metric": if (typeof props.query === "string") {
@@ -3687,6 +3692,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               {Object.entries(selected.props).filter(([key]) => !managedKeys.has(key)).map(([key, value]) => <label key={key} className="pd-field">{key}<input value={Array.isArray(value) ? value.join(", ") : String(value)} onChange={(event) => updateComponent(selected.id, key, event.target.value)}/></label>)}
               {contentFields[selected.type].some((field) => bindableKeys.has(field.key) && field.kind !== "number" && field.kind !== "variant") && <p className="pd-binding-note">Metinlere <code>{"{{"}</code> yazarak ya da aşağıdaki <b>Kullanılabilir değişkenler</b> listesinden tıklayarak değişken ekleyin. {bindingNote}</p>}
               {selected.type === "badge" && <div className="pd-field">Değere göre ton<ToneMapEditor value={toneMapEntries} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { toneMap: next.length ? next : undefined })}/><small>Metin bu değerlerden biriyse ton otomatik seçilir; eşleşmezse yukarıdaki ton kullanılır.</small></div>}
+              {selected.type === "text" && <label className="pd-field">Parçalar<small>Her satıra bir parça yazın; " · " ile birleşir ve bütün değişkenleri boş olan parça (etiketiyle) gösterilmez. Doluysa yukarıdaki metnin yerine geçer.</small><textarea rows={4} value={Array.isArray(selected.props.parts) ? selected.props.parts.join("\n") : ""} onChange={(event) => {
+                const parts = event.target.value.split("\n").map((item) => item.trim()).filter(Boolean);
+                patchComponent(selected.id, { parts: parts.length > 0 ? parts : undefined });
+              }}/></label>}
               {selected.type === "list" && <label className="pd-field">Liste öğeleri<small>Her satıra bir madde yazın.</small><textarea rows={5} value={Array.isArray(selected.props.items) ? selected.props.items.join("\n") : ""} onChange={(event) => updateComponent(selected.id, "items", event.target.value.split("\n").map((item) => item.trim()).filter(Boolean))}/></label>}
             </>))}
             {selected.type === "input" && section("input", "Giriş", <>
@@ -3952,6 +3961,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 </select>
                 <QueryFieldActions kinds={["delete"]} target="Sil komutu" value={typeof selected.props.deleteQuery === "string" ? selected.props.deleteQuery : null} componentId={selected.id} disabled={!canEdit} bind={(query) => ({ deleteQuery: query.id })}/>
               </label>
+              <label className="pd-field">Silme onayı metni<BindingInput value={String(selected.props.deleteConfirmText ?? "")} maxLength={300} suggestions={bindingSuggestions} disabled={!canEdit} ariaLabel="Silme onayı metni"
+                placeholder="Boşsa “Kayıt silinsin mi?”" onChange={(next) => patchComponent(selected.id, { deleteConfirmText: next || undefined })}/></label>
                 </> : id === "filter" ? <>
               <label className="pd-field">Filtre<span className="pd-action-key" aria-hidden="true">Ctrl+F</span><small>Odaklanacak giriş kutusu.</small>
                 <select value={typeof selected.props.focusInput === "string" ? selected.props.focusInput : ""} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { focusInput: event.target.value || undefined })}>
