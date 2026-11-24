@@ -65,6 +65,9 @@ function respond(url: string): unknown {
   const path = url.split('?')[0];
   if (Object.prototype.hasOwnProperty.call(records, path)) return records[path];
   if (path.includes(MISSING)) throw new Error('Kayıt bulunamadı.');
+  if (path.endsWith('/statement'))
+    return { customerId: C1, customerCode: 'C-1001', customerName: 'FATİH KOKAY', currencyCode: 'TRY', from: '2026-01-01', to: '2026-12-31',
+      openingBalance: 0, debitTotal: 0, creditTotal: 0, closingBalance: 0, items: [] };
   if (path.endsWith('/depreciation-schedule'))
     return { assetId: F1, method: 'StraightLine', currencyBasis: 'TRY', acquisitionCostBase: 1000, residualValueBase: 0, accumulatedDepreciationBase: 0, rows: [] };
   if (path.endsWith('/disposal')) throw new Error('Elden çıkarma yok.');
