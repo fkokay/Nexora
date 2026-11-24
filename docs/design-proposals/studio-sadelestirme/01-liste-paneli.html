@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Izgara – danışman görünümü (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+  .top h1{font-size:16px;margin:0}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;background:#fdf0d5;color:#8a5a00}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .wrap{display:grid;grid-template-columns:56px 1fr 340px;height:calc(100vh - 92px)}
+  .rail{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:10px;gap:6px}
+  .rail div{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--muted);font-size:10px;text-align:center;line-height:1.1;cursor:pointer}
+  .rail div.on{background:var(--accent-soft);color:var(--accent)}
+  .canvas{overflow:auto;padding:24px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px}
+  .page{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:900px;margin:0 auto;padding:20px}
+  .crumb{color:var(--muted);font-size:12px}
+  .page h2{margin:4px 0 14px;font-size:20px}
+  .toolbar{display:flex;gap:6px;margin-bottom:12px;align-items:center}
+  .tb{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff}
+  .tb.main{color:var(--accent);font-weight:600}
+  .search{flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#a5a2b5}
+  .gridbox{position:relative;border:2px solid var(--accent);border-radius:10px;padding:0;overflow:hidden}
+  .gridtag{position:absolute;top:-1px;left:-1px;background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-bottom-right-radius:8px;z-index:2}
+  table{width:100%;border-collapse:collapse;margin-top:0}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-weight:600;color:var(--muted);font-size:12px;background:#faf9fd;padding-top:26px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  body.dense td{padding:5px 12px} body.comfy td{padding:13px 12px}
+  body.striped tbody tr:nth-child(even){background:#faf9fd}
+  .foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--muted);font-size:12px}
+  .insp{background:#fff;border-left:1px solid var(--line);overflow:auto}
+  .ih{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .ih input{border:0;font:600 15px inherit;font-family:inherit;width:100%;outline:none}
+  .ico{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .sec h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .q{font-weight:600;margin-bottom:6px}
+  select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  .src{margin-top:6px;font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px}
+  .col{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:7px}
+  .col:hover{background:#f6f5fa}
+  .col .h{color:#b8b5c8;cursor:grab;letter-spacing:-2px}
+  .col .n{flex:1}
+  .col .pen{opacity:0;color:var(--muted);cursor:pointer}
+  .col:hover .pen{opacity:1}
+  .col.calc .n:after{content:"hesaplanan";font-size:10px;margin-left:6px;color:var(--dev);background:var(--dev-soft);padding:1px 5px;border-radius:4px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  details summary{cursor:pointer;font-weight:600;list-style:none}
+  details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  .ask{margin:14px 16px 20px;border:1px dashed #b9d9d3;background:var(--dev-soft);border-radius:10px;padding:10px 12px;color:#134e48}
+  .ask b{display:block;margin-bottom:2px}
+  .ask a{color:var(--dev);font-weight:600;cursor:pointer}
+  .hidden{display:none!important}
+  .page{transition:max-width .25s}
+  body.tablet .page{max-width:640px} body.mobile .page{max-width:360px;padding:14px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .metric{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric span{display:block;color:var(--muted);font-size:12px} .metric b{font-size:17px}
+  body.mobile .metric b{font-size:15px}
+  body.mobile .toolbar{flex-wrap:wrap} body.mobile .search{flex-basis:100%;order:3}
+  .more{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff}
+  .cards{display:none}
+  body.mobile #grid{display:none} body.mobile .cards{display:block}
+  .card{padding:11px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+  .card:first-child{padding-top:28px}
+  .card .t{font-weight:600} .card .s{color:var(--muted);font-size:12px;margin-top:2px} .card .v{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .devinfo{font-size:12px;color:var(--muted);line-height:1.5}
+  .devinfo b{color:var(--text)}
+  .split2{display:flex;gap:12px;align-items:flex-start}
+  .split2 .gridbox{flex:1;min-width:0}
+  .detail{width:240px;flex:none;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff}
+  .detail h5{margin:0 0 2px;font-size:15px} .detail .s{color:var(--muted);font-size:12px;margin-bottom:10px}
+  .detail dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:12px} .detail dt{color:var(--muted)}
+  .detail .x{float:right;cursor:pointer;color:var(--muted)}
+  body.tablet .detail{width:200px}
+  body.mobile .split2{display:block} body.mobile .detail{width:auto;margin-top:10px;border-top:3px solid var(--accent);box-shadow:0 -6px 18px rgba(0,0,0,.08)}
+  tbody tr{cursor:pointer} tbody tr.sel{background:var(--accent-soft)!important}
+  .card.sel{background:var(--accent-soft)}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:4px}
+  input.txt{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit}
+  .empty{border:1px dashed var(--line);border-radius:10px;padding:18px;text-align:center;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 4:</b> “Satıra çift tıklayınca” ayarını <b>Yan panelde göster</b> yapıp ızgarada bir satıra tıkla. Izgara kendiliğinden daralır, ayrıca bir daralma kuralı kurmak gerekmez. “Kullanıcı araçları” ve “Görünüm” bölümlerini de dene. Cihaz düğmeleri hâlâ çalışıyor.</div>
+
+<div class="top">
+  <button class="btn">←</button>
+  <h1>Cari Hesaplar</h1><span class="pill">Taslak</span>
+  <span class="sp"></span>
+  <div class="seg" id="dev"><button class="on" data-v="desktop">Masaüstü</button><button data-v="tablet">Tablet</button><button data-v="mobile">Mobil</button></div>
+  <button class="btn">Önizle</button>
+  <button class="btn primary">Yayınla</button>
+</div>
+
+<div class="wrap">
+  <div class="rail">
+    <div>＋<br>Ekle</div>
+    <div class="on">☰<br>Sayfa</div>
+  </div>
+
+  <div class="canvas">
+    <div class="page">
+      <div class="crumb">Ana sayfa › Cari Hesaplar</div>
+      <h2>Cari Hesaplar</h2>
+      <div class="metrics">
+        <div class="metric"><span>Toplam alacak</span><b>1.284.300 ₺</b></div>
+        <div class="metric"><span>Toplam borç</span><b>412.950 ₺</b></div>
+        <div class="metric"><span>Vadesi geçen</span><b style="color:#c2410c">38 cari</b></div>
+      </div>
+      <div class="toolbar" id="toolbar">
+        <span class="tb main" data-b="yeni">+ Yeni</span>
+        <span class="tb" data-b="sil">Sil</span>
+        <span class="tb hidden" data-b="excel">Excel'e aktar</span>
+        <span class="search" id="search">🔍 Cari kodu, unvan veya şehir ara…</span>
+      </div>
+      <div class="split2">
+      <div class="gridbox">
+        <span class="gridtag">Izgara · Cari kartları</span>
+        <table id="grid"><thead><tr></tr></thead><tbody></tbody></table>
+        <div class="cards" id="cards"></div>
+        <div class="foot"><span id="count"></span><span>‹ 1 2 3 … ›</span></div>
+      </div>
+      <div class="detail hidden" id="detail"></div>
+      </div>
+      <div class="empty hidden" id="emptyMsg"></div>
+    </div>
+  </div>
+
+  <div class="insp">
+    <div class="ih"><span class="ico">▦</span><input value="Cari kartları"></div>
+
+    <div class="sec">
+      <div class="q">Ne listelensin?</div>
+      <select>
+        <option>Cari hesaplar</option>
+        <option>Borçlu cariler</option>
+        <option>Tedarikçiler</option>
+        <option>Son 30 gün işlem görenler</option>
+      </select>
+      <div class="src">Yazılımcının hazırladığı veri kaynağı · 312 kayıt</div>
+    </div>
+
+    <div class="sec">
+      <h4>Kolonlar</h4>
+      <div id="cols"></div>
+    </div>
+
+    <div class="sec">
+      <h4>Liste</h4>
+      <div class="row">Arama kutusu <span class="tg on" data-t="search"></span></div>
+      <div class="row">Sayfa başına
+        <div class="seg" id="ps"><button>10</button><button class="on">25</button><button>50</button><button>100</button></div>
+      </div>
+      <div class="q" style="margin-top:10px">Satıra çift tıklayınca</div>
+      <select id="onopen"><option value="card">Cari kartını aç</option><option value="side">Yan panelde göster</option><option value="none">Hiçbir şey yapma</option></select>
+      <div class="opt" id="onopenHint"></div>
+      <div class="q" style="margin-top:12px">Kullanıcı araçları</div>
+      <div class="chips" id="tools">
+        <span class="chip on">Kolon filtreleri</span>
+        <span class="chip on">Kolon seçici</span>
+        <span class="chip">Pivot</span>
+        <span class="chip" data-b="excel">Dışa aktar</span>
+      </div>
+      <div class="opt">“Dışa aktar” açıkken kullanıcı Excel ya da CSV seçebilir, sadece seçili satırları da aktarabilir.</div>
+    </div>
+
+    <div class="sec">
+      <h4>Küçük ekranlarda</h4>
+      <div class="devinfo">
+        Kolon sırası aynı zamanda <b>önem sırası</b>.<br>
+        <b>Tablet:</b> ilk 4 kolon görünür, satır eylemleri “⋯” menüsüne girer.<br>
+        <b>Mobil:</b> kart listesi olur. 1. kolon başlık, 2.–3. kolon alt satır, sayı kolonu sağda görünür.
+      </div>
+      <div class="row" style="margin-top:6px">Mobilde bu ızgarayı gizle <span class="tg" data-t="mhide"></span></div>
+    </div>
+
+    <div class="sec">
+      <h4>Eylemler</h4>
+      <div class="q">Listenin üstünde</div>
+      <div class="chips" id="btns">
+        <span class="chip on" data-b="yeni">+ Yeni</span>
+        <span class="chip on" data-b="sil">Seçilenleri sil</span>
+      </div>
+      <div class="q" style="margin-top:12px">Her satırın sonunda</div>
+      <div class="chips" id="rowacts">
+        <span class="chip on" data-r="ekstre">Ekstre al</span>
+        <span class="chip" data-r="mail">Mail gönder</span>
+        <span class="chip" data-r="onay">Onaya gönder</span>
+      </div>
+      <div class="src" style="margin-top:10px">Bu eylemleri yazılımcı hazırlar, sen sadece hangilerinin görüneceğini seçersin.</div>
+    </div>
+
+    <div class="sec">
+      <details>
+        <summary>Görünüm</summary>
+        <div class="row" style="margin-top:8px">Satır yüksekliği
+          <div class="seg" id="dens"><button data-d="dense">Sıkı</button><button class="on" data-d="">Normal</button><button data-d="comfy">Rahat</button></div>
+        </div>
+        <div class="row">Çizgili satırlar <span class="tg" data-t="striped"></span></div>
+        <div class="q" style="margin-top:10px">Liste boşken yazılacak</div>
+        <input class="txt" id="emptyTxt" value="Aramanızla eşleşen cari kartı yok.">
+        <div class="opt"><a style="color:var(--accent);cursor:pointer" id="emptyPrev">Boş halini önizle</a></div>
+        <div class="q" style="margin-top:10px">Ne zaman görünsün?</div>
+        <div class="seg"><button class="on">Her zaman</button><button>Koşula bağlı…</button></div>
+      </details>
+    </div>
+
+    <div class="ask">
+      <b>Aradığın alan ya da liste yok mu?</b>
+      Örneğin “Son ödeme tarihi” kolonu gibi. <a>Yazılımcıdan iste →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLS=[
+ {k:"kod",n:"Cari kodu",on:true},{k:"unvan",n:"Unvan",on:true},{k:"sehir",n:"Şehir",on:true},
+ {k:"bakiye",n:"Bakiye",on:true,num:true,calc:true},{k:"vergi",n:"Vergi no",on:false},{k:"tel",n:"Telefon",on:false}];
+const ROWS=[
+ ["C-1001","Akdeniz Gıda A.Ş.","Antalya","48.250,00 ₺","1234567890","0242 111 22 33"],
+ ["C-1002","Bora Lojistik Ltd.","İzmir","-3.120,50 ₺","2345678901","0232 222 33 44"],
+ ["C-1003","Çınar Yapı","Ankara","0,00 ₺","3456789012","0312 333 44 55"],
+ ["C-1004","Deniz Tekstil","Bursa","12.900,00 ₺","4567890123","0224 444 55 66"],
+ ["C-1005","Ege Makina San.","Manisa","7.410,75 ₺","5678901234","0236 555 66 77"],
+ ["C-1006","Fırat Enerji","Elazığ","-890,00 ₺","6789012345","0424 666 77 88"]];
+let pageSize=25;
+const RA={ekstre:{n:"Ekstre",on:true},mail:{n:"Mail",on:false},onay:{n:"Onaya gönder",on:false}};
+let device="desktop",mhide=false;
+function render(){
+  const all=COLS.map((c,i)=>({...c,i})).filter(c=>c.on);
+  const vis=device==="tablet"?all.slice(0,4):all;
+  const ra=Object.values(RA).filter(a=>a.on);
+  const raCell=!ra.length?"":device==="tablet"?"<td style='text-align:right'><span class='more'>⋯</span></td>":"<td style='text-align:right'>"+ra.map(a=>`<span class="tb" style="padding:2px 8px;font-size:12px;margin-left:4px">${a.n}</span>`).join("")+"</td>";
+  const num=all.find(c=>c.num), txt=all.filter(c=>!c.num);
+  document.getElementById("cards").innerHTML=ROWS.map(r=>`<div class="card"><div><div class="t">${txt[0]?r[txt[0].i]:""}</div><div class="s">${txt.slice(1,3).map(c=>r[c.i]).join(" · ")}</div></div>${num?`<div class="v">${r[num.i]}</div>`:""}</div>`).join("");
+  document.querySelector(".gridbox").classList.toggle("hidden",device==="mobile"&&mhide);
+  document.querySelectorAll("#toolbar [data-b=sil],#toolbar [data-b=excel]").forEach(b=>b.style.display=device==="mobile"?"none":"");
+  document.querySelector(".split2").classList.toggle("hidden",device==="mobile"&&mhide);
+  let more=document.getElementById("tbmore");
+  if(device==="mobile"&&!more){more=document.createElement("span");more.id="tbmore";more.className="more";more.textContent="⋯";document.getElementById("search").before(more);}
+  if(device!=="mobile"&&more)more.remove();
+  document.querySelector("#grid thead tr").innerHTML="<th style='width:30px'>☐</th>"+vis.map(c=>`<th${c.num?" style='text-align:right'":""}>${c.n}</th>`).join("")+(ra.length?"<th></th>":"");
+  document.querySelector("#grid tbody").innerHTML=ROWS.map(r=>"<tr><td>☐</td>"+vis.map(c=>`<td class="${c.num?"num":""}">${r[c.i]}</td>`).join("")+raCell+"</tr>").join("");
+  document.getElementById("count").textContent=`1–${pageSize} / 312 kayıt`;
+  document.getElementById("cols").innerHTML=COLS.map((c,i)=>`<label class="col${c.calc?" calc":""}"><span class="h">⋮⋮</span><input type="checkbox" data-i="${i}" ${c.on?"checked":""}><span class="n">${c.n}</span><span class="pen" title="Başlığı değiştir">✎</span></label>`).join("");
+}
+document.addEventListener("change",e=>{if(e.target.dataset.i!==undefined){COLS[e.target.dataset.i].on=e.target.checked;render();}});
+document.querySelectorAll(".tg").forEach(t=>t.onclick=()=>{t.classList.toggle("on");const k=t.dataset.t;
+  if(k==="search")document.getElementById("search").classList.toggle("hidden",!t.classList.contains("on"));
+  if(k==="striped")document.body.classList.toggle("striped",t.classList.contains("on"));
+  if(k==="mhide"){mhide=t.classList.contains("on");render();}});
+document.querySelectorAll("#dev button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#dev button").forEach(x=>x.classList.remove("on"));b.classList.add("on");device=b.dataset.v;document.body.classList.remove("tablet","mobile");if(device!=="desktop")document.body.classList.add(device);render();});
+document.querySelectorAll("#ps button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#ps button").forEach(x=>x.classList.remove("on"));b.classList.add("on");pageSize=+b.textContent;render();});
+document.querySelectorAll("#dens button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#dens button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.body.classList.remove("dense","comfy");if(b.dataset.d)document.body.classList.add(b.dataset.d);});
+document.querySelectorAll("#btns .chip").forEach(c=>c.onclick=()=>{c.classList.toggle("on");document.querySelector(`#toolbar [data-b=${c.dataset.b}]`).classList.toggle("hidden",!c.classList.contains("on"));});
+let sel=-1;
+function showDetail(){
+  const d=document.getElementById("detail");
+  const on=document.getElementById("onopen").value==="side"&&sel>=0;
+  d.classList.toggle("hidden",!on);
+  document.querySelectorAll("#grid tbody tr").forEach((tr,i)=>tr.classList.toggle("sel",i===sel));
+  document.querySelectorAll("#cards .card").forEach((c,i)=>c.classList.toggle("sel",i===sel));
+  if(!on)return; const r=ROWS[sel];
+  d.innerHTML=`<span class="x" onclick="sel=-1;showDetail()">✕</span><h5>${r[1]}</h5><div class="s">${r[0]} · ${r[2]}</div><dl><dt>Bakiye</dt><dd>${r[3]}</dd><dt>Vergi no</dt><dd>${r[4]}</dd><dt>Telefon</dt><dd>${r[5]}</dd></dl><div style="margin-top:10px"><span class="tb main">Kartı aç</span></div>`;
+}
+document.getElementById("onopen").onchange=e=>{const v=e.target.value;
+  document.getElementById("onopenHint").textContent=v==="side"?"Panel açılınca ızgara kendiliğinden daralır. Mobilde panel alttan açılır.":"";
+  if(v==="side"&&sel<0)sel=0; showDetail();};
+document.addEventListener("click",e=>{const tr=e.target.closest("#grid tbody tr,#cards .card");if(!tr)return;
+  sel=[...tr.parentNode.children].indexOf(tr);showDetail();});
+document.querySelectorAll("#tools .chip").forEach(c=>c.onclick=()=>{c.classList.toggle("on");if(c.dataset.b){const x=document.querySelector(`#toolbar [data-b=excel]`);x.textContent="Dışa aktar";x.classList.toggle("hidden",!c.classList.contains("on"));}});
+document.getElementById("emptyPrev").onclick=()=>{const m=document.getElementById("emptyMsg"),g=document.querySelector(".split2");
+  const showing=!m.classList.contains("hidden");m.textContent=document.getElementById("emptyTxt").value;m.classList.toggle("hidden",showing);g.classList.toggle("hidden",!showing);
+  document.getElementById("emptyPrev").textContent=showing?"Boş halini önizle":"Listeye geri dön";};
+const _render=render; render=function(){_render();showDetail();};
+document.querySelectorAll("#rowacts .chip").forEach(c=>c.onclick=()=>{c.classList.toggle("on");RA[c.dataset.r].on=c.classList.contains("on");render();});
+render();
+</script>
+</body>
+</html>

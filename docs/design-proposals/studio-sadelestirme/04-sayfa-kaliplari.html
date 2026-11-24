@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Sayfa kalıpları (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--lock:#64748b;--lock-soft:#eef1f5;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .bar{display:flex;gap:10px;align-items:center;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:6px 12px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;display:inline-block;vertical-align:middle}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .main{display:grid;grid-template-columns:1fr 300px;gap:0;height:calc(100vh - 100px)}
+  .canvas{overflow:auto;padding:22px}
+  .side{background:#fff;border-left:1px solid var(--line);padding:16px;overflow:auto;line-height:1.55}
+  .side h4{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .legend{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .lg{display:flex;gap:8px;align-items:flex-start} .lg i{width:14px;height:14px;border-radius:4px;flex:none;margin-top:3px}
+  .app{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:980px;margin:0 auto}
+  .appbar{display:flex;align-items:center;gap:10px;background:#1f1b33;color:#fff;padding:8px 14px;font-size:12px}
+  .appbar b{font-size:13px} .appbar span{opacity:.7}
+  .pg{padding:16px 18px 18px}
+  .z{position:relative;border-radius:8px}
+  body.zones .z{outline:2px dashed transparent;outline-offset:3px}
+  body.zones .z.lock{outline-color:#94a3b8;background-image:repeating-linear-gradient(135deg,rgba(100,116,139,.06) 0 8px,transparent 8px 16px)}
+  body.zones .z.slot{outline-color:var(--accent);background:rgba(91,63,214,.035)}
+  body.zones .z:before{content:attr(data-z);position:absolute;top:-10px;right:6px;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:5px;z-index:3}
+  body.zones .z.lock:before{background:#64748b;color:#fff;content:"🔒 " attr(data-z)}
+  body.zones .z.slot:before{background:var(--accent);color:#fff;content:"✎ " attr(data-z)}
+  .crumb{color:var(--muted);font-size:12px}
+  .hd{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+  .hd h2{margin:0;font-size:20px}
+  .st{font-size:11px;padding:2px 9px;border-radius:99px;font-weight:600}
+  .ab{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px;margin-bottom:12px;flex-wrap:wrap}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 11px;background:#fff}
+  .b.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .b.dan{color:#b91c1c;border-color:#f3c4c4}
+  .sp{flex:1}
+  .srch{border:1px solid var(--line);border-radius:7px;padding:6px 10px;color:#a5a2b5;min-width:200px}
+  table{width:100%;border-collapse:collapse} th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12.5px;white-space:nowrap} th{background:#faf9fd;color:var(--muted);font-weight:600}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .box{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .ft{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;padding:8px 10px}
+  .two{display:grid;grid-template-columns:1fr 250px;gap:12px}
+  .dp{border:1px solid var(--line);border-radius:10px;padding:12px} .dp dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:8px 0 0;font-size:12px} .dp dt{color:var(--muted)} .dp dd{margin:0}
+  .rh{display:flex;gap:12px;align-items:center}
+  .av{width:42px;height:42px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .kv{margin-left:auto;display:flex;gap:18px;text-align:right} .rh .kv span{display:block;color:var(--muted);font-size:11.5px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px} .tab{padding:7px 12px;color:var(--muted);border-bottom:2px solid transparent} .tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .fg{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px} .f div{border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+  .tot{display:flex;justify-content:flex-end} .tot dl{display:grid;grid-template-columns:auto auto;gap:4px 24px;margin:0;font-size:13px} .tot dt{color:var(--muted)} .tot dd{margin:0;text-align:right;font-variant-numeric:tabular-nums} .tot .g{font-weight:700;font-size:15px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px} .fc{border:1px solid var(--line);border-radius:8px;padding:6px 10px} .fc span{color:var(--muted);font-size:11px;display:block}
+  .chart{height:120px;border-radius:10px;background:linear-gradient(180deg,#f5f3ff,#fff);display:flex;align-items:flex-end;gap:10px;padding:10px 14px;border:1px solid var(--line);margin-bottom:12px}
+  .chart i{flex:1;background:var(--accent);opacity:.75;border-radius:4px 4px 0 0}
+  .foot{border-top:1px solid var(--line);margin-top:14px;padding-top:8px;color:var(--muted);font-size:11.5px;display:flex;justify-content:space-between}
+  .others{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .others div{padding:4px 0}
+</style>
+</head>
+<body class="zones">
+<div class="note"><b>Sayfa kalıpları:</b> Danışman sayfaya boş bir tuval olarak başlamaz, önce bir <b>kalıp</b> seçer. Kalıbın iskeleti, yani başlık, işlem çubuğu, butonların sırası, sekmelerin yeri ve alt bilgi, <b>sabittir</b> (gri). Danışman sadece mor alanları doldurur. ERP'nin kendi ekranları da aynı kalıpları kullandığı için kullanıcı her ekranda aynı yapıyı görür.</div>
+<div class="bar">
+  <b>Kalıp:</b>
+  <div class="seg" id="k"><button class="on" data-k="liste">Liste</button><button data-k="kart">Kayıt kartı</button><button data-k="belge">Belge</button><button data-k="rapor">Rapor</button></div>
+  <span class="sp" style="flex:1"></span>
+  Bölgeleri göster <span class="tg on" id="zt"></span>
+</div>
+<div class="main">
+  <div class="canvas"><div class="app"><div class="appbar"><b>Nexora ERP</b><span id="mod">Cari Hesaplar</span></div><div class="pg" id="pg"></div></div></div>
+  <div class="side" id="side"></div>
+</div>
+<script>
+const AB=(btns)=>`<div class="ab z lock" data-z="İşlem çubuğu — sıra ve yer sabit">${btns}</div>`;
+const HD=(crumb,title,extra="")=>`<div class="z lock" data-z="Sayfa başlığı"><div class="crumb">${crumb}</div><div class="hd"><h2>${title}</h2>${extra}</div></div>`;
+const FOOT=`<div class="foot z lock" data-z="Alt bilgi"><span>Son değişiklik: Ayşe Yılmaz · 24.11.2026 16:42</span><span>Kısayollar: Ctrl+S kaydet · Esc kapat</span></div>`;
+const K={
+ liste:{mod:"Cari Hesaplar",
+  html:()=>HD("Ana sayfa › Cari","Cari Hesaplar",'<span class="st" style="background:#f1effa;color:var(--accent)">312 kayıt</span>')+
+   AB(`<span class="b pri">+ Yeni</span><span class="b">Aç</span><span class="b">Excel</span><span class="sp"></span><span class="srch">🔍 Ara…</span><span class="b dan">Sil</span>`)+
+   `<div class="z slot" data-z="Göstergeler (isteğe bağlı)" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px"><div class="dp"><span style="color:var(--muted);font-size:12px">Toplam alacak</span><br><b>1.284.300 ₺</b></div><div class="dp"><span style="color:var(--muted);font-size:12px">Toplam borç</span><br><b>412.950 ₺</b></div><div class="dp"><span style="color:var(--muted);font-size:12px">Vadesi geçen</span><br><b style="color:var(--warn)">38 cari</b></div></div>`+
+   `<div class="two"><div class="box z slot" data-z="Liste — kolonlar, filtreler"><table><tr><th>Cari kodu</th><th>Unvan</th><th>Şehir</th><th class="n">Bakiye</th></tr><tr style="background:var(--accent-soft)"><td>C-1001</td><td>Akdeniz Gıda A.Ş.</td><td>Antalya</td><td class="n">48.250,00</td></tr><tr><td>C-1002</td><td>Bora Lojistik</td><td>İzmir</td><td class="n">-3.120,50</td></tr><tr><td>C-1003</td><td>Çınar Yapı</td><td>Ankara</td><td class="n">0,00</td></tr></table><div class="ft"><span>1–25 / 312</span><span>‹ 1 2 3 ›</span></div></div>`+
+   `<div class="dp z slot" data-z="Detay paneli — alanlar"><b>Akdeniz Gıda A.Ş.</b><dl><dt>Telefon</dt><dd>0242 111 22 33</dd><dt>Vade</dt><dd>30 gün</dd><dt>Temsilci</dt><dd>Ayşe Yılmaz</dd></dl></div></div>`+FOOT,
+  side:`<b>Liste kalıbı</b> — kayıtları aramak, süzmek ve seçmek için.<br><br><b>Sabit olanlar:</b><ul style="padding-left:18px;margin:4px 0"><li>Başlık ve kayıt sayısı</li><li>İşlem çubuğu: <i>+ Yeni</i> her zaman en solda, arama ortada, <i>Sil</i> en sağda</li><li>Detay paneli her zaman sağda</li><li>Sayfalama her zaman altta</li></ul><b>Danışmanın seçtikleri:</b><ul style="padding-left:18px;margin:4px 0"><li>Göstergeler (var / yok, hangileri)</li><li>Kolonlar, filtreler, satır eylemleri</li><li>Detay panelinde hangi alanlar</li></ul>`},
+ kart:{mod:"Cari Hesaplar › Cari kartı",
+  html:()=>HD("Ana sayfa › Cari › C-1001","",'')+
+   `<div class="z slot" data-z="Kayıt özeti — öne çıkan değerler" style="margin:-6px 0 12px"><div class="rh"><div class="av">AG</div><div><div style="font-size:18px;font-weight:700">Akdeniz Gıda A.Ş.</div><div style="color:var(--muted);font-size:12px">C-1001 · Antalya · Müşteri</div></div><div class="kv"><div><span>Bakiye</span><b>48.250 ₺</b></div><div><span>Vade</span><b>30 gün</b></div></div></div></div>`+
+   AB(`<span class="b pri">Kaydet</span><span class="b">Kaydet ve yeni</span><span class="b">Ekstre al</span><span class="sp"></span><span class="b">‹ Önceki</span><span class="b">Sonraki ›</span><span class="b dan">Sil</span>`)+
+   `<div class="z slot" data-z="Sekmeler → bölümler → alanlar"><div class="tabs"><div class="tab on">Genel</div><div class="tab">Ticari</div><div class="tab">Hareketler</div><div class="tab">Belgeler</div></div><div style="font-weight:700;margin-bottom:8px">Kimlik</div><div class="fg"><div class="f"><label>Cari kodu</label><div>C-1001</div></div><div class="f"><label>Unvan</label><div>Akdeniz Gıda A.Ş.</div></div><div class="f"><label>Vergi dairesi</label><div>Antalya Kurumlar</div></div><div class="f"><label>Vergi no</label><div>1234567890</div></div></div></div>`+FOOT,
+  side:`<b>Kayıt kartı kalıbı</b> — tek bir kaydı (cari, stok, personel…) görmek ve düzenlemek için.<br><br><b>Sabit olanlar:</b><ul style="padding-left:18px;margin:4px 0"><li>Kayıt özeti her zaman en üstte</li><li>İşlem çubuğu: <i>Kaydet</i> en solda, <i>Önceki / Sonraki</i> sağda, <i>Sil</i> en sağda</li><li>Sekmeler her zaman işlem çubuğunun altında</li><li>Alt bilgide son değişiklik ve kısayollar</li></ul><b>Danışmanın seçtikleri:</b><ul style="padding-left:18px;margin:4px 0"><li>Öne çıkan değerler</li><li>Sekmeler, bölümler ve alanlar</li><li>Ek eylemler (Ekstre al…)</li></ul>`},
+ belge:{mod:"Satış › Fatura",
+  html:()=>HD("Ana sayfa › Satış › Faturalar","Satış Faturası FT-2291",'<span class="st" style="background:var(--warn-soft);color:var(--warn)">Taslak</span>')+
+   AB(`<span class="b pri">Kaydet</span><span class="b">Onayla</span><span class="b">Yazdır</span><span class="b">e-Fatura gönder</span><span class="sp"></span><span class="b dan">İptal et</span>`)+
+   `<div class="z slot" data-z="Belge başlığı — alanlar" style="margin-bottom:12px"><div class="fg" style="grid-template-columns:repeat(4,1fr)"><div class="f"><label>Cari</label><div>Akdeniz Gıda A.Ş.</div></div><div class="f"><label>Tarih</label><div>25.11.2026</div></div><div class="f"><label>Vade</label><div>25.12.2026</div></div><div class="f"><label>Depo</label><div>Merkez</div></div></div></div>`+
+   `<div class="box z slot" data-z="Satırlar — kolonlar" style="margin-bottom:12px"><table><tr><th>Ürün</th><th class="n">Miktar</th><th class="n">Birim fiyat</th><th class="n">KDV</th><th class="n">Tutar</th></tr><tr><td>Zeytinyağı 5L</td><td class="n">40</td><td class="n">640,00</td><td class="n">%10</td><td class="n">25.600,00</td></tr><tr><td>Un 25kg</td><td class="n">12</td><td class="n">720,00</td><td class="n">%1</td><td class="n">8.640,00</td></tr></table><div class="ft" style="color:var(--accent)">+ Satır ekle</div></div>`+
+   `<div class="tot z lock" data-z="Toplamlar — her belgede aynı yerde"><dl><dt>Ara toplam</dt><dd>34.240,00</dd><dt>KDV</dt><dd>2.646,40</dd><dt class="g">Genel toplam</dt><dd class="g">36.886,40 ₺</dd></dl></div>`+FOOT,
+  side:`<b>Belge kalıbı</b> — fatura, sipariş, irsaliye, teklif gibi satırlı belgeler için.<br><br><b>Sabit olanlar:</b><ul style="padding-left:18px;margin:4px 0"><li>Başlıkta belge no ve durum rozeti</li><li>İşlem çubuğu: <i>Kaydet</i> solda, <i>İptal et</i> en sağda</li><li>Sıra hep aynı: başlık alanları → satırlar → toplamlar</li><li>Toplamlar her zaman sağ altta</li></ul><b>Danışmanın seçtikleri:</b><ul style="padding-left:18px;margin:4px 0"><li>Belge başlığındaki alanlar</li><li>Satır kolonları</li><li>Ek eylemler (e-Fatura gönder…)</li></ul>`},
+ rapor:{mod:"Raporlar › Satış analizi",
+  html:()=>HD("Ana sayfa › Raporlar","Bölgelere göre satış")+
+   AB(`<span class="b pri">Çalıştır</span><span class="b">Excel</span><span class="b">PDF</span><span class="sp"></span><span class="b">Kaydedilmiş görünümler ▾</span>`)+
+   `<div class="filters z slot" data-z="Süzgeçler"><div class="fc"><span>Tarih</span>01.11 – 25.11.2026</div><div class="fc"><span>Bölge</span>Tümü</div><div class="fc"><span>Temsilci</span>Tümü</div></div>`+
+   `<div class="chart z slot" data-z="Grafik (isteğe bağlı)"><i style="height:85%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:30%"></i><i style="height:22%"></i></div>`+
+   `<div class="box z slot" data-z="Sonuç tablosu — kolonlar"><table><tr><th>Bölge</th><th class="n">Fatura</th><th class="n">Ciro</th><th class="n">Pay</th></tr><tr><td>Akdeniz</td><td class="n">184</td><td class="n">4.120.000</td><td class="n">%34</td></tr><tr><td>Ege</td><td class="n">131</td><td class="n">2.660.000</td><td class="n">%22</td></tr></table></div>`+FOOT,
+  side:`<b>Rapor kalıbı</b> — süz, çalıştır, incele, dışa aktar.<br><br><b>Sabit olanlar:</b><ul style="padding-left:18px;margin:4px 0"><li>Süzgeçler her zaman sonucun üstünde</li><li>Çalıştır / Excel / PDF her zaman aynı yerde</li><li>Kaydedilmiş görünümler sağda</li></ul><b>Danışmanın seçtikleri:</b><ul style="padding-left:18px;margin:4px 0"><li>Süzgeçler</li><li>Grafik (var / yok, türü)</li><li>Tablo kolonları</li></ul>`},
+};
+let cur="liste";
+function render(){const k=K[cur];document.getElementById("pg").innerHTML=k.html();document.getElementById("mod").textContent=k.mod;
+ document.getElementById("side").innerHTML=`<h4>Bölgeler</h4><div class="legend"><div class="lg"><i style="background:#94a3b8"></i><div><b>Gri — sabit:</b> kalıba aittir, danışman taşıyamaz ya da silemez. Kalıp güncellenince bütün ekranlarda birlikte değişir.</div></div><div class="lg"><i style="background:var(--accent)"></i><div><b>Mor — danışmanın alanı:</b> içeriği seçilir, düzeni kalıp belirler.</div></div></div>${k.side}<div class="others"><h4>Diğer kalıplar</h4><div><b>Tanım</b> — depolar, birimler gibi basit listeler (satır içinde düzenleme)</div><div><b>Pano</b> — göstergeler ve kısayollar</div><div><b>Sihirbaz</b> — adım adım işlem (stok sayımı, transfer)</div></div>`;}
+document.getElementById("k").onclick=e=>{const b=e.target.closest("button");if(!b)return;document.querySelectorAll("#k button").forEach(x=>x.classList.remove("on"));b.classList.add("on");cur=b.dataset.k;render();};
+document.getElementById("zt").onclick=e=>{e.target.classList.toggle("on");document.body.classList.toggle("zones");};
+render();
+</script>
+</body>
+</html>

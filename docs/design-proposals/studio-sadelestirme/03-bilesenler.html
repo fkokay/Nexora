@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Bileşenler – sade paneller (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--bad:#b91c1c;--bad-soft:#fdecec;--info:#1d4ed8;--info-soft:#e9effd}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .wrap{display:grid;grid-template-columns:220px 1fr 320px;height:calc(100vh - 54px)}
+  .left{background:#fff;border-right:1px solid var(--line);overflow:auto;padding:14px}
+  h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .comp{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer;margin-bottom:2px}
+  .comp:hover{background:#f6f5fa} .comp.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .comp i{font-style:normal;width:26px;height:26px;border-radius:7px;background:#f1effa;display:grid;place-items:center;color:var(--accent);flex:none}
+  .comp small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+  .old{margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:10px}
+  .canvas{overflow:auto;padding:28px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px}
+  .page{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:760px;margin:0 auto;padding:22px}
+  .sel{outline:2px solid var(--accent);outline-offset:6px;border-radius:8px;position:relative}
+  .sel:before{content:attr(data-tag);position:absolute;top:-28px;left:-8px;background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-radius:6px 6px 6px 0}
+  .ctx{color:#b6b2c8;margin:16px 0;font-size:12px;border:1px dashed var(--line);border-radius:8px;padding:10px;text-align:center}
+  .insp{background:#fff;border-left:1px solid var(--line);overflow:auto}
+  .ih{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .ih input{border:0;font:600 15px Inter,"Segoe UI",sans-serif;width:100%;outline:none}
+  .ico{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+  .sec{padding:12px 16px;border-bottom:1px solid var(--line)}
+  .q{font-weight:600;margin:8px 0 6px} .q:first-child{margin-top:0}
+  select,input.txt,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .src{margin-top:6px;font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:4px;line-height:1.5}
+  details summary{cursor:pointer;font-weight:600;list-style:none} details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  /* bileşen görünümleri */
+  .h1{font-size:22px;font-weight:700;margin:0} .h2{font-size:16px;font-weight:700;margin:0} .p{line-height:1.6;color:#3b3850;margin:0} .lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .box{border-radius:10px;padding:12px 14px;display:flex;gap:10px;line-height:1.5}
+  .box b{display:block}
+  .box.info{background:var(--info-soft);color:#1e3a8a} .box.warn{background:var(--warn-soft);color:#7c2d12} .box.ok{background:var(--ok-soft);color:#14532d} .box.plain{border:1px solid var(--line)}
+  .box ul{margin:4px 0 0;padding-left:18px}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .metric{border:1px solid var(--line);border-radius:10px;padding:12px}
+  .metric span{color:var(--muted);font-size:12px;display:block} .metric b{font-size:20px} .metric em{font-style:normal;font-size:11.5px}
+  .bar{height:8px;border-radius:99px;background:#eceaf3;overflow:hidden;margin-top:8px} .bar i{display:block;height:100%;background:var(--accent);border-radius:99px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:600;font-size:12px}
+  .fgrid{display:grid;gap:10px 14px}
+  .fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px} .fld .in{border:1px solid var(--line);border-radius:7px;padding:7px 9px;min-height:32px}
+  .fld.wide{grid-column:1/-1}
+  .fsec{font-weight:700;margin:4px 0 8px;grid-column:1/-1}
+  table{width:100%;border-collapse:collapse} th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12.5px} th{background:#faf9fd;color:var(--muted);font-weight:600}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  td input{border:1px solid transparent;border-radius:5px;padding:3px 5px;width:100%;font:inherit;background:transparent} td input:hover{border-color:var(--line)}
+  .tfoot td{font-weight:700;background:#faf9fd}
+  .rh{display:flex;align-items:center;gap:12px}
+  .av{width:44px;height:44px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .t{font-size:18px;font-weight:700} .rh .s{color:var(--muted);font-size:12px}
+  .rh .kv{margin-left:auto;display:flex;gap:18px;text-align:right} .rh .kv span{display:block;color:var(--muted);font-size:11.5px}
+  .side{display:grid;grid-template-columns:1fr 220px;gap:14px} .sidebox{border:1px solid var(--line);border-radius:10px;padding:12px} .sidebox dl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:8px 0 0;font-size:12px} .sidebox dt{color:var(--muted)}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)} .tab{padding:8px 12px;color:var(--muted);border-bottom:2px solid transparent} .tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .steps{display:flex;gap:8px;align-items:center} .st{display:flex;align-items:center;gap:6px;color:var(--muted)} .st b{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1.5px solid #cfcbe0;font-size:12px}
+  .st.on{color:var(--accent);font-weight:600} .st.on b{background:var(--accent);border-color:var(--accent);color:#fff} .st.done b{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)} .line{flex:1;height:1.5px;background:#e1dded;min-width:20px}
+  .tabbody{padding:14px 2px 2px;color:var(--muted)}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .b{border:1px solid var(--line);border-radius:8px;padding:7px 14px;background:#fff;font-weight:500}
+  .b.pri{background:var(--accent);border-color:var(--accent);color:#fff} .b.dan{color:var(--bad);border-color:#f3c4c4}
+  .img{border-radius:10px;background:linear-gradient(135deg,#ddd6fe,#c7d2fe 60%,#bae6fd);display:grid;place-items:center;color:#4c3fa0;font-weight:600}
+  .cap{color:var(--muted);font-size:12px;margin-top:6px}
+  .devc{border:1px dashed #9fd3c9;border-radius:10px;padding:14px;background:#fbfffe}
+  .gauge{display:flex;align-items:center;gap:16px} .ring{width:86px;height:86px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px}
+</style>
+</head>
+<body>
+<div class="note"><b>Bileşen örnekleri:</b> Soldan bir bileşen seç, ortada tuvaldeki görünümünü, sağda ayar panelini gör. Sağdaki her ayar ortadaki görünümü anında değiştirir. Bütün panellerin sırası aynı: <b>Ad → Ne gösterilsin? → birkaç temel ayar → Eylemler → Görünüm (kapalı)</b>.</div>
+<div class="wrap">
+  <div class="left"><h4>Bileşenler</h4><div id="list"></div>
+    <div class="old" id="old"></div>
+  </div>
+  <div class="canvas"><div class="page"><div class="ctx">… sayfanın diğer bileşenleri …</div><div id="view"></div><div class="ctx">… sayfanın diğer bileşenleri …</div></div></div>
+  <div class="insp" id="insp"></div>
+</div>
+<script>
+const SRC=n=>`<div class="src">${n}</div>`;
+const C={
+ metin:{i:"T",n:"Metin",d:"Başlık, açıklama, etiket",old:"Başlık, Açıklama, Etiket, Bölüm başlığı",
+  s:{stil:"Başlık",text:"Cari Hesaplar",hizala:"Sol"},
+  panel:[["seg","stil","Stil",["Başlık","Alt başlık","Paragraf","Küçük etiket"]],["area","text","Metin"],["opt","Metin içine alan koymak için { yazın, örn. {cari.unvan}."],["more",[["seg","hizala","Hizalama",["Sol","Orta"]]]]],
+  view:s=>{const cls={"Başlık":"h1","Alt başlık":"h2","Paragraf":"p","Küçük etiket":"lbl"}[s.stil];return `<div class="${cls}" style="text-align:${s.hizala==="Orta"?"center":"left"}">${s.text}</div>`;}},
+ bilgi:{i:"i",n:"Bilgi kutusu",d:"Bilgi, uyarı, madde listesi",old:"Bilgi kartı, Bildirim kutusu, Madde listesi",
+  s:{tur:"Bilgi",baslik:"Vade hatırlatması",text:"Vadesi geçen faturalar kırmızı gösterilir.",liste:false,maddeler:"Ekstre her ayın 1'inde gönderilir\nLimit aşımında satış durdurulur"},
+  panel:[["seg","tur","Tür",["Bilgi","Uyarı","Başarılı","Sade"]],["text","baslik","Başlık"],["area","text","Metin"],["toggle","liste","Madde listesi olarak göster"],["areaIf","maddeler","Maddeler (her satır bir madde)","liste"],["more",[["toggle","kapat","Kullanıcı kapatabilsin"]]]],
+  view:s=>{const c={"Bilgi":"info","Uyarı":"warn","Başarılı":"ok","Sade":"plain"}[s.tur];const ic={"Bilgi":"ℹ","Uyarı":"⚠","Başarılı":"✓","Sade":"•"}[s.tur];return `<div class="box ${c}"><span>${ic}</span><div><b>${s.baslik}</b>${s.liste?`<ul>${s.maddeler.split("\n").filter(Boolean).map(m=>`<li>${m}</li>`).join("")}</ul>`:s.text}</div></div>`;}},
+ gosterge:{i:"◔",n:"Gösterge",d:"Sayı, ilerleme, durum",old:"Veri göstergesi, İlerleme göstergesi, Durum rozeti",
+  s:{tur:"Sayı",kaynak:"Toplam alacak",karsilastir:true,deger:"Tamamlanan siparişler",durum:"Cari durumu"},
+  panel:[["seg","tur","Tür",["Sayı","İlerleme","Durum"]],["selIf","kaynak","Ne gösterilsin?",["Toplam alacak","Toplam borç","Vadesi geçen cari sayısı"],"tur","Sayı"],["selIf","deger","Ne gösterilsin?",["Tamamlanan siparişler","Sevk edilen kalemler"],"tur","İlerleme"],["selIf","durum","Ne gösterilsin?",["Cari durumu","Kredi limiti durumu"],"tur","Durum"],["src","Yazılımcının hazırladığı değer · birimi ve renk eşikleri ondan gelir"],["toggleIf","karsilastir","Geçen ayla karşılaştır","tur","Sayı"],["more",[["seg","boyut","Boyut",["Küçük","Büyük"]]]]],
+  view:s=>s.tur==="Sayı"?`<div class="metrics"><div class="metric"><span>${s.kaynak}</span><b>${s.kaynak.includes("sayısı")?"38":s.kaynak==="Toplam borç"?"412.950 ₺":"1.284.300 ₺"}</b>${s.karsilastir?`<em style="color:var(--ok)"> ▲ %12 geçen aya göre</em>`:""}</div></div>`
+   :s.tur==="İlerleme"?`<div class="metric"><span>${s.deger}</span><b>65%</b><div class="bar"><i style="width:65%"></i></div><em style="color:var(--muted)">130 / 200</em></div>`
+   :`<div class="row" style="justify-content:flex-start;gap:10px"><span style="color:var(--muted)">${s.durum}:</span>${s.durum==="Cari durumu"?`<span class="badge" style="background:var(--ok-soft);color:var(--ok)">Aktif</span>`:`<span class="badge" style="background:var(--warn-soft);color:var(--warn)">%92 kullanıldı</span>`}</div>`},
+ form:{i:"▤",n:"Form",d:"Kayıt alanları",old:"Form kartı, Özel form, Giriş kutusu, Özel alanlar",
+  s:{kaynak:"Cari kartı",kolon:2,alanlar:["Cari kodu","Unvan","Telefon","E-posta","Adres"],ozel:true},
+  panel:[["sel","kaynak","Hangi kayıt?",["Cari kartı","Sipariş başlığı"]],["src","Yazılımcının veri kaynağı · alan türleri ve doğrulama ondan gelir"],["chips","alanlar","Alanlar",["Cari kodu","Unvan","Vergi no","Telefon","E-posta","Adres","Şehir"]],["seg","kolon","Kolon sayısı",[1,2,3]],["toggle","ozel","Firmaya özel alanları da göster"],["opt","Alanları tek tek ayarlamak (zorunlu, yardım metni, ne zaman görünsün) için tuvalde alana tıklayın. Bölüm ve sekme düzeni Detay ekranındaki gibidir."]],
+  view:s=>`<div class="fgrid" style="grid-template-columns:repeat(${s.kolon},1fr)">${s.alanlar.map(a=>`<div class="fld${a==="Adres"?" wide":""}"><label>${a}</label><div class="in">${{"Cari kodu":"C-1001","Unvan":"Akdeniz Gıda A.Ş.","Telefon":"0242 111 22 33","E-posta":"muhasebe@akdenizgida.com","Adres":"Liman Mah. 12. Sk. No:4","Vergi no":"1234567890","Şehir":"Antalya"}[a]}</div></div>`).join("")}${s.ozel?`<div class="fsec">Firmaya özel alanlar</div><div class="fld"><label>Bayi kodu</label><div class="in">B-07</div></div><div class="fld"><label>Bölge</label><div class="in">Akdeniz</div></div>`:""}</div>`},
+ satir:{i:"▦",n:"Satır tablosu",d:"Belge satırları",old:"Düzenlenebilir tablo",
+  s:{kaynak:"Sipariş satırları",kolonlar:["Ürün","Miktar","Birim fiyat","Tutar"],ekle:true,toplam:true},
+  panel:[["sel","kaynak","Hangi satırlar?",["Sipariş satırları","Fatura satırları"]],["src","Yazılımcının veri kaynağı · hesaplamalar (Tutar = Miktar × Fiyat) ondan gelir"],["chips","kolonlar","Kolonlar",["Ürün","Açıklama","Miktar","Birim","Birim fiyat","İskonto","Tutar"]],["toggle","ekle","Kullanıcı satır ekleyip silebilsin"],["toggle","toplam","Alt satırda toplamları göster"]],
+  view:s=>{const D={"Ürün":["Zeytinyağı 5L","Un 25kg"],"Açıklama":["Kampanya",""],"Miktar":["40","12"],"Birim":["Adet","Çuval"],"Birim fiyat":["640,00","720,00"],"İskonto":["%5","—"],"Tutar":["24.320,00","8.640,00"]};const num=k=>["Miktar","Birim fiyat","Tutar","İskonto"].includes(k);
+   return `<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden"><table><tr>${s.kolonlar.map(k=>`<th class="${num(k)?"n":""}">${k}</th>`).join("")}${s.ekle?"<th></th>":""}</tr>${[0,1].map(r=>`<tr>${s.kolonlar.map(k=>`<td class="${num(k)?"n":""}">${k==="Tutar"?D[k][r]:`<input value="${D[k][r]}" style="text-align:${num(k)?"right":"left"}">`}</td>`).join("")}${s.ekle?`<td style="color:var(--muted);width:24px">✕</td>`:""}</tr>`).join("")}${s.toplam?`<tr class="tfoot">${s.kolonlar.map((k,i)=>`<td class="${num(k)?"n":""}">${i===0?"Toplam":k==="Tutar"?"32.960,00":k==="Miktar"?"52":""}</td>`).join("")}${s.ekle?"<td></td>":""}</tr>`:""}</table>${s.ekle?`<div style="padding:8px 10px;color:var(--accent)">+ Satır ekle</div>`:""}</div>`;}},
+ ozet:{i:"◧",n:"Kayıt özeti",d:"Kaydın kimlik bilgisi",old:"Kayıt özeti, Bağlam paneli",
+  s:{konum:"Üstte",degerler:["Bakiye","Vade"],resim:true},
+  panel:[["opt0","Kayıt, sayfanın veri kaynağından gelir (Cari kartı)."],["seg","konum","Konum",["Üstte","Yanda"]],["chips","degerler","Öne çıkan değerler",["Bakiye","Vade","Kredi limiti","Temsilci"]],["toggle","resim","Baş harf / logo göster"],["opt","Başlık ve alt satır kayıttan otomatik gelir: Unvan · Cari kodu · Şehir."]],
+  view:s=>{const V={"Bakiye":"48.250 ₺","Vade":"30 gün","Kredi limiti":"250.000 ₺","Temsilci":"Ayşe Yılmaz"};
+   if(s.konum==="Yanda")return `<div class="side"><div class="ctx" style="margin:0">Form / sekmeler</div><div class="sidebox">${s.resim?'<div class="av" style="margin-bottom:8px">AG</div>':""}<b>Akdeniz Gıda A.Ş.</b><div style="color:var(--muted);font-size:12px">C-1001 · Antalya</div><dl>${s.degerler.map(k=>`<dt>${k}</dt><dd style="margin:0">${V[k]}</dd>`).join("")}</dl></div></div>`;
+   return `<div class="rh">${s.resim?'<div class="av">AG</div>':""}<div><div class="t">Akdeniz Gıda A.Ş.</div><div class="s">C-1001 · Antalya</div></div><div class="kv">${s.degerler.map(k=>`<div><span>${k}</span><b>${V[k]}</b></div>`).join("")}</div></div>`;}},
+ bolum:{i:"⊟",n:"Bölümler",d:"Sekmeler ya da adımlar",old:"Sekmeler, Adımlar",
+  s:{tur:"Sekme",adlar:"Genel\nTicari\nHareketler",aktif:1},
+  panel:[["seg","tur","Tür",["Sekme","Adım"]],["area","adlar","Adlar (her satır bir sekme/adım)"],["opt","İçindekileri tuvalde sürükleyip bırakarak yerleştirin."],["optIf","Adım türünde kullanıcı “İleri / Geri” ile ilerler; zorunlu alanlar dolmadan sonraki adıma geçilmez.","tur","Adım"],["more",[["toggle","sayac","Sekme başlığında kayıt sayısı göster"]]]],
+  view:s=>{const a=s.adlar.split("\n").filter(Boolean);return s.tur==="Sekme"?`<div class="tabs">${a.map((n,i)=>`<div class="tab${i===s.aktif?" on":""}" data-tabi="${i}" style="cursor:pointer">${n}</div>`).join("")}</div><div class="tabbody">“${a[s.aktif]||""}” sekmesinin içeriği buraya…</div>`
+   :`<div class="steps">${a.map((n,i)=>`${i?'<span class="line"></span>':""}<span class="st${i<s.aktif?" done":i===s.aktif?" on":""}" data-tabi="${i}" style="cursor:pointer"><b>${i<s.aktif?"✓":i+1}</b>${n}</span>`).join("")}</div><div class="tabbody">“${a[s.aktif]||""}” adımının içeriği… <div class="btns" style="margin-top:12px;justify-content:flex-end"><span class="b">Geri</span><span class="b pri">İleri</span></div></div>`;}},
+ buton:{i:"⏵",n:"Butonlar",d:"Sayfa eylemleri",old:"İşlem çubuğu, Eylem düğmesi, Pencere",
+  s:{eylemler:["Kaydet","Ekstre al","Onaya gönder","Sil"],ana:"Kaydet",yer:"Sayfanın üstünde"},
+  panel:[["chips","eylemler","Hangi eylemler?",["Kaydet","Kaydet ve yeni","Ekstre al","Mail gönder","Onaya gönder","Yazdır","Sil"]],["src","Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir"],["selDyn","ana","Ana buton (vurgulu)","eylemler"],["seg","yer","Nerede?",["Sayfanın üstünde","Sayfanın altında"]],["opt","“Sil” gibi geri alınamayan eylemler otomatik olarak kırmızı ve en sağda durur. Mobilde ana buton dışındakiler “⋯” menüsüne girer."]],
+  view:s=>{const d=s.eylemler.filter(e=>e!=="Sil");const sil=s.eylemler.includes("Sil");return `<div class="btns" style="${s.yer==="Sayfanın altında"?"justify-content:flex-end;border-top:1px solid var(--line);padding-top:12px":"border-bottom:1px solid var(--line);padding-bottom:12px"}">${d.sort((a,b)=>(b===s.ana)-(a===s.ana)).map(e=>`<span class="b${e===s.ana?" pri":""}">${e}</span>`).join("")}${sil?`<span style="flex:1"></span><span class="b dan">Sil</span>`:""}</div>`;}},
+ gorsel:{i:"▨",n:"Görsel",d:"Resim ya da logo",old:"Görsel",
+  s:{kaynak:"Dosya yükle",boy:"Orta",alt:"Mağaza vitrini"},
+  panel:[["seg","kaynak","Görsel nereden?",["Dosya yükle","Kayıttaki resim"]],["seg","boy","Yükseklik",["Küçük","Orta","Büyük"]],["text","alt","Açıklama (erişilebilirlik için)"]],
+  view:s=>`<div class="img" style="height:${{"Küçük":90,"Orta":160,"Büyük":240}[s.boy]}px">${s.kaynak==="Dosya yükle"?"🖼 vitrin.jpg":"🖼 Cari kartındaki logo"}</div><div class="cap">${s.alt}</div>`},
+ yazilimci:{i:"</>",n:"Yazılımcı bileşeni",d:"Özel çizim, harita, grafik…",old:"Yalıtılmış kod alanı",
+  s:{bilesen:"Satış haritası",baslik:"Bölgelere göre satış",donem:"Bu ay"},
+  panel:[["sel","bilesen","Hangi bileşen?",["Satış haritası","Teslimat takvimi"]],["src","Yazılımcının yayınladığı bileşen · danışman kodunu görmez"],["text","baslik","Başlık"],["seg","donem","Dönem",["Bu ay","Bu çeyrek","Bu yıl"]],["opt","“Başlık” ve “Dönem” ayarlarını yazılımcı tanımladı. Bileşen başka ayar isterse burada görünür."]],
+  view:s=>`<div class="devc"><div class="row"><b>${s.baslik}</b><span style="color:var(--muted);font-size:12px">${s.donem}</span></div>${s.bilesen==="Satış haritası"?`<div class="img" style="height:150px;margin-top:8px;background:linear-gradient(135deg,#ccfbf1,#bfdbfe)">🗺 Türkiye haritası · Akdeniz %34 · Ege %22 · Marmara %19</div>`:`<div class="img" style="height:150px;margin-top:8px;background:linear-gradient(135deg,#fef3c7,#fde68a)">📅 25 Kas: 4 teslimat · 26 Kas: 7 teslimat</div>`}</div>`},
+};
+let cur="metin";
+function ctl(spec,s){
+  const [t,k,label,opts,cond,condv]=spec;
+  if(t==="opt")return `<div class="opt">${k}</div>`;
+  if(t==="opt0")return `<div class="opt" style="margin-top:0">${k}</div>`;
+  if(t==="optIf")return s[opts]===cond?`<div class="opt">${k}</div>`:"";
+  if(t==="src")return SRC(k);
+  if(t==="seg")return `<div class="q">${label}</div><div class="seg">${opts.map(o=>`<button class="${s[k]==o?"on":""}" data-k="${k}" data-v="${o}">${o}</button>`).join("")}</div>`;
+  if(t==="text")return `<div class="q">${label}</div><input class="txt" data-k="${k}" value="${s[k]??""}">`;
+  if(t==="area")return `<div class="q">${label}</div><textarea rows="3" data-k="${k}">${s[k]??""}</textarea>`;
+  if(t==="areaIf")return s[opts]?`<div class="q">${label}</div><textarea rows="3" data-k="${k}">${s[k]??""}</textarea>`:"";
+  if(t==="toggle")return `<div class="row">${label}<span class="tg${s[k]?" on":""}" data-tk="${k}"></span></div>`;
+  if(t==="toggleIf")return s[cond]===condv?`<div class="row">${label}<span class="tg${s[k]?" on":""}" data-tk="${k}"></span></div>`:"";
+  if(t==="sel")return `<div class="q">${label}</div><select data-k="${k}">${opts.map(o=>`<option${s[k]===o?" selected":""}>${o}</option>`).join("")}</select>`;
+  if(t==="selIf")return s[cond]===condv?`<div class="q">${label}</div><select data-k="${k}">${opts.map(o=>`<option${s[k]===o?" selected":""}>${o}</option>`).join("")}</select>`:"";
+  if(t==="selDyn")return `<div class="q">${label}</div><select data-k="${k}">${s[opts].filter(o=>o!=="Sil").map(o=>`<option${s[k]===o?" selected":""}>${o}</option>`).join("")}</select>`;
+  if(t==="chips")return `<div class="q">${label}</div><div class="chips">${opts.map(o=>`<span class="chip${s[k].includes(o)?" on":""}" data-ck="${k}" data-v="${o}">${o}</span>`).join("")}</div>`;
+  if(t==="more")return `<details style="margin-top:12px"><summary>Görünüm</summary>${k.map(x=>ctl(x,s)).join("")}<div class="q">Ne zaman görünsün?</div><div class="seg"><button class="on">Her zaman</button><button>Koşula bağlı…</button></div><div class="row" style="margin-top:6px">Mobilde gizle<span class="tg" data-tk="_m"></span></div></details>`;
+  return "";
+}
+function render(){
+  document.getElementById("list").innerHTML=Object.entries(C).map(([k,c])=>`<div class="comp${k===cur?" on":""}" data-c="${k}"><i>${c.i}</i><div>${c.n}<small>${c.d}</small></div></div>`).join("")+`<div class="comp" style="opacity:.6"><i>☰</i><div>Liste<small>önceki taslakta</small></div></div>`;
+  const c=C[cur];
+  document.getElementById("old").innerHTML=`<b>Bugün ayrı ayrı olanlar:</b><br>${c.old}`;
+  document.getElementById("view").innerHTML=`<div class="sel" data-tag="${c.n}">${c.view(c.s)}</div>`;
+  const hasMore=c.panel.some(p=>p[0]==="more");
+  document.getElementById("insp").innerHTML=`<div class="ih"><span class="ico">${c.i}</span><input value="${c.n}"></div><div class="sec">${c.panel.map(p=>ctl(p,c.s)).join("")}${hasMore?"":ctl(["more",[]],c.s)}</div>`;
+}
+function refreshView(){const c=C[cur];document.querySelector("#view .sel").innerHTML=c.view(c.s);}
+document.addEventListener("click",e=>{
+  const c=C[cur],t=e.target;
+  const comp=t.closest("[data-c]");if(comp){cur=comp.dataset.c;render();return;}
+  if(t.dataset.k&&t.tagName==="BUTTON"){const v=isNaN(t.dataset.v)?t.dataset.v:+t.dataset.v;c.s[t.dataset.k]=v;render();return;}
+  if(t.dataset.tk){c.s[t.dataset.tk]=!c.s[t.dataset.tk];render();return;}
+  if(t.dataset.ck){const a=c.s[t.dataset.ck],i=a.indexOf(t.dataset.v);i<0?a.push(t.dataset.v):a.splice(i,1);if(cur==="buton"&&!a.includes(c.s.ana))c.s.ana=a.find(x=>x!=="Sil")||"";render();return;}
+  const ti=t.closest("[data-tabi]");if(ti){c.s.aktif=+ti.dataset.tabi;refreshView();return;}
+  if(t.closest(".seg button")&&!t.dataset.k){t.parentNode.querySelectorAll("button").forEach(b=>b.classList.remove("on"));t.classList.add("on");}
+});
+document.addEventListener("input",e=>{const k=e.target.dataset.k;if(!k)return;C[cur].s[k]=e.target.value;refreshView();});
+document.addEventListener("change",e=>{if(e.target.tagName==="SELECT"&&e.target.dataset.k){C[cur].s[e.target.dataset.k]=e.target.value;render();}});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Yazılımcı ekranı (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--code:#1e1b2e}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:9px 16px}
+  .top h1{font-size:15px;margin:0} .top .br{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)} .btn.dev{background:var(--dev);border-color:var(--dev);color:#fff}
+  .req{display:flex;gap:10px;align-items:center;background:var(--accent-soft);color:#3b2a8f;padding:8px 16px;border-bottom:1px solid #ddd5fb}
+  .req b{font-weight:700}
+  .wrap{display:grid;grid-template-columns:250px 1fr;height:calc(100vh - 150px)}
+  .tree{background:#fff;border-right:1px solid var(--line);overflow:auto;padding:12px}
+  .tree h4{margin:12px 0 6px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+  .tree h4:first-child{margin-top:0}
+  .tree h4 a{color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;font-weight:600}
+  .it{padding:6px 8px;border-radius:7px;cursor:pointer;display:flex;gap:8px;align-items:center}
+  .it:hover{background:#f6f5fa} .it.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .it small{margin-left:auto;font-size:10.5px;color:var(--muted)}
+  .it .chg{width:7px;height:7px;border-radius:50%;background:var(--warn);margin-left:auto}
+  .raw{font-family:Consolas,monospace;font-size:12px;color:var(--muted);line-height:1.7;margin-top:6px;padding-left:4px}
+  .ed{overflow:auto;padding:18px 22px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h3{margin:0 0 2px;font-size:15px} .card .d{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label.l{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input.txt,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  .code{background:var(--code);color:#e6e3f5;border-radius:10px;padding:12px 14px;font-family:Consolas,"Cascadia Code",monospace;font-size:12.5px;line-height:1.65;white-space:pre;overflow:auto;outline:none}
+  .kw{color:#c4a7ff} .str{color:#9be3b8} .cm{color:#8a86a3} .fn{color:#7cc7ff}
+  .bar{display:flex;gap:8px;align-items:center;margin-top:10px}
+  table{width:100%;border-collapse:collapse} th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;font-size:12.5px} th{background:#faf9fd;color:var(--muted);font-weight:600}
+  td input,td select{border:1px solid transparent;border-radius:5px;padding:4px 6px;font:inherit;background:transparent;width:100%} td input:hover,td select:hover{border-color:var(--line)}
+  tr.new td{background:#fffbeb}
+  .tag{font-size:10.5px;padding:1px 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);font-weight:600;margin-left:6px}
+  .res{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:10px}
+  .tabs{display:flex;gap:4px;margin-bottom:10px} .tab{padding:6px 12px;border-radius:7px;cursor:pointer;color:var(--muted)} .tab.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .log .r{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line)} .log .s{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none}
+  .ok{background:var(--ok-soft);color:var(--ok)}
+  .hint{color:var(--muted);font-size:12px;margin-top:6px;line-height:1.5}
+  .modal{position:fixed;inset:0;background:rgba(20,16,40,.35);display:none;align-items:center;justify-content:center}
+  .modal.on{display:flex}
+  .mbox{background:#fff;border-radius:14px;padding:20px;width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .mbox h3{margin:0 0 12px}
+  .mbox ul{padding-left:18px;line-height:1.7;margin:6px 0 12px}
+  .steps .r{display:flex;gap:8px;padding:4px 0;color:var(--muted)} .steps .r.done{color:var(--text)}
+  .where{background:var(--dev-soft);color:#134e48;border-radius:10px;padding:10px 12px;line-height:1.55;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="note"><b>Yazılımcı ekranı taslağı:</b> Soldaki ağaçta firmanın modülü, dosya yerine <b>yapı taşı türlerine</b> göre gruplanmış halde görünüyor. <b>Cariler</b> veri kaynağında “Önizle” düğmesine bas, yeni kolonun algılandığını gör. <b>Lojistik bildirimi</b> uzantısında “Dene” düğmesine bas. Sağ üstteki <b>Sürüm yayınla</b> düğmesiyle sürüm akışını gör.</div>
+<div class="top">
+  <h1>Akdeniz Gıda · firma modülü</h1><span class="br">⎇ talep-214-son-odeme</span>
+  <span class="sp"></span>
+  <span style="color:var(--muted);font-size:12px" id="chg">2 değişiklik</span>
+  <button class="btn">Deneme ortamında aç</button>
+  <button class="btn primary" id="pub">Sürüm yayınla</button>
+</div>
+<div class="req"><span>📨</span><div><b>Talep #214</b> · Ayşe Yılmaz (danışman): “Cari listesinde son ödeme tarihi görünsün. Sipariş onaylanınca lojistik firmasına haber gitsin.”</div><span class="sp"></span><button class="btn" style="padding:4px 10px">Talebe yanıt yaz</button></div>
+<div class="wrap">
+  <div class="tree">
+    <h4>Veri kaynakları <a>+ Yeni</a></h4>
+    <div class="it on" data-o="cariler">▤ Cariler<span class="chg"></span></div>
+    <div class="it" data-o="x">▤ Borçlu cariler</div>
+    <div class="it" data-o="x">▤ Sipariş satırları</div>
+    <h4>Eylemler <a>+ Yeni</a></h4>
+    <div class="it" data-o="x">⏵ Ekstre mail gönder</div>
+    <h4>Uzantılar <a>+ Yeni</a></h4>
+    <div class="it" data-o="lojistik">⚡ Lojistik bildirimi<span class="chg"></span></div>
+    <h4>Bileşenler <a>+ Yeni</a></h4>
+    <div class="it" data-o="x">⬚ Satış haritası</div>
+    <h4>Dosyalar</h4>
+    <div class="raw">manifest.json<br>veri/cariler.sql<br>veri/cariler.json<br>uzantilar/src/lib.rs<br>testler/…</div>
+    <div class="hint">Ağaçtaki her öğe Git'teki dosyalardır. Form ile de, doğrudan dosyadan da düzenlenebilir.</div>
+  </div>
+  <div class="ed" id="ed"></div>
+</div>
+
+<div class="modal" id="modal"><div class="mbox" id="mbox"></div></div>
+
+<script>
+let cur="cariler",previewed=false,tried=false,view="form";
+const SQL=`<span class="kw">SELECT</span> c.Kod, c.Unvan, c.Sehir,
+       b.Bakiye,
+       <span class="fn">MIN</span>(f.VadeTarihi) <span class="kw">AS</span> SonOdemeTarihi   <span class="cm">-- yeni</span>
+<span class="kw">FROM</span> Cariler c
+<span class="kw">LEFT JOIN</span> CariBakiyeler b <span class="kw">ON</span> b.CariId = c.Id
+<span class="kw">LEFT JOIN</span> AcikFaturalar f <span class="kw">ON</span> f.CariId = c.Id
+<span class="kw">WHERE</span> c.Aktif = 1
+<span class="kw">GROUP BY</span> c.Kod, c.Unvan, c.Sehir, b.Bakiye`;
+const COLS=[["Kod","Cari kodu","Metin",true],["Unvan","Unvan","Metin",false],["Sehir","Şehir","Metin",false],["Bakiye","Bakiye","Tutar",false]];
+const NEWCOL=["SonOdemeTarihi","Son ödeme tarihi","Tarih",false];
+function cariler(){
+  const cols=previewed?[...COLS,NEWCOL]:COLS;
+  const json=`{
+  <span class="str">"code"</span>: <span class="str">"cariler"</span>,
+  <span class="str">"label"</span>: <span class="str">"Cari hesaplar"</span>,
+  <span class="str">"source"</span>: { <span class="str">"sql"</span>: <span class="str">"cariler.sql"</span> },
+  <span class="str">"columns"</span>: [
+${cols.map(c=>`    { <span class="str">"code"</span>: <span class="str">"${c[0]}"</span>, <span class="str">"label"</span>: <span class="str">"${c[1]}"</span>, <span class="str">"type"</span>: <span class="str">"${{Metin:"text",Tutar:"money",Tarih:"date"}[c[2]]}"</span>${c[3]?`, <span class="str">"key"</span>: <span class="kw">true</span>`:""} }`).join(",\n")}
+  ],
+  <span class="str">"opens"</span>: <span class="str">"cariKarti"</span>
+}`;
+  return `<div class="card"><h3>Cari hesaplar</h3><div class="d">Veri kaynağı · danışmanın “Ne listelensin?” listesinde bu adla görünür · 6 sayfada kullanılıyor</div>
+   <div class="tabs"><span class="tab${view==="form"?" on":""}" data-v="form">Form</span><span class="tab${view==="json"?" on":""}" data-v="json">cariler.json</span></div>
+   ${view==="json"?`<div class="code">${json}</div><div class="hint">Formda yaptığın her değişiklik bu dosyaya yazılır. İstersen dosyayı doğrudan da düzenleyebilirsin.</div>`:`
+   <div class="grid2" style="margin-bottom:12px"><div><label class="l">Danışmanın göreceği ad</label><input class="txt" value="Cari hesaplar"></div><div><label class="l">Satıra çift tıklanınca açılacak kayıt</label><select><option>Cari kartı</option></select></div></div>
+   <label class="l">Sorgu · veri/cariler.sql</label><div class="code" contenteditable="true" spellcheck="false">${SQL}</div>
+   <div class="bar"><button class="btn dev" id="prev">▶ Önizle</button><span class="hint" style="margin:0">Deneme ortamındaki firma verisiyle çalışır · en fazla 50 satır</span></div>
+   ${previewed?`<div class="res"><table><tr><th>Kod</th><th>Unvan</th><th>Sehir</th><th>Bakiye</th><th>SonOdemeTarihi</th></tr><tr><td>C-1001</td><td>Akdeniz Gıda A.Ş.</td><td>Antalya</td><td>48.250,00</td><td>02.12.2026</td></tr><tr><td>C-1002</td><td>Bora Lojistik</td><td>İzmir</td><td>-3.120,50</td><td>—</td></tr><tr><td>C-1004</td><td>Deniz Tekstil</td><td>Bursa</td><td>12.900,00</td><td>18.12.2026</td></tr></table></div>`:""}
+   </div>
+   <div class="card"><h3>Kolonlar</h3><div class="d">Sorgudan otomatik algılanır. Yazılımcı yalnızca danışmanın göreceği adı ve türü düzeltir.</div>
+   <table><tr><th>Sorgudaki ad</th><th>Danışmanın göreceği ad</th><th>Tür</th><th>Anahtar</th></tr>
+   ${cols.map(c=>`<tr class="${c===NEWCOL?"new":""}"><td style="font-family:Consolas,monospace">${c[0]}${c===NEWCOL?'<span class="tag">YENİ</span>':""}</td><td><input value="${c[1]}"></td><td><select>${["Metin","Tutar","Tarih","Sayı"].map(t=>`<option${t===c[2]?" selected":""}>${t}</option>`).join("")}</select></td><td>${c[3]?"🔑":""}</td></tr>`).join("")}
+   </table>${previewed?`<div class="where" style="margin-top:12px">Yayınlandıktan sonra <b>Son ödeme tarihi</b>, danışmanın Liste panelindeki kolon listesinde görünür. Danışman işaretlediğinde ekranda çıkar.</div>`:""}</div>`}`;
+}
+function lojistik(){
+  return `<div class="card"><h3>Lojistik bildirimi</h3><div class="d">Uzantı · belge kurallarına yeşil adım olarak eklenir</div>
+   <div class="grid2" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:12px">
+     <div><label class="l">Hangi belge?</label><select><option>Satış siparişi</option><option>Satış faturası</option></select></div>
+     <div><label class="l">Hangi anda?</label><select><option>Onaylandıktan sonra</option><option>Onaylanmadan önce</option><option>Sevk edildikten sonra</option><option>Alan değişince…</option></select></div>
+     <div><label class="l">Kurallar ekranında görünen ad</label><input class="txt" value="Lojistik firmasına sipariş gönder"></div>
+   </div>
+   <div class="grid2" style="margin-bottom:12px">
+     <div><label class="l">Hata olursa</label><select><option>3 kez yeniden dene, belgeyi bekletme</option><option>Geçişi geri al</option></select></div>
+     <div><label class="l">Kullandığı bağlantı</label><select><option>Akdeniz Lojistik API (yönetici onaylı)</option></select></div>
+   </div>
+   <label class="l">Kod · uzantilar/src/lib.rs</label>
+   <div class="code" contenteditable="true" spellcheck="false"><span class="kw">match</span> action {
+    <span class="str">"lojistik.gonder"</span> =&gt; {
+        <span class="kw">let</span> siparis = data.<span class="fn">get</span>(<span class="str">"belge"</span>);       <span class="cm">// satırlarıyla birlikte sipariş</span>
+        <span class="kw">let</span> istek = <span class="fn">json!</span>({
+            <span class="str">"siparisNo"</span>: siparis[<span class="str">"no"</span>],
+            <span class="str">"teslimAdresi"</span>: siparis[<span class="str">"teslimAdresi"</span>],
+            <span class="str">"koliSayisi"</span>: <span class="fn">koli_hesapla</span>(&amp;siparis[<span class="str">"satirlar"</span>]),
+        });
+        <span class="fn">baglanti</span>(<span class="str">"akdeniz-lojistik"</span>).<span class="fn">post</span>(<span class="str">"/siparis"</span>, istek)
+    }
+}</div>
+   <div class="bar"><button class="btn dev" id="try">▶ Dene</button><select style="width:auto"><option>Örnek: SS-1042 · 120.000 ₺ · 3 satır</option></select></div>
+   ${tried?`<div class="log" style="margin-top:10px">${[["Cari risk kontrolü","çekirdek"],["Stok rezerve et","çekirdek"],["Sipariş onay belgesini oluştur","çekirdek"],["Lojistik firmasına sipariş gönder","bu uzantı · 184 ms · yanıt: {\"takipNo\":\"AL-77812\"}"],["Temsilciye e-posta gönder","danışman kuralı"]].map(([a,b])=>`<div class="r"><span class="s ok">✓</span><div>${a}<div class="hint" style="margin:0">${b}</div></div></div>`).join("")}</div><div class="hint">Deneme ortamında çalıştı. Gerçek lojistik firmasına değil, bağlantının test adresine gönderildi.</div>`:""}
+   </div>`;
+}
+function render(){document.querySelectorAll(".it").forEach(i=>i.classList.toggle("on",i.dataset.o===cur));document.getElementById("ed").innerHTML=cur==="cariler"?cariler():cur==="lojistik"?lojistik():`<div class="card"><div class="hint">Bu örnek taslakta yalnızca “Cariler” ve “Lojistik bildirimi” açılır.</div></div>`;}
+function modal(step){
+  const m=document.getElementById("modal"),b=document.getElementById("mbox");m.classList.add("on");
+  if(step===0){b.innerHTML=`<h3>Sürüm yayınla</h3><label class="l">Yeni sürüm</label><input class="txt" value="1.4.0" style="margin-bottom:10px"><b>Değişiklikler</b><ul><li>Cari hesaplar: <i>Son ödeme tarihi</i> kolonu eklendi</li><li>Yeni uzantı: <i>Lojistik firmasına sipariş gönder</i> (Satış siparişi · onaylandıktan sonra)</li></ul><div class="steps"><div class="r done">✓ Testler geçti (12/12)</div><div class="r done">✓ Deneme ortamında çalıştırıldı</div><div class="r done">✓ Kod incelemesi: Mehmet K. onayladı</div></div><div class="bar" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="mclose">Vazgeç</button><button class="btn primary" id="mgo">Akdeniz Gıda'ya kur</button></div>`;}
+  else{b.innerHTML=`<h3>1.4.0 kuruldu ✓</h3><div class="where"><b>Danışmanın tarafında şimdi:</b><br>• Liste panelinde <i>Son ödeme tarihi</i> kolonu seçilebilir.<br>• Kurallar ekranında, Satış siparişi → Onayla geçişinin altında yeşil adım olarak <i>Lojistik firmasına sipariş gönder</i> görünür.<br>• Talep #214 kapandı, Ayşe Yılmaz'a bildirim gitti.</div><div class="hint">Sorun olursa “Sürümler” ekranından tek tıkla 1.3.2'ye dönülebilir.</div><div class="bar" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="mclose">Tamam</button></div>`;}
+}
+document.addEventListener("click",e=>{const t=e.target;
+  const it=t.closest(".it");if(it){cur=it.dataset.o;render();return;}
+  if(t.id==="prev"){previewed=true;render();return;}
+  if(t.id==="try"){tried=true;render();return;}
+  if(t.dataset.v){view=t.dataset.v;render();return;}
+  if(t.id==="pub"){modal(0);return;}
+  if(t.id==="mgo"){modal(1);return;}
+  if(t.id==="mclose"||t.id==="modal"){document.getElementById("modal").classList.remove("on");return;}
+});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Belge kuralları (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--core:#475569;--core-soft:#eef1f5;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--bad:#b91c1c;--bad-soft:#fdecec}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+  .top h1{font-size:16px;margin:0}
+  select,input{border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;background:#fff}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .flow{background:#fff;border-bottom:1px solid var(--line);padding:18px 16px 14px;overflow-x:auto}
+  .states{display:flex;align-items:center;min-width:820px}
+  .state{border:1.5px solid #cfcbe0;border-radius:99px;padding:6px 14px;font-weight:600;white-space:nowrap;background:#fff}
+  .tr{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:110px;cursor:pointer}
+  .tr .ln{height:2px;background:#d6d2e6;width:100%;position:relative}
+  .tr .ln:after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left-color:#d6d2e6}
+  .tr .nm{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:6px}
+  .tr .cnt{font-size:10.5px;color:var(--muted)}
+  .tr:hover .nm{background:#f3f1fa}
+  .tr.on .nm{background:var(--accent);color:#fff;font-weight:600} .tr.on .ln{background:var(--accent)} .tr.on .ln:after{border-left-color:var(--accent)}
+  .legend{display:flex;gap:16px;margin-top:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .legend span{display:flex;align-items:center;gap:6px} .legend i{width:12px;height:12px;border-radius:3px}
+  .main{display:grid;grid-template-columns:1fr 340px;height:calc(100vh - 210px)}
+  .left{overflow:auto;padding:18px 22px}
+  .phase{margin-bottom:18px}
+  .phase h3{margin:0 0 4px;font-size:14px} .phase .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .step{display:flex;gap:10px;align-items:flex-start;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:1px solid var(--line);background:#fff}
+  .step .ic{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;flex:none;font-size:12px}
+  .step.core{background:var(--core-soft);border-color:#dde3ea} .step.core .ic{background:#dfe5ec;color:var(--core)}
+  .step.dev{background:var(--dev-soft);border-color:#c5e8e1} .step.dev .ic{background:#cdeee7;color:var(--dev)}
+  .step.con{border-color:#d9d1fa} .step.con .ic{background:var(--accent-soft);color:var(--accent)}
+  .step .t{font-weight:600} .step .s{color:var(--muted);font-size:12px;margin-top:2px}
+  .step .who{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+  .step.off{opacity:.45}
+  .sent{display:flex;flex-wrap:wrap;gap:5px;align-items:center;line-height:2}
+  .tok{border:1px dashed #b9ade9;border-radius:6px;padding:0 7px;background:#faf8ff;color:var(--accent);font-weight:600}
+  .add{border:1px dashed #cfc9e6;color:var(--accent);background:none;border-radius:10px;padding:9px;width:100%;cursor:pointer;font:inherit;text-align:left}
+  .builder{border:1.5px solid var(--accent);border-radius:12px;padding:12px;background:#fff;margin-bottom:8px}
+  .builder .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;line-height:2.2}
+  .builder .hint{color:var(--muted);font-size:12px;margin-top:6px}
+  .tg{width:30px;height:18px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none;margin-left:8px}
+  .tg:after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:14px}
+  .right{background:#fff;border-left:1px solid var(--line);overflow:auto;padding:16px}
+  .right h4{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .doc{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+  .doc .r{display:flex;justify-content:space-between;padding:3px 0}
+  .log .it{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);align-items:flex-start}
+  .log .st{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none}
+  .ok{background:var(--ok-soft);color:var(--ok)} .wait{background:var(--warn-soft);color:var(--warn)} .bad{background:var(--bad-soft);color:var(--bad)} .skip{background:#f1f0f5;color:#9a97ab}
+  .log .it small{display:block;color:var(--muted)}
+  .banner{border-radius:10px;padding:10px 12px;margin-top:10px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="note"><b>Belge kuralları taslağı:</b> Üstteki durum çizgisinden bir geçişe tıkla, o geçişte sırasıyla neler olduğunu gör. <b>Gri</b> adımlar modül çekirdeğinden gelir (değiştirilemez), <b>yeşil</b> adımlar iş ortağı yazılımcısının kodudur, <b>mor</b> adımlar danışmanın kurallarıdır. “+ Kural ekle” ile cümle kur, sağda örnek bir siparişle <b>Dene</b>.</div>
+<div class="top">
+  <h1>Kurallar</h1>
+  <select><option>Satış siparişi</option><option>Satış teklifi</option><option>Satış faturası</option><option>Satınalma siparişi</option></select>
+  <span class="sp"></span>
+  <button class="btn">Geçmiş</button><button class="btn primary">Yayınla</button>
+</div>
+<div class="flow">
+  <div class="states" id="states"></div>
+  <div class="legend"><span><i style="background:#cbd5e1"></i>Modül çekirdeği · Nexora</span><span><i style="background:#99d5c9"></i>Yazılımcı uzantısı · Git modülü</span><span><i style="background:#c4b5fd"></i>Danışman kuralı</span></div>
+</div>
+<div class="main">
+  <div class="left" id="left"></div>
+  <div class="right" id="right"></div>
+</div>
+<script>
+const STATES=["Taslak","Onay bekliyor","Onaylı","Sevk edildi","Faturalandı"];
+const TR=[
+ {n:"Onaya gönder",before:[
+   {k:"core",t:"Zorunlu alanlar ve satırlar dolu mu?",s:"En az bir satır, cari, teslim tarihi"},
+   {k:"core",t:"Fiyat ve KDV hesaplarını yenile",s:"satis.siparis.hesapla"}],
+  after:[{k:"core",t:"Onaylayıcıya görev oluştur",s:"Onay bekleyenler listesine düşer"}]},
+ {n:"Onayla",before:[
+   {k:"core",t:"Cari risk kontrolü",s:"Açık bakiye + sipariş > kredi limiti ise engeller"},
+   {k:"core",t:"Stok yeterli mi?",s:"Kullanılabilir miktar satırlardan az ise uyarır"},
+   {k:"con",id:"r1",when:"tutar",op:">",val:"100.000 ₺",act:"Satış müdürü onayı iste",on:true}],
+  after:[
+   {k:"core",t:"Stok rezerve et",s:"Satır başına depo rezervasyonu"},
+   {k:"core",t:"Sipariş onay belgesini oluştur",s:"PDF · belgeye eklenir"},
+   {k:"dev",t:"Lojistik firmasına sipariş gönder",s:"akdeniz-lojistik modülü · siparisOnaylandiktanSonra()"},
+   {k:"con",id:"r2",when:"her zaman",act:"Temsilciye e-posta gönder",on:true}]},
+ {n:"Sevk et",before:[{k:"core",t:"Rezervasyonlar hâlâ geçerli mi?",s:""}],
+  after:[{k:"core",t:"İrsaliye oluştur",s:"Satırlar irsaliyeye aktarılır"},{k:"core",t:"Stoktan düş",s:""},{k:"con",id:"r3",when:"teslim şekli",op:"=",val:"Kargo",act:"Müşteriye kargo SMS'i gönder",on:false}]},
+ {n:"Faturala",before:[{k:"core",t:"e-Fatura bilgileri tam mı?",s:"VKN, adres, e-posta"}],
+  after:[{k:"core",t:"Fatura oluştur",s:""},{k:"core",t:"Cari hesaba borç kaydı",s:""},{k:"core",t:"e-Fatura gönder",s:"Hata olursa 3 kez yeniden dener"}]},
+];
+let cur=1,adding=false,tried=false;
+const ICON={core:"🔒",dev:"</>",con:"✎"};
+const WHO={core:"Modül çekirdeği",dev:"Yazılımcı",con:"Danışman"};
+function stepHtml(x,i,phase){
+  if(x.k!=="con")return `<div class="step ${x.k}"><span class="ic">${ICON[x.k]}</span><div><div class="t">${x.t}</div>${x.s?`<div class="s">${x.s}</div>`:""}</div><span class="who">${WHO[x.k]}</span></div>`;
+  const cond=x.when==="her zaman"?`<span>Her zaman</span>`:`<span>Eğer</span><span class="tok">${x.when}</span><span class="tok">${x.op}</span><span class="tok">${x.val}</span><span>ise</span>`;
+  return `<div class="step con${x.on?"":" off"}"><span class="ic">✎</span><div class="sent">${cond}<span class="tok">${x.act}</span></div><span class="who" style="display:flex;align-items:center">Danışman<span class="tg${x.on?" on":""}" data-tg="${phase}:${i}"></span></span></div>`;
+}
+function render(){
+  document.getElementById("states").innerHTML=STATES.map((s,i)=>`<span class="state">${s}</span>${i<TR.length?`<div class="tr${i===cur?" on":""}" data-tr="${i}"><span class="nm">${TR[i].n}</span><span class="ln"></span><span class="cnt">${TR[i].before.length+TR[i].after.length} adım</span></div>`:""}`).join("");
+  const t=TR[cur];
+  document.getElementById("left").innerHTML=`
+   <div class="phase"><h3>“${t.n}” denince — önce kontroller</h3><div class="d">Biri engellerse geçiş olmaz, kullanıcıya nedeni gösterilir.</div>${t.before.map((x,i)=>stepHtml(x,i,"before")).join("")}</div>
+   <div class="phase"><h3>Geçiş olduktan sonra — alt görevler</h3><div class="d">Sunucuda sırayla çalışır. Biri hata verirse yeniden denenir, kullanıcı belgede durumunu görür.</div>${t.after.map((x,i)=>stepHtml(x,i,"after")).join("")}
+   ${adding?builder():`<button class="add" id="add">+ Kural ekle</button>`}</div>
+   <div class="phase"><h3>Alan değişince</h3><div class="d">Modül çekirdeği tanımlar, sayfada ayar gerekmez.</div>
+    <div class="step core"><span class="ic">🔒</span><div><div class="t">Stok seçilince birim, liste fiyatı, KDV ve kullanılabilir miktar dolar</div></div><span class="who">Modül çekirdeği</span></div>
+    <div class="step core"><span class="ic">🔒</span><div><div class="t">Miktar, fiyat ya da iskonto değişince satır tutarı ve toplamlar yeniden hesaplanır</div></div><span class="who">Modül çekirdeği</span></div></div>`;
+  renderRight();
+}
+function builder(){return `<div class="builder"><div style="font-weight:600;margin-bottom:6px">Yeni kural</div><div class="row">
+  <select id="bw"><option value="tutar">Eğer tutar</option><option value="cari grubu">Eğer cari grubu</option><option value="iskonto">Eğer satır iskontosu</option><option value="her zaman">Her zaman</option></select>
+  <select id="bo"><option>&gt;</option><option>&lt;</option><option>=</option></select>
+  <input id="bv" value="%15" style="width:110px">
+  <span>ise</span>
+  <select id="ba"><option>Satış müdürü onayı iste</option><option>Uyar ama devam et</option><option>Engelle</option><option>E-posta gönder…</option><option>Alanı doldur…</option></select>
+  </div><div class="hint">Alan listesi belgenin modelinden gelir, danışman kod ya da formül yazmaz.</div>
+  <div style="margin-top:8px;display:flex;gap:6px"><button class="btn primary" id="bsave">Ekle</button><button class="btn" id="bcancel">Vazgeç</button></div></div>`;}
+function renderRight(){
+  const t=TR[cur];
+  const big=document.getElementById("amt")?.value||"120000";
+  const n=+String(big).replace(/\D/g,"");
+  let log="";
+  if(tried){
+    const items=[];
+    let blocked=false;
+    t.before.forEach(x=>{
+      if(x.k==="con"){ if(!x.on){items.push(["skip","–",fmt(x),"Kapalı"]);return;}
+        const hit=x.when==="her zaman"||(x.when==="tutar"&&n>100000);
+        items.push(hit?["wait","⏳",x.act,"Satış müdürünün onayı bekleniyor"]:["skip","–",fmt(x),"Koşul sağlanmadı"]); if(hit)blocked=true; return;}
+      items.push(["ok","✓",x.t,""]);
+    });
+    if(!blocked)t.after.forEach(x=>{ if(x.k==="con"&&!x.on){items.push(["skip","–",fmt(x),"Kapalı"]);return;}
+      if(x.k==="dev"){items.push(["bad","!",x.t,"Bağlantı zaman aşımı · 2 dk sonra yeniden denenecek"]);return;}
+      items.push(["ok","✓",x.k==="con"?x.act:x.t,""]);});
+    log=`<h4 style="margin-top:14px">Kullanıcının belgede gördüğü işlem günlüğü</h4><div class="log">${items.map(([c,i,a,b])=>`<div class="it"><span class="st ${c}">${i}</span><div>${a}${b?`<small>${b}</small>`:""}</div></div>`).join("")}</div>
+     ${blocked?`<div class="banner" style="background:var(--warn-soft);color:#7c2d12">Sipariş <b>Onay bekliyor</b> durumunda kaldı: tutar 100.000 ₺'yi aştığı için satış müdürü onayı istendi.</div>`:`<div class="banner" style="background:var(--ok-soft);color:#14532d">Sipariş <b>${STATES[cur+1]}</b> durumuna geçti. Başarısız olan alt görev arka planda yeniden denenecek, siparişi bekletmez.</div>`}`;
+  }
+  document.getElementById("right").innerHTML=`<h4>Dene</h4><div class="doc"><div class="r"><b>SS-1042</b><span>Akdeniz Gıda A.Ş.</span></div><div class="r"><span style="color:var(--muted)">Durum</span><span>${STATES[cur]}</span></div><div class="r"><span style="color:var(--muted)">Tutar</span><span><input id="amt" value="${big}" style="width:110px;text-align:right;padding:3px 6px"> ₺</span></div></div>
+   <button class="btn primary" id="try" style="width:100%">“${t.n}” geçişini dene</button><div style="color:var(--muted);font-size:11.5px;margin-top:6px">Örnek belge üzerinde çalışır, gerçek kayıt değişmez.</div>${log}`;
+}
+const fmt=x=>x.when==="her zaman"?x.act:`${x.when} ${x.op} ${x.val} → ${x.act}`;
+document.addEventListener("click",e=>{
+  const tr=e.target.closest("[data-tr]");if(tr){cur=+tr.dataset.tr;adding=false;tried=false;render();return;}
+  if(e.target.dataset.tg){const [p,i]=e.target.dataset.tg.split(":");const x=TR[cur][p][+i];x.on=!x.on;render();return;}
+  if(e.target.id==="add"){adding=true;render();return;}
+  if(e.target.id==="bcancel"){adding=false;render();return;}
+  if(e.target.id==="bsave"){const w=document.getElementById("bw").value,a=document.getElementById("ba").value;
+    const r={k:"con",when:w,op:document.getElementById("bo").value,val:document.getElementById("bv").value,act:a,on:true};
+    (/onay|Uyar|Engelle/.test(a)?TR[cur].before:TR[cur].after).push(r);adding=false;render();return;}
+  if(e.target.id==="try"){tried=true;renderRight();return;}
+});
+render();
+</script>
+</body>
+</html>
