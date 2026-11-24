@@ -4,6 +4,7 @@ import { ActionBarPreview } from "./CanvasPreviews";
 import { BarCommandRows } from "./BarCommandRows";
 import { BarLookFields } from "./BarLookFields";
 import { ConditionBuilder } from "./ConditionBuilder";
+import { barBound } from "./barCommands";
 import {
   barLookMap, getBarLook, getCommandCondition, hiddenCommands, isCommandHidden, parseBarLook, setBarLook, setCommandCondition, setCommandHidden,
 } from "./barLook";
@@ -61,15 +62,27 @@ describe("ActionBarPreview", () => {
     expect(plain).toContain("+ <!-- -->Yeni");
   });
   it("hidden/look verilmeyen çubuk önceki sürümün çıktısıyla birebir aynı", () => {
-    // Önceki ActionBarPreview'in (bu değişiklikten önce) aynı girdi için ürettiği HTML.
+    // Önceki ActionBarPreview'in (bu değişiklikten önce) aynı girdi için ürettiği HTML; Aç artık ERP'deki gibi "Düzenle" adını taşır.
+    // Aç sayfa açmadığından (bound.view yok) Görüntüle çizilmez.
     const before = "<div class=\"pd-actionbar-wrap\" style=\"grid-column:span 12\"><div class=\"pd-actionbar\" role=\"img\" aria-label=\"İşlem Çubuğu önizlemesi: Yeni, Kaydet, Sil, Yenile, Filtre, Excel bağlı\">"
-      + "<span class=\"pd-bar-btn\" title=\"Yeni · F2\" data-shortcut=\"F2\">+ <!-- -->Yeni</span><span class=\"pd-bar-btn is-off\" title=\"Bu sayfada bağlanmadı · Enter\" data-shortcut=\"Enter\">Aç</span>"
+      + "<span class=\"pd-bar-btn\" title=\"Yeni · F2\" data-shortcut=\"F2\">+ <!-- -->Yeni</span><span class=\"pd-bar-btn is-off\" title=\"Bu sayfada bağlanmadı · Enter\" data-shortcut=\"Enter\">Düzenle</span>"
       + "<span class=\"pd-bar-btn is-primary\" title=\"Kaydet · Ctrl+S\" data-shortcut=\"Ctrl+S\">Kaydet</span><span class=\"pd-bar-btn\" title=\"Sil · Ctrl+Del\" data-shortcut=\"Ctrl+Del\">Sil</span><span class=\"pd-bar-sep\"></span>"
       + "<span class=\"pd-bar-btn\" title=\"Yenile · F5\" data-shortcut=\"F5\">Yenile</span><span class=\"pd-bar-btn\" title=\"Filtre · Ctrl+F\" data-shortcut=\"Ctrl+F\">Filtre</span><span class=\"pd-bar-sep\"></span>"
       + "<span class=\"pd-bar-btn is-off\" title=\"Bu sayfada bağlanmadı · Ctrl+P\" data-shortcut=\"Ctrl+P\">Yazdır</span><span class=\"pd-bar-btn\" title=\"Excel · Ctrl+E\" data-shortcut=\"Ctrl+E\">Excel</span><span class=\"pd-bar-grow\"></span>"
       + "<span class=\"pd-bar-btn is-more is-off\" title=\"Bu sayfada bağlanmadı · Alt+İ\" data-shortcut=\"Alt+İ\">İşlemler<!-- --> ▾</span></div></div>";
     const bound = { new: true, open: false, save: true, remove: true, filter: true, print: false, excel: true };
     expect(renderToString(<ActionBarPreview bound={bound} moreCount={0} style={{ gridColumn: "span 12" }}/>)).toBe(before);
+  });
+  it("sayfa açan Aç: Düzenle ve Görüntüle yan yana; Aç gizlenince Görüntüle de gizlenir", () => {
+    const bound = { ...BOUND, open: true, view: true };
+    const html = renderToString(<ActionBarPreview bound={bound} moreCount={0} style={{}}/>);
+    expect(html).toContain("data-shortcut=\"Enter\">Düzenle</span><span class=\"pd-bar-btn\" title=\"Görüntüle · Shift+Enter\" data-shortcut=\"Shift+Enter\">Görüntüle</span>");
+    expect(html).toContain("Düzenle, Görüntüle");
+    expect(renderToString(<ActionBarPreview bound={bound} moreCount={0} style={{}} hidden={["open"]}/>)).not.toContain("Görüntüle");
+    expect(renderToString(<ActionBarPreview bound={{ ...bound, view: null }} moreCount={0} style={{}}/>)).not.toContain("Görüntüle");
+    expect(barBound({ openAction: "page", openPageCode: "@kart", openTable: "liste" })).toEqual({ new: false, open: true, view: true });
+    expect(barBound({ openAction: "dialog", formDialog: "d1" }).view).toBeNull();
+    expect(setCommandHidden(["open"], "view", true)).toEqual(["open", "view"]);
   });
   it("gizli komutlar çizilmez; boşalan grubun ayırıcısı düşer", () => {
     const html = renderToString(<ActionBarPreview bound={BOUND} moreCount={2} style={{}} hidden={["refresh", "filter", "more"]}/>);

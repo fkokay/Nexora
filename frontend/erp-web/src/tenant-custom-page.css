@@ -65,6 +65,10 @@
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-error { color: var(--nx-bad); background: var(--nx-bad-bg); }
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+/* Görüntüleme kipi şeridi (İşlem Çubuğu Görüntüle ile açılan salt okunur kayıt) */
+.tenant-page-view-mode { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px 4px 10px; border: 1px solid var(--custom-page-line, #d7dee7); border-radius: 6px; background: var(--nx-surface-soft, #f6f8fb); color: var(--nx-text-muted, #526174); font-size: 12px; }
+.tenant-page-view-mode > span { flex: 1 1 auto; min-width: 0; }
+.tenant-page-view-mode > .tenant-page-button { flex: none; min-height: 26px; padding: 0 10px; font-size: 12px; }
 .tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
 
 /* Liste tablosu — taslak 01: başlık 11,5px/600, satır çizgisi line-soft, sayılar sağa hizalı */
@@ -482,3 +486,10 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-grid-preview { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
 .tenant-page-form-card-meta { display: inline-block; margin: 0 0 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--nx-warn); background: var(--nx-warn-bg); }
 .tenant-page-grid .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Izgara (dataTable) araç satırı: ERP liste ekranlarıyla aynı yoğun boyut (düğmeler 28px, metin 12px, simge 14px). */
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar:not(.is-external) { gap: 6px; padding: 6px 8px; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-search { min-height: 30px; height: 30px; font-size: 12px; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar .advanced-grid-action,
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar .advanced-grid-menu > summary { min-height: 28px; height: 28px; padding: 0 8px; gap: 5px; font-size: 12px; line-height: 1; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar :is(.advanced-grid-action, .advanced-grid-menu > summary) svg { width: 14px; height: 14px; }

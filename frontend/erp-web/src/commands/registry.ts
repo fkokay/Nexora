@@ -260,7 +260,7 @@ export function createCommandRegistry(): CommandRegistry {
       if (active) {
         for (const { id, chord } of STANDARD_CHORDS) {
           if (!matchesShortcut(event, chord)) continue;
-          if (id === 'open' && env.onInteractive) continue;
+          if ((id === 'open' || id === 'view') && env.onInteractive) continue;
           if (!offersCommand(active, id)) continue;
           const spec = active[id];
           if (isEnabled(spec)) {

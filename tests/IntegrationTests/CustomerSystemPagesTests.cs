@@ -339,8 +339,11 @@ public sealed class CustomerSystemPagesTests
         foreach (var field in fields.Where(x => x.Key != "actions")) Assert.Equal(field.Label, labels[view.Fields[field.Key]]);
         Assert.Equal(("server", 25), ((string)props["paging"]!, (int)props["pageSize"]!));
         Assert.Equal("{{suzgec.q}}", Binding("customers", "cariler", "q"));
-        Assert.Equal("{{turSecimi.value}}", Binding("customers", "cariler", "type"));
-        Assert.Equal("{{durumSecimi.value}}", Binding("customers", "cariler", "status"));
+        Assert.Equal("{{suzgec.type}}", Binding("customers", "cariler", "type"));
+        Assert.Equal("{{suzgec.status}}", Binding("customers", "cariler", "status"));
+        // Tür ve durum süzgeç alanının satırında; Pasif göstergesi süzgeç alanının Durum süzgecini süzer.
+        Assert.Equal(new[] { "type|select|row|type|Cari türü", "status|select|row|status|Durum" }, Strings(Props("customers", "suzgec")["filters"]));
+        Assert.Equal(("suzgec.status", "Inactive"), ((string)Props("customers", "pasifGostergesi")["filterInput"]!, (string)Props("customers", "pasifGostergesi")["filterValue"]!));
         Assert.Equal("{{suzgec.q}}", Binding("customers", "sayaclar", "q"));
         var bar = Props("customers", "komutlar");
         Assert.Equal(("@customer-create", "@customer-create", "{{cariler.meta.totalCount}}"),
