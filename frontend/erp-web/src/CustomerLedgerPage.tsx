@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, BookOpenText, ChevronDown, Scale, Wallet } from "lucide-react";
 import { api } from "./erpApi";
+import { useTakePageParam } from "./pageNavigation";
 import type { BuiltInScreenLayoutField, CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
@@ -123,6 +124,19 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
   const [loadingStatement, setLoadingStatement] = useState(false);
   const [error, setError] = useState("");
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+
+  // Cari Hesaplar (sistem sayfası veya eski ekran) hareketleri `customerId` sayfa parametresiyle açar: cari seçili gelir.
+  // Parametre bir kez okunur; açık sekme başka bir cariyle yeniden açılırsa o cari yüklenir.
+  const paramRequest = useRef(0);
+  useTakePageParam("customer-ledger", "customerId", (id) => {
+    const current = ++paramRequest.current;
+    setSelectedId(id);
+    setSelectedAccount(null);
+    setStatement(null);
+    void api<CustomerItem>(`/api/customers/${encodeURIComponent(id)}`, token)
+      .then((item) => { if (current === paramRequest.current) setSelectedAccount(item); })
+      .catch((e) => { if (current === paramRequest.current) setError(`Cari açılamadı: ${(e as Error).message}`); });
+  });
   const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
   const customerPickerRef = useRef<HTMLDivElement>(null);
   const exportRef = useRef<GridExportActions | null>(null);
