@@ -18,6 +18,7 @@ import type {
 import { InvoiceDraftForm } from "./supplier-invoice-draft/components/InvoiceDraftForm";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
 import { confirmDialog } from "./confirmDialog";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
 import { problemDetail } from "./erpApi";
 
@@ -317,6 +318,29 @@ export default function StandaloneSupplierInvoiceDraftPage({
           ? current.lines
           : current.lines.filter((_, i) => i !== index),
     }));
+  }
+
+  // Karar 4: Cari Hesap Hareketleri opens a draft with the page param `draftId` (read once, then removed). A posted draft
+  // cannot be edited: its row is focused in the list with a note instead of the edit error.
+  const paramDraftId = usePageParams("sales-purchase-invoice-drafts").draftId ?? "";
+  useEffect(() => {
+    if (!paramDraftId) return;
+    dropPageParam("sales-purchase-invoice-drafts", "draftId");
+    void openFromParam(paramDraftId);
+  }, [paramDraftId]);
+  async function openFromParam(id: string) {
+    setError("");
+    try {
+      const saved = await request<DraftDetail>(`/api/purchasing/standalone-invoices/${id}`, token);
+      if (saved.status === "Draft") {
+        await beginEdit(id);
+        return;
+      }
+      setCurrentId(id);
+      setNotice(`${saved.invoiceNumber} taslağı muhasebeleştirildi; düzenlenemez.`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
 
   async function beginEdit(id: string) {

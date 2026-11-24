@@ -57,6 +57,7 @@ export function SalesInvoiceModal({
   onClose,
   onSaved,
   newCommand,
+  initialTab = "information",
 }: {
   invoiceId: string;
   token: string;
@@ -66,8 +67,10 @@ export function SalesInvoiceModal({
   onSaved: () => Promise<void>;
   /** The owning screen's Yeni while this detail holds the action bar. */
   newCommand?: CommandSpec;
+  /** The tab the detail opens on (Cari Hesap Hareketleri opens a collection's invoice on "transactions"). */
+  initialTab?: "information" | "transactions";
 }) {
-  const [detailTab, setDetailTab] = useState<"information" | "transactions">("information");
+  const [detailTab, setDetailTab] = useState<"information" | "transactions">(initialTab);
   const [invoice, setInvoice] = useState<SalesInvoiceDetail | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
