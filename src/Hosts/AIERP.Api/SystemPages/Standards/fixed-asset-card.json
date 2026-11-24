@@ -83,7 +83,7 @@
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
         "props": { "moreButtons": ["amortismanDugmesi", "zimmetleDugmesi", "eldenCikarDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["new", "open", "save", "delete", "print", "export"] } },
+                   "hiddenCommands": ["new", "open", "save", "delete", "filter", "print", "export"] } },
       { "id": "baslik", "type": "heading", "name": "baslik",
         "props": { "text": "{{kiymet.rows[0].name}}", "pageTitle": true, "visibleWhen": "kiymet.rows[0].id != null" } },
       { "id": "etkinEtiketi", "type": "badge", "name": "etkinEtiketi",

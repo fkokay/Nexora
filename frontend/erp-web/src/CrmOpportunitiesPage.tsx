@@ -40,6 +40,7 @@ import {
   type ScreenField,
 } from "./crm-opportunities/types";
 import { problemDetail } from "./erpApi";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 
 export default function CrmOpportunitiesPage({
   token,
@@ -317,7 +318,8 @@ export default function CrmOpportunitiesPage({
       });
       setCurrentId(updated.id);
       setEditingOpportunity(null);
-      setCreateOpen(false);
+      // Yeni kart sekmesindeki düzenleme formu kapanmaz: sekme bir sonraki kullanımda yeni kart formuyla açılır.
+      if (!initialCreate) setCreateOpen(false);
       setNotice("Fırsat güncellendi.");
       await refresh();
       void loadStageCounts();
@@ -329,10 +331,60 @@ export default function CrmOpportunitiesPage({
       setBusy(false);
     }
   }
-  function closeCreate() {
+  // Sistem fırsat listesi kartı `crm-opportunity-create` sekmesinde `opportunityId` parametresiyle açar (kart sistem sayfası
+  // yayımlı değilken bu eski ekran çizilir): o fırsat düzenleme kipinde açılır, okunamayan kayıt hata olarak gösterilir.
+  // Parametre sekmenin açık kaydıdır: kart kapanınca silinir; parametresiz "Yeni" sekmeyi yeni fırsat formuna döndürür.
+  const paramOpportunityId = usePageParams(initialCreate ? "crm-opportunity-create" : undefined).opportunityId ?? "";
+  const paramRequestId = useRef(0);
+  const paramOpened = useRef(false);
+  useEffect(() => {
+    const requestId = ++paramRequestId.current;
+    if (!paramOpportunityId) {
+      if (paramOpened.current) clearForm();
+      paramOpened.current = false;
+      return;
+    }
+    paramOpened.current = true;
+    setError("");
+    void request<Opportunity>(`/api/crm/opportunities/${encodeURIComponent(paramOpportunityId)}`)
+      .then((item) => { if (requestId === paramRequestId.current) edit(item); })
+      .catch((e) => {
+        if (requestId !== paramRequestId.current) return;
+        clearForm();
+        setError(`Fırsat açılamadı: ${(e as Error).message}`);
+        // Aynı fırsat yeniden açılabilsin: parametre silinir (yeni fırsat formu açık kalır).
+        paramOpened.current = false;
+        dropOpportunityParam();
+      });
+  }, [paramOpportunityId, request]);
+  /** Yeni kart sekmesinde açık kayıt kapanınca parametresi silinir (aynı fırsat yeniden açılabilir). */
+  const dropOpportunityParam = () => {
+    if (initialCreate) dropPageParam("crm-opportunity-create", "opportunityId");
+  };
+  function clearForm() {
     setEditingOpportunity(null);
-    if (initialCreate && !editingOpportunity) onNavigate("crm-opportunities");
-    else setCreateOpen(false);
+    setCode("");
+    setName("");
+    setCustomerId("");
+    setSelectedCustomer(null);
+    setValue("");
+    setCurrency("TRY");
+    setProbability("10");
+    setCloseDate("");
+    setActivity("");
+    setNotes("");
+  }
+  function closeCreate() {
+    dropOpportunityParam();
+    // Yeni kart sekmesi açık kalır ve listeye döner; parametreyle açılmış düzenleme kartı bir sonraki kullanım için boşaltılır
+    // (yeni kart taslağı bugünkü gibi korunur).
+    if (initialCreate) {
+      if (editingOpportunity) clearForm();
+      onNavigate("crm-opportunities");
+    } else {
+      setEditingOpportunity(null);
+      setCreateOpen(false);
+    }
   }
   async function move(item: Opportunity, stage: string) {
     setBusy(true);
@@ -589,8 +641,11 @@ export default function CrmOpportunitiesPage({
           onSubmit={(event) => {
             void (editingOpportunity ? update(event) : create(event)).then((saved) => {
               if (saved) {
-                if (initialCreate && !editingOpportunity) onNavigate("crm-opportunities");
-                else setCreateOpen(false);
+                if (initialCreate) {
+                  dropOpportunityParam();
+                  clearForm();
+                  onNavigate("crm-opportunities");
+                } else setCreateOpen(false);
               }
             });
           }}

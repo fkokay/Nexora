@@ -1,6 +1,7 @@
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticatedFetch } from "./authApi";
+import { useTakePageParam } from "./pageNavigation";
 import type { Asset, AssetField } from "./fixed-assets/types";
 import { FixedAssetRegister } from "./fixed-assets/components/FixedAssetRegister";
 import { CalendarClock, CircleDollarSign, Landmark, TrendingDown } from "lucide-react";
@@ -182,9 +183,12 @@ async function request<T>(
 export default function FixedAssetsPage({
   token,
   locale,
+  recordParamPage,
 }: {
   token: string;
   locale: "tr" | "en";
+  /** Sekme anahtarı (`fixed-asset-card`): sistem kıymet listesinin `assetId` sayfa parametresi o kıymetin kartını açar. */
+  recordParamPage?: string;
 }) {
   const en = locale === "en";
   const [assets, setAssets] = useState<Asset[]>([]),
@@ -252,6 +256,8 @@ export default function FixedAssetsPage({
   const stayAfterCreate = useRef(false);
   const registerExportRef = useRef<GridExportActions | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // Parametreyle açılan kıymet, listenin ilk 200 kaydında olmasa da liste yenilenince seçili kalır.
+  const paramAssetId = useRef("");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -283,7 +289,8 @@ export default function FixedAssetsPage({
       setPurchaseInvoices(invoices);
       setSelected((current) =>
         current
-          ? page.items.find((x) => x.id === current.id) || null
+          ? page.items.find((x) => x.id === current.id) ||
+            (current.id === paramAssetId.current ? current : null)
           : null,
       );
       return page.items;
@@ -846,6 +853,19 @@ export default function FixedAssetsPage({
     setScheduleTab("ledger");
     setCardOpen(true);
   }
+  // Sistem kıymet listesi kartı `fixed-asset-card` sekmesinde `assetId` parametresiyle açar (kart sistem sayfası yayımlı
+  // değilken bu eski ekran çizilir): o kıymetin kartı açılır. Okunamayan kayıt hata olarak gösterilir.
+  const assetParamRequest = useRef(0);
+  useTakePageParam(recordParamPage, "assetId", (id) => {
+    const requestId = ++assetParamRequest.current;
+    void request<Asset>(`/api/fixed-assets/${encodeURIComponent(id)}`, token, undefined, en)
+      .then((asset) => {
+        if (requestId !== assetParamRequest.current) return;
+        paramAssetId.current = asset.id;
+        openAsset(asset);
+      })
+      .catch((e) => { if (requestId === assetParamRequest.current) setError((e as Error).message); });
+  });
   const actReason = !selected
     ? en
       ? "Select a record first"

@@ -1021,7 +1021,7 @@ internal static partial class TenantCustomPageSchema
             if (expected is "button" or "actionButton" && type != "button")
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' bir düğme bileşeni değil."; return false; }
             if (expected == "actionButton" && !(context.ButtonActionTypes.TryGetValue(id, out var buttonAction)
-                && buttonAction is "query" or "sequence" or "openDialog" or "workflow" or "link" or "erpPage" or "page"))
+                && buttonAction is "query" or "sequence" or "openDialog" or "workflow" or "link" or "erpPage" or "page" or "setInput"))
             { error = $"İşlem Çubuğu '{property}' özelliğindeki '{id}' düğmesinin bir eylemi olmalıdır."; return false; }
             if (expected == "namedQueryTable" && !context.NamedQueryTables.Contains(id))
             { error = $"İşlem Çubuğu '{property}' özelliği sayfadaki adlı ve sorguya bağlı bir veri listesi olmalıdır: {id}."; return false; }

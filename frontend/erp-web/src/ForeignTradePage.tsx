@@ -5,6 +5,7 @@ import type { GridExportActions } from "./AdvancedDataGrid";
 import { ListFooter } from "./list-page/ListFooter";
 import type { MenuCommand, PageCommands } from "./commands/types";
 import { authenticatedFetch } from "./authApi";
+import { useTakePageParam } from "./pageNavigation";
 import { localizedText } from "./locale";
 import { X } from "lucide-react";
 import { confirmDialog } from "./confirmDialog";
@@ -125,9 +126,12 @@ function requiredPermission(url: string, method?: string) {
 
 export default function ForeignTradePage({
   token,
+  recordParamPage,
 }: {
   token: string;
   role: string;
+  /** Sekme anahtarı (`foreign-trade-case`): sistem dosya listesinin `id` (aç) ve `direction` (yeni) sayfa parametreleri. */
+  recordParamPage?: string;
 }) {
   const [cases, setCases] = useState<TradeCase[]>([]);
   // Total case count the endpoint reports (the page loads only the first 100).
@@ -375,6 +379,30 @@ export default function ForeignTradePage({
     setDraft(draftFromCase(item));
     setCreating(true);
   }
+  // Sistem dış ticaret listesi kartı `foreign-trade-case` sekmesinde `id` (dosyayı aç) ya da `direction=Import|Export` (yeni
+  // dosya) parametresiyle açar (kart sistem sayfası yayımlı değilken bu eski ekran çizilir). Düzenlenebilir dosya (Taslak,
+  // Planlandı; güncelleme izni) formda açılır, diğeri seçilir; okunamayan dosya hata olarak gösterilir.
+  const caseParamRequest = useRef(0);
+  useTakePageParam(recordParamPage, "id", (id) => {
+    const requestId = ++caseParamRequest.current;
+    setError("");
+    void Promise.all([
+      api<TradeCase>(`/api/foreign-trade/cases/${encodeURIComponent(id)}`),
+      api<TradeCapabilities>("/api/foreign-trade/capabilities"),
+    ])
+      .then(([item, permissions]) => {
+        if (requestId !== caseParamRequest.current) return;
+        setCapabilities(permissions);
+        selectCase(item.id);
+        if (["Draft", "Booked"].includes(item.status) && permissions.canUpdate) startEdit(item);
+      })
+      .catch((cause) => { if (requestId === caseParamRequest.current) setError((cause as Error).message); });
+  });
+  useTakePageParam(recordParamPage, "direction", (direction) => {
+    if (direction !== "Import" && direction !== "Export") return;
+    caseParamRequest.current += 1;
+    startCreate(direction);
+  });
   function closeForm() {
     setCreating(false);
     setEditingId("");

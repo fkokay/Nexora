@@ -273,12 +273,7 @@
           "afterSavePageCode": "@fixed-assets",
           "afterSaveTarget": "sameTab",
           "afterSaveRefresh": true,
-          "hiddenCommands": [
-            "open",
-            "delete",
-            "print",
-            "export"
-          ],
+          "hiddenCommands": ["open", "delete", "filter", "print", "export"],
           "commandWhen": [
             "save=vukAcik.value != true || vukOnay.value == true"
           ]

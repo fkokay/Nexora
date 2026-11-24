@@ -24,7 +24,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "exportTable": "durumTablosu", "hiddenCommands": ["new", "open", "save", "delete", "refresh", "print"] } },
+        "props": { "exportTable": "durumTablosu", "hiddenCommands": ["new", "open", "save", "delete", "refresh", "filter", "print"] } },
       { "id": "parametreler", "type": "formCard", "name": "parametreler",
         "props": { "title": "Dönem", "layout": "inline", "width": 6, "inputs": ["baslangic", "bitis"] } },
       { "id": "baslangic", "type": "input", "name": "baslangic",

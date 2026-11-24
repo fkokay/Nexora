@@ -93,7 +93,7 @@
                    "newAction": "page", "newPageCode": "@customer-create", "newTarget": "sameTab",
                    "saveAndNew": true, "commandWhen": ["saveNew=kart.rows[0].id == null"],
                    "afterSaveAction": "page", "afterSavePageCode": "@customers", "afterSaveTarget": "sameTab", "afterSaveRefresh": true,
-                   "hiddenCommands": ["delete", "print"] } },
+                   "hiddenCommands": ["open", "delete", "filter", "print", "export"] } },
       { "id": "yeniBaslik", "type": "heading", "name": "yeniBaslik",
         "props": { "text": "Yeni cari kart", "pageTitle": true, "visibleWhen": "kart.rows[0].id == null" } },
       { "id": "kartBasligi", "type": "heading", "name": "kartBasligi",

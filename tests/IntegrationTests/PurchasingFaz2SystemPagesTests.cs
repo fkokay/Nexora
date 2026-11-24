@@ -179,7 +179,7 @@ public sealed class PurchasingFaz2SystemPagesTests
         const string key = "sales-purchase-order-create";
         var bar = Props(key, "komutlar");
         Assert.Equal(("olustur", "siparisiAcDugmesi"), ((string)bar["saveQuery"]!, (string)bar["afterSaveButton"]!));
-        Assert.Equal(new[] { "new", "open", "delete", "print" }, Strings(bar["hiddenCommands"]));
+        Assert.Equal(new[] { "new", "open", "delete", "filter", "print", "export" }, Strings(bar["hiddenCommands"]));
         var open = Props(key, "siparisiAcDugmesi");
         Assert.Equal(("erpPage", "sales-purchasing", "purchaseOrderId={{olustur.sonuc.id}}"),
             ((string)open["actionType"]!, (string)open["pageKey"]!, Strings(open["params"]).Single()));

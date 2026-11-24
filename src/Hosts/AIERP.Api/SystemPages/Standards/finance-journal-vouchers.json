@@ -118,12 +118,7 @@
           "commandWhen": [
             "save=kullanici.rol == 'TenantAdmin'"
           ],
-          "hiddenCommands": [
-            "open",
-            "delete",
-            "print",
-            "export"
-          ]
+          "hiddenCommands": ["open", "delete", "filter", "print", "export"]
         }
       },
       {

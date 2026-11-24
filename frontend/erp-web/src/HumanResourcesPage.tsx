@@ -9,6 +9,7 @@ import type {
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Check, Download } from "lucide-react";
 import { authenticatedFetch } from "./authApi";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 import SearchableRecordPicker from "./SearchableRecordPicker";
 import { localDateString } from "./dateUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
@@ -721,12 +722,15 @@ export default function HumanResourcesPage({
   role,
   locale = "tr",
   initialSection = "employees",
+  recordParamPage,
 }: {
   token: string;
   role: string;
   locale?: "tr" | "en";
   /** Opening tab; the hr-* system page keys open their own tab when they render this legacy screen. */
   initialSection?: "employees" | "leave" | "attendance" | "report";
+  /** Sekme anahtarı (`hr-employee-create`): sistem personel listesinin `employeeId` sayfa parametresi o personeli açar. */
+  recordParamPage?: string;
 }) {
   const isEn = locale === "en",
     admin = role === "TenantAdmin";
@@ -2784,6 +2788,45 @@ export default function HumanResourcesPage({
   const pickFirst = tr("Önce bir kayıt seçin", "Select a record first");
   const currentRun = section === "runs" && compensationAccess.view ? payrollRunRows.find((x) => x.id === hrCurrent) : undefined;
   const adminOnly = tr("Yalnız firma yöneticisi düzenleyebilir", "Only a company administrator can edit");
+  // Sistem personel listesi kartı `hr-employee-create` sekmesinde `employeeId` parametresiyle açar (kart sistem sayfası
+  // yayımlı değilken bu eski ekran çizilir): personel sekmesi açılır, kayıt seçilir ve yöneticiye düzenleme formu gelir.
+  // Parametre sekmenin açık kaydıdır: düzenleme formu kapanınca silinir (aynı personel yeniden açılabilir); parametresiz
+  // "Yeni personel" açık formu kapatır.
+  const paramEmployeeId = usePageParams(recordParamPage).employeeId ?? "";
+  const employeeParamRequest = useRef(0);
+  const paramEmployeeOpened = useRef("");
+  useEffect(() => {
+    const requestId = ++employeeParamRequest.current;
+    if (!paramEmployeeId) {
+      if (paramEmployeeOpened.current) setEditingEmployee(null);
+      paramEmployeeOpened.current = "";
+      return;
+    }
+    changeSection("employees");
+    void request<Employee>(token, `/api/hr/employees/${encodeURIComponent(paramEmployeeId)}`)
+      .then((employee) => {
+        if (requestId !== employeeParamRequest.current) return;
+        setHrCurrent(employee.id);
+        // Formu olmayan (yönetici olmayan) kullanıcıda kayıt yalnız seçilir: parametre hemen silinir.
+        if (!admin) {
+          if (recordParamPage) dropPageParam(recordParamPage, "employeeId");
+          return;
+        }
+        paramEmployeeOpened.current = employee.id;
+        setEditingEmployee(employee);
+      })
+      .catch((e) => {
+        if (requestId !== employeeParamRequest.current) return;
+        reportError(e);
+        if (recordParamPage) dropPageParam(recordParamPage, "employeeId");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramEmployeeId, token]);
+  useEffect(() => {
+    if (editingEmployee || !paramEmployeeOpened.current || !recordParamPage) return;
+    paramEmployeeOpened.current = "";
+    dropPageParam(recordParamPage, "employeeId");
+  }, [editingEmployee, recordParamPage]);
   /** Aç / Enter / double click: the record's existing edit form; otherwise the focus moves to its panel. */
   function openHrRecord(id: string) {
     setHrCurrent(id);

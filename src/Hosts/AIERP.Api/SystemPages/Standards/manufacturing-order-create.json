@@ -38,7 +38,7 @@
         "props": { "saveQuery": "olustur",
                    "newAction": "page", "newPageCode": "@manufacturing-order-create", "newTarget": "sameTab",
                    "afterSaveAction": "page", "afterSavePageCode": "@manufacturing-orders", "afterSaveTarget": "sameTab", "afterSaveRefresh": true,
-                   "hiddenCommands": ["open", "delete", "print", "export"] } },
+                   "hiddenCommands": ["open", "delete", "filter", "print", "export"] } },
       { "id": "baslik", "type": "heading", "name": "baslik",
         "props": { "text": "Üretim emri planlama", "pageTitle": true } },
       { "id": "aciklama", "type": "text", "name": "aciklama",

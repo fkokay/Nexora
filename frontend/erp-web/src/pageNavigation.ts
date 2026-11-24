@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 /** Bir çalışma sekmesine "Sayfa aç" eylemiyle verilen parametreler (`{{sayfa.parametre.<ad>}}`). */
 export type PageParams = Readonly<Record<string, string>>;
@@ -46,6 +46,25 @@ export function dropPageParam(page: string, name: string) {
 /** Sekmenin güncel parametreleri; açık sekme yeni parametrelerle yeniden açılınca yeniden çizilir. */
 export function usePageParams(page: string | undefined): PageParams {
   return useSyncExternalStore(subscribe, () => pageParamsOf(page), () => EMPTY);
+}
+
+/**
+ * Sekmenin tek bir parametresini (ör. kart ekranına gelen `customerId`) bir kez okur ve yalnız onu siler; diğer parametreler
+ * kalır. İlk çizimde ve açık sekme yeni parametreyle yeniden açıldığında `onValue` çağrılır (aynı değer silindiği için yeniden
+ * okunur). `page` undefined ise okuyucu kapalıdır (ör. bileşen başka bir sekme için çizilmiştir).
+ */
+export function useTakePageParam(page: string | undefined, name: string, onValue: (value: string) => void) {
+  const params = usePageParams(page);
+  const handler = useRef(onValue);
+  handler.current = onValue;
+  useEffect(() => {
+    if (!page) return;
+    // Çizimin anlık görüntüsü değil depo okunur: yeniden çalışan efekt (StrictMode) aynı değeri iki kez vermemeli.
+    const value = pageParamsOf(page)[name] ?? "";
+    if (!value) return;
+    dropPageParam(page, name);
+    handler.current(value);
+  }, [page, name, params]);
 }
 
 /** Parametreleri hedef sekmeye yazar, sonra çalışma alanından sekmeyi açmasını ister (useWorkspaceTabs dinler). */
