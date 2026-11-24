@@ -243,8 +243,9 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
   it('detail panel: key values, local follow-up time, steps for open and a note for lost opportunities', async () => {
     setup();
     await select('Depo otomasyonu');
-    const panel = screen.getByLabelText('Detay paneli') as HTMLInputElement;
-    if (!panel.checked) fireEvent.click(panel);
+    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
+    const panel = screen.getByRole('button', { name: 'Detay paneli' });
+    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     await waitFor(() => expect(document.body.textContent).toContain('Kazanma olasılığı'), T);
     const text = () => document.body.textContent ?? '';
     expect(text()).toContain('Sonraki takip');

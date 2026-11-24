@@ -106,6 +106,38 @@ describe('DataTableGrid (gelişmiş ızgara)', () => {
     expect(localStorage.getItem('nexora.grid.custom-page.p.t')).not.toBeNull();
   });
 
+  it('toolbarToggles: Sütunlar menüsünün yanında aria-pressed düğme çizer; tıklama ve klavye (Enter) değiştirir', () => {
+    function ToggleHarness() {
+      const [open, setOpen] = useState(false);
+      return <Harness toolbarToggles={[{ id: 'detayPaneli', label: 'Detay paneli', pressed: open, onToggle: () => setOpen((value) => !value) }]} />;
+    }
+    render(<ToggleHarness />);
+    const toggle = screen.getByRole('button', { name: 'Detay paneli' });
+    expect(toggle.getAttribute('type')).toBe('button');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.classList.contains('active')).toBe(false);
+    expect(toggle.closest('.advanced-grid-toolbar')).toBeTruthy();
+    // Görünüm menüsüne toplanmaz (data-grid-tool değil): dar çubukta ve tam ekranda da çubukta kalır.
+    expect(toggle.hasAttribute('data-grid-tool')).toBe(false);
+    expect(toggle.previousElementSibling?.querySelector('summary')?.textContent).toBe('Sütunlar');
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Detay paneli' }).classList.contains('active')).toBe(true);
+    // Yerel <button>: Enter/Boşluk tarayıcıda tıklama üretir; odaklanabilir olması yeterlidir.
+    screen.getByRole('button', { name: 'Detay paneli' }).focus();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Detay paneli' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Detay paneli' }));
+    expect(screen.getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
+    // Tam ekranda da çubukta kalır.
+    fireEvent.click(screen.getByTitle('Tam ekran'));
+    expect(screen.getByRole('button', { name: 'Detay paneli' })).toBeTruthy();
+  });
+
+  it('toolbarToggles verilmezse düğme çizilmez', () => {
+    render(<Harness />);
+    expect(screen.queryByRole('button', { name: 'Detay paneli' })).toBeNull();
+  });
+
   it('gridToolsOf: showCsv ve showSelectedExport yoksa açık, yalnız false kapatır', () => {
     expect(gridToolsOf(undefined)).toEqual(ALL_GRID_TOOLS);
     expect(gridToolsOf({ showCsv: false, showSelectedExport: false })).toMatchObject({ export: true, csv: false, selectedExport: false });

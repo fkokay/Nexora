@@ -107,11 +107,13 @@ public sealed class InventoryStockStandardTests
         Assert.Equal(new[] { "warehouseId|select|row|warehouseId|Depo|depolar:id:name", "includeInactive|toggle|row|includeInactive|Pasif kartları da göster" },
             Strings(bar["filters"]));
         Assert.Equal("depo.listele", (string)Query("depolar")["operation"]!);
-        Assert.Equal(8, (int)bar["width"]!);
-        // Minimum altı (live count chip, metric click target) and Detay paneli (not a filter) stay inputs, right of the bar.
+        Assert.Equal(9, (int)bar["width"]!);
+        // Minimum altı (live count chip, metric click target) stays an input right of the bar; Detay paneli (not a filter) is the
+        // list toolbar's toggle (draft 21), so the filter row fits one line (9 + 3).
         var side = Props("gorunumKarti");
-        Assert.Equal(new[] { "minimumAlti", "detayPaneli" }, Strings(side["inputs"]));
-        Assert.Equal(("inline", 4), ((string)side["layout"]!, (int)side["width"]!));
+        Assert.Equal(new[] { "minimumAlti" }, Strings(side["inputs"]));
+        Assert.Equal(("inline", 3), ((string)side["layout"]!, (int)side["width"]!));
+        Assert.Equal("detayPaneli", (string)Props("liste")["detailToggleInput"]!);
         Assert.Null(side["columns"]);
         Assert.Equal(("Minimum altı", "{{bakiye.meta.belowMinimumCount}}"), ((string)Props("minimumAlti")["label"]!, (string)Props("minimumAlti")["description"]!));
         Assert.Equal("panel", (string)Props("detayPaneli")["icon"]!);

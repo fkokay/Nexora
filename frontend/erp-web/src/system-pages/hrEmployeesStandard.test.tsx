@@ -90,8 +90,9 @@ describe('Personel standart tanımı', { timeout: 30000 }, () => {
   it('detail panel: key values and links to the leave and attendance pages with employeeId', async () => {
     h.setup(respond);
     await h.select('Ayşe Yılmaz');
-    const panel = screen.getByLabelText('Detay paneli') as HTMLInputElement;
-    if (!panel.checked) fireEvent.click(panel);
+    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
+    const panel = screen.getByRole('button', { name: 'Detay paneli' });
+    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     await waitFor(() => expect(document.body.textContent).toContain('İş e-postası'), T);
     expect(document.body.textContent).toContain('p-0001@firma.com.tr');
     expect(document.body.textContent).toContain('İşe giriş');

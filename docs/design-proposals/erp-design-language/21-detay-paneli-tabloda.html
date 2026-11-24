@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Detay paneli tabloda</title>
+<style>
+:root{--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--line:#dfe5ee}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:26px 0 8px}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid #e3e1ee;border-radius:12px;padding:14px}
+.ttl{display:flex;align-items:baseline;gap:8px;margin:0 0 8px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-weight:600;color:#344054}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .r{margin-left:auto}.bar .dis{color:#98a2b3}
+.frow{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;align-items:end;margin:10px 0}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}.in.sel{color:var(--tx);justify-content:space-between}
+.f span{display:block;font-size:11.5px;font-weight:600;color:#475467;margin-bottom:4px}
+.chips{color:#475467;margin:0 0 10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px}.card h4{margin:0 0 10px;font-size:14px}
+.tb{display:flex;gap:8px;align-items:center;border:1px solid #e6ebf2;border-radius:8px 8px 0 0;padding:8px;background:#fff}
+.tb .s{flex:0 1 380px;height:32px;border:1px solid #d0d8e4;border-radius:7px;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.b{border:1px solid #d0d8e4;border-radius:7px;padding:5px 11px;font-weight:600;color:#344054;background:#fff;white-space:nowrap}
+.b.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}
+.b.new{outline:2px dashed #f59e0b;outline-offset:2px}
+.sp{margin-left:auto;color:var(--mut);font-size:11px}
+table{width:100%;border-collapse:collapse;border:1px solid #e6ebf2;border-top:0}th{font-size:11px;color:var(--mut);text-align:left;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2}td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}
+.split{display:grid;grid-template-columns:1fr 280px;gap:10px}
+.pnl{border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff}.pnl h5{margin:0 0 6px;font-size:13px}.pnl p{margin:3px 0;color:#475467}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.old{opacity:.55}
+</style></head><body>
+<h1>Detay paneli tablonun bir özelliği olur (taslak 21)</h1>
+<p class="sub">"Detay paneli" düğmesi filtre satırından kalkar ve tablonun araç çubuğuna, <b>Sütunlar</b>'ın yanına taşınır (açıkken mavi). Filtre satırında yer açılır; arama ve seçimler <b>tek satırda</b> kalır, kayma olmaz. Bu, detay paneli olan 17 liste ekranının hepsine aynı şekilde uygulanır.</p>
+
+<div class="lbl">BUGÜN · DÜĞME FİLTRE SATIRINDA, "AŞAMA" ALT SATIRA KAYIYOR</div>
+<div class="erp old">
+  <div class="frow">
+    <div class="f" style="grid-column:1 / span 4"><span>&nbsp;</span><div class="in">Referans, gümrük veya taşıyıcı referansı ara</div></div>
+    <div class="f" style="grid-column:span 4"><span>Yön</span><div class="in sel">Tümü ▾</div></div>
+    <div class="f" style="grid-column:span 2"><span>&nbsp;</span><div class="b">▣ Detay paneli</div></div>
+    <div class="f" style="grid-column:7 / span 3"><span>Aşama</span><div class="in sel">Tümü ▾</div></div>
+  </div>
+</div>
+
+<div class="lbl">YENİ · FİLTRE SATIRI TEK SATIR, DETAY PANELİ TABLO ARAÇ ÇUBUĞUNDA</div>
+<div class="erp">
+  <div class="ttl"><h2>Dış Ticaret Dosyaları</h2><small>1 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span class="dis">Aç</span><span>Yenile</span><span>Filtre</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="frow">
+    <div class="f" style="grid-column:1 / span 6"><span>&nbsp;</span><div class="in">⌕ Referans, gümrük veya taşıyıcı referansı ara</div></div>
+    <div class="f" style="grid-column:span 3"><span>Yön</span><div class="in sel">Tümü ▾</div></div>
+    <div class="f" style="grid-column:span 3"><span>Aşama</span><div class="in sel">Tümü ▾</div></div>
+  </div>
+  <div class="chips">Tümü 1 · İthalat 0 · İhracat 1 · Taslak 1 · Planlandı 0 · Sevkte 0 · Gümrükte 0 · Ulaştı 0 · Kapandı 0 · İptal 0</div>
+  <div class="split">
+    <div class="card"><h4>Dış ticaret dosyaları</h4>
+      <div class="tb"><div class="s">⌕ Tüm sütunlarda ara</div><span class="b">Sütun filtreleri ▾</span><span class="b">Sütunlar ▾</span><span class="b on new">▣ Detay paneli</span><span class="sp">1 kayıt</span><span class="b">XLSX</span><span class="b">CSV</span><span class="b">Pivot görünümü</span></div>
+      <table><tr><th>Dosya</th><th>Yön</th><th>Sipariş</th><th>Cari</th><th>Rota</th><th>Incoterms</th></tr>
+      <tr class="pick"><td>EXP-QA-1124</td><td>İhracat</td><td>NXR2026000002</td><td>FATİH KOKAY</td><td>TR → DE</td><td>FCA</td></tr></table>
+    </div>
+    <div class="pnl"><h5>EXP-QA-1124</h5><p>İhracat · Taslak</p><p>FATİH KOKAY · TR → DE · FCA</p></div>
+  </div>
+</div>
+<ul class="note">
+<li>Düğme tablonun parçasıdır: tablo tam ekran yapılsa da çubukta kalır. Açık/kapalı durumu bugünkü gibi sayfa başına hatırlanır.</li>
+<li>Tasarımcıda tablonun ayarlarına "Detay paneli düğmesi" eklenir (hangi panelin açılıp kapanacağı seçilir). Filtre satırındaki eski "Görünüm" kartı standarttan kalkar.</li>
+<li>Filtre satırındaki boşalan yer arama kutusuna ve seçimlere dağıtılır; her ekranda seçimler tek satıra sığacak şekilde genişlikler yeniden ayarlanır.</li>
+</ul>
+</body></html>
