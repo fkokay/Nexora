@@ -102,7 +102,7 @@ export function rowActionIds(components: LayoutComponent[]): Set<string> {
   const owned = new Set<string>();
   for (const component of components) {
     if (component.type !== "dataTable") continue;
-    for (const id of idList(component.props?.rowActions, 4)) owned.add(id);
+    for (const id of idList(component.props?.rowActions, 6)) owned.add(id);
     const open = component.props?.rowOpenAction;
     if (typeof open === "string" && open.trim()) owned.add(open.trim());
   }

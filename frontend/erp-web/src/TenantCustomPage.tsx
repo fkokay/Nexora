@@ -1139,7 +1139,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           };
         }
         // Satır işlemleri satır bindirmesiyle (`<tablo>.seciliSatir = satır`) değerlendirilir; tablo adsızsa çizilmez.
-        const rowActions: RowAction[] = tableName ? idList(props.rowActions, 4).flatMap((id) => {
+        const rowActions: RowAction[] = tableName ? idList(props.rowActions, 6).flatMap((id) => {
           const button = runtime.buttonById[id];
           if (!button || !actionAllowed(runtime.buttonAction(button), runtime.rights)) return [];
           const raw = button.props ?? {};
