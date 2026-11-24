@@ -2,7 +2,8 @@
 // (`commandWhen`). Sunucudaki ValidateBarAppearance ile aynı anahtarlar; varsayılana eşit değer yazılmaz, boş liste undefined
 // döner (özellik silinir).
 
-export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"] as const;
+/** `view` (Görüntüle) ERP'de Aç'ın (Düzenle) yanındadır; Aç gizlenince o da gizlenir. */
+export const BAR_COMMAND_IDS = ["new", "open", "view", "save", "delete", "refresh", "filter", "print", "export", "more"] as const;
 export type BarCommandId = typeof BAR_COMMAND_IDS[number];
 /** `commandWhen` anahtarları: çubuk komutları ve İşlemler › "Kaydet ve yeni" (`saveNew`, `saveAndNew: true` ile). Sunucuda `hiddenCommands` saveNew almaz. */
 export const BAR_CONDITION_IDS = [...BAR_COMMAND_IDS, "saveNew"] as const;
