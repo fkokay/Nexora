@@ -85,7 +85,7 @@ internal static partial class TenantCustomPageSchema
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
       "bulkDeleteQuery",
       // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
-      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn",
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn", "lockColumnsWhen",
       // Boş çözülen varsayılanın sabit yedeği (emptyDefault: yeni kartta "TRY"), parçalı metin (parts: boş bağlamalı parça düşer)
       // ve İşlem Çubuğu Sil onayının bağlanabilir metni (deleteConfirmText). Göstergenin açıklamasındaki sayıların biçimi
       // (descriptionFormat: number/money; ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00").
@@ -1750,7 +1750,8 @@ internal static partial class TenantCustomPageSchema
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
         ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"],
         ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
-        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"]
+        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"],
+        ["lockColumnsWhen"] = ["editableGrid"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -2638,7 +2639,7 @@ internal static partial class TenantCustomPageSchema
     }
     /// <summary>Props holding condition text (or, for sequenceWhen, "query=condition" items); validated by the condition parser.</summary>
     private static readonly HashSet<string> ConditionTextProps = new(StringComparer.Ordinal)
-    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen", "optionsWhen", "columnOptionsWhen" };
+    { "visibleWhen", "disabledWhen", "requiredWhen", "defaultWhen", "widthWhen", "sequenceWhen", "countWhen", "activeWhen", "optionsWhen", "columnOptionsWhen", "lockColumnsWhen" };
 
     /// <summary>
     /// <see cref="SafeValue"/> for condition text: the ordering operators (&lt;, &lt;=, &gt;, &gt;=) are allowed outside quoted

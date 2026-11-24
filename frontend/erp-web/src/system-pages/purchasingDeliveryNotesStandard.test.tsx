@@ -105,7 +105,11 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     await h.pick(h.input('irsaliyeSiparisi'), 'SA-0001');
     await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'quantity')?.value).toBe('6'), T);
     h.type(h.input('belgeNo'), 'IRS-2026-0043');
+    // Önce yazılan fiyat bedelsiz işaretlenince silinir; fiyat hücreleri kilitli "—" olur (lockColumnsWhen).
+    h.type(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'unitPrice')!, '9');
     fireEvent.click(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'isFreeOfCharge')!);
+    await waitFor(() => expect(h.gridCell('irsaliyeSatirlari', 'dolu-1', 'unitPrice')).toBeNull(), T);
+    expect([...dialog.querySelectorAll('[data-locked]')].map((cell) => cell.getAttribute('data-locked'))).toEqual(['unitPrice', 'discountPercent', 'vatPercent']);
     h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'quantity')!, '3');
     h.type(h.gridCell('irsaliyeSatirlari', 'dolu-3', 'unitPrice')!, '12');
     fireEvent.click(within(dialog).getByRole('button', { name: 'İrsaliyeyi kaydet' }));
@@ -113,7 +117,7 @@ describe('Gelen irsaliyeler standart tanımı', { timeout: 60000 }, () => {
     await waitFor(() => expect(h.sent(url)).toHaveLength(1), T);
     const lines = h.bodyOf(h.sent(url)[0]).lines as Array<Record<string, unknown>>;
     expect(lines[0]).toMatchObject({ orderLineNumber: 1, quantity: 6, isFreeOfCharge: true });
-    expect(lines[0].unitPrice ?? null).toBeNull();
+    expect(['unitPrice', 'discountPercent', 'vatPercent'].filter((code) => code in lines[0])).toEqual([]);
     expect(lines[1]).toMatchObject({ orderLineNumber: 3, quantity: 3, unitPrice: 12 });
   });
 

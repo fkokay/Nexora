@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countedGridState, EMPTY_GRID_ENGINE, filledGridState, fillCells, fillLabelsOf, gridEngineReducer, isSkippedRow, lookupFillCells, parseGridEngine, withFormulaColumns } from "./gridFill";
+import { countedGridState, EMPTY_GRID_ENGINE, filledGridState, fillCells, fillLabelsOf, gridEngineReducer, isSkippedRow, lockedColumns, lookupFillCells, parseGridEngine, withFormulaColumns, withoutLockedErrors } from "./gridFill";
 import { emptyGridState, gridScope, parseGridColumns, validateGrid, type GridState } from "./gridState";
 
 const raw = parseGridColumns([
@@ -221,5 +221,67 @@ describe("belge kartı: hesaplanan sütun, görünen metin ve yazılan değer", 
     state = gridEngineReducer(state, { type: "pick", key: "dolu-1", code: "stockItemId", value: "s2", label: "S2",
       fills: lookupFillCells(card, cardEngine, "stockItemId", option, state.rows[0]) }, opts, cardEngine);
     expect(state.rows[0].cells).toMatchObject({ stockItemId: "s2", unitCode: "KOLI", unitPrice: "30", vatPercent: "8", quantity: "2" });
+  });
+});
+
+describe("satır koşuluyla kilitlenen sütunlar (lockColumnsWhen)", () => {
+  const lockRaw = parseGridColumns([
+    "orderLineNumber|#|number|readOnly", "quantity|Miktar|number|min:0", "isFreeOfCharge|Bedelsiz|checkbox",
+    "unitPrice|Birim fiyat|number|required,min:0", "discountPercent|İsk. %|number|min:0,max:100", "lineNetAmount|Tutar|number|readOnly",
+    "lineTotal|Önizleme|calc:onizleme:lineTotal",
+  ]);
+  const lockEngine = parseGridEngine({
+    fillQuery: "kaynak", skipWhenZero: "quantity",
+    formulas: { lineNetAmount: "quantity * unitPrice * (1 - discountPercent / 100)" },
+    lockColumnsWhen: ["unitPrice,discountPercent,lineNetAmount=satir.isFreeOfCharge == true", "yok,lineTotal=satir.quantity > 0", "bozuk=satir.x ==", 5, "=x"],
+  }, lockRaw, "list");
+  const lockColumns = withFormulaColumns(lockRaw, lockEngine);
+  const source = [{ orderLineNumber: 1, quantity: 4, unitPrice: 50, discountPercent: 10 }, { orderLineNumber: 2, quantity: 2, unitPrice: 30, discountPercent: 0 }];
+  const filled = () => filledGridState(lockColumns, lockEngine, "k", source);
+
+  it("geçerli kuralları okur: tabloda olmayan ve hesaplanan sütunlar, geçersiz koşullar atlanır; kip list değilse kilit yoktur", () => {
+    expect(lockEngine.locks.map((lock) => lock.columns)).toEqual([["unitPrice", "discountPercent", "lineNetAmount"]]);
+    expect(parseGridEngine({ lockColumnsWhen: ["unitPrice=satir.isFreeOfCharge == true"] }, lockRaw, "stage").locks).toEqual([]);
+    expect(parseGridEngine({ lockColumnsWhen: "unitPrice=satir.isFreeOfCharge == true" }, lockRaw, "list").locks).toEqual([]);
+  });
+
+  it("bedelsiz işaretlenince fiyat hücreleri ve Tutar boşalır, satırla gönderilmez; kaldırılınca doldurma değeri geri gelir", () => {
+    let state = filled();
+    expect(state.rows[0].cells).toMatchObject({ unitPrice: "50", discountPercent: "10", lineNetAmount: "180" });
+    expect(lockedColumns(lockEngine, state.rows[0]).size).toBe(0);
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-1", code: "isFreeOfCharge", value: true }, opts, lockEngine);
+    expect([...lockedColumns(lockEngine, state.rows[0])]).toEqual(["unitPrice", "discountPercent", "lineNetAmount"]);
+    expect(state.rows[0].cells).toEqual({ orderLineNumber: "1", quantity: "4", isFreeOfCharge: true });
+    expect(gridScope("list", lockColumns, state, [], "").satirlar[0]).toEqual({ orderLineNumber: 1, quantity: 4, isFreeOfCharge: true });
+    // Kilitli hücreye yazılan değer (ör. eski bir doldurma) tutulmaz.
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-1", code: "unitPrice", value: "99" }, opts, lockEngine);
+    expect(state.rows[0].cells.unitPrice).toBeUndefined();
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-1", code: "isFreeOfCharge", value: false }, opts, lockEngine);
+    expect(state.rows[0].cells).toMatchObject({ isFreeOfCharge: false, unitPrice: "50", discountPercent: "10", lineNetAmount: "180" });
+    expect(gridScope("list", lockColumns, state, [], "").satirlar[0]).toEqual({ orderLineNumber: 1, quantity: 4, isFreeOfCharge: false,
+      unitPrice: 50, discountPercent: 10, lineNetAmount: 180 });
+  });
+
+  it("kilit kalkmadan kullanıcının boşalttığı fiyat geri doldurulmaz; zorunlu fiyat iletisi yalnız kilitli satırda düşer", () => {
+    let state = gridEngineReducer(filled(), { type: "edit", key: "dolu-2", code: "unitPrice", value: "" }, opts, lockEngine);
+    expect(state.rows[1].cells.unitPrice).toBe("");
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-2", code: "quantity", value: "3" }, opts, lockEngine);
+    expect(state.rows[1].cells.unitPrice).toBe("");
+    state = gridEngineReducer(state, { type: "edit", key: "dolu-1", code: "isFreeOfCharge", value: true }, opts, lockEngine);
+    const errors = validateGrid("list", lockColumns, state, [], "");
+    expect(Object.keys(errors["dolu-1"] ?? {})).toEqual(["unitPrice"]);
+    expect(Object.keys(errors["dolu-2"] ?? {})).toEqual(["unitPrice"]);
+    const kept = withoutLockedErrors(lockEngine, state, errors);
+    expect(kept["dolu-1"]).toBeUndefined();
+    expect(Object.keys(kept["dolu-2"])).toEqual(["unitPrice"]);
+    expect(withoutLockedErrors(EMPTY_GRID_ENGINE, state, errors)).toBe(errors);
+  });
+
+  it("doldurulan satır baştan bedelsizse fiyatı yazılmaz; kilitsiz motor aynı taslakları döndürür", () => {
+    const state = filledGridState(lockColumns, lockEngine, "k", [{ ...source[0], isFreeOfCharge: true }]);
+    expect(state.rows[0].cells).toEqual({ orderLineNumber: "1", quantity: "4", isFreeOfCharge: true });
+    expect(state.rows[0].filled).toMatchObject({ unitPrice: "50" });
+    const plain = filledGridState(columns, engine, "k", [{ quantity: 1 }]);
+    expect(gridEngineReducer(plain, { type: "add" }, opts, engine).rows[0]).toBe(plain.rows[0]);
   });
 });

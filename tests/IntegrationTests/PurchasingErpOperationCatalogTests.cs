@@ -487,7 +487,8 @@ public sealed class PurchasingErpOperationCatalogTests
             + (x.Items is { } items ? "[" + string.Join("|", items.Select(i => $"{i.Code}:{i.DataType}{(i.Required ? "*" : "")}")) + "]" : ""))));
         Assert.Equal(op.Kind == "write", method != "GET");
         Assert.Null(ErpOperationCatalog.ParameterShapeError(op));
-        Assert.False(op.Deprecated);
+        // Retired duplicate of satinalma.siparis.satirlari (names are permanent): deprecated, not removed.
+        Assert.Equal(name == "satinalma.malKabul.siparisSatirlari", op.Deprecated);
         Assert.Null(op.SourceOperation);
         Assert.Null(op.BodyMap);
         Assert.Empty(op.RouteVariants);
@@ -522,17 +523,17 @@ public sealed class PurchasingErpOperationCatalogTests
         Assert.Equal("Tedarikçi fatura no", Label("satinalma.faturaTaslagi.getir", "invoiceNumber"));
         Assert.Equal("Finansal tablo sınıfı", Label("satinalma.faturaTaslagi.giderHesaplari", "statementSection"));
         Assert.Equal("Sipariş satır no", Op("satinalma.malKabul.olustur").Parameters.Single(x => x.Name == "lines").Items!.Single(x => x.Code == "orderLineNumber").Label);
-        // Fill sources carry the remaining quantity under the code each write's line item uses.
-        Assert.Subset(Codes("satinalma.malKabul.siparisSatirlari"),
-            new HashSet<string> { "orderLineNumber:int", "remainingQuantity:decimal", "stockItemId:guid", "unitCode:text", "trackingMode:text" });
+        // Fill sources carry the remaining quantity under the code each write's line item uses; the receipt grid fills from the
+        // order lines read (with the PO line price), the retired duplicate keeps the same columns.
+        Assert.Subset(Codes("satinalma.siparis.satirlari"),
+            new HashSet<string> { "orderLineNumber:int", "remainingQuantity:decimal", "stockItemId:guid", "unitCode:text", "trackingMode:text",
+                "unitPrice:decimal", "discountPercent:decimal", "vatPercent:decimal" });
+        Assert.Equal(Codes("satinalma.siparis.satirlari"), Codes("satinalma.malKabul.siparisSatirlari"));
         Assert.Subset(Codes("satinalma.irsaliye.siparisSatirlari"),
             new HashSet<string> { "orderLineNumber:int", "orderedQuantity:decimal", "notedQuantity:decimal", "remainingQuantity:decimal", "unitCode:text" });
         Assert.Subset(Codes("satinalma.fatura.iadeEdilebilirSatirlar"),
             new HashSet<string> { "purchaseInvoiceLineId:guid", "invoicedQuantity:decimal", "returnedQuantity:decimal", "remainingQuantity:decimal", "stockItemId:guid" });
         Assert.Subset(Codes("satinalma.faturaTaslagi.getir"), new HashSet<string> { "rowVersion:text", "grandTotal:decimal", "status:text" });
-        // The Faz 1 order lines read keeps its frozen columns; the new members are declared by the receipt fill source only.
-        Assert.DoesNotContain("trackingMode:text", Codes("satinalma.siparis.satirlari"));
-        Assert.DoesNotContain("orderLineNumber:int", Codes("satinalma.siparis.satirlari"));
         // The expense account picker asks the server for active expense accounts.
         var expense = Op("satinalma.faturaTaslagi.giderHesaplari");
         Assert.Equal(("Expense", true), (expense.FixedQuery!["statementSection"], expense.FixedQuery["activeOnly"]));
@@ -677,7 +678,8 @@ public sealed class PurchasingErpOperationCatalogTests
         // 10 ordered, 3 + 5 posted receipts (the voided 2 do not count).
         Assert.Equal((1, 2m, "Lot"), (line.GetProperty("orderLineNumber").GetInt32(), line.GetProperty("remainingQuantity").GetDecimal(),
             line.GetProperty("trackingMode").GetString()));
-        foreach (var column in Op("satinalma.malKabul.siparisSatirlari").Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), column.Code);
+        foreach (var name in new[] { "satinalma.siparis.satirlari", "satinalma.malKabul.siparisSatirlari" })
+            foreach (var column in Op(name).Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), $"{name}: {column.Code}");
     }
 
     [Fact]

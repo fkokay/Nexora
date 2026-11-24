@@ -1003,7 +1003,9 @@ public sealed class ErpOperationCatalogTests
         // The delete rule allows it, but the DELETE handler itself only accepts TenantAdmin.
         Assert.False(writerOps["stok.kart.sil"].GetProperty("allowed").GetBoolean());
         Assert.True(ErpOperationCatalog.TryGet("stok.kart.sil", out var delete) && delete.RequiresTenantAdmin);
-        Assert.DoesNotContain(ErpOperationCatalog.All, x => x.Deprecated);
+        // Only retired duplicates are deprecated (names are permanent, so they are never removed).
+        Assert.Equal(["satinalma.malKabul.siparisSatirlari"], ErpOperationCatalog.All.Where(x => x.Deprecated).Select(x => x.Name));
+        Assert.True(writerOps["satinalma.malKabul.siparisSatirlari"].GetProperty("deprecated").GetBoolean());
         // The wire contract carries no RequiresTenantAdmin field.
         Assert.False(writerOps["stok.kart.sil"].TryGetProperty("requiresTenantAdmin", out _));
     }

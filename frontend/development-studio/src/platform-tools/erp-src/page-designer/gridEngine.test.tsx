@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { designerInternals, designerPersistence } from "../CustomPagesPage";
 import { EditableGridFields } from "./EditableGridFields";
-import { GRID_ENGINE_PROPS, formulaCodes, formulaProblem, lookupFillsOf, renamedEngineProps, stringMap } from "./gridEngine";
+import { GRID_ENGINE_PROPS, formulaCodes, formulaProblem, lockRuleProblem, lookupFillsOf, renamedEngineProps, stringMap } from "./gridEngine";
 import { formulaOrder, parseFormula } from "./gridFormula";
 import vectorsJson from "../../../../../erp-web/src/custom-page/gridFormula.vectors.json?raw";
 
@@ -19,6 +19,7 @@ const gridProps = {
   fillQuery: "qk", fillColumns: { quantity: "remainingQuantity" }, skipWhenZero: "quantity", rowNumberColumn: "lineNumber",
   lookupFills: { stockItemId: { unitPrice: "purchasePrice", note: "unit.code" } },
   formulas: { lineNet: "quantity * unitPrice", lineVat: "quantity * unitPrice * 20 / 100" },
+  lockColumnsWhen: ["unitPrice,lineVat=satir.lineNumber > 1"],
 };
 const queries = [
   { id: "qk", name: "kalanlar", kind: "read", runOn: "load", parameters: [] },
@@ -81,6 +82,9 @@ describe("ızgara motor ekleri tasarımcıda", () => {
     expect(html).toContain('aria-label="stockItemId → unitPrice seçenek sütunu"');
     expect(html).toContain('value="quantity * unitPrice"');
     expect(html).not.toContain("'lineVat' sütunu");
+    expect(html).toContain("Satır koşuluyla kilitle");
+    expect(html).toContain('value="unitPrice,lineVat=satir.lineNumber &gt; 1"');
+    expect(html).toContain('aria-label="Yeni kilit kuralı"');
     // Salt okunur gösterim sütunu (stockName) liste öğesi olmadan uyarı vermez; salt okunur olmayan (extra) verir.
     const display = unescape(renderToString(<EditableGridFields name="g" props={{ ...gridProps, gridColumns: [...gridProps.gridColumns, "stockName|Stok adı|text|readOnly", "extra|Ek|text"] }}
       readQueries={[]} sourceColumns={[]} suggestions={[]} onPatch={() => undefined}
@@ -114,6 +118,37 @@ describe("renamedEngineProps", () => {
     expect(renamedEngineProps({ gridColumns: [] }, "x", null)).toEqual({});
     expect(renamedEngineProps({ rowNumberColumn: "lineNumber" }, "lineNumber", "sira", true, false)).toEqual({ rowNumberColumn: "sira" });
     expect(renamedEngineProps({ rowNumberColumn: "lineNumber" }, "lineNumber", null)).toEqual({ rowNumberColumn: undefined });
+  });
+});
+
+describe("lockColumnsWhen", () => {
+  const lockProps = { gridColumns: ["quantity|Miktar|number", "isFreeOfCharge|Bedelsiz|checkbox", "unitPrice|Fiyat|number", "vatPercent|KDV|number",
+    "lineTotal|Tutar|calc:q:lineTotal", "attributes.renk|Renk|text"], skipWhenZero: "quantity",
+    lockColumnsWhen: ["unitPrice,vatPercent=satir.isFreeOfCharge == true", "attributes.renk=satir.isFreeOfCharge == true && satir.unitPrice == 'satir.isFreeOfCharge'"] };
+
+  it("sütun yeniden adlanınca kural sütunları ve koşuldaki satir yolu izler (tırnaklı metin değişmez); silinince sütun kalkar", () => {
+    expect(renamedEngineProps(lockProps, "isFreeOfCharge", "bedelsiz", false, false)).toEqual({ lockColumnsWhen: [
+      "unitPrice,vatPercent=satir.bedelsiz == true", "attributes.renk=satir.bedelsiz == true && satir.unitPrice == 'satir.isFreeOfCharge'"] });
+    expect(renamedEngineProps(lockProps, "unitPrice", "fiyat")).toEqual({ lockColumnsWhen: [
+      "fiyat,vatPercent=satir.isFreeOfCharge == true", "attributes.renk=satir.isFreeOfCharge == true && satir.fiyat == 'satir.isFreeOfCharge'"] });
+    expect(renamedEngineProps(lockProps, "attributes.renk", null)).toEqual({ lockColumnsWhen: ["unitPrice,vatPercent=satir.isFreeOfCharge == true"] });
+    expect(renamedEngineProps({ lockColumnsWhen: ["unitPrice=satir.x == 1"] }, "unitPrice", null)).toEqual({ lockColumnsWhen: undefined });
+    // Silinen sütuna başvuran koşul korunur (sorun müfettişte görünür).
+    expect(renamedEngineProps(lockProps, "isFreeOfCharge", null)).toEqual({});
+    expect(renamedEngineProps(lockProps, "quantity", "miktar", true, false).lockColumnsWhen).toBeUndefined();
+  });
+
+  it("kural sorunları sunucu kurallarını izler", () => {
+    for (const text of lockProps.lockColumnsWhen) expect(lockRuleProblem(lockProps, text), text).toBeNull();
+    expect(lockRuleProblem(lockProps, "unitPrice")).toContain("biçiminde");
+    expect(lockRuleProblem(lockProps, "unitPrice,unitPrice=satir.isFreeOfCharge == true")).toContain("farklı sütun");
+    expect(lockRuleProblem(lockProps, "fiyat=satir.isFreeOfCharge == true")).toContain("ızgarada yok: fiyat");
+    expect(lockRuleProblem(lockProps, "lineTotal=satir.isFreeOfCharge == true")).toContain("hesaplanan (calc) sütunu kilitleyemez");
+    expect(lockRuleProblem(lockProps, "quantity=satir.isFreeOfCharge == true")).toContain("'skipWhenZero' sütununu kilitleyemez");
+    expect(lockRuleProblem(lockProps, "unitPrice=satir.isFreeOfCharge ==")).toContain("koşulu geçersiz");
+    expect(lockRuleProblem(lockProps, "unitPrice=siparis.value == null")).toContain("başvurabilir: siparis");
+    expect(lockRuleProblem(lockProps, "unitPrice=satir.bedelsiz == true")).toContain("olmayan bir sütuna başvuruyor: bedelsiz");
+    expect(lockRuleProblem(lockProps, "unitPrice,isFreeOfCharge=satir.isFreeOfCharge == true")).toContain("kilitlediği sütuna başvuramaz");
   });
 });
 

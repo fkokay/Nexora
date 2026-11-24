@@ -43,7 +43,7 @@ import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
-import { countedGridState, filledGridState, gridEngineReducer, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns,
+import { countedGridState, filledGridState, gridEngineReducer, lockedColumns, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns, withoutLockedErrors,
   type GridEngine, type GridEngineAction } from "./custom-page/gridFill";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
@@ -229,6 +229,8 @@ type GridView = {
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
   /** Hesaplanan (`calc`) hücrenin metni. */
   calcText: (column: GridColumn, draft: GridDraft) => string;
+  /** Satırın kilitli sütunları (`lockColumnsWhen`). */
+  lockedFor: (draft: GridDraft) => ReadonlySet<string>;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -2240,7 +2242,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const fill = gridFillState(spec, states);
       if (fill?.loading) return SOURCE_LOADING;
       if (fill?.error) return SOURCE_FAILED;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = skipsValidation(grid) ? {} : withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows));
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -3000,7 +3003,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
     const counted = countedGridState(spec.engine, state);
-    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows)) : {};
     // Sunucunun satır hataları (`<liste>[i].<alan>`) hücrelerde; istemci iletisi önce gelir.
     const serverErrors = gridServerErrors(spec, state);
     const errors: Record<string, Record<string, string>> = { ...serverErrors };
@@ -3015,6 +3018,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
       totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, counted, sourceRows, spec.rowKey).satirlar) : {},
       calcText: (column, draft) => gridCalcText(column, draft),
+      lockedFor: (draft) => lockedColumns(spec.engine, draft),
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -3071,7 +3075,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       if (!bindsGrid(query, grid.name!) && !query.preview!.watch.includes(grid.name!)) return false;
       const spec = gridSpecOf(grid);
       if (gridFillState(spec, states)?.loading) return true;
-      const errors = validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows));
       return Object.keys(errors).length > 0;
     });
     return { query, values, key: JSON.stringify([values, query.preview!.watch.map(watchedValue)]), blocked, debounceMs: query.preview!.debounceMs };

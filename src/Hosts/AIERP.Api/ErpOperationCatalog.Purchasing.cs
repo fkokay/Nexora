@@ -86,8 +86,10 @@ internal static partial class ErpOperationCatalog
             Paged(With(Columns<PurchaseOrderSummary>(), orderProgressMembers)));
         yield return Read(PurchasingModule, "satinalma.siparis.getir", "Satınalma siparişi getir", order, [id],
             Record(With(Columns<PurchaseOrderView>(), [.. orderProgressMembers, "postedReceiptCount:int", "invoicedReceiptCount:int"])));
+        // Also the receipt grid's fill source: the remaining quantity (posted receipts), the line number under the receipt line's
+        // field name and the stock card's tracking mode (lot/serial lines stay on the legacy screen).
         yield return Read(PurchasingModule, "satinalma.siparis.satirlari", "Satınalma siparişinin satırları", order, [id],
-            List(Columns<PurchaseOrderLineView>(), "lines"));
+            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines"));
         yield return Read(PurchasingModule, "satinalma.siparis.malKabulleri", "Satınalma siparişinin mal kabulleri", order, [id],
             List([.. Columns<PurchaseReceiptSummary>(), .. flattenedInvoice], "receipts") with { Flatten = ["invoice"] });
         yield return Read(PurchasingModule, "satinalma.siparis.ozelAlanTanimlari", "Satınalma siparişi özel alan tanımları", orders + "/custom-fields", [],
@@ -238,10 +240,10 @@ internal static partial class ErpOperationCatalog
         yield return Write(PurchasingModule, "satinalma.malKabul.olustur", "Siparişten mal kabul oluştur", "insert", "POST", order + "/receipts",
             [id, .. BodyParameters<PurchaseReceiptWriteRequest>(sourceBacked: false), Lines<PurchaseReceiptLineWriteRequest>(), customFields],
             Record(Columns<PurchaseReceiptSummary>()), null, null);
-        // The receipt grid's fill source: the order lines with what is still to receive (posted receipts), the line number under
-        // the receipt line's field name and the stock card's tracking mode (lot/serial lines stay on the legacy screen).
+        // Retired: the same read as satinalma.siparis.satirlari (which now declares its columns). Names are permanent, so it stays
+        // deprecated: pages that already use it keep working, new uses are rejected and Studio hides it.
         yield return Read(PurchasingModule, "satinalma.malKabul.siparisSatirlari", "Mal kabul için sipariş satırları (kalan miktar)", order, [id],
-            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines"));
+            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines")) with { Deprecated = true };
 
         // ---- Tedarikçi irsaliyesi ----
         // The note number is unique per order (409); quantities are in the order line's base unit.

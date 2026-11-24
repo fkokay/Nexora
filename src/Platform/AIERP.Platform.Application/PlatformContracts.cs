@@ -708,7 +708,7 @@ public sealed record PurchaseOrderLineView(int LineNumber, Guid StockItemId, str
     decimal Quantity, decimal UnitPrice, decimal DiscountPercent, decimal VatPercent, decimal LineSubtotal,
     decimal DiscountAmount, decimal TaxAmount, decimal LineTotal, decimal ReceivedQuantity, decimal RemainingQuantity)
 {
-    // Members outside the constructor: only satinalma.malKabul.siparisSatirlari declares them (the receipt line grid's fill source).
+    // Members outside the constructor: declared by satinalma.siparis.satirlari (also the receipt line grid's fill source).
 
     /// <summary>The line number under the receipt line's own field name (<c>lines[].orderLineNumber</c>).</summary>
     public int OrderLineNumber => LineNumber;
