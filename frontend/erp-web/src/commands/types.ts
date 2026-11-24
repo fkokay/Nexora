@@ -1,9 +1,13 @@
-export type StandardCommandId = 'new' | 'open' | 'save' | 'delete' | 'refresh' | 'filter' | 'print' | 'export' | 'undo';
+/**
+ * `open` reads "Düzenle"; `view` (Görüntüle) opens the selected record read-only. Studio pages register their own `view`
+ * (mode=view); for any other screen that offers `open` the registry adds one that opens the record form read-only.
+ */
+export type StandardCommandId = 'new' | 'open' | 'view' | 'save' | 'delete' | 'refresh' | 'filter' | 'print' | 'export' | 'undo';
 
-export const ACTION_BAR_ORDER: readonly StandardCommandId[] = ['new', 'open', 'save', 'delete', 'refresh', 'filter', 'print', 'export'];
+export const ACTION_BAR_ORDER: readonly StandardCommandId[] = ['new', 'open', 'view', 'save', 'delete', 'refresh', 'filter', 'print', 'export'];
 
 /** List commands a record form screen does not offer: the bar hides them and their shortcuts do nothing there. */
-export const HIDDEN_ON_FORM: ReadonlySet<StandardCommandId> = new Set(['open', 'filter', 'export']);
+export const HIDDEN_ON_FORM: ReadonlySet<StandardCommandId> = new Set(['open', 'view', 'filter', 'export']);
 
 /**
  * Whether the bar shows the standard command: only when some source registered it (a registered command that is
@@ -19,7 +23,11 @@ export function offersCommand(commands: PageCommands | undefined, id: StandardCo
  * shortcut does nothing (a reserved browser chord stays prevented) and a lower-precedence source cannot re-add it.
  * A hidden spec carries nothing else.
  */
-export type CommandSpec = { run?: () => void | Promise<void>; disabledReason?: string; primary?: boolean; hidden?: boolean };
+export type CommandSpec = {
+  run?: () => void | Promise<void>; disabledReason?: string; primary?: boolean; hidden?: boolean;
+  /** The source's own button label (e.g. a Studio page's Aç reads "Düzenle"); absent = the standard label. */
+  label?: string;
+};
 
 /**
  * Look of the action bar a page chose (İşlem Çubuğu `barLook`). A missing key keeps today's look; `title` (the page title

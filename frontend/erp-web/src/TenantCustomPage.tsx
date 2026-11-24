@@ -29,7 +29,7 @@ import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
 import { mapOperationResult, missingRequiredValue, type ErpOperation } from "./custom-page/erpOperations";
 import { CREATED_REOPEN, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
 import { useErpOperations } from "./custom-page/useErpOperations";
-import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, SAVE_AND_NEW_COMMAND_ID, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
+import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, SAVE_AND_NEW_COMMAND_ID, VIEW_MODE_PARAM, VIEW_MODE_REASON, VIEW_MODE_VALUE, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
 import { usePageCommands } from "./commands/CommandProvider";
 import { startPageWorkflow } from "./custom-page/workflowStart";
@@ -56,7 +56,7 @@ import { applyFirstChoices, firstChoiceValue, applyClientFilters, filterChoices,
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { OPEN_PAGE_EVENT, publishRecordsDeleted, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, publishRecordsDeleted, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
 import { deletedRecordIds } from "./custom-page/deletedRecords";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
@@ -214,6 +214,13 @@ type PageRuntime = {
   clearRecordInputs: () => void;
   /** Süzgeç alanının çizim verisi (tablosu yoksa null). */
   filterBarFor: (bar: ComponentDefinition) => FilterBarView | null;
+  /**
+   * Göstergenin süzgeç alanı hedefi (`filterInput: "<süzgeçAlanı>.<anahtar>"`): süzgecin şu anki seçim değeri ve yazılması
+   * (undefined temizler). Süzgeç alanı ya da anahtar yoksa null.
+   */
+  filterBarTarget: (target: string) => { value: string; set: (value: string | undefined) => void } | null;
+  /** Görüntüleme kipi (`{{sayfa.parametre.mode}}` = view, İşlem Çubuğu Görüntüle): kayıt salt okunur (bkz. viewModeLocked). */
+  readOnly: boolean;
   /** Listenin gösterilen satırları: bağlı süzgeç alanlarının sayfada uygulanan süzgeçleri (sorgu durumu değişmez). */
   visibleRows: (table: ComponentDefinition, state: QueryState) => QueryState;
 };
@@ -370,9 +377,22 @@ const sessionTenant = (token: string) => {
 /** v2 bileşen koşulları (`visibleWhen`, `disabledWhen`) sayfa kapsamında; v1'de (çalışma zamanı yok) her şey görünür ve etkindir. */
 const componentVisible = (component: ComponentDefinition, runtime?: PageRuntime) =>
   !runtime || conditionHolds(component.props?.visibleWhen, runtime.scope, true);
+/** Veri yazan düğme eylemi (yazma sorgusu, kayıt dizisi, iş akışı): görüntüleme kipinde kilitlidir. */
+const actionWrites = (action: ButtonAction | null) =>
+  !!action && (action.type === "sequence" || action.type === "workflow" || (action.type === "query" && !!action.query && action.query.kind !== "read"));
+/**
+ * Görüntüleme kipi (`mode=view`, İşlem Çubuğu Görüntüle): girişler, düzenlenebilir tablolar, özel alan blokları ve veri yazan
+ * düğmeler kilitlidir; gezinen, pencere açan ve okuyan düğmeler çalışır.
+ */
+const viewModeLocked = (component: ComponentDefinition, runtime?: PageRuntime) =>
+  !!runtime?.readOnly && (component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock"
+    || (component.type === "button" && actionWrites(runtime.buttonAction(component))));
 const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
   !!runtime && (component.type === "button" || component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock")
-  && conditionHolds(component.props?.disabledWhen, runtime.scope, false);
+  && (viewModeLocked(component, runtime) || conditionHolds(component.props?.disabledWhen, runtime.scope, false));
+/** Pasif bileşenin nedeni: görüntüleme kipi kilidi, yoksa bileşenin `disabledReason`'ı. */
+const disabledReasonOf = (component: ComponentDefinition, props: Record<string, unknown>, runtime?: PageRuntime) =>
+  viewModeLocked(component, runtime) ? VIEW_MODE_REASON : textValue(props.disabledReason).trim();
 /** İşlem Çubuğu `commandWhen`: komutun koşulu `visibleWhen` ile aynı değerlendiriciyle sayfa kapsamında; koşulsuz komut görünür. */
 const barCommandVisible = (barProps: Record<string, unknown>, scope: PageScope) => {
   const when = commandWhenOf(barProps);
@@ -932,7 +952,7 @@ function renderPageButton(component: ComponentDefinition, props: Record<string, 
   const text = textValue(props.text ?? props.label);
   const title = textValue(props.title);
   const disabled = componentDisabled(component, runtime);
-  const reason = disabled ? textValue(props.disabledReason).trim() : "";
+  const reason = disabled ? disabledReasonOf(component, props, runtime) : "";
   const workflow = props.actionType === "workflow" && typeof props.workflowId === "string";
   const action = runtime?.buttonAction(component);
   return <div className="tenant-page-action" style={style} key={component.id}>
@@ -1043,11 +1063,17 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const trend = trendState ? trendPoints(trendState.rows) : undefined;
       const filterInput = typeof props.filterInput === "string" && props.filterInput ? props.filterInput : undefined;
       const filterValue = typeof props.filterValue === "string" ? props.filterValue : "";
-      const active = !!runtime && !!filterInput && filterValue !== "" && String(runtime.inputValues[filterInput] ?? "") === filterValue;
+      // `filterInput` bir giriş kimliği ya da süzgeç alanının bir süzgeci ("<süzgeçAlanı>.<anahtar>"): karta tıklamak değeri yazar,
+      // yeniden tıklamak temizler.
+      const barTarget = runtime && filterInput && !runtime.inputById[filterInput] ? runtime.filterBarTarget(filterInput) : null;
+      const active = !!runtime && !!filterInput && filterValue !== ""
+        && (barTarget ? barTarget.value === filterValue : String(runtime.inputValues[filterInput] ?? "") === filterValue);
       // Onay kutusu süzgeci mantıksal değer alır (true/false); diğer girişler metin.
       const filterIsCheckbox = !!runtime && !!filterInput && inputIsCheckbox(runtime.inputById[filterInput]);
-      const onActivate = runtime && filterInput && filterValue !== ""
-        ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue) : undefined;
+      const onActivate = !runtime || !filterInput || filterValue === "" ? undefined
+        : barTarget ? () => barTarget.set(active ? undefined : filterValue)
+        : runtime.inputById[filterInput] ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue)
+        : undefined;
       const card = { tone, icon, trend, active, onActivate };
       if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card}
         count={countRowsWhen(component.props?.countWhen, runtime.states[queryName].rows, queryName, runtime.scope)} />;
@@ -1146,10 +1172,11 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
           const rowScope = (row: Record<string, unknown>) => mergeOverlay(runtime.scope, { [tableName]: { seciliSatir: row } });
           const buttonProps = bindProps(raw, runtime.scope);
           const blocked = operationBlocked(runtime.buttonAction(button), runtime);
+          const locked = viewModeLocked(button, runtime);
           return [{
             id, label: textValue(buttonProps.text ?? buttonProps.label) || textValue(buttonProps.title) || "Eylem",
             visible: (row) => conditionHolds(raw.visibleWhen, rowScope(row), true),
-            disabled: (row) => blocked ? NO_OPERATION_RIGHT : conditionHolds(raw.disabledWhen, rowScope(row), false)
+            disabled: (row) => blocked ? NO_OPERATION_RIGHT : locked ? VIEW_MODE_REASON : conditionHolds(raw.disabledWhen, rowScope(row), false)
               ? interpolate(textValue(raw.disabledReason), rowScope(row)).trim() || BUTTON_UNAVAILABLE : null,
             run: (row, opener) => runtime.runRowAction(component, button, row, opener),
           }];
@@ -1159,7 +1186,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         // katalog iznini ister (yoksa nedeniyle pasif).
         const bulkQuery = tableName && typeof props.bulkDeleteQuery === "string" ? runtime.queryById[props.bulkDeleteQuery.trim()] : undefined;
         const bulkDelete = bulkQuery && bulkQuery.kind === "delete" ? {
-          disabledReason: runtime.rights.delete !== true || !runtime.queryAllowed(bulkQuery.id) ? NO_OPERATION_RIGHT : null,
+          disabledReason: runtime.rights.delete !== true || !runtime.queryAllowed(bulkQuery.id) ? NO_OPERATION_RIGHT : runtime.readOnly ? VIEW_MODE_REASON : null,
           run: (rows: Record<string, unknown>[]) => runtime.bulkDelete(component, bulkQuery, rows),
         } : undefined;
         // `rowOpenAction`: satıra çift tıklama / Enter o düğmeyi satır işlemi olarak çalıştırır (İşlem Çubuğu Aç'ın önüne geçer).
@@ -1220,7 +1247,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const steps = idList(props.saveSequence, 8);
       const saveIds = steps.length > 0 ? steps : typeof props.saveQuery === "string" && props.saveQuery.trim() ? [props.saveQuery.trim()] : [];
       const saveQueries = saveIds.map((id) => runtime.queryById[id]);
-      const canSave = saveQueries.length > 0 && saveQueries.every((query) => query && query.kind !== "read" && runtime.rights[query.kind] === true);
+      const canSave = !runtime.readOnly && saveQueries.length > 0 && saveQueries.every((query) => query && query.kind !== "read" && runtime.rights[query.kind] === true);
       const renderOwned = (id: string) => {
         const owned = runtime.topLevelById[id];
         // Pencere yalnız üst düzey bileşen sahiplenir; pencere içinde pencere ve İşlem Çubuğu çizilmez.
@@ -1240,7 +1267,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       const grid = runtime.gridFor(component);
       const disabled = componentDisabled(component, runtime);
       return <EditableGrid key={component.id} {...grid} title={title} style={style} disabled={disabled}
-        disabledReason={disabled ? textValue(props.disabledReason).trim() || BUTTON_UNAVAILABLE : ""}
+        disabledReason={disabled ? disabledReasonOf(component, props, runtime) || BUTTON_UNAVAILABLE : ""}
         fixedRowLabel={textValue(props.fixedRowLabel).trim()} addLabel={textValue(props.addLabel).trim() || "Satır ekle"} />;
     }
     case "customFieldsBlock": {
@@ -1533,7 +1560,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       if (!componentVisible(component, runtime)) return { hidden: true };
       if (operationBlocked(runtime.buttonAction(component), runtime)) return { disabled: true, disabledReason: NO_OPERATION_RIGHT };
       if (!componentDisabled(component, runtime)) return undefined;
-      return { disabled: true, disabledReason: textValue(buttonProps(component).disabledReason).trim() || BUTTON_UNAVAILABLE };
+      return { disabled: true, disabledReason: disabledReasonOf(component, buttonProps(component), runtime) || BUTTON_UNAVAILABLE };
     },
     deleteNeedsSelection: (() => {
       const deleteQuery = latest.current.queryById[typeof barProps.deleteQuery === "string" ? barProps.deleteQuery.trim() : ""];
@@ -1544,6 +1571,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     })(),
     queryAllowed: (id) => runtime.queryAllowed(id),
     commandVisible: barCommandVisible(barProps, runtime.scope),
+    readOnly: runtime.readOnly,
     formDialog: runtime.formDialog ? {
       hasRecord: runtime.formDialog.hasRecord, recordLoading: runtime.formDialog.recordLoading, recordFailed: runtime.formDialog.recordFailed,
       open: () => latest.current.formDialog?.open(document.activeElement instanceof HTMLElement ? document.activeElement : null),
@@ -1632,6 +1660,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   /** Görünen ilk `pageTitle` başlığının metni (yoksa null): sayfa üst bilgisinin başlığı olur. */
   onTitle?: (title: string | null, recordTitle: boolean) => void;
 }) {
+  // Görüntüleme kipi: başka bir sayfanın Görüntüle komutu bu sayfayı `mode=view` ile açtı (kayıt salt okunur).
+  const readOnly = isV2 && pageParams[VIEW_MODE_PARAM] === VIEW_MODE_VALUE;
   const [touched, setTouched] = useState<Record<string, InputRaw>>({});
   // Sayfa içerik alanının genişliği (`{{sayfa.genislik}}`, px); ölçülemezse 0. Eski liste ekranları detay panelini yalnız
   // geniş alanda kendiliğinden açar: onay kutusunun `defaultWhen` koşulu buna bağlanır.
@@ -3286,7 +3316,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       open: (opener) => openDialog(formDialogId, opener),
       startNew: startNewInDialog,
     } : null,
-    newCommand, openCommand, clearRecordInputs, openTables, openRow,
+    newCommand, openCommand, clearRecordInputs, openTables, openRow, readOnly,
     filterBarFor: (filterBar) => {
       const model = filterBarModel(filterBar, states);
       if (!model) return null;
@@ -3305,6 +3335,27 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
           return { ...current, values };
         }),
         onClearAll: () => update((current) => ({ ...current, values: Object.fromEntries(model.filters.filter((filter) => filter.defaultFirst).map((filter) => [filter.key, ""])) })),
+      };
+    },
+    filterBarTarget: (target) => {
+      const at = target.indexOf(".");
+      const filterBar = at > 0 ? filterBars.find((item) => item.id === target.slice(0, at)) : undefined;
+      if (!filterBar) return null;
+      const key = target.slice(at + 1);
+      const spec = parseFilterEntries(filterBar.props?.filters).find((item) => item.key === key);
+      if (!spec) return null;
+      const current = filterValues[filterBar.id]?.values[key];
+      return {
+        value: typeof current === "string" ? current : current === true ? "true" : "",
+        // Süzgeç alanının kendi değişikliği gibi: ilk seçenek varsayılanlı süzgeçte temizlemek "Tümü"dür (boş metin).
+        set: (value) => setFilterValues((previous) => {
+          const bar = previous[filterBar.id] ?? EMPTY_FILTER_VALUES;
+          const values = { ...bar.values };
+          if (value !== undefined) values[key] = spec.kind === "toggle" ? value === "true" : value;
+          else if (spec.defaultFirst) values[key] = "";
+          else delete values[key];
+          return { ...previous, [filterBar.id]: { ...bar, values } };
+        }),
       };
     },
     visibleRows: (table, state) => {
@@ -3341,6 +3392,12 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} rootRef={contentRef} />}
+    {/* Görüntüleme kipi şeridi: kayıt salt okunur; Düzenle aynı kaydı (mode parametresi olmadan) düzenleme kipinde yeniden açar. */}
+    {readOnly && <div className="tenant-page-view-mode" role="status">
+      <Eye size={15} aria-hidden="true" /><span>Görüntüleme kipi: kayıt salt okunur.</span>
+      {tabKey && runtime?.rights.update === true && <button type="button" className="tenant-page-button"
+        onClick={() => setPageParams(tabKey, Object.fromEntries(Object.entries(pageParams).filter(([key]) => key !== VIEW_MODE_PARAM)))}>Düzenle</button>}
+    </div>}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
     {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
