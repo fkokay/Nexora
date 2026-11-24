@@ -94,7 +94,7 @@ export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {
 }
 
 /**
- * Veri listelerinin satır işlemi düğmeleri (`dataTable.rowActions`, en fazla 4; her satırın İşlemler hücresinde çizilir) ve
+ * Veri listelerinin satır işlemi düğmeleri (`dataTable.rowActions`, en fazla 6; her satırın İşlemler hücresinde çizilir) ve
  * "Satır açılınca" düğmesi (`dataTable.rowOpenAction`; satıra çift tıklama / Enter çalıştırır): ikisi de listeye aittir,
  * üst düzeyde ayrıca çizilmez.
  */

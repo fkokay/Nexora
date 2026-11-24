@@ -1,4 +1,5 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { ConfirmDialogHost } from '../confirmDialog';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
@@ -12,8 +13,9 @@ function respond(url: string): unknown {
   const path = url.split('?')[0];
   if (path === '/api/purchasing/standalone-invoices/') return { items: [summary], page: 1, pageSize: 50, totalCount: 1 };
   if (path === '/api/purchasing/standalone-invoices/d1') return detail;
+  if (path === '/api/purchasing/standalone-invoices/d2') return { ...detail, id: 'd2', invoiceNumber: 'TF-10', status: 'Draft' };
   if (path.startsWith('/api/screen-views/')) return { fields: [] };
-  if (path === '/api/customers/') return { items: [], totalCount: 0 };
+  if (path === '/api/customers/' || path === '/api/purchasing/standalone-invoices/suppliers') return { items: [], page: 1, pageSize: 50, totalCount: 0 };
   return [];
 }
 vi.mock('../authApi', async (importOriginal) => ({
@@ -35,11 +37,30 @@ describe('Alış faturası taslağı sayfa parametresiyle açılır', () => {
     render(
       <CommandProvider>
         <KeepAliveViews activeKey="v" openKeys={['v']}><StandaloneSupplierInvoiceDraftPage token="t" role="TenantAdmin" /></KeepAliveViews>
+        <ConfirmDialogHost />
       </CommandProvider>,
     );
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
     await waitFor(() => expect(screen.getByText('TF-9 taslağı muhasebeleştirildi; düzenlenemez.')).toBeTruthy());
     expect(screen.queryByRole('alert')).toBeNull();
     expect(pageParamsOf('sales-purchase-invoice-drafts')).toEqual({});
+  });
+
+  it('an open edited draft is not replaced without asking', async () => {
+    setPageParams('sales-purchase-invoice-drafts', { draftId: 'd2' });
+    render(
+      <CommandProvider>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><StandaloneSupplierInvoiceDraftPage token="t" role="TenantAdmin" /></KeepAliveViews>
+        <ConfirmDialogHost />
+      </CommandProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('TF-10 taslağı düzenleniyor.')).toBeTruthy());
+    await act(async () => { setPageParams('sales-purchase-invoice-drafts', { draftId: 'd1' }); });
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Kaydedilmemiş değişiklikler kaybolacak');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Vazgeç' }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(screen.queryByText('TF-9 taslağı muhasebeleştirildi; düzenlenemez.')).toBeNull();
+    expect(screen.getByText('TF-10 taslağı düzenleniyor.')).toBeTruthy();
   });
 });

@@ -329,6 +329,8 @@ export default function StandaloneSupplierInvoiceDraftPage({
     void openFromParam(paramDraftId);
   }, [paramDraftId]);
   async function openFromParam(id: string) {
+    // The tab stays alive: an open form with changes asks first, like Yeni.
+    if (formOpen && !(await confirmStartNew(formIsDirty()))) return;
     setError("");
     try {
       const saved = await request<DraftDetail>(`/api/purchasing/standalone-invoices/${id}`, token);
@@ -336,11 +338,26 @@ export default function StandaloneSupplierInvoiceDraftPage({
         await beginEdit(id);
         return;
       }
+      if (formOpen) cancelEdit();
       setCurrentId(id);
       setNotice(`${saved.invoiceNumber} taslağı muhasebeleştirildi; düzenlenemez.`);
     } catch (e) {
       setError((e as Error).message);
     }
+  }
+
+  /** Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too. */
+  function formIsDirty() {
+    const blank = blankDraft();
+    const blankLineValues = blank.lines[0];
+    return Boolean(
+      editing ||
+        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
+          (field) => draft[field] !== blank[field],
+        ) ||
+        draft.lines.length !== blank.lines.length ||
+        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
+    );
   }
 
   async function beginEdit(id: string) {
@@ -533,17 +550,7 @@ export default function StandaloneSupplierInvoiceDraftPage({
   }
 
   if (formOpen) {
-    // Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too.
-    const blank = blankDraft();
-    const blankLineValues = blank.lines[0];
-    const dirty = Boolean(
-      editing ||
-        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
-          (field) => draft[field] !== blank[field],
-        ) ||
-        draft.lines.length !== blank.lines.length ||
-        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
-    );
+    const dirty = formIsDirty();
     return (
       <>
         <PageCommandsSlot
