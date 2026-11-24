@@ -49,7 +49,7 @@
         "props": {
           "newButton": "yeniDugmesi",
           "openButton": "acDugmesi",
-          "deleteQuery": "siparisSil",
+          "deleteQuery": "siparisSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} siparişi silinsin mi?",
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{siparisler.meta.totalCount}}",

@@ -52,7 +52,7 @@
         "props": {
           "newButton": "yeniDugmesi",
           "openButton": "acDugmesi",
-          "deleteQuery": "faturaSil",
+          "deleteQuery": "faturaSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} faturası silinsin mi?",
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{faturalar.meta.totalCount}}",

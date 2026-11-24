@@ -135,6 +135,31 @@ public sealed class HumanResourcesEndpointsIntegrationTests
         Assert.Equal("2026-10-21", updated.GetProperty("terminationDate").GetString());
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task Blank_work_email_is_not_given_and_an_invalid_one_is_rejected(string? workEmail)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, Admin, "TenantAdmin");
+
+        var response = await client.PostAsJsonAsync("/api/hr/employees", new
+        {
+            personnelCode = "E-BLANK", fullName = "No Mail", hireDate = "2026-01-05", workEmail
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Null, created.GetProperty("workEmail").ValueKind);
+        var invalid = await client.PostAsJsonAsync("/api/hr/employees", new
+        {
+            personnelCode = "E-BAD", fullName = "Bad Mail", hireDate = "2026-01-05", workEmail = "not-an-email"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
     [Fact]
     public async Task Attendance_correction_to_an_existing_employee_date_returns_conflict()
     {

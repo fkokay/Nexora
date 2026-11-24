@@ -86,7 +86,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "deleteQuery": "kartSil", "focusInput": "suzgec", "exportTable": "liste",
+        "props": { "deleteQuery": "kartSil", "deleteConfirmText": "{{liste.seciliSatir.balance.code}} · {{liste.seciliSatir.balance.name}} stok kartı silinsin mi?", "focusInput": "suzgec", "exportTable": "liste",
                    "moreButtons": ["devreDisiBirak", "etkinlestir", "hareketlerDugmesi"],
                    "newAction": "page", "newPageCode": "@inventory-stock-create", "newTarget": "newTab",
                    "openAction": "page", "openPageCode": "@inventory-stock-create", "openTarget": "newTab", "openTable": "liste",

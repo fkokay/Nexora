@@ -7,7 +7,7 @@ import { countRowsWhen, countText } from "./custom-page/countWhen";
 import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
 import TenantWorkflowAction from "./TenantWorkflowAction";
 import { setWorkspacePageTitle } from "./workspacePageTitles";
-import { bindingPath, bindingsAllEmpty, displayText, interpolate, joinTextParts, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
+import { bindingPath, bindingsAllEmpty, displayText, interpolate, interpolateWith, joinTextParts, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
 import { collectTexts, COUNTS_ROOT, referencedCountCodes, usePageCounts } from "./custom-page/usePageCounts";
 import { columnTotal, formatCell, trendPoints, isRightAligned, parseColumnFormats, parseToneMap, toneFor, type ColumnFormat, type Tone } from "./custom-page/cellFormat";
@@ -317,6 +317,19 @@ const cellText = (value: unknown): string => {
   if (typeof value === "number" && Number.isFinite(value)) return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value);
   return typeof value === "object" ? JSON.stringify(value) : String(value);
 };
+
+/** Sayı (öndeki sıfırsız tamsayı ya da ondalık): gösterge açıklamasında `format` ile yazılır; kod gibi "0012" dokunulmaz. */
+const PLAIN_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
+/**
+ * Göstergenin açıklaması: `descriptionFormat` (number/money) verilmişse bağlamaların sayı çözülenleri o biçimle yazılır
+ * (ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00"); metin bağlamaları olduğu gibi kalır. Biçimsiz açıklama
+ * (ör. "+ {{x.digerDovizSayisi}} dövizde" sayacı) düz çözülür.
+ */
+export function metricDescription(raw: unknown, format: unknown, scope: PageScope): string {
+  const template = textValue(raw);
+  if (format !== "money" && format !== "number") return interpolate(template, scope);
+  return interpolateWith(template, scope, (text) => (PLAIN_NUMBER.test(text) ? formatCell(Number(text), format) : text));
+}
 
 const localToday = () => {
   const now = new Date();
@@ -829,7 +842,9 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   }
   const rules = inputRules(props);
   const invalid = !!error;
-  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, onBlur };
+  // Erişilebilir ad sarmalayan etiketten de gelir; `aria-label` onu etiket ağacını izlemeyen araçlar (ve tarih girişinin
+  // parçalı denetimi) için de açık kılar.
+  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, "aria-label": label || undefined, onBlur };
   const limit = (value: number | string | undefined) =>
     value === undefined ? undefined : inputType === "number" ? (typeof value === "number" ? value : undefined) : inputType === "date" ? (typeof value === "string" ? value : undefined) : undefined;
   let control;
@@ -1015,6 +1030,7 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
     }
     case "metric": {
       const queryName = runtime && typeof props.query === "string" ? runtime.queryNames[props.query] : undefined;
+      const description = runtime ? metricDescription(component.props?.description, props.descriptionFormat, runtime.scope) : textValue(props.description);
       const tone = runtime ? (["info", "success", "warning", "danger"] as const).find((name) => name === props.variant) ?? "info" : "info";
       const icon = runtime && typeof props.icon === "string" ? props.icon : undefined;
       const trendState = runtime && typeof props.trendQuery === "string" ? runtime.states[runtime.queryNames[props.trendQuery]] : undefined;
@@ -1901,8 +1917,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
         // Onay kutusunun koşullu varsayılanı (ör. "sayfa.genis == true"); kullanıcı değiştirince onun seçimi geçerlidir.
         ? conditionHolds(input.props.defaultWhen, base, false)
         // `emptyDefault`: varsayılan değer boş çözülürse (ör. yeni kayıtta `{{kart.rows[0].currencyCode}}`) kullanılan sabit değer
-        // ("TRY"); kayıt yüklenince saklı değer geçerli olur (her çizimde yeniden çözülür, kullanıcı değiştirene dek).
-        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base) || textValue(input.props?.emptyDefault));
+        // ("TRY"); kayıt yüklenince saklı değer geçerli olur (her çizimde yeniden çözülür, kullanıcı değiştirene dek). Tarih
+        // girişinde şema tek bir tarih bağlamasına da izin verir (`{{bugun}}`: yeni belge bugünle başlar); o da çözülür.
+        : rawInputDefault(inputType, interpolate(textValue(input.props?.defaultValue), base) || interpolate(textValue(input.props?.emptyDefault), base));
       if (defaults[input.id] === "" && input.id in firstOptions) defaults[input.id] = firstOptions[input.id];
       raw[input.id] = input.id in touched ? touched[input.id] : defaults[input.id];
       if (input.name) scope[input.name] = inputScope(input, raw[input.id], states);

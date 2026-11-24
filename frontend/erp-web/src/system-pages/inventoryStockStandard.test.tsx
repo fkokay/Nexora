@@ -367,6 +367,15 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(screen.queryByRole('complementary', { name: 'Kalem' })).toBeNull();
   });
 
+  it('Sil names the selected stock card in the confirmation', async () => {
+    setup();
+    await selectCard();
+    await ready('delete');
+    fireEvent.click(command('delete'));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    expect(within(dialog).getByRole('heading').textContent).toMatch(/^\S+ · Kalem stok kartı silinsin mi\?$/);
+  });
+
   it('tenant user gating', async () => {
     operations = catalog.operations.map((operation) => ['stok.kart.sil', 'stok.kart.birimEkle', 'stok.kart.birimSil'].includes(operation.name)
       ? { ...operation, allowed: false } : operation);

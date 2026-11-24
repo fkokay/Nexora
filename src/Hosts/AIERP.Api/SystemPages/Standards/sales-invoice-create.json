@@ -886,7 +886,8 @@
           "format": "money",
           "width": 3,
           "icon": "percent",
-          "description": "matrah {{onizleme.meta.taxableTotal}}"
+          "description": "matrah {{onizleme.meta.taxableTotal}}",
+          "descriptionFormat": "money"
         }
       },
       {

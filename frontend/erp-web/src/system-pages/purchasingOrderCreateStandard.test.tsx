@@ -65,6 +65,16 @@ const addLine = async (stock: string, quantity: string) => {
 describe('Yeni satınalma siparişi standart tanımı', { timeout: 60000 }, () => {
   it('uses only operations from the catalog fixture', () => h.usesOnlyCatalog());
 
+  it('Sipariş no is required (no server numbering): marked with *, placeholder reads as an example', async () => {
+    h.setup(respond);
+    await h.ready('save');
+    const code = h.input('siparisNo');
+    expect(code.required).toBe(true);
+    expect(code.closest('.tenant-page-input')!.classList.contains('is-required')).toBe(true);
+    expect(code.placeholder).toBe('Örn. PO-2026-001');
+    expect(screen.getByRole('textbox', { name: 'Sipariş no' })).toBe(code);
+  });
+
   it('stock pick fills price, discount, VAT and unit; chained formulas and totals; save body; then opens the order', async () => {
     h.setup(respond);
     await h.ready('save');
