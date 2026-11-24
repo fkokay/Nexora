@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
-import AdvancedDataGrid, { type GridExportActions } from "../AdvancedDataGrid";
+import AdvancedDataGrid, { type GridExportActions, type GridToolbarToggle } from "../AdvancedDataGrid";
 import type { BulkAction } from "../list-page/BulkActionBar";
 import { columnTotal, formatCell, isRightAligned, parseColumnFormats, toneFor, type ColumnFormat, type Tone } from "./cellFormat";
 import { displayText } from "./pageBindings";
@@ -59,6 +59,8 @@ export type DataTableGridProps = {
   emptyText?: string;
   limit?: number;
   status?: ActionStatus | null;
+  /** `detailToggleInput`: ızgara araç çubuğunda, Sütunlar'ın yanında basılı/bırakılmış düğme (ör. "Detay paneli"). */
+  toolbarToggles?: GridToolbarToggle[];
 };
 
 const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
@@ -86,7 +88,7 @@ const labeledCell = (labels: Record<string, Record<string, string>>, code: strin
 const rowKey = (index: number) => `r${index}`;
 const keyIndex = (key: string | null) => key && /^r\d+$/.test(key) ? Number(key.slice(1)) : -1;
 
-export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS }: DataTableGridProps) {
+export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS, toolbarToggles }: DataTableGridProps) {
   // Seçilen sütunlar tasarımcının seçim sırasıyla; başlık `columnLabels` ile değişebilir.
   const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
     .map((column) => columnLabels[code] ? { ...column, label: columnLabels[code] } : column)) : [];
@@ -169,7 +171,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
                 externalPagination={!!paging} enableRowSelection={false} selectable
                 hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
-                bulkActions={bulkActions} exportActionsRef={exportRef}
+                bulkActions={bulkActions} exportActionsRef={exportRef} toolbarToggles={toolbarToggles}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>
                   {visible.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "nx-num" : undefined}>{column.label || column.code}</th>)}

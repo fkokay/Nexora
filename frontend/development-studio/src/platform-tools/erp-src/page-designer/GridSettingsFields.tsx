@@ -107,6 +107,25 @@ export function OpenRowField({ table, components, labelOf, disabled, onPatchBar 
   </div>;
 }
 
+/**
+ * "Detay paneli düğmesi" (`detailToggleInput`): listenin araç çubuğunda, Sütunlar'ın yanında çizilen düğmenin açıp kapattığı
+ * onay kutusu girişi. Giriş sayfada kalır ama üst düzeyde ayrıca çizilmez; başka yere (form kartı, sekme, pencere, başka liste)
+ * bağlı girişler seçilemez.
+ */
+export function DetailToggleField({ value, inputs, disabled, onChange }: {
+  value: string; inputs: { id: string; label: string; takenBy?: string }[]; disabled?: boolean; onChange: (next: string | undefined) => void;
+}) {
+  const current = inputs.find((input) => input.id === value);
+  return <label className="pd-field">Detay paneli düğmesi
+    <select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value || undefined)}>
+      <option value="">Yok</option>
+      {inputs.map((input) => <option key={input.id} value={input.id} disabled={!!input.takenBy && input.id !== value}>{input.label}{input.takenBy && input.id !== value ? ` (${input.takenBy})` : ""}</option>)}
+      {value && !current && <option value={value}>{value}</option>}
+    </select>
+    <small>{inputs.length === 0 ? "Önce sayfaya bir onay kutusu girişi ekleyin (ör. Detay paneli)." : "Listenin araç çubuğunda, Sütunlar'ın yanında açılıp kapanan düğme; seçilen onay kutusunu açar/kapatır (panelin görünürlük koşulu bu girişe bağlanır). Giriş sayfada ayrıca çizilmez."}</small>
+  </label>;
+}
+
 export const GRID_TOOLS = [
   ["showGridSearch", "Arama kutusu"], ["showColumnFilters", "Sütun süzgeçleri"], ["showColumnChooser", "Sütun seçici"],
   ["showExport", "Dışa aktarma (XLSX/CSV)"], ["showCsv", "CSV düğmesi"], ["showPivot", "Pivot görünümü"],
