@@ -48,7 +48,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{firsatlar.meta.totalCount}}", "deleteQuery": "sil",
+        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{firsatlar.meta.totalCount}}", "deleteQuery": "sil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} fırsatı silinsin mi?",
                    "newAction": "page", "newPageCode": "@crm-opportunity-create", "newTarget": "newTab",
                    "openButton": "acDugmesi",
                    "moreButtons": ["nitelikliDugmesi", "teklifDugmesi", "muzakereDugmesi", "kazanildiDugmesi", "kaybedildiDugmesi"],

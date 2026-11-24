@@ -1832,7 +1832,8 @@ public static partial class HumanResourcesEndpoints
             string.IsNullOrWhiteSpace(name) || name.Length > 160 || request.HireDate == default ||
             request.TerminationDate is not null && request.TerminationDate < request.HireDate ||
             (request.Department?.Length ?? 0) > 120 || (request.JobTitle?.Length ?? 0) > 120 || (request.EmploymentCategory?.Length ?? 0) > 80 ||
-            (request.WorkEmail is not null && (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(request.WorkEmail) || request.WorkEmail.Length > 254)) ||
+            // A blank e-mail is "not given" (stored as null by Clean), not an invalid address.
+            (Clean(request.WorkEmail) is { } workEmail && (!new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(workEmail) || workEmail.Length > 254)) ||
             request.UserId == Guid.Empty)
             return new() { ["employee"] = ["Personel kodu, ad, işe giriş tarihi ve geçerli isteğe bağlı iletişim bilgilerini girin."] };
         return null;

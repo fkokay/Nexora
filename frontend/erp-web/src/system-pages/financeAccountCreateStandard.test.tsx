@@ -7,7 +7,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
-import { setPageParams } from '../pageNavigation';
+import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from '../pageNavigation';
 import catalog from './financeAccountCreateOperations.fixture.json';
 
 // "Kasa/Banka kartı" standart tanımı (finance-account-create.json): yeni ve düzenleme tek tanım. `{{sayfa.parametre.accountId}}`
@@ -88,8 +88,11 @@ const openCard = async () => {
   await ready('save');
 };
 
-beforeEach(() => { calls = []; api.mockReset(); localStorage.clear(); });
+let navigations: WorkspaceOpenRequest[] = [];
+const onNavigate = (event: Event) => { navigations.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
+beforeEach(() => { calls = []; navigations = []; api.mockReset(); localStorage.clear(); window.addEventListener(OPEN_PAGE_EVENT, onNavigate); });
 afterEach(() => {
+  window.removeEventListener(OPEN_PAGE_EVENT, onNavigate);
   for (let open = screen.queryByRole('alertdialog'); open; open = screen.queryByRole('alertdialog')) fireEvent.click(within(open).getAllByRole('button')[0]);
   cleanup();
   setPageParams(KEY, {});
@@ -116,6 +119,9 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     expect(JSON.parse(posts()[0].body!)).toEqual({ code: 'KASA-02', name: 'Şube kasa', type: 'Cash', currencyCode: 'TRY', openingBalance: 500 });
     await settle(100);
     expect(writes().filter((call) => call.method === 'PUT')).toEqual([]);
+    // Kayıttan sonra oluşturulan kart aynı sekmede düzenleme kipinde açılır (ikinci Kaydet yinelenen kart oluşturmaz).
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toMatchObject({ page: KEY, params: { accountId: NEW } });
   });
 
   it('accountType Bank fixes the type: the select is disabled and the POST carries Bank', async () => {
@@ -158,5 +164,8 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     // Gövde kaynak kayıttan (finans.hesap.getir) başlar; açılış bakiyesi sabit 0 gider.
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'KASA-01', name: 'Merkez kasa TL', type: 'Cash', currencyCode: 'TRY', openingBalance: 0 });
     expect(posts()).toEqual([]);
+    // Güncellemeden sonra kart açık kalır: "Kartı aç" yalnız yeni kartta (oluşturma sonrası) çalışır.
+    await settle(100);
+    expect(navigations).toEqual([]);
   });
 });

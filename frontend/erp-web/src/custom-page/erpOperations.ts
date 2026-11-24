@@ -6,9 +6,12 @@
 import { appendFixedQuery } from "./fixedQuery";
 
 export type ErpOperationParameterItem = { code: string; label: string; dataType: string; required: boolean };
-/** `items` yalnız `list` parametrelerinde doludur (öğe alanları); diğerlerinde null (eski sunucuda yok). */
+/**
+ * `items` yalnız `list` parametrelerinde doludur (öğe alanları); diğerlerinde null (eski sunucuda yok). `nullable`: istek üyesi
+ * null kabul eder (eski sunucuda yok); böyle bir metin gövde parametresinin boş değeri "" yerine null gönderilir.
+ */
 export type ErpOperationParameter = { name: string; in: "route" | "query" | "body"; type: string; required: boolean;
-  items?: ErpOperationParameterItem[] | null };
+  items?: ErpOperationParameterItem[] | null; nullable?: boolean };
 const isCollection = (parameter: ErpOperationParameter) => parameter.type === "list" || parameter.type === "map";
 /**
  * `list` parametresinin satırları yalnız öğe alanlarını taşır (büyük/küçük harf duyarsız): ör. öğesi olmayan formül sütunu
@@ -181,7 +184,11 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     const dotted = dottedBodyName(parameter.name);
     if (!dotted && !safeKey(parameter.name)) continue;
     if (parameter === mapParameter) continue;
-    const value = listItemFields(parameter, values[parameter.name]);
+    // Null kabul eden metin alanının boş (yalnız boşluk) değeri null gider: sunucunun "verilmedi" denetimleri (isteğe bağlı
+    // e-posta, hepsi boş profil) onu girilmemiş sayar. Bilinçli bir değerdir: kaynaktaki değeri de ezer (güncellemede temizler).
+    const blankText = !dotted && parameter.type === "text" && parameter.nullable === true
+      && typeof values[parameter.name] === "string" && (values[parameter.name] as string).trim() === "";
+    const value = blankText ? null : listItemFields(parameter, values[parameter.name]);
     // Çözülemeyen koleksiyon (list/map) anahtarı hiç yazılmaz.
     if (isCollection(parameter) && (value === null || value === undefined)) continue;
     const target = dotted ? nestedOf(dotted[0]) : body;
@@ -189,7 +196,7 @@ export function buildOperationRequest(op: ErpOperation, values: Record<string, u
     const lower = name.toLowerCase();
     // Çözülemeyen (null/undefined) bağlı değer kaynak kaydın değerini silmez; boş metin ise bilinçli olarak yazılır.
     // Kullanıcının boşalttığı (`cleared`) alan ise bilinçli temizlemedir: null kaynak değerin yerine yazılır.
-    const clearedByUser = value === null && cleared?.has(parameter.name) === true;
+    const clearedByUser = value === null && (blankText || cleared?.has(parameter.name) === true);
     const present = Object.keys(target).some((key) => key.toLowerCase() === lower);
     if ((value === null || value === undefined) && !clearedByUser && present) continue;
     // İç içe nesnede boş bağlı alan yazılmaz (sunucu varsayılanı geçerli); kaynakta olan alanı kullanıcı boşalttıysa null yazılır.

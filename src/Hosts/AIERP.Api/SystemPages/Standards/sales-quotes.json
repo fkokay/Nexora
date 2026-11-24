@@ -55,7 +55,7 @@
         "props": {
           "newButton": "yeniDugmesi",
           "openButton": "acDugmesi",
-          "deleteQuery": "teklifSil",
+          "deleteQuery": "teklifSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} teklifi silinsin mi?",
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{teklifler.meta.totalCount}}",

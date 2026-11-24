@@ -767,6 +767,28 @@ public sealed class ErpOperationCatalogTests
     }
 
     [Fact]
+    public async Task Catalog_marks_nullable_request_members_of_body_parameters()
+    {
+        await using var factory = new ErpOperationApiFactory();
+        await SeedAsync(factory, _ => { });
+        using var client = factory.CreateClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+        var ops = await GetOperationsAsync(client);
+
+        // `nullable` is written only when true: the runtime then sends a blank optional text as null instead of "".
+        bool? Nullable(string op, string name) => ops[op].GetProperty("parameters").EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == name).TryGetProperty("nullable", out var value) ? value.GetBoolean() : null;
+        Assert.True(Nullable("ik.personel.olustur", "workEmail"));
+        Assert.True(Nullable("ik.personel.guncelle", "workEmail"));
+        Assert.True(Nullable("duranVarlik.kiymet.olustur", "vukUsefulLifeCode"));
+        Assert.Null(Nullable("ik.personel.olustur", "hireDate"));
+        Assert.Null(Nullable("ik.personel.getir", "id"));
+        Assert.Null(Nullable("cari.olustur", "code"));
+        Assert.All(ops.Values.SelectMany(op => op.GetProperty("parameters").EnumerateArray()).Where(x => x.GetProperty("in").GetString() != "body"),
+            x => Assert.False(x.TryGetProperty("nullable", out _)));
+    }
+
+    [Fact]
     public void Names_are_append_only()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "ErpOperationCatalog.names.txt");

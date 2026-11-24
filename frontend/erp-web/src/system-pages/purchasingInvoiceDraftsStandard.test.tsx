@@ -128,7 +128,7 @@ describe('Satınalma faturası taslakları standart tanımı', { timeout: 60000 
     const body = h.bodyOf(h.sent(BASE)[0]);
     expect(body).toEqual({
       requestId: expect.stringMatching(GUID), supplierId: SUP, invoiceNumber: 'HZM-2026-0042', invoiceDate: today(), dueDate: '2026-12-31',
-      currencyCode: 'TRY', notes: '', subtotal: 250.5, discountTotal: 10, taxTotal: 48.09, grandTotal: 288.59,
+      currencyCode: 'TRY', notes: null, subtotal: 250.5, discountTotal: 10, taxTotal: 48.09, grandTotal: 288.59,
       lines: [
         { lineNumber: 1, description: 'Genel yönetim giderleri', quantity: 2, unitPrice: 100.1, subtotal: 200.2, discountAmount: 10, taxAmount: 38.04, total: 228.24,
           expenseAccountId: GL1, vatRate: 20 },

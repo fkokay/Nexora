@@ -12,6 +12,14 @@ internal sealed record ErpOperationParameter(string Name, string In, string Type
 {
     /// <summary>The item fields of a <c>list</c> parameter; null for every other type (wire: <c>items</c>).</summary>
     public IReadOnlyList<ErpOperationParameterItem>? Items { get; init; }
+    /// <summary>
+    /// The request member accepts null (wire: <c>nullable</c>). Only body parameters built from a request record set it; the
+    /// runtime sends an empty optional text value of such a parameter as null instead of <c>""</c>, so the server's
+    /// "absent" checks (optional e-mail, all-empty profile) see it as not given and an update clears the stored value.
+    /// Written only when true (older clients and fixtures without it read it as false).
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Nullable { get; init; }
 }
 internal sealed record ErpOperationColumn(string Code, string Label, string DataType);
 internal sealed record ErpOperationResult(string Shape, string? RowsPath, IReadOnlyList<ErpOperationColumn> Columns)
@@ -852,7 +860,7 @@ internal static partial class ErpOperationCatalog
     /// </summary>
     private static IReadOnlyList<ErpOperationParameter> BodyParameters<T>(bool sourceBacked, params string[] exclude) =>
         ScalarMembers<T>().Where(x => !exclude.Contains(x.Name, StringComparer.Ordinal))
-            .Select(x => new ErpOperationParameter(x.Name, "body", x.Type, !sourceBacked && x.Required)).ToArray();
+            .Select(x => new ErpOperationParameter(x.Name, "body", x.Type, !sourceBacked && x.Required) { Nullable = x.Nullable }).ToArray();
 
     /// <summary>
     /// A body <c>list</c> parameter whose items are the scalar fields of <typeparamref name="T"/> plus its string maps
@@ -875,7 +883,7 @@ internal static partial class ErpOperationCatalog
     /// <summary>A body <c>map</c> parameter: a code → string value object (custom field values).</summary>
     private static ErpOperationParameter MapParameter(string name) => new(name, "body", "map", false);
 
-    private static IEnumerable<(string Name, string Type, bool Required)> ScalarMembers<T>(bool includeMaps = false)
+    private static IEnumerable<(string Name, string Type, bool Required, bool Nullable)> ScalarMembers<T>(bool includeMaps = false)
     {
         var nullability = new NullabilityInfoContext();
         var constructor = typeof(T).GetConstructors().OrderByDescending(x => x.GetParameters().Length).First();
@@ -885,7 +893,7 @@ internal static partial class ErpOperationCatalog
             if (type is null) continue;
             var nullable = Nullable.GetUnderlyingType(parameter.ParameterType) is not null
                 || (!parameter.ParameterType.IsValueType && nullability.Create(parameter).WriteState == NullabilityState.Nullable);
-            yield return (CamelCase(parameter.Name!), type, !nullable && !parameter.HasDefaultValue);
+            yield return (CamelCase(parameter.Name!), type, !nullable && !parameter.HasDefaultValue, nullable);
         }
     }
 

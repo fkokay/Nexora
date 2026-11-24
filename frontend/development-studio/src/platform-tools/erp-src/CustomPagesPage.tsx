@@ -136,9 +136,10 @@ const contentFields: Record<ComponentType, FieldSpec[]> = {
   text: [{ key: "text", label: "Metin", kind: "textarea" }],
   label: [{ key: "text", label: "Etiket metni", kind: "textarea" }],
   input: [{ key: "label", label: "Etiket", kind: "text" }, { key: "placeholder", label: "Yer tutucu", kind: "text" }, { key: "defaultValue", label: "Varsayılan değer", kind: "text" },
-    { key: "emptyDefault", label: "Boşsa varsayılan (sabit)", kind: "text" }],
+    { key: "emptyDefault", label: "Boşsa varsayılan (sabit; tarihte {{bugun}} olabilir)", kind: "text" }],
   metric: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "text" },
-    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["date", "Tarih"], ["datetime", "Tarih ve saat"], ["text", "Metin"]] }],
+    { key: "format", label: "Biçim", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["date", "Tarih"], ["datetime", "Tarih ve saat"], ["text", "Metin"]] },
+    { key: "descriptionFormat", label: "Açıklamadaki sayıların biçimi", kind: "choice", options: [["number", "Sayı"], ["money", "Para"], ["", "Biçimsiz"]] }],
   card: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   section: [{ key: "title", label: "Başlık", kind: "text" }, { key: "description", label: "Açıklama", kind: "textarea" }],
   divider: [],
@@ -202,7 +203,7 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   ...GRID_ENGINE_PROPS,
   // Boş çözülen varsayılanın sabit yedeği (İçerik › "Boşsa varsayılan"), parçalı metin (İçerik › "Parçalar") ve İşlem Çubuğu
   // Sil onayının metni (Komutlar › Sil).
-  "emptyDefault", "parts", "deleteConfirmText"]);
+  "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -1961,8 +1962,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       scope[component.name] = { satirSayisi: 0, toplam: Object.fromEntries(gridTotalCodes(component.props).map((code) => [code, 0])) };
     for (const component of state.components) {
       if (!component.name || component.type !== "input") continue;
-      // ERP gibi: varsayılan boş çözülürse `emptyDefault` (sabit) kullanılır.
-      const raw = interpolate(String(component.props.defaultValue ?? ""), scope) || String(component.props.emptyDefault ?? "");
+      // ERP gibi: varsayılan boş çözülürse `emptyDefault` kullanılır (sabit; tarih girişinde `{{bugun}}` gibi tarih bağlaması olabilir).
+      const raw = interpolate(String(component.props.defaultValue ?? ""), scope) || interpolate(String(component.props.emptyDefault ?? ""), scope);
       const inputType = String(component.props.inputType ?? "text");
       const value = inputType === "checkbox" ? /^(true|1|evet)$/i.test(raw.trim())
         : inputType === "number" ? (raw.trim() === "" || !Number.isFinite(Number(raw)) ? null : Number(raw)) : raw === "" ? null : raw;

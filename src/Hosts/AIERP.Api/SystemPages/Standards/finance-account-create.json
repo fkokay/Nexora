@@ -11,6 +11,7 @@
       "label": "İşlem çubuğu",
       "requires": [
         "component:yeniKartDugmesi",
+        "component:kartiAcDugmesi",
         "query:kart",
         "query:olustur",
         "query:guncelle"
@@ -21,6 +22,14 @@
       "label": "Yeni kart komutu",
       "requires": [
         "component:tur"
+      ]
+    },
+    "component:kartiAcDugmesi": {
+      "since": 1,
+      "label": "Kayıttan sonra oluşturulan kartı aç",
+      "requires": [
+        "query:kart",
+        "query:olustur"
       ]
     },
     "component:yeniBaslik": {
@@ -177,6 +186,7 @@
             "guncelle=kart.rows[0].id != null"
           ],
           "newButton": "yeniKartDugmesi",
+          "afterSaveButton": "kartiAcDugmesi",
           "saveAndNew": true,
           "commandWhen": [
             "saveNew=kart.rows[0].id == null"
@@ -196,6 +206,21 @@
           "params": [
             "accountType={{tur.value}}"
           ]
+        }
+      },
+      {
+        "id": "kartiAcDugmesi",
+        "type": "button",
+        "name": "kartiAcDugmesi",
+        "props": {
+          "text": "Kartı aç",
+          "actionType": "page",
+          "pageCode": "@finance-account-create",
+          "target": "sameTab",
+          "params": [
+            "accountId={{olustur.sonuc.id}}"
+          ],
+          "visibleWhen": "kart.rows[0].id == null"
         }
       },
       {

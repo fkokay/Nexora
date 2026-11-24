@@ -299,7 +299,8 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     ctrlS();
     await waitFor(() => expect(writes().some((call) => call.method === 'PUT' && call.url === `/api/stock/items/${S1}`)).toBe(true), T);
     const body = JSON.parse(writes().find((call) => call.method === 'PUT' && call.url === `/api/stock/items/${S1}`)!.body!) as Record<string, unknown>;
-    expect({ barcode: body.barcode, maximumStock: body.maximumStock }).toEqual({ barcode: '', maximumStock: null });
+    // Boşaltılan isteğe bağlı metin (null kabul eden üye) null gider ve kaynaktaki değeri temizler.
+    expect({ barcode: body.barcode, maximumStock: body.maximumStock }).toEqual({ barcode: null, maximumStock: null });
     expect({ reorderPoint: body.reorderPoint, minimumStock: body.minimumStock }).toEqual({ reorderPoint: 15, minimumStock: 10 });
   });
 

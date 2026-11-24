@@ -48,7 +48,7 @@
         "props": {
           "newButton": "yeniDugmesi",
           "openButton": "acDugmesi",
-          "deleteQuery": "irsaliyeSil",
+          "deleteQuery": "irsaliyeSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} irsaliyesi silinsin mi?",
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{irsaliyeler.meta.totalCount}}",
