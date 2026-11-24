@@ -98,6 +98,19 @@ public static class DeliveryLinePricing
     }
 
     /// <summary>
+    /// The delivery line price an invoice line implies (invoice-created and invoiced deliveries): VAT-exclusive like every delivery
+    /// price (a VAT-included retail price is divided by 1 + VAT, 4 decimals), per entered unit of the line. Mirrored by the
+    /// BackfillInvoicedDeliveryLinePrices migrations.
+    /// </summary>
+    public static decimal FromInvoiceLinePrice(decimal invoiceUnitPrice, decimal vatPercent, bool isVatIncluded, decimal baseQuantity,
+        decimal? enteredQuantity)
+    {
+        var basePrice = isVatIncluded && vatPercent > 0m
+            ? decimal.Round(invoiceUnitPrice / (1m + vatPercent / 100m), 4, MidpointRounding.AwayFromZero) : invoiceUnitPrice;
+        return FromBaseUnitPrice(basePrice, baseQuantity, enteredQuantity);
+    }
+
+    /// <summary>
     /// An entered-unit price expressed per base unit, 4 decimals. When <paramref name="knownBasePrice"/> converts to exactly the same
     /// entered price (the price came from the order line) it is returned unchanged so no rounding is introduced.
     /// </summary>

@@ -4907,8 +4907,8 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
             EnteredQuantity = row.Input.Quantity, EnteredUnitCode = row.Item.UnitCode,
             // The delivery an invoice writes carries the invoice's own prices (base unit = entered unit here), VAT-exclusive like
             // every delivery price: a retail (VAT-included) price is converted.
-            UnitPrice = row.Input.IsVatIncluded && row.Input.VatPercent > 0
-                ? decimal.Round(row.Input.UnitPrice / (1m + row.Input.VatPercent / 100m), 4, MidpointRounding.AwayFromZero) : row.Input.UnitPrice,
+            UnitPrice = DeliveryLinePricing.FromInvoiceLinePrice(row.Input.UnitPrice, row.Input.VatPercent, row.Input.IsVatIncluded,
+                row.Input.Quantity, row.Input.Quantity),
             DiscountPercent = row.Input.DiscountPercent, VatPercent = row.Input.VatPercent };
         delivery.Lines.Add(deliveryLine);
         invoice.Lines.Add(new SalesInvoiceLine { TenantId = tenantId, Invoice = invoice, DeliveryLine = deliveryLine, OrderLineNumber = i + 1,

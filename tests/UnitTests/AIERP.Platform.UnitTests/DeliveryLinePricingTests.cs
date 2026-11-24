@@ -75,6 +75,20 @@ public sealed class DeliveryLinePricingTests
     }
 
     [Fact]
+    public void Invoice_line_price_becomes_a_vat_exclusive_entered_unit_delivery_price()
+    {
+        // Wholesale invoice: the price as is (base unit = entered unit on an invoice-created delivery).
+        Assert.Equal(12.5m, DeliveryLinePricing.FromInvoiceLinePrice(12.5m, 20m, false, 3m, 3m));
+        // Retail (VAT-included): VAT taken out, 4 decimals, away from zero; 0 % VAT leaves the price unchanged.
+        Assert.Equal(100m, DeliveryLinePricing.FromInvoiceLinePrice(120m, 20m, true, 2m, 2m));
+        Assert.Equal(8.3333m, DeliveryLinePricing.FromInvoiceLinePrice(10m, 20m, true, 1m, 1m));
+        Assert.Equal(50m, DeliveryLinePricing.FromInvoiceLinePrice(50m, 0m, true, 1m, 1m));
+        // Standalone delivery invoiced per base unit, entered in boxes of 12: 10 per piece is 120 per box.
+        Assert.Equal(120m, DeliveryLinePricing.FromInvoiceLinePrice(10m, 20m, false, 24m, 2m));
+        Assert.Equal(10m, DeliveryLinePricing.FromInvoiceLinePrice(10m, 20m, false, 24m, null));
+    }
+
+    [Fact]
     public void Line_amounts_use_entered_quantity_and_are_null_when_free_or_unpriced()
     {
         var amounts = DeliveryLinePricing.Amounts(new DeliveryLinePrice(120m, 10m, 20m, false), 24m, 2m);
