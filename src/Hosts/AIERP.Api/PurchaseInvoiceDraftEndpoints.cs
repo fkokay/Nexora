@@ -10,7 +10,7 @@ public static class PurchaseInvoiceDraftEndpoints
 {
     public static void MapPurchaseInvoiceDraftEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/purchasing/standalone-invoices").WithTags("Bağımsız alış faturası taslakları").RequireAuthorization();
+        var group = app.MapGroup("/api/purchasing/standalone-invoices").WithTags("Satınalma faturası taslakları").RequireAuthorization();
 
         group.MapGet("/suppliers", async (string? q, int page, int pageSize, ClaimsPrincipal user,
             TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -58,7 +58,8 @@ public static class PurchaseInvoiceDraftEndpoints
                 .OrderByDescending(x => x.Line.Receipt.ReceiptDate).ThenBy(x => x.Line.LineNumber)
                 .Select(x => new StandaloneSupplierInvoiceDraftReceiptOption(x.Line.Id, x.Line.ReceiptId, x.Line.Receipt.Code,
                     x.Line.Receipt.ReceiptDate, x.Line.StockCode, x.Line.StockName, x.Line.Quantity - x.ReservedQuantity,
-                    x.Line.UnitCode, x.Line.UnitCostBase))
+                    x.Line.UnitCode, x.Line.UnitCostBase, x.Line.UnitPrice, x.Line.DiscountPercent, x.Line.VatPercent, x.Line.IsFreeOfCharge,
+                    x.Line.EnteredQuantity, x.Line.EnteredUnitCode, x.Line.Receipt.CurrencyCode))
                 .Take(500).ToListAsync(ct);
             return Results.Ok(items);
         });
@@ -501,7 +502,7 @@ public static class PurchaseInvoiceDraftEndpoints
             TenantId = tenantId,
             Code = journalCode,
             EntryDate = draft.InvoiceDate,
-            Description = $"Bağımsız alış faturası · {draft.InvoiceNumber}" + (draft.CurrencyCode == tenant.BaseCurrencyCode ? "" : $" · {draft.CurrencyCode}/{tenant.BaseCurrencyCode} {exchangeRate}"),
+            Description = $"Satınalma faturası (taslaktan) · {draft.InvoiceNumber}" + (draft.CurrencyCode == tenant.BaseCurrencyCode ? "" : $" · {draft.CurrencyCode}/{tenant.BaseCurrencyCode} {exchangeRate}"),
             SourceType = PostingSource,
             SourceId = draft.Id,
             CreatedByUserId = userId,
@@ -522,7 +523,7 @@ public static class PurchaseInvoiceDraftEndpoints
             Direction = CustomerLedgerDirection.Credit,
             Amount = draft.GrandTotal,
             CurrencyCode = draft.CurrencyCode,
-            Description = $"Bağımsız alış faturası {draft.InvoiceNumber}",
+            Description = $"Satınalma faturası {draft.InvoiceNumber}",
         };
         draft.Status = PurchaseInvoiceDraftStatus.Posted;
         draft.NormalizedInvoiceNumber = NormalizeInvoiceNumber(draft.InvoiceNumber);
@@ -791,8 +792,14 @@ public sealed record StandaloneSupplierInvoiceDraftPage(IReadOnlyList<Standalone
 public sealed record StandaloneSupplierInvoiceDraftSupplierPage(IReadOnlyList<StandaloneSupplierInvoiceDraftSupplierOption> Items,
     int Page, int PageSize, int TotalCount);
 public sealed record StandaloneSupplierInvoiceDraftSupplierOption(Guid Id, string Code, string Name, string CurrencyCode);
+/// <summary>
+/// A receipt line the draft can bind. <c>UnitPrice</c> etc. are the receipt line price (per entered unit, <c>CurrencyCode</c>) to prefill
+/// the invoice line; a free line (<c>IsFreeOfCharge</c>) has no price and its invoice amount must be entered.
+/// </summary>
 public sealed record StandaloneSupplierInvoiceDraftReceiptOption(Guid LineId, Guid ReceiptId, string ReceiptCode,
-    DateOnly ReceiptDate, string StockCode, string StockName, decimal Quantity, string UnitCode, decimal UnitCostBase);
+    DateOnly ReceiptDate, string StockCode, string StockName, decimal Quantity, string UnitCode, decimal UnitCostBase,
+    decimal? UnitPrice = null, decimal? DiscountPercent = null, decimal? VatPercent = null, bool IsFreeOfCharge = false,
+    decimal? EnteredQuantity = null, string? EnteredUnitCode = null, string? CurrencyCode = null);
 public sealed record StandaloneSupplierInvoiceDraftSummary(Guid Id, Guid SupplierId, string SupplierName,
     string InvoiceNumber, DateOnly InvoiceDate, DateOnly? DueDate, string CurrencyCode, decimal GrandTotal,
     int LineCount, string Status, DateTimeOffset CreatedAt);

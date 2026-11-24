@@ -1847,6 +1847,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.OrderId, x.Status, x.DeliveryDate });
             e.Property(x => x.Code).HasMaxLength(40);
+            DeliveryLinePricingConfiguration.ConfigureHeaderCurrency(e);
             e.HasOne(x => x.Tenant).WithMany(x => x.SalesDeliveries).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.Order).WithMany(x => x.Deliveries).HasForeignKey(x => new { x.TenantId, x.OrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -1863,6 +1864,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.ToTable(t => t.HasCheckConstraint("CK_SalesDeliveryLines_QuantityPositive", "[Quantity] > 0"));
+            DeliveryLinePricingConfiguration.ConfigureLinePrice(e, "SalesDeliveryLines");
             e.HasOne(x => x.Delivery).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.OrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.OrderId, x.LineNumber }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Reservation).WithMany().HasForeignKey(x => new { x.TenantId, x.ReservationId, x.OrderId, x.OrderLineNumber })
@@ -2255,6 +2257,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.RequestId }).IsUnique();
             e.HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.Status, x.ReceiptDate });
             e.Property(x => x.Code).HasMaxLength(40);
+            DeliveryLinePricingConfiguration.ConfigureHeaderCurrency(e);
             e.HasOne(x => x.Tenant).WithMany(x => x.PurchaseReceipts).HasForeignKey(x => x.TenantId);
             e.HasOne(x => x.PurchaseOrder).WithMany(x => x.Receipts).HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Warehouse).WithMany().HasForeignKey(x => new { x.TenantId, x.WarehouseId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -2299,6 +2302,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.EnteredQuantity).HasPrecision(18, 4);
             e.ToTable(t => t.HasCheckConstraint("CK_PurchaseReceiptLines_QuantityPositive", "[Quantity] > 0"));
+            DeliveryLinePricingConfiguration.ConfigureLinePrice(e, "PurchaseReceiptLines");
             e.HasOne(x => x.Receipt).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.ReceiptId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.OrderLine).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
         });
@@ -2311,6 +2315,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.PurchaseOrderId, x.DocumentDate, x.CreatedAt });
             e.HasIndex(x => new { x.TenantId, x.PurchaseReceiptId }).IsUnique().HasFilter("[PurchaseReceiptId] IS NOT NULL");
             e.Property(x => x.DocumentNumber).HasMaxLength(80);
+            DeliveryLinePricingConfiguration.ConfigureHeaderCurrency(e);
             e.HasOne(x => x.PurchaseOrder).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.PurchaseReceipt).WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseReceiptId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
@@ -2323,6 +2328,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Quantity).HasPrecision(18, 4);
             e.Property(x => x.UnitCode).HasMaxLength(8);
             e.ToTable(t => t.HasCheckConstraint("CK_PurchaseDeliveryNoteLines_QuantityPositive", "[Quantity] > 0"));
+            DeliveryLinePricingConfiguration.ConfigureLinePrice(e, "PurchaseDeliveryNoteLines");
             e.HasOne(x => x.DeliveryNote).WithMany(x => x.Lines).HasForeignKey(x => new { x.TenantId, x.DeliveryNoteId, x.PurchaseOrderId }).HasPrincipalKey(x => new { x.TenantId, x.Id, x.PurchaseOrderId }).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<PurchaseOrderLine>().WithMany().HasForeignKey(x => new { x.TenantId, x.PurchaseOrderId, x.OrderLineNumber }).HasPrincipalKey(x => new { x.TenantId, x.PurchaseOrderId, x.LineNumber }).OnDelete(DeleteBehavior.Restrict);
         });

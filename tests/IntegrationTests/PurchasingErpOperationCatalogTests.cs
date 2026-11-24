@@ -89,7 +89,7 @@ public sealed class PurchasingErpOperationCatalogTests
         { "satinalma.malKabul.getir", "GET", "/api/purchasing/receipts/{id}", "id:route:guid*", "record", null, "" },
         { "satinalma.malKabul.satirlari", "GET", "/api/purchasing/receipts/{id}", "id:route:guid*", "list", "lines", "" },
         { "satinalma.malKabul.iptal", "POST", "/api/purchasing/receipts/{id}/void", "id:route:guid*", "none", null, "" },
-        { "satinalma.malKabul.faturala", "POST", "/api/purchasing/receipts/{id}/invoice", "id:route:guid*,code:body:text*,invoiceDate:body:date*,providerInvoiceUuid:body:guid,providerScenario:body:text,providerInvoiceTypeCode:body:text,providerSenderAlias:body:text,accountingProfileCode:body:text", "record", null, "" },
+        { "satinalma.malKabul.faturala", "POST", "/api/purchasing/receipts/{id}/invoice", "id:route:guid*,code:body:text*,invoiceDate:body:date*,providerInvoiceUuid:body:guid,providerScenario:body:text,providerInvoiceTypeCode:body:text,providerSenderAlias:body:text,accountingProfileCode:body:text,lines:body:list", "record", null, "" },
         { "satinalma.malKabul.ozelAlanTanimlari", "GET", "/api/purchasing/receipts/custom-fields", "", "list", null, "" },
         { "satinalma.faturaGirisi.malKabulleri", "GET", "/api/purchasing/invoices/entry/receipts", "q:query:text,page:query:int*,pageSize:query:int*", "list", "items", "page,pageSize,totalCount" },
         { "satinalma.faturaGirisi.onizleme", "GET", "/api/purchasing/receipts/{id}/invoice-preview", "id:route:guid*,invoiceDate:query:date,accountingProfileCode:query:text", "record", null, "" },
@@ -127,7 +127,8 @@ public sealed class PurchasingErpOperationCatalogTests
             Assert.Empty(op.RouteVariants);
             Assert.Null(op.BodyMap);
             Assert.Null(op.SourceOperation);
-            Assert.DoesNotContain(op.Parameters, x => x.Type is "list" or "map");
+            // Only the receipt invoice takes a list: optional per-line prices (free / unpriced receipt lines need an amount).
+            Assert.DoesNotContain(op.Parameters, x => (x.Type is "list" or "map") && !(name == "satinalma.malKabul.faturala" && x.Name == "lines"));
             Assert.Equal(name is "satinalma.talep.onayla" or "satinalma.talep.reddet", op.RequiresTenantAdmin);
             // Every column has a label; a missing one would already have failed startup.
             Assert.All(op.Result.Columns, x => Assert.False(string.IsNullOrWhiteSpace(x.Label), $"{name}.{x.Code}"));
@@ -449,10 +450,10 @@ public sealed class PurchasingErpOperationCatalogTests
         { "satinalma.siparis.olustur", "POST", "/api/purchasing/orders",
             "code:body:text*,supplierId:body:guid*,orderDate:body:date*,currencyCode:body:text*,notes:body:text,expectedReceiptDate:body:date,targetWarehouseId:body:guid,lines:body:list[stockItemId:guid*|quantity:decimal*|unitPrice:decimal*|discountPercent:decimal|vatPercent:decimal|unitCode:text],customFields:body:map", "record", null },
         { "satinalma.malKabul.olustur", "POST", "/api/purchasing/orders/{id}/receipts",
-            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid],customFields:body:map", "record", null },
+            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool],customFields:body:map", "record", null },
         { "satinalma.malKabul.siparisSatirlari", "GET", "/api/purchasing/orders/{id}", "id:route:guid*", "list", "lines" },
         { "satinalma.irsaliye.olustur", "POST", "/api/purchasing/delivery-notes/orders/{orderId}",
-            "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text]", "record", null },
+            "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|unitPrice:decimal|discountPercent:decimal|vatPercent:decimal|isFreeOfCharge:bool]", "record", null },
         { "satinalma.irsaliye.siparisIrsaliyeleri", "GET", "/api/purchasing/delivery-notes/orders/{orderId}", "orderId:route:guid*", "list", null },
         { "satinalma.irsaliye.siparisSatirlari", "GET", "/api/purchasing/delivery-notes/orders/{orderId}/lines", "orderId:route:guid*", "list", null },
         { "satinalma.irsaliye.malKabulBagla", "POST", "/api/purchasing/delivery-notes/{id}/link-receipt", "id:route:guid*,purchaseReceiptId:body:guid*", "none", null },
@@ -486,7 +487,8 @@ public sealed class PurchasingErpOperationCatalogTests
             + (x.Items is { } items ? "[" + string.Join("|", items.Select(i => $"{i.Code}:{i.DataType}{(i.Required ? "*" : "")}")) + "]" : ""))));
         Assert.Equal(op.Kind == "write", method != "GET");
         Assert.Null(ErpOperationCatalog.ParameterShapeError(op));
-        Assert.False(op.Deprecated);
+        // Retired duplicate of satinalma.siparis.satirlari (names are permanent): deprecated, not removed.
+        Assert.Equal(name == "satinalma.malKabul.siparisSatirlari", op.Deprecated);
         Assert.Null(op.SourceOperation);
         Assert.Null(op.BodyMap);
         Assert.Empty(op.RouteVariants);
@@ -521,17 +523,17 @@ public sealed class PurchasingErpOperationCatalogTests
         Assert.Equal("Tedarikçi fatura no", Label("satinalma.faturaTaslagi.getir", "invoiceNumber"));
         Assert.Equal("Finansal tablo sınıfı", Label("satinalma.faturaTaslagi.giderHesaplari", "statementSection"));
         Assert.Equal("Sipariş satır no", Op("satinalma.malKabul.olustur").Parameters.Single(x => x.Name == "lines").Items!.Single(x => x.Code == "orderLineNumber").Label);
-        // Fill sources carry the remaining quantity under the code each write's line item uses.
-        Assert.Subset(Codes("satinalma.malKabul.siparisSatirlari"),
-            new HashSet<string> { "orderLineNumber:int", "remainingQuantity:decimal", "stockItemId:guid", "unitCode:text", "trackingMode:text" });
+        // Fill sources carry the remaining quantity under the code each write's line item uses; the receipt grid fills from the
+        // order lines read (with the PO line price), the retired duplicate keeps the same columns.
+        Assert.Subset(Codes("satinalma.siparis.satirlari"),
+            new HashSet<string> { "orderLineNumber:int", "remainingQuantity:decimal", "stockItemId:guid", "unitCode:text", "trackingMode:text",
+                "unitPrice:decimal", "discountPercent:decimal", "vatPercent:decimal" });
+        Assert.Equal(Codes("satinalma.siparis.satirlari"), Codes("satinalma.malKabul.siparisSatirlari"));
         Assert.Subset(Codes("satinalma.irsaliye.siparisSatirlari"),
             new HashSet<string> { "orderLineNumber:int", "orderedQuantity:decimal", "notedQuantity:decimal", "remainingQuantity:decimal", "unitCode:text" });
         Assert.Subset(Codes("satinalma.fatura.iadeEdilebilirSatirlar"),
             new HashSet<string> { "purchaseInvoiceLineId:guid", "invoicedQuantity:decimal", "returnedQuantity:decimal", "remainingQuantity:decimal", "stockItemId:guid" });
         Assert.Subset(Codes("satinalma.faturaTaslagi.getir"), new HashSet<string> { "rowVersion:text", "grandTotal:decimal", "status:text" });
-        // The Faz 1 order lines read keeps its frozen columns; the new members are declared by the receipt fill source only.
-        Assert.DoesNotContain("trackingMode:text", Codes("satinalma.siparis.satirlari"));
-        Assert.DoesNotContain("orderLineNumber:int", Codes("satinalma.siparis.satirlari"));
         // The expense account picker asks the server for active expense accounts.
         var expense = Op("satinalma.faturaTaslagi.giderHesaplari");
         Assert.Equal(("Expense", true), (expense.FixedQuery!["statementSection"], expense.FixedQuery["activeOnly"]));
@@ -676,7 +678,8 @@ public sealed class PurchasingErpOperationCatalogTests
         // 10 ordered, 3 + 5 posted receipts (the voided 2 do not count).
         Assert.Equal((1, 2m, "Lot"), (line.GetProperty("orderLineNumber").GetInt32(), line.GetProperty("remainingQuantity").GetDecimal(),
             line.GetProperty("trackingMode").GetString()));
-        foreach (var column in Op("satinalma.malKabul.siparisSatirlari").Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), column.Code);
+        foreach (var name in new[] { "satinalma.siparis.satirlari", "satinalma.malKabul.siparisSatirlari" })
+            foreach (var column in Op(name).Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), $"{name}: {column.Code}");
     }
 
     [Fact]

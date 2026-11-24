@@ -9,7 +9,7 @@
     "component:faturalastirMenu": {"since": 1, "label": "Faturalaştır komutu", "requires": ["component:irsaliyePenceresi", "component:liste"]},
     "component:faturaAcMenu": {"since": 1, "label": "Faturayı aç komutu", "requires": ["component:liste"]},
     "component:iptalMenu": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:irsaliye", "query:irsaliyeIptal", "query:irsaliyeler"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Siparişsiz irsaliyeyi eski ekranda aç", "requires": ["component:liste"]},
+    "component:eskiEkranDugmesi": {"since": 1, "label": "Satış irsaliyesini eski ekranda aç", "requires": ["component:liste"]},
     "component:faturalanmamisGostergesi": {"since": 1, "label": "Faturalanmamış göstergesi", "requires": ["component:faturaSecimi", "query:irsaliyeler"]},
     "component:iptalGostergesi": {"since": 1, "label": "İptal göstergesi", "requires": ["query:irsaliyeler"]},
     "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
@@ -30,7 +30,7 @@
     "component:eBelgeTuru": {"since": 1, "label": "E-belge tür kodu"},
     "component:aliciEtiketi": {"since": 1, "label": "Alıcı e-Fatura etiketi"},
     "component:faturaNotu": {"since": 1, "label": "Fatura notu"},
-    "query:irsaliyeler": {"since": 1, "label": "Satış irsaliyelerini listele (siparişli ve siparişsiz)", "requires": ["component:durumSecimi", "component:faturaSecimi", "component:liste", "component:suzgec"]},
+    "query:irsaliyeler": {"since": 1, "label": "Satış irsaliyelerini listele (siparişten irsaliyeler dahil)", "requires": ["component:durumSecimi", "component:faturaSecimi", "component:liste", "component:suzgec"]},
     "query:irsaliye": {"since": 1, "label": "Seçili irsaliye", "requires": ["component:liste"]},
     "query:kalemler": {"since": 1, "label": "Seçili irsaliyenin kalemleri", "requires": ["component:liste"]},
     "query:faturaAlanTanimlari": {"since": 1, "label": "Fatura özel alan tanımları"},
@@ -39,7 +39,7 @@
     "query:faturalastir": {"since": 1, "label": "İrsaliyeyi faturalaştır", "requires": ["component:aliciEtiketi", "component:eBelgeSenaryosu", "component:eBelgeTuru", "component:faturaBolumu", "component:faturaNotu", "component:faturaTuru", "component:liste"]}
   },
   "screenViews": [
-    {"key": "sales-deliveries", "component": "liste", "fields": {"code": "code", "orderCode": "orderCode", "deliveryDate": "deliveryDate", "warehouseName": "warehouseName", "lineCount": "lineCount", "status": "status", "invoiceStatus": "invoiceStatus"}}
+    {"key": "sales-deliveries", "component": "liste", "fields": {"code": "code", "orderCode": "orderCode", "deliveryDate": "deliveryDate", "warehouseName": "warehouseName", "lineCount": "lineCount", "pricedGrandTotal": "pricedGrandTotal", "pricingState": "pricingState", "status": "status", "invoiceStatus": "invoiceStatus"}}
   ],
   "definition": {
     "schemaVersion": 2,
@@ -68,7 +68,7 @@
           "actionType": "openDialog",
           "dialogId": "irsaliyePenceresi",
           "disabledWhen": "liste.seciliSatir.salesDeliveryId == null",
-          "disabledReason": "Önce bir kayıt seçin. Siparişsiz irsaliye eski ekranda açılır: İşlemler › Eski ekranda aç." } },
+          "disabledReason": "Önce bir kayıt seçin. Bu satış irsaliyesi eski ekranda açılır: İşlemler › Eski ekranda aç." } },
       { "id": "faturalastirMenu", "type": "button", "name": "faturalastirMenu",
         "props": {
           "text": "Faturalaştır",
@@ -97,7 +97,7 @@
           "refreshQueries": ["irsaliyeler", "irsaliye"] } },
       { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
         "props": {
-          "text": "Eski ekranda aç (siparişsiz irsaliye)",
+          "text": "Eski ekranda aç (satış irsaliyesi)",
           "actionType": "erpPage",
           "pageKey": "sales-delivery-create",
           "target": "newTab",
@@ -154,11 +154,12 @@
           "paging": "server",
           "pageSize": 25,
           "width": 12,
-          "columns": ["code", "kind", "orderCode", "customerName", "deliveryDate", "warehouseName", "lineCount", "status", "invoiceCode", "invoiceStatus"],
-          "columnLabels": ["code=İrsaliye no", "kind=Tür", "orderCode=Sipariş no", "customerName=Müşteri", "deliveryDate=Sevk tarihi", "warehouseName=Depo", "lineCount=Satır", "status=Durum", "invoiceCode=Fatura no", "invoiceStatus=Fatura", "createdAt=Oluşturulma"],
-          "columnFormats": ["code=code", "kind=status", "deliveryDate=date", "lineCount=number", "status=status", "invoiceCode=code", "invoiceStatus=status", "createdAt=date"],
-          "valueLabels": ["kind:Order=Siparişli", "kind:Invoice=Siparişsiz", "kind:Standalone=Siparişsiz", "status:Posted=Sevk edildi", "status:Voided=İptal", "status:Draft=Taslak", "invoiceStatus:Posted=Kesildi", "invoiceStatus:Voided=İptal", "invoiceStatus:=Yok"],
-          "toneMap": ["Siparişsiz=warning", "Sevk edildi=success", "Kesildi=success", "Taslak=info", "İptal=info"],
+          "columns": ["code", "kind", "orderCode", "customerName", "deliveryDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "invoiceCode", "invoiceStatus"],
+          "columnLabels": ["code=İrsaliye no", "kind=Tür", "orderCode=Sipariş no", "customerName=Müşteri", "deliveryDate=Sevk tarihi", "warehouseName=Depo", "lineCount=Satır", "pricedGrandTotal=Tutar", "pricingState=Fiyat", "status=Durum", "invoiceCode=Fatura no", "invoiceStatus=Fatura", "createdAt=Oluşturulma"],
+          "columnFormats": ["code=code", "kind=status", "deliveryDate=date", "lineCount=number", "pricedGrandTotal=money", "pricingState=status", "status=status", "invoiceCode=code", "invoiceStatus=status", "createdAt=date"],
+          "columnUnits": ["pricedGrandTotal=currencyCode"],
+          "valueLabels": ["kind:Order=Siparişten irsaliye", "kind:Invoice=Satış irsaliyesi", "kind:Standalone=Satış irsaliyesi", "status:Posted=Sevk edildi", "status:Voided=İptal", "status:Draft=Taslak", "invoiceStatus:Posted=Kesildi", "invoiceStatus:Voided=İptal", "invoiceStatus:=Yok", "pricingState:Priced=—", "pricingState:PartlyFree=Kısmen bedelsiz", "pricingState:Free=Bedelsiz", "pricingState:Unpriced=Fiyatsız", "pricingState:PartlyUnpriced=Kısmen fiyatsız"],
+          "toneMap": ["Satış irsaliyesi=warning", "Sevk edildi=success", "Kesildi=success", "Taslak=info", "İptal=info", "Bedelsiz=info", "Kısmen bedelsiz=info", "Fiyatsız=warning", "Kısmen fiyatsız=warning"],
           "rowActions": ["faturaAcSatir"],
           "rowOpenAction": "acDugmesi",
           "emptyText": "Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur." } },
@@ -199,7 +200,7 @@
               "visibleWhen": "irsaliye.rows[0].status == 'Voided'" } },
           { "id": "rozetSiparissiz", "type": "badge", "name": "rozetSiparissiz",
             "props": {
-              "text": "Siparişsiz",
+              "text": "Satış irsaliyesi",
               "variant": "warning",
               "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null" } },
           { "id": "rozetFaturali", "type": "badge", "name": "rozetFaturali",
@@ -261,16 +262,18 @@
           "showPivot": false,
           "showCsv": false,
           "showSelectedExport": false,
-          "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "unitPrice", "discountPercent", "vatPercent"],
-          "columnLabels": ["orderLineNumber=Sipariş satırı", "stockCode=Stok kodu", "stockName=Stok adı", "quantity=Sevk miktarı", "unitPrice=Birim fiyat", "discountPercent=İsk. %", "vatPercent=KDV %"],
-          "columnFormats": ["stockCode=code", "orderLineNumber=number", "quantity=number", "unitPrice=money", "discountPercent=number", "vatPercent=number"],
-          "columnUnits": ["quantity=unitCode", "unitPrice=currencyCode"],
+          "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "isFreeOfCharge", "unitPrice", "discountPercent", "vatPercent", "lineNetAmount", "lineTotal"],
+          "columnLabels": ["orderLineNumber=Sipariş satırı", "stockCode=Stok kodu", "stockName=Stok adı", "quantity=Sevk miktarı", "isFreeOfCharge=Bedelsiz", "unitPrice=Birim fiyat", "discountPercent=İsk. %", "vatPercent=KDV %", "lineNetAmount=Tutar", "lineTotal=KDV dahil"],
+          "columnFormats": ["stockCode=code", "orderLineNumber=number", "quantity=number", "isFreeOfCharge=status", "unitPrice=money", "discountPercent=number", "vatPercent=number", "lineNetAmount=money", "lineTotal=money"],
+          "columnUnits": ["quantity=unitCode", "unitPrice=currencyCode", "lineNetAmount=currencyCode", "lineTotal=currencyCode"],
+          "valueLabels": ["isFreeOfCharge:true=Bedelsiz", "isFreeOfCharge:false=—"],
+          "toneMap": ["Bedelsiz=info"],
           "emptyText": "İrsaliye kalemi bulunamadı." } },
       { "id": "faturaBolumu", "type": "section", "name": "faturaBolumu",
         "props": {
           "width": 12,
           "title": "Fatura",
-          "description": "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun. Fatura fiyatları sipariş satırlarından alınır; zorunlu fatura özel alanlarını tamamlayın." },
+          "description": "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun. Fatura fiyatları irsaliye satırlarından (fiyatı olmayan eski satırlarda sipariş satırlarından) alınır; zorunlu fatura özel alanlarını tamamlayın." },
         "children": [
           { "id": "faturaVarNotu", "type": "text", "name": "faturaVarNotu",
             "props": {
@@ -278,8 +281,12 @@
               "visibleWhen": "irsaliye.rows[0].hasSalesInvoice == true" } },
           { "id": "siparissizNotu", "type": "text", "name": "siparissizNotu",
             "props": {
-              "text": "Siparişsiz irsaliyenin faturası birlikte kesilmiştir.",
+              "text": "Siparişe bağlı olmayan irsaliyenin faturası birlikte kesilmiştir.",
               "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null && irsaliye.rows[0].hasSalesInvoice != true" } },
+          { "id": "bedelsizFaturaNotu", "type": "text", "name": "bedelsizFaturaNotu",
+            "props": {
+              "text": "Bu irsaliyede {{irsaliye.rows[0].freeLineCount}} bedelsiz ve {{irsaliye.rows[0].unpricedLineCount}} fiyatsız satır var. Bu satırların fatura tutarını girmeden faturalaştırma “Bedelsiz/fiyatsız satırların tutarını girin.” uyarısıyla durur; tutarları satış irsaliyesi ekranındaki fatura formunda girin (0 girilebilir).",
+              "visibleWhen": "irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false && (irsaliye.rows[0].freeLineCount > 0 || irsaliye.rows[0].unpricedLineCount > 0)" } },
           { "id": "faturaFormu", "type": "formCard", "name": "faturaFormu",
             "props": {
               "title": "Fatura bilgileri",

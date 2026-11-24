@@ -1,7 +1,7 @@
 {
   "screenKey": "sales-invoice-create",
   "title": "Yeni satış faturası",
-  "description": "Siparişsiz satış faturası ve irsaliyesi: belge bilgileri, e-belge alanları, stok seçince dolan satırlar, sunucu önizlemesinden satır tutarları, KDV dökümü, tevkifat ve genel toplam.",
+  "description": "Satış faturası ve irsaliyesi: belge bilgileri, e-belge alanları, stok seçince dolan satırlar, sunucu önizlemesinden satır tutarları, KDV dökümü, tevkifat ve genel toplam.",
   "module": "Satış & cari",
   "version": 1,
   "stage": "preview",

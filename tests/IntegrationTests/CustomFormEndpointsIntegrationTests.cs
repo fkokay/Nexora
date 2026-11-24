@@ -1431,7 +1431,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "sales-deliveries");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "orderCode", "deliveryDate", "warehouseName", "lineCount", "status", "invoiceStatus", "actions" },
+        Assert.Equal(new[] { "code", "orderCode", "deliveryDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "invoiceStatus", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2369,7 +2369,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "purchase-receipts");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "purchaseOrderCode", "receiptDate", "warehouseName", "lineCount", "status", "actions" },
+        Assert.Equal(new[] { "code", "purchaseOrderCode", "receiptDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2593,7 +2593,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "purchase-delivery-notes");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "documentNumber", "documentDate", "purchaseOrderCode", "supplierName", "lineCount", "purchaseReceiptCode", "actions" },
+        Assert.Equal(new[] { "documentNumber", "documentDate", "purchaseOrderCode", "supplierName", "lineCount", "pricedGrandTotal", "pricingState", "purchaseReceiptCode", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 

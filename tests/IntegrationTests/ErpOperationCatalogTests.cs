@@ -617,8 +617,9 @@ public sealed class ErpOperationCatalogTests
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
         // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
         // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
-        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests).
-        Assert.Equal(45, collections.Length);
+        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests);
+        // + the optional invoice line prices of satis.irsaliye.faturalastir and satinalma.malKabul.faturala.
+        Assert.Equal(47, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -1002,7 +1003,9 @@ public sealed class ErpOperationCatalogTests
         // The delete rule allows it, but the DELETE handler itself only accepts TenantAdmin.
         Assert.False(writerOps["stok.kart.sil"].GetProperty("allowed").GetBoolean());
         Assert.True(ErpOperationCatalog.TryGet("stok.kart.sil", out var delete) && delete.RequiresTenantAdmin);
-        Assert.DoesNotContain(ErpOperationCatalog.All, x => x.Deprecated);
+        // Only retired duplicates are deprecated (names are permanent, so they are never removed).
+        Assert.Equal(["satinalma.malKabul.siparisSatirlari"], ErpOperationCatalog.All.Where(x => x.Deprecated).Select(x => x.Name));
+        Assert.True(writerOps["satinalma.malKabul.siparisSatirlari"].GetProperty("deprecated").GetBoolean());
         // The wire contract carries no RequiresTenantAdmin field.
         Assert.False(writerOps["stok.kart.sil"].TryGetProperty("requiresTenantAdmin", out _));
     }

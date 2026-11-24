@@ -11,10 +11,12 @@ import {
   type SalesChainItem,
 } from "../sales/components/SalesListDetailPanel";
 import type { Note } from "../purchase-delivery-notes/types";
+import { formatMoneyWithCurrency, formatPrice } from "../delivery-pricing/deliveryPricing";
+import { FreeTag, PricingStateTag } from "../delivery-pricing/DeliveryPricingCells";
 
 /*
  * Satınalma İrsaliyeleri (taslak 07): irsaliyenin durumu yoktur; etiket mal kabul bağlantısından türetilir — "Mal kabul
- * eşleşti" (bağlı mal kabul var) ya da "Bağlantısı yok". Tutar verisi yoktur, çizilmez.
+ * eşleşti" (bağlı mal kabul var) ya da "Bağlantısı yok". Taslak 20: satır fiyatları varsa tutar ve fiyat durumu da gösterilir.
  */
 
 /** Derived state of a delivery note: linked to a receipt or not. */
@@ -85,8 +87,10 @@ export function PurchaseDeliveryNoteListPanel({
             label: (
               <>
                 <span>Sipariş satırı</span> <span>{line.orderLineNumber}</span>
+                {line.isFreeOfCharge && <> <FreeTag /></>}
               </>
             ),
+            meta: line.lineNetAmount !== null && line.lineNetAmount !== undefined ? formatPrice(line.lineNetAmount) : undefined,
             value: `${formatQuantity(line.quantity)} ${line.unitCode}`,
           }))}
         />
@@ -101,6 +105,12 @@ export function PurchaseDeliveryNoteListPanel({
                 value: row.purchaseReceiptCode ? <span className="nx-code">{row.purchaseReceiptCode}</span> : "Bağlantısı yok",
               },
               { label: "Satır sayısı", value: row.lineCount },
+              ...(row.pricedGrandTotal !== null && row.pricedGrandTotal !== undefined
+                ? [{ label: "Tutar", value: formatMoneyWithCurrency(row.pricedGrandTotal, row.currencyCode) }]
+                : []),
+              ...(row.pricingState && row.pricingState !== "Priced"
+                ? [{ label: "Fiyat durumu", value: <PricingStateTag state={row.pricingState} /> }]
+                : []),
             ]}
           />
           <SalesPanelChain items={deliveryNoteChain(row)} />

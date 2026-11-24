@@ -509,7 +509,6 @@ export const english: Record<string, string> = {
   'Tedarikçi Siparişleri': 'Supplier Orders',
   'Satın Alma Faturaları': 'Purchase Invoices',
   'Mal kabul faturası girişi': 'Goods receipt invoice entry',
-  'Bağımsız fatura taslakları': 'Standalone invoice drafts',
   'Şirket bilgilerini görüntüleme yetkiniz yok.': 'You do not have permission to view company information.',
   'İstek başarısız': 'Request failed',
   'Şirket bilgilerini güncelleme yetkiniz yok.': 'You do not have permission to update company information.',

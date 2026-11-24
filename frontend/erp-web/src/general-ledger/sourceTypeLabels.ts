@@ -13,7 +13,7 @@ export const journalSourceTypeLabels: Record<string, string> = {
   PaymentInstrumentEvent: "Çek/senet",
   FxRevaluation: "Kur değerleme",
   InventoryCostAdjustment: "Stok maliyet düzeltmesi",
-  StandaloneInvoiceDraft: "Bağımsız alış faturası",
+  StandaloneInvoiceDraft: "Satınalma faturası (taslaktan)",
   Manual: "Manuel fiş",
   ManualReversal: "Ters kayıt",
   // Assigned by the fiscal-year close, fixed asset, credit facility and payroll endpoints.

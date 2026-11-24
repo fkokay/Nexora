@@ -215,9 +215,17 @@ public sealed class PurchasingFaz2SystemPagesTests
         Assert.Equal(("kabulKaynak", "quantity"), ((string)grid["fillQuery"]!, (string)grid["skipWhenZero"]!));
         // F2-17: the source also has quantity (ordered); the grid's quantity must come from remainingQuantity.
         Assert.Equal("remainingQuantity", MapOf(grid["fillColumns"])["quantity"]);
-        Assert.Equal(("satinalma.malKabul.siparisSatirlari", "{{siparisSecimi.value}}"),
+        // The order lines read (the retired satinalma.malKabul.siparisSatirlari was its duplicate).
+        Assert.Equal(("satinalma.siparis.satirlari", "{{siparisSecimi.value}}"),
             ((string)Query(key, "kabulKaynak")["operation"]!, Bindings(Query(key, "kabulKaynak"))["id"]));
         Assert.Contains("trackingMode", GridColumns(grid).Keys);
+        // Line prices: filled from the PO line (same codes), locked and left out of the body on a free line; Tutar is display-only.
+        var columns = GridColumns(grid);
+        Assert.Equal("checkbox", GridColumnType(grid, "isFreeOfCharge"));
+        foreach (var code in new[] { "unitPrice", "discountPercent", "vatPercent" })
+            Assert.True(columns.ContainsKey(code) && !MapOf(grid["fillColumns"]).ContainsKey(code) && Columns(key, "kabulKaynak").Contains(code), code);
+        Assert.Equal("quantity * unitPrice * (1 - discountPercent / 100)", MapOf(grid["formulas"])["lineNetAmount"]);
+        Assert.Equal(["unitPrice,discountPercent,vatPercent,lineNetAmount=satir.isFreeOfCharge == true"], Strings(grid["lockColumnsWhen"]));
 
         var save = Query(key, "malKabulOlustur");
         Assert.Equal(new Dictionary<string, string>

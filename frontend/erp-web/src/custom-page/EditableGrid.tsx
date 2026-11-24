@@ -27,7 +27,7 @@ function sourceCell(row: Record<string, unknown>, code: string): string {
  * üzere işaretlenir, "Geri al" ile geri alınır), yeni satırlar düzenlenir; `list`/`matrix` kiplerinde tüm satırlar düzenlenir.
  */
 export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
-  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {}, calcText }: {
+  disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {}, calcText, lockedFor }: {
   id: string; title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
   state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string; dispatch: (action: GridAction) => void;
   errors: Record<string, Record<string, string>>; fixedRowLabel: string; addLabel: string; maxRows: number;
@@ -40,6 +40,8 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
   totals?: Record<string, number>;
   /** Hesaplanan (`calc`) hücrenin metni (sunucu önizlemesinden; yoksa "—"). */
   calcText?: (column: GridColumn, draft: GridDraft) => string;
+  /** Satırın kilitli sütunları (`lockColumnsWhen`): hücre salt okunur "—" olarak çizilir. */
+  lockedFor?: (draft: GridDraft) => ReadonlySet<string>;
 }) {
   const shown = mode === "matrix" ? MATRIX_DIMENSION_COLUMNS : columns;
   const blocked = addBlockedMessage(state, { mode, maxRows });
@@ -49,10 +51,11 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
   const span = shown.length + 2;
   let position = 0;
 
-  const editCell = (draft: GridDraft, column: GridColumn, n: number): ReactNode => {
+  const editCell = (draft: GridDraft, column: GridColumn, n: number, locked: ReadonlySet<string> | undefined): ReactNode => {
     const raw = draft.cells[column.code];
     const message = errors[draft.key]?.[column.code];
     const label = `${column.label} (satır ${n})`;
+    if (locked?.has(column.code)) return <td key={column.code} className="is-locked" data-locked={column.code} aria-label={label}>—</td>;
     const inputId = `page-grid-${id}-${draft.key}-${column.code}`;
     const common = { id: inputId, "aria-label": label, "aria-invalid": message ? true : undefined, disabled, readOnly: column.rules.readOnly || undefined };
     if (column.inputType === "calc") return <td key={column.code} className="num" data-calc={column.code} aria-label={label}>{calcText ? calcText(column, draft) : "—"}</td>;
@@ -110,8 +113,9 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
           {drafts.map((draft) => {
             position += 1;
             const n = position;
+            const locked = lockedFor?.(draft);
             return <tr key={draft.key} className="is-new">
-              {shown.map((column) => editCell(draft, column, n))}
+              {shown.map((column) => editCell(draft, column, n, locked))}
               <td>{mode === "stage" && <span className="tenant-page-tag tone-info">Yeni</span>}</td>
               <td className="tenant-page-grid-actions"><button type="button" className="tenant-page-row-action" aria-label="Satırı sil" disabled={disabled}
                 onClick={() => dispatch({ type: "remove", key: draft.key })}>Sil</button></td>

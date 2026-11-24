@@ -90,7 +90,7 @@ export function InvoiceDraftList({
   const listPanel = panel.open ? (
     current ? (
       <SalesListDetailPanel
-        label="Bağımsız tedarikçi faturası özeti"
+        label="Satınalma faturası taslağı özeti"
         code={current.invoiceNumber}
         title={current.supplierName}
         tags={<StatusTag tone={supplierInvoiceDraftTag(current.status).tone}>{supplierInvoiceDraftTag(current.status).label}</StatusTag>}
@@ -114,7 +114,7 @@ export function InvoiceDraftList({
         />
       </SalesListDetailPanel>
     ) : (
-      <SalesListDetailEmpty label="Bağımsız tedarikçi faturası özeti" text="Özetini görmek için listeden bir fatura seçin." />
+      <SalesListDetailEmpty label="Satınalma faturası taslağı özeti" text="Özetini görmek için listeden bir fatura seçin." />
     )
   ) : null;
 
@@ -134,7 +134,7 @@ export function InvoiceDraftList({
         }}
       />
       <ListPageHeader
-        title="Bağımsız fatura taslakları"
+        title="Satınalma faturası taslakları"
         description="Siparişsiz tedarikçi faturasını kaydedin; uygunsa mal kabul satırıyla eşleştirip maliyet farkını aktarın."
         count={loading && totalCount === 0 ? null : totalCount}
       />
@@ -157,12 +157,12 @@ export function InvoiceDraftList({
             items={drafts}
             loading={loading}
             loadingMessage="Faturalar yükleniyor…"
-            emptyMessage="Henüz bağımsız fatura kaydı yok."
+            emptyMessage="Henüz satınalma faturası taslağı yok."
             search=""
-            searchEmptyMessage="Henüz bağımsız fatura kaydı yok."
+            searchEmptyMessage="Henüz satınalma faturası taslağı yok."
             toolbarContainer={toolsSlot}
             renderCell={(field, item) => draftFieldValue(item, field.key)}
-            ariaLabel="Bağımsız tedarikçi faturaları"
+            ariaLabel="Satınalma faturası taslakları"
             selection={{
               currentId,
               onCurrentChange,

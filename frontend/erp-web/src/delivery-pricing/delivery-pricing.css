@@ -1,0 +1,40 @@
+/*
+ * İrsaliye satır fiyatı ve bedelsiz satır (taslak 20). Renkler yalnızca --nx tokenlarından gelir (tek vurgu rengi
+ * --nx-primary; taslaktaki mor "Bedelsiz" etiketi bilgi tonu olarak çizilir, standartlardaki "Bedelsiz=info" ile aynı).
+ * Koyu tema tokenlarla kendiliğinden gelir.
+ */
+tr.dp-free-row > td { background: var(--nx-primary-soft); }
+.dp-dash { color: var(--nx-muted); text-align: right; white-space: nowrap; }
+.dp-free-col { text-align: center; width: 70px; }
+.dp-free-box { accent-color: var(--nx-primary); width: 15px; height: 15px; }
+input.dp-cell { width: 100%; min-width: 72px; text-align: right; }
+input.dp-cell.is-needed { border-color: var(--nx-warn); background: var(--nx-warn-bg); }
+.dp-src { display: block; font-size: 10.5px; color: var(--nx-muted); white-space: nowrap; }
+.dp-src.is-changed { color: var(--nx-warn); }
+.dp-suggest { display: block; margin-left: auto; padding: 0; border: 0; background: none; color: var(--nx-primary); font-size: 10.5px; cursor: pointer; white-space: nowrap; }
+
+.dp-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+.dp-tag-free { background: var(--nx-primary-soft); color: var(--nx-primary); }
+.dp-tag-warn { background: var(--nx-warn-bg); color: var(--nx-warn); }
+.dp-tag-ok { background: var(--nx-ok-bg); color: var(--nx-ok); }
+.dp-tag-off { background: var(--nx-line-soft); color: var(--nx-muted); }
+
+.dp-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.dp-totals > div { background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); padding: 8px 12px; }
+.dp-totals span { display: block; color: var(--nx-muted); font-size: 11px; }
+.dp-totals b { font-size: 15px; color: var(--nx-text); }
+.dp-totals small { color: var(--nx-muted); }
+.dp-hint { color: var(--nx-ink-2); font-size: 12px; margin: 8px 0 0; }
+.dp-alert { background: var(--nx-warn-bg); color: var(--nx-text); border: 1px solid var(--nx-warn); border-radius: var(--nx-radius-card); padding: 8px 12px; margin-bottom: 10px; font-size: 12px; }
+.dp-strip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; padding: 6px 0 2px; }
+.dp-strip.is-free { background: var(--nx-primary-soft); border-radius: var(--nx-radius-control); padding: 6px 8px 4px; }
+.dp-strip-field { display: flex; flex-direction: column; gap: 2px; width: 110px; font-size: 11px; color: var(--nx-muted); }
+.dp-strip-field:first-of-type { width: 140px; }
+.dp-strip-free { display: inline-flex; align-items: center; gap: 6px; align-self: center; font-size: 12px; font-weight: 600; }
+.dp-strip-amount { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--nx-muted); min-width: 100px; text-align: right; }
+.dp-strip-amount b { color: var(--nx-text); font-size: 12.5px; padding-top: 6px; }
+.dp-actions { display: inline-flex; gap: 8px; align-items: center; margin-left: auto; }
+.dp-form-foot { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 10px; }
+.dp-form-foot > .dp-actions { align-self: flex-end; }
+
+@media (max-width: 720px) { .dp-totals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

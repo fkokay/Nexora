@@ -15,7 +15,17 @@ using Microsoft.EntityFrameworkCore;
 /// </summary>
 internal sealed record SalesDeliveryListItem(Guid Id, string Kind, bool IsStandalone, Guid? SalesDeliveryId, string Code, Guid? OrderId, string? OrderCode,
     Guid? CustomerId, string? CustomerName, Guid WarehouseId, string WarehouseName, DateOnly DeliveryDate, string Status, int LineCount,
-    DateTimeOffset CreatedAt, bool HasSalesInvoice, Guid? InvoiceId, string? InvoiceCode, string? InvoiceStatus);
+    DateTimeOffset CreatedAt, bool HasSalesInvoice, Guid? InvoiceId, string? InvoiceCode, string? InvoiceStatus,
+    string? CurrencyCode = null, decimal PricedNetTotal = 0, decimal PricedVatTotal = 0, decimal PricedGrandTotal = 0,
+    int FreeLineCount = 0, int UnpricedLineCount = 0, string PricingState = DeliveryLinePricing.Priced);
+
+internal static class SalesDeliveryListItemPricing
+{
+    internal static SalesDeliveryListItem WithPricing(this SalesDeliveryListItem item, string? currencyCode, DeliveryPricingSummary pricing) =>
+        item with { CurrencyCode = currencyCode, PricedNetTotal = pricing.PricedNetTotal, PricedVatTotal = pricing.PricedVatTotal,
+            PricedGrandTotal = pricing.PricedGrandTotal, FreeLineCount = pricing.FreeLineCount, UnpricedLineCount = pricing.UnpricedLineCount,
+            PricingState = pricing.PricingState };
+}
 
 internal sealed record SalesDeliveryListPage(IReadOnlyList<SalesDeliveryListItem> Items, int Page, int PageSize, int TotalCount);
 
@@ -103,8 +113,10 @@ internal static class SalesDeliveryListEndpoints
                         x.Id, x.Code, x.OrderId, OrderCode = x.Order == null ? null : x.Order.Code,
                         OrderCustomerId = x.Order == null ? (Guid?)null : x.Order.CustomerId,
                         OrderCustomerName = x.Order == null ? null : x.Order.Customer.Name,
-                        x.WarehouseId, WarehouseName = x.Warehouse.Name, x.DeliveryDate, x.Status, LineCount = x.Lines.Count, x.CreatedAt
+                        x.WarehouseId, WarehouseName = x.Warehouse.Name, x.DeliveryDate, x.Status, LineCount = x.Lines.Count, x.CreatedAt,
+                        CurrencyCode = x.CurrencyCode ?? (x.Order == null ? null : x.Order.CurrencyCode)
                     }).ToListAsync(ct);
+                var pricing = await AIERP.Api.DeliveryPricingViews.SalesDeliveriesAsync(db, tenantId, salesIds, ct);
                 var invoices = await db.SalesInvoices.AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.DeliveryId != null && salesIds.Contains(x.DeliveryId.Value))
                     .Select(x => new { DeliveryId = x.DeliveryId!.Value, x.Id, x.Code, x.Status, x.CustomerId, CustomerName = x.Customer.Name })
@@ -116,7 +128,7 @@ internal static class SalesDeliveryListEndpoints
                     rows[x.Id] = new SalesDeliveryListItem(x.Id, x.OrderId is null ? "Invoice" : "Order", false, x.Id, x.Code, x.OrderId, x.OrderCode,
                         x.OrderCustomerId ?? invoice?.CustomerId, x.OrderCustomerName ?? invoice?.CustomerName, x.WarehouseId, x.WarehouseName,
                         x.DeliveryDate, x.Status.ToString(), x.LineCount, x.CreatedAt, invoice is not null, invoice?.Id, invoice?.Code,
-                        invoice?.Status.ToString());
+                        invoice?.Status.ToString()).WithPricing(x.CurrencyCode, pricing[x.Id]);
                 }
             }
             if (standaloneIds.Count > 0)
@@ -125,8 +137,9 @@ internal static class SalesDeliveryListEndpoints
                     .Select(x => new
                     {
                         x.Id, x.Code, x.CustomerId, CustomerName = x.Customer.Name, x.WarehouseId, WarehouseName = x.Warehouse.Name,
-                        x.DeliveryDate, x.Status, LineCount = x.Lines.Count, x.CreatedAt
+                        x.DeliveryDate, x.Status, LineCount = x.Lines.Count, x.CreatedAt, x.CurrencyCode
                     }).ToListAsync(ct);
+                var pricing = await AIERP.Api.DeliveryPricingViews.StandaloneSalesDeliveriesAsync(db, tenantId, standaloneIds, ct);
                 var invoices = await db.SalesInvoices.AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.StandaloneDeliveryId != null && standaloneIds.Contains(x.StandaloneDeliveryId.Value))
                     .Select(x => new { DeliveryId = x.StandaloneDeliveryId!.Value, x.Id, x.Code, x.Status })
@@ -137,7 +150,7 @@ internal static class SalesDeliveryListEndpoints
                     var invoice = invoiceByDelivery.GetValueOrDefault(x.Id);
                     rows[x.Id] = new SalesDeliveryListItem(x.Id, "Standalone", true, null, x.Code, null, null, x.CustomerId, x.CustomerName,
                         x.WarehouseId, x.WarehouseName, x.DeliveryDate, x.Status.ToString(), x.LineCount, x.CreatedAt, invoice is not null,
-                        invoice?.Id, invoice?.Code, invoice?.Status.ToString());
+                        invoice?.Id, invoice?.Code, invoice?.Status.ToString()).WithPricing(x.CurrencyCode, pricing[x.Id]);
                 }
             }
             var items = pageKeys.Where(x => rows.ContainsKey(x.Id)).Select(x => rows[x.Id]).ToList();

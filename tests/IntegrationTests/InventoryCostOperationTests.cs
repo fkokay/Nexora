@@ -60,7 +60,8 @@ public sealed class InventoryCostOperationTests
         Assert.Equal(new ErpOperationColumn("kind", "Kayıt türü", "text"), op.Result.Columns.Single(x => x.Code == "kind"));
         Assert.True(ErpOperationCatalog.TryGet("satinalma.malKabul.listele", out var receipts));
         Assert.Equal("items", receipts.Result.RowsPath);
-        Assert.Equal(["id", "code", "purchaseOrderId", "purchaseOrderCode", "warehouseId", "warehouseName", "receiptDate", "status", "lineCount", "createdAt"],
+        Assert.Equal(["id", "code", "purchaseOrderId", "purchaseOrderCode", "warehouseId", "warehouseName", "receiptDate", "status", "lineCount", "createdAt",
+                "currencyCode", "pricedNetTotal", "pricedVatTotal", "pricedGrandTotal", "freeLineCount", "unpricedLineCount", "pricingState"],
             receipts.Result.Columns.Select(x => x.Code));
         Assert.All(receipts.Parameters, x => Assert.Equal(("query", false), (x.In, x.Required)));
     }

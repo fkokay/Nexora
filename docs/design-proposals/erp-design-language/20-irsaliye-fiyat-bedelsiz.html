@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>İrsaliye fiyat ve bedelsiz</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff4d6;--free:#6b3fb8;--free-bg:#f1ebfb}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .r{margin-left:auto}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-top:10px}.sec h5{margin:0 0 10px;font-size:13px;display:flex;align-items:center;gap:10px}.sec h5 .r{margin-left:auto}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:30px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 9px}.in.ph{color:#98a2b3}.in.need{border-color:var(--warn);background:var(--warn-bg)}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:4px 11px;font-weight:600;display:inline-block;font-size:12px}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:7px 9px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:6px 9px;border-bottom:1px solid #eef1f6;vertical-align:middle}.num{text-align:right}.code{font-family:Consolas,monospace}
+td .cell{border:1px solid #d0d8e4;border-radius:6px;padding:3px 7px;background:#fff;text-align:right}td .cell.ro{background:#f8fafc;color:#475467;border-color:#e6ebf2}
+tr.free td{background:#faf7ff}tr.free .dash{color:#98a2b3;text-align:right}
+.cb{display:inline-grid;place-items:center;width:15px;height:15px;border:1.5px solid #98a2b3;border-radius:4px;font-size:10px;color:#fff;vertical-align:middle}.cb.on{background:var(--free);border-color:var(--free)}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-free{background:var(--free-bg);color:var(--free)}.t-warn{background:var(--warn-bg);color:var(--warn)}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}
+.src{font-size:10.5px;color:var(--mut);display:block}
+.tot{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}.tot div{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px 12px}.tot span{display:block;color:var(--mut);font-size:11px}.tot b{font-size:15px}
+.hint{color:#475467;font-size:12px;margin-top:8px}
+.dlg{max-width:900px;background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.12);overflow:hidden}.dlg .hd{padding:12px 16px;border-bottom:1px solid #eef1f6;display:flex;justify-content:space-between}.dlg .hd h4{margin:0;font-size:15px}.dlg .bd{padding:12px 16px}.dlg .ft{padding:10px 16px;border-top:1px solid #eef1f6;display:flex;gap:8px;justify-content:flex-end;align-items:center}.dlg .ft .l{margin-right:auto;color:var(--mut)}
+.alert{border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px}.alert.w{background:var(--warn-bg);color:#6d4c00;border:1px solid #f0d58a}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--pri);font-weight:600}
+</style></head><body>
+<h1>İrsaliyelerde fiyat ve bedelsiz satır (taslak 20)</h1>
+<p class="sub">Satış ve satınalma irsaliyelerinde her satıra <b>fiyat</b> girilebilir; bir satır <b>Bedelsiz</b> işaretlenirse fiyatsız kesilir. Fiyatlı satırların fiyatı faturaya aynen gelir. Bedelsiz satırların tutarı <b>fatura kesilirken</b> girilir. Siparişli irsaliyede fiyat siparişten önerilir ve değiştirilebilir; siparişe bağlı olmayan irsaliyede müşteri/tedarikçi liste fiyatı önerilir.</p>
+
+<div class="lbl">1 · SATIŞ İRSALİYESİ (SİPARİŞLİ) · SATIR TABLOSU</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satış › Satış İrsaliyeleri › Yeni irsaliye</div>
+  <div class="ttl"><h2>Satış irsaliyesi · SO-2026-0142</h2><small>FATİH KOKAY · TRY</small></div>
+  <div class="bar"><span class="pri">Kaydet</span><span>Yenile</span><span class="r">İşlemler ▾</span></div>
+  <div class="sec">
+    <h5>İrsaliye satırları <span class="r"><span class="btn">Tümünü bedelsiz yap</span> <span class="btn">Fiyatları siparişten yenile</span></span></h5>
+    <table>
+      <tr><th>Stok</th><th class="num">Sevk miktarı</th><th>Birim</th><th>Bedelsiz</th><th class="num">Birim fiyat</th><th class="num">İsk. %</th><th class="num">KDV %</th><th class="num">Tutar</th><th class="num">KDV dahil</th></tr>
+      <tr><td><b class="code">STK-0001</b> Test ürün 1</td><td class="num"><span class="cell">10</span></td><td>Adet</td><td><span class="cb"></span></td><td class="num"><span class="cell">1.000,00</span><span class="src">siparişte 1.000,00</span></td><td class="num"><span class="cell">5</span></td><td class="num"><span class="cell">20</span></td><td class="num">9.500,00</td><td class="num">11.400,00</td></tr>
+      <tr><td><b class="code">STK-0007</b> Kablo 2m</td><td class="num"><span class="cell">4</span></td><td>Adet</td><td><span class="cb"></span></td><td class="num"><span class="cell">85,00</span><span class="src" style="color:var(--warn)">siparişte 90,00 · değiştirildi</span></td><td class="num"><span class="cell">0</span></td><td class="num"><span class="cell">20</span></td><td class="num">340,00</td><td class="num">408,00</td></tr>
+      <tr class="free"><td><b class="code">STK-0012</b> Numune paketi <span class="tag t-free">Bedelsiz</span></td><td class="num"><span class="cell">2</span></td><td>Adet</td><td><span class="cb on">✓</span></td><td class="dash">— fiyatsız</td><td class="dash">—</td><td class="dash">—</td><td class="dash">faturada</td><td class="dash">—</td></tr>
+    </table>
+    <div class="tot">
+      <div><span>Fiyatlı satırlar</span><b>9.840,00 TRY</b></div>
+      <div><span>KDV</span><b>1.968,00 TRY</b></div>
+      <div><span>Genel toplam (fiyatlı)</span><b>11.808,00 TRY</b></div>
+      <div><span>Bedelsiz satır</span><b>1</b> <small style="color:var(--mut)">tutarı faturada girilir</small></div>
+    </div>
+    <div class="hint">Bedelsiz işaretlenen satırın fiyat, iskonto ve KDV hücreleri kilitlenir ve boşalır; işaret kaldırılınca fiyat yeniden siparişten önerilir. Sevk miktarı, stok ve maliyet kaydı bedelsiz satırda da aynen yapılır.</div>
+  </div>
+</div>
+<ul class="note"><li><b>Satış irsaliyesi (siparişe bağlı olmayan)</b> aynı tabloyu kullanır; "siparişte" satırı yerine <i>müşteri liste fiyatı</i> önerilir (yoksa boş, elle girilir). Döviz müşteri dövizidir.</li>
+<li>Listede yeni sütun: <b>Tutar</b> (fiyatlı satırların toplamı) ve <span class="tag t-free">Bedelsiz</span> / <span class="tag t-warn">Kısmen bedelsiz</span> durum etiketi.</li></ul>
+
+<div class="lbl">2 · İRSALİYEDEN FATURA · BEDELSİZ SATIRLARIN TUTARI BURADA GİRİLİR</div>
+<div class="dlg">
+  <div class="hd"><h4>Faturala · İRS-2026-0088</h4><span class="tag t-warn">1 satırın tutarı eksik</span></div>
+  <div class="bd">
+    <div class="alert w">Bedelsiz kesilen satırların tutarını girin. Fiyatlı satırlar irsaliye fiyatıyla gelir; burada değiştirilebilir (irsaliye değişmez).</div>
+    <table>
+      <tr><th>Stok</th><th class="num">Miktar</th><th class="num">Birim fiyat</th><th class="num">İsk. %</th><th class="num">KDV %</th><th class="num">Tutar</th></tr>
+      <tr><td>STK-0001 Test ürün 1</td><td class="num">10</td><td class="num"><span class="cell">1.000,00</span><span class="src">irsaliyeden</span></td><td class="num"><span class="cell">5</span></td><td class="num"><span class="cell">20</span></td><td class="num">9.500,00</td></tr>
+      <tr><td>STK-0007 Kablo 2m</td><td class="num">4</td><td class="num"><span class="cell">85,00</span><span class="src">irsaliyeden</span></td><td class="num"><span class="cell">0</span></td><td class="num"><span class="cell">20</span></td><td class="num">340,00</td></tr>
+      <tr class="free"><td>STK-0012 Numune paketi <span class="tag t-free">Bedelsiz</span></td><td class="num">2</td><td class="num"><span class="cell" style="border-color:var(--warn);background:var(--warn-bg)">tutar girin</span><span class="src">liste fiyatı 40,00 · öner</span></td><td class="num"><span class="cell">0</span></td><td class="num"><span class="cell">20</span></td><td class="num">—</td></tr>
+    </table>
+  </div>
+  <div class="ft"><span class="l">Bedelsiz satır 0 olarak da faturalanabilir; fatura toplamı sıfırdan büyük olmalı.</span><span class="btn">Vazgeç</span><span class="btn p">Faturayı oluştur</span></div>
+</div>
+<ul class="note"><li>Tamamen bedelsiz bir irsaliye de bu pencereden faturalanır: tüm satırların tutarı burada girilir. Faturalanana kadar "Faturalanmamış" listesinde kalır.</li>
+<li>Birden çok irsaliyeyi tek faturada birleştirme bugün nasıl çalışıyorsa öyle kalır; her satır kendi irsaliye fiyatını taşır.</li></ul>
+
+<div class="lbl">3 · SATINALMA · MAL KABUL VE SATINALMA İRSALİYESİ</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satın Alma › Mal kabulleri › Yeni mal kabul</div>
+  <div class="ttl"><h2>Mal kabul · PO-2026-0031</h2><small>Tedarikçi A.Ş. · TRY · Depo MERKEZ</small></div>
+  <div class="sec">
+    <h5>Kabul satırları <span class="r"><span class="btn">Tümünü bedelsiz yap</span></span></h5>
+    <table>
+      <tr><th>Stok</th><th class="num">Kabul miktarı</th><th>Bedelsiz</th><th class="num">Birim fiyat</th><th class="num">İsk. %</th><th class="num">KDV %</th><th class="num">Tutar</th><th>Stok maliyeti</th></tr>
+      <tr><td>STK-0001 Test ürün 1</td><td class="num"><span class="cell">20</span></td><td><span class="cb"></span></td><td class="num"><span class="cell">500,00</span><span class="src">siparişte 500,00</span></td><td class="num"><span class="cell">0</span></td><td class="num"><span class="cell">20</span></td><td class="num">10.000,00</td><td><span class="tag t-ok">500,00 / adet</span></td></tr>
+      <tr class="free"><td>STK-0020 Promosyon kutusu <span class="tag t-free">Bedelsiz</span></td><td class="num"><span class="cell">50</span></td><td><span class="cb on">✓</span></td><td class="dash">— fiyatsız</td><td class="dash">—</td><td class="dash">—</td><td class="dash">faturada</td><td><span class="tag t-warn">fatura gelince</span></td></tr>
+    </table>
+    <div class="hint">Fiyatlı satırın stok maliyeti irsaliye fiyatından (iskonto ve kur uygulanmış) yazılır. Bedelsiz satırın stok maliyeti <b>alış faturası girilince</b> faturadaki tutardan tamamlanır (karar 2).</div>
+  </div>
+</div>
+<ul class="note"><li>Satınalma irsaliyesi (stok kaydı yapmayan belge) aynı sütunları alır; maliyet sütunu yoktur.</li>
+<li>Alış faturası girişinde fiyatlı satırlar irsaliye fiyatıyla dolar, bedelsiz satırlar "tutar girin" ile işaretlenir — satış tarafındaki pencereyle aynı.</li></ul>
+
+<div class="lbl">4 · AÇIK KARARLAR</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Siparişli irsaliyede fiyat değişikliği siparişe yansısın mı?</b><p>Öneri: <span class="rec">Hayır.</span> Sipariş fiyatı değişmez; irsaliye satırı kendi fiyatını saklar ve "siparişte 90,00 · değiştirildi" notu gösterilir. Fatura irsaliye fiyatını kullanır.</p></div>
+  <div class="d"><b class="h">2 · Bedelsiz alımın stok maliyeti</b><p>Öneri: <span class="rec">Fatura gelince tamamlanır;</span> o zamana kadar satır "maliyeti bekliyor" olur ve ortalama maliyet hesabında son bilinen maliyet kullanılır (0 ile ortalamayı düşürmez). Alternatif: 0 maliyetle değerlemek (ortalamayı düşürür).</p></div>
+  <div class="d"><b class="h">3 · Mevcut irsaliyeler</b><p>Öneri: <span class="rec">Geriye dönük doldurma:</span> siparişli eski irsaliye satırlarına sipariş fiyatı yazılır; siparişe bağlı olmayan eski irsaliyeler fiyatsız (bedelsiz değil) kalır ve faturada bugünkü gibi fiyat istenir.</p></div>
+  <div class="d"><b class="h">4 · Yazdırma / e-İrsaliye</b><p>Bugün irsaliye çıktısı yok. Öneri: <span class="rec">bu işin dışında;</span> çıktı eklendiğinde fiyatlı/bedelsiz gösterimi ayrıca konuşulur.</p></div>
+</div>
+<p class="note">Teknik not: satış irsaliyesi, siparişe bağlı olmayan satış irsaliyesi, mal kabul ve satınalma irsaliyesi satır tablolarına fiyat/iskonto/KDV/döviz ve <i>Bedelsiz</i> sütunları eklenir (Platform + Tenant migration, geriye uyumlu, null olabilir). Eski ekranlar ve sistem sayfası standartları birlikte güncellenir; faturalama uç noktaları irsaliye fiyatını esas alır.</p>
+</body></html>

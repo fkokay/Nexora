@@ -435,6 +435,144 @@ describe('Satış irsaliyesi detayı', () => {
   });
 });
 
+/** Request body of the `method` call to `path`. */
+function sentBody(path: string, method = 'POST') {
+  const call = apiMock.mock.calls.find(([url, , init]) => url === path && init?.method === method);
+  return call ? JSON.parse(call[2].body as string) : undefined;
+}
+/** Answers `overrides` first, then the shared responses, for the rest of one test. */
+function withResponses(overrides: Record<string, unknown>) {
+  apiMock.mockImplementation(async (url: string) => {
+    const path = url.split('?')[0];
+    return path in overrides ? overrides[path] : respond(url);
+  });
+}
+const restoreResponses = () => apiMock.mockImplementation(async (url: string) => respond(url));
+
+describe('İrsaliye fiyatı ve bedelsiz satır (taslak 20)', () => {
+  it('the İrsaliye sub-form suggests the order prices, marks a change, locks a Bedelsiz line and posts the prices', async () => {
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('S-o1');
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'İrsaliye oluştur' }));
+    });
+    const form = await waitFor(() => screen.getByRole('heading', { name: 'Satış irsaliyesi' }).closest<HTMLElement>('.record-form')!);
+    expect(within(form).getByText('siparişte 20,00')).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText('STK-1 birim fiyat'), { target: { value: '18' } });
+    expect(within(form).getByText('siparişte 20,00 · değiştirildi')).toBeTruthy();
+    // Tümünü bedelsiz yap marks every line; Bedelsizi kaldır suggests the order prices again.
+    fireEvent.click(within(form).getByRole('button', { name: 'Tümünü bedelsiz yap' }));
+    expect(within(form).getByLabelText<HTMLInputElement>('STK-1 bedelsiz').checked).toBe(true);
+    expect(within(form).getByLabelText<HTMLInputElement>('STK-2 bedelsiz').checked).toBe(true);
+    fireEvent.click(within(form).getByRole('button', { name: 'Bedelsizi kaldır' }));
+    expect(within(form).getByLabelText<HTMLInputElement>('STK-1 birim fiyat').value).toBe('20');
+    fireEvent.change(within(form).getByLabelText('STK-1 birim fiyat'), { target: { value: '18' } });
+    fireEvent.click(within(form).getByLabelText('STK-2 bedelsiz'));
+    const free = within(form).getByLabelText<HTMLInputElement>('STK-2 birim fiyat');
+    expect(free.disabled).toBe(true);
+    expect(free.value).toBe('');
+    const cards = within(form).getByRole('group', { name: 'İrsaliye fiyat toplamları' });
+    expect(cards.textContent).toContain('90,00 TRY');
+    expect(cards.textContent).toContain('108,00 TRY');
+    expect(cards.querySelector(':scope > div:last-child b')?.textContent).toBe('1');
+    await act(async () => {
+      fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    });
+    await waitFor(() => expect(sentBody('/api/sales/orders/o1/deliveries')).toBeDefined());
+    const body = sentBody('/api/sales/orders/o1/deliveries');
+    expect(body.lines).toEqual([
+      { orderLineNumber: 1, quantity: 5, unitCode: 'ADET', storageLocationId: null, isFreeOfCharge: false, unitPrice: 18, discountPercent: 0, vatPercent: 20 },
+      { orderLineNumber: 2, quantity: 2, unitCode: 'ADET', storageLocationId: null, isFreeOfCharge: true },
+    ]);
+  });
+
+  const partlyFree = delivery('d4', 'Posted', {
+    currencyCode: 'TRY', pricedNetTotal: 100, pricedVatTotal: 20, pricedGrandTotal: 120, freeLineCount: 1, unpricedLineCount: 0, pricingState: 'PartlyFree',
+  });
+  const partlyFreeLines = () => [
+    { ...deliveryLines()[0], isFreeOfCharge: false, orderUnitPrice: 20, lineNetAmount: 100, lineVatAmount: 20, lineTotal: 120 },
+    { ...deliveryLines()[1], unitPrice: null, discountPercent: null, vatPercent: null, isFreeOfCharge: true, orderUnitPrice: 25, lineNetAmount: null, lineVatAmount: null, lineTotal: null },
+  ];
+  const partlyFreeResponses = {
+    '/api/sales/deliveries/': page([...deliveries(), partlyFree]),
+    '/api/sales/deliveries/d4': { ...partlyFree, lines: partlyFreeLines() },
+  };
+
+  it('the list shows Tutar with the Kısmen bedelsiz tag; the document marks the free line', async () => {
+    withResponses(partlyFreeResponses);
+    try {
+      renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+      await settle();
+      expect(row('I-d4').textContent).toContain('120,00 TRY');
+      expect(within(row('I-d4')).getByText('Kısmen bedelsiz')).toBeTruthy();
+      await openRow('I-d4');
+      const table = within(surface()).getByRole('table', { name: 'İrsaliye satırları' });
+      expect(within(table).getByText('Bedelsiz', { selector: '.dp-tag' })).toBeTruthy();
+      expect(within(table).getByText('— fiyatsız')).toBeTruthy();
+      expect(within(table).getByText('faturada')).toBeTruthy();
+      expect(surface().textContent).toContain('Bedelsiz satır: 1 · tutarı faturada girilir.');
+    } finally {
+      restoreResponses();
+    }
+  });
+
+  it('Faturalaştır on a partly free delivery opens the invoice form: delivery prices prefilled, the free line needs an amount, overrides are sent', async () => {
+    withResponses(partlyFreeResponses);
+    try {
+      renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+      await openRow('I-d4');
+      fireEvent.click(command('more'));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Faturalaştır' }));
+      });
+      const form = await waitFor(() => screen.getByRole('heading', { name: 'Fatura bilgileri' }).closest<HTMLElement>('.record-form')!);
+      expect(form.textContent).toContain('1 satırın tutarı eksik');
+      expect(within(form).getByLabelText<HTMLInputElement>('STK-1 birim fiyat').value).toBe('20');
+      expect(within(form).getByText('irsaliyeden')).toBeTruthy();
+      const freePrice = within(form).getByLabelText<HTMLInputElement>('STK-2 birim fiyat');
+      expect(freePrice.value).toBe('');
+      expect(freePrice.placeholder).toBe('tutar girin');
+      const save = within(form).getByRole<HTMLButtonElement>('button', { name: 'Kaydet' });
+      expect(save.disabled).toBe(true);
+      expect(sentBody('/api/sales/deliveries/d4/invoice')).toBeUndefined();
+      // 0 is a valid amount for a free line; the priced line may be changed (the delivery is not).
+      fireEvent.change(freePrice, { target: { value: '0' } });
+      fireEvent.change(within(form).getByLabelText('STK-1 birim fiyat'), { target: { value: '22' } });
+      await waitFor(() => expect(save.disabled).toBe(false));
+      await act(async () => {
+        fireEvent.click(save);
+      });
+      await waitFor(() => expect(sentBody('/api/sales/deliveries/d4/invoice')).toBeDefined());
+      expect(sentBody('/api/sales/deliveries/d4/invoice')).toEqual({
+        customFields: {},
+        lines: [
+          { orderLineNumber: 1, unitPrice: 22, discountPercent: 0, vatPercent: 20 },
+          // The free line has no stock card VAT here: blank discount / VAT are left to the server (order line).
+          { orderLineNumber: 2, unitPrice: 0 },
+        ],
+      });
+    } finally {
+      restoreResponses();
+    }
+  });
+
+  it('a fully priced order-based delivery still invoices in one click without a lines override', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('I-d1');
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Faturalaştır' }));
+    });
+    const form = await waitFor(() => screen.getByRole('heading', { name: 'Fatura bilgileri' }).closest<HTMLElement>('.record-form')!);
+    expect(form.textContent).not.toContain('tutarı eksik');
+    await act(async () => {
+      fireEvent.click(within(form).getByRole('button', { name: 'Kaydet' }));
+    });
+    await waitFor(() => expect(sentBody('/api/sales/deliveries/d1/invoice')).toEqual({ customFields: {} }));
+  });
+});
+
 describe('Satış talebi detayı', () => {
   it('shows the flow, no header buttons (Teklif hazırla is in İşlemler) and the quotes in the chain', async () => {
     renderScreen(<SalesCustomerRequestsPage token="t" onNavigate={vi.fn()} />);

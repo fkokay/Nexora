@@ -8,14 +8,23 @@ using System.Text.RegularExpressions;
 /// <c>"lookupCol@label"</c> key names the shown label of a filled picker cell) and <c>skipWhenZero</c> (a number column);</item>
 /// <item><c>lookupFills</c> <c>{ lookupCol: { gridCol: optionCol } }</c>;</item>
 /// <item><c>formulas</c> <c>{ numberCol: expr }</c> (see <see cref="GridFormula"/>; formulas may reference each other without cycles);</item>
-/// <item><c>rowNumberColumn</c>: a number column that gets 1..n on the sent rows (not a formula, fill target or formula operand).</item>
+/// <item><c>rowNumberColumn</c>: a number column that gets 1..n on the sent rows (not a formula, fill target or formula operand);</item>
+/// <item><c>lockColumnsWhen</c> <c>["col1,col2=condition"]</c>: while the row condition holds (<c>satir</c> is the grid row) the
+/// columns are read-only, empty and left out of the row (e.g. the price cells of a free-of-charge line); see
+/// <see cref="ValidateLockColumns"/>.</item>
 /// </list>
 /// Computed (<c>calc</c>) columns are never a fill target. The object-valued ones skip the generic prop check
 /// (<see cref="GridEngineObjectProps"/>) and are fully checked here.
 /// </summary>
 internal static partial class TenantCustomPageSchema
 {
-    private static readonly string[] GridEngineProps = ["fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn"];
+    private static readonly string[] GridEngineProps = ["fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn", "lockColumnsWhen"];
+    /// <summary>Most <c>lockColumnsWhen</c> rules of a grid.</summary>
+    internal const int MaxLockRules = 8;
+    /// <summary>The grid-row overlay of a <c>lockColumnsWhen</c> condition; its only root.</summary>
+    private const string LockRowRoot = "satir";
+    private static readonly Regex QuotedLiteral = new(@"'[^']*'|""[^""]*""", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex RowPath = new(@"\bsatir((?:\.[A-Za-z_][A-Za-z0-9_]*)+)", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>Object-valued grid props; the generic <c>SafeValue</c> check rejects objects, so they are validated here.</summary>
     private static readonly HashSet<string> GridEngineObjectProps = new(StringComparer.Ordinal) { "fillColumns", "lookupFills", "formulas" };
     private static readonly Regex EngineSourceColumn = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[A-Za-z_][A-Za-z0-9_]{0,63})*\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -105,6 +114,9 @@ internal static partial class TenantCustomPageSchema
             return Fail("'skipWhenZero' ızgaranın sayı (number) sütunu olmalıdır.", out error);
         if (rowNumber is not null && skip.ValueKind == JsonValueKind.String && skip.GetString() == rowNumber)
             return Fail("'rowNumberColumn' ve 'skipWhenZero' aynı sütun olamaz.", out error);
+        if (props.TryGetProperty("lockColumnsWhen", out var locks)
+            && !ValidateLockColumns(locks, columnSet, calcColumns, rowNumber, skip.ValueKind == JsonValueKind.String ? skip.GetString() : null, out error))
+            return false;
 
         if (props.TryGetProperty("lookupFills", out var lookupFills))
         {
@@ -135,6 +147,57 @@ internal static partial class TenantCustomPageSchema
         }
         return true;
     }
+
+    /// <summary>
+    /// <c>lockColumnsWhen</c>: 1–<see cref="MaxLockRules"/> items "col1,col2=condition" (split on the first "="). The columns are
+    /// distinct grid columns that are not computed (calc), the row number or the skipWhenZero column; formula and fill targets may
+    /// be locked (the runtime clears them while locked and restores the fill value when the condition stops holding). The condition
+    /// only reads the grid row (<c>satir.&lt;column&gt;</c>), never a column of its own rule.
+    /// </summary>
+    private static bool ValidateLockColumns(JsonElement locks, IReadOnlySet<string> columnSet, IReadOnlySet<string> calcColumns, string? rowNumber,
+        string? skipWhenZero, out string? error)
+    {
+        error = null;
+        const string format = "\"sütun1,sütun2=koşul\"";
+        if (locks.ValueKind != JsonValueKind.Array || locks.GetArrayLength() is < 1 or > MaxLockRules)
+            return Fail($"'lockColumnsWhen' 1–{MaxLockRules} adet {format} öğesi içermelidir.", out error);
+        var roots = columnSet.Select(GridColumnRoot).ToHashSet(StringComparer.Ordinal);
+        foreach (var item in locks.EnumerateArray())
+        {
+            var text = item.ValueKind == JsonValueKind.String ? item.GetString()! : "";
+            var at = text.IndexOf('=');
+            if (at <= 0 || at == text.Length - 1) return Fail($"'lockColumnsWhen' öğeleri {format} biçiminde olmalıdır.", out error);
+            var codes = text[..at].Split(',');
+            var condition = text[(at + 1)..];
+            if (codes.Length > MaxGridColumns || codes.Distinct(StringComparer.Ordinal).Count() != codes.Length)
+                return Fail($"'lockColumnsWhen' sütunları 1–{MaxGridColumns} adet farklı sütun kodu olmalıdır: {text[..at]}", out error);
+            foreach (var code in codes)
+            {
+                if (!columnSet.Contains(code)) return Fail($"'lockColumnsWhen' sütunu ızgarada yok: {code}", out error);
+                if (calcColumns.Contains(code)) return Fail($"'lockColumnsWhen' hesaplanan (calc) sütunu kilitleyemez: {code}", out error);
+                if (code == rowNumber) return Fail($"'lockColumnsWhen' sıra numarası sütununu kilitleyemez: {code}", out error);
+                if (code == skipWhenZero) return Fail($"'lockColumnsWhen' 'skipWhenZero' sütununu kilitleyemez: {code}", out error);
+            }
+            if (!PageConditionExpression.TryParse(condition, out var conditionRoots, out var reason))
+                return Fail($"'lockColumnsWhen' koşulu geçersiz: {reason}", out error);
+            if (conditionRoots.FirstOrDefault(x => x != LockRowRoot) is { } other)
+                return Fail($"'lockColumnsWhen' koşulu yalnız satırın sütunlarına (satir.<sütun>) başvurabilir: {other}", out error);
+            // The row paths outside quoted literals: a grid column (or a map column's root), never one the rule locks.
+            foreach (Match match in RowPath.Matches(QuotedLiteral.Replace(condition, "''")))
+            {
+                var path = match.Groups[1].Value[1..];
+                var root = path.Split('.')[0];
+                if (!columnSet.Contains(path) && !roots.Contains(root))
+                    return Fail($"'lockColumnsWhen' koşulu ızgarada olmayan bir sütuna başvuruyor: {path}", out error);
+                if (calcColumns.Contains(path)) return Fail($"'lockColumnsWhen' koşulu hesaplanan (calc) sütuna başvuramaz: {path}", out error);
+                if (codes.Any(code => code == path || GridColumnRoot(code) == root))
+                    return Fail($"'lockColumnsWhen' koşulu kilitlediği sütuna başvuramaz: {path}", out error);
+            }
+        }
+        return true;
+    }
+
+    private static string GridColumnRoot(string code) => code.IndexOf('.') is var dot and >= 0 ? code[..dot] : code;
 
     /// <summary>A JSON object of 1–<see cref="MaxGridColumns"/> distinct keys with string values (1–<see cref="GridFormula.MaxLength"/> characters).</summary>
     private static bool TryReadStringMap(JsonElement value, out List<(string Key, string Value)> entries)

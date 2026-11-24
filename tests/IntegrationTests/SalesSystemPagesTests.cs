@@ -86,10 +86,12 @@ public sealed class SalesSystemPagesTests
         var op = Op("satis.irsaliye.faturalastir");
         Assert.Equal(("POST", "/api/sales/deliveries/{id}/invoice"), (op.Method, op.Route));
         var names = op.Parameters.Select(x => x.Name).ToArray();
-        // Order-based: prices come from the order, the date is today; one invoice per delivery, so no requestId.
+        // Order-based: prices come from the delivery lines (old rows: the order), the date is today; one invoice per delivery, so
+        // no requestId. lines is the optional per-line price list (free / unpriced lines need an amount).
         Assert.DoesNotContain("customerId", names);
         Assert.DoesNotContain("invoiceDate", names);
-        Assert.DoesNotContain("lines", names);
+        Assert.Equal(["orderLineNumber", "unitPrice", "discountPercent", "vatPercent", "isVatIncluded"],
+            op.Parameters.Single(x => x.Name == "lines").Items!.Select(x => x.Code));
         Assert.DoesNotContain("requestId", names);
         Assert.Equal("map", op.Parameters.Single(x => x.Name == "customFields").Type);
         Assert.Equal("text", op.Parameters.Single(x => x.Name == "invoiceType").Type);

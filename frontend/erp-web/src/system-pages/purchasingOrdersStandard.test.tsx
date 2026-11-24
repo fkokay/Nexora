@@ -122,11 +122,45 @@ describe('Satınalma siparişleri standart tanımı', { timeout: 60000 }, () => 
     expect(h.bodyOf(h.sent(RECEIPTS)[0])).toEqual({
       requestId: expect.stringMatching(GUID), warehouseId: W1, receiptDate: today(),
       lines: [
-        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET' },
-        { orderLineNumber: 3, quantity: 2, unitCode: 'RULO', storageLocationId: L1 },
+        // Fiyatlar sipariş satırından dolar (aynı kodlu sütunlar) ve olduğu gibi gönderilir.
+        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET', unitPrice: 100, discountPercent: 0, vatPercent: 20 },
+        { orderLineNumber: 3, quantity: 2, unitCode: 'RULO', storageLocationId: L1, unitPrice: 100, discountPercent: 0, vatPercent: 20 },
       ],
     });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /Mal kabul · SA-0001/ })).toBeNull(), T);
+  });
+
+  it('a free (Bedelsiz) line locks and clears its price cells and sends no price; a priced line sends the overridden price', async () => {
+    const dialog = await openReceiptDialog();
+    // Sipariş fiyatı ve formül Tutar: 6 × 100 = 600.
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')!.value).toBe('100');
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'vatPercent')!.value).toBe('20');
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'lineNetAmount')!.value).toBe('600');
+    // Satır 1 bedelsiz: fiyat, iskonto, KDV ve Tutar hücreleri salt okunur "—" olur.
+    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
+    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')).toBeNull(), T);
+    const lockedCells = dialog.querySelectorAll('[data-locked]');
+    expect([...lockedCells].map((cell) => cell.getAttribute('data-locked'))).toEqual(['unitPrice', 'discountPercent', 'vatPercent', 'lineNetAmount']);
+    expect([...lockedCells].every((cell) => cell.textContent === '—')).toBe(true);
+    // Bedelsiz kaldırılınca siparişin fiyatı geri gelir; yeniden işaretlenir.
+    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
+    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')?.value).toBe('100'), T);
+    expect(h.gridCell('kabulKalemleri', 'dolu-1', 'lineNetAmount')!.value).toBe('600');
+    fireEvent.click(h.gridCell('kabulKalemleri', 'dolu-1', 'isFreeOfCharge')!);
+    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-1', 'unitPrice')).toBeNull(), T);
+    // Satır 3 fiyatlı: kullanıcının yazdığı fiyat ve iskonto gönderilir; Tutar 5 × 80 × 0,9 = 360.
+    h.type(h.gridCell('kabulKalemleri', 'dolu-3', 'unitPrice')!, '80');
+    h.type(h.gridCell('kabulKalemleri', 'dolu-3', 'discountPercent')!, '10');
+    await waitFor(() => expect(h.gridCell('kabulKalemleri', 'dolu-3', 'lineNetAmount')!.value).toBe('360'), T);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mal kabulü kaydet' }));
+    await waitFor(() => expect(h.sent(RECEIPTS)).toHaveLength(1), T);
+    expect(h.bodyOf(h.sent(RECEIPTS)[0])).toEqual({
+      requestId: expect.stringMatching(GUID), warehouseId: W1, receiptDate: today(),
+      lines: [
+        { orderLineNumber: 1, quantity: 6, unitCode: 'ADET', isFreeOfCharge: true },
+        { orderLineNumber: 3, quantity: 5, unitCode: 'RULO', unitPrice: 80, discountPercent: 10, vatPercent: 20 },
+      ],
+    });
   });
 
   it('a failed receipt keeps the dialog, shows the server text and retries with the same requestId', async () => {
