@@ -11,7 +11,7 @@ import { setPageParams } from '../pageNavigation';
 import { pageDateScope } from '../custom-page/pageBindings';
 import catalog from './customerLedgerOperations.fixture.json';
 
-// "Cari Hesap Hareketleri" standart tanımı (customer-ledger.json): iki adım (cari seç › ekstre), dönem düğmeleri `tarih` kökünden,
+// "Cari Hesap Hareketleri" standart tanımı (customer-ledger.json): üstte cari seçici; seçilince ekstre görünür. Dönem düğmeleri `tarih` kökünden,
 // borç / alacak / B-A bakiye sütunları ekstrenin hesaplanan üyelerinden gelir.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
@@ -101,19 +101,26 @@ describe('Cari Hesap Hareketleri standart tanımı', { timeout: 30000 }, () => {
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
 
-  it('step 1 lists accounts; Ekstreyi gör opens step 2 for the year so far', async () => {
+  it('opens with the customer lookup and a hint; choosing a customer shows the statement for the year so far', async () => {
     setup();
-    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    expect(await screen.findByText('Ekstreyi görmek için yukarıdan bir cari hesap seçin.', {}, T)).toBeTruthy();
+    // Adım göstergesi, cari listesi ve satır düğmesi yok; ekstre okunmaz.
+    expect(screen.queryByRole('list', { name: 'Adımlar' })).toBeNull();
+    expect(document.querySelector('.tenant-page-data-grid')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ekstreyi gör/ })).toBeNull();
     expect(statements()).toEqual([]);
-    fireEvent.click(screen.getByRole('button', { name: /Ekstreyi gör/ }));
+    fireEvent.click(input('cariSecimi'));
+    fireEvent.click(await screen.findByRole('option', { name: /^FATİH KOKAY/ }, T));
     await waitFor(() => expect(statements()).toHaveLength(1), T);
     expect(range(statements()[0].url)).toEqual([pageDateScope().yilBasi, today()]);
-    // ‹ Cari değiştir 1. adıma döner.
-    fireEvent.click(await screen.findByRole('button', { name: /Cari değiştir/ }, T));
-    expect(await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T)).toBeTruthy();
+    await screen.findByText('Satış faturası SF-2026-0012', {}, T);
+    expect(screen.queryByText('Ekstreyi görmek için yukarıdan bir cari hesap seçin.')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Cari değiştir/ })).toBeNull();
+    // Cari araması sunucuda yapılır (cari.listele q).
+    expect(calls.some((call) => call.url.split('?')[0] === '/api/customers')).toBe(true);
   });
 
-  it('customerId page param opens step 2 directly with the header, B/A columns and reversal status columns', async () => {
+  it('customerId page param shows the statement directly with the header, B/A columns and reversal status columns', async () => {
     setup(C1);
     await waitFor(() => expect(statements()).toHaveLength(1), T);
     await screen.findByText('Satış faturası SF-2026-0012', {}, T);
