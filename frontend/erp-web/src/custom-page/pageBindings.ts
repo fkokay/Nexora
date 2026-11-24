@@ -53,6 +53,32 @@ export function interpolate(template: string, scope: PageScope): string {
   return template.replace(EMBEDDED, (_match, path: string) => displayText(resolvePath(scope, path)));
 }
 
+/** Parçalı metnin (`parts`) ayracı. */
+export const TEXT_PART_SEPARATOR = " · ";
+
+/** Şablonun en az bir `{{yol}}` bağlaması var ve hepsi boş (çözülemeyen ya da yalnız boşluk) çözülüyor mu? */
+export function bindingsAllEmpty(template: string, scope: PageScope): boolean {
+  const paths = [...template.matchAll(EMBEDDED)].map((match) => match[1]);
+  return paths.length > 0 && paths.every((path) => displayText(resolvePath(scope, path)).trim() === "");
+}
+
+/**
+ * Parçalı metin (metin bileşeninin `parts` özelliği): her parça `interpolate` ile çözülür; en az bir bağlaması olan ve bütün
+ * bağlamaları boş (yalnız boşluk) çözülen parça etiketiyle birlikte düşer, bağlamasız parça her zaman kalır. Kalanlar " · " ile
+ * birleşir (ör. "Vergi no {{kart.rows[0].taxNumber}}" vergi numarası yokken görünmez; 0 değeri boş değildir).
+ */
+export function joinTextParts(parts: unknown, scope: PageScope): string {
+  if (!Array.isArray(parts)) return "";
+  const shown: string[] = [];
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    if (bindingsAllEmpty(part, scope)) continue;
+    const text = interpolate(part, scope).trim();
+    if (text) shown.push(text);
+  }
+  return shown.join(TEXT_PART_SEPARATOR);
+}
+
 /** `interpolate` gibi; her çözülen değer `map` ile dönüştürülür (ör. bağlantıda encodeURIComponent). */
 export function interpolateWith(template: string, scope: PageScope, map: (text: string) => string): string {
   if (!template.includes("{{")) return template;

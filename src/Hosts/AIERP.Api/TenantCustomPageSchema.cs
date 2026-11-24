@@ -85,13 +85,16 @@ internal static partial class TenantCustomPageSchema
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
       "bulkDeleteQuery",
       // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
-      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn" };
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn",
+      // Boş çözülen varsayılanın sabit yedeği (emptyDefault: yeni kartta "TRY"), parçalı metin (parts: boş bağlamalı parça düşer)
+      // ve İşlem Çubuğu Sil onayının bağlanabilir metni (deleteConfirmText).
+      "emptyDefault", "parts", "deleteConfirmText" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "exportCsv", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
-      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook", "saveAndNew" };
+      "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook", "saveAndNew", "deleteConfirmText" };
     private static readonly string[] BarCommandIds = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"];
     /// <summary><c>commandWhen</c> keys: the bar commands plus İşlemler › "Kaydet ve yeni" (<c>saveNew</c>, with <c>saveAndNew</c>).</summary>
     private static readonly string[] ConditionalBarCommandIds = [.. BarCommandIds, "saveNew"];
@@ -136,11 +139,11 @@ internal static partial class TenantCustomPageSchema
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
     { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
-      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle", "promptText" };
+      "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle", "promptText", "deleteConfirmText" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
         ["promptLabel"] = 60, ["fixedRowLabel"] = 200, ["matrixCode"] = 200, ["matrixName"] = 200, ["recordKey"] = 200,
-        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength, ["subtitle"] = MaxHeaderTextLength, ["promptText"] = 300 };
+        ["href"] = 1000, ["queryText"] = 200, ["titleCount"] = MaxTitleCountLength, ["subtitle"] = MaxHeaderTextLength, ["promptText"] = 300, ["deleteConfirmText"] = 300 };
     /// <summary>Props of a button's query action; meaningful only on buttons.</summary>
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
@@ -626,6 +629,10 @@ internal static partial class TenantCustomPageSchema
                 if (context.V2 && prop.Name == "tabs" && typeText == "tabs" && prop.Value.ValueKind == JsonValueKind.Array
                     && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeBindableText(x.GetString()!)))
                     continue;
+                // Parçalı metin: her parça {{yol}} taşıyabilir; biçimi ValidateTextFallbackProps denetler.
+                if (context.V2 && prop.Name == "parts" && typeText == "text" && prop.Value.ValueKind == JsonValueKind.Array
+                    && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String && SafeBindableText(x.GetString()!)))
+                    continue;
                 if (MessageLimits.TryGetValue(prop.Name, out var messageLimit)
                     && (prop.Value.ValueKind != JsonValueKind.String || prop.Value.GetString()!.Length > messageLimit))
                 { error = $"'{prop.Name}' en fazla {messageLimit} karakterlik metin olmalıdır."; return false; }
@@ -671,6 +678,7 @@ internal static partial class TenantCustomPageSchema
             { error = "Satır işlemleri yalnızca veri listelerinde açılıp kapatılabilir."; return false; }
             if (props.TryGetProperty("rowActionLabel", out var rowActionLabel) && (typeText != "dataTable" || rowActionLabel.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(rowActionLabel.GetString()) || rowActionLabel.GetString()!.Length > 60))
             { error = "Satır işlemi düğme metni 1–60 karakter olmalıdır."; return false; }
+            if (context.V2 && !ValidateTextFallbackProps(props, typeText, out error)) return false;
             if (context.V2 && !ValidateFazAProps(props, idText, componentName, typeText, context, out error)) return false;
             if (context.V2 && !ValidateV2Props(props, typeText, context, out error)) return false;
             if (context.V2 && !ValidateLayoutProps(props, idText, typeText, context, out error)) return false;
@@ -854,6 +862,41 @@ internal static partial class TenantCustomPageSchema
     }
 
     /// <summary>actionBar props (design language step 2c); id references resolve after the loop.</summary>
+    private const int MaxTextParts = 12;
+    private const int MaxTextPartLength = 200;
+    private const int MaxEmptyDefaultLength = 200;
+
+    /// <summary>
+    /// <c>emptyDefault</c>: a text/number input's static value used while <c>defaultValue</c> resolves empty (a new card's
+    /// "TRY" / "0"); a number input's value must parse. <c>parts</c>: a text component's 1–12 bindable parts, joined with " · "
+    /// at runtime, a part whose bindings all resolve empty being dropped.
+    /// </summary>
+    private static bool ValidateTextFallbackProps(JsonElement props, string typeText, out string? error)
+    {
+        error = null;
+        if (props.TryGetProperty("emptyDefault", out var emptyDefault))
+        {
+            var inputType = StringOf(props, "inputType") ?? "text";
+            var text = emptyDefault.ValueKind == JsonValueKind.String ? emptyDefault.GetString()! : null;
+            if (typeText != "input" || inputType is not ("text" or "number"))
+            { error = "'emptyDefault' yalnız metin ve sayı girişinde kullanılabilir."; return false; }
+            if (text is null || text.Length > MaxEmptyDefaultLength || text.Contains("{{", StringComparison.Ordinal))
+            { error = $"'emptyDefault' en fazla {MaxEmptyDefaultLength} karakterlik sabit metin olmalıdır (bağlama içeremez)."; return false; }
+            if (inputType == "number" && text.Trim().Length > 0
+                && !decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out _))
+            { error = "'emptyDefault' sayı girişinde geçerli bir sayı olmalıdır (ör. 0)."; return false; }
+        }
+        if (props.TryGetProperty("parts", out var parts))
+        {
+            if (typeText != "text")
+            { error = "'parts' yalnız metin bileşeninde kullanılabilir."; return false; }
+            if (parts.ValueKind != JsonValueKind.Array || parts.GetArrayLength() is < 1 or > MaxTextParts
+                || parts.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(x.GetString()) || x.GetString()!.Length > MaxTextPartLength))
+            { error = $"'parts' 1–{MaxTextParts} adet, her biri en fazla {MaxTextPartLength} karakterlik metin parçası içermelidir."; return false; }
+        }
+        return true;
+    }
+
     private static bool ValidateActionBarProps(JsonElement props, string typeText, Context context, out string? error)
     {
         error = null;

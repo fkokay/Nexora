@@ -106,9 +106,10 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     expect(title()).toBe('Kasa/Banka Kartı Tanımlama');
     expect(calls.filter((call) => call.method === 'GET')).toEqual([]);
     expect(input('acilisBakiyesi')).toBeTruthy();
+    // Yeni kartta döviz TRY ile başlar (emptyDefault) ve dokunulmadan gönderilir.
+    expect(input('doviz').value).toBe('TRY');
     type('kod', 'kasa-02');
     type('ad', 'Şube kasa');
-    type('doviz', 'try');
     type('acilisBakiyesi', '500');
     fireEvent.click(command('save'));
     await waitFor(() => expect(posts()).toHaveLength(1), T);

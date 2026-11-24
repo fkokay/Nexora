@@ -50,6 +50,8 @@ export const english: Record<string, string> = {
 /** Dialog templates with dynamic values; each capture is itself looked up in the dictionaries. */
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) · (.+?) kuralı silinsin mi\?$/, 'Delete rule $1 · $2?'],
+  [/^(.+?) · (.+?) cari kartı silinsin mi\?$/, 'Delete account card $1 · $2?'],
+  [/^Seçilen (\d+) kayıt silinsin mi\?$/, 'Delete the $1 selected records?'],
   [/^(.+?) \((.+?)\) bu firmadan çıkarılsın mı\?$/, 'Remove $1 ($2) from this company?'],
   [/^(.+?) kaydı (.+?) olarak işaretlensin mi\? Bu işlem nakit veya muhasebe kaydı oluşturmaz\.$/, 'Mark $1 as $2? This does not create a cash or accounting entry.'],
   [/^(.+?) için (.+?) Actual\/365 faiz tahakkuku muhasebeleştirilsin mi\? Kayıt aynı firma ve kredi için tekrar çalıştırıldığında yinelenmez\.$/, 'Post the Actual/365 interest accrual for $1 for $2? Running it again for the same company and facility does not duplicate the entry.'],

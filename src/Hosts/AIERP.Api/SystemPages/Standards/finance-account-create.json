@@ -330,7 +330,8 @@
           "placeholder": "TRY",
           "pattern": "^[A-Za-z]{3}$",
           "patternMessage": "Döviz üç harfli kod olmalıdır (ör. TRY).",
-          "defaultValue": "{{kart.rows[0].currencyCode}}"
+          "defaultValue": "{{kart.rows[0].currencyCode}}",
+          "emptyDefault": "TRY"
         }
       },
       {

@@ -8,6 +8,7 @@ import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
 import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from '../pageNavigation';
+import { workspacePageTitles } from '../workspacePageTitles';
 import catalog from './customerCreateOperations.fixture.json';
 
 // "Cari kart" standart tanımı (customer-create.json): yeni ve düzenleme tek tanım. `{{sayfa.parametre.customerId}}` boşsa yeni
@@ -39,6 +40,7 @@ type Call = { url: string; method: string; body?: string };
 let calls: Call[] = [];
 let navigations: WorkspaceOpenRequest[] = [];
 let failures: { method: string; url: string; status: number; error: string; fieldErrors?: Record<string, string[]> }[] = [];
+let cardExtra: Record<string, unknown> = {};
 const onNavigate = (event: Event) => { navigations.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
 
 function respond(url: string, method: string): unknown {
@@ -47,7 +49,7 @@ function respond(url: string, method: string): unknown {
     if (path === '/api/customer-groups') return [{ id: 'g1', code: 'BAY', name: 'Bayiler', isActive: true }];
     if (path === '/api/customers/company-options') return [];
     if (path === '/api/customers/custom-fields') return [];
-    if (path === `/api/customers/${C1}`) return card();
+    if (path === `/api/customers/${C1}`) return card(cardExtra);
     if (path === `/api/customers/${C1}/custom-fields`) return [];
     if (path === `/api/customers/${C1}/addresses`) {
       return [{ id: 'a1', kind: 'General', label: 'Merkez', addressLine: 'Feritpaşa Mah.', city: 'Konya', district: 'Selçuklu', postalCode: '42000', countryCode: 'TR', isDefault: true, isActive: true, latitude: null, longitude: null }];
@@ -119,7 +121,7 @@ const fillNew = (code: string, name: string) => {
 };
 
 beforeEach(() => {
-  calls = []; navigations = []; failures = []; api.mockReset(); localStorage.clear();
+  calls = []; navigations = []; failures = []; cardExtra = {}; api.mockReset(); localStorage.clear();
   window.addEventListener(OPEN_PAGE_EVENT, onNavigate);
 });
 afterEach(() => {
@@ -220,6 +222,52 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(Object.keys(body).filter((key) => key.includes('.'))).toEqual([]);
     expect(posts()).toEqual([]);
     expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/customers/${C1}`, `PUT /api/customers/${C1}/custom-fields`]);
+  });
+
+  it('new card starts with TRY and 0 (emptyDefault) and saves them untouched; Kaydet ve yeni returns to them', async () => {
+    await openNew();
+    expect(input('doviz').value).toBe('TRY');
+    expect(input('vadeGunu').value).toBe('0');
+    type('kod', 'c-4001');
+    type('unvan', 'Varsayılanlı');
+    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    await waitFor(() => expect(posts()).toHaveLength(1), T);
+    expect(JSON.parse(posts()[0].body!)).toMatchObject({ code: 'C-4001', currencyCode: 'TRY', paymentTermDays: 0 });
+    expect(screen.queryByText('Bu alan zorunludur')).toBeNull();
+    await waitFor(() => expect(input('kod').value).toBe(''), T);
+    expect(input('doviz').value).toBe('TRY');
+    expect(input('vadeGunu').value).toBe('0');
+  });
+
+  it('edit: stored currency and a stored 0 term win over emptyDefault; the summary drops empty parts', async () => {
+    cardExtra = { currencyCode: 'EUR', paymentTermDays: 0, taxNumber: null };
+    await openCard();
+    expect(input('doviz').value).toBe('EUR');
+    expect(input('vadeGunu').value).toBe('0');
+    // Grup ve vergi numarası yok: parçaları etiketleri ve ayraçlarıyla düşer; 0 vade boş değildir.
+    expect(document.querySelector('.tenant-page-text')?.textContent).toBe('C-1001 · Vade 0 gün · EUR');
+    fireEvent.click(command('save'));
+    await waitFor(() => expect(writes().some((call) => call.method === 'PUT' && call.url === `/api/customers/${C1}`)).toBe(true), T);
+    expect(JSON.parse(writes().find((call) => call.method === 'PUT' && call.url === `/api/customers/${C1}`)!.body!)).toMatchObject({ currencyCode: 'EUR', paymentTermDays: 0 });
+  });
+
+  it('edit: the summary shows every filled part', async () => {
+    cardExtra = { groupName: 'Bayiler' };
+    await openCard();
+    await waitFor(() => expect(document.querySelector('.tenant-page-text')?.textContent).toBe('C-1001 · Bayiler · Vade 30 gün · TRY · Vergi no 1234567890'), T);
+  });
+
+  it('the workspace tab and breadcrumb title follow the record-naming page title only', async () => {
+    await openCard();
+    await waitFor(() => expect(workspacePageTitles()[KEY]).toBe('FATİH KOKAY'), T);
+    cleanup();
+    // Sayfa kapanınca sekme sabit adına döner.
+    expect(workspacePageTitles()[KEY]).toBeUndefined();
+    // Yeni kartın sabit başlığı ("Yeni cari kart") sayfanın kendi adıdır: sekme sabit adında ("Yeni Cari Kart") kalır.
+    await openNew();
+    expect(title()).toBe('Yeni cari kart');
+    await settle();
+    expect(workspacePageTitles()[KEY]).toBeUndefined();
   });
 
   it('edit: no Kaydet ve yeni, and the Adresler tab lists the addresses', async () => {

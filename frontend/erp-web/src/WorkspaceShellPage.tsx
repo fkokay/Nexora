@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type RefObject } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type RefObject } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -19,6 +19,7 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { StandaloneStudioHeader } from "./StandaloneStudioHeader";
 import { WorkspacePageRouter } from "./WorkspacePageRouter";
 import { workspacePageLabel } from "./workspace-navigation";
+import { useWorkspacePageTitles, withPageTitles } from "./workspacePageTitles";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
 import { CustomerReferenceSidebar } from "./customers/components/CustomerReferenceSidebar";
 import {
@@ -380,7 +381,10 @@ export function WorkspaceShellPage(props: Props) {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [pendingCloseTab, onCancelCloseTab]);
-  const activeTabLabel = workspacePageLabel(page, locale, moduleTabs, globalSearchPages);
+  // Sayfanın görünen başlığı (ör. düzenlenen kaydın adı) sekme adının ve sayfa yolunun yerine geçer; yoksa sabit ad kalır.
+  const pageTitles = useWorkspacePageTitles();
+  const shownTabs = useMemo(() => withPageTitles(moduleTabs, pageTitles), [moduleTabs, pageTitles]);
+  const activeTabLabel = workspacePageLabel(page, locale, shownTabs, globalSearchPages);
   const currentSubrouteTitle = subrouteTitle?.page === page ? subrouteTitle.title : null;
   const breadcrumbNav = (
     <nav
@@ -402,7 +406,7 @@ export function WorkspaceShellPage(props: Props) {
   // Open-screen tabs sit inside the top bar; studio mode hides the top bar, so they stay a row of their own there.
   const workspaceTabs = (
     <WorkspaceTabs
-      tabs={moduleTabs}
+      tabs={shownTabs}
       activeId={page}
       locale={locale}
       dirtyTabs={dirtyTabs}
@@ -590,7 +594,7 @@ export function WorkspaceShellPage(props: Props) {
                       ? "There may be unsaved changes in this screen."
                       : "Bu ekranda kaydedilmemiş değişiklikler olabilir."}
                   </p>
-                  <small>{moduleTabs.find((tab) => tab.id === pendingCloseTab)?.label}</small>
+                  <small>{shownTabs.find((tab) => tab.id === pendingCloseTab)?.label}</small>
                 </div>
                 <div className="workspace-confirm-actions">
                   <button type="button" className="secondary" onClick={onCancelCloseTab}>{locale === "en" ? "Keep editing" : "Düzenlemeye devam et"}</button>
