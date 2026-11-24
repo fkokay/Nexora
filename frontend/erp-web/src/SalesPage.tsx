@@ -3,6 +3,17 @@ import { createPortal } from "react-dom";
 import { dropPageParam, setPageParams, usePageParams } from "./pageNavigation";
 import { openSalesRequest } from "./sales/salesNavigation";
 import {
+  convertUnitPrice,
+  orderPriceHint,
+  priceDraftFrom,
+  priceWriteFields,
+  pricingTotals,
+  setFree,
+  toggleAllFree,
+  type PriceDraft,
+} from "./delivery-pricing/deliveryPricing";
+import { AllFreeButton, FreeLineHint, FreeTag, PriceEditCells, PriceEditStrip, PriceHeadCells, PricingTotalsCards, ReceiptCostTag } from "./delivery-pricing/DeliveryPricingCells";
+import {
   Ban,
   Check,
   ChevronDown,
@@ -4720,6 +4731,23 @@ function PurchasingPanel({
     [receiptLocationIds, setReceiptLocationIds] = useState<
       Record<number, string>
     >({});
+  // Taslak 20: receipt line prices (entered unit, order currency), suggested from the PO line; a line can be Bedelsiz.
+  const [receiptPrices, setReceiptPrices] = useState<Record<number, PriceDraft>>({});
+  const receiptOrderPriceIn = (line: PurchaseOrderDetail["lines"][number], unitCode: string) =>
+    convertUnitPrice(
+      line.unitPrice,
+      1,
+      unitCode === line.unitCode ? 1 : (receiptUnits[line.lineNumber] || []).find((unit) => unit.unitCode === unitCode)?.factorToBase || 1,
+    );
+  const receiptPriceSuggestion = (line: PurchaseOrderDetail["lines"][number]): PriceDraft =>
+    priceDraftFrom({
+      unitPrice: receiptOrderPriceIn(line, enteredReceiptUnits[line.lineNumber] || line.unitCode),
+      discountPercent: line.discountPercent,
+      vatPercent: line.vatPercent,
+    });
+  const receiptPriceOf = (line: PurchaseOrderDetail["lines"][number]) => receiptPrices[line.lineNumber] ?? receiptPriceSuggestion(line);
+  const setReceiptPrice = (lineNumber: number, price: PriceDraft) =>
+    setReceiptPrices((current) => ({ ...current, [lineNumber]: price }));
   const purchasePageSize = 25;
   async function load(
     targetRequestPage = requestPage,
@@ -5443,6 +5471,7 @@ function PurchasingPanel({
     const targetWarehouseId = warehouses.find((x) => x.isActive)?.id || "";
     setWarehouseId(targetWarehouseId);
     setReceiptLocationIds({});
+    setReceiptPrices({});
     void loadReceiptLocations(targetWarehouseId);
     setReceiptFieldValues(
       Object.fromEntries(
@@ -6433,7 +6462,7 @@ function PurchasingPanel({
     setNotice("");
     try {
       // Tracking codes are asked line by line, in order, before the receipt is posted.
-      const receiptLines: {
+      const receiptLines: ({
         orderLineNumber: number;
         quantity: number;
         unitCode: string;
@@ -6443,7 +6472,7 @@ function PurchasingPanel({
           expiryDate?: string | null;
         }[];
         storageLocationId: string | null;
-      }[] = [];
+      } & ReturnType<typeof priceWriteFields>)[] = [];
       for (const x of detail.lines) {
         const receivedQuantity = Number(quantities[x.lineNumber] || 0);
         if (receivedQuantity <= 0) continue;
@@ -6514,6 +6543,7 @@ function PurchasingPanel({
           unitCode,
           tracking,
           storageLocationId: receiptLocationIds[x.lineNumber] || null,
+          ...priceWriteFields(receiptPriceOf(x)),
         });
       }
       await api<PurchaseReceipt>(
@@ -8304,6 +8334,19 @@ function PurchasingPanel({
                   </RecordFormGroup>
                 )}
                 <RecordFormGroup title="Kabul Edilen Kalemler">
+                <div className="quote-lines-heading sales-rf-group-actions">
+                  <span className="muted">{detail.currencyCode}</span>
+                  <span className="dp-actions">
+                    <AllFreeButton
+                      prices={detail.lines.filter((x) => x.remainingQuantity > 0).map(receiptPriceOf)}
+                      onToggle={() => {
+                        const open = detail.lines.filter((x) => x.remainingQuantity > 0);
+                        const next = toggleAllFree(open.map(receiptPriceOf), (index) => receiptPriceSuggestion(open[index]));
+                        setReceiptPrices((current) => ({ ...current, ...Object.fromEntries(open.map((line, index) => [line.lineNumber, next[index]])) }));
+                      }}
+                    />
+                  </span>
+                </div>
                 <div className="ledger-list sales-rf-lines">
                   <table className="customer-table">
                     <thead>
@@ -8312,15 +8355,18 @@ function PurchasingPanel({
                         <th>Kalan sipariş</th>
                         <th>Bu kabul · birim / miktar</th>
                         <th>Depo konumu</th>
+                        <PriceHeadCells />
+                        <th>Stok maliyeti</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.lines
                         .filter((x) => x.remainingQuantity > 0)
                         .map((line) => (
-                          <tr key={line.lineNumber}>
+                          <tr key={line.lineNumber} className={receiptPriceOf(line).isFreeOfCharge ? "dp-free-row" : undefined}>
                             <td>
                               <b>{line.stockCode}</b>
+                              {receiptPriceOf(line).isFreeOfCharge && <> <FreeTag /></>}
                               <small className="cell-subtitle">
                                 {line.stockName}
                               </small>
@@ -8338,12 +8384,18 @@ function PurchasingPanel({
                                   enteredReceiptUnits[line.lineNumber] ||
                                   line.unitCode
                                 }
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const previousUnit = enteredReceiptUnits[line.lineNumber] || line.unitCode;
+                                  const nextUnit = e.target.value;
                                   setEnteredReceiptUnits((current) => ({
                                     ...current,
-                                    [line.lineNumber]: e.target.value,
-                                  }))
-                                }
+                                    [line.lineNumber]: nextUnit,
+                                  }));
+                                  // The price is per entered unit: an untouched order price follows the unit.
+                                  const price = receiptPriceOf(line);
+                                  if (!price.isFreeOfCharge && Number(price.unitPrice) === receiptOrderPriceIn(line, previousUnit))
+                                    setReceiptPrice(line.lineNumber, { ...price, unitPrice: String(receiptOrderPriceIn(line, nextUnit)) });
+                                }}
                               >
                                 <option value={line.unitCode}>
                                   {line.unitCode}
@@ -8396,11 +8448,35 @@ function PurchasingPanel({
                                 ))}
                               </select>
                             </td>
+                            <PriceEditCells
+                              label={line.stockCode}
+                              quantity={Number(quantities[line.lineNumber] || 0)}
+                              price={receiptPriceOf(line)}
+                              hint={orderPriceHint(receiptOrderPriceIn(line, enteredReceiptUnits[line.lineNumber] || line.unitCode), receiptPriceOf(line))}
+                              onChange={(patch) => setReceiptPrice(line.lineNumber, { ...receiptPriceOf(line), ...patch })}
+                              onFreeChange={(free) => setReceiptPrice(line.lineNumber, setFree(receiptPriceOf(line), free, receiptPriceSuggestion(line)))}
+                            />
+                            <td>
+                              <ReceiptCostTag price={receiptPriceOf(line)} unitCode={enteredReceiptUnits[line.lineNumber] || line.unitCode} />
+                            </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
                 </div>
+                <PricingTotalsCards
+                  currency={detail.currencyCode}
+                  label="Mal kabul fiyat toplamları"
+                  totals={pricingTotals(
+                    detail.lines
+                      .filter((x) => x.remainingQuantity > 0 && Number(quantities[x.lineNumber] || 0) > 0)
+                      .map((x) => ({ quantity: Number(quantities[x.lineNumber] || 0), price: receiptPriceOf(x) })),
+                  )}
+                />
+                <p className="dp-hint">
+                  Fiyatlı satırın stok maliyeti irsaliye fiyatından (iskonto ve kur uygulanmış) yazılır. Bedelsiz satırın stok
+                  maliyeti alış faturası girilince faturadaki tutardan tamamlanır.
+                </p>
                 </RecordFormGroup>
               </RecordFormPage>
               );
@@ -9805,6 +9881,18 @@ function SalesOrderModal({
     [deliveryLocationIds, setDeliveryLocationIds] = useState<
       Record<number, string>
     >({});
+  // Taslak 20: delivery line prices, suggested from the order line in the entered unit; a line can be Bedelsiz.
+  const [deliveryPrices, setDeliveryPrices] = useState<Record<number, PriceDraft>>({});
+  const deliveryUnitFactor = (lineNumber: number, unitCode: string, orderUnitCode: string) =>
+    unitCode === orderUnitCode ? 1 : (deliveryUnits[lineNumber] || []).find((unit) => unit.unitCode === unitCode)?.factorToBase || 1;
+  const orderPriceIn = (line: SalesOrderDetail["lines"][number], unitCode: string) =>
+    convertUnitPrice(line.unitPrice, 1, deliveryUnitFactor(line.lineNumber, unitCode, line.unitCode));
+  const orderPriceSuggestion = (line: SalesOrderDetail["lines"][number], unitCode: string): PriceDraft =>
+    priceDraftFrom({ unitPrice: orderPriceIn(line, unitCode), discountPercent: line.discountPercent, vatPercent: line.vatPercent });
+  const deliveryPriceOf = (line: SalesOrderDetail["lines"][number]) =>
+    deliveryPrices[line.lineNumber] ?? orderPriceSuggestion(line, enteredDeliveryUnits[line.lineNumber] || line.unitCode);
+  const setDeliveryPrice = (lineNumber: number, price: PriceDraft) =>
+    setDeliveryPrices((current) => ({ ...current, [lineNumber]: price }));
   async function loadDeliveries() {
     setLoading(true);
     try {
@@ -9935,6 +10023,11 @@ function SalesOrderModal({
     setEnteredDeliveryUnits(
       Object.fromEntries(order.lines.map((x) => [x.lineNumber, x.unitCode])),
     );
+    setDeliveryPrices(
+      Object.fromEntries(
+        order.lines.map((x) => [x.lineNumber, priceDraftFrom({ unitPrice: x.unitPrice, discountPercent: x.discountPercent, vatPercent: x.vatPercent })]),
+      ),
+    );
     try {
       const units = await Promise.all(
         order.lines.map(async (line) => {
@@ -10025,6 +10118,7 @@ function SalesOrderModal({
         quantity: Number(quantities[x.lineNumber] || 0),
         unitCode: enteredDeliveryUnits[x.lineNumber] || x.unitCode,
         storageLocationId: deliveryLocationIds[x.lineNumber] || null,
+        ...priceWriteFields(deliveryPriceOf(x)),
       }))
       .filter((x) => x.quantity > 0);
     try {
@@ -10475,12 +10569,47 @@ function SalesOrderModal({
               </label>
             </RecordFormGroup>
             <RecordFormGroup title="Teslim Edilecek Kalemler">
+            {(() => {
+              const open = order.lines.filter((x) => x.remainingQuantity > 0);
+              return (
+                <div className="quote-lines-heading sales-rf-group-actions">
+                  <span className="muted">{order.currencyCode}</span>
+                  <span className="dp-actions">
+                    <AllFreeButton
+                      prices={open.map(deliveryPriceOf)}
+                      onToggle={() => {
+                        const next = toggleAllFree(open.map(deliveryPriceOf), (index) =>
+                          orderPriceSuggestion(open[index], enteredDeliveryUnits[open[index].lineNumber] || open[index].unitCode),
+                        );
+                        setDeliveryPrices((current) => ({ ...current, ...Object.fromEntries(open.map((line, index) => [line.lineNumber, next[index]])) }));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="secondary small-button"
+                      onClick={() =>
+                        setDeliveryPrices((current) => ({
+                          ...current,
+                          ...Object.fromEntries(
+                            open
+                              .filter((line) => !deliveryPriceOf(line).isFreeOfCharge)
+                              .map((line) => [line.lineNumber, orderPriceSuggestion(line, enteredDeliveryUnits[line.lineNumber] || line.unitCode)]),
+                          ),
+                        }))
+                      }
+                    >
+                      Fiyatları siparişten yenile
+                    </button>
+                  </span>
+                </div>
+              );
+            })()}
             {order.lines
               .filter((x) => x.remainingQuantity > 0)
               .map((line) => (
                 <div className="delivery-quantity" key={line.lineNumber}>
                   <span>
-                    <b>{line.stockCode}</b>
+                    <b>{line.stockCode}{deliveryPriceOf(line).isFreeOfCharge && <> <FreeTag /></>}</b>
                     <small>
                       {line.stockName} · siparişte kalan{" "}
                       {line.remainingQuantity} {line.unitCode}
@@ -10491,12 +10620,18 @@ function SalesOrderModal({
                     value={
                       enteredDeliveryUnits[line.lineNumber] || line.unitCode
                     }
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const previousUnit = enteredDeliveryUnits[line.lineNumber] || line.unitCode;
+                      const nextUnit = e.target.value;
                       setEnteredDeliveryUnits((current) => ({
                         ...current,
-                        [line.lineNumber]: e.target.value,
-                      }))
-                    }
+                        [line.lineNumber]: nextUnit,
+                      }));
+                      // The price is per entered unit: an untouched order price follows the unit.
+                      const price = deliveryPriceOf(line);
+                      if (!price.isFreeOfCharge && Number(price.unitPrice) === orderPriceIn(line, previousUnit))
+                        setDeliveryPrice(line.lineNumber, { ...price, unitPrice: String(orderPriceIn(line, nextUnit)) });
+                    }}
                   >
                     <option value={line.unitCode}>{line.unitCode}</option>
                     {(deliveryUnits[line.lineNumber] || [])
@@ -10538,8 +10673,31 @@ function SalesOrderModal({
                       </option>
                     ))}
                   </select>
+                  <PriceEditStrip
+                    label={line.stockCode}
+                    quantity={Number(quantities[line.lineNumber] || 0)}
+                    price={deliveryPriceOf(line)}
+                    currency={order.currencyCode}
+                    hint={orderPriceHint(orderPriceIn(line, enteredDeliveryUnits[line.lineNumber] || line.unitCode), deliveryPriceOf(line))}
+                    onChange={(patch) => setDeliveryPrice(line.lineNumber, { ...deliveryPriceOf(line), ...patch })}
+                    onFreeChange={(free) =>
+                      setDeliveryPrice(
+                        line.lineNumber,
+                        setFree(deliveryPriceOf(line), free, orderPriceSuggestion(line, enteredDeliveryUnits[line.lineNumber] || line.unitCode)),
+                      )
+                    }
+                  />
                 </div>
               ))}
+            <PricingTotalsCards
+              currency={order.currencyCode}
+              totals={pricingTotals(
+                order.lines
+                  .filter((x) => x.remainingQuantity > 0 && Number(quantities[x.lineNumber] || 0) > 0)
+                  .map((x) => ({ quantity: Number(quantities[x.lineNumber] || 0), price: deliveryPriceOf(x) })),
+              )}
+            />
+            <FreeLineHint />
             </RecordFormGroup>
           </RecordFormPage>
         )}

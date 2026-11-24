@@ -1372,6 +1372,11 @@ public sealed class InventoryTransaction
     public string? EnteredUnitCode { get; set; }
     // Nullable for legacy movements and explicitly uncosted manual receipts.
     public decimal? UnitCostBase { get; set; }
+    /// <summary>
+    /// The unit cost is provisional (a free-of-charge or unpriced receipt valued at the item's weighted average). The movement is never
+    /// updated; the real cost arrives with the purchase invoice (cost-difference adjustment or invoice line).
+    /// </summary>
+    public bool CostPending { get; set; }
     public string Description { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public Guid? ReversalOfId { get; set; }
@@ -1765,6 +1770,8 @@ public sealed class StandaloneSalesDelivery
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
     public DateOnly DeliveryDate { get; set; }
+    /// <summary>Document currency of the line prices (order / customer / supplier currency); null on rows written before prices existed.</summary>
+    public string? CurrencyCode { get; set; }
     public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<StandaloneSalesDeliveryLine> Lines { get; set; } = new List<StandaloneSalesDeliveryLine>();
@@ -1784,6 +1791,12 @@ public sealed class StandaloneSalesDeliveryLine
     public decimal Quantity { get; set; }
     public decimal? EnteredQuantity { get; set; }
     public string? EnteredUnitCode { get; set; }
+    /// <summary>Line price in the document currency per entered unit; null when the line is free of charge or unpriced.</summary>
+    public decimal? UnitPrice { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? VatPercent { get; set; }
+    /// <summary>Bedelsiz satır: the goods move without a price; the three price fields stay null.</summary>
+    public bool IsFreeOfCharge { get; set; }
     public string? TrackingCode { get; set; }
     public DateOnly? ExpiryDate { get; set; }
     public Guid? StorageLocationId { get; set; }
@@ -1803,6 +1816,8 @@ public sealed class StandalonePurchaseReceipt
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
     public DateOnly ReceiptDate { get; set; }
+    /// <summary>Document currency of the line prices (order / customer / supplier currency); null on rows written before prices existed.</summary>
+    public string? CurrencyCode { get; set; }
     public StandaloneInventoryDocumentStatus Status { get; set; } = StandaloneInventoryDocumentStatus.Draft;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<StandalonePurchaseReceiptLine> Lines { get; set; } = new List<StandalonePurchaseReceiptLine>();
@@ -1823,6 +1838,12 @@ public sealed class StandalonePurchaseReceiptLine
     public decimal UnitCostBase { get; set; }
     public decimal? EnteredQuantity { get; set; }
     public string? EnteredUnitCode { get; set; }
+    /// <summary>Line price in the document currency per entered unit; null when the line is free of charge or unpriced.</summary>
+    public decimal? UnitPrice { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? VatPercent { get; set; }
+    /// <summary>Bedelsiz satır: the goods move without a price; the three price fields stay null.</summary>
+    public bool IsFreeOfCharge { get; set; }
     public string? TrackingCode { get; set; }
     public DateOnly? ExpiryDate { get; set; }
     public Guid? StorageLocationId { get; set; }
@@ -1842,6 +1863,8 @@ public sealed class PurchaseReceipt
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
     public DateOnly ReceiptDate { get; set; }
+    /// <summary>Document currency of the line prices (order / customer / supplier currency); null on rows written before prices existed.</summary>
+    public string? CurrencyCode { get; set; }
     public PurchaseReceiptStatus Status { get; set; } = PurchaseReceiptStatus.Posted;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseReceiptLine> Lines { get; set; } = new List<PurchaseReceiptLine>();
@@ -1921,6 +1944,12 @@ public sealed class PurchaseReceiptLine
     public decimal Quantity { get; set; }
     public decimal? EnteredQuantity { get; set; }
     public string? EnteredUnitCode { get; set; }
+    /// <summary>Line price in the document currency per entered unit; null when the line is free of charge or unpriced.</summary>
+    public decimal? UnitPrice { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? VatPercent { get; set; }
+    /// <summary>Bedelsiz satır: the goods move without a price; the three price fields stay null.</summary>
+    public bool IsFreeOfCharge { get; set; }
     public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
 }
 
@@ -1937,6 +1966,8 @@ public sealed class PurchaseDeliveryNote
     public PurchaseReceipt? PurchaseReceipt { get; set; }
     public string DocumentNumber { get; set; } = "";
     public DateOnly DocumentDate { get; set; }
+    /// <summary>Document currency of the line prices (order / customer / supplier currency); null on rows written before prices existed.</summary>
+    public string? CurrencyCode { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseDeliveryNoteLine> Lines { get; set; } = new List<PurchaseDeliveryNoteLine>();
 }
@@ -1951,6 +1982,12 @@ public sealed class PurchaseDeliveryNoteLine
     public int OrderLineNumber { get; set; }
     public decimal Quantity { get; set; }
     public string UnitCode { get; set; } = "EA";
+    /// <summary>Line price in the document currency per entered unit; null when the line is free of charge or unpriced.</summary>
+    public decimal? UnitPrice { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? VatPercent { get; set; }
+    /// <summary>Bedelsiz satır: the goods move without a price; the three price fields stay null.</summary>
+    public bool IsFreeOfCharge { get; set; }
 }
 
 public enum PurchaseInvoiceStatus { Posted = 1, Voided = 2 }
@@ -2466,6 +2503,8 @@ public sealed class SalesDelivery
     public Warehouse Warehouse { get; set; } = null!;
     public string Code { get; set; } = "";
     public DateOnly DeliveryDate { get; set; }
+    /// <summary>Document currency of the line prices (order / customer / supplier currency); null on rows written before prices existed.</summary>
+    public string? CurrencyCode { get; set; }
     public SalesDeliveryStatus Status { get; set; } = SalesDeliveryStatus.Posted;
     public SalesInvoice? Invoice { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -2490,6 +2529,12 @@ public sealed class SalesDeliveryLine
     public decimal Quantity { get; set; }
     public decimal? EnteredQuantity { get; set; }
     public string? EnteredUnitCode { get; set; }
+    /// <summary>Line price in the document currency per entered unit; null when the line is free of charge or unpriced.</summary>
+    public decimal? UnitPrice { get; set; }
+    public decimal? DiscountPercent { get; set; }
+    public decimal? VatPercent { get; set; }
+    /// <summary>Bedelsiz satır: the goods move without a price; the three price fields stay null.</summary>
+    public bool IsFreeOfCharge { get; set; }
     public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
     public SalesInvoiceLine? InvoiceLine { get; set; }
 }

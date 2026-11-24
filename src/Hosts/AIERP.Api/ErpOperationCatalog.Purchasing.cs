@@ -86,8 +86,10 @@ internal static partial class ErpOperationCatalog
             Paged(With(Columns<PurchaseOrderSummary>(), orderProgressMembers)));
         yield return Read(PurchasingModule, "satinalma.siparis.getir", "Satınalma siparişi getir", order, [id],
             Record(With(Columns<PurchaseOrderView>(), [.. orderProgressMembers, "postedReceiptCount:int", "invoicedReceiptCount:int"])));
+        // Also the receipt grid's fill source: the remaining quantity (posted receipts), the line number under the receipt line's
+        // field name and the stock card's tracking mode (lot/serial lines stay on the legacy screen).
         yield return Read(PurchasingModule, "satinalma.siparis.satirlari", "Satınalma siparişinin satırları", order, [id],
-            List(Columns<PurchaseOrderLineView>(), "lines"));
+            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines"));
         yield return Read(PurchasingModule, "satinalma.siparis.malKabulleri", "Satınalma siparişinin mal kabulleri", order, [id],
             List([.. Columns<PurchaseReceiptSummary>(), .. flattenedInvoice], "receipts") with { Flatten = ["invoice"] });
         yield return Read(PurchasingModule, "satinalma.siparis.ozelAlanTanimlari", "Satınalma siparişi özel alan tanımları", orders + "/custom-fields", [],
@@ -117,7 +119,8 @@ internal static partial class ErpOperationCatalog
         // Resolves to erp.purchase-receipts.create (approved decision 4: the catalog mirrors today's server). The same
         // invoice data again returns the existing invoice (200); different data for an invoiced receipt is a 409.
         yield return Write(PurchasingModule, "satinalma.malKabul.faturala", "Mal kabulden alış faturası oluştur", "insert", "POST", receipt + "/invoice",
-            [id, .. BodyParameters<PurchaseInvoiceCreateRequest>(sourceBacked: false)], Record(invoiceSummaryColumns), null, null);
+            [id, .. BodyParameters<PurchaseInvoiceCreateRequest>(sourceBacked: false), ListParameter<PurchaseInvoiceLinePriceRequest>("lines")],
+            Record(invoiceSummaryColumns), null, null);
         yield return Read(PurchasingModule, "satinalma.malKabul.ozelAlanTanimlari", "Mal kabul özel alan tanımları", receipts + "/custom-fields", [],
             List(Columns<PurchaseReceiptCustomFieldDefinitionView>(), null));
 
@@ -237,10 +240,10 @@ internal static partial class ErpOperationCatalog
         yield return Write(PurchasingModule, "satinalma.malKabul.olustur", "Siparişten mal kabul oluştur", "insert", "POST", order + "/receipts",
             [id, .. BodyParameters<PurchaseReceiptWriteRequest>(sourceBacked: false), Lines<PurchaseReceiptLineWriteRequest>(), customFields],
             Record(Columns<PurchaseReceiptSummary>()), null, null);
-        // The receipt grid's fill source: the order lines with what is still to receive (posted receipts), the line number under
-        // the receipt line's field name and the stock card's tracking mode (lot/serial lines stay on the legacy screen).
+        // Retired: the same read as satinalma.siparis.satirlari (which now declares its columns). Names are permanent, so it stays
+        // deprecated: pages that already use it keep working, new uses are rejected and Studio hides it.
         yield return Read(PurchasingModule, "satinalma.malKabul.siparisSatirlari", "Mal kabul için sipariş satırları (kalan miktar)", order, [id],
-            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines"));
+            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines")) with { Deprecated = true };
 
         // ---- Tedarikçi irsaliyesi ----
         // The note number is unique per order (409); quantities are in the order line's base unit.
@@ -268,26 +271,26 @@ internal static partial class ErpOperationCatalog
         yield return Read(PurchasingModule, "satinalma.fatura.iadeEdilebilirSatirlar", "Alış faturasının iade edilebilir satırları",
             invoice + "/returnable-lines", [id], List(Columns<PurchaseInvoiceReturnableLineView>(), null));
 
-        // ---- Bağımsız alış faturası taslakları ----
+        // ---- Satınalma faturası taslakları ----
         // page and pageSize have no defaults on these endpoints, so they are required here.
         var draftColumns = Columns<StandaloneSupplierInvoiceDraftDetail>();
-        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.listele", "Bağımsız alış faturası taslaklarını listele", drafts,
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.listele", "Satınalma faturası taslaklarını listele", drafts,
             [Query("q", "text"), .. requiredPaging], List(Columns<StandaloneSupplierInvoiceDraftSummary>(), "items") with { MetaPaths = meta });
-        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.getir", "Bağımsız alış faturası taslağı getir", draft, [id], Record(draftColumns));
-        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.satirlari", "Bağımsız alış faturası taslağının satırları", draft, [id],
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.getir", "Satınalma faturası taslağı getir", draft, [id], Record(draftColumns));
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.satirlari", "Satınalma faturası taslağının satırları", draft, [id],
             List(Columns<StandaloneSupplierInvoiceDraftLineView>(), "lines"));
         // requestId is page-made: the same content returns the existing draft, different content is a 409.
-        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.olustur", "Bağımsız alış faturası taslağı oluştur", "insert", "POST", drafts,
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.olustur", "Satınalma faturası taslağı oluştur", "insert", "POST", drafts,
             [.. BodyParameters<StandaloneSupplierInvoiceDraftCreateRequest>(sourceBacked: false), Lines<StandaloneSupplierInvoiceDraftLineCreateRequest>()],
             Record(draftColumns), null, null);
         // Not source-backed: the read returns rowVersion, the body needs expectedRowVersion, so the page binds it from
         // satinalma.faturaTaslagi.getir. The PUT replaces every line.
-        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.guncelle", "Bağımsız alış faturası taslağını güncelle", "update", "PUT", draft,
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.guncelle", "Satınalma faturası taslağını güncelle", "update", "PUT", draft,
             [id, .. BodyParameters<StandaloneSupplierInvoiceDraftUpdateRequest>(sourceBacked: false), Lines<StandaloneSupplierInvoiceDraftLineCreateRequest>()],
             Record(draftColumns), null, null);
         // Resolves to erp.purchase-invoices.execute; the handler also filters the draft by the create rules. A posted draft
         // answers with its existing posting.
-        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.muhasebelestir", "Bağımsız alış faturası taslağını muhasebeleştir", "update", "POST",
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.muhasebelestir", "Satınalma faturası taslağını muhasebeleştir", "update", "POST",
             draft + "/post", [id], Record(Columns<StandaloneSupplierInvoiceDraftPostingResult>()), null, null);
         yield return Read(PurchasingModule, "satinalma.faturaTaslagi.tedarikciler", "Fatura taslağı tedarikçi seçenekleri", drafts + "/suppliers",
             [Query("q", "text"), .. requiredPaging], List(Columns<StandaloneSupplierInvoiceDraftSupplierOption>(), "items") with { MetaPaths = meta });
@@ -342,7 +345,7 @@ internal static partial class ErpOperationCatalog
         "officialSourceUrl" => "Resmî kaynak", "parametersJson" => "Profil parametreleri", "hasTaxRules" => "Vergi kuralı var", "isDefaultForDocuments" => "Belgelerde varsayılan",
         // İade
         "returnDate" => "İade tarihi", "purchaseInvoiceLineId" => "Fatura satırı kimliği",
-        // Faz 2: satır kaynakları (kalan miktarlar) ve bağımsız fatura taslakları
+        // Faz 2: satır kaynakları (kalan miktarlar) ve satınalma faturası taslakları
         "notedQuantity" => "İrsaliyelenen", "invoicedQuantity" => "Faturalanan miktar", "returnedQuantity" => "İade edilen",
         "invoiceNumber" => "Tedarikçi fatura no", "total" => "Toplam", "expenseAccountId" => "Gider hesabı",
         "vatRate" => "KDV oranı (belge)", "standalonePurchaseReceiptLineId" => "Mal kabul satırı", "lineId" => "Satır kimliği",

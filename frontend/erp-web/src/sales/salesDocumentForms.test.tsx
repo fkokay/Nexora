@@ -321,8 +321,107 @@ describe('İrsaliye oluşturma', () => {
     const body = sentBody('/api/sales/standalone-deliveries/');
     expect(body).toEqual({
       requestId: 'req-1', code: 'IRS-9', customerId: 'c1', supplierId: 'c1', warehouseId: 'w1', deliveryDate: body.deliveryDate,
-      lines: [{ stockItemId: 's1', quantity: 1, unitCode: 'ADET', unitCostBase: 0, trackingCode: null, expiryDate: null, storageLocationId: null }],
+      // Taslak 20: the stock card list price is suggested in the customer's currency and sent with the line.
+      lines: [{
+        stockItemId: 's1', quantity: 1, unitCode: 'ADET', unitCostBase: 0, trackingCode: null, expiryDate: null, storageLocationId: null,
+        isFreeOfCharge: false, unitPrice: 100, discountPercent: 0, vatPercent: 20,
+      }],
     });
+  });
+
+  it('Bedelsiz locks and clears the price cells; Tümünü bedelsiz yap toggles every line; the totals follow', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantUser" onNavigate={vi.fn()} createDeliveryPage />);
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    await settle();
+    fireEvent.change(screen.getByPlaceholderText('IRS-2026-001'), { target: { value: 'IRS-9' } });
+    await pick('Cari seçin', /Acme/);
+    fireEvent.change(screen.getByRole('combobox', { name: /Depo/ }), { target: { value: 'w1' } });
+    await pick('Stok seçin', /Koli 40x30/);
+    const price = screen.getByLabelText<HTMLInputElement>('Satır 1 birim fiyat');
+    expect(price.value).toBe('100');
+    expect(screen.getByText('liste fiyatı 100,00')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Satır 1 miktar'), { target: { value: '2' } });
+    fireEvent.change(price, { target: { value: '90' } });
+    expect(screen.getByText('liste fiyatı 100,00 · değiştirildi')).toBeTruthy();
+    const cards = () => screen.getByRole('group', { name: 'İrsaliye fiyat toplamları' }).textContent;
+    expect(cards()).toContain('180,00 TRY');
+    expect(cards()).toContain('216,00 TRY');
+    fireEvent.click(screen.getByLabelText('Satır 1 bedelsiz'));
+    expect(screen.queryByLabelText('Satır 1 birim fiyat')).toBeNull();
+    expect(screen.getByText('— fiyatsız')).toBeTruthy();
+    expect(cards()).toContain('0,00 TRY');
+    expect(screen.getByRole('group', { name: 'İrsaliye fiyat toplamları' }).querySelector(':scope > div:last-child b')?.textContent).toBe('1');
+    await act(async () => ctrlS());
+    await waitFor(() => expect(sentBody('/api/sales/standalone-deliveries/')).toBeDefined());
+    // A free line sends only the flag: the price keys are left out.
+    expect(sentBody('/api/sales/standalone-deliveries/').lines[0]).toEqual({
+      stockItemId: 's1', quantity: 2, unitCode: 'ADET', unitCostBase: 0, trackingCode: null, expiryDate: null, storageLocationId: null, isFreeOfCharge: true,
+    });
+  });
+
+  it('Tümünü bedelsiz yap marks every line; Bedelsizi kaldır suggests the list price again', async () => {
+    renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantUser" onNavigate={vi.fn()} createDeliveryPage />);
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    await settle();
+    await pick('Cari seçin', /Acme/);
+    await pick('Stok seçin', /Koli 40x30/);
+    fireEvent.click(screen.getByRole('button', { name: /satır ekle/i }));
+    await pick('Stok seçin', /Gıda etiketi/);
+    fireEvent.click(screen.getByRole('button', { name: 'Tümünü bedelsiz yap' }));
+    expect(screen.getByLabelText<HTMLInputElement>('Satır 1 bedelsiz').checked).toBe(true);
+    expect(screen.getByLabelText<HTMLInputElement>('Satır 2 bedelsiz').checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Bedelsizi kaldır' }));
+    expect(screen.getByLabelText<HTMLInputElement>('Satır 1 birim fiyat').value).toBe('100');
+    expect(screen.getByLabelText<HTMLInputElement>('Satır 2 birim fiyat').value).toBe('50');
+    expect(screen.getByLabelText<HTMLInputElement>('Satır 2 KDV yüzdesi').value).toBe('10');
+  });
+
+  it('taslak 20: the invoice dialog prefills the delivery prices, a free line needs an amount (list price offered)', async () => {
+    const posted = { id: 'sd1', code: 'IRS-5', customerId: 'c1', customerName: 'Acme', warehouseId: 'w1', date: '2026-11-20', status: 'Posted', lineCount: 2,
+      createdAt: '2026-11-20', invoiceId: null, currencyCode: 'TRY', pricedGrandTotal: 120, pricingState: 'PartlyFree' };
+    const detail = { lines: [
+      { lineNumber: 1, stockItemId: 's1', stockCode: 'STK-1', stockName: 'Koli 40x30', unitCode: 'ADET', quantity: 1, unitPrice: 100, discountPercent: 0, vatPercent: 20, isFreeOfCharge: false },
+      { lineNumber: 2, stockItemId: 's2', stockCode: 'STK-2', stockName: 'Gıda etiketi', unitCode: 'ADET', quantity: 3, unitPrice: null, discountPercent: null, vatPercent: null, isFreeOfCharge: true },
+    ] };
+    apiMock.mockImplementation(async (url: string, _token: string, init?: { method?: string }) => {
+      const path = url.split('?')[0];
+      if (!init?.method && path === '/api/sales/standalone-deliveries/') return page([posted]);
+      if (!init?.method && path === '/api/sales/standalone-deliveries/sd1') return detail;
+      return respond(url, init);
+    });
+    try {
+      renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantUser" onNavigate={vi.fn()} createDeliveryPage />);
+      await waitFor(() => expect(screen.getByText(/IRS-5/)).toBeTruthy());
+      const item = screen.getByText(/IRS-5/).closest('article')!;
+      expect(within(item).getByText('Kısmen bedelsiz')).toBeTruthy();
+      expect(item.textContent).toContain('120,00 TRY');
+      await act(async () => {
+        fireEvent.click(within(item).getByRole('button', { name: 'Fatura oluştur' }));
+      });
+      const dialog = await screen.findByRole('dialog', { name: 'IRS-5 için fatura oluştur' });
+      expect(within(dialog).getByLabelText<HTMLInputElement>('STK-1 birim fiyat').value).toBe('100');
+      expect(within(dialog).getByText('irsaliyeden')).toBeTruthy();
+      expect(dialog.textContent).toContain('1 satırın tutarı eksik');
+      const free = within(dialog).getByLabelText<HTMLInputElement>('STK-2 birim fiyat');
+      expect(free.value).toBe('');
+      await act(async () => {
+        fireEvent.submit(dialog.querySelector('form')!);
+      });
+      expect(sentBody('/api/sales/standalone-deliveries/sd1/invoice')).toBeUndefined();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'liste fiyatı 50,00 · öner' }));
+      expect(free.value).toBe('50');
+      await act(async () => {
+        fireEvent.submit(dialog.querySelector('form')!);
+      });
+      await waitFor(() => expect(sentBody('/api/sales/standalone-deliveries/sd1/invoice')).toBeDefined());
+      expect(sentBody('/api/sales/standalone-deliveries/sd1/invoice').lines).toEqual([
+        { lineNumber: 1, unitPrice: 100, discountPercent: 0, vatPercent: 20 },
+        // The free line takes the stock card's VAT; its blank discount is left to the server.
+        { lineNumber: 2, unitPrice: 50, vatPercent: 10 },
+      ]);
+    } finally {
+      apiMock.mockImplementation(async (url: string, _token: string, init?: { method?: string }) => respond(url, init));
+    }
   });
 
   it('Esc on a touched draft asks before leaving', async () => {
@@ -468,7 +567,10 @@ describe('Belge ekranı görünümü', () => {
     expect(openMenu()).toEqual(['Temizle']);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Alt+İ işlemler', 'Esc kapat']);
     expect(flowSteps()).toEqual(['Taslak*', 'Sevk edildi', 'Faturalandı']);
-    expect(Array.from(grid.querySelectorAll('thead th')).map((th) => th.textContent)).toEqual(['#', 'Stok kartı', 'Miktar', 'Birim']);
+    // Taslak 20: the price columns follow the unit.
+    expect(Array.from(grid.querySelectorAll('thead th')).map((th) => th.textContent)).toEqual(
+      ['#', 'Stok kartı', 'Miktar', 'Birim', 'Bedelsiz', 'Birim fiyat', 'İsk. %', 'KDV %', 'Tutar', 'KDV dahil'],
+    );
     expect(form().querySelector('.dd-totals')).toBeNull();
   });
 

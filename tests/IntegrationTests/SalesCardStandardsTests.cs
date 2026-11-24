@@ -119,7 +119,7 @@ public sealed class SalesCardStandardsTests
         Assert.Equal("rates", Op("satis.kurlar").Result.RowsPath);
         Assert.Equal("/api/sales/quotes/exchange-rates", Op("satis.kurlar").Route);
         Assert.Equal("/api/sales/orders/{id}/deliveries", Op("satis.siparis.irsaliyeOlustur").Route);
-        Assert.Equal(["orderLineNumber", "quantity", "unitCode", "storageLocationId"],
+        Assert.Equal(["orderLineNumber", "quantity", "unitCode", "storageLocationId", "unitPrice", "discountPercent", "vatPercent", "isFreeOfCharge"],
             Op("satis.siparis.irsaliyeOlustur").Parameters.Single(x => x.Name == "lines").Items!.Select(x => x.Code));
         Assert.Equal("satis.teklif.ozelAlanDegerleri", Op("satis.teklif.ozelAlanKaydet").BodyMap!.SourceOperation);
         Assert.Equal("satis.siparis.ozelAlanDegerleri", Op("satis.siparis.ozelAlanKaydet").BodyMap!.SourceOperation);

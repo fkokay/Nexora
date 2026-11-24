@@ -30,7 +30,7 @@ public sealed record JournalTransferPreview(string SourceType, Guid SourceId, st
 /// </summary>
 internal static class GeneralLedgerTransferEndpoints
 {
-    private const string UnsupportedSourceMessage = "Desteklenen kaynak: satış/alış faturası, bağımsız alış taslağı, irsaliye, mal kabul, satış/tedarikçi iadesi, tahsilat, ödeme, kur değerleme veya stok maliyeti.";
+    private const string UnsupportedSourceMessage = "Desteklenen kaynak: satış/alış faturası, satınalma faturası taslağı, irsaliye, mal kabul, satış/tedarikçi iadesi, tahsilat, ödeme, kur değerleme veya stok maliyeti.";
 
     public static RouteGroupBuilder MapGeneralLedgerTransferEndpoints(this RouteGroupBuilder group)
     {
@@ -509,7 +509,7 @@ internal static class GeneralLedgerTransferEndpoints
                 return Blocked("İrsaliye stok ve satılan mal maliyeti hesap eşleştirmeleri tamamlanmamış.");
             if (inventoryId == costId) return Blocked("İrsaliye stok ve satılan mal maliyeti hesapları farklı olmalıdır.");
             entryDate = source.DeliveryDate; sourceCode = source.Code;
-            description = $"Satış irsaliyesi · {source.Code} · {source.Invoice?.Customer.Name ?? source.Order?.Customer.Name ?? "Siparişsiz satış"}";
+            description = $"Satış irsaliyesi · {source.Code} · {source.Invoice?.Customer.Name ?? source.Order?.Customer.Name ?? "Satış irsaliyesi"}";
             lines.Add((costId, $"{source.Code} · Satılan mal maliyeti", stockCostBase, 0));
             lines.Add((inventoryId, $"{source.Code} · Stok çıkışı", 0, stockCostBase));
         }

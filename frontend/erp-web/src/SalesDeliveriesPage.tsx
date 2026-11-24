@@ -45,6 +45,20 @@ import {
   type DocumentTotalRow,
 } from "./document-detail/DocumentDetailLayout";
 import { SALES_DETAIL_HINTS, SalesDeliveryFlow, SalesFooterStatus, SalesLinesMeta } from "./sales/salesDocumentDetail";
+import {
+  formatMoneyWithCurrency,
+  invoiceLineOverridden,
+  invoicePriceFields,
+  invoicePriceLine,
+  lineAmounts,
+  listPriceSuggestion,
+  priceDraftFrom,
+  missingInvoiceAmounts,
+  type DeliveryHeaderPricing,
+  type DeliveryLinePricing,
+  type InvoicePriceLine,
+} from "./delivery-pricing/deliveryPricing";
+import { FreeTag, InvoiceAmountsAlert, InvoicePriceCells, PriceHeadCells, PriceReadCells, PricingStateTag } from "./delivery-pricing/DeliveryPricingCells";
 type BuiltInScreenLayoutField = AppTypes.BuiltInScreenLayoutField;
 type SalesCustomer = AppTypes.SalesCustomer;
 type SalesDeliverySummary = AppTypes.SalesDeliverySummary;
@@ -52,6 +66,13 @@ type SalesInvoiceCustomFieldDefinition =
   AppTypes.SalesInvoiceCustomFieldDefinition;
 type StockItem = AppTypes.StockItem;
 type Warehouse = AppTypes.Warehouse;
+
+/** A saved line with its amounts: the server's, else computed (servers before taslak 20 send none). */
+function withLineAmounts(line: DeliveryLinePricing & { quantity: number; enteredQuantity?: number | null }): DeliveryLinePricing {
+  if (line.lineNetAmount !== undefined || line.isFreeOfCharge) return line;
+  const amounts = lineAmounts(line.enteredQuantity ?? line.quantity, priceDraftFrom(line));
+  return { ...line, lineNetAmount: amounts?.net ?? null, lineVatAmount: amounts?.vat ?? null, lineTotal: amounts?.total ?? null };
+}
 
 export function SalesDeliveriesScreen({
   token,
@@ -100,8 +121,9 @@ export function SalesDeliveriesScreen({
     { key: "deliveryDate", label: "Sevk tarihi", visible: true, position: 2 },
     { key: "warehouseName", label: "Depo", visible: true, position: 3 },
     { key: "lineCount", label: "Satır", visible: true, position: 4 },
-    { key: "status", label: "Durum", visible: true, position: 5 },
-    { key: "invoiceStatus", label: "Fatura", visible: true, position: 6 },
+    { key: "pricedGrandTotal", label: "Tutar", visible: true, position: 5 },
+    { key: "status", label: "Durum", visible: true, position: 6 },
+    { key: "invoiceStatus", label: "Fatura", visible: true, position: 7 },
   ]);
   const [detail, setDetail] = useState<{
     id: string;
@@ -111,32 +133,30 @@ export function SalesDeliveriesScreen({
     warehouseName: string;
     deliveryDate: string;
     status: "Posted" | "Voided";
-    lines: {
+    lines: ({
       orderLineNumber: number;
       stockItemId: string;
       stockCode: string;
       stockName: string;
       unitCode: string;
       quantity: number;
+      enteredQuantity?: number | null;
+      enteredUnitCode?: string | null;
       unitPrice: number | null;
       discountPercent: number | null;
       vatPercent: number | null;
       currencyCode: string | null;
-    }[];
+    } & DeliveryLinePricing)[];
     hasSalesInvoice: boolean;
     invoiceStatus: "Posted" | "Voided" | null;
     invoiceId: string | null;
-  } | null>(null);
+  } & DeliveryHeaderPricing | null>(null);
   const [invoiceEditing, setInvoiceEditing] = useState(false),
     [invoiceCustomerId, setInvoiceCustomerId] = useState(""),
     [invoiceDate, setInvoiceDate] = useState(localDateString());
+  // Taslak 20: invoice lines prefilled from the delivery prices; free / unpriced lines need an amount.
   const [invoiceLines, setInvoiceLines] = useState<
-    {
-      orderLineNumber: number;
-      unitPrice: string;
-      discountPercent: string;
-      vatPercent: string;
-    }[]
+    ({ orderLineNumber: number } & InvoicePriceLine)[]
   >([]);
   const [invoiceCustomFields, setInvoiceCustomFields] = useState<
       SalesInvoiceCustomFieldDefinition[]
@@ -205,12 +225,17 @@ export function SalesDeliveriesScreen({
     )
       .then((view) => {
         if (!cancelled && view.fields?.length)
-          setScreenFields(
-            view.fields.map((field, index) => ({
+          setScreenFields((defaults) => {
+            const saved = view.fields.map((field, index) => ({
               ...field,
               position: field.position ?? index,
-            })),
-          );
+            }));
+            // Columns added after the layout was saved (e.g. Tutar) are kept, at the end.
+            const missing = defaults
+              .filter((field) => !saved.some((item) => item.key === field.key))
+              .map((field, index) => ({ ...field, position: saved.length + index }));
+            return [...saved, ...missing];
+          });
       })
       .catch(() => {});
     return () => {
@@ -222,11 +247,12 @@ export function SalesDeliveriesScreen({
     .filter((field) => field.visible && field.key !== "actions")
     .sort((a, b) => a.position - b.position);
   const deliveryTotals = (detail?.lines ?? []).reduce((totals, line) => {
-    const gross = line.quantity * (line.unitPrice ?? 0);
-    const discount = gross * (line.discountPercent ?? 0) / 100;
-    const taxable = gross - discount;
+    // Taslak 20: a line price is per entered unit; the server's line amounts are used when it sends them.
+    const gross = (line.enteredQuantity ?? line.quantity) * (line.unitPrice ?? 0);
+    const taxable = line.lineNetAmount ?? gross - gross * (line.discountPercent ?? 0) / 100;
+    const discount = gross - taxable;
     const rate = line.vatPercent ?? 0;
-    const vat = taxable * rate / 100;
+    const vat = line.lineVatAmount ?? taxable * rate / 100;
     return {
       subtotal: totals.subtotal + gross,
       discount: totals.discount + discount,
@@ -236,8 +262,10 @@ export function SalesDeliveriesScreen({
       vatByRate: { ...totals.vatByRate, [rate]: (totals.vatByRate[rate] ?? 0) + vat },
     };
   }, { subtotal: 0, discount: 0, vat: 0, total: 0, taxableByRate: {} as Record<number, number>, vatByRate: {} as Record<number, number> });
-  const deliveryCurrency = detail?.lines.find((line) => line.currencyCode)?.currencyCode ?? "TRY";
+  const deliveryCurrency = detail?.currencyCode ?? detail?.lines.find((line) => line.currencyCode)?.currencyCode ?? "TRY";
   const priced = !!detail?.lines.some((line) => line.unitPrice !== null);
+  // Price columns also show when every line is Bedelsiz (no priced line).
+  const showPrices = priced || !!detail?.lines.some((line) => line.isFreeOfCharge);
   const deliveryMoney = (value: number) =>
     `${new Intl.NumberFormat("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.isFinite(value) ? value : 0)} ${deliveryCurrency === "TRY" ? "TL" : deliveryCurrency}`;
   // The delivery's own totals block, with the wording and order users know: per rate the base rows, then the VAT rows
@@ -280,6 +308,20 @@ export function SalesDeliveriesScreen({
         return item.warehouseName;
       case "lineCount":
         return item.lineCount;
+      case "pricedGrandTotal":
+        return (
+          <>
+            {item.pricedGrandTotal === null || item.pricedGrandTotal === undefined || item.pricingState === "Free" || item.pricingState === "Unpriced"
+              ? "—"
+              : formatMoneyWithCurrency(item.pricedGrandTotal, item.currencyCode)}
+            {item.pricingState && item.pricingState !== "Priced" && (
+              <>
+                {" "}
+                <PricingStateTag state={item.pricingState} />
+              </>
+            )}
+          </>
+        );
       case "status":
         return listTag("delivery", item.status);
       case "invoiceStatus":
@@ -335,9 +377,8 @@ export function SalesDeliveriesScreen({
       setInvoiceLines(
         loaded.lines.map((line) => ({
           orderLineNumber: line.orderLineNumber,
-          unitPrice: "0",
-          discountPercent: "0",
-          vatPercent: "20",
+          // A free / unpriced line takes the stock card's sales VAT (else blank: the server falls back to the order line).
+          ...invoicePriceLine(line, null, stockItems.find((item) => item.id === line.stockItemId)?.salesVatPercent ?? null),
         })),
       );
       setInvoiceEditing(true);
@@ -530,7 +571,7 @@ export function SalesDeliveriesScreen({
       run: () =>
         detail
           ? startOrderlessInvoice(detail.id)
-          : target.orderId
+          : target.orderId && (!target.pricingState || target.pricingState === "Priced")
             ? createInvoice(target.id)
             : startOrderlessInvoice(target.id),
     });
@@ -744,7 +785,10 @@ export function SalesDeliveriesScreen({
               <DetailInfoGrid
                 label="İrsaliye bilgileri"
                 items={[
-                  { label: "Bağlı sipariş", value: detail.orderCode || "Bağımsız sevkiyat" },
+                  { label: "Bağlı sipariş", value: detail.orderCode || "—" },
+                  ...(detail.pricingState && detail.pricingState !== "Priced"
+                    ? [{ label: "Fiyat durumu", value: <PricingStateTag state={detail.pricingState} /> }]
+                    : []),
                   { label: "Sevk deposu", value: detail.warehouseName },
                   { label: "Sevk tarihi", value: formatDate(detail.deliveryDate) },
                   {
@@ -764,25 +808,30 @@ export function SalesDeliveriesScreen({
                       <th>Stok kartı</th>
                       <th className="dd-num">Sipariş satırı</th>
                       <th className="dd-num">Sevk miktarı</th>
+                      {showPrices && <PriceHeadCells gross />}
                     </tr>
                   </thead>
                   <tbody>
                     {detail.lines.map((line, index) => (
-                      <tr key={`${line.orderLineNumber}-${line.stockItemId}-${index}`}>
+                      <tr
+                        key={`${line.orderLineNumber}-${line.stockItemId}-${index}`}
+                        className={line.isFreeOfCharge ? "dp-free-row" : undefined}
+                      >
                         <td className="dd-ix">{index + 1}</td>
                         <td className="dd-stock">
-                          <b>{line.stockCode}</b>
+                          <b>{line.stockCode}{line.isFreeOfCharge && <> <FreeTag /></>}</b>
                           <small>{line.stockName}</small>
                         </td>
                         <td className="dd-num">{line.orderLineNumber}</td>
                         <td className="dd-num">
                           {formatQuantity(line.quantity)} {line.unitCode}
                         </td>
+                        {showPrices && <PriceReadCells line={withLineAmounts(line)} gross />}
                       </tr>
                     ))}
                     {detail.lines.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="dd-empty">İrsaliye kalemi bulunamadı.</td>
+                        <td colSpan={showPrices ? 10 : 4} className="dd-empty">İrsaliye kalemi bulunamadı.</td>
                       </tr>
                     )}
                   </tbody>
@@ -793,6 +842,12 @@ export function SalesDeliveriesScreen({
                   label="İrsaliye toplamları"
                   totals={deliveryTotalRows}
                 />
+              )}
+              {((detail.freeLineCount ?? 0) > 0 || (detail.unpricedLineCount ?? 0) > 0) && (
+                <p className="dp-hint">
+                  {(detail.freeLineCount ?? 0) > 0 && `Bedelsiz satır: ${detail.freeLineCount} · tutarı faturada girilir. `}
+                  {(detail.unpricedLineCount ?? 0) > 0 && `Fiyatsız satır: ${detail.unpricedLineCount} · tutarı faturada girilir.`}
+                </p>
               )}
             </div>
             </>}
@@ -832,14 +887,20 @@ export function SalesDeliveriesScreen({
                 saveLabel="Faturayı oluştur"
                 // A sub-form of the document: its own Kaydet saves it, not the action bar's.
                 ownSave
-                saveDisabledReason={detail.orderId === null && !invoiceCustomerId ? "Kaydetmek için müşteri seçin." : undefined}
+                saveDisabledReason={
+                  detail.orderId === null && !invoiceCustomerId
+                    ? "Kaydetmek için müşteri seçin."
+                    : missingInvoiceAmounts(invoiceLines) > 0
+                      ? "Bedelsiz/fiyatsız satırların tutarını girin."
+                      : undefined
+                }
                 onCancel={() => {
                   if (!busy) setInvoiceEditing(false);
                 }}
                 status={
                   <span>
                     {detail.orderId
-                      ? "Sipariş fiyatları kullanılır."
+                      ? "İrsaliye fiyatları kullanılır; burada değiştirilebilir (irsaliye değişmez)."
                       : `${customers.find((customer) => customer.id === invoiceCustomerId)?.currencyCode || "Döviz"} · KDV/iskonto oranlarını doğrulayın`}
                   </span>
                 }
@@ -847,17 +908,23 @@ export function SalesDeliveriesScreen({
                   event.preventDefault();
                   // The old save button was disabled until a customer was chosen.
                   if (detail.orderId === null && !invoiceCustomerId) return;
+                  if (missingInvoiceAmounts(invoiceLines) > 0) {
+                    setError("Bedelsiz/fiyatsız satırların tutarını girin.");
+                    return;
+                  }
+                  // Order-based: only the lines whose price differs from the delivery (or had none) go as overrides.
+                  const overrides = invoiceLines
+                    .filter((line, index) => invoiceLineOverridden(line, detail.lines[index] ?? {}))
+                    .map((line) => ({ orderLineNumber: line.orderLineNumber, ...invoicePriceFields(line) }));
                   const request = detail.orderId
-                    ? { customFields: invoiceCustomFieldsPayload }
+                    ? { customFields: invoiceCustomFieldsPayload, ...(overrides.length ? { lines: overrides } : {}) }
                     : {
                         customerId: invoiceCustomerId,
                         invoiceDate,
                         customFields: invoiceCustomFieldsPayload,
                         lines: invoiceLines.map((line) => ({
-                          ...line,
-                          unitPrice: Number(line.unitPrice),
-                          discountPercent: Number(line.discountPercent),
-                          vatPercent: Number(line.vatPercent),
+                          orderLineNumber: line.orderLineNumber,
+                          ...invoicePriceFields(line),
                         })),
                       };
                   void createInvoice(detail.id, request);
@@ -903,27 +970,37 @@ export function SalesDeliveriesScreen({
                         />
                       </label>
                     </RecordFormGroup>
+                  </>
+                ) : (
+                  <p className="muted">
+                    Fiyatlı satırlar irsaliye fiyatıyla gelir. Zorunlu fatura özel alanlarını tamamlayın.
+                  </p>
+                )}
                     <RecordFormGroup title="Fatura Satırları">
+                    <InvoiceAmountsAlert missing={missingInvoiceAmounts(invoiceLines)} />
                     <div className="customer-table-wrap sales-delivery-lines-wrap sales-rf-lines">
                       <table className="customer-table">
                         <thead>
                           <tr>
                             <th>İrsaliye satırı</th>
                             <th>Miktar</th>
-                            <th>Birim fiyat</th>
-                            <th>İskonto %</th>
-                            <th>KDV %</th>
+                            <th className="dd-num">Birim fiyat</th>
+                            <th className="dd-num">İsk. %</th>
+                            <th className="dd-num">KDV %</th>
+                            <th className="dd-num">Tutar</th>
                           </tr>
                         </thead>
                         <tbody>
                           {detail.lines.map((line, index) => (
                             <tr
                               key={`${line.orderLineNumber}-${line.stockItemId}`}
+                              className={line.isFreeOfCharge ? "dp-free-row" : undefined}
                             >
                               <td>
                                 <b>
                                   {line.stockCode} · {line.stockName}
                                 </b>
+                                {line.isFreeOfCharge && <> <FreeTag /></>}
                               </td>
                               <td>
                                 {line.quantity.toLocaleString("tr-TR", {
@@ -931,77 +1008,21 @@ export function SalesDeliveriesScreen({
                                 })}{" "}
                                 {line.unitCode}
                               </td>
-                              <td>
-                                <input
-                                  aria-label={`${line.stockCode} birim fiyat`}
-                                  type="number"
-                                  min="0"
-                                  step="0.0001"
-                                  value={invoiceLines[index]?.unitPrice ?? "0"}
-                                  onChange={(event) =>
-                                    setInvoiceLines((rows) =>
-                                      rows.map((row, i) =>
-                                        i === index
-                                          ? {
-                                              ...row,
-                                              unitPrice: event.target.value,
-                                            }
-                                          : row,
-                                      ),
-                                    )
-                                  }
-                                  required
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  aria-label={`${line.stockCode} iskonto yüzdesi`}
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  value={
-                                    invoiceLines[index]?.discountPercent ?? "0"
-                                  }
-                                  onChange={(event) =>
-                                    setInvoiceLines((rows) =>
-                                      rows.map((row, i) =>
-                                        i === index
-                                          ? {
-                                              ...row,
-                                              discountPercent:
-                                                event.target.value,
-                                            }
-                                          : row,
-                                      ),
-                                    )
+                              {invoiceLines[index] && (
+                                <InvoicePriceCells
+                                  label={line.stockCode}
+                                  quantity={line.enteredQuantity ?? line.quantity}
+                                  line={invoiceLines[index]}
+                                  suggestion={listPriceSuggestion(
+                                    stockItems.find((item) => item.id === line.stockItemId),
+                                    "sales",
+                                    deliveryCurrency,
+                                  )}
+                                  onChange={(patch) =>
+                                    setInvoiceLines((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
                                   }
                                 />
-                              </td>
-                              <td>
-                                <input
-                                  aria-label={`${line.stockCode} KDV yüzdesi`}
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  value={
-                                    invoiceLines[index]?.vatPercent ?? "20"
-                                  }
-                                  onChange={(event) =>
-                                    setInvoiceLines((rows) =>
-                                      rows.map((row, i) =>
-                                        i === index
-                                          ? {
-                                              ...row,
-                                              vatPercent: event.target.value,
-                                            }
-                                          : row,
-                                      ),
-                                    )
-                                  }
-                                />
-                              </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
@@ -1009,16 +1030,10 @@ export function SalesDeliveriesScreen({
                     </div>
                     <p className="muted">
                       Bu işlem yalnızca faturayı ve cari borç kaydını oluşturur;
-                      irsaliyedeki stok çıkışı tekrarlanmaz.
+                      irsaliyedeki stok çıkışı tekrarlanmaz. Bedelsiz satır 0 olarak da
+                      faturalanabilir; fatura toplamı sıfırdan büyük olmalı.
                     </p>
                     </RecordFormGroup>
-                  </>
-                ) : (
-                  <p className="muted">
-                    Fatura fiyatları sipariş satırlarından alınır. Zorunlu
-                    fatura özel alanlarını tamamlayın.
-                  </p>
-                )}
                 {renderInvoiceCustomFieldInputs()}
               </RecordFormPage>
             )}

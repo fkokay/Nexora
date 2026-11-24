@@ -236,6 +236,35 @@ describe('Mal kabulleri list', () => {
     await waitFor(() => expect(apiCalls('/api/purchasing/receipts/?page=1&pageSize=25')).toBeGreaterThan(listCalls));
   });
 
+  it('taslak 20: an older order-less receipt draft (no price, unit cost 50) keeps its unit cost when saved again', async () => {
+    overrides.set('/api/purchasing/standalone-receipts/', () =>
+      page([{ id: 'sr1', code: 'MK-S1', supplierId: 's1', supplierName: 'Ege Ambalaj', warehouseId: 'w1', date: '2026-11-20', status: 'Draft', lineCount: 1, createdAt: '2026-11-20' }]),
+    );
+    overrides.set('/api/purchasing/standalone-receipts/sr1', () => ({
+      supplierId: 's1', warehouseId: 'w1', code: 'MK-S1', receiptDate: '2026-11-20',
+      lines: [{ stockItemId: 'st1', quantity: 3, unitCostBase: 50, trackingCode: null, expiryDate: null, storageLocationId: null,
+        unitPrice: null, discountPercent: null, vatPercent: null, isFreeOfCharge: false, lineNetAmount: null, lineVatAmount: null, lineTotal: null }],
+    }));
+    renderScreen(receiptsScreen());
+    await settle();
+    await act(async () => {
+      fireEvent.click(command('new'));
+    });
+    const edit = await screen.findByRole('button', { name: 'Düzenle' });
+    await act(async () => {
+      fireEvent.click(edit);
+    });
+    await waitFor(() => expect(screen.getByLabelText<HTMLInputElement>('Satır 1 birim fiyat').value).toBe(''));
+    await act(async () => {
+      fireEvent.submit(document.querySelector<HTMLFormElement>('.purchase-receipt-standalone form')!);
+    });
+    const put = () => apiMock.mock.calls.find(([url, , init]) => url === '/api/purchasing/standalone-receipts/sr1' && init?.method === 'PUT');
+    await waitFor(() => expect(put()).toBeTruthy());
+    expect(JSON.parse(put()![2].body as string).lines[0]).toMatchObject({
+      stockItemId: 'st1', quantity: 3, unitCostBase: 50, isFreeOfCharge: false, unitPrice: null,
+    });
+  });
+
   it('Yeni from an open receipt closes it and shows the create screen', async () => {
     renderScreen(receiptsScreen());
     await settle();
@@ -260,7 +289,7 @@ describe('Mal kabulleri list', () => {
 });
 
 describe('Satınalma İrsaliyeleri', () => {
-  it('list type: derived tag (Mal kabul eşleşti ok / Bağlantısı yok warn), no amounts, page card', async () => {
+  it('list type: derived tag (Mal kabul eşleşti ok / Bağlantısı yok warn), Tutar column, page card', async () => {
     renderScreen(<PurchaseDeliveryNotesPage token="t" />);
     await settle();
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/purchasing/delivery-notes/?page=1&pageSize=25')).toBe(true);
@@ -270,7 +299,9 @@ describe('Satınalma İrsaliyeleri', () => {
     expect(tagOf(row('IRS-2'))?.textContent).toBe('Bağlantısı yok');
     expect(tagOf(row('IRS-2'))?.className).toContain('is-warn');
     expect(cards()).toEqual(['Bağlantısı yok 1 bu sayfa']);
-    expect(grid().textContent).not.toMatch(/TRY|Tutar/);
+    // Taslak 20: a Tutar column; rows without line prices show "—".
+    expect(within(grid()).getByText('Tutar')).toBeTruthy();
+    expect(grid().textContent).not.toMatch(/TRY/);
     // The order workspace is not on the list any more; it opens with Yeni.
     expect(screen.queryByLabelText('Satın alma siparişlerinde ara')).toBeNull();
   });
@@ -332,9 +363,69 @@ describe('Satınalma İrsaliyeleri', () => {
     await waitFor(() => expect(posts().length).toBe(1));
     expect(posts()[0]).toEqual({
       url: '/api/purchasing/delivery-notes/orders/po1',
-      body: { documentNumber: 'IRS-9', documentDate: localDateString(), lines: [{ orderLineNumber: 1, quantity: 4, unitCode: 'ADET' }], purchaseReceiptId: null },
+      // Taslak 20: the order line price is suggested and sent with the line.
+      body: {
+        documentNumber: 'IRS-9', documentDate: localDateString(),
+        lines: [{ orderLineNumber: 1, quantity: 4, unitCode: 'ADET', isFreeOfCharge: false, unitPrice: 100, discountPercent: 0, vatPercent: 20 }],
+        purchaseReceiptId: null,
+      },
     });
     await waitFor(() => expect(screen.getByText('İrsaliye kaydedildi; stok girişi mal kabul işleminde yapılır.')).toBeTruthy());
+  });
+
+  it('taslak 20: a Bedelsiz note line posts only the flag; the list shows Tutar with the pricing tag', async () => {
+    overrides.set('/api/purchasing/delivery-notes/', () =>
+      page([{ ...notes[0], currencyCode: 'TRY', pricedGrandTotal: 480, pricingState: 'PartlyFree' }, { ...notes[1], currencyCode: 'TRY', pricedGrandTotal: 0, pricingState: 'Free' }]),
+    );
+    renderScreen(<PurchaseDeliveryNotesPage token="t" />);
+    await settle();
+    expect(row('IRS-1').textContent).toContain('480,00 TRY');
+    expect(within(row('IRS-1')).getByText('Kısmen bedelsiz')).toBeTruthy();
+    expect(within(row('IRS-2')).getByText('Bedelsiz')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(command('new'));
+    });
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Sipariş' }), { target: { value: 'po1' } });
+    await waitFor(() => expect(screen.getByLabelText('STK-1 irsaliye miktarı')).toBeTruthy());
+    expect(screen.getByLabelText<HTMLInputElement>('STK-1 birim fiyat').value).toBe('100');
+    expect(screen.getByText('siparişte 100,00')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Tedarikçi irsaliye numarası/), { target: { value: 'IRS-9' } });
+    fireEvent.change(screen.getByLabelText('STK-1 irsaliye miktarı'), { target: { value: '4' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tümünü bedelsiz yap' }));
+    expect(screen.queryByLabelText('STK-1 birim fiyat')).toBeNull();
+    await waitFor(() => expect(enabled('save')).toBe(true));
+    await act(async () => {
+      fireEvent.click(command('save'));
+    });
+    await waitFor(() => expect(posts().length).toBe(1));
+    expect(posts()[0].body.lines).toEqual([{ orderLineNumber: 1, quantity: 4, unitCode: 'ADET', isFreeOfCharge: true }]);
+  });
+
+  it('taslak 20: the receipt list shows Tutar; the receipt document shows line prices and the pending stock cost', async () => {
+    overrides.set('/api/purchasing/receipts/', () =>
+      page([{ ...receipts[0], currencyCode: 'TRY', pricedGrandTotal: 0, pricingState: 'Free' }, receipts[1], { ...receipts[2], currencyCode: 'TRY', pricedGrandTotal: 480, pricingState: 'Priced' }]),
+    );
+    overrides.set('/api/purchasing/orders/po2', () =>
+      orderDetail('po2', 'SA-2', [{
+        ...receipts[2], invoice: null, customFields: [], currencyCode: 'TRY', pricedNetTotal: 400, pricedVatTotal: 80, pricedGrandTotal: 480,
+        freeLineCount: 1, unpricedLineCount: 0, pricingState: 'PartlyFree',
+        lines: [
+          { ...receiptLine, unitPrice: 100, discountPercent: 0, vatPercent: 20, isFreeOfCharge: false, lineNetAmount: 400, lineVatAmount: 80, lineTotal: 480, orderUnitPrice: 100 },
+          { ...receiptLine, orderLineNumber: 2, stockCode: 'PRM-1', stockName: 'Promosyon', unitPrice: null, discountPercent: null, vatPercent: null, isFreeOfCharge: true, costPending: true },
+        ],
+      }]),
+    );
+    renderScreen(receiptsScreen());
+    await settle();
+    expect(within(row('MK-1')).getByText('Bedelsiz')).toBeTruthy();
+    expect(row('MK-3').textContent).toContain('480,00 TRY');
+    fireEvent.doubleClick(row('MK-3').querySelectorAll('td')[2]);
+    await waitFor(() => expect(screen.getByRole('table', { name: 'Mal kabul satırları' })).toBeTruthy());
+    const table = screen.getByRole('table', { name: 'Mal kabul satırları' });
+    expect(within(table).getByText('100,00 / ADET')).toBeTruthy();
+    expect(within(table).getByText('fatura gelince')).toBeTruthy();
+    expect(within(table).getByText('— fiyatsız')).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Mal kabul fiyat toplamları' }).textContent).toContain('480,00 TRY');
   });
 
   it('link and unlink in the create view send the same requests and do not save the note', async () => {

@@ -58,7 +58,7 @@ export const english: Record<string, string> = {
   // Satınalma create screens in the document create view (Faz 4 Task 5).
   'Kaydedilme': 'Saved at',
   'Faturalanabilir mal kabuller': 'Invoiceable purchase receipts',
-  'Bağımsız tedarikçi faturası özeti': 'Standalone supplier invoice summary',
+  'Satınalma faturası taslağı özeti': 'Purchase invoice draft summary',
 }
 
 export const englishPatterns: Array<[RegExp, string]> = [

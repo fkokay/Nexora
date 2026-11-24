@@ -43,7 +43,7 @@ import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
-import { countedGridState, filledGridState, gridEngineReducer, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns,
+import { countedGridState, filledGridState, gridEngineReducer, lockedColumns, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns, withoutLockedErrors,
   type GridEngine, type GridEngineAction } from "./custom-page/gridFill";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
@@ -56,11 +56,14 @@ import { applyFirstChoices, firstChoiceValue, applyClientFilters, filterChoices,
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { OPEN_PAGE_EVENT, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, publishRecordsDeleted, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { deletedRecordIds } from "./custom-page/deletedRecords";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 import "./custom-page/detail-panel.css";
 
+/** Yazmanın kaynağı: `recordDelete` İşlem Çubuğu "Sil" komutudur (sayfanın gösterdiği kaydın silmesi). */
+type WriteOptions = { recordDelete?: boolean };
 type DynamicField = {
   code: string; label: string; dataType: "Text" | "Decimal" | "Date" | "Boolean" | "Choice";
   isRequired: boolean; maxLength?: number; options?: string[] | null; placeholder?: string | null;
@@ -112,7 +115,8 @@ type PageRuntime = {
   rerun: (queryIds: string[]) => void;
   /** Studio taslak önizlemesi: yazma sorguları her zaman onay sorar ve sunucuya açık onay (confirmWrite) gönderir. */
   isPreview: boolean;
-  writeFor: (query: PageQueryDefinition, confirmWrite: boolean) => Promise<WriteResult>;
+  /** `recordDelete`: İşlem Çubuğu "Sil" (kaydın kendi silmesi); kaydı gösteren bu sekme de kapanır. */
+  writeFor: (query: PageQueryDefinition, confirmWrite: boolean, options?: WriteOptions) => Promise<WriteResult>;
   /** Kod bileşenleri arası olay merkezi (load/select/beforeSave/afterSave) ve köprünün sayfa tarafı. */
   events: PageEvents;
   codeHost: BridgeHost;
@@ -229,6 +233,8 @@ type GridView = {
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
   /** Hesaplanan (`calc`) hücrenin metni. */
   calcText: (column: GridColumn, draft: GridDraft) => string;
+  /** Satırın kilitli sütunları (`lockColumnsWhen`). */
+  lockedFor: (draft: GridDraft) => ReadonlySet<string>;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -1414,13 +1420,13 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     navigateBar(afterSavePlan.page!, afterSavePlan.refresh ? { refreshTarget: true } : undefined);
   } : undefined;
 
-  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void) => {
+  const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void, options?: WriteOptions) => {
     onStatus(null);
     const result = await runWriteAction({
       query, isPreview: latest.current.isPreview, inFlight, confirm,
       write: async (target, confirmWrite) => {
         if (mounted.current) onBusy(true);
-        try { return await latest.current.writeFor(target, confirmWrite); } finally { if (mounted.current) onBusy(false); }
+        try { return await latest.current.writeFor(target, confirmWrite, options); } finally { if (mounted.current) onBusy(false); }
       },
       errorText: (cause) => writeErrorText(errorPrefix, cause),
       validate: () => latest.current.validateFor(query),
@@ -1554,7 +1560,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         const query = latest.current.queryById[queryId];
         if (!query) return;
         if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
-        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "");
+        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "", [], undefined, { recordDelete: true });
       },
       saveSequence: () => {
         onStatus(null);
@@ -2057,7 +2063,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     return cleared;
   };
   // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
-  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
+  const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean, options?: WriteOptions) => {
     const values = editMapValues(query, resolved);
     // Gönderilen satırların taslak anahtarları: sunucunun `<liste>[i]` hataları sonradan silinen/atlanan satırlarda kaymasın.
     sentKeys.current[query.name] = Object.fromEntries(gridComponents.filter((grid) => bindsGrid(query, grid.name!, "satirlar")).map((grid) => {
@@ -2065,6 +2071,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       return [spec.name, gridSentRows(spec, gridStateOf(spec, statesRef.current)).map((row) => row.key)];
     }));
     const result = await runWrite(query, values, confirmWrite, clearedParameters(query, values));
+    // Silinen kaydın kart sekmeleri kapanır (her silme yolu: İşlem Çubuğu, toplu/satır silme, düğme, dizi). Bu sekme yalnız
+    // kendi kaydını sildiğinde (`recordDelete`) kapanır; satır silmesi belgeyi gösteren kartı kapatmaz.
+    const recordDelete = options?.recordDelete === true;
+    publishRecordsDeleted({ ids: deletedRecordIds(query, values, { recordDelete }), from: tabKey, closeSource: recordDelete });
     // Yazma sonucu (`<sorgu>.sonuc`) bir sonraki çizime kadar güncel kapsama bindirilir: kayıttan hemen sonra çalışan eylem
     // (ör. `afterSaveButton` gezinmesi `{{olustur.sonuc.id}}`) sonucu görür.
     if (result && typeof result === "object" && "sonuc" in result && result.sonuc !== undefined) freshResults.current[query.name] = { sonuc: result.sonuc };
@@ -2078,7 +2088,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     }
     return result;
   };
-  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean) => trackedWrite(query, resolveQueryParameters(query, scope), confirmWrite);
+  const writeFor = (query: PageQueryDefinition, confirmWrite: boolean, options?: WriteOptions) => trackedWrite(query, resolveQueryParameters(query, scope), confirmWrite, options);
   const writeWith = (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite: boolean) => trackedWrite(query, values, confirmWrite);
   // Bekleyen işlemler (dizi adımları, istem/onay sonrası) render anındaki değil en güncel kapsamı okur.
   const scopeRef = useRef(scope);
@@ -2249,7 +2259,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const fill = gridFillState(spec, states);
       if (fill?.loading) return SOURCE_LOADING;
       if (fill?.error) return SOURCE_FAILED;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = skipsValidation(grid) ? {} : withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows));
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -3009,7 +3020,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
     const counted = countedGridState(spec.engine, state);
-    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows)) : {};
     // Sunucunun satır hataları (`<liste>[i].<alan>`) hücrelerde; istemci iletisi önce gelir.
     const serverErrors = gridServerErrors(spec, state);
     const errors: Record<string, Record<string, string>> = { ...serverErrors };
@@ -3024,6 +3035,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
       totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, counted, sourceRows, spec.rowKey).satirlar) : {},
       calcText: (column, draft) => gridCalcText(column, draft),
+      lockedFor: (draft) => lockedColumns(spec.engine, draft),
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -3080,7 +3092,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       if (!bindsGrid(query, grid.name!) && !query.preview!.watch.includes(grid.name!)) return false;
       const spec = gridSpecOf(grid);
       if (gridFillState(spec, states)?.loading) return true;
-      const errors = validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows);
+      const counted = countedGridState(spec.engine, gridStateOf(spec, states));
+      const errors = withoutLockedErrors(spec.engine, counted, validateGrid(spec.mode, spec.columns, counted, gridSourceRows(spec, states), spec.rowKey, spec.maxRows));
       return Object.keys(errors).length > 0;
     });
     return { query, values, key: JSON.stringify([values, query.preview!.watch.map(watchedValue)]), blocked, debounceMs: query.preview!.debounceMs };

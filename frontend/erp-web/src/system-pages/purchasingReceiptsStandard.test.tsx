@@ -14,7 +14,10 @@ const receipt = (id: string, code: string, status: string) => ({
   id, code, purchaseOrderId: 'po1', purchaseOrderCode: 'SA-0001', warehouseId: 'w1', warehouseName: 'Ana depo', receiptDate: '2026-11-04',
   status, lineCount: 1, createdAt: '2026-11-04T10:00:00Z',
 });
-const rows = () => [receipt(R1, 'MK-0001', 'Posted'), receipt(R2, 'MK-0002', 'Voided')];
+const rows = () => [
+  { ...receipt(R1, 'MK-0001', 'Posted'), currencyCode: 'TRY', pricedGrandTotal: 480, pricingState: 'PartlyFree' },
+  receipt(R2, 'MK-0002', 'Voided'),
+];
 let voidFailure: { status: number; message: string } | null = null;
 
 function respond(path: string, method: string): unknown {
@@ -50,6 +53,8 @@ describe('Mal kabulleri standart tanımı', { timeout: 30000 }, () => {
     const list = h.gets('/api/purchasing/receipts')[0];
     expect(new URLSearchParams(list.url.split('?')[1]).get('pageSize')).toBe('25');
     expect(screen.getAllByText('Kabul edildi').length).toBeGreaterThan(0);
+    // Taslak 20: Tutar and the pricing state of the receipt.
+    expect(screen.getAllByText('Kısmen bedelsiz').length).toBeGreaterThan(0);
     await h.select('MK-0001');
     await waitFor(() => expect(h.gets(`/api/purchasing/receipts/${R1}`).length).toBeGreaterThan(0), T);
   });

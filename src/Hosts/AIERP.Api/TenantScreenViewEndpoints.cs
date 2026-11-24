@@ -282,7 +282,7 @@ internal static class TenantScreenViewEndpoints
     [
         new("code", "İrsaliye no", true), new("orderCode", "Sipariş no", true),
         new("deliveryDate", "Sevk tarihi", true), new("warehouseName", "Depo", true),
-        new("lineCount", "Satır", true), new("status", "Durum", true),
+        new("lineCount", "Satır", true), new("pricedGrandTotal", "Tutar", true), new("pricingState", "Fiyat", true), new("status", "Durum", true),
         new("invoiceStatus", "Fatura", true), new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] SalesInvoiceFields =
@@ -357,14 +357,15 @@ internal static class TenantScreenViewEndpoints
     [
         new("code", "Mal kabul no", true), new("purchaseOrderCode", "Tedarikçi siparişi", true),
         new("receiptDate", "Kabul tarihi", true), new("warehouseName", "Depo", true),
-        new("lineCount", "Satır", true), new("status", "Durum", true),
+        new("lineCount", "Satır", true), new("pricedGrandTotal", "Tutar", true), new("pricingState", "Fiyat", true), new("status", "Durum", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] PurchaseDeliveryNoteFields =
     [
         new("documentNumber", "Tedarikçi irsaliye no", true), new("documentDate", "Belge tarihi", true),
         new("purchaseOrderCode", "Satın alma siparişi", true), new("supplierName", "Tedarikçi", true),
-        new("lineCount", "Satır", true), new("purchaseReceiptCode", "Mal kabul", true),
+        new("lineCount", "Satır", true), new("pricedGrandTotal", "Tutar", true), new("pricingState", "Fiyat", true),
+        new("purchaseReceiptCode", "Mal kabul", true),
         new("actions", "İşlemler", true, Fixed: true)
     ];
     private static readonly ScreenViewField[] PurchaseDeliveryOrderLineFields =
@@ -687,7 +688,7 @@ internal static class TenantScreenViewEndpoints
             new ScreenViewCatalog("customer-sales-invoices", "Cari satış faturaları", CustomerSalesInvoiceFields),
             new ScreenViewCatalog("purchase-invoices", "Alış faturaları", PurchaseInvoiceFields),
             new ScreenViewCatalog("purchase-invoice-receipt-selection", "Alış faturası girişi · mal kabul seçimi", PurchaseInvoiceReceiptSelectionFields),
-            new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields),
+            new ScreenViewCatalog("standalone-invoice-drafts", "Satınalma faturası taslakları", StandalonePurchaseInvoiceDraftFields),
             new ScreenViewCatalog("purchase-orders", "Satın alma siparişleri", PurchaseOrderFields),
             new ScreenViewCatalog("purchase-supplier-quotes", "Tedarikçi teklifleri", PurchaseSupplierQuoteFields),
             new ScreenViewCatalog("purchase-receipts", "Mal kabulleri", PurchaseReceiptFields),
@@ -1215,7 +1216,7 @@ internal static class TenantScreenViewEndpoints
         }
         if (string.Equals(key, "standalone-invoice-drafts", StringComparison.OrdinalIgnoreCase))
         {
-            catalog = new ScreenViewCatalog("standalone-invoice-drafts", "Bağımsız alış faturası taslakları", StandalonePurchaseInvoiceDraftFields);
+            catalog = new ScreenViewCatalog("standalone-invoice-drafts", "Satınalma faturası taslakları", StandalonePurchaseInvoiceDraftFields);
             return true;
         }
         if (string.Equals(key, "purchase-supplier-quotes", StringComparison.OrdinalIgnoreCase))

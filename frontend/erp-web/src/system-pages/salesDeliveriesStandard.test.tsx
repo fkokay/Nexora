@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import catalog from './salesDeliveriesOperations.fixture.json';
 import { T, page, query, salesHarness } from './salesStandardHarness';
 
-// "Satış İrsaliyeleri" standart tanımı (sales-deliveries.json): siparişli ve siparişsiz irsaliyeler tek listede (karar 2).
+// "Satış İrsaliyeleri" standart tanımı (sales-deliveries.json): siparişten irsaliyeler ve diğer satış irsaliyeleri tek listede (karar 2).
+// Taslak 20: listede Tutar ve fiyat durumu; belgede satır fiyatı, Bedelsiz satır ve bedelsiz/fiyatsız satır notu.
 // `salesDeliveriesOperations.fixture.json` ErpOperationCatalog'un bu sayfanın kullandığı işlemlerinin anlık görüntüsüdür.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
@@ -24,14 +25,20 @@ const row = (id: string, code: string, kind: 'Order' | 'Invoice' | 'Standalone',
   hasSalesInvoice: false, invoiceId: null, invoiceCode: null, invoiceStatus: null, ...extra,
 });
 const rows = () => [
-  row(D1, 'IRS-1', 'Order', 'Posted'),
+  row(D1, 'IRS-1', 'Order', 'Posted', { currencyCode: 'TRY', pricedGrandTotal: 480, pricingState: 'PartlyFree', freeLineCount: 1, unpricedLineCount: 0 }),
   row(D2, 'IRS-2', 'Order', 'Posted', { hasSalesInvoice: true, invoiceId: I1, invoiceCode: 'F-1', invoiceStatus: 'Voided' }),
   row(D3, 'SI-3', 'Standalone', 'Draft'),
 ];
 const view = (id: string, code: string, extra: Record<string, unknown> = {}) => ({
   id, code, orderId: O1, orderCode: 'S-1', warehouseId: 'w1', warehouseName: 'Merkez', deliveryDate: '2026-11-03', status: 'Posted', createdAt: '2026-11-03T08:00:00Z',
   hasSalesInvoice: false, invoiceStatus: null, invoiceId: null,
-  lines: [{ orderLineNumber: 1, stockItemId: 's1', stockCode: 'STK-1', stockName: 'Koli', unitCode: 'ADET', quantity: 4, unitPrice: 100, discountPercent: 0, vatPercent: 20, currencyCode: 'TRY' }],
+  currencyCode: 'TRY', pricedNetTotal: 400, pricedVatTotal: 80, pricedGrandTotal: 480, freeLineCount: 1, unpricedLineCount: 0, pricingState: 'PartlyFree',
+  lines: [
+    { orderLineNumber: 1, stockItemId: 's1', stockCode: 'STK-1', stockName: 'Koli', unitCode: 'ADET', quantity: 4, unitPrice: 100, discountPercent: 0, vatPercent: 20, currencyCode: 'TRY',
+      isFreeOfCharge: false, lineNetAmount: 400, lineVatAmount: 80, lineTotal: 480, orderUnitPrice: 100 },
+    { orderLineNumber: 2, stockItemId: 's2', stockCode: 'STK-2', stockName: 'Numune', unitCode: 'ADET', quantity: 2, unitPrice: null, discountPercent: null, vatPercent: null, currencyCode: 'TRY',
+      isFreeOfCharge: true, lineNetAmount: null, lineVatAmount: null, lineTotal: null, orderUnitPrice: 40 },
+  ],
   ...extra,
 });
 
@@ -75,8 +82,13 @@ describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
     h.setup();
     await screen.findByText('SI-3', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
     expect(query(h.gets('/api/sales/deliveries/all')[0].url).get('pageSize')).toBe('25');
-    expect(screen.getAllByText('Siparişsiz').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Siparişli').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Satış irsaliyesi').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Siparişten irsaliye').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Siparişsiz')).toBeNull();
+    // Taslak 20: Tutar and the pricing state of each row.
+    const priced = screen.getAllByRole('row').find((item) => within(item).queryByText('IRS-1'))!;
+    expect(within(priced).getByText('Kısmen bedelsiz')).toBeTruthy();
+    expect(priced.textContent).toMatch(/480/);
     const metric = await screen.findByRole('button', { name: /Faturalanmamış/ }, T);
     await waitFor(() => expect(metric.textContent).toContain('1'), T);
     fireEvent.click(metric);
@@ -100,7 +112,10 @@ describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
     h.setup();
     const opened = await openDelivery('IRS-1');
     await waitFor(() => expect(opened.textContent).toContain('STK-1'), T);
+    // The free line is marked; its amount is entered on the invoice.
+    expect(within(opened).getAllByText('Bedelsiz').length).toBeGreaterThan(0);
     fireEvent.click(within(opened).getByRole('tab', { name: /Fatura İşlemleri/ }));
+    await waitFor(() => expect(opened.textContent).toContain('1 bedelsiz ve 0 fiyatsız satır var'), T);
     fireEvent.change(await within(opened).findByLabelText('Alıcı e-Fatura etiketi', {}, T), { target: { value: 'urn:mail:a@b.test' } });
     fireEvent.click(within(opened).getByRole('button', { name: 'Faturalaştır' }));
     await h.confirm('“IRS-1” için satış faturası');

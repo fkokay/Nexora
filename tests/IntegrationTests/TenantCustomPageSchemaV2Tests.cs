@@ -114,7 +114,7 @@ public sealed class TenantCustomPageSchemaV2Tests
     [Fact]
     public void Deprecated_operation_is_rejected_for_new_use_but_kept_where_the_page_already_uses_it()
     {
-        // The production catalog has no deprecated operation; a test lookup marks one as deprecated.
+        // A test lookup marks a live operation as deprecated.
         Assert.True(Api.ErpOperationCatalog.TryGet("stok.kart.sil", out var real));
         var deprecated = real with { Deprecated = true };
         bool Lookup(string name, out Api.ErpOperation operation)
@@ -128,7 +128,7 @@ public sealed class TenantCustomPageSchemaV2Tests
         Assert.Equal("ERP işlemi artık kullanılamıyor: stok.kart.sil", error);
         Assert.False(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.listele" }, Lookup));
         Assert.True(TenantCustomPageSchema.Validate(json, out error, new HashSet<string> { "stok.kart.sil" }, Lookup), error);
-        // The production lookup still accepts it: nothing is deprecated there.
+        // The production lookup still accepts it: it is not deprecated there.
         Assert.True(TenantCustomPageSchema.Validate(json, out error), error);
     }
 

@@ -24,7 +24,7 @@ public sealed class TenantCustomPageGridFillSchemaTests
             new ErpOperationResult("list", null, [Col("id", "guid"), Col("code"), Col("name"), Col("purchasePrice", "decimal"), Col("unit.code")]),
             null, null, "2026-11-22"),
         ["test.kabul"] = new("test.kabul", "Kabul", "Test", "write", "insert", "POST", "/api/receipts",
-            [new ErpOperationParameter("lines", "body", "list", false) { Items = [Item("lineNumber", "int"), Item("stockItemId", "guid"), Item("quantity"), Item("unitPrice"), Item("lineNet"), Item("note", "text")] }],
+            [new ErpOperationParameter("lines", "body", "list", false) { Items = [Item("lineNumber", "int"), Item("stockItemId", "guid"), Item("quantity"), Item("unitPrice"), Item("lineNet"), Item("note", "text"), Item("isFree", "bool")] }],
             new ErpOperationResult("none", null, []), null, null, "2026-11-22"),
     };
 
@@ -34,7 +34,7 @@ public sealed class TenantCustomPageGridFillSchemaTests
     [
         "lineNumber|Satır|number|readOnly", "stockItemId|Stok|lookup:qs:id:code:name|required", "quantity|Miktar|number|min:0",
         "unitPrice|Fiyat|number", "lineNet|Net|number", "lineVat|KDV|number", "note|Not|text",
-        "stockName|Stok adı|text|readOnly", "remainingQuantity|Kalan|number|readOnly",
+        "stockName|Stok adı|text|readOnly", "remainingQuantity|Kalan|number|readOnly", "isFree|Bedelsiz|checkbox",
     ];
 
     /// <summary>A valid page: an order input, the fill and option reads, the list grid with every engine prop and a write binding it.</summary>
@@ -119,12 +119,13 @@ public sealed class TenantCustomPageGridFillSchemaTests
     [InlineData("matrix")]
     public void Rejects_engine_props_outside_list_mode(string mode)
     {
-        foreach (var key in new[] { "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn" })
+        foreach (var key in new[] { "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn", "lockColumnsWhen" })
         {
             var page = Page(p =>
             {
                 foreach (var other in new[] { "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn", "totals" }) if (other != key) p.Remove(other);
                 if (key == "rowNumberColumn") p["rowNumberColumn"] = "lineNumber";
+                if (key == "lockColumnsWhen") p["lockColumnsWhen"] = new JsonArray("unitPrice=satir.isFree == true");
                 if (mode == "stage") { p["sourceQuery"] = "qk"; p["rowKey"] = "lineNumber"; }
                 else { p.Remove("gridColumns"); p["matrixCode"] = "X"; p["matrixName"] = "Y"; }
             }, mode);
@@ -280,5 +281,49 @@ public sealed class TenantCustomPageGridFillSchemaTests
     {
         Assert.True(GridFormula.TryParse(new string('(', 19) + "1" + new string(')', 19), VectorColumns(), out _, out _));
         Assert.False(GridFormula.TryParse("quantity" + string.Concat(Enumerable.Repeat(" + 1", 60)), VectorColumns(), out _, out _));
+    }
+
+    // ---- lockColumnsWhen ----
+
+    private static Action<JsonObject> Locks(params string[] rules) => p => p["lockColumnsWhen"] = new JsonArray([.. rules.Select(x => (JsonNode)JsonValue.Create(x)!)]);
+
+    [Fact]
+    public void Accepts_lock_rules_on_fill_lookup_and_formula_columns()
+    {
+        // unitPrice is a lookup fill target and lineNet a formula; both may be locked.
+        AssertAccepted(Page(Locks("unitPrice,lineNet,lineVat=satir.isFree == true")));
+        AssertAccepted(Page(Locks("unitPrice=satir.isFree == true && satir.quantity > 0", "note=satir.stockItemId == null")));
+        // Quoted literals are not row paths.
+        AssertAccepted(Page(Locks("note=satir.stockName == 'satir.unitPrice'")));
+    }
+
+    [Fact]
+    public void Rejects_bad_lock_rules()
+    {
+        AssertRejected(Page(Locks()), "'lockColumnsWhen' 1–8");
+        AssertRejected(Page(Locks([.. Enumerable.Repeat("note=satir.isFree == true", 9)])), "'lockColumnsWhen' 1–8");
+        AssertRejected(Page(p => p["lockColumnsWhen"] = "unitPrice=satir.isFree == true"), "'lockColumnsWhen' 1–8");
+        AssertRejected(Page(Locks("unitPrice")), "biçiminde olmalıdır");
+        AssertRejected(Page(Locks("=satir.isFree == true")), "biçiminde olmalıdır");
+        AssertRejected(Page(Locks("unitPrice=")), "biçiminde olmalıdır");
+        AssertRejected(Page(Locks("unitPrice,unitPrice=satir.isFree == true")), "farklı sütun kodu");
+        AssertRejected(Page(Locks("fiyat=satir.isFree == true")), "'lockColumnsWhen' sütunu ızgarada yok: fiyat");
+        AssertRejected(Page(Locks("quantity=satir.isFree == true")), "'skipWhenZero' sütununu kilitleyemez: quantity");
+        AssertRejected(Page(p => { p["rowNumberColumn"] = "lineNumber"; Locks("lineNumber=satir.isFree == true")(p); }), "sıra numarası sütununu kilitleyemez");
+        AssertRejected(Page(Locks("unitPrice=satir.isFree ==")), "'lockColumnsWhen' koşulu geçersiz");
+        AssertRejected(Page(Locks("unitPrice=siparis.value == null")), "yalnız satırın sütunlarına (satir.<sütun>) başvurabilir: siparis");
+        AssertRejected(Page(Locks("unitPrice=satir.bedelsiz == true")), "ızgarada olmayan bir sütuna başvuruyor: bedelsiz");
+        AssertRejected(Page(Locks("unitPrice,isFree=satir.isFree == true")), "kilitlediği sütuna başvuramaz: isFree");
+    }
+
+    [Fact]
+    public void Rejects_lock_rules_on_calc_columns()
+    {
+        var page = Page(p =>
+        {
+            ((JsonArray)p["gridColumns"]!).Add("lineTotal|Tutar|calc:qk:unitPrice");
+            Locks("lineTotal=satir.isFree == true")(p);
+        });
+        AssertRejected(page, "hesaplanan (calc) sütunu kilitleyemez: lineTotal");
     }
 }

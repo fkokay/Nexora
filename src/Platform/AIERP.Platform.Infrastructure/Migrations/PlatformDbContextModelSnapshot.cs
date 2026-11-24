@@ -10189,6 +10189,9 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("CostPending")
+                        .HasColumnType("bit");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -15102,6 +15105,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<Guid>("PurchaseOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -15315,12 +15322,19 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("DiscountPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
                     b.Property<decimal?>("EnteredQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsFreeOfCharge")
+                        .HasColumnType("bit");
 
                     b.Property<int>("OrderLineNumber")
                         .HasColumnType("int");
@@ -15356,6 +15370,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("VatPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "PurchaseOrderId", "OrderLineNumber");
@@ -15367,6 +15389,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.ToTable("PurchaseReceiptLines", t =>
                         {
+                            t.HasCheckConstraint("CK_PurchaseReceiptLines_FreeOfChargeUnpriced", "[IsFreeOfCharge] = 0 OR ([UnitPrice] IS NULL AND [DiscountPercent] IS NULL AND [VatPercent] IS NULL)");
+
+                            t.HasCheckConstraint("CK_PurchaseReceiptLines_PriceRanges", "([UnitPrice] IS NULL OR [UnitPrice] >= 0) AND ([DiscountPercent] IS NULL OR ([DiscountPercent] >= 0 AND [DiscountPercent] <= 100)) AND ([VatPercent] IS NULL OR ([VatPercent] >= 0 AND [VatPercent] <= 100))");
+
                             t.HasCheckConstraint("CK_PurchaseReceiptLines_QuantityPositive", "[Quantity] > 0");
                         });
                 });
@@ -16125,6 +16151,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<DateOnly>("DeliveryDate")
                         .HasColumnType("date");
 
@@ -16167,12 +16197,19 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<Guid>("DeliveryId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal?>("DiscountPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
                     b.Property<decimal?>("EnteredQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
                     b.Property<string>("EnteredUnitCode")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsFreeOfCharge")
+                        .HasColumnType("bit");
 
                     b.Property<Guid?>("OrderId")
                         .HasColumnType("uniqueidentifier");
@@ -16208,6 +16245,14 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("nvarchar(8)");
 
+                    b.Property<decimal?>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("VatPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("decimal(9,4)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "DeliveryId", "OrderLineNumber")
@@ -16219,6 +16264,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.ToTable("SalesDeliveryLines", t =>
                         {
+                            t.HasCheckConstraint("CK_SalesDeliveryLines_FreeOfChargeUnpriced", "[IsFreeOfCharge] = 0 OR ([UnitPrice] IS NULL AND [DiscountPercent] IS NULL AND [VatPercent] IS NULL)");
+
+                            t.HasCheckConstraint("CK_SalesDeliveryLines_PriceRanges", "([UnitPrice] IS NULL OR [UnitPrice] >= 0) AND ([DiscountPercent] IS NULL OR ([DiscountPercent] >= 0 AND [DiscountPercent] <= 100)) AND ([VatPercent] IS NULL OR ([VatPercent] >= 0 AND [VatPercent] <= 100))");
+
                             t.HasCheckConstraint("CK_SalesDeliveryLines_QuantityPositive", "[Quantity] > 0");
                         });
                 });
@@ -21255,7 +21304,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "CustomerId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.CustomerCustomFieldDefinition", null)
@@ -21312,7 +21361,7 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         .WithMany("LedgerEntries")
                         .HasForeignKey("TenantId", "CustomerId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AIERP.Platform.Domain.CustomerLedgerEntry", "ReversalOf")

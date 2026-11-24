@@ -36,7 +36,7 @@ import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROP
 import { EditableGridFields } from "./page-designer/EditableGridFields";
 import { RUN_ON_TYPES, runOnProblem } from "./page-designer/queryRunOn";
 import { calcColumnProblem } from "./page-designer/gridRowSources";
-import { GRID_ENGINE_PROPS } from "./page-designer/gridEngine";
+import { GRID_ENGINE_PROPS, MAX_LOCK_RULES, lockRuleProblem } from "./page-designer/gridEngine";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
@@ -941,6 +941,12 @@ const pickerGridProblem = (component: PageComponent, definition: PageDefinition)
   for (const entry of columnEntries(props.columnStaticOptions))
     if (!COLUMN_STATIC_OPTION.test(entry.rest)) return "'columnStaticOptions' öğeleri sütunKodu=değer=Etiket biçiminde olmalıdır.";
   if (typeof props.minRows === "number" && typeof props.maxRows === "number" && props.minRows > props.maxRows) return "'minRows' değeri 'maxRows' değerinden büyük olamaz.";
+  if ("lockColumnsWhen" in props) {
+    const locks = props.lockColumnsWhen;
+    if (!Array.isArray(locks) || locks.length < 1 || locks.length > MAX_LOCK_RULES || locks.some((item) => typeof item !== "string"))
+      return `'lockColumnsWhen' 1–${MAX_LOCK_RULES} adet "sütun1,sütun2=koşul" öğesi içermelidir.`;
+    for (const text of locks as string[]) { const problem = lockRuleProblem(props, text); if (problem) return problem; }
+  }
   return calcColumnProblem(props, readIds);
 };
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {

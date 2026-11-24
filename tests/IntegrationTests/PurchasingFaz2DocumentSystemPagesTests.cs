@@ -35,7 +35,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         { "sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", 2 },
         { "sales-purchase-invoices", "Satınalma Faturaları", 2 },
         { "sales-purchase-returns", "Satınalma İadeleri", 2 },
-        { "sales-purchase-invoice-drafts", "Bağımsız fatura taslakları", 1 },
+        { "sales-purchase-invoice-drafts", "Satınalma faturası taslakları", 1 },
     };
 
     /// <summary>Every fill grid: (page, grid, fill query, fill operation, the dialog that saves it).</summary>
@@ -191,6 +191,8 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         foreach (var column in Strings(props["gridColumns"]).Select(x => x.Split('|')))
         {
             var (code, rules) = (column[0], column.Length == 4 ? column[3].Split(',') : []);
+            // The supplier's line price is typed on the note (no fill: an omitted price stays unpriced).
+            if (code is "isFreeOfCharge" or "unitPrice" or "discountPercent" or "vatPercent" && items.Contains(code)) continue;
             // Display-only columns come from the fill query; every sent column is a list item.
             if (!items.Contains(code)) Assert.Contains("readOnly", rules);
             if (code != "storageLocationId") Assert.True(fillColumns.Contains(code) || code == "quantity", $"{key}/{grid}: {code}");
@@ -281,7 +283,7 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         else Assert.Equal("liste.seciliSatir.id == null || liste.seciliSatir.status != 'Posted'", (string)Props(key, opener)["disabledWhen"]!);
     }
 
-    // ---- Bağımsız fatura taslakları v1 ----
+    // ---- Satınalma faturası taslakları v1 ----
 
     [Theory]
     [InlineData("yeniSatirlar", "yeniKabulSatirlari", null)]

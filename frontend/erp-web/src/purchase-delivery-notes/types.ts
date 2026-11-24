@@ -1,11 +1,12 @@
 import type { ScreenColumnPin } from '../erp-types'
+import type { DeliveryHeaderPricing, DeliveryLinePricing } from '../delivery-pricing/deliveryPricing'
 export type OrderSummary = { id: string; code: string; supplierName: string; orderDate: string; status: string; lineCount: number }
-export type OrderLine = { lineNumber: number; stockCode: string; stockName: string; unitCode: string; quantity: number }
+export type OrderLine = { lineNumber: number; stockCode: string; stockName: string; unitCode: string; quantity: number; unitPrice?: number; discountPercent?: number; vatPercent?: number }
 export type ReceiptLine = { orderLineNumber: number; quantity: number }
 export type Receipt = { id: string; code: string; receiptDate: string; status: string; lines: ReceiptLine[] }
-export type OrderDetail = OrderSummary & { lines: OrderLine[]; receipts: Receipt[] }
-export type NoteLine = { orderLineNumber: number; unitCode: string; quantity: number }
-export type Note = { id: string; documentNumber: string; documentDate: string; purchaseOrderId: string; purchaseOrderCode: string; supplierName: string; purchaseReceiptId: string | null; purchaseReceiptCode: string | null; lineCount: number; lines?: NoteLine[] }
+export type OrderDetail = OrderSummary & { currencyCode?: string; lines: OrderLine[]; receipts: Receipt[] }
+export type NoteLine = { orderLineNumber: number; unitCode: string; quantity: number; stockCode?: string; stockName?: string } & DeliveryLinePricing
+export type Note = { id: string; documentNumber: string; documentDate: string; purchaseOrderId: string; purchaseOrderCode: string; supplierName: string; purchaseReceiptId: string | null; purchaseReceiptCode: string | null; lineCount: number; lines?: NoteLine[] } & DeliveryHeaderPricing
 export type NotePage = { items: Note[]; page: number; pageSize: number; totalCount: number }
 export type ScreenField = { key: string; label: string; visible: boolean; position: number; fixed?: boolean; section?: string | null; width?: number | null; pinned?: ScreenColumnPin | null }
 

@@ -3,14 +3,19 @@
 //   seçim hücresinin görünen metni), `skipWhenZero` (sayı sütunu);
 // - E2 seçimle doldurma: `lookupFills` ({ seçimSütunu: { tabloSütunu: seçenekSütunu } }; kullanıcının yazdığı değer ezilmez);
 // - E3 formül sütunları: `formulas` ({ sayıSütunu: ifade }, bkz. gridFormula.ts); formüller döngüsüz olarak birbirine başvurabilir;
-// - `rowNumberColumn` (salt okunur sayı sütunu): gönderilen (skipWhenZero dışında kalmayan) satırlar sırayla 1..n.
+// - `rowNumberColumn` (salt okunur sayı sütunu): gönderilen (skipWhenZero dışında kalmayan) satırlar sırayla 1..n;
+// - `lockColumnsWhen` (["sütun1,sütun2=koşul"], `satir` tablonun satırı): koşul tutarken sütunlar salt okunur ve boştur, satırla
+//   gönderilmez (ör. bedelsiz satırın fiyat hücreleri); koşul tutmaz olunca doldurmanın yazdığı değer (`filled`) geri gelir.
 // Hesaplanan (`calc`) sütunlar önizlemeden gelir: hiçbir doldurmanın hedefi değildir.
 // Sunucu kuralları TenantCustomPageSchema.GridEngine.cs içindedir; `stage` ve `matrix` kiplerinde bu özellikler yoktur.
 import { displayText } from "./pageBindings";
-import { emptyGridState, gridReducer, type GridAction, type GridColumn, type GridDraft, type GridOptions, type GridState } from "./gridState";
+import { emptyGridState, gridReducer, wireRow, type GridAction, type GridColumn, type GridDraft, type GridOptions, type GridState } from "./gridState";
 import { evaluateFormula, formulaCellNumber, formulaOrder, parseFormula, type FormulaNode } from "./gridFormula";
+import { evaluateCondition, parseCondition, type ConditionNode } from "./conditions";
 
 export type GridFormula = { code: string; node: FormulaNode };
+/** `lockColumnsWhen` kuralı: koşul (`satir` = tablonun satırı) tutarken kilitlenen sütunlar. */
+export type GridLock = { columns: string[]; node: ConditionNode };
 export type GridEngine = {
   /** Doldurma sorgusunun kimliği (yoksa ""). */
   fillQuery: string;
@@ -26,6 +31,10 @@ export type GridEngine = {
   formulas: GridFormula[];
   /** Gönderilen satırların sıra numarasını (1..n) alan sayı sütunu (yoksa ""). */
   rowNumberColumn: string;
+  /** Satır koşuluyla kilitlenen sütunlar (`lockColumnsWhen`). */
+  locks: GridLock[];
+  /** Kilit koşulunun okuduğu satırın sütunları (tel biçimi; kilit yoksa boş). */
+  lockRowColumns: GridColumn[];
 };
 
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -33,7 +42,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const DATE_TEXT = /^\d{4}-\d{2}-\d{2}/;
 const LABEL_SUFFIX = "@label";
 
-export const EMPTY_GRID_ENGINE: GridEngine = { fillQuery: "", fillColumns: {}, fillLabels: {}, skipWhenZero: "", lookupFills: {}, formulas: [], rowNumberColumn: "" };
+export const EMPTY_GRID_ENGINE: GridEngine = { fillQuery: "", fillColumns: {}, fillLabels: {}, skipWhenZero: "", lookupFills: {}, formulas: [], rowNumberColumn: "",
+  locks: [], lockRowColumns: [] };
 
 /** Metin değerli düz eşlem (güvensiz anahtarlar ve metin olmayan değerler atlanır). */
 function textMap(value: unknown): Record<string, string> {
@@ -76,7 +86,67 @@ export function parseGridEngine(props: Record<string, unknown>, columns: GridCol
   }
   const { order } = formulaOrder(Object.fromEntries([...parsedFormulas].map(([code, parsed]) => [code, parsed.refs])));
   const formulas: GridFormula[] = order.map((code) => ({ code, node: parsedFormulas.get(code)!.node }));
-  return { fillQuery, fillColumns, fillLabels, skipWhenZero: skip, lookupFills, formulas, rowNumberColumn: rowNumber };
+  const locks = parseLocks(props.lockColumnsWhen, columns);
+  return { fillQuery, fillColumns, fillLabels, skipWhenZero: skip, lookupFills, formulas, rowNumberColumn: rowNumber, locks,
+    lockRowColumns: locks.length > 0 ? columns.filter((column) => column.inputType !== "calc") : [] };
+}
+
+/** `lockColumnsWhen` öğeleri ("sütun1,sütun2=koşul", ilk "=" ayırır); tabloda olmayan ya da hesaplanan sütunlar ve geçersiz koşullar atlanır. */
+function parseLocks(value: unknown, columns: GridColumn[]): GridLock[] {
+  if (!Array.isArray(value)) return [];
+  const lockable = new Set(columns.filter((column) => column.inputType !== "calc").map((column) => column.code));
+  const locks: GridLock[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const at = item.indexOf("=");
+    if (at <= 0) continue;
+    const codes = [...new Set(item.slice(0, at).split(",").filter((code) => lockable.has(code)))];
+    const parsed = parseCondition(item.slice(at + 1));
+    if (codes.length > 0 && parsed.ok) locks.push({ columns: codes, node: parsed.node });
+  }
+  return locks;
+}
+
+const NO_LOCKS: ReadonlySet<string> = new Set();
+
+/** Satırda şu an kilitli sütunlar: koşulu tutan kuralların sütunları (`satir` satırın tel biçimidir). */
+export function lockedColumns(engine: GridEngine, draft: GridDraft): ReadonlySet<string> {
+  if (engine.locks.length === 0) return NO_LOCKS;
+  const scope = { satir: wireRow(engine.lockRowColumns, draft) };
+  const locked = new Set<string>();
+  for (const lock of engine.locks) if (evaluateCondition(lock.node, scope)) for (const code of lock.columns) locked.add(code);
+  return locked.size > 0 ? locked : NO_LOCKS;
+}
+
+/** Kilitli hücreler silinir (doldurma değeri `filled`'da kalır). Değişen yoksa aynı taslak. */
+function clearLocked(draft: GridDraft, locked: ReadonlySet<string>): GridDraft {
+  if (locked.size === 0 || ![...locked].some((code) => code in draft.cells)) return draft;
+  const cells = { ...draft.cells };
+  for (const code of locked) delete cells[code];
+  return { ...draft, cells };
+}
+
+/**
+ * Satırın kilit, formül ve yeniden kilit adımları: kilidi kalkan (önceki taslakta kilitli, şimdi değil) boş hücreye doldurmanın
+ * değeri geri yazılır, kilitli hücreler silinir, formüller hesaplanır ve kilitli formül sütunları da boşaltılır.
+ */
+function computeRow(engine: GridEngine, previous: GridDraft | undefined, draft: GridDraft): GridDraft {
+  if (engine.locks.length === 0) return applyFormulas(engine, draft);
+  const locked = lockedColumns(engine, draft);
+  let next = draft;
+  if (previous && draft.filled) {
+    const before = lockedColumns(engine, previous);
+    let cells: Record<string, string | boolean> | null = null;
+    for (const code of before) {
+      if (locked.has(code) || draft.filled[code] === undefined) continue;
+      const current = draft.cells[code];
+      if (current !== undefined && String(current).trim() !== "") continue;
+      cells ??= { ...draft.cells };
+      cells[code] = draft.filled[code];
+    }
+    if (cells) next = { ...draft, cells };
+  }
+  return clearLocked(applyFormulas(engine, clearLocked(next, locked)), locked);
 }
 
 /** Formül ve sıra numarası sütunları salt okunurdur (çizimde ve doğrulamada). */
@@ -192,7 +262,7 @@ export function filledGridState(columns: GridColumn[], engine: GridEngine, fillK
     const cells = fillCells(columns, engine, row);
     const labels = fillLabelsOf(engine, row, cells);
     const draft: GridDraft = { key: `dolu-${index + 1}`, cells, ...(Object.keys(labels).length > 0 ? { labels } : {}), ...(Object.keys(cells).length > 0 ? { filled: { ...cells } } : {}) };
-    return applyFormulas(engine, draft);
+    return computeRow(engine, undefined, draft);
   });
   return { ...emptyGridState(null), rows: numberRows(engine, drafts), fillKey };
 }
@@ -240,15 +310,32 @@ export function gridEngineReducer(state: GridState, action: GridEngineAction, op
       next = rest;
     }
   }
-  if ((engine.formulas.length === 0 && !engine.rowNumberColumn) || opts.mode === "stage") return next;
+  if ((engine.formulas.length === 0 && !engine.rowNumberColumn && engine.locks.length === 0) || opts.mode === "stage") return next;
   let changed = false;
+  const before = engine.locks.length > 0 ? new Map(state.rows.map((draft) => [draft.key, draft])) : null;
   const computed = next.rows.map((draft) => {
-    const result = applyFormulas(engine, draft);
+    const result = computeRow(engine, before?.get(draft.key), draft);
     if (result !== draft) changed = true;
     return result;
   });
   const rows = numberRows(engine, computed);
   return changed || rows !== computed ? { ...next, rows } : next;
+}
+
+/** Kilitli (boş, salt okunur) hücrelerin doğrulama iletileri düşer (ör. bedelsiz satırın zorunlu fiyatı). Değişen yoksa aynı nesne. */
+export function withoutLockedErrors(engine: GridEngine, state: GridState, errors: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
+  if (engine.locks.length === 0) return errors;
+  let result: Record<string, Record<string, string>> | null = null;
+  for (const draft of state.rows) {
+    const cells = errors[draft.key];
+    if (!cells) continue;
+    const locked = lockedColumns(engine, draft);
+    if (!Object.keys(cells).some((code) => locked.has(code))) continue;
+    result ??= { ...errors };
+    const kept = Object.fromEntries(Object.entries(cells).filter(([code]) => !locked.has(code)));
+    if (Object.keys(kept).length > 0) result[draft.key] = kept; else delete result[draft.key];
+  }
+  return result ?? errors;
 }
 
 /** `skipWhenZero` sütunu boş ya da 0 olan satır sayılmaz. */

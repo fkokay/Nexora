@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { LOOKUP_COLUMN, parseGridColumns } from "./gridColumns";
-import { FILL_LABEL_SUFFIX, formulaCodes, formulaProblem, lookupFillsOf, stringMap, type StringMap } from "./gridEngine";
+import { FILL_LABEL_SUFFIX, MAX_LOCK_RULES, formulaCodes, formulaProblem, lockRuleProblem, lockRulesOf, lookupFillsOf, stringMap, type StringMap } from "./gridEngine";
 import { MAX_FORMULA_LENGTH } from "./gridFormula";
 
 type Patch = Record<string, unknown>;
@@ -24,7 +24,7 @@ function ColumnPicker({ value, columns, empty, ariaLabel, disabled, onChange }: 
 
 /**
  * Listeli tablonun motor ayarları: sorgudan doldurma (`fillQuery`, `fillColumns`, `skipWhenZero`), seçimle doldurma
- * (`lookupFills`) ve formül sütunları (`formulas`). `onPatch` undefined değeri siler.
+ * (`lookupFills`), formül sütunları (`formulas`) ve satır koşuluyla kilitlenen sütunlar (`lockColumnsWhen`). `onPatch` undefined değeri siler.
  */
 export function GridEngineFields({ props, readQueries, columnsOf, disabled, onPatch }: {
   props: Record<string, unknown>; readQueries: { id: string; name: string }[]; columnsOf: (queryId: string) => QueryColumn[];
@@ -54,6 +54,8 @@ export function GridEngineFields({ props, readQueries, columnsOf, disabled, onPa
     if (Object.keys(targets).length > 0) next[code] = targets; else delete next[code];
     onPatch({ lookupFills: orUndefined(next) });
   };
+  const locks = lockRulesOf(props.lockColumnsWhen);
+  const setLocks = (next: string[]) => onPatch({ lockColumnsWhen: next.length > 0 ? next.slice(0, MAX_LOCK_RULES) : undefined });
   const setFormula = (code: string, text: string) => {
     const next = { ...formulas };
     if (text) next[code] = text.slice(0, MAX_FORMULA_LENGTH); else delete next[code];
@@ -129,5 +131,20 @@ export function GridEngineFields({ props, readQueries, columnsOf, disabled, onPa
         </label>;
       })}
     </div>}
+    <div className="pd-field">Satır koşuluyla kilitle<small>Her kural <code>sütun1,sütun2=koşul</code> biçimindedir; <code>satir</code> tablonun satırıdır (ör. <code>unitPrice,vatPercent=satir.isFreeOfCharge == true</code>). Koşul tutarken sütunlar salt okunur ve boştur, kayda gönderilmez; koşul kalkınca doldurmanın yazdığı değer geri gelir.</small>
+      {locks.map((text, index) => {
+        const problem = lockRuleProblem(props, text);
+        return <div key={`${index}-${text}`} className="pd-field-row">
+          <input defaultValue={text} maxLength={400} spellCheck={false} disabled={disabled} aria-label={`Kilit kuralı ${index + 1}`}
+            onBlur={(event) => { const next = event.target.value.trim(); if (next === text) return; setLocks(next ? locks.map((item, i) => (i === index ? next : item)) : locks.filter((_, i) => i !== index)); }}/>
+          <button type="button" className="pd-icon-button danger" aria-label={`Kilit kuralı ${index + 1} sil`} disabled={disabled}
+            onClick={() => setLocks(locks.filter((_, i) => i !== index))}><Trash2 size={12}/></button>
+          {problem && <small className="pd-query-warning">{problem}</small>}
+        </div>;
+      })}
+      {locks.length < MAX_LOCK_RULES && <input key={`yeni-${locks.length}`} defaultValue="" maxLength={400} spellCheck={false} disabled={disabled}
+        placeholder="unitPrice,discountPercent=satir.isFreeOfCharge == true" aria-label="Yeni kilit kuralı"
+        onBlur={(event) => { const next = event.target.value.trim(); if (next) setLocks([...locks, next]); }}/>}
+    </div>
   </>;
 }

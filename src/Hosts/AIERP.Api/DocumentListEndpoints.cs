@@ -129,13 +129,31 @@ public static class DocumentListEndpoints
                 receipt.PurchaseOrder.Code, invoice.SupplierId, invoice.SupplierName, invoice.InvoiceDate, invoice.DueDate, invoice.CurrencyCode, invoice.Status,
                 invoice.GrandTotal, invoice.Paid, PurchaseInvoiceWorkflow.Outstanding(invoice.GrandTotal, invoice.Paid, invoice.Returned), invoice.LineCount, invoice.CreatedAt);
             var definitions = await db.PurchaseReceiptCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive).OrderBy(x => x.Label).ToListAsync(ct);
-            var lines = receipt.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new PurchaseReceiptLineView(x.OrderLineNumber, x.StockItemId, x.StockCode,
-                x.StockName, x.UnitCode, x.Quantity, null, x.EnteredQuantity, x.EnteredUnitCode)).ToList();
+            // A free / unpriced line keeps its provisional cost until the receipt's purchase invoice is posted.
+            var receiptLineIds = receipt.Lines.Select(x => x.Id).ToArray();
+            var orderPrices = await db.PurchaseOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == receipt.PurchaseOrderId)
+                .ToDictionaryAsync(x => x.LineNumber, x => x.UnitPrice, ct);
+            var pendingLineIds = invoice is not null ? new List<Guid>() : await db.InventoryTransactions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.PurchaseReceiptLineId != null && receiptLineIds.Contains(x.PurchaseReceiptLineId.Value)
+                    && x.ReversalOfId == null && x.CostPending)
+                .Select(x => x.PurchaseReceiptLineId!.Value).ToListAsync(ct);
+            var lines = receipt.Lines.OrderBy(x => x.OrderLineNumber).Select(x =>
+            {
+                var price = AIERP.Api.DeliveryPricingViews.Line(x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity);
+                return new PurchaseReceiptLineView(x.OrderLineNumber, x.StockItemId, x.StockCode,
+                    x.StockName, x.UnitCode, x.Quantity, null, x.EnteredQuantity, x.EnteredUnitCode,
+                    UnitPrice: price.UnitPrice, DiscountPercent: price.DiscountPercent, VatPercent: price.VatPercent, IsFreeOfCharge: price.IsFreeOfCharge,
+                    LineNetAmount: price.LineNetAmount, LineVatAmount: price.LineVatAmount, LineTotal: price.LineTotal,
+                    OrderUnitPrice: orderPrices.TryGetValue(x.OrderLineNumber, out var orderPrice) ? DeliveryLinePricing.FromBaseUnitPrice(orderPrice, x.Quantity, x.EnteredQuantity) : null,
+                    CostPending: pendingLineIds.Contains(x.Id));
+            }).ToList();
+            var pricing = AIERP.Api.DeliveryPricingViews.Summary(receipt.Lines.Select(x => (x.UnitPrice, x.DiscountPercent, x.VatPercent, x.IsFreeOfCharge, x.Quantity, x.EnteredQuantity)));
             var fields = definitions.Select(field => new PurchaseReceiptCustomFieldValueView(field.Id, field.Code, field.Label, field.DataType, field.MaxLength,
                 field.Version, field.IsRequired, receipt.CustomFieldValues.FirstOrDefault(value => value.DefinitionId == field.Id)?.Value ?? "")).ToList();
             return Results.Ok(new PurchaseReceiptDetail(receipt.Id, receipt.Code, receipt.PurchaseOrderId, receipt.PurchaseOrder.Code, receipt.PurchaseOrder.SupplierId,
                 receipt.PurchaseOrder.Supplier.Name, receipt.WarehouseId, receipt.Warehouse.Name, receipt.ReceiptDate, receipt.Status, receipt.CreatedAt,
-                lines, invoiceSummary, fields));
+                lines, invoiceSummary, fields, receipt.CurrencyCode ?? receipt.PurchaseOrder.CurrencyCode, pricing.PricedNetTotal, pricing.PricedVatTotal,
+                pricing.PricedGrandTotal, pricing.FreeLineCount, pricing.UnpricedLineCount, pricing.PricingState));
         });
     }
 

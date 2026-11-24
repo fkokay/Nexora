@@ -19,6 +19,37 @@ import {
 import "./sales/sales-record-forms.css";
 import { SalesDeliveryFlow } from "./sales/salesDocumentDetail";
 import { LineAddLabel, SALES_FORM_HINTS, SalesFormLines } from "./sales/salesDocumentForm";
+import {
+  emptyPriceDraft,
+  formatMoneyWithCurrency,
+  formatPrice,
+  invoicePriceFields,
+  invoicePriceLine,
+  listPriceSuggestion,
+  missingInvoiceAmounts,
+  priceDraftFrom,
+  priceWriteFields,
+  pricingTotals,
+  setFree,
+  toggleAllFree,
+  type DeliveryHeaderPricing,
+  type DeliveryLinePricing,
+  type InvoicePriceLine,
+  type PriceDraft,
+} from "./delivery-pricing/deliveryPricing";
+import {
+  AllFreeButton,
+  FreeLineHint,
+  FreeTag,
+  InvoiceAmountsAlert,
+  InvoicePriceCells,
+  PriceEditCells,
+  PriceEditStrip,
+  PriceHeadCells,
+  PricingStateTag,
+  PricingTotalsCards,
+  priceColumnCount,
+} from "./delivery-pricing/DeliveryPricingCells";
 
 export function StandaloneFulfillmentPanel({
   token,
@@ -57,41 +88,42 @@ export function StandaloneFulfillmentPanel({
     lineCount: number;
     createdAt: string;
     invoiceId?: string | null;
-  };
+  } & DeliveryHeaderPricing;
+  // Taslak 20: each line carries its price (document currency, entered unit) or the Bedelsiz mark.
   type Line = {
     stockItemId: string;
     quantity: string;
-    unitCostBase: string;
     trackingCode: string;
     expiryDate: string;
     storageLocationId: string;
+    price: PriceDraft;
+    /** Older way to cost a receipt line (base currency): kept and resent while a receipt line has no price. */
+    unitCostBase: string;
   };
+  const newLine = (): Line => ({
+    stockItemId: "",
+    quantity: "1",
+    trackingCode: "",
+    expiryDate: "",
+    storageLocationId: "",
+    price: emptyPriceDraft(),
+    unitCostBase: "",
+  });
   type InvoiceLine = {
     lineNumber: number;
+    stockItemId?: string;
     stockCode: string;
     stockName: string;
     unitCode: string;
     quantity: number;
-    unitPrice: string;
-    discountPercent: string;
-    vatPercent: string;
-  };
+  } & InvoicePriceLine;
   const [items, setItems] = useState<Row[]>([]),
     [customerId, setCustomerId] = useState(initialCustomerId),
     [warehouseId, setWarehouseId] = useState(""),
     [code, setCode] = useState(""),
     [date, setDate] = useState(localDateString()),
     [editingId, setEditingId] = useState<string | null>(null);
-  const [lines, setLines] = useState<Line[]>([
-      {
-        stockItemId: "",
-        quantity: "1",
-        unitCostBase: "0",
-        trackingCode: "",
-        expiryDate: "",
-        storageLocationId: "",
-      },
-    ]),
+  const [lines, setLines] = useState<Line[]>([newLine()]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -174,10 +206,17 @@ export function StandaloneFulfillmentPanel({
           quantity: Number(x.quantity),
           unitCode:
             stockItems.find((i) => i.id === x.stockItemId)?.unitCode || "EA",
-          unitCostBase: Number(x.unitCostBase),
+          // The sales draft keeps sending its old 0. A receipt's stock cost comes from the price on the server; an unpriced,
+          // non-free receipt line (e.g. an older draft) keeps its saved unit cost.
+          ...(sales
+            ? { unitCostBase: 0 }
+            : !x.price.isFreeOfCharge && x.price.unitPrice.trim() === "" && x.unitCostBase !== ""
+              ? { unitCostBase: Number(x.unitCostBase) }
+              : {}),
           trackingCode: x.trackingCode || null,
           expiryDate: x.expiryDate || null,
           storageLocationId: x.storageLocationId || null,
+          ...priceWriteFields(x.price),
         })),
       };
       await api<{ id: string }>(
@@ -194,16 +233,7 @@ export function StandaloneFulfillmentPanel({
       setCode("");
       setCustomerId("");
       setWarehouseId("");
-      setLines([
-        {
-          stockItemId: "",
-          quantity: "1",
-          unitCostBase: "0",
-          trackingCode: "",
-          expiryDate: "",
-          storageLocationId: "",
-        },
-      ]);
+      setLines([newLine()]);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -230,7 +260,7 @@ export function StandaloneFulfillmentPanel({
           trackingCode?: string | null;
           expiryDate?: string | null;
           storageLocationId?: string | null;
-        }>;
+        } & DeliveryLinePricing>;
       }>(`${endpoint}/${item.id}`, token);
       setEditingId(item.id);
       setCustomerId(detail.customerId || detail.supplierId || "");
@@ -241,10 +271,11 @@ export function StandaloneFulfillmentPanel({
         detail.lines.map((x) => ({
           stockItemId: x.stockItemId,
           quantity: String(x.quantity),
-          unitCostBase: String(x.unitCostBase ?? 0),
           trackingCode: x.trackingCode || "",
           expiryDate: x.expiryDate || "",
           storageLocationId: x.storageLocationId || "",
+          price: priceDraftFrom(x),
+          unitCostBase: !sales && x.unitCostBase !== undefined && x.unitCostBase !== null ? String(x.unitCostBase) : "",
         })),
       );
       setNotice(`${item.code || detail.code} taslağı düzenleniyor.`);
@@ -265,16 +296,7 @@ export function StandaloneFulfillmentPanel({
     setCustomerId("");
     setWarehouseId("");
     setDate(localDateString());
-    setLines([
-      {
-        stockItemId: "",
-        quantity: "1",
-        unitCostBase: "0",
-        trackingCode: "",
-        expiryDate: "",
-        storageLocationId: "",
-      },
-    ]);
+    setLines([newLine()]);
     setNotice("Taslak düzenlemesi iptal edildi.");
   }
   async function postDraft(item: Row) {
@@ -305,21 +327,26 @@ export function StandaloneFulfillmentPanel({
       const detail = await api<{
         lines: Array<{
           lineNumber: number;
+          stockItemId?: string;
           stockCode: string;
           stockName: string;
           unitCode: string;
           quantity: number;
-        }>;
+          enteredQuantity?: number | null;
+        } & DeliveryLinePricing>;
       }>(`${endpoint}/${item.id}`, token);
       setInvoiceDraft({
         delivery: item,
         date: localDateString(),
         eDocument: { scenario: "", typeCode: "SATIS", recipientAlias: "", purchaseUrl: "", paymentTaxId: "", paymentTitle: "", paymentAlias: "", paymentAgentName: "", paymentType: "", paymentDate: "", paymentDueDate: "", paymentMeans: "", paymentInstructionNote: "", intermediaryCountry: "", intermediaryCountryCode: "", intermediaryCity: "", intermediaryDistrict: "", carrierTaxId: "", carrierName: "", carrierSurname: "", sentAt: "" },
         lines: detail.lines.map((line) => ({
-          ...line,
-          unitPrice: "0",
-          discountPercent: "0",
-          vatPercent: "20",
+          lineNumber: line.lineNumber,
+          stockItemId: line.stockItemId,
+          stockCode: line.stockCode,
+          stockName: line.stockName,
+          unitCode: line.unitCode,
+          quantity: line.enteredQuantity ?? line.quantity,
+          ...invoicePriceLine(line, null, stockItems.find((x) => x.id === line.stockItemId)?.salesVatPercent ?? null),
         })),
       });
     } catch (e) {
@@ -331,6 +358,10 @@ export function StandaloneFulfillmentPanel({
   async function createInvoice(event: FormEvent) {
     event.preventDefault();
     if (!invoiceDraft) return;
+    if (missingInvoiceAmounts(invoiceDraft.lines) > 0) {
+      setError("Bedelsiz/fiyatsız satırların tutarını girin.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -343,9 +374,7 @@ export function StandaloneFulfillmentPanel({
             invoiceDate: invoiceDraft.date,
             lines: invoiceDraft.lines.map((line) => ({
               lineNumber: line.lineNumber,
-              unitPrice: Number(line.unitPrice),
-              discountPercent: Number(line.discountPercent),
-              vatPercent: Number(line.vatPercent),
+              ...invoicePriceFields(line),
             })),
             eDocument: { ...invoiceDraft.eDocument, sentAt: invoiceDraft.eDocument.sentAt || null,
               paymentDate: invoiceDraft.eDocument.paymentDate ? new Date(invoiceDraft.eDocument.paymentDate).toISOString() : null,
@@ -401,18 +430,38 @@ export function StandaloneFulfillmentPanel({
   }
   const setLine = (index: number, patch: Partial<Line>) =>
     setLines((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  // Document currency: the counterparty's; the stock card list price is offered in that currency only.
+  const documentCurrency = counterparties.find((x) => x.id === customerId)?.currencyCode || null;
+  const listSuggestion = (stockItemId: string): PriceDraft | undefined => {
+    const stock = stockItems.find((x) => x.id === stockItemId);
+    const price = listPriceSuggestion(stock, sales ? "sales" : "purchase", documentCurrency);
+    if (price === null) return undefined;
+    return priceDraftFrom({
+      unitPrice: price,
+      discountPercent: (sales ? stock?.salesDiscountPercent : stock?.purchaseDiscountPercent) ?? 0,
+      vatPercent: (sales ? stock?.salesVatPercent : stock?.purchaseVatPercent) ?? null,
+    });
+  };
+  const listHint = (line: Line) => {
+    const suggestion = line.stockItemId ? listSuggestion(line.stockItemId) : undefined;
+    if (!suggestion || line.price.isFreeOfCharge) return null;
+    const changed = suggestion.unitPrice !== line.price.unitPrice;
+    return { text: `liste fiyatı ${formatPrice(Number(suggestion.unitPrice))}${changed ? " · değiştirildi" : ""}`, changed };
+  };
+  const setLinePrice = (index: number, patch: Partial<PriceDraft>) =>
+    setLines((rows) => rows.map((r, i) => (i === index ? { ...r, price: { ...r.price, ...patch } } : r)));
+  const setLineFree = (index: number, free: boolean) =>
+    setLines((rows) => rows.map((r, i) => (i === index ? { ...r, price: setFree(r.price, free, listSuggestion(r.stockItemId)) } : r)));
+  const toggleLinesFree = () =>
+    setLines((rows) => {
+      const next = toggleAllFree(rows.map((r) => r.price), (index) => listSuggestion(rows[index].stockItemId));
+      return rows.map((r, i) => ({ ...r, price: next[i] }));
+    });
+  const lineTotals = pricingTotals(
+    lines.filter((x) => x.stockItemId).map((x) => ({ quantity: Number(x.quantity) || 0, price: x.price })),
+  );
   const addLine = () =>
-    setLines((rows) => [
-      ...rows,
-      {
-        stockItemId: "",
-        quantity: "1",
-        unitCostBase: "0",
-        trackingCode: "",
-        expiryDate: "",
-        storageLocationId: "",
-      },
-    ]);
+    setLines((rows) => [...rows, newLine()]);
   const trackingMode = (line: Line) => stockItems.find((x) => x.id === line.stockItemId)?.trackingMode;
   const needsTracking = (line: Line) => trackingMode(line) !== "None" && !!line.stockItemId;
   const needsExpiry = (line: Line) => trackingMode(line) === "Lot";
@@ -427,7 +476,16 @@ export function StandaloneFulfillmentPanel({
           searchText: x.code,
         }))}
       selectedId={line.stockItemId}
-      onSelect={(value) => setLine(index, { stockItemId: value })}
+      onSelect={(value) =>
+        setLine(index, {
+          stockItemId: value,
+          // An empty price, or the previous stock's untouched list price, follows the new stock's list price.
+          ...(line.price.isFreeOfCharge ||
+          (line.price.unitPrice !== "" && line.price.unitPrice !== listSuggestion(line.stockItemId)?.unitPrice)
+            ? {}
+            : { price: listSuggestion(value) ?? emptyPriceDraft() }),
+        })
+      }
       title="Stok kartı seçin"
       placeholder="Stok seçin"
       searchPlaceholder="Stok kodu veya adıyla ara"
@@ -495,7 +553,7 @@ export function StandaloneFulfillmentPanel({
         }
         title={
           sales
-            ? "Siparişsiz satış irsaliyesi"
+            ? "Satış irsaliyesi"
             : "Siparişsiz satın alma mal kabulü"
         }
         mode={editingId ? "edit" : "create"}
@@ -512,7 +570,7 @@ export function StandaloneFulfillmentPanel({
             <span>
               {sales
                 ? "Kaydetme stok çıkışı oluşturur; fatura daha sonra kesilir."
-                : "Birim maliyeti girin; fatura geldiğinde maliyet farkı işlenir."}
+                : "Birim fiyatı girin veya satırı bedelsiz işaretleyin; fatura geldiğinde maliyet farkı işlenir."}
             </span>
             {notice && <span className="rf-status-notice">{notice}</span>}
             <span className="rf-status-end">
@@ -608,6 +666,7 @@ export function StandaloneFulfillmentPanel({
                   <th>Stok kartı</th>
                   <th className="dd-num">Miktar</th>
                   <th>Birim</th>
+                  <PriceHeadCells gross />
                   {locations.length > 0 && <th>Depo gözü</th>}
                   {lines.some(needsTracking) && <th>Lot / seri kodu</th>}
                   {lines.some(needsExpiry) && <th>Son kullanma tarihi</th>}
@@ -615,7 +674,7 @@ export function StandaloneFulfillmentPanel({
               </thead>
               <tbody>
                 {lines.map((line, index) => (
-                  <tr key={index}>
+                  <tr key={index} className={line.price.isFreeOfCharge ? "dp-free-row" : undefined}>
                     <td className="dd-ix">
                       <span>{index + 1}</span>
                       {lines.length > 1 && (
@@ -632,14 +691,26 @@ export function StandaloneFulfillmentPanel({
                     </td>
                     <td className="dd-stock-cell">{stockPicker(line, index)}</td>
                     <td className="dd-num">{quantityInput(line, index, `Satır ${index + 1} miktar`)}</td>
-                    <td>{stockItems.find((x) => x.id === line.stockItemId)?.unitCode || "—"}</td>
+                    <td>
+                      {stockItems.find((x) => x.id === line.stockItemId)?.unitCode || "—"}
+                      {line.price.isFreeOfCharge && <> <FreeTag /></>}
+                    </td>
+                    <PriceEditCells
+                      label={`Satır ${index + 1}`}
+                      quantity={Number(line.quantity) || 0}
+                      price={line.price}
+                      hint={listHint(line)}
+                      gross
+                      onChange={(patch) => setLinePrice(index, patch)}
+                      onFreeChange={(free) => setLineFree(index, free)}
+                    />
                     {locations.length > 0 && <td>{locationSelect(line, index, `Satır ${index + 1} depo gözü`)}</td>}
                     {lines.some(needsTracking) && <td>{needsTracking(line) && trackingInput(line, index, `Satır ${index + 1} lot / seri kodu`)}</td>}
                     {lines.some(needsExpiry) && <td>{needsExpiry(line) && expiryInput(line, index, `Satır ${index + 1} son kullanma tarihi`)}</td>}
                   </tr>
                 ))}
                 <tr className="dd-new-line">
-                  <td colSpan={4 + (locations.length > 0 ? 1 : 0) + (lines.some(needsTracking) ? 1 : 0) + (lines.some(needsExpiry) ? 1 : 0)}>
+                  <td colSpan={4 + priceColumnCount(true) + (locations.length > 0 ? 1 : 0) + (lines.some(needsTracking) ? 1 : 0) + (lines.some(needsExpiry) ? 1 : 0)}>
                     <button type="button" data-line-add-shortcut title="Ctrl+Shift+Enter ile satır ekle" onClick={addLine}>
                       <LineAddLabel />
                     </button>
@@ -647,6 +718,13 @@ export function StandaloneFulfillmentPanel({
                 </tr>
               </tbody>
             </table>
+            <div className="dp-form-foot">
+              <span className="dp-actions">
+                <AllFreeButton prices={lines.map((line) => line.price)} onToggle={toggleLinesFree} />
+              </span>
+              <PricingTotalsCards totals={lineTotals} currency={documentCurrency} />
+              <FreeLineHint />
+            </div>
           </SalesFormLines>
         ) : (
         <RecordFormGroup title="Mal Kabul Satırları">
@@ -654,6 +732,7 @@ export function StandaloneFulfillmentPanel({
             <span className="muted">
               Lot / seri takipli stoklarda takip kodu zorunludur.
             </span>
+            <AllFreeButton prices={lines.map((line) => line.price)} onToggle={toggleLinesFree} />
             <button
               type="button"
               className="secondary small-button"
@@ -681,17 +760,6 @@ export function StandaloneFulfillmentPanel({
                   {locationSelect(line, index)}
                 </label>
               )}
-              <label>
-                Birim maliyet (temel birim)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.00000001"
-                  value={line.unitCostBase}
-                  onChange={(e) => setLine(index, { unitCostBase: e.target.value })}
-                  required
-                />
-              </label>
               {needsTracking(line) && (
                 <label>
                   Lot / seri kodu
@@ -705,8 +773,22 @@ export function StandaloneFulfillmentPanel({
                 </label>
               )}
             </div>
+            <PriceEditStrip
+              label={`Satır ${index + 1}`}
+              quantity={Number(line.quantity) || 0}
+              price={line.price}
+              currency={documentCurrency}
+              hint={listHint(line)}
+              onChange={(patch) => setLinePrice(index, patch)}
+              onFreeChange={(free) => setLineFree(index, free)}
+            />
           </div>
         ))}
+        <PricingTotalsCards totals={lineTotals} currency={documentCurrency} label="Mal kabul fiyat toplamları" />
+        <p className="dp-hint">
+          Fiyatlı satırın stok maliyeti fiyattan (iskonto ve kur uygulanmış) yazılır. Bedelsiz satırın stok maliyeti alış
+          faturası girilince faturadaki tutardan tamamlanır.
+        </p>
         </RecordFormGroup>
         )}
       </RecordFormPage>
@@ -726,6 +808,15 @@ export function StandaloneFulfillmentPanel({
                       ? "Taslak"
                       : "İptal"}
                   {sales && item.invoiceId ? " · Faturalı" : ""}
+                  {item.pricedGrandTotal !== null && item.pricedGrandTotal !== undefined && item.pricingState !== "Free" && item.pricingState !== "Unpriced"
+                    ? ` · ${formatMoneyWithCurrency(item.pricedGrandTotal, item.currencyCode)}`
+                    : ""}
+                  {item.pricingState && item.pricingState !== "Priced" && (
+                    <>
+                      {" "}
+                      <PricingStateTag state={item.pricingState} />
+                    </>
+                  )}
                 </small>
               </div>
               {item.status === "Draft" && (
@@ -854,22 +945,25 @@ export function StandaloneFulfillmentPanel({
             </details>
             </RecordFormGroup>
             <RecordFormGroup title="Fatura Satırları">
+            <InvoiceAmountsAlert missing={missingInvoiceAmounts(invoiceDraft.lines)} />
             <div className="customer-table-wrap sales-delivery-lines-wrap sales-rf-lines">
               <table className="customer-table">
                 <thead>
                   <tr>
                     <th>Stok</th>
                     <th>Miktar</th>
-                    <th>Birim fiyat</th>
-                    <th>İskonto %</th>
-                    <th>KDV %</th>
+                    <th className="dd-num">Birim fiyat</th>
+                    <th className="dd-num">İsk. %</th>
+                    <th className="dd-num">KDV %</th>
+                    <th className="dd-num">Tutar</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoiceDraft.lines.map((line, index) => (
-                    <tr key={line.lineNumber}>
+                    <tr key={line.lineNumber} className={line.isFreeOfCharge ? "dp-free-row" : undefined}>
                       <td>
                         <b>{line.stockCode}</b>
+                        {line.isFreeOfCharge && <> <FreeTag /></>}
                         <small className="cell-subtitle">
                           {line.stockName}
                         </small>
@@ -877,38 +971,23 @@ export function StandaloneFulfillmentPanel({
                       <td>
                         {line.quantity} {line.unitCode}
                       </td>
-                      {(
-                        ["unitPrice", "discountPercent", "vatPercent"] as const
-                      ).map((field) => (
-                        <td key={field}>
-                          <input
-                            aria-label={`${line.stockCode} ${field}`}
-                            type="number"
-                            min="0"
-                            max={field === "unitPrice" ? undefined : 100}
-                            step={field === "unitPrice" ? "0.0001" : "0.01"}
-                            value={line[field]}
-                            required={field === "unitPrice"}
-                            onChange={(event) =>
-                              setInvoiceDraft((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      lines: current.lines.map((row, i) =>
-                                        i === index
-                                          ? {
-                                              ...row,
-                                              [field]: event.target.value,
-                                            }
-                                          : row,
-                                      ),
-                                    }
-                                  : current,
-                              )
-                            }
-                          />
-                        </td>
-                      ))}
+                      <InvoicePriceCells
+                        label={line.stockCode}
+                        quantity={line.quantity}
+                        line={line}
+                        suggestion={listPriceSuggestion(
+                          stockItems.find((x) => x.id === line.stockItemId),
+                          "sales",
+                          invoiceDraft.delivery.currencyCode ?? customers.find((x) => x.id === invoiceDraft.delivery.customerId)?.currencyCode,
+                        )}
+                        onChange={(patch) =>
+                          setInvoiceDraft((current) =>
+                            current
+                              ? { ...current, lines: current.lines.map((row, i) => (i === index ? { ...row, ...patch } : row)) }
+                              : current,
+                          )
+                        }
+                      />
                     </tr>
                   ))}
                 </tbody>

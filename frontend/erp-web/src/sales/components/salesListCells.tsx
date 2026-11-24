@@ -17,7 +17,7 @@ export function listTag(kind: SalesListKind, status: string) {
 }
 
 /** Number / code columns of the sales lists. */
-export const SALES_NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount", "grandTotal", "quoteCount"]);
+export const SALES_NUMBER_FIELDS: ReadonlySet<string> = new Set(["lineCount", "grandTotal", "quoteCount", "pricedGrandTotal"]);
 export const SALES_CODE_FIELDS: ReadonlySet<string> = new Set(["code"]);
 
 /*
@@ -36,5 +36,5 @@ export const INVOICE_LIST_WIDTHS: Record<string, number> = {
   lineCount: 55, grandTotal: 130, status: 95,
 };
 export const DELIVERY_LIST_WIDTHS: Record<string, number> = {
-  code: 120, orderCode: 115, deliveryDate: 100, warehouseName: 170, lineCount: 55, status: 105, invoiceStatus: 110,
+  code: 120, orderCode: 115, deliveryDate: 100, warehouseName: 170, lineCount: 55, pricedGrandTotal: 150, status: 105, invoiceStatus: 110,
 };
