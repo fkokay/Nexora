@@ -84,8 +84,7 @@ describe('RecordFormPage in a dialog', () => {
     expect(onSaveIntent).toHaveBeenLastCalledWith(false);
     expect(onSubmit).toHaveBeenCalledTimes(1);
     // In a modal the bar's menu does not repeat them.
-    fireEvent.click(document.querySelector('[data-nx-action-bar] [data-command="more"]')!);
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve Yeni/ })).toBeNull();
+    expect(document.querySelector('[data-nx-action-bar] [data-command="more"]')).toBeNull();
   });
 
   it('on a page the form header keeps only Vazgeç', () => {

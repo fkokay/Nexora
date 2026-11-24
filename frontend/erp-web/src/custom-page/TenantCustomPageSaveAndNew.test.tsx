@@ -87,8 +87,8 @@ describe('Kaydet ve yeni (E6)', () => {
   it('commandWhen saveNew hides the menu item and its shortcut', async () => {
     setup([card, input, bar({ commandWhen: ['saveNew=kart.rows[0].id != null'] })]);
     fireEvent.change(await screen.findByLabelText('Ad'), { target: { value: 'X' } });
-    fireEvent.click(command('more'));
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull());
+    // Kaydet ve yeni was the only İşlemler item, so the menu is gone.
+    await waitFor(() => expect(command('more')).toBeNull());
     fireEvent.keyDown(window, { key: 'F2', ctrlKey: true });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(writes).toHaveLength(0);

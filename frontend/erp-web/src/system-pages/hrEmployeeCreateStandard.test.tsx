@@ -134,9 +134,7 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
   it('edit: no Kaydet ve yeni', async () => {
     await openCard();
     await h.ready('save');
-    fireEvent.click(h.command('more'));
     await h.settle(50);
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(h.command('more')).toBeNull();
   });
 });

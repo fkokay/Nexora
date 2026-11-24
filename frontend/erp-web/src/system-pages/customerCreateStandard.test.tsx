@@ -272,10 +272,8 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
 
   it('edit: no Kaydet ve yeni, and the Adresler tab lists the addresses', async () => {
     await openCard();
-    fireEvent.click(command('more'));
     await settle();
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(command('more')).toBeNull();
     fireEvent.click(tab('Adresler')!);
     expect(await screen.findByText('Feritpaşa Mah.', { selector: '.tenant-page-data-grid td' }, T)).toBeTruthy();
   });

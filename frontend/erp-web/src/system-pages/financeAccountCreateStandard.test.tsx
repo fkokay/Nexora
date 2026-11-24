@@ -153,10 +153,8 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     expect(input('acilisBakiyesi')).toBeNull();
     expect(input('tur').disabled).toBe(true);
     expect(document.body.textContent).toContain('4 hareket');
-    fireEvent.click(command('more'));
     await settle();
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(command('more')).toBeNull();
     type('ad', 'Merkez kasa TL');
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes()).toHaveLength(1), T);

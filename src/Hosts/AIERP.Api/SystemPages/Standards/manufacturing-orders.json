@@ -21,7 +21,6 @@
     "component:iptalDugmesi": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:iptal", "query:emirler", "query:emir", "query:operasyonlar"]},
     "component:iptalUyariliDugmesi": {"since": 1, "label": "İptal et komutu (başlamış operasyon uyarılı)", "requires": ["component:liste", "query:iptal", "query:emirler", "query:emir", "query:operasyonlar"]},
     "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetPaneli", "component:tutarNotu", "component:operasyonTablosu", "component:rotaNotu", "component:bilesenTablosu", "component:tamamlaPenceresi", "query:emir", "query:cizelgele", "query:serbestBirak", "query:emirler", "query:operasyonlar"]},
-    "component:bosSecim": {"since": 1, "label": "Detay paneli: seçim yok notu", "requires": ["component:detayPaneli", "component:liste"]},
     "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
     "component:tutarNotu": {"since": 1, "label": "Detay: tutar notu"},
     "component:operasyonTablosu": {"since": 1, "label": "Detay: Rota operasyonları", "requires": ["component:opBaslatDugmesi", "component:opTamamlaDugmesi", "query:operasyonlar"]},
@@ -97,7 +96,7 @@
 
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "Üretim emirleri", "query": "emirler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true",
+                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
                    "detailToggleInput": "detayPaneli",
                    "columns": ["code", "plannedDate", "billOfMaterialName", "productName", "routeSummary", "warehouseName", "plannedQuantity",
                                "sourceText", "componentCodes", "status"],
@@ -165,9 +164,6 @@
             "props": { "tabs": ["Özet=ozetPaneli,tutarNotu", "Rota {{operasyonlar.satirSayisi}}=operasyonTablosu,rotaNotu",
                                 "Bileşenler {{bilesenler.satirSayisi}}=bilesenTablosu"] } }
         ] },
-      { "id": "bosSecim", "type": "text", "name": "bosSecim",
-        "props": { "text": "Ayrıntısını görmek için listeden bir üretim emri seçin.", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null" } },
       { "id": "ozetPaneli", "type": "contextPanel", "name": "ozetPaneli",
         "props": { "table": "liste", "width": 12,
                    "fields": ["plannedQuantity=Planlanan miktar", "actualGoodQuantity=İyi ürün", "scrapQuantity=Fire", "scrapReason=Fire nedeni",

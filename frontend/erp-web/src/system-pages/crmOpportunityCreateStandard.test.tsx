@@ -227,10 +227,8 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
   it('edit: no Kaydet ve yeni', async () => {
     await openCard();
     await ready('save');
-    fireEvent.click(command('more')!);
-    await new Promise((done) => setTimeout(done, 50));
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    // Kaydet ve yeni was the only İşlemler item: on an edit card there is no menu at all.
+    expect(command('more')).toBeNull();
   });
 
   it('closed opportunity: warning shown and no save', async () => {
