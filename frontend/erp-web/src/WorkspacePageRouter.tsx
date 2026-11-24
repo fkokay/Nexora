@@ -255,7 +255,13 @@ function LegacyPageRouter({
   if (page === "projects")
     return <OperationalProjectsPage token={token} locale={locale} />;
   if (page === "foreign-trade" || page === "foreign-trade-case")
-    return <ForeignTradePage token={token} role={tenant.role} />;
+    return (
+      <ForeignTradePage
+        token={token}
+        role={tenant.role}
+        recordParamPage={page === "foreign-trade-case" ? page : undefined}
+      />
+    );
   if (page === "integrations")
     return <IntegrationQueuePage token={token} requestApi={requestApi} />;
   if (page === "erp-assistant") return <ERPAssistantPage token={token} />;
@@ -312,14 +318,28 @@ function LegacyPageRouter({
     );
   // The legacy screen has no separate create page or card; both keys open it.
   if (page === "fixed-assets" || page === "fixed-asset-create" || page === "fixed-asset-card")
-    return <FixedAssetsPage token={token} locale={locale} />;
+    return (
+      <FixedAssetsPage
+        token={token}
+        locale={locale}
+        recordParamPage={page === "fixed-asset-card" ? page : undefined}
+      />
+    );
   if (page === "human-resources")
     return (
       <HumanResourcesPage token={token} role={tenant.role} locale={locale} />
     );
   // The hr-* system page keys have no legacy screen of their own: they open the matching tab of the HR screen.
   if (page === "hr-employees" || page === "hr-employee-create")
-    return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="employees" />;
+    return (
+      <HumanResourcesPage
+        token={token}
+        role={tenant.role}
+        locale={locale}
+        initialSection="employees"
+        recordParamPage={page === "hr-employee-create" ? page : undefined}
+      />
+    );
   if (page === "hr-leave-requests")
     return <HumanResourcesPage token={token} role={tenant.role} locale={locale} initialSection="leave" />;
   if (page === "hr-attendance")

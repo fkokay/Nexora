@@ -409,10 +409,7 @@
             "new=kullanici.rol == 'TenantAdmin'",
             "save=kullanici.rol == 'TenantAdmin'"
           ],
-          "hiddenCommands": [
-            "delete",
-            "print"
-          ]
+          "hiddenCommands": ["open", "delete", "print"]
         }
       },
       {

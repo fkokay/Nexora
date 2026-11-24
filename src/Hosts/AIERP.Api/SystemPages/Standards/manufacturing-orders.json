@@ -65,7 +65,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "newAction": "page", "newPageCode": "@manufacturing-order-create", "newTarget": "newTab",
+        "props": { "newAction": "page", "newPageCode": "@manufacturing-order-create", "newTarget": "newTab", "openButton": "acDugmesi",
                    "focusInput": "suzgec", "exportTable": "liste",
                    "titleCount": "{{emirler.meta.totalCount}}",
                    "moreButtons": ["cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "iptalUyariliDugmesi"],

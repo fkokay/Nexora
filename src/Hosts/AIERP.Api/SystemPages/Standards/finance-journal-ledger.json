@@ -213,11 +213,7 @@
           ],
           "exportTable": "liste",
           "titleCount": "{{fisler.meta.totalCount}}",
-          "hiddenCommands": [
-            "save",
-            "delete",
-            "print"
-          ]
+          "hiddenCommands": ["save", "delete", "filter", "print"]
         }
       },
       {

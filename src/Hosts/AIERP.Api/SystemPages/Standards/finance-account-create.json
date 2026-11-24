@@ -181,10 +181,7 @@
           "commandWhen": [
             "saveNew=kart.rows[0].id == null"
           ],
-          "hiddenCommands": [
-            "delete",
-            "print"
-          ]
+          "hiddenCommands": ["open", "delete", "filter", "print", "export"]
         }
       },
       {

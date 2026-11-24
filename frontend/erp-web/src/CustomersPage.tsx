@@ -6,7 +6,7 @@ import {
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
-import { setPageParams } from "./pageNavigation";
+import { dropPageParam, setPageParams, usePageParams } from "./pageNavigation";
 import AdvancedDataGrid from "./AdvancedDataGrid";
 import { screenViewGridDefaults } from "./screenViewGridLayout";
 import type {
@@ -184,8 +184,8 @@ function CustomersPage({
   token,
   role,
   initialSearch,
-  initialCreate = false,
-  initialEdit = false,
+  initialCreate: initialCreateProp = false,
+  initialEdit: initialEditProp = false,
   onNavigate,
   onOpenSalesInvoice,
   onOpenPurchaseInvoices,
@@ -199,6 +199,12 @@ function CustomersPage({
   onOpenSalesInvoice: (invoiceId: string) => void;
   onOpenPurchaseInvoices: (supplier: { id: string; name: string }) => void;
 }) {
+  // Sistem cari listesi kartı `customer-create` sekmesinde `customerId` parametresiyle açar (kart sistem sayfası yayımlı
+  // değilken bu eski ekran çizilir): o cari `customer-edit` gibi düzenleme kipinde açılır. Parametre sekmenin açık kaydıdır;
+  // kart kapanınca silinir (aynı cari yeniden açılabilir), parametresiz "Yeni" sekmeyi yeni kart formuna döndürür.
+  const paramEditId = usePageParams(initialCreateProp ? "customer-create" : undefined).customerId ?? "";
+  const initialEdit = initialEditProp || paramEditId !== "";
+  const initialCreate = initialCreateProp && !initialEdit;
   const canDesignCustomerFields =
     role === "TenantAdmin" || role === "TenantDeveloper";
   const canManageCustomerFieldPolicy = role === "TenantAdmin";
@@ -906,19 +912,22 @@ function CustomersPage({
     }
   }
   useEffect(() => {
-    if (initialCreate) void openCustomerModal();
+    if (!initialCreate) return;
+    // Parametreyle açılmış düzenleme kartından yeni karta dönüş de buradan geçer.
+    setEditingCustomer(null);
+    void openCustomerModal();
   }, [initialCreate]);
   const [editRequest, setEditRequest] = useState(0);
   useEffect(() => {
-    if (!initialEdit) return;
+    if (!initialEditProp) return;
     const onEditRequest = () => setEditRequest((value) => value + 1);
     window.addEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
     return () => window.removeEventListener(CUSTOMER_EDIT_REQUEST_EVENT, onEditRequest);
-  }, [initialEdit]);
+  }, [initialEditProp]);
   useEffect(() => {
     if (!initialEdit) return;
     let active = true;
-    const customerId = sessionStorage.getItem("nexora.customer-edit-id");
+    const customerId = paramEditId || sessionStorage.getItem("nexora.customer-edit-id");
     if (!customerId) {
       onNavigate("customers");
       return;
@@ -931,7 +940,17 @@ function CustomersPage({
         setError((error as Error).message);
       });
     return () => { active = false; };
-  }, [initialEdit, token, editRequest]);
+  }, [initialEdit, paramEditId, token, editRequest]);
+  /** Düzenleme kartından listeye dönüş; parametreyle açılan kart sekmesi bir sonraki kullanımı için yeni kart formuna döner. */
+  function leaveEdit() {
+    if (initialEditProp) sessionStorage.removeItem("nexora.customer-edit-id");
+    if (paramEditId) {
+      dropPageParam("customer-create", "customerId");
+      setEditingCustomer(null);
+      setModal(false);
+    }
+    onNavigate("customers");
+  }
   /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
   const stayAfterSave = useRef(false);
   /**
@@ -1190,10 +1209,7 @@ function CustomersPage({
       setEditingCustomer(null);
       setModal(false);
       setNotice("Cari kartı güncellendi.");
-      if (initialEdit) {
-        sessionStorage.removeItem("nexora.customer-edit-id");
-        onNavigate("customers");
-      }
+      if (initialEdit) leaveEdit();
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -1966,10 +1982,8 @@ function CustomersPage({
           return;
         }
         setModal(value);
-        if (!value && (initialCreate || initialEdit)) {
-          if (initialEdit) sessionStorage.removeItem("nexora.customer-edit-id");
-          onNavigate("customers");
-        }
+        if (!value && initialEdit) leaveEdit();
+        else if (!value && initialCreate) onNavigate("customers");
       },
     create: initialEdit ? saveCustomerEdit : create,
     customerCreateTab,
@@ -2075,7 +2089,7 @@ function CustomersPage({
                 Yeniden dene
               </button>
             )}
-            <button type="button" onClick={() => onNavigate("customers")}>Cari listesine dön</button>
+            <button type="button" onClick={() => (initialEdit ? leaveEdit() : onNavigate("customers"))}>Cari listesine dön</button>
         </div>
       </div>
     ) : (

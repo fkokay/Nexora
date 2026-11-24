@@ -56,12 +56,15 @@ function FinancePage({
   section,
   onNavigate,
   createOnOpen = false,
+  editAccountRequest,
 }: {
   token: string;
   role: string;
   section: FinancePageKey;
   onNavigate?: (page: string) => void;
   createOnOpen?: boolean;
+  /** Kasa/banka kartı sekmesinin `accountId` parametresiyle okunan hesap: her yeni istek (`seq`) düzenleme formunu açar. */
+  editAccountRequest?: { account: FinancialAccount; seq: number } | null;
 }) {
   const financePageDescriptions: Record<FinancePageKey, string> = {
     "finance-accounts":
@@ -233,11 +236,15 @@ function FinancePage({
     [transferReference, setTransferReference] = useState(""),
     [transferDate, setTransferDate] = useState(localDateString());
   useEffect(() => {
-    if (createOnOpen && section === "finance-accounts")
+    if (createOnOpen && isAccountsPage)
       setAccountCreateOpen(true);
-  }, [createOnOpen, section]);
+  }, [createOnOpen, isAccountsPage]);
   useEffect(() => {
-    if (section !== "finance-banks") return;
+    if (editAccountRequest && isAccountsPage) editAccount(editAccountRequest.account);
+  }, [editAccountRequest?.seq, isAccountsPage]);
+  useEffect(() => {
+    // Kart sekmesindeki (`finance-account-create`) banka formu Bankalar sekmesinin başlığını değiştirmez.
+    if (section !== "finance-banks" || createOnOpen) return;
     const title = accountCreateOpen
       ? editingAccount
         ? "Banka Hesabı Düzenle"
@@ -248,7 +255,7 @@ function FinancePage({
         detail: { page: "finance-banks", title },
       }),
     );
-  }, [accountCreateOpen, editingAccount, section]);
+  }, [accountCreateOpen, editingAccount, section, createOnOpen]);
   useEffect(() => {
     const dialog = statementImportDialog.current;
     if (!statementImportOpen || !dialog) return;

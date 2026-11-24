@@ -210,13 +210,7 @@
         "props": {
           "exportTable": "liste",
           "titleCount": "{{mizan.satirSayisi}}",
-          "hiddenCommands": [
-            "new",
-            "open",
-            "save",
-            "delete",
-            "print"
-          ]
+          "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"]
         }
       },
       {

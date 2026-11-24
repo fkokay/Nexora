@@ -313,8 +313,8 @@ public sealed class ManufacturingSystemPagesTests
         Assert.Equal("componentCodes", view.Fields["components"]);
         var bar = Props(key, "komutlar");
         Assert.Equal(("{{emirler.meta.totalCount}}", "@manufacturing-order-create"), ((string)bar["titleCount"]!, (string)bar["newPageCode"]!));
-        // The bar's Aç takes action buttons only; the row open (double click / Enter) opens the detail panel.
-        Assert.False(bar.ContainsKey("openButton"));
+        // The bar's Aç runs the same value-assigning button as the row open (double click / Enter): it opens the detail panel.
+        Assert.Equal("acDugmesi", (string)bar["openButton"]!);
         Assert.Equal(new[] { "detayPaneli=true" }, Strings(Props(key, "acDugmesi")["assignments"]));
         Assert.Equal(new[] { "cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "iptalUyariliDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Contains("delete", Strings(bar["hiddenCommands"]));

@@ -35,7 +35,7 @@
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
         "props": { "saveQuery": "olustur", "afterSaveButton": "siparisiAcDugmesi", "moreButtons": ["listeyeDonDugmesi"],
-                   "hiddenCommands": ["new", "open", "delete", "print"] } },
+                   "hiddenCommands": ["new", "open", "delete", "filter", "print", "export"] } },
       { "id": "baslik", "type": "heading", "name": "baslik",
         "props": { "text": "Yeni satınalma siparişi", "pageTitle": true } },
       { "id": "zorunluNotu", "type": "text", "name": "zorunluNotu",

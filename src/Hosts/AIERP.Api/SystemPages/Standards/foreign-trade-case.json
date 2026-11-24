@@ -367,12 +367,7 @@
           "afterSavePageCode": "@foreign-trade",
           "afterSaveTarget": "sameTab",
           "afterSaveRefresh": true,
-          "hiddenCommands": [
-            "new",
-            "delete",
-            "print",
-            "export"
-          ]
+          "hiddenCommands": ["new", "open", "delete", "filter", "print", "export"]
         }
       },
       {

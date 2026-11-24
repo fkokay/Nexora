@@ -26,7 +26,7 @@
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
         "props": { "exportTable": "liste", "titleCount": "{{rapor.meta.totalCount}}",
-                   "hiddenCommands": ["new", "open", "save", "delete", "print"] } },
+                   "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"] } },
 
       { "id": "parametreler", "type": "formCard", "name": "parametreler",
         "props": { "title": "Plan tarihi", "layout": "inline", "width": 12, "inputs": ["baslangic", "bitis"] } },
