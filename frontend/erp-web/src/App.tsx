@@ -403,14 +403,46 @@ function AppContent() {
       })),
       // Built-in modules without their own page-title map; they were reachable only by URL/tab.
       {
+        page: "hr-employees",
+        label: locale === "en" ? "Employees" : "Personel",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
+        page: "hr-employee-create",
+        parentPage: "hr-employees",
+        label: locale === "en" ? "New employee card" : "Yeni personel kartı",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
+        page: "hr-leave-requests",
+        label: locale === "en" ? "Leave requests" : "İzin talepleri",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
+        page: "hr-attendance",
+        label: locale === "en" ? "Attendance" : "Puantaj",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
+        page: "hr-period-summary",
+        label: locale === "en" ? "Period summary" : "Dönem özeti",
+        description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+      },
+      {
         page: "human-resources",
-        label: locale === "en" ? "Human resources" : "İnsan Kaynakları",
+        label: locale === "en" ? "Payroll and pay" : "Bordro ve ücret",
         description: locale === "en" ? "Human resources" : "İnsan Kaynakları",
       },
       {
         page: "fixed-assets",
         label: locale === "en" ? "Fixed assets" : "Duran Varlıklar",
         description: tx("finance"),
+      },
+      {
+        page: "fixed-asset-create",
+        parentPage: "fixed-assets",
+        label: locale === "en" ? "New fixed asset acquisition" : "Yeni edinim",
+        description: locale === "en" ? "Fixed assets" : "Duran Varlık",
       },
       {
         page: "foreign-trade",
@@ -624,7 +656,14 @@ function AppContent() {
       customers: "Cari Hesaplar",
       "crm-opportunities": "CRM Fırsatları",
       "human-resources": "İnsan Kaynakları",
+      "hr-employees": "Personel",
+      "hr-employee-create": "Personel kartı",
+      "hr-leave-requests": "İzin talepleri",
+      "hr-attendance": "Puantaj",
+      "hr-period-summary": "Dönem özeti",
       "fixed-assets": "Sabit Kıymetler",
+      "fixed-asset-create": "Yeni edinim",
+      "fixed-asset-card": "Kıymet kartı",
       "manufacturing-recipes": "Tanımlı Reçeteler",
       "manufacturing-recipe-create": "Reçete Oluştur",
       "manufacturing-work-centers": "İş Merkezleri",

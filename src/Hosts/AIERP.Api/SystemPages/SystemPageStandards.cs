@@ -201,8 +201,9 @@ internal static class SystemPageStandards
             var screenKey = StringOf(root, "screenKey");
             if (screenKey is null || !ScreenKeyPattern.IsMatch(screenKey))
             { errors.Add($"{file}: screenKey '{screenKey}' ^[a-z0-9-]{{1,39}}$ biçiminde olmalıdır."); return null; }
-            if (!StandardMenuEndpoints.PageKeys.Contains(screenKey))
-                errors.Add($"{file}: screenKey '{screenKey}' standart menüde bir sayfa değil.");
+            // Menu pages plus the screens reached only by navigation (sales quote / order / delivery entry cards).
+            if (!StandardMenuEndpoints.NavigablePageKeys.Contains(screenKey))
+                errors.Add($"{file}: screenKey '{screenKey}' standart menüde ya da gezinmeyle açılan bir sayfa değil.");
             if (!string.Equals(Path.GetFileNameWithoutExtension(file), screenKey, StringComparison.Ordinal))
                 errors.Add($"{file}: dosya adı screenKey '{screenKey}' ile aynı olmalıdır.");
 

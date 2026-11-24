@@ -37,6 +37,7 @@ type ApiRequest = typeof import("./erpApi").api;
 
 const standardListPages = new Set([
   "customers", "customer-ledger", "crm-opportunities", "fixed-assets", "human-resources",
+  "hr-employees", "hr-leave-requests", "hr-attendance", "hr-period-summary",
   "manufacturing-cost-variance", "manufacturing-recipes", "manufacturing-work-centers",
   "manufacturing-orders", "manufacturing-mrp", "inventory-tracking", "inventory-stock-movements",
   "inventory-cost", "inventory-locations", "inventory-stock", "inventory-warehouses", "inventory-transfers",

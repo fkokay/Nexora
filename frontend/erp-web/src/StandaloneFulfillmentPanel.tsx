@@ -2,6 +2,7 @@ import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, localDateString } from "./erpApi";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 import type {
   SalesCustomer,
   StockItem,
@@ -125,6 +126,13 @@ export function StandaloneFulfillmentPanel({
   useEffect(() => {
     void load();
   }, [token, sales]);
+  // Siparişsiz irsaliye listesi (sistem sayfası) bir taslağı `deliveryId` sayfa parametresiyle açar: bir kez okunur, sonra silinir.
+  const paramDeliveryId = usePageParams(sales ? "sales-delivery-create" : undefined).deliveryId ?? "";
+  useEffect(() => {
+    if (!sales || !paramDeliveryId) return;
+    dropPageParam("sales-delivery-create", "deliveryId");
+    void editDraft({ id: paramDeliveryId } as Row);
+  }, [sales, paramDeliveryId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let cancelled = false;
     setLocations([]);
@@ -239,7 +247,7 @@ export function StandaloneFulfillmentPanel({
           storageLocationId: x.storageLocationId || "",
         })),
       );
-      setNotice(`${item.code} taslağı düzenleniyor.`);
+      setNotice(`${item.code || detail.code} taslağı düzenleniyor.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {

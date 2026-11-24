@@ -170,7 +170,11 @@ public sealed class ErpOperationCatalogTests
                 || op.Name.StartsWith("crm.", StringComparison.Ordinal)
                 || op.Name.StartsWith("satis.", StringComparison.Ordinal)
                 || op.Name.StartsWith("finans.", StringComparison.Ordinal)
-                || PurchasingErpOperationCatalogTests.IsFaz1Operation(op.Name)) continue;
+                || op.Name.StartsWith("ik.", StringComparison.Ordinal)
+                || op.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
+                || ManufacturingSystemPagesTests.IsNewOperation(op.Name)
+                || op.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
+                || PurchasingErpOperationCatalogTests.IsSystemPageOperation(op.Name)) continue;
             // Proje 1 operations keep their contract: the new wire fields stay at their defaults.
             Assert.Empty(op.Result.Flatten);
             Assert.Empty(op.Result.MetaPaths);
@@ -611,8 +615,10 @@ public sealed class ErpOperationCatalogTests
         var collections = ErpOperationCatalog.All.SelectMany(op => op.Parameters.Select(p => (op, p)))
             .Where(x => x.p.Type is "list" or "map").ToArray();
         // + cari.olustur customFields and cari.ozelAlanKaydet values (CustomerSystemPagesTests), satis.irsaliye.faturalastir
-        // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests).
-        Assert.Equal(11, collections.Length);
+        // customFields (SalesSystemPagesTests), finans.fis.olustur lines (FinanceSystemPagesTests), uretim.emir.tamamla
+        // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
+        // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests).
+        Assert.Equal(45, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);
@@ -694,12 +700,14 @@ public sealed class ErpOperationCatalogTests
             ["depo.ozelAlanKaydet"] = ["values"],
             ["depo.transfer.olustur"] = ["lines"]
         };
-        // The cari.*, crm.*, satis.*, finans.* and Satınalma Faz 1 operations are new names with their own contract tests
-        // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, PurchasingErpOperationCatalogTests).
+        // The cari.*, crm.*, satis.*, finans.*, ik.*, new uretim.* and Satınalma system page operations are new names with their own contract tests
+        // (CustomerSystemPagesTests, CrmSystemPagesTests, SalesSystemPagesTests, FinanceSystemPagesTests, ManufacturingSystemPagesTests, PurchasingErpOperationCatalogTests).
         foreach (var op in ErpOperationCatalog.All.Where(x => !x.Name.StartsWith("cari.", StringComparison.Ordinal)
             && !x.Name.StartsWith("crm.", StringComparison.Ordinal)
-            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal)
-            && !PurchasingErpOperationCatalogTests.IsFaz1Operation(x.Name)))
+            && !x.Name.StartsWith("satis.", StringComparison.Ordinal) && !x.Name.StartsWith("finans.", StringComparison.Ordinal) && !x.Name.StartsWith("ik.", StringComparison.Ordinal) && !x.Name.StartsWith("duranVarlik.", StringComparison.Ordinal)
+            && !x.Name.StartsWith("disTicaret.", StringComparison.Ordinal)
+            && !ManufacturingSystemPagesTests.IsNewOperation(x.Name)
+            && !PurchasingErpOperationCatalogTests.IsSystemPageOperation(x.Name)))
         {
             var expected = (FazAParameterNames.TryGetValue(op.Name, out var names) ? names.Split(',', StringSplitOptions.RemoveEmptyEntries) : [])
                 .Concat(additions.TryGetValue(op.Name, out var added) ? added : []);
@@ -867,7 +875,8 @@ public sealed class ErpOperationCatalogTests
     {
         var all = ErpOperationCatalog.All;
         Assert.Equal(all.Count, all.Select(x => x.Name).Distinct(StringComparer.Ordinal).Count());
-        var pattern = new Regex("^[a-z]+(\\.[a-zA-Z]+)+$");
+        // The module prefix starts lower case; a two-word module is camelCase (duranVarlik, disTicaret; decision K2 of taslak 27).
+        var pattern = new Regex("^[a-z][a-zA-Z]*(\\.[a-zA-Z]+)+$");
         var types = new HashSet<string> { "text", "int", "decimal", "date", "bool", "guid" };
         foreach (var op in all)
         {

@@ -42,6 +42,22 @@ public sealed class PurchasingErpOperationCatalogTests
 
     internal static bool IsFaz1Operation(string name) => Faz1Operations.Contains(name, StringComparer.Ordinal);
 
+    /// <summary>Satınalma Faz 2: line document writes and the reads that prefill their line grids.</summary>
+    internal static readonly string[] Faz2Operations =
+    [
+        "satinalma.talep.olustur", "satinalma.talep.teklifKaydet", "satinalma.talep.siparisOlustur", "satinalma.siparis.olustur",
+        "satinalma.malKabul.olustur", "satinalma.malKabul.siparisSatirlari",
+        "satinalma.irsaliye.olustur", "satinalma.irsaliye.siparisIrsaliyeleri", "satinalma.irsaliye.siparisSatirlari",
+        "satinalma.irsaliye.malKabulBagla", "satinalma.irsaliye.malKabulBaglantisiKaldir",
+        "satinalma.iade.olustur", "satinalma.fatura.iadeEdilebilirSatirlar",
+        "satinalma.faturaTaslagi.listele", "satinalma.faturaTaslagi.getir", "satinalma.faturaTaslagi.satirlari", "satinalma.faturaTaslagi.olustur",
+        "satinalma.faturaTaslagi.guncelle", "satinalma.faturaTaslagi.muhasebelestir", "satinalma.faturaTaslagi.tedarikciler",
+        "satinalma.faturaTaslagi.giderHesaplari", "satinalma.faturaTaslagi.malKabulSatirlari"
+    ];
+
+    /// <summary>The purchasing system page operations (Faz 1 and Faz 2), whose contract tests live here.</summary>
+    internal static bool IsSystemPageOperation(string name) => IsFaz1Operation(name) || Faz2Operations.Contains(name, StringComparer.Ordinal);
+
     private static readonly string[] InventoryCostOperations =
         ["satinalma.malKabul.ekMaliyetDagit", "satinalma.malKabul.ekMaliyetTersKayit", "satinalma.malKabul.ekMaliyetler", "satinalma.malKabul.listele"];
 
@@ -97,10 +113,10 @@ public sealed class PurchasingErpOperationCatalogTests
     // ---- Catalog ----
 
     [Fact]
-    public void Catalog_declares_the_faz1_purchasing_operations_and_nothing_else()
+    public void Catalog_declares_the_purchasing_operations_and_nothing_else()
     {
         var purchasing = ErpOperationCatalog.All.Where(x => x.Module == "Satınalma").Select(x => x.Name).Order(StringComparer.Ordinal);
-        Assert.Equal(Faz1Operations.Concat(InventoryCostOperations).Order(StringComparer.Ordinal), purchasing);
+        Assert.Equal(Faz1Operations.Concat(Faz2Operations).Concat(InventoryCostOperations).Order(StringComparer.Ordinal), purchasing);
         Assert.All(ErpOperationCatalog.All.Where(x => x.Name.StartsWith("satinalma.", StringComparison.Ordinal)), x => Assert.Equal("Satınalma", x.Module));
         Assert.Equal(Faz1Operations.Length, Shapes.Count);
         foreach (var name in Faz1Operations)
@@ -418,6 +434,353 @@ public sealed class PurchasingErpOperationCatalogTests
         Assert.Equal(3, receipts.GetProperty("totalCount").GetInt32());
         Assert.Equal(2, receipts.GetProperty("items").GetArrayLength());
     }
+
+    // ---- Faz 2: line documents ----
+
+    // name → method, route, parameters (name:in:type[*]; a list adds [item:type[*]|…]), result shape, rowsPath.
+    public static TheoryData<string, string, string, string, string, string?> Faz2Shapes => new()
+    {
+        { "satinalma.talep.olustur", "POST", "/api/purchasing/requests",
+            "code:body:text,requestDate:body:date*,neededByDate:body:date,description:body:text*,lines:body:list[stockItemId:guid*|quantity:decimal*|unitCode:text],customFields:body:map", "record", null },
+        { "satinalma.talep.teklifKaydet", "POST", "/api/purchasing/requests/{id}/supplier-quotes",
+            "id:route:guid*,code:body:text*,supplierId:body:guid*,quoteDate:body:date*,validUntil:body:date,notes:body:text,lines:body:list[requestLineNumber:int*|unitPrice:decimal*|discountPercent:decimal*|vatPercent:decimal],customFields:body:map", "record", null },
+        { "satinalma.talep.siparisOlustur", "POST", "/api/purchasing/requests/{id}/order",
+            "id:route:guid*,code:body:text*,supplierId:body:guid*,orderDate:body:date*,notes:body:text,supplierQuoteId:body:guid,expectedReceiptDate:body:date,targetWarehouseId:body:guid,lines:body:list[lineNumber:int*|unitPrice:decimal*|discountPercent:decimal*|vatPercent:decimal],customFields:body:map", "record", null },
+        { "satinalma.siparis.olustur", "POST", "/api/purchasing/orders",
+            "code:body:text*,supplierId:body:guid*,orderDate:body:date*,currencyCode:body:text*,notes:body:text,expectedReceiptDate:body:date,targetWarehouseId:body:guid,lines:body:list[stockItemId:guid*|quantity:decimal*|unitPrice:decimal*|discountPercent:decimal|vatPercent:decimal|unitCode:text],customFields:body:map", "record", null },
+        { "satinalma.malKabul.olustur", "POST", "/api/purchasing/orders/{id}/receipts",
+            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,receiptDate:body:date*,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text|storageLocationId:guid],customFields:body:map", "record", null },
+        { "satinalma.malKabul.siparisSatirlari", "GET", "/api/purchasing/orders/{id}", "id:route:guid*", "list", "lines" },
+        { "satinalma.irsaliye.olustur", "POST", "/api/purchasing/delivery-notes/orders/{orderId}",
+            "orderId:route:guid*,documentNumber:body:text*,documentDate:body:date*,purchaseReceiptId:body:guid,lines:body:list[orderLineNumber:int*|quantity:decimal*|unitCode:text]", "record", null },
+        { "satinalma.irsaliye.siparisIrsaliyeleri", "GET", "/api/purchasing/delivery-notes/orders/{orderId}", "orderId:route:guid*", "list", null },
+        { "satinalma.irsaliye.siparisSatirlari", "GET", "/api/purchasing/delivery-notes/orders/{orderId}/lines", "orderId:route:guid*", "list", null },
+        { "satinalma.irsaliye.malKabulBagla", "POST", "/api/purchasing/delivery-notes/{id}/link-receipt", "id:route:guid*,purchaseReceiptId:body:guid*", "none", null },
+        { "satinalma.irsaliye.malKabulBaglantisiKaldir", "POST", "/api/purchasing/delivery-notes/{id}/unlink-receipt", "id:route:guid*", "none", null },
+        { "satinalma.iade.olustur", "POST", "/api/purchasing/invoices/{id}/returns",
+            "id:route:guid*,requestId:body:guid*,warehouseId:body:guid*,returnDate:body:date*,lines:body:list[purchaseInvoiceLineId:guid*|quantity:decimal*|unitCode:text|storageLocationId:guid]", "record", null },
+        { "satinalma.fatura.iadeEdilebilirSatirlar", "GET", "/api/purchasing/invoices/{id}/returnable-lines", "id:route:guid*", "list", null },
+        { "satinalma.faturaTaslagi.listele", "GET", "/api/purchasing/standalone-invoices", "q:query:text,page:query:int*,pageSize:query:int*", "list", "items" },
+        { "satinalma.faturaTaslagi.getir", "GET", "/api/purchasing/standalone-invoices/{id}", "id:route:guid*", "record", null },
+        { "satinalma.faturaTaslagi.satirlari", "GET", "/api/purchasing/standalone-invoices/{id}", "id:route:guid*", "list", "lines" },
+        { "satinalma.faturaTaslagi.olustur", "POST", "/api/purchasing/standalone-invoices",
+            "requestId:body:guid*,supplierId:body:guid*,invoiceNumber:body:text*,invoiceDate:body:date*,dueDate:body:date,currencyCode:body:text*,notes:body:text,subtotal:body:decimal*,discountTotal:body:decimal*,taxTotal:body:decimal*,grandTotal:body:decimal*," + DraftLines, "record", null },
+        { "satinalma.faturaTaslagi.guncelle", "PUT", "/api/purchasing/standalone-invoices/{id}",
+            "id:route:guid*,expectedRowVersion:body:text*,supplierId:body:guid*,invoiceNumber:body:text*,invoiceDate:body:date*,dueDate:body:date,currencyCode:body:text*,notes:body:text,subtotal:body:decimal*,discountTotal:body:decimal*,taxTotal:body:decimal*,grandTotal:body:decimal*," + DraftLines, "record", null },
+        { "satinalma.faturaTaslagi.muhasebelestir", "POST", "/api/purchasing/standalone-invoices/{id}/post", "id:route:guid*", "record", null },
+        { "satinalma.faturaTaslagi.tedarikciler", "GET", "/api/purchasing/standalone-invoices/suppliers", "q:query:text,page:query:int*,pageSize:query:int*", "list", "items" },
+        { "satinalma.faturaTaslagi.giderHesaplari", "GET", "/api/finance/general-ledger/accounts", "", "list", null },
+        { "satinalma.faturaTaslagi.malKabulSatirlari", "GET", "/api/purchasing/standalone-invoices/receipts",
+            "supplierId:query:guid*,invoiceDate:query:date*,draftId:query:guid", "list", null },
+    };
+
+    private const string DraftLines = "lines:body:list[lineNumber:int*|description:text*|quantity:decimal|unitCode:text|unitPrice:decimal|subtotal:decimal*|discountAmount:decimal*|taxAmount:decimal*|total:decimal*|expenseAccountId:guid|vatRate:decimal|standalonePurchaseReceiptLineId:guid]";
+
+    [Theory]
+    [MemberData(nameof(Faz2Shapes))]
+    public void Faz2_operation_shape_matches_the_endpoint(string name, string method, string route, string parameters, string shape, string? rowsPath)
+    {
+        var op = Op(name);
+        Assert.Equal((method, route, shape, rowsPath), (op.Method, op.Route, op.Result.Shape, op.Result.RowsPath));
+        Assert.Equal(parameters, string.Join(",", op.Parameters.Select(x => $"{x.Name}:{x.In}:{x.Type}{(x.Required ? "*" : "")}"
+            + (x.Items is { } items ? "[" + string.Join("|", items.Select(i => $"{i.Code}:{i.DataType}{(i.Required ? "*" : "")}")) + "]" : ""))));
+        Assert.Equal(op.Kind == "write", method != "GET");
+        Assert.Null(ErpOperationCatalog.ParameterShapeError(op));
+        Assert.False(op.Deprecated);
+        Assert.Null(op.SourceOperation);
+        Assert.Null(op.BodyMap);
+        Assert.Empty(op.RouteVariants);
+        Assert.Null(op.FixedBody);
+        Assert.Equal(name is "satinalma.talep.teklifKaydet" or "satinalma.talep.siparisOlustur", op.RequiresTenantAdmin);
+        if (op.Kind == "write")
+            Assert.Equal(name is "satinalma.irsaliye.malKabulBagla" or "satinalma.irsaliye.malKabulBaglantisiKaldir" or "satinalma.faturaTaslagi.guncelle"
+                or "satinalma.faturaTaslagi.muhasebelestir" ? "update" : "insert", op.PageKind);
+        Assert.Equal(name is "satinalma.faturaTaslagi.listele" or "satinalma.faturaTaslagi.tedarikciler" ? "page,pageSize,totalCount" : "",
+            string.Join(",", op.Result.MetaPaths));
+        Assert.Equal(op.Result.Columns.Count, op.Result.Columns.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void Faz2_writes_declare_request_keys_labels_and_fill_columns()
+    {
+        Assert.Equal(Faz2Operations.Length, Faz2Shapes.Count);
+        // requestId exists (and is required) exactly where the body has one; the other writes rely on 409 checks.
+        string[] keyed = ["satinalma.malKabul.olustur", "satinalma.iade.olustur", "satinalma.faturaTaslagi.olustur"];
+        foreach (var name in Faz2Operations.Where(x => Op(x).Kind == "write"))
+            Assert.Equal(keyed.Contains(name), Op(name).Parameters.Any(x => x is { Name: "requestId", In: "body", Type: "guid", Required: true }));
+        // Every column and list item has a label (a missing one fails startup); spot-check the new codes.
+        foreach (var name in Faz2Operations)
+        {
+            var op = Op(name);
+            Assert.All(op.Result.Columns, x => Assert.False(string.IsNullOrWhiteSpace(x.Label), $"{name}.{x.Code}"));
+            Assert.All(op.Parameters.SelectMany(x => x.Items ?? []), x => Assert.False(string.IsNullOrWhiteSpace(x.Label), $"{name}.{x.Code}"));
+        }
+        Assert.Equal("Kalan", Label("satinalma.irsaliye.siparisSatirlari", "remainingQuantity"));
+        Assert.Equal("İrsaliyelenen", Label("satinalma.irsaliye.siparisSatirlari", "notedQuantity"));
+        Assert.Equal("İade edilen", Label("satinalma.fatura.iadeEdilebilirSatirlar", "returnedQuantity"));
+        Assert.Equal("Tedarikçi fatura no", Label("satinalma.faturaTaslagi.getir", "invoiceNumber"));
+        Assert.Equal("Finansal tablo sınıfı", Label("satinalma.faturaTaslagi.giderHesaplari", "statementSection"));
+        Assert.Equal("Sipariş satır no", Op("satinalma.malKabul.olustur").Parameters.Single(x => x.Name == "lines").Items!.Single(x => x.Code == "orderLineNumber").Label);
+        // Fill sources carry the remaining quantity under the code each write's line item uses.
+        Assert.Subset(Codes("satinalma.malKabul.siparisSatirlari"),
+            new HashSet<string> { "orderLineNumber:int", "remainingQuantity:decimal", "stockItemId:guid", "unitCode:text", "trackingMode:text" });
+        Assert.Subset(Codes("satinalma.irsaliye.siparisSatirlari"),
+            new HashSet<string> { "orderLineNumber:int", "orderedQuantity:decimal", "notedQuantity:decimal", "remainingQuantity:decimal", "unitCode:text" });
+        Assert.Subset(Codes("satinalma.fatura.iadeEdilebilirSatirlar"),
+            new HashSet<string> { "purchaseInvoiceLineId:guid", "invoicedQuantity:decimal", "returnedQuantity:decimal", "remainingQuantity:decimal", "stockItemId:guid" });
+        Assert.Subset(Codes("satinalma.faturaTaslagi.getir"), new HashSet<string> { "rowVersion:text", "grandTotal:decimal", "status:text" });
+        // The Faz 1 order lines read keeps its frozen columns; the new members are declared by the receipt fill source only.
+        Assert.DoesNotContain("trackingMode:text", Codes("satinalma.siparis.satirlari"));
+        Assert.DoesNotContain("orderLineNumber:int", Codes("satinalma.siparis.satirlari"));
+        // The expense account picker asks the server for active expense accounts.
+        var expense = Op("satinalma.faturaTaslagi.giderHesaplari");
+        Assert.Equal(("Expense", true), (expense.FixedQuery!["statementSection"], expense.FixedQuery["activeOnly"]));
+        Assert.Null(Op("finans.muhasebe.hesap.listele").FixedQuery);
+        // The order lines are the sales quote line record: only the six fields of the legacy order form are offered.
+        Assert.DoesNotContain(Op("satinalma.siparis.olustur").Parameters.Single(x => x.Name == "lines").Items!,
+            x => x.Code is "isVatIncluded" or "exchangeRateToQuoteCurrency" or "warehouseId" or "currencyCode" or "salesRequestLineNumber");
+    }
+
+    [Fact]
+    public void Faz2_nested_routes_resolve_to_the_permission_their_handlers_are_guarded_by()
+    {
+        var id = Guid.Empty.ToString("D");
+        Assert.Equal("erp.purchase-requests.create", Resolve($"/api/purchasing/requests", "POST", "/api/purchasing/requests/"));
+        Assert.Equal("erp.purchase-requests.create", Resolve($"/api/purchasing/requests/{id}/supplier-quotes", "POST", "/api/purchasing/requests/{id:guid}/supplier-quotes"));
+        Assert.Equal("erp.purchase-requests.create", Resolve($"/api/purchasing/requests/{id}/order", "POST", "/api/purchasing/requests/{id:guid}/order"));
+        Assert.Equal("erp.purchase-orders.create", Resolve($"/api/purchasing/orders/{id}/receipts", "POST", "/api/purchasing/orders/{id:guid}/receipts"));
+        Assert.Equal("erp.purchase-delivery-notes.create", Resolve($"/api/purchasing/delivery-notes/orders/{id}", "POST", "/api/purchasing/delivery-notes/orders/{orderId:guid}"));
+        Assert.Equal("erp.purchase-delivery-notes.read", Resolve($"/api/purchasing/delivery-notes/orders/{id}/lines", "GET", "/api/purchasing/delivery-notes/orders/{orderId:guid}/lines"));
+        Assert.Equal("erp.purchase-delivery-notes.update", Resolve($"/api/purchasing/delivery-notes/{id}/link-receipt", "POST", "/api/purchasing/delivery-notes/{id:guid}/link-receipt"));
+        Assert.Equal("erp.purchase-delivery-notes.update", Resolve($"/api/purchasing/delivery-notes/{id}/unlink-receipt", "POST", "/api/purchasing/delivery-notes/{id:guid}/unlink-receipt"));
+        Assert.Equal("erp.supplier-returns.create", Resolve($"/api/purchasing/invoices/{id}/returns", "POST", "/api/purchasing/invoices/{id:guid}/returns"));
+        Assert.Equal("erp.purchase-invoices.read", Resolve($"/api/purchasing/invoices/{id}/returnable-lines", "GET", "/api/purchasing/invoices/{id:guid}/returnable-lines"));
+        Assert.Equal("erp.purchase-invoices.create", Resolve("/api/purchasing/standalone-invoices", "POST", "/api/purchasing/standalone-invoices/"));
+        Assert.Equal("erp.purchase-invoices.update", Resolve($"/api/purchasing/standalone-invoices/{id}", "PUT", "/api/purchasing/standalone-invoices/{id:guid}"));
+        Assert.Equal("erp.purchase-invoices.execute", Resolve($"/api/purchasing/standalone-invoices/{id}/post", "POST", "/api/purchasing/standalone-invoices/{id:guid}/post"));
+        Assert.Equal("erp.purchase-invoices.create", Resolve("/api/purchasing/standalone-invoices/suppliers", "GET", "/api/purchasing/standalone-invoices/suppliers"));
+        Assert.Equal("erp.purchase-invoices.read", Resolve("/api/purchasing/standalone-invoices/receipts", "GET", "/api/purchasing/standalone-invoices/receipts"));
+        Assert.Equal("erp.general-ledger.read", Resolve("/api/finance/general-ledger/accounts", "GET", "/api/finance/general-ledger/accounts"));
+    }
+
+    [Fact]
+    public async Task Faz2_allowed_follows_the_parent_permission_of_nested_routes()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, platform =>
+        {
+            platform.TenantPermissionRules.Add(Rule("erp.custom-menus.read", TenantPermissionEffect.Allow));
+            foreach (var code in new[] { "erp.purchase-orders.create", "erp.purchase-requests.create", "erp.purchase-delivery-notes.read" })
+                platform.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow, UserA));
+            foreach (var code in new[] { "erp.purchase-receipts.create", "erp.supplier-returns.create", "erp.purchase-invoices.execute" })
+                platform.TenantPermissionRules.Add(Rule(code, TenantPermissionEffect.Allow, UserB));
+            // A row-rule invoice read: the returnable lines route is an {id} route with the invoice's record attributes.
+            var rowRule = Rule("erp.purchase-invoices.read", TenantPermissionEffect.Allow, UserB);
+            (rowRule.AttributeName, rowRule.AttributeOperator, rowRule.AttributeValue) = ("resource.status", TenantPermissionConditionOperator.Equals, "Posted");
+            platform.TenantPermissionRules.Add(rowRule);
+        });
+        using var client = factory.CreateClient();
+
+        ErpOperationCatalogTests.SetIdentity(client, UserA, "TenantUser");
+        var a = await AllowedAsync(client);
+        // POST orders/{id}/receipts: the order's create permission, not the receipt one.
+        Assert.True(a["satinalma.malKabul.olustur"]);
+        Assert.True(a["satinalma.siparis.olustur"]);
+        Assert.True(a["satinalma.talep.olustur"]);
+        // The quote and order-from-request handlers accept TenantAdmin only.
+        Assert.False(a["satinalma.talep.teklifKaydet"]);
+        Assert.False(a["satinalma.talep.siparisOlustur"]);
+        Assert.True(a["satinalma.irsaliye.siparisSatirlari"]);
+        Assert.True(a["satinalma.irsaliye.siparisIrsaliyeleri"]);
+        Assert.False(a["satinalma.irsaliye.olustur"]);
+        Assert.False(a["satinalma.irsaliye.malKabulBagla"]);
+        Assert.False(a["satinalma.iade.olustur"]);
+        Assert.False(a["satinalma.malKabul.siparisSatirlari"]);
+
+        ErpOperationCatalogTests.SetIdentity(client, UserB, "TenantUser");
+        var b = await AllowedAsync(client);
+        Assert.False(b["satinalma.malKabul.olustur"]);
+        Assert.True(b["satinalma.iade.olustur"]);
+        Assert.True(b["satinalma.fatura.iadeEdilebilirSatirlar"]);
+        Assert.True(b["satinalma.faturaTaslagi.muhasebelestir"]);
+        Assert.False(b["satinalma.faturaTaslagi.olustur"]);
+        Assert.False(b["satinalma.faturaTaslagi.giderHesaplari"]);
+
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+        var admin = await AllowedAsync(client);
+        Assert.All(Faz2Operations, name => Assert.True(admin[name], name));
+    }
+
+    [Fact]
+    public async Task Returnable_lines_follow_the_return_rule_and_stay_in_the_tenant()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, _ => { });
+        var seed = await SeedPurchasingAsync(factory);
+        var extra = await SeedLineSourcesAsync(factory, seed);
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+
+        var rows = (await GetAsync(client, $"/api/purchasing/invoices/{extra.InvoiceId:D}/returnable-lines")).EnumerateArray().ToArray();
+        var line = Assert.Single(rows);
+        // 3 invoiced; the posted return took 1, the voided one does not count.
+        Assert.Equal((extra.InvoiceLineId, 3m, 1m, 2m), (line.GetProperty("purchaseInvoiceLineId").GetGuid(), line.GetProperty("invoicedQuantity").GetDecimal(),
+            line.GetProperty("returnedQuantity").GetDecimal(), line.GetProperty("remainingQuantity").GetDecimal()));
+        foreach (var column in Op("satinalma.fatura.iadeEdilebilirSatirlar").Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), column.Code);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/purchasing/invoices/{extra.OtherTenantInvoiceId:D}/returnable-lines")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/purchasing/invoices/{Guid.NewGuid():D}/returnable-lines")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delivery_note_order_lines_follow_the_note_rule_and_the_order_read_rules()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, platform =>
+        {
+            platform.TenantPermissionRules.Add(Rule("erp.purchase-delivery-notes.read", TenantPermissionEffect.Allow, UserA));
+            // UserA may read Open orders only; PO-1 is PartiallyReceived.
+            var rowRule = Rule("erp.purchase-orders.read", TenantPermissionEffect.Allow, UserA);
+            (rowRule.AttributeName, rowRule.AttributeOperator, rowRule.AttributeValue) = ("resource.status", TenantPermissionConditionOperator.Equals, "Open");
+            platform.TenantPermissionRules.Add(rowRule);
+        });
+        var seed = await SeedPurchasingAsync(factory);
+        var extra = await SeedLineSourcesAsync(factory, seed);
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+
+        var line = Assert.Single((await GetAsync(client, $"/api/purchasing/delivery-notes/orders/{seed.OrderId:D}/lines")).EnumerateArray().ToArray());
+        // 10 ordered, 4 on a recorded note (whatever the receipts say): 6 left for notes.
+        Assert.Equal((1, 10m, 4m, 6m, "EA"), (line.GetProperty("orderLineNumber").GetInt32(), line.GetProperty("orderedQuantity").GetDecimal(),
+            line.GetProperty("notedQuantity").GetDecimal(), line.GetProperty("remainingQuantity").GetDecimal(), line.GetProperty("unitCode").GetString()));
+        foreach (var column in Op("satinalma.irsaliye.siparisSatirlari").Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), column.Code);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/purchasing/delivery-notes/orders/{extra.OtherTenantOrderId:D}/lines")).StatusCode);
+
+        ErpOperationCatalogTests.SetIdentity(client, UserA, "TenantUser");
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/purchasing/delivery-notes/orders/{seed.OrderId:D}/lines")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/purchasing/delivery-notes/orders/{extra.OpenOrderId:D}/lines")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Receipt_fill_source_carries_the_line_number_and_tracking_mode()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, _ => { });
+        var seed = await SeedPurchasingAsync(factory);
+        await SeedLineSourcesAsync(factory, seed);
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+
+        var order = await GetAsync(client, $"/api/purchasing/orders/{seed.OrderId:D}");
+        var line = Assert.Single(order.GetProperty("lines").EnumerateArray().ToArray());
+        // 10 ordered, 3 + 5 posted receipts (the voided 2 do not count).
+        Assert.Equal((1, 2m, "Lot"), (line.GetProperty("orderLineNumber").GetInt32(), line.GetProperty("remainingQuantity").GetDecimal(),
+            line.GetProperty("trackingMode").GetString()));
+        foreach (var column in Op("satinalma.malKabul.siparisSatirlari").Result.Columns) Assert.True(line.TryGetProperty(column.Code, out _), column.Code);
+    }
+
+    [Fact]
+    public async Task Expense_accounts_and_supplier_picker_filter_on_the_server()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, _ => { });
+        var seed = await SeedPurchasingAsync(factory);
+        await SeedLineSourcesAsync(factory, seed);
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+
+        // Without the filters the chart of accounts list is unchanged (finans.muhasebe.hesap.listele).
+        Assert.Equal(3, (await GetAsync(client, "/api/finance/general-ledger/accounts")).GetArrayLength());
+        var expense = (await GetAsync(client, "/api/finance/general-ledger/accounts?statementSection=Expense&activeOnly=true")).EnumerateArray().ToArray();
+        Assert.Equal("770", Assert.Single(expense).GetProperty("code").GetString());
+        Assert.Equal(2, (await GetAsync(client, "/api/finance/general-ledger/accounts?statementSection=expense")).GetArrayLength());
+        using (var invalid = await client.GetAsync("/api/finance/general-ledger/accounts?statementSection=Yok"))
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        foreach (var column in Op("satinalma.faturaTaslagi.giderHesaplari").Result.Columns) Assert.True(expense[0].TryGetProperty(column.Code, out _), column.Code);
+
+        // K6: cari.listele takes several types (Supplier ∪ Both) and the status filter; customers are left out.
+        var suppliers = await GetAsync(client, "/api/customers?type=Supplier,Both&status=Active");
+        var codes = suppliers.GetProperty("items").EnumerateArray().Select(x => x.GetProperty("code").GetString()).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(new[] { "BOTH-1", "S-1" }, codes);
+        Assert.True(Op("cari.listele").Parameters.Any(x => x is { Name: "type", In: "query", Type: "text" }));
+    }
+
+    [Fact]
+    public async Task Request_create_accepts_a_body_without_code()
+    {
+        // satinalma.talep.olustur declares code optional (a blank code is numbered by the server): a body without it binds
+        // and reaches the handler's own validation, which names only the invalid field.
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await SeedPlatformAsync(factory, _ => { });
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, Admin, "TenantAdmin");
+        using var response = await client.PostAsJsonAsync("/api/purchasing/requests",
+            new { requestDate = "2026-11-22", description = "", lines = new[] { new { stockItemId = Guid.NewGuid(), quantity = 1m } } });
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, $"{response.StatusCode}: {body}");
+        var errors = JsonDocument.Parse(body).RootElement.GetProperty("errors");
+        Assert.True(errors.TryGetProperty("description", out _), body);
+        Assert.False(errors.TryGetProperty("code", out _), body);
+        Assert.False(Op("satinalma.talep.olustur").Parameters.Single(x => x.Name == "code").Required);
+    }
+
+    private sealed record LineSourceSeed(Guid InvoiceId, Guid InvoiceLineId, Guid OtherTenantInvoiceId, Guid OtherTenantOrderId, Guid OpenOrderId);
+
+    /// <summary>
+    /// On top of <see cref="SeedPurchasingAsync"/>: a lot-tracked stock card for the order lines, a posted (1) and a voided (1)
+    /// return on the invoice line, a recorded delivery note (4) on PO-1, an invoice in another tenant, three ledger accounts
+    /// (active expense, passive expense, asset) and three counterparties (customer, both, passive supplier).
+    /// </summary>
+    private static async Task<LineSourceSeed> SeedLineSourcesAsync(ErpOperationCatalogTests.ErpOperationApiFactory factory, Seed seed)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+        var order = await db.PurchaseOrders.Include(x => x.Lines).SingleAsync(x => x.Id == seed.OrderId);
+        var invoice = await db.PurchaseInvoices.Include(x => x.Lines).SingleAsync(x => x.TenantId == TenantA);
+        var invoiceLine = invoice.Lines.Single();
+        var warehouse = await db.Warehouses.SingleAsync(x => x.TenantId == TenantA);
+        var openOrder = await db.PurchaseOrders.SingleAsync(x => x.TenantId == TenantA && x.Code == "PO-3");
+        var otherOrder = await db.PurchaseOrders.SingleAsync(x => x.TenantId == TenantB);
+        var otherReceipt = await db.PurchaseReceipts.Include(x => x.Lines).SingleAsync(x => x.Id == seed.OtherTenantReceiptId);
+        db.StockItems.Add(new StockItem { Id = order.Lines.Single().StockItemId, TenantId = TenantA, Code = "STK-1", Name = "Koli", UnitCode = "EA",
+            TrackingMode = InventoryTrackingMode.Lot });
+        SupplierReturn Return(string code, decimal quantity, SupplierReturnStatus status) => new()
+        {
+            TenantId = TenantA, RequestId = Guid.NewGuid(), PurchaseInvoiceId = invoice.Id, SupplierId = invoice.SupplierId, WarehouseId = warehouse.Id,
+            Code = code, ReturnDate = new DateOnly(2026, 10, 8), Status = status,
+            Lines = { new SupplierReturnLine { TenantId = TenantA, PurchaseInvoiceId = invoice.Id, PurchaseInvoiceLineId = invoiceLine.Id, OrderLineNumber = 1,
+                StockItemId = invoiceLine.StockItemId, StockCode = "STK-1", StockName = "Koli", UnitCode = "EA", Quantity = quantity } }
+        };
+        db.SupplierReturns.AddRange(Return("RET-1", 1m, SupplierReturnStatus.Posted), Return("RET-V", 1m, SupplierReturnStatus.Voided));
+        db.PurchaseDeliveryNotes.Add(new PurchaseDeliveryNote { TenantId = TenantA, PurchaseOrderId = order.Id, DocumentNumber = "IRS-1",
+            DocumentDate = new DateOnly(2026, 10, 4),
+            Lines = { new PurchaseDeliveryNoteLine { TenantId = TenantA, PurchaseOrderId = order.Id, OrderLineNumber = 1, Quantity = 4m, UnitCode = "EA" } } });
+        var otherInvoice = new PurchaseInvoice { TenantId = TenantB, PurchaseReceiptId = otherReceipt.Id, PurchaseOrderId = otherOrder.Id,
+            SupplierId = otherOrder.SupplierId, Code = "PINV-B", InvoiceDate = new DateOnly(2026, 10, 6), DueDate = new DateOnly(2026, 11, 6), CurrencyCode = "TRY" };
+        otherInvoice.Lines.Add(new PurchaseInvoiceLine { TenantId = TenantB, PurchaseInvoice = otherInvoice, PurchaseReceiptLineId = otherReceipt.Lines.Single().Id,
+            PurchaseReceiptId = otherReceipt.Id, OrderLineNumber = 1, StockItemId = invoiceLine.StockItemId, StockCode = "STK-1", StockName = "Koli", UnitCode = "EA",
+            Quantity = 1m });
+        db.PurchaseInvoices.Add(otherInvoice);
+        db.LedgerAccounts.AddRange(
+            new LedgerAccount { TenantId = TenantA, Code = "770", Name = "Genel yönetim giderleri", StatementSection = LedgerAccountStatementSection.Expense },
+            new LedgerAccount { TenantId = TenantA, Code = "760", Name = "Pazarlama giderleri", StatementSection = LedgerAccountStatementSection.Expense, IsActive = false },
+            new LedgerAccount { TenantId = TenantA, Code = "100", Name = "Kasa", StatementSection = LedgerAccountStatementSection.Asset });
+        db.CustomerAccounts.AddRange(
+            new CustomerAccount { TenantId = TenantA, Code = "C-1", Name = "Müşteri", Type = CounterpartyType.Customer },
+            new CustomerAccount { TenantId = TenantA, Code = "BOTH-1", Name = "İkisi", Type = CounterpartyType.Both },
+            new CustomerAccount { TenantId = TenantA, Code = "S-P", Name = "Pasif tedarikçi", Type = CounterpartyType.Supplier, IsActive = false });
+        await db.SaveChangesAsync();
+        return new LineSourceSeed(invoice.Id, invoiceLine.Id, otherInvoice.Id, otherOrder.Id, openOrder.Id);
+    }
+
+    private static string Resolve(string path, string method, string pattern)
+    {
+        var routeValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        Assert.True(PlatformPermissionCatalog.TryResolve(path, method, pattern, routeValues, TenantA, Admin, "TenantUser", out var resolved), path);
+        return resolved!.Permission.Code;
+    }
+
+    private static string Label(string operation, string code) => Op(operation).Result.Columns.Single(x => x.Code == code).Label;
 
     // ---- Helpers ----
 

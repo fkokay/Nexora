@@ -1,0 +1,360 @@
+{
+  "columns": [
+    "quantity",
+    "unitPrice",
+    "discountRate",
+    "vatRate",
+    "a1",
+    "_b"
+  ],
+  "valid": [
+    {
+      "text": "quantity * unitPrice",
+      "refs": [
+        "quantity",
+        "unitPrice"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "2",
+            "unitPrice": "10.5"
+          },
+          "result": 21
+        },
+        {
+          "cells": {
+            "quantity": "",
+            "unitPrice": "10.5"
+          },
+          "result": 0
+        },
+        {
+          "cells": {
+            "quantity": "abc",
+            "unitPrice": "3"
+          },
+          "result": 0
+        }
+      ]
+    },
+    {
+      "text": "quantity*unitPrice*(1-discountRate/100)",
+      "refs": [
+        "quantity",
+        "unitPrice",
+        "discountRate"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "3",
+            "unitPrice": "19.99",
+            "discountRate": "10"
+          },
+          "result": 53.97
+        }
+      ]
+    },
+    {
+      "text": " ( quantity * unitPrice ) * vatRate / 100 ",
+      "refs": [
+        "quantity",
+        "unitPrice",
+        "vatRate"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "1",
+            "unitPrice": "100.5",
+            "vatRate": "1"
+          },
+          "result": 1.01
+        },
+        {
+          "cells": {
+            "quantity": "1",
+            "unitPrice": "-234.5",
+            "vatRate": "1"
+          },
+          "result": -2.35
+        }
+      ]
+    },
+    {
+      "text": "quantity / discountRate",
+      "refs": [
+        "quantity",
+        "discountRate"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "5",
+            "discountRate": "0"
+          },
+          "result": 0
+        },
+        {
+          "cells": {
+            "quantity": "5"
+          },
+          "result": 0
+        },
+        {
+          "cells": {
+            "quantity": "1",
+            "discountRate": "3"
+          },
+          "result": 0.33
+        }
+      ]
+    },
+    {
+      "text": "-quantity",
+      "refs": [
+        "quantity"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "4"
+          },
+          "result": -4
+        },
+        {
+          "cells": {},
+          "result": 0
+        }
+      ]
+    },
+    {
+      "text": "--quantity",
+      "refs": [
+        "quantity"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "4"
+          },
+          "result": 4
+        }
+      ]
+    },
+    {
+      "text": "2 - -3",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 5
+        }
+      ]
+    },
+    {
+      "text": "1 + 2 * 3",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 7
+        }
+      ]
+    },
+    {
+      "text": "(1 + 2) * 3",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 9
+        }
+      ]
+    },
+    {
+      "text": "10 - 4 - 3",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 3
+        }
+      ]
+    },
+    {
+      "text": "8 / 4 / 2",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 1
+        }
+      ]
+    },
+    {
+      "text": "0.1 + 0.2",
+      "refs": [],
+      "cases": [
+        {
+          "cells": {},
+          "result": 0.3
+        }
+      ]
+    },
+    {
+      "text": "a1+_b+a1",
+      "refs": [
+        "a1",
+        "_b"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "a1": "1",
+            "_b": "2"
+          },
+          "result": 4
+        }
+      ]
+    },
+    {
+      "text": "\tquantity\t",
+      "refs": [
+        "quantity"
+      ],
+      "cases": [
+        {
+          "cells": {
+            "quantity": "1.006"
+          },
+          "result": 1.01
+        }
+      ]
+    }
+  ],
+  "invalid": [
+    "",
+    "   ",
+    "1.",
+    ".5",
+    "1e3",
+    "1.5.2",
+    "2quantity",
+    "+quantity",
+    "quantity +",
+    "quantity unitPrice",
+    "(quantity",
+    "quantity)",
+    "()",
+    "quantity ^ 2",
+    "quantity % 2",
+    "max(quantity, 1)",
+    "\"5\"",
+    "'5'",
+    "lineTotal",
+    "Quantity",
+    "attributes.Renk",
+    "quantity\n",
+    "quantity * ١",
+    "((((((((((((((((((((((1))))))))))))))))))))))"
+  ],
+  "graphs": [
+    {
+      "refs": {
+        "lineNet": [
+          "quantity",
+          "unitPrice"
+        ],
+        "lineVat": [
+          "lineNet",
+          "vatRate"
+        ],
+        "lineTotal": [
+          "lineNet",
+          "lineVat"
+        ]
+      },
+      "order": [
+        "lineNet",
+        "lineVat",
+        "lineTotal"
+      ],
+      "cyclic": []
+    },
+    {
+      "refs": {
+        "lineTotal": [
+          "lineNet",
+          "lineVat"
+        ],
+        "lineVat": [
+          "lineNet"
+        ],
+        "lineNet": [
+          "quantity"
+        ]
+      },
+      "order": [
+        "lineNet",
+        "lineVat",
+        "lineTotal"
+      ],
+      "cyclic": []
+    },
+    {
+      "refs": {
+        "a": [
+          "b"
+        ],
+        "b": [
+          "a"
+        ],
+        "c": [
+          "quantity"
+        ]
+      },
+      "order": [
+        "c"
+      ],
+      "cyclic": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "refs": {
+        "a": [
+          "a"
+        ]
+      },
+      "order": [],
+      "cyclic": [
+        "a"
+      ]
+    },
+    {
+      "refs": {
+        "a": [
+          "b"
+        ],
+        "b": [
+          "c"
+        ],
+        "c": [
+          "b"
+        ],
+        "d": []
+      },
+      "order": [
+        "d"
+      ],
+      "cyclic": [
+        "a",
+        "b",
+        "c"
+      ]
+    }
+  ]
+}

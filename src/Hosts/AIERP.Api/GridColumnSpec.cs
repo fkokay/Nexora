@@ -6,12 +6,15 @@ using System.Text.RegularExpressions;
 /// <c>gridColumns.vectors.json</c>. Strict reading: parts and rule tokens are not trimmed; an empty fourth part, an empty
 /// or unknown token, or a rule on the wrong column type is invalid; a repeated rule keeps its last value.
 /// A picker column's type is <c>lookup:&lt;queryId&gt;:&lt;valueColumn&gt;:&lt;labelColumn&gt;[:&lt;descriptionColumn&gt;]</c>; it takes
-/// only the required, unique and readOnly rules.
+/// only the required, unique and readOnly rules. A computed column's type is <c>calc:&lt;queryId&gt;:&lt;field&gt;</c> (read only, the
+/// value of the query result row whose <c>rowKey</c> is the draft key); it takes no rules at all.
 /// </summary>
 internal static class GridColumnSpec
 {
     /// <summary>The option source of a picker (lookup) column; <see cref="DescriptionColumn"/> is null when omitted.</summary>
     internal sealed record Lookup(string QueryId, string ValueColumn, string LabelColumn, string? DescriptionColumn);
+    /// <summary>The source of a computed (calc) column: a field of the query's result rows, matched by <c>rowKey</c>.</summary>
+    internal sealed record Calc(string QueryId, string Field);
 
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(100);
     // .NET '$' also matches before a trailing '\n' and '\d' matches non-ASCII digits: '\z' and [0-9] keep JS semantics.
@@ -20,6 +23,7 @@ internal static class GridColumnSpec
     private static readonly Regex RuleInteger = new(@"^[0-9]+\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly string[] InputTypes = ["text", "number", "date", "checkbox"];
     private const string LookupPrefix = "lookup:";
+    private const string CalcPrefix = "calc:";
     private static readonly Regex LookupQuery = new(@"^[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex LookupColumn = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}(\.[A-Za-z_][A-Za-z0-9_]{0,63})*\z", RegexOptions.CultureInvariant, RegexTimeout);
     private const int MaxLabel = 60;
@@ -29,8 +33,13 @@ internal static class GridColumnSpec
         TryParse(text, out code, out inputType, out _, out error);
 
     /// <summary>As above; <paramref name="lookup"/> is the option source of a picker column, null for the other types.</summary>
-    internal static bool TryParse(string text, out string code, out string inputType, out Lookup? lookup, out string? error)
+    internal static bool TryParse(string text, out string code, out string inputType, out Lookup? lookup, out string? error) =>
+        TryParse(text, out code, out inputType, out lookup, out _, out error);
+
+    /// <summary>As above; <paramref name="calc"/> is the source of a computed column, null for the other types.</summary>
+    internal static bool TryParse(string text, out string code, out string inputType, out Lookup? lookup, out Calc? calc, out string? error)
     {
+        calc = null;
         code = "";
         inputType = "";
         lookup = null;
@@ -52,7 +61,18 @@ internal static class GridColumnSpec
             source = new Lookup(lookupParts[0], lookupParts[1], lookupParts[2], lookupParts.Length == 4 ? lookupParts[3] : null);
             type = "lookup";
         }
-        else if (!InputTypes.Contains(type, StringComparer.Ordinal)) { error = "tür text, number, date, checkbox ya da lookup olmalı"; return false; }
+        else if (type.StartsWith(CalcPrefix, StringComparison.Ordinal))
+        {
+            var calcParts = type[CalcPrefix.Length..].Split(':');
+            if (calcParts.Length != 2 || !Matches(LookupQuery, calcParts[0]) || !Matches(LookupColumn, calcParts[1]))
+            { error = "hesaplanan tür calc:<sorgu>:<alan> olmalı"; return false; }
+            if (parts.Length == 4) { error = "hesaplanan (calc) sütun kural almaz"; return false; }
+            code = parts[0];
+            inputType = "calc";
+            calc = new Calc(calcParts[0], calcParts[1]);
+            return true;
+        }
+        else if (!InputTypes.Contains(type, StringComparer.Ordinal)) { error = "tür text, number, date, checkbox, lookup ya da calc olmalı"; return false; }
         double? min = null, max = null;
         if (parts.Length == 4)
         {

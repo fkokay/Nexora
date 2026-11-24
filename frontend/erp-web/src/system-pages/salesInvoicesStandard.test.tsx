@@ -65,7 +65,7 @@ const openInvoice = async (code: string) => {
 
 describe('Satış Faturaları standart tanımı', { timeout: 30000 }, () => {
   it('is a v1 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 1, stage: 'preview' });
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
@@ -124,6 +124,15 @@ describe('Satış Faturaları standart tanımı', { timeout: 30000 }, () => {
     await h.confirm('“F-1” iptal edilecek ve cari hareketi ters kayıtla kapatılacak.');
     await h.waitWrites(3);
     expect(h.writes()[2]).toMatchObject({ method: 'POST', url: `/api/sales/invoices/${I1}/void` });
+  });
+
+  it('Yeni keeps opening the legacy invoice card (G-SI6 gate) with the customer filter', async () => {
+    setPageParams(KEY, { customerId: C1 });
+    h.setup();
+    await screen.findByText('F-1', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
+    fireEvent.click(h.command('new'));
+    await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
+    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-invoice-create', params: { customerId: C1 }, legacy: true });
   });
 
   it('İade ekle opens the legacy invoice screen; a TenantUser cannot cancel the invoice', async () => {

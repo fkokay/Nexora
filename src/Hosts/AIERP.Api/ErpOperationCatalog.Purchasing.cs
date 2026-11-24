@@ -168,6 +168,139 @@ internal static partial class ErpOperationCatalog
             List(Columns<SupplierReturnLineView>(), "lines"));
         yield return Write(PurchasingModule, "satinalma.iade.iptal", "Alış iadesini iptal et", "update", "POST", returns + "/{id}/void", [id],
             None, null, null);
+
+        foreach (var operation in BuildPurchasingLineDocuments()) yield return operation;
+    }
+
+    /// <summary>
+    /// Satınalma Faz 2: line document writes (request, quote, order, receipt, delivery note, return, standalone invoice draft)
+    /// and the reads that prefill their line grids with the remaining quantities. Lines are one-level <c>list</c> parameters
+    /// whose item fields are the write record's scalars; nested arrays (receipt lot/serial tracking) are not offered. Writes
+    /// whose body has a requestId (receipt, return, draft) are retry-safe with the page-made key; the others rely on the
+    /// server's duplicate code / state checks (409).
+    /// </summary>
+    private static IEnumerable<ErpOperation> BuildPurchasingLineDocuments()
+    {
+        const string requests = "/api/purchasing/requests";
+        const string request = requests + "/{id}";
+        const string orders = "/api/purchasing/orders";
+        const string order = orders + "/{id}";
+        const string deliveryNotes = "/api/purchasing/delivery-notes";
+        const string orderNotes = deliveryNotes + "/orders/{orderId}";
+        const string invoice = "/api/purchasing/invoices/{id}";
+        const string drafts = "/api/purchasing/standalone-invoices";
+        const string draft = drafts + "/{id}";
+        var id = Route("id");
+        var orderId = Route("orderId");
+        var customFields = MapParameter("customFields");
+        var meta = new[] { "page", "pageSize", "totalCount" };
+        ErpOperationParameter[] requiredPaging = [new("page", "query", "int", true), new("pageSize", "query", "int", true)];
+        static IReadOnlyList<ErpOperationColumn> With(IReadOnlyList<ErpOperationColumn> columns, params string[] members) =>
+            columns.Concat(members.Select(x => x.Split(':')).Select(x => new ErpOperationColumn(x[0], Label(x[0]), x[1]))).ToArray();
+        // A lines parameter with only the named item fields of T (in T's order); the others are never labelled or offered.
+        static ErpOperationParameter Lines<T>(params string[] only) =>
+            new("lines", "body", "list", false)
+            {
+                Items = ScalarMembers<T>(includeMaps: true).Where(x => only.Length == 0 || only.Contains(x.Name, StringComparer.Ordinal))
+                    .Select(x => new ErpOperationParameterItem(x.Name, Label(x.Name), x.Type, x.Required)).ToArray()
+            };
+
+        // ---- Satınalma talebi oluştur ----
+        // A blank code is numbered by the server, so the code is optional; there is no request key, so a double submit of a
+        // blank-code request writes two requests (the page's busy lock is the only guard).
+        yield return Write(PurchasingModule, "satinalma.talep.olustur", "Satınalma talebi oluştur", "insert", "POST", requests,
+            [.. BodyParameters<PurchaseRequestWriteRequest>(sourceBacked: false).Select(x => x.Name == "code" ? x with { Required = false } : x),
+                Lines<PurchaseRequestLineWriteRequest>(), customFields],
+            Record(With(Columns<PurchaseRequestSummary>(), "neededByDays:int")), null, null);
+        // Both handlers accept TenantAdmin only, the request must be Approved and every request line needs exactly one price
+        // (no remaining quantity: fill from satinalma.talep.kalemleri, never skip rows). A quote code is unique per supplier.
+        yield return Write(PurchasingModule, "satinalma.talep.teklifKaydet", "Satınalma talebine tedarikçi teklifi kaydet", "insert", "POST",
+            request + "/supplier-quotes", [id, .. BodyParameters<PurchaseSupplierQuoteWriteRequest>(sourceBacked: false),
+                Lines<PurchaseSupplierQuoteLineWriteRequest>(), customFields],
+            Record(Columns<PurchaseSupplierQuoteView>()), null, null, requiresTenantAdmin: true);
+        // With supplierQuoteId the prices must equal that quote's lines (409); a second call finds the request Ordered (409).
+        yield return Write(PurchasingModule, "satinalma.talep.siparisOlustur", "Satınalma talebinden sipariş oluştur", "insert", "POST",
+            request + "/order", [id, .. BodyParameters<PurchaseRequestOrderWriteRequest>(sourceBacked: false),
+                Lines<PurchaseRequestOrderLineRequest>(), customFields],
+            Record(Columns<PurchaseOrderSummary>()), null, null, requiresTenantAdmin: true);
+
+        // ---- Satınalma siparişi oluştur ----
+        // The line record is the sales quote line; only the fields the legacy order form sends are offered. The currency must
+        // be the supplier's; the order code is unique (409).
+        yield return Write(PurchasingModule, "satinalma.siparis.olustur", "Satınalma siparişi oluştur", "insert", "POST", orders,
+            [.. BodyParameters<PurchaseOrderWriteRequest>(sourceBacked: false),
+                Lines<SalesQuoteLineWriteRequest>("stockItemId", "quantity", "unitPrice", "discountPercent", "vatPercent", "unitCode"), customFields],
+            Record(Columns<PurchaseOrderSummary>()), null, null);
+
+        // ---- Mal kabul (siparişten) ----
+        // Resolves to erp.purchase-orders.create (nested route). requestId is page-made: a retry returns the existing receipt.
+        yield return Write(PurchasingModule, "satinalma.malKabul.olustur", "Siparişten mal kabul oluştur", "insert", "POST", order + "/receipts",
+            [id, .. BodyParameters<PurchaseReceiptWriteRequest>(sourceBacked: false), Lines<PurchaseReceiptLineWriteRequest>(), customFields],
+            Record(Columns<PurchaseReceiptSummary>()), null, null);
+        // The receipt grid's fill source: the order lines with what is still to receive (posted receipts), the line number under
+        // the receipt line's field name and the stock card's tracking mode (lot/serial lines stay on the legacy screen).
+        yield return Read(PurchasingModule, "satinalma.malKabul.siparisSatirlari", "Mal kabul için sipariş satırları (kalan miktar)", order, [id],
+            List(With(Columns<PurchaseOrderLineView>(), "orderLineNumber:int", "trackingMode:text"), "lines"));
+
+        // ---- Tedarikçi irsaliyesi ----
+        // The note number is unique per order (409); quantities are in the order line's base unit.
+        yield return Write(PurchasingModule, "satinalma.irsaliye.olustur", "Siparişe tedarikçi irsaliyesi kaydet", "insert", "POST", orderNotes,
+            [orderId, .. BodyParameters<PurchaseDeliveryNoteWriteRequest>(sourceBacked: false), Lines<PurchaseDeliveryNoteWriteLine>()],
+            Record(Columns<PurchaseDeliveryNoteView>()), null, null);
+        yield return Read(PurchasingModule, "satinalma.irsaliye.siparisIrsaliyeleri", "Siparişin tedarikçi irsaliyeleri", orderNotes, [orderId],
+            List(Columns<PurchaseDeliveryNoteView>(), null));
+        // Remaining = ordered minus every recorded note of the order (the delivery note rule, not the receipt one).
+        yield return Read(PurchasingModule, "satinalma.irsaliye.siparisSatirlari", "İrsaliye için sipariş satırları (kalan miktar)", orderNotes + "/lines",
+            [orderId], List(Columns<PurchaseDeliveryNoteOrderLineView>(), null));
+        // link / unlink resolve to erp.purchase-delivery-notes.update; both answer 204.
+        yield return Write(PurchasingModule, "satinalma.irsaliye.malKabulBagla", "Tedarikçi irsaliyesini mal kabule bağla", "update", "POST",
+            deliveryNotes + "/{id}/link-receipt", [id, .. BodyParameters<PurchaseDeliveryNoteLinkReceiptRequest>(sourceBacked: false)], None, null, null);
+        yield return Write(PurchasingModule, "satinalma.irsaliye.malKabulBaglantisiKaldir", "Tedarikçi irsaliyesinin mal kabul bağlantısını kaldır",
+            "update", "POST", deliveryNotes + "/{id}/unlink-receipt", [id], None, null, null);
+
+        // ---- Alış iadesi ----
+        // Resolves to erp.supplier-returns.create (nested write). requestId: the same content returns the existing return,
+        // different content is a 409.
+        yield return Write(PurchasingModule, "satinalma.iade.olustur", "Alış faturasından iade oluştur", "insert", "POST", invoice + "/returns",
+            [id, .. BodyParameters<SupplierReturnWriteRequest>(sourceBacked: false), Lines<SupplierReturnLineWriteRequest>()],
+            Record(Columns<SupplierReturnSummary>()), null, null);
+        // Returnable = invoiced minus posted returns, per invoice line (the return handler's rule).
+        yield return Read(PurchasingModule, "satinalma.fatura.iadeEdilebilirSatirlar", "Alış faturasının iade edilebilir satırları",
+            invoice + "/returnable-lines", [id], List(Columns<PurchaseInvoiceReturnableLineView>(), null));
+
+        // ---- Bağımsız alış faturası taslakları ----
+        // page and pageSize have no defaults on these endpoints, so they are required here.
+        var draftColumns = Columns<StandaloneSupplierInvoiceDraftDetail>();
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.listele", "Bağımsız alış faturası taslaklarını listele", drafts,
+            [Query("q", "text"), .. requiredPaging], List(Columns<StandaloneSupplierInvoiceDraftSummary>(), "items") with { MetaPaths = meta });
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.getir", "Bağımsız alış faturası taslağı getir", draft, [id], Record(draftColumns));
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.satirlari", "Bağımsız alış faturası taslağının satırları", draft, [id],
+            List(Columns<StandaloneSupplierInvoiceDraftLineView>(), "lines"));
+        // requestId is page-made: the same content returns the existing draft, different content is a 409.
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.olustur", "Bağımsız alış faturası taslağı oluştur", "insert", "POST", drafts,
+            [.. BodyParameters<StandaloneSupplierInvoiceDraftCreateRequest>(sourceBacked: false), Lines<StandaloneSupplierInvoiceDraftLineCreateRequest>()],
+            Record(draftColumns), null, null);
+        // Not source-backed: the read returns rowVersion, the body needs expectedRowVersion, so the page binds it from
+        // satinalma.faturaTaslagi.getir. The PUT replaces every line.
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.guncelle", "Bağımsız alış faturası taslağını güncelle", "update", "PUT", draft,
+            [id, .. BodyParameters<StandaloneSupplierInvoiceDraftUpdateRequest>(sourceBacked: false), Lines<StandaloneSupplierInvoiceDraftLineCreateRequest>()],
+            Record(draftColumns), null, null);
+        // Resolves to erp.purchase-invoices.execute; the handler also filters the draft by the create rules. A posted draft
+        // answers with its existing posting.
+        yield return Write(PurchasingModule, "satinalma.faturaTaslagi.muhasebelestir", "Bağımsız alış faturası taslağını muhasebeleştir", "update", "POST",
+            draft + "/post", [id], Record(Columns<StandaloneSupplierInvoiceDraftPostingResult>()), null, null);
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.tedarikciler", "Fatura taslağı tedarikçi seçenekleri", drafts + "/suppliers",
+            [Query("q", "text"), .. requiredPaging], List(Columns<StandaloneSupplierInvoiceDraftSupplierOption>(), "items") with { MetaPaths = meta });
+        // Active expense accounts only, filtered by the server (optional query filters of the chart of accounts list).
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.giderHesaplari", "Gider hesapları", "/api/finance/general-ledger/accounts", [],
+            List(With([], "id:guid", "code:text", "name:text", "isActive:bool", "statementSection:text", "currencyCode:text"), null))
+            with { FixedQuery = new Dictionary<string, object?>(StringComparer.Ordinal) { ["statementSection"] = "Expense", ["activeOnly"] = true } };
+        // Uninvoiced lines of the supplier's posted standalone receipts up to the invoice date (quantity = still to invoice).
+        yield return Read(PurchasingModule, "satinalma.faturaTaslagi.malKabulSatirlari", "Fatura taslağı için siparişsiz mal kabul satırları",
+            drafts + "/receipts",
+            [new ErpOperationParameter("supplierId", "query", "guid", true), new ErpOperationParameter("invoiceDate", "query", "date", true),
+                Query("draftId", "guid")],
+            List(Columns<StandaloneSupplierInvoiceDraftReceiptOption>(), null));
     }
 
     /// <summary>Labels of purchasing-only codes; null for an unknown code. The main <c>Labels</c> dictionary wins on shared codes.</summary>
@@ -209,6 +342,12 @@ internal static partial class ErpOperationCatalog
         "officialSourceUrl" => "Resmî kaynak", "parametersJson" => "Profil parametreleri", "hasTaxRules" => "Vergi kuralı var", "isDefaultForDocuments" => "Belgelerde varsayılan",
         // İade
         "returnDate" => "İade tarihi", "purchaseInvoiceLineId" => "Fatura satırı kimliği",
+        // Faz 2: satır kaynakları (kalan miktarlar) ve bağımsız fatura taslakları
+        "notedQuantity" => "İrsaliyelenen", "invoicedQuantity" => "Faturalanan miktar", "returnedQuantity" => "İade edilen",
+        "invoiceNumber" => "Tedarikçi fatura no", "total" => "Toplam", "expenseAccountId" => "Gider hesabı",
+        "vatRate" => "KDV oranı (belge)", "standalonePurchaseReceiptLineId" => "Mal kabul satırı", "lineId" => "Satır kimliği",
+        "receiptId" => "Mal kabul kimliği", "draftId" => "Taslak kimliği", "journalEntryId" => "Yevmiye fişi kimliği",
+        "ledgerEntryId" => "Cari hareket kimliği", "statementSection" => "Finansal tablo sınıfı",
         _ => null
     };
 }

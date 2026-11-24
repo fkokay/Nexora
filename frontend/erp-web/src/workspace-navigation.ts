@@ -55,8 +55,15 @@ const standalonePageTitles: Record<string, Record<Locale, string>> = {
   integrations: { tr: 'Entegrasyonlar', en: 'Integrations' },
   projects: { tr: 'Projeler', en: 'Projects' },
   'foreign-trade': { tr: 'Dış Ticaret', en: 'Foreign trade' },
-  'human-resources': { tr: 'İnsan Kaynakları', en: 'Human resources' },
+  'human-resources': { tr: 'Bordro ve ücret', en: 'Payroll and pay' },
+  'hr-employees': { tr: 'Personel', en: 'Employees' },
+  'hr-employee-create': { tr: 'Personel kartı', en: 'Employee card' },
+  'hr-leave-requests': { tr: 'İzin talepleri', en: 'Leave requests' },
+  'hr-attendance': { tr: 'Puantaj', en: 'Attendance' },
+  'hr-period-summary': { tr: 'Dönem özeti', en: 'Period summary' },
+  'foreign-trade-case': { tr: 'Dış ticaret dosyası', en: 'Foreign trade case' },
   'fixed-assets': { tr: 'Duran Varlıklar', en: 'Fixed assets' },
+  'fixed-asset-card': { tr: 'Kıymet kartı', en: 'Fixed asset card' },
 }
 
 export function standalonePageTitle(page: string, locale: Locale): string | undefined {

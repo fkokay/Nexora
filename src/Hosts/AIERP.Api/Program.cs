@@ -279,6 +279,7 @@ app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
 app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
+app.MapSalesDocumentPreviewEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapSalesDeliveryListEndpoints();
 app.MapPurchaseReceiptSearchEndpoints();
@@ -291,6 +292,7 @@ app.MapPurchaseInvoiceEntryEndpoints();
 app.MapPurchaseInvoicePreviewEndpoints();
 app.MapPurchaseInvoiceDraftEndpoints();
 app.MapPurchaseDeliveryNoteEndpoints();
+app.MapPurchasingLineSourceEndpoints();
 app.MapDocumentListEndpoints();
 app.MapPurchaseSupplierQuoteEndpoints();
 app.MapSalesRequestEndpoints();
@@ -3357,12 +3359,9 @@ salesQuotes.MapGet("/exchange-rates", async (DateOnly? rateDate, ClaimsPrincipal
     if (date > TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["rateDate"] = ["Kur tarihi bugün veya geçmiş bir tarih olmalıdır."] });
     var snapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, date, []);
-    return Results.Ok(new
-    {
-        baseCurrencyCode = snapshot.BaseCurrencyCode,
-        rates = snapshot.Rates.Select(x => new { currencyCode = x.Key, rate = x.Value.Rate, rateDate = x.Value.RateDate })
-            .OrderBy(x => x.currencyCode).ToArray()
-    });
+    // Named records (satis.kurlar); the wire shape is unchanged.
+    return Results.Ok(new SalesExchangeRatesView(snapshot.BaseCurrencyCode,
+        snapshot.Rates.Select(x => new SalesExchangeRateView(x.Key, x.Value.Rate, x.Value.RateDate)).OrderBy(x => x.CurrencyCode).ToArray()));
 });
 salesQuotes.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
@@ -3589,7 +3588,8 @@ salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, Tena
                 .Select(employee => employee.PersonnelCode + " · " + employee.FullName).FirstOrDefaultAsync()
             : null,
         SalesOrderId = quote.Order?.Id,
-        SalesOrderCode = quote.Order?.Code
+        SalesOrderCode = quote.Order?.Code,
+        ProspectCustomerName = quote.CustomerId is null ? quote.ProspectCustomerName : null
     });
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
@@ -3672,37 +3672,12 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
     var stockItemsById = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && requestedItemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (stockItemsById.Count != requestedItemIds.Length)
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
-    var sourceCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode)).Append(currencyCode).Distinct().ToArray();
-    var fxSnapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.QuoteDate, sourceCurrencies);
-    var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, string CurrencyCode, decimal Rate)>();
-    for (var i = 0; i < request.Lines.Count; i++)
-    {
-        var input = request.Lines[i]; var item = stockItemsById[input.StockItemId];
-        var lineCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode);
-        if (!SalesQuoteCurrencyConversion.IsCurrencyCode(lineCurrency) || !SalesQuoteCurrencyConversion.IsCurrencyCode(currencyCode))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = ["Para birimi üç harfli ISO kodu olmalıdır."] });
-        decimal exchangeRate;
-        if (input.ExchangeRateToQuoteCurrency is { } enteredRate)
-        {
-            if (lineCurrency == currencyCode && enteredRate != 1m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].exchangeRateToQuoteCurrency"] = ["Teklif döviziyle aynı dövizde kur 1 olmalıdır."] });
-            exchangeRate = enteredRate;
-        }
-        else if (!SalesQuoteCurrencyConversion.TryGetConversion(fxSnapshot, lineCurrency, currencyCode, out exchangeRate))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{lineCurrency} ile {currencyCode} arasında {request.QuoteDate:yyyy-MM-dd} tarihli kur bulunamadı."] });
-        var factor = await ResolveStockUnitFactorAsync(db, tenantId, item, input.UnitCode);
-        if (factor is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
-        try
-        {
-            var baseQuantity = checked(input.Quantity * factor.Value); var basePrice = checked(input.UnitPrice * exchangeRate) / factor.Value;
-            if (baseQuantity <= 0m || baseQuantity > 99999999999999.9999m || baseQuantity != decimal.Round(baseQuantity, 4) || basePrice > 99999999999999.9999m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü temel miktar ve fiyat için desteklenen hassasiyet sınırını aşıyor."] });
-            normalizedLines.Add((input, input with { Quantity = baseQuantity, UnitPrice = basePrice, UnitCode = item.UnitCode }, lineCurrency, exchangeRate));
-        }
-        catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
-    }
+    // Shared with POST /api/sales/quotes/preview (satis.teklif.hesapla).
+    var (normalizedOrNull, lineErrors) = await SalesDocumentCalculator.NormalizeQuoteLinesAsync(db, tenantId, request.Lines, currencyCode, request.QuoteDate, stockItemsById);
+    if (lineErrors is not null) return Results.ValidationProblem(lineErrors);
+    var normalizedLines = normalizedOrNull!;
     SalesQuoteTotals totals;
-    try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
+    try { totals = SalesDocumentCalculator.Totals(normalizedLines); }
     catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Teklif toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
     var quote = new SalesQuote { TenantId = tenantId, RevisionGroupId = revisionGroupId, RevisionNumber = revisionNumber,
         CustomerId = customer?.Id, Customer = null, SalespersonEmployeeId = request.SalespersonEmployeeId,
@@ -3717,7 +3692,7 @@ salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal 
         var normalized = normalizedLines[i]; var input = normalized.Base; var item = stockItemsById[input.StockItemId]; var amounts = SalesQuoteValidation.Calculate(input);
         quote.Lines.Add(new SalesQuoteLine { TenantId = tenantId, Quote = quote, LineNumber = i + 1, StockItemId = item.Id,
             StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode, Quantity = input.Quantity, UnitPrice = input.UnitPrice,
-            EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
+            EnteredCurrencyCode = normalized.EnteredCurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
             EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
             DiscountPercent = input.DiscountPercent, VatPercent = input.VatPercent, IsVatIncluded = input.IsVatIncluded, LineSubtotal = amounts.LineSubtotal,
             DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal,
@@ -3791,37 +3766,12 @@ salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request,
     var itemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
     var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
     if (items.Count != itemIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
-    var sourceCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode)).Append(currencyCode).Distinct().ToArray();
-    var fxSnapshot = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.QuoteDate, sourceCurrencies);
-    var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, string CurrencyCode, decimal Rate)>();
-    for (var i = 0; i < request.Lines.Count; i++)
-    {
-        var input = request.Lines[i]; var item = items[input.StockItemId];
-        var lineCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode);
-        if (!SalesQuoteCurrencyConversion.IsCurrencyCode(lineCurrency) || !SalesQuoteCurrencyConversion.IsCurrencyCode(currencyCode))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = ["Para birimi üç harfli ISO kodu olmalıdır."] });
-        decimal exchangeRate;
-        if (input.ExchangeRateToQuoteCurrency is { } enteredRate)
-        {
-            if (lineCurrency == currencyCode && enteredRate != 1m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].exchangeRateToQuoteCurrency"] = ["Teklif döviziyle aynı dövizde kur 1 olmalıdır."] });
-            exchangeRate = enteredRate;
-        }
-        else if (!SalesQuoteCurrencyConversion.TryGetConversion(fxSnapshot, lineCurrency, currencyCode, out exchangeRate))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{lineCurrency} ile {currencyCode} arasında {request.QuoteDate:yyyy-MM-dd} tarihli kur bulunamadı."] });
-        var factor = await ResolveStockUnitFactorAsync(db, tenantId, item, input.UnitCode);
-        if (factor is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
-        try
-        {
-            var quantity = checked(input.Quantity * factor.Value); var price = checked(input.UnitPrice * exchangeRate) / factor.Value;
-            if (quantity <= 0m || quantity > 99999999999999.9999m || quantity != decimal.Round(quantity, 4) || price > 99999999999999.9999m)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü temel miktar ve fiyat için desteklenen hassasiyet sınırını aşıyor."] });
-            normalizedLines.Add((input, input with { Quantity = quantity, UnitPrice = price, UnitCode = item.UnitCode }, lineCurrency, exchangeRate));
-        }
-        catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
-    }
+    // Shared with POST /api/sales/quotes/preview (satis.teklif.hesapla).
+    var (normalizedOrNull, lineErrors) = await SalesDocumentCalculator.NormalizeQuoteLinesAsync(db, tenantId, request.Lines, currencyCode, request.QuoteDate, items);
+    if (lineErrors is not null) return Results.ValidationProblem(lineErrors);
+    var normalizedLines = normalizedOrNull!;
     SalesQuoteTotals totals;
-    try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
+    try { totals = SalesDocumentCalculator.Totals(normalizedLines); }
     catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Teklif toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
 
     var previousLines = await db.SalesQuoteLines.Where(x => x.TenantId == tenantId && x.QuoteId == quote.Id).ToListAsync();
@@ -3840,7 +3790,7 @@ salesQuotes.MapPut("/{id:guid}", async (Guid id, SalesQuoteWriteRequest request,
         var normalized = normalizedLines[i]; var line = normalized.Base; var item = items[line.StockItemId]; var amounts = SalesQuoteValidation.Calculate(line);
         quote.Lines.Add(new SalesQuoteLine { TenantId = tenantId, Quote = quote, QuoteId = quote.Id, LineNumber = i + 1,
             StockItemId = item.Id, StockCode = item.Code, StockName = item.Name, UnitCode = item.UnitCode,
-            EnteredCurrencyCode = normalized.CurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
+            EnteredCurrencyCode = normalized.EnteredCurrencyCode, EnteredUnitPrice = normalized.Input.UnitPrice,
             EnteredUnitCode = normalized.Input.UnitCode ?? item.UnitCode, ExchangeRateToQuoteCurrency = normalized.Rate,
             Quantity = line.Quantity, UnitPrice = line.UnitPrice, DiscountPercent = line.DiscountPercent, VatPercent = line.VatPercent,
             IsVatIncluded = line.IsVatIncluded, LineSubtotal = amounts.LineSubtotal, DiscountAmount = amounts.DiscountAmount, TaxAmount = amounts.TaxAmount, LineTotal = amounts.LineTotal,
@@ -4867,12 +4817,10 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
             var item = stockItems[input.StockItemId];
             if (!string.IsNullOrWhiteSpace(input.UnitCode) && !string.Equals(input.UnitCode.Trim(), item.UnitCode, StringComparison.OrdinalIgnoreCase))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{input.StockItemId}].unitCode"] = ["Bağımsız faturada stok kartının temel birimi kullanılmalıdır."] });
-            var normalized = input with { UnitCode = item.UnitCode, WarehouseId = input.WarehouseId ?? request.WarehouseId,
-                IsVatIncluded = request.InvoiceType == SalesInvoiceType.Retail };
-            var amounts = SalesQuoteValidation.Calculate(normalized);
-            var assessment = AccountingRuleTaxCalculator.Calculate(taxProfile, amounts.LineSubtotal - amounts.DiscountAmount, normalized.VatPercent, request.InvoiceDate, "Sales");
-            amounts = amounts with { TaxAmount = assessment.TaxTotal, LineTotal = assessment.GrandTotal };
-            invoiceLines.Add((normalized, item, amounts, assessment.TaxBreakdownJson));
+            // Shared with POST /api/sales/invoices/preview (satis.fatura.onizle).
+            var normalized = SalesDocumentCalculator.NormalizeInvoiceLine(input, item, request.WarehouseId, request.InvoiceType);
+            var (amounts, taxBreakdownJson) = SalesDocumentCalculator.InvoiceLine(normalized, taxProfile, request.InvoiceDate);
+            invoiceLines.Add((normalized, item, amounts, taxBreakdownJson));
         }
     }
     catch (OverflowException) { return Results.Conflict(new { error = "Fatura satır toplamı desteklenen decimal(18,2) sınırını aşıyor." }); }
@@ -6543,9 +6491,13 @@ purchaseOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, T
     if (order is null) return Results.NotFound();
     var received = await db.PurchaseReceiptLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.Receipt.Status == PurchaseReceiptStatus.Posted)
         .GroupBy(x => x.OrderLineNumber).Select(g => new { LineNumber = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.LineNumber, x => x.Quantity);
+    var lineStockIds = order.Lines.Select(x => x.StockItemId).Distinct().ToArray();
+    var trackingModes = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && lineStockIds.Contains(x.Id))
+        .ToDictionaryAsync(x => x.Id, x => x.TrackingMode);
     var lines = order.Lines.OrderBy(x => x.LineNumber).Select(x => new PurchaseOrderLineView(x.LineNumber, x.StockItemId, x.StockCode,
         x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount,
-        x.TaxAmount, x.LineTotal, received.GetValueOrDefault(x.LineNumber), Math.Max(0m, x.Quantity - received.GetValueOrDefault(x.LineNumber)))).ToList();
+        x.TaxAmount, x.LineTotal, received.GetValueOrDefault(x.LineNumber), Math.Max(0m, x.Quantity - received.GetValueOrDefault(x.LineNumber)))
+        { TrackingMode = trackingModes.TryGetValue(x.StockItemId, out var trackingMode) ? trackingMode : null }).ToList();
     var activeInvoices = await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.PurchaseOrderId == id && x.Status == PurchaseInvoiceStatus.Posted)
         .Select(x => new { x.Id, x.Code, x.PurchaseReceiptId, ReceiptCode = x.PurchaseReceipt.Code, x.PurchaseOrderId, OrderCode = x.PurchaseReceipt.PurchaseOrder.Code,
             x.SupplierId, SupplierName = x.Supplier.Name, x.InvoiceDate, x.DueDate, x.CurrencyCode, x.Status, x.GrandTotal,
@@ -7733,10 +7685,22 @@ var ledgerMappingLabels = new Dictionary<string, string>(StringComparer.Ordinal)
     [LedgerMappingKeys.FixedAssetDisposalGain] = "Sabit kıymet · elden çıkarma kârı",
     [LedgerMappingKeys.FixedAssetDisposalLoss] = "Sabit kıymet · elden çıkarma zararı"
 };
-generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbContext db) =>
+// statementSection and activeOnly are optional filters (the purchase invoice draft's expense account picker); without them
+// the response is unchanged.
+generalLedger.MapGet("/accounts", async (ClaimsPrincipal principal, TenantDbContext db, string? statementSection = null, bool activeOnly = false) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    return Results.Ok(await db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId)
+    LedgerAccountStatementSection? section = null;
+    if (!string.IsNullOrWhiteSpace(statementSection))
+    {
+        if (!Enum.TryParse<LedgerAccountStatementSection>(statementSection.Trim(), ignoreCase: true, out var parsedSection) || !Enum.IsDefined(parsedSection))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["statementSection"] = ["Finansal tablo sınıfı geçersiz."] });
+        section = parsedSection;
+    }
+    var accounts = db.LedgerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId);
+    if (section is { } requiredSection) accounts = accounts.Where(x => x.StatementSection == requiredSection);
+    if (activeOnly) accounts = accounts.Where(x => x.IsActive);
+    return Results.Ok(await accounts
         .OrderBy(x => x.Code).Select(x => new LedgerAccountView(x.Id, x.Code, x.Name, x.IsActive, x.StatementSection.ToString(),
             db.JournalEntryLines.Any(line => line.TenantId == tenantId && line.AccountId == x.Id), x.AccountType.ToString(), x.NormalBalance.ToString(),
             x.CurrencyCode, x.IfrsAccountCode, x.IfrsAccountName, x.IfrsStatementSection.ToString())).ToListAsync());

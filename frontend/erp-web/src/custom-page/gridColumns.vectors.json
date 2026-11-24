@@ -6,7 +6,9 @@
     { "text": "expiryDate|Son kullanma|date", "code": "expiryDate", "root": "expiryDate", "inputType": "date" },
     { "text": "aktif|Aktif|checkbox|readOnly", "code": "aktif", "root": "aktif", "inputType": "checkbox" },
     { "text": "stockItemId|Stok kartı|lookup:stoklar:id:code:name|required,unique", "code": "stockItemId", "root": "stockItemId", "inputType": "lookup" },
-    { "text": "unitCode|Birim|lookup:birim-listesi:balance.unitCode:balance.unitCode|readOnly", "code": "unitCode", "root": "unitCode", "inputType": "lookup" }
+    { "text": "unitCode|Birim|lookup:birim-listesi:balance.unitCode:balance.unitCode|readOnly", "code": "unitCode", "root": "unitCode", "inputType": "lookup" },
+    { "text": "lineTotal|Tutar|calc:onizleme:lineTotal", "code": "lineTotal", "root": "lineTotal", "inputType": "calc" },
+    { "text": "vat|KDV|calc:fatura-onizle:tax.amount", "code": "vat", "root": "vat", "inputType": "calc" }
   ],
   "invalid": [
     "unitCode|Birim|money",
@@ -27,6 +29,13 @@
     "a|A|lookup:q q:id:code",
     "a|A|lookup:q:1d:code",
     "a|A|lookup:q:id:code|upperCase",
-    "a|A|lookup:q:id:code|min:1"
+    "a|A|lookup:q:id:code|min:1",
+    "t|T|calc:onizleme",
+    "t|T|calc:onizleme:lineTotal:extra",
+    "t|T|calc:oniz leme:lineTotal",
+    "t|T|calc:onizleme:1total",
+    "t|T|calc:onizleme:lineTotal|readOnly",
+    "t|T|calc:onizleme:lineTotal|",
+    "t|T|calc"
   ]
 }

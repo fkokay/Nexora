@@ -14,6 +14,8 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "customer-create": "customers",
   "customer-edit": "customers",
   "crm-opportunity-create": "crm-opportunities",
+  "hr-employee-create": "hr-employees",
+  "foreign-trade-case": "foreign-trade",
   "inventory-stock-create": "inventory-stock",
   "sales-quote-create": "sales-quotes",
   "sales-order-create": "sales-orders",
@@ -29,6 +31,8 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "manufacturing-recipe-create": "manufacturing-recipes",
   "manufacturing-work-center-create": "manufacturing-work-centers",
   "manufacturing-order-create": "manufacturing-orders",
+  "fixed-asset-create": "fixed-assets",
+  "fixed-asset-card": "fixed-assets",
 };
 
 /** Screens outside every module: home, assistant, settings and platform/customization tools. */
@@ -91,9 +95,13 @@ export const moduleMenus: ModuleMenu[] = [
     title: ["Üretim", "Production"],
     pages: Object.keys(manufacturingPageTitles),
   },
-  { railId: "human-resources", title: ["İnsan Kaynakları", "Human resources"], pages: ["human-resources"] },
-  { railId: "fixed-assets", title: ["Duran Varlıklar", "Fixed assets"], pages: ["fixed-assets"] },
-  { railId: "foreign-trade", title: ["Dış Ticaret", "Foreign trade"], pages: ["foreign-trade"] },
+  {
+    railId: "human-resources",
+    title: ["İnsan Kaynakları", "Human resources"],
+    pages: ["hr-employees", "hr-employee-create", "hr-leave-requests", "hr-attendance", "hr-period-summary", "human-resources"],
+  },
+  { railId: "fixed-assets", title: ["Duran Varlıklar", "Fixed assets"], pages: ["fixed-assets", "fixed-asset-create", "fixed-asset-card"] },
+  { railId: "foreign-trade", title: ["Dış Ticaret", "Foreign trade"], pages: ["foreign-trade", "foreign-trade-case"] },
   { railId: "reports", title: ["Raporlar", "Reports"], pages: ["reports"] },
   { railId: "modules", title: ["Tanımlar", "Definitions"], pages: ["location-definitions", "address-definitions"] },
 ];

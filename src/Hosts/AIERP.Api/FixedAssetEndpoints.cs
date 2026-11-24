@@ -1,6 +1,8 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -40,17 +42,17 @@ public static class FixedAssetEndpoints
             });
         });
 
-        group.MapGet("/", async (string? q, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        // q: kod, ad veya kategori; tek karakterlik arama süzmez (sistem sayfası her tuşta sorar), 100 karakteri aşan 400.
+        // status: Active | Disposed (büyük/küçük harf duyarsız); başka değer 400. Sıralama kıymet kodu.
+        group.MapGet("/", async (string? q, string? status, int? page, int? pageSize, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var currentPage = Math.Max(1, page ?? 1); var size = Math.Clamp(pageSize ?? 50, 1, 200);
-            var query = db.FixedAssets.AsNoTracking().Where(x => x.TenantId == tenantId);
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var term = q.Trim();
-                if (term.Length is < 2 or > 100) return Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Arama en az 2, en fazla 100 karakter olmalıdır."] });
-                query = query.Where(x => x.AssetCode.Contains(term) || x.Name.Contains(term) || (x.Category != null && x.Category.Contains(term)));
-            }
+            if (SearchError(q) is { } searchError) return searchError;
+            if (!TryStatusFilter(status, out var statusFilter))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Durum Active veya Disposed olmalıdır."] });
+            var query = Search(db.FixedAssets.AsNoTracking().Where(x => x.TenantId == tenantId), q);
+            if (statusFilter is { } wanted) query = query.Where(x => x.Status == wanted);
             var total = await query.CountAsync(ct);
             var rows = await query.OrderBy(x => x.AssetCode).Skip((currentPage - 1) * size).Take(size)
                 .Select(x => new FixedAssetView(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
@@ -61,6 +63,73 @@ public static class FixedAssetEndpoints
                     x.VukUsefulLifeMonths, x.VukNormalDepreciationRatePercent, x.VukTaxDepreciationStartDate))
                 .ToListAsync(ct);
             return Results.Ok(new { items = rows, page = currentPage, pageSize = size, totalCount = total });
+        });
+
+        // Liste kartları ve durum çipi sayaçları: aramaya uyan bütün kıymetler (sayfa ve durum süzgecinden bağımsız). Formüller eski
+        // ekranla aynıdır: net defter = maliyet − birikmiş (kalıntı düşülmez); bu ay tahmini yalnız etkin kıymetlerde, kullanıma
+        // girişi izleyen 1..ömür. ayda, matrah > 0 ve birikmiş < matrah iken aylık doğrusal tutardır.
+        group.MapGet("/summary", async (string? q, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            if (SearchError(q) is { } searchError) return searchError;
+            var assets = await Search(db.FixedAssets.AsNoTracking().Where(x => x.TenantId == tenantId), q)
+                .Select(x => new { x.Status, x.AcquisitionCostBase, x.ResidualValueBase, x.AccumulatedDepreciationBase, x.UsefulLifeMonths, x.InServiceDate })
+                .ToListAsync(ct);
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var currentMonthIndex = today.Year * 12 + today.Month - 1;
+            var estimate = assets.Where(x => x.Status == FixedAssetStatus.Active).Sum(x =>
+            {
+                var elapsed = currentMonthIndex - (x.InServiceDate.Year * 12 + x.InServiceDate.Month - 1);
+                var depreciable = x.AcquisitionCostBase - x.ResidualValueBase;
+                return elapsed < 1 || elapsed > x.UsefulLifeMonths || depreciable <= 0 || x.AccumulatedDepreciationBase >= depreciable
+                    ? 0m : MonthlyDepreciation(x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths);
+            });
+            var cost = assets.Sum(x => x.AcquisitionCostBase);
+            var accumulated = assets.Sum(x => x.AccumulatedDepreciationBase);
+            return Results.Ok(new FixedAssetSummaryView(assets.Count, assets.Count(x => x.Status == FixedAssetStatus.Active),
+                assets.Count(x => x.Status == FixedAssetStatus.Disposed), cost, accumulated, cost - accumulated, estimate));
+        });
+
+        // Tek kıymet (kart ve liste paneli): görünüm + açık zimmet, bağlı fatura kodu, VUK profili ve gömülü elden çıkarma özeti.
+        // Elden çıkarılmamış kıymette elden çıkarma alanları null'dır (ayrı /disposal okumasının 404'ü gerekmez). vukScheduleAssetId
+        // yalnız VUK profili varken kimliktir: sayfa vergi planını ona bağlar, profilsiz kıymette plan okunmaz (409 olmaz).
+        group.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var asset = await db.FixedAssets.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
+            if (asset is null) return Results.NotFound();
+            var assignment = await db.FixedAssetAssignments.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.AssetId == id && x.ReturnedDate == null)
+                .OrderByDescending(x => x.AssignedDate)
+                .Select(x => new
+                {
+                    x.Id,
+                    Employee = db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == x.EmployeeId)
+                        .Select(e => e.PersonnelCode + " · " + e.FullName).FirstOrDefault()
+                })
+                .FirstOrDefaultAsync(ct);
+            var invoiceCode = asset.PurchaseInvoiceId is { } invoiceId
+                ? await db.PurchaseInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == invoiceId).Select(x => x.Code).SingleOrDefaultAsync(ct)
+                : null;
+            var disposal = await db.FixedAssetDisposals.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.AssetId == id, ct);
+            var disposalJournalId = disposal is null ? null : await db.JournalEntries.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.SourceType == "FixedAssetDisposal" && x.SourceId == disposal.Id)
+                .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+            var hasVukProfile = HasVukProfile(asset);
+            var record = JsonSerializer.SerializeToNode(ToView(asset), WebJson)!.AsObject();
+            record["currentAssignee"] = assignment is null ? null : assignment.Employee ?? "";
+            record["currentAssignmentId"] = assignment?.Id;
+            record["purchaseInvoiceCode"] = invoiceCode;
+            record["hasVukProfile"] = hasVukProfile;
+            record["vukScheduleAssetId"] = hasVukProfile ? asset.Id : null;
+            record["isDisposed"] = asset.Status == FixedAssetStatus.Disposed;
+            record["disposalDate"] = disposal?.DisposalDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            record["disposalReason"] = disposal?.Reason;
+            record["disposalProceedsBase"] = disposal?.ProceedsBase;
+            record["disposalBookValueBase"] = disposal?.BookValueBase;
+            record["disposalGainLossBase"] = disposal?.GainLossBase;
+            record["disposalJournalEntryId"] = disposalJournalId;
+            return Results.Ok(record);
         });
 
         group.MapGet("/purchase-invoices", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -222,9 +291,11 @@ public static class FixedAssetEndpoints
                 if (amount > 0) rows.Add(new(month, amount, false, null));
                 remaining -= amount;
             }
+            // nextPeriodStart / nextAmountBase: ilk kaydedilmemiş satır; sunucu dönemleri sırayla kabul ettiği için yazılabilecek tek dönem.
+            var next = rows.FirstOrDefault(x => !x.IsPosted);
             return Results.Ok(new { assetId = id, method = "StraightLineMonthlyAfterInServiceMonth", currencyBasis = "Tenant base currency",
                 acquisitionCostBase = asset.AcquisitionCostBase, residualValueBase = asset.ResidualValueBase,
-                accumulatedDepreciationBase = asset.AccumulatedDepreciationBase, rows });
+                accumulatedDepreciationBase = asset.AccumulatedDepreciationBase, nextPeriodStart = next?.PeriodStart, nextAmountBase = next?.AmountBase, rows });
         });
 
         group.MapGet("/{id:guid}/tax-depreciation-schedule", async (Guid id, DateOnly? through, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -232,8 +303,8 @@ public static class FixedAssetEndpoints
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var asset = await db.FixedAssets.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (asset is null) return Results.NotFound();
-            if (asset.VukUsefulLifeMonths is not { } usefulLife || asset.VukTaxDepreciationStartDate is not { } startDate ||
-                asset.VukNormalDepreciationRatePercent is not { } rate || asset.VukUsefulLifeCode is null)
+            if (!HasVukProfile(asset) || asset.VukUsefulLifeMonths is not { } usefulLife || asset.VukTaxDepreciationStartDate is not { } startDate ||
+                asset.VukNormalDepreciationRatePercent is not { } rate)
                 return Results.Conflict(new { error = "Bu kıymette mali müşavir tarafından doğrulanmış VUK faydalı ömür profili yok.", requiresApprovedVukProfile = true });
             var endMonth = through ?? DateOnly.FromDateTime(DateTime.UtcNow);
             if (endMonth > DateOnly.FromDateTime(DateTime.UtcNow).AddYears(20)) return Results.BadRequest(new { error = "Bitiş tarihi 20 yıldan fazla ileride olamaz." });
@@ -271,7 +342,8 @@ public static class FixedAssetEndpoints
                 vukUsefulLifeCode = asset.VukUsefulLifeCode, vukUsefulLifeDescription = asset.VukUsefulLifeDescription,
                 vukUsefulLifeTableYear = asset.VukUsefulLifeTableYear, vukUsefulLifeCommuniqueNumber = asset.VukUsefulLifeCommuniqueNumber,
                 vukUsefulLifeMonths = usefulLife, annualRatePercent = rate, taxDepreciationStartDate = startDate,
-                commencementRule = "Following month after accountant-confirmed tax commencement date", rows });
+                commencementRule = "Following month after accountant-confirmed tax commencement date",
+                nextPeriodStart = rows.FirstOrDefault(x => !x.IsPosted)?.PeriodStart, nextAmountBase = rows.FirstOrDefault(x => !x.IsPosted)?.AmountBase, rows });
         });
 
         group.MapPost("/{id:guid}/tax-depreciation-postings", async (Guid id, FixedAssetDepreciationRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -587,6 +659,31 @@ public static class FixedAssetEndpoints
         });
     }
 
+    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+    private static IResult? SearchError(string? q) => q?.Trim().Length > 100
+        ? Results.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Arama en fazla 100 karakter olmalıdır."] }) : null;
+    /// <summary>Kod, ad veya kategori içinde arar; boş ya da tek karakterlik arama süzmez.</summary>
+    private static IQueryable<FixedAsset> Search(IQueryable<FixedAsset> query, string? q)
+    {
+        var term = q?.Trim();
+        return string.IsNullOrEmpty(term) || term.Length < 2 ? query
+            : query.Where(x => x.AssetCode.Contains(term) || x.Name.Contains(term) || (x.Category != null && x.Category.Contains(term)));
+    }
+    /// <summary>Boş durum süzmez; yalnız enum adları kabul edilir (Enum.TryParse "1" gibi sayıları da kabul ederdi).</summary>
+    private static bool TryStatusFilter(string? status, out FixedAssetStatus? filter)
+    {
+        filter = null;
+        var value = status?.Trim();
+        if (string.IsNullOrEmpty(value)) return true;
+        if (string.Equals(value, nameof(FixedAssetStatus.Active), StringComparison.OrdinalIgnoreCase)) { filter = FixedAssetStatus.Active; return true; }
+        if (string.Equals(value, nameof(FixedAssetStatus.Disposed), StringComparison.OrdinalIgnoreCase)) { filter = FixedAssetStatus.Disposed; return true; }
+        return false;
+    }
+    /// <summary>Eski ekranın aylık doğrusal tutarı: yuvarla2((maliyet − kalıntı) / ömür); matrah ya da ömür yoksa 0.</summary>
+    internal static decimal MonthlyDepreciation(decimal cost, decimal residual, int usefulLifeMonths) =>
+        usefulLifeMonths > 0 && cost - residual > 0 ? decimal.Round((cost - residual) / usefulLifeMonths, 2, MidpointRounding.AwayFromZero) : 0m;
+    private static bool HasVukProfile(FixedAsset x) => x.VukUsefulLifeMonths is not null && x.VukTaxDepreciationStartDate is not null &&
+        x.VukNormalDepreciationRatePercent is not null && x.VukUsefulLifeCode is not null;
     private static FixedAssetView ToView(FixedAsset x) => new(x.Id, x.AssetCode, x.Name, x.Category, x.AcquisitionDate, x.InServiceDate,
         x.AcquisitionCostBase, x.ResidualValueBase, x.UsefulLifeMonths, x.AccumulatedDepreciationBase, x.Status.ToString(),
         x.SupplierAccountId, x.SourceReference, x.PurchaseInvoiceId, Convert.ToBase64String(x.RowVersion),
@@ -700,8 +797,27 @@ public sealed record FixedAssetView(Guid Id, string AssetCode, string Name, stri
     int? VukTaxYear = null, decimal? VukDepreciationLowerLimitTry = null, int? VukCommuniqueNumber = null, string? VukSourceUrl = null,
     string? VukUsefulLifeCode = null, string? VukUsefulLifeDescription = null, int? VukUsefulLifeTableYear = null,
     int? VukUsefulLifeCommuniqueNumber = null, int? VukUsefulLifeMonths = null, decimal? VukNormalDepreciationRatePercent = null,
-    DateOnly? VukTaxDepreciationStartDate = null);
-public sealed record FixedAssetPurchaseInvoiceOption(Guid Id, string Code, Guid SupplierId, DateOnly InvoiceDate, decimal GrandTotal, Guid? JournalEntryId);
+    DateOnly? VukTaxDepreciationStartDate = null)
+{
+    // Computed from the constructor values, outside the positional constructor: every construction site (list, create,
+    // AI tools) gets them, and the catalog declares them only on the duranVarlik.* operations.
+    /// <summary>Net defter değeri: maliyet − birikmiş amortisman (kalıntı değer düşülmez; eski ekranla aynı).</summary>
+    public decimal RemainingBookValueBase => AcquisitionCostBase - AccumulatedDepreciationBase;
+    /// <summary>Aylık doğrusal amortisman: yuvarla2((maliyet − kalıntı) / ömür); matrah 0 ya da eksiyse 0.</summary>
+    public decimal MonthlyDepreciationBase => FixedAssetEndpoints.MonthlyDepreciation(AcquisitionCostBase, ResidualValueBase, UsefulLifeMonths);
+    /// <summary>İlerleme: min(ömür, yuvarla(birikmiş / aylık)); aylık tutar 0 ise 0.</summary>
+    public int DepreciatedMonths => MonthlyDepreciationBase == 0 ? 0
+        : (int)Math.Min(UsefulLifeMonths, decimal.Round(AccumulatedDepreciationBase / MonthlyDepreciationBase, 0, MidpointRounding.AwayFromZero));
+}
+public sealed record FixedAssetSummaryView(int Count, int ActiveCount, int DisposedCount, decimal AcquisitionCostBase,
+    decimal AccumulatedDepreciationBase, decimal NetBookValueBase, decimal CurrentMonthDepreciationEstimateBase);
+public sealed record FixedAssetPurchaseInvoiceOption(Guid Id, string Code, Guid SupplierId, DateOnly InvoiceDate, decimal GrandTotal, Guid? JournalEntryId)
+{
+    private static readonly System.Globalization.CultureInfo Turkish = System.Globalization.CultureInfo.GetCultureInfo("tr-TR");
+    /// <summary>Seçici metni: "kod · tarih · genel toplam" (+ " · yevmiye kayıtlı"), eski edinim formundaki gibi.</summary>
+    public string Label => $"{Code} · {InvoiceDate.ToString("dd.MM.yyyy", Turkish)} · {GrandTotal.ToString("N2", Turkish)}"
+        + (JournalEntryId is null ? "" : " · yevmiye kayıtlı");
+}
 public sealed record FixedAssetAcquisitionPostingRequest(Guid OffsetAccountId);
 public sealed record FixedAssetAcquisitionPostingView(Guid AssetId, string? PurchaseInvoiceCode, Guid? JournalEntryId, DateOnly? EntryDate,
     IReadOnlyList<FixedAssetAcquisitionJournalLineView> Lines);

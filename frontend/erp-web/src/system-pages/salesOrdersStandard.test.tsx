@@ -63,8 +63,8 @@ const openOrder = async (code: string) => {
 };
 
 describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v1 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 1, stage: 'preview' });
+  it('is a v2 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
@@ -105,7 +105,7 @@ describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
     expect(h.state.navigations.find((item) => item.page === 'sales-quotes')).toMatchObject({ params: { quoteId: Q1 } });
   });
 
-  it('İrsaliye oluştur opens the legacy order screen with orderId; Düzenle opens the legacy create screen', async () => {
+  it('İrsaliye oluştur opens the legacy order screen with orderId; Düzenle opens the order card with id, customer and date', async () => {
     h.setup();
     await h.selectRow('S-1');
     fireEvent.click(await h.menuItem(/İrsaliye oluştur/));
@@ -113,7 +113,8 @@ describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
     expect(h.state.navigations[0]).toMatchObject({ page: KEY, params: { orderId: O1 }, legacy: true });
     fireEvent.click(await h.menuItem(/Düzenle/));
     await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
-    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-order-create', params: { orderId: O1 }, replace: false });
+    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-order-create', params: { orderId: O1, customerId: 'c1', orderDate: '2026-11-01' }, replace: false });
+    expect(h.state.navigations[1].legacy).toBeFalsy();
     await h.selectRow('S-2');
     expect((await h.menuAfter(`/api/sales/orders/${O2}`)).some((item) => /İrsaliye oluştur|Düzenle/.test(item))).toBe(false);
   });

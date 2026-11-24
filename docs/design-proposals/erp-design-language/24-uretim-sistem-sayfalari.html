@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Üretim sistem sayfaları</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .pri{background:var(--pri);color:#fff;border-radius:6px;padding:3px 10px}.bar .dis{color:#98a2b3}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+.met{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:9px 12px;display:flex;gap:10px;align-items:center}
+.ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.met span{display:block;color:var(--mut);font-size:11px}.met strong{font-size:15px}.met small{color:var(--mut);font-size:10.5px}
+.fbar{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.srch{flex:0 1 320px;height:32px;border:1px solid #d8e2ec;border-radius:6px;background:#fff;display:flex;align-items:center;padding:0 10px;color:#98a2b3}
+.chip{border:1px solid #d8e2ec;background:#fff;border-radius:999px;padding:3px 10px;font-weight:600;color:#475467}.chip.on{background:var(--pri-soft);border-color:#bcd0f5;color:var(--pri)}.chip i{font-style:normal;color:var(--mut);margin-left:4px}
+.tool{margin-left:auto;color:#475467;font-weight:600}
+.split{display:grid;grid-template-columns:1fr 300px;gap:10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #eef1f6}tr.pick td{background:#f3f7ff}.code{font-family:Consolas,monospace}.num{text-align:right}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-ok{background:var(--ok-bg);color:var(--ok)}.t-off{background:var(--off-bg);color:var(--off)}.t-in{background:var(--pri-soft);color:var(--pri)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.foot{display:flex;justify-content:space-between;padding:8px 12px;color:var(--mut);font-size:11.5px}
+.pnl{padding:12px}.pnl h4{margin:0;font-size:14px}.pnl .k{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pnl .k div{background:#f8fafc;border:1px solid #eef1f6;border-radius:8px;padding:7px 9px}.pnl .k span{display:block;color:var(--mut);font-size:10.5px}.pnl .k b{font-size:13px}
+.ptabs{display:flex;gap:10px;border-bottom:1px solid #eef1f6;margin:6px 0;font-weight:600;color:#475467}.ptabs .on{color:var(--pri);border-bottom:2px solid var(--pri);padding-bottom:4px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:5px 8px;font-size:12px}.dl dt{color:var(--mut)}.dl dd{margin:0}
+.lnk{color:var(--pri);font-weight:600;display:block;margin-top:5px}
+/* kart */
+.rh{display:flex;justify-content:space-between;align-items:flex-start;margin:6px 0 10px}.rh h2{margin:0;font-size:19px}.rh p{margin:4px 0 0;color:var(--mut)}
+.form{display:grid;grid-template-columns:200px 1fr;gap:10px}
+.nav{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:8px}.nav div{padding:7px 9px;border-radius:6px;font-weight:600;color:#475467;display:flex;justify-content:space-between}.nav .on{background:var(--pri-soft);color:var(--pri)}.nav small{color:var(--mut);font-size:10.5px;display:block;padding:8px 9px 2px;font-weight:500}
+.sec{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px;margin-bottom:10px}.sec h5{margin:0 0 10px;font-size:13px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.f label{display:block;font-weight:600;font-size:12px;color:#344054;margin-bottom:4px}.f label b{color:var(--dan)}
+.in{height:32px;border:1px solid #d0d8e4;border-radius:7px;background:#fff;display:flex;align-items:center;padding:0 10px}.in.ph{color:#98a2b3}.in.ta{height:54px;align-items:flex-start;padding-top:7px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:5px 12px;font-weight:600;display:inline-block}.btn.p{background:var(--pri);color:#fff;border-color:var(--pri)}.btn.g{color:#344054;border-color:#d8e2ec}
+.status{display:flex;gap:14px;color:var(--mut);font-size:12px;margin:0 0 10px}.status b{color:var(--ok)}
+/* ekstre */
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st{display:flex;align-items:center;gap:6px}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef1f7}.st.done i{background:var(--ok-bg);color:var(--ok)}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-bottom:10px}
+.hdr .sq{width:36px;height:36px;border-radius:9px;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-weight:700}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}.hdr .kv{display:flex;gap:18px;margin-left:16px}.hdr .kv span{display:block;color:var(--mut);font-size:10.5px}.hdr .kv b{font-size:13px}.hdr .btn{margin-left:auto}
+tr.open td,tr.close td{background:#f8fafc;font-weight:600}tr.rev td{color:#475467}tr.rev td:nth-child(2){padding-left:24px}tr.strike td{color:#98a2b3}tr.strike td:nth-child(2) span.t{text-decoration:line-through}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}.d .rec{color:var(--ok);font-weight:600}
+.flow{list-style:none;margin:6px 0 0;padding:0}.flow li{display:flex;align-items:center;gap:8px;padding:4px 0;color:#98a2b3;font-weight:600}.flow li i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;background:#eef1f7}.flow li.done{color:#344054}.flow li.done i{background:var(--ok-bg);color:var(--ok)}.flow li.on{color:var(--pri)}.flow li.on i{background:var(--pri);color:#fff}
+.side{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:12px 14px}.side h5{margin:0 0 6px;font-size:13px}.side .w{font-size:18px;font-weight:700}.side p{color:var(--mut);margin:8px 0 0;line-height:1.5}
+.pre{display:flex;gap:6px;margin-top:6px}.pre span{border:1px solid #d8e2ec;border-radius:6px;padding:2px 8px;font-weight:600;color:#475467;background:#fff}.pre span.on{background:var(--pri-soft);color:var(--pri);border-color:#bcd0f5}
+.form2{display:grid;grid-template-columns:1fr 260px;gap:10px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.cmp div{border-radius:8px;padding:7px 9px;font-size:12px;line-height:1.45}.cmp .old{background:#f8fafc;border:1px dashed #d0d8e4;color:#475467}.cmp .new{background:#f3f7ff;border:1px solid #bcd0f5}
+.d .tagw{font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagb{font-size:10.5px;font-weight:700;color:var(--pri);background:var(--pri-soft);border-radius:999px;padding:1px 7px;margin-left:6px}
+.d .tagr{font-size:10.5px;font-weight:700;color:var(--dan);background:var(--dan-bg);border-radius:999px;padding:1px 7px;margin-left:6px}
+</style></head><body>
+<style>
+.ops{list-style:none;margin:6px 0 0;padding:0}.ops li{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #eef1f6}
+.ops li i{font-style:normal;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;background:#eef1f7;font-weight:700}
+.ops li.done i{background:var(--ok-bg);color:var(--ok)}.ops li.on i{background:var(--warn-bg);color:var(--warn)}
+.ops li small{display:block;color:var(--mut);font-size:10.5px}
+.modal{max-width:640px;background:#fff;border:1px solid #cfd8e6;border-radius:12px;box-shadow:0 12px 30px rgba(16,24,40,.14);padding:14px 16px;margin-top:12px}
+.modal h4{margin:0 0 2px;font-size:15px}.modal .mut{color:var(--mut);font-size:11.5px}
+.warnbox{background:var(--warn-bg);border:1px solid #f1dc9c;color:#6b4e00;border-radius:8px;padding:8px 10px;margin:8px 0;line-height:1.45}
+.infobox{background:var(--pri-soft);border:1px solid #bcd0f5;color:#1d3f7a;border-radius:8px;padding:8px 10px;margin:8px 0;line-height:1.45}
+.mini th,.mini td{padding:6px 10px}
+.sel{border:1px solid #d8e2ec;background:#fff;border-radius:6px;padding:4px 10px;font-weight:600;color:#344054}.sel span{color:var(--mut);font-weight:500;margin-right:4px}
+.legacy{border:1px dashed #b9c4d6;border-radius:8px;padding:8px 10px;color:#475467;background:#fbfcfe;margin-top:8px}
+</style>
+<h1>Üretim → sistem sayfaları (taslak 24)</h1>
+<p class="sub">Üretim menüsünde 8 ekran var. Bu dalgada <b>dördü</b> sistem sayfasına geçiyor: <b>Üretim emirleri</b>, <b>Yeni üretim emri</b>, <b>Reçeteler listesi</b> ve <b>Maliyet analizi</b>. <b>İş merkezleri</b> (çalışma takvimi, vardiya döngüsü, kurulum kuralları) ve <b>Malzeme planlama (MRP)</b> şimdilik bugünkü ekranda kalıyor; sayfa motorunda karşılıkları yok. Görünüm bugünküyle aynı kalıyor, bütün üretim kuralları (çizelgeleme, stok tüketimi, lot/seri, maliyet) sunucuda kalıyor. Bugün yalnız bir tane olan <code>uretim.*</code> ERP işlemine bu dalgada 18 işlem ekleniyor. Reçete kartı (yeni/düzenle) envanterde var ama şimdilik bugünkü ekranda kalıyor (karar 2). Aşağıdaki kararlar sizin onayınızı bekliyor.</p>
+
+<div class="lbl">1 · ÜRETİM EMİRLERİ (LİSTE + DETAY PANELİ) · BUGÜNKÜ GÖRÜNÜM KORUNUR</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Üretim › Üretim emirleri</div>
+  <div class="ttl"><h2>Üretim emirleri</h2><small>63 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span class="dis" title="Üretim emri silinemez; İşlemler'den iptal edin.">Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="mets">
+    <div class="met"><span class="ic">◷</span><div><span>Açık emir</span><strong>14</strong> <small>tüm kayıtlar · Planlandı + Serbest</small></div></div>
+    <div class="met"><span class="ic">₺</span><div><span>Planlanan maliyet</span><strong>842.300 ₺</strong> <small>tüm kayıtlar · iptal hariç</small></div></div>
+    <div class="met"><span class="ic" style="background:var(--warn-bg);color:var(--warn)">!</span><div><span>Çizelgelenmemiş</span><strong>3</strong> <small>tüm kayıtlar · rotası takvimsiz</small></div></div>
+    <div class="met"><span class="ic" style="background:var(--ok-bg);color:var(--ok)">✓</span><div><span>Tamamlanan</span><strong>41</strong> <small>tüm kayıtlar</small></div></div>
+  </div>
+  <div class="fbar"><span class="srch">Emir, reçete, depo veya sipariş ara (Enter)</span><span class="sel"><span>Durum</span>Tümü ▾</span><span class="tool">☐ Detay paneli · Sütunlar</span></div>
+  <div class="split">
+    <div class="card"><table><thead><tr><th>Üretim emri</th><th>Plan tarihi</th><th>Reçete · mamul</th><th>Rota</th><th>Depo</th><th class="num">Miktar</th><th>Sipariş</th><th>Durum</th></tr></thead><tbody>
+      <tr class="pick"><td class="code">URE-2026-031</td><td>24.11.2026</td><td>REC-MASA-01 · Çalışma masası</td><td>1 / 3 tamamlandı</td><td>Merkez depo</td><td class="num">40</td><td>SO-1182 · satır 2</td><td><span class="tag t-w">Serbest bırakıldı</span></td></tr>
+      <tr><td class="code">URE-2026-030</td><td>26.11.2026</td><td>REC-SAND-02 · Sandalye</td><td><span style="color:var(--warn)">3 op · çizelgelenmedi</span></td><td>Merkez depo</td><td class="num">120</td><td>Stoka üretim</td><td><span class="tag t-in">Planlandı</span></td></tr>
+      <tr><td class="code">URE-2026-027</td><td>18.11.2026</td><td>REC-MASA-01 · Çalışma masası</td><td>3 / 3 tamamlandı</td><td>Merkez depo</td><td class="num">25</td><td>Stoka üretim</td><td><span class="tag t-ok">Tamamlandı</span></td></tr>
+      <tr><td class="code">URE-2026-022</td><td>12.11.2026</td><td>REC-RAF-01 · Duvar rafı</td><td>rota yok</td><td>Atölye</td><td class="num">60</td><td>Stoka üretim</td><td><span class="tag t-off">İptal edildi</span></td></tr>
+    </tbody></table><div class="foot"><span>↑↓ gez · Boşluk işaretle · Enter aç · Ctrl+. detay paneli</span><span>Sayfa 1 / 3 · 63 kayıt · 25'er</span></div></div>
+    <div class="card pnl"><span class="code">URE-2026-031</span> <span class="btn" style="float:right;padding:1px 8px">Aç</span><h4>Çalışma masası · 40 adet</h4>
+      <div style="margin-top:4px"><span class="tag t-w">Serbest bırakıldı</span></div>
+      <div class="ptabs"><span>Özet</span><span class="on">Rota 3</span><span>Bileşenler 4</span></div>
+      <ul class="ops">
+        <li class="done"><i>✓</i><div><b>10 · KESIM</b><small>Tamamlandı · fiili 52 dk · Ayşe K.</small></div><span class="mut" style="color:var(--mut)">—</span></li>
+        <li class="on"><i>20</i><div><b>20 · MONTAJ</b><small>Devam ediyor · plan 180 dk</small></div><span class="btn" style="padding:1px 8px">Tamamla</span></li>
+        <li><i>30</i><div><b>30 · BOYA</b><small>Bekliyor · 25.11 08:00–11:00</small></div><span class="btn g" style="padding:1px 8px;color:#98a2b3" title="Önceki rota operasyonları tamamlanmadan bu operasyon başlatılamaz.">Başlat</span></li>
+      </ul>
+      <div style="margin-top:10px"><span class="btn p" style="opacity:.45" title="Tüm operasyonlar tamamlanınca etkin olur">Sıradaki adım: Üretimi bildir</span></div>
+      <p class="mut" style="color:var(--mut);margin:8px 0 0;font-size:11px">Tutarlar firma baz para birimindedir.</p></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>İşlemler menüsü</b> emrin durumuna göre değişir, bugünkü gibi: Planlandı → <b>Kapasiteye çizelgele</b> / <b>Serbest bırak</b>; Serbest bırakıldı → <b>Üretimi tamamla</b> (tüm operasyonlar bitince); her ikisinde <b>İptal et</b>. Tamamlanan ve iptal edilen emirde yalnız dışa aktarma kalır.</li>
+  <li><b>İptal artık onay soruyor</b> (bugün tek tıkla iptal ediyor). Başlamış operasyon varsa onay metni ayrıca uyarır: "2 operasyonun fiili kaydı var; iptal geri alınamaz."</li>
+  <li><b>Kartlar artık tüm kayıtları sayar</b>: bugün yalnız "Açık emir" firma geneli; "Planlanan maliyet" ve "Çizelgelenmemiş" görünen sayfayı sayıyor. Bugün "Tamamlanan" kartına tıklayınca liste süzülüyor; sayfa motorunda kart tıklaması doğrulanmadı, olmazsa süzgeç Durum kutusundan seçilir.</li>
+  <li><b>Süzgeç satırı</b> diğer sistem sayfalarındaki gibi: Durum bir seçim kutusu, seçili süzgeç altında silinebilir çip olarak görünür (bugünkü tıklanabilir çiplerin yerine).</li>
+  <li><b>Operasyon başlat / tamamla</b>: Rota sekmesinde operasyon satırı seçilir, düğmeler seçili satırın durumuna göre etkin olur (görseldeki satır düğmeleri seçim + düğme olarak çizilecek). Tamamla küçük bir pencere açar: kurulum dk, çalışma dk, enerji, operatör.</li>
+  <li>Mamul kodu ve adı bugün reçete listesinden eşleniyor; yeni sürümde emir yanıtı bunları kendisi taşıyacak (sunucuya küçük ek).</li>
+</ul>
+
+<div class="lbl">1b · ÜRETİMİ BİLDİR (TAMAMLAMA PENCERESİ)</div>
+<div class="modal">
+  <h4>Üretimi bildir · URE-2026-031</h4><div class="mut">Çalışma masası · Merkez depo · lot izlemeli</div>
+  <div class="g3" style="margin-top:10px"><div class="f"><label>İyi ürün miktarı <b>*</b></label><div class="in">38</div></div><div class="f"><label>Fire miktarı</label><div class="in">2</div></div><div class="f"><label>Fire nedeni <b>*</b></label><div class="in">Yüzey çizik</div></div></div>
+  <div class="status" style="margin-top:8px"><span>Planlanan <b style="color:var(--tx)">40</b></span><span>Bildirilen <b>38 + 2 = 40</b></span></div>
+  <table class="mini" style="border:1px solid #e6ebf2;border-radius:8px"><thead><tr><th>Lot / seri numarası</th><th class="num">Miktar</th><th>Son kullanma tarihi</th></tr></thead><tbody><tr><td class="code">LOT-2611-A</td><td class="num">38</td><td>30.11.2027</td></tr></tbody></table>
+  <div class="infobox">Bileşenler <b>Merkez depo</b>'dan, son kullanma tarihi en yakın lottan başlanarak otomatik düşülür. Hareket tarihi <b>bugündür</b>; muhasebe fişi yazılmaz. Tamamlanan üretim geri alınamaz.</div>
+  <div style="text-align:right"><span class="btn g">Vazgeç</span> <span class="btn p">Bildir ve Tamamla</span></div>
+</div>
+<ul class="note">
+  <li><b>Seri izlemeli</b> mamulde tablo her satıra bir seri numarası alır (bugün tek kutuya virgülle yazılıyor). <b>İzlemesiz</b> mamulde tablo görünmez.</li>
+  <li>Sonuç mesajı tek metin olur: "Üretim tamamlandı." Bileşen maliyeti eksikse emrin özetinde "Maliyet eksik" rozeti görünür (bugün bu ayrım başarı mesajında yazıyor).</li>
+  <li>Kurallar değişmez: iyi + fire = planlanan, fire varsa neden zorunlu, stok yetmezse sunucu eksik bileşenleri listeler, kapalı dönemde reddedilir.</li>
+</ul>
+
+<div class="lbl">2 · YENİ ÜRETİM EMRİ (AYRI SEKME)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Üretim › Üretim emirleri › Yeni üretim emri</div>
+  <div class="rh"><div><h2>Üretim emri planlama</h2><p>Emir Planlandı durumunda açılır; çizelgeleme listeden yapılır.</p></div><div><span class="btn g">Vazgeç</span> <span class="btn p">Emir planla</span></div></div>
+  <div class="status"><span>* zorunlu alan</span><span>Ctrl+S kaydet · Esc vazgeç</span></div>
+  <div class="form2">
+    <div>
+      <div class="sec"><h5>Emir</h5><div class="g3"><div class="f"><label>Emir kodu <b>*</b></label><div class="in code">URE-2026-032</div></div><div class="f"><label>Plan tarihi</label><div class="in">22.11.2026</div></div><div class="f"><label>Üretim deposu <b>*</b></label><div class="in ph">Depo seçin ▾</div></div></div>
+        <div class="g3" style="margin-top:10px"><div class="f" style="grid-column:span 2"><label>Reçete <b>*</b></label><div class="in">REC-MASA-01 · Çalışma masası ▾</div></div><div class="f"><label>Planlanan miktar <b>*</b></label><div class="in">40 &nbsp;<span style="margin-left:auto;color:var(--mut)">adet</span></div></div></div></div>
+      <div class="sec"><h5>Üretim türü</h5><div class="pre" style="margin:0 0 10px"><span>Stoka üretim</span><span class="on">Satış siparişine üretim</span></div>
+        <div class="g2"><div class="f"><label>Satış siparişi</label><div class="in">SO-1182 · ÖRNEK MOBİLYA ▾</div></div><div class="f"><label>Sipariş satırı</label><div class="in">2 · Çalışma masası · kalan 40 ▾</div></div></div></div>
+      <div class="sec"><h5>Reçete içeriği (birim başına)</h5><table class="mini"><thead><tr><th>Bileşen</th><th class="num">Miktar</th><th class="num">Fire %</th><th class="num">Birim maliyet</th></tr></thead><tbody><tr><td>Masa tablası</td><td class="num">1</td><td class="num">2</td><td class="num">640,00</td></tr><tr><td>Masa ayağı</td><td class="num">4</td><td class="num">0</td><td class="num">85,00</td></tr></tbody></table><p class="mut" style="color:var(--mut);margin:6px 0 0">Emirdeki gereken miktar = miktar × (1 + fire) × planlanan ÷ çıktı. Kesin rakamlar kayıttan sonra emrin Bileşenler sekmesinde.</p></div>
+    </div>
+    <div class="side"><h5>Reçete özeti</h5><p style="margin-top:0">Mamul: Çalışma masası<br>2 bileşen · 3 operasyon</p><p>Reçete seçilmeden özet boş kalır.</p></div>
+  </div>
+</div>
+<ul class="note">
+  <li><b>Bugünkü fark:</b> sipariş satırı seçilince reçete, miktar ve tarih bugün <b>otomatik doluyor</b>. Sayfa motorunda bu "seçince doldur" özelliği iki açık işte farklı adlarla yazılıyor; o gelene kadar kullanıcı bu üç alanı elle girer, sunucu satırın mamulüyle eşleşmeyi yine denetler (karar 6).</li>
+  <li>Bugünkü önizleme tablosu planlanan miktarla çarpılmış "gereken miktar" gösteriyor; ilk sürümde birim başına gösterilir (karar 6).</li>
+  <li>Emir kodu bugünkü gibi elle girilir; otomatik numara bu işin parçası değil.</li>
+</ul>
+
+<div class="lbl">3 · REÇETELER (LİSTE) · KART ŞİMDİLİK ESKİ EKRANDA</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Üretim › Tanımlı reçeteler</div>
+  <div class="ttl"><h2>Tanımlı reçeteler</h2><small>18 kayıt</small></div>
+  <div class="bar"><span class="pri">+ Yeni</span><span>Aç</span><span>Sil</span><span>Yenile</span><span>Excel</span><span class="r">İşlemler ▾</span></div>
+  <div class="fbar" style="margin-top:10px"><span class="srch">Kod, reçete veya mamul ara</span><span class="sel"><span>Durum</span>Tümü ▾</span><span class="tool">Sütunlar</span></div>
+  <div class="card"><table><thead><tr><th>Kod</th><th>Reçete</th><th>Mamul</th><th class="num">Çıktı</th><th>İçerik</th><th>Kullanım</th><th>Durum</th></tr></thead><tbody>
+    <tr class="pick"><td class="code">REC-MASA-01</td><td>Çalışma masası reçetesi</td><td>Çalışma masası</td><td class="num">1</td><td>2 bileşen · 3 operasyon</td><td>12 üretim emri</td><td><span class="tag t-ok">Aktif</span></td></tr>
+    <tr><td class="code">REC-SAND-02</td><td>Sandalye reçetesi</td><td>Sandalye</td><td class="num">1</td><td>5 bileşen · 3 operasyon</td><td>4 üretim emri</td><td><span class="tag t-ok">Aktif</span></td></tr>
+    <tr><td class="code">REC-ESKI-01</td><td>Eski raf</td><td>Duvar rafı</td><td class="num">10</td><td>3 bileşen · rota yok</td><td>—</td><td><span class="tag t-off">Pasif</span></td></tr>
+  </tbody></table><div class="foot"><span>↑↓ gez · Enter aç · Ctrl+Del sil</span><span>Sayfa 1 / 1 · 25'er</span></div></div>
+  <div class="legacy"><b>Yeni / Aç</b> → bugünkü <b>Ürün Reçetesi</b> kartı açılır (Kimlik · Bileşenler · Rota sekmeleri, alternatif iş merkezleri dahil). Kart değişmiyor. Aç'ın seçili reçeteyi açabilmesi için eski karta küçük bir ek gerekiyor (bugün dışarıdan reçete numarası alamıyor).</div>
+</div>
+<ul class="note">
+  <li><b>Sil</b> yalnız hiç üretim emrinde kullanılmamış reçetede etkin, bugünkü "kalıcı olarak silinsin mi? · geri alınamaz" onayıyla. Kullanılmış reçetede nedenli pasif: "Üretim emri referansı olan reçeteler silinemez."</li>
+  <li><b>İşlemler:</b> Pasife al / Etkinleştir (açık emri olan reçete pasife alınamaz; sunucu metni gösterilir), CSV.</li>
+  <li>Kod bugün reçete adının altında küçük yazılıyor; yeni sürümde ayrı sütun. Durum çiplerindeki sayılar (Aktif 15 / Pasif 3) seçim kutusuna dönüşürken kaybolur.</li>
+</ul>
+
+<div class="lbl">4 · MALİYET ANALİZİ (SALT OKUNUR RAPOR)</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Üretim › Maliyet analizi</div>
+  <div class="ttl"><h2>Üretim maliyet analizi</h2><small>27 emir</small></div>
+  <div class="fbar" style="margin-top:8px"><span class="srch" style="flex:0 0 170px">Başlangıç · 01.11.2026</span><span class="srch" style="flex:0 0 170px">Bitiş · 22.11.2026</span><span class="btn g">Yenile</span><span class="tool">Sütunlar</span></div>
+  <div class="mets" style="grid-template-columns:repeat(3,1fr)">
+    <div class="met"><span class="ic">▤</span><div><span>Planlanan malzeme</span><strong>512.400 ₺</strong> <small>bu sayfa · fire dahil</small></div></div>
+    <div class="met"><span class="ic">⚙</span><div><span>Planlanan dönüşüm</span><strong>96.150 ₺</strong> <small>işçilik + genel gider + enerji</small></div></div>
+    <div class="met"><span class="ic">₺</span><div><span>Fiilî malzeme</span><strong>524.980 ₺</strong> <small>bu sayfa</small></div></div>
+  </div>
+  <div class="card"><table><thead><tr><th>Üretim emri</th><th class="num">Op.</th><th>Plan tarihi</th><th>Durum</th><th class="num">Miktar</th><th class="num">Plan. malzeme</th><th class="num">Fiilî malzeme</th><th class="num">Dönüşüm farkı</th><th class="num">Toplam fark</th></tr></thead><tbody>
+    <tr><td class="code">URE-2026-027</td><td class="num">3</td><td>18.11.2026</td><td><span class="tag t-ok">Tamamlandı</span></td><td class="num">25</td><td class="num">18.200,00</td><td class="num">18.950,00</td><td class="num" style="color:var(--dan)">+420,00</td><td class="num" style="color:var(--dan)">+1.170,00</td></tr>
+    <tr><td class="code">URE-2026-031</td><td class="num">3</td><td>24.11.2026</td><td><span class="tag t-w">Serbest bırakıldı</span></td><td class="num">40</td><td class="num">29.100,00</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+  </tbody></table><div class="foot"><span>Rapor kapsamı: fiilî malzeme yalnız üretime bağlı stok hareketlerinden okunur.</span><span>Sayfa 1 / 1 · 50'şer</span></div></div>
+</div>
+<ul class="note">
+  <li>Tarihler bugünkü gibi ikisi de <b>bugün</b> açılır; aralık en fazla 366 gün (sunucu denetler).</li>
+  <li>Kartlar bugünkü gibi "bu sayfa" toplamı (rapor yanıtı bunu hazır veriyor). Dönem toplamı istenirse rapora küçük bir ek gerekir; bu işin şartı değil.</li>
+  <li>TenantDeveloper rolü bu raporu bugün de göremiyor; sistem sayfası bunu boş tablo yerine açık bir notla söyler.</li>
+</ul>
+
+<div class="lbl">KARARLAR (ÖNERİLER YEŞİL) · <span style="color:var(--pri)">mavi</span> = yalnız Üretim dosyası · <span style="color:var(--warn)">sarı</span> = ortak dosya, diğer modüllerle sıralanır · <span style="color:var(--dan)">kırmızı</span> = bugünkü kusur</div>
+<div class="dec">
+  <div class="d"><b class="h">1 · Kapsam: dört ekran<span class="tagb">standart</span></b><p>Kullanım verisi yok; seçim günlük işe ve bağımlılığa göre: emirler üretimin günlük ekranı ve bütün stok hareketleri buradan doğuyor; reçete emrin ön koşulu; maliyet analizi motorda hazır. İş merkezi takvimi ve MRP önerileri için sayfa motorunda karşılık yok.</p><p class="rec">Öneri: Emirler + Yeni emir + Reçete listesi + Maliyet analizi. İş merkezleri ve MRP sonraki dalga; o güne kadar bugünkü ekranlar.</p></div>
+  <div class="d"><b class="h">2 · Reçete kartı şimdilik eski ekranda<span class="tagw">ortak motor</span></b><p>Rotadaki "alternatif iş merkezleri" bir hücrede çoklu seçim; sayfa motoru bunu yapamıyor. Reçete kaydı <b>tümünü yeniden yazdığı</b> için, alternatifler gönderilmezse kaydedince <b>silinir</b> (veri kaybı).</p><p class="rec">Öneri: liste sistem sayfası olur; Yeni / Aç bugünkü kartı açar (satışta kullandığımız "eski ekrana git" yolu). Eski kart, satınalmadaki gibi reçete numarasını sayfa parametresinden okuyacak küçük bir ek alır (yalnız üretim dosyası). Kart, motora çoklu seçim hücresi gelince ayrı adımda taşınır.</p></div>
+  <div class="d"><b class="h">3 · "Yeni üretim emri" ekran anahtarı<span class="tagw">ortak dosya</span></b><p>Bu ekran menü kataloğunda yok (bugün emir listesinin bir kipi). Kataloğa girmeyen ekran için sistem sayfası tanımı yüklenemiyor (satıştaki aynı sorun).</p><p class="rec">Öneri: <code>manufacturing-order-create</code> kataloğa "Yeni üretim emri" adıyla, "Reçete oluştur" ve CRM'deki "Yeni fırsat" gibi sıradan bir alt ekran olarak eklensin (katalogda gizleme seçeneği yok; menüde görünür olur). Yeni düğmesi bu sekmeyi açar.</p></div>
+  <div class="d"><b class="h">4 · Sunucuya küçük okuma ekleri<span class="tagb">Üretim API</span></b><p>Sistem sayfası tek bir emri ya da reçeteyi açacak uca, durum düğmeleri için hazır işaretlere ihtiyaç duyuyor. Bugün liste her şeyi iç içe döndürüyor, ekran kendisi hesaplıyor.</p><p class="rec">Öneri: <code>GET /orders/{id}</code>, <code>GET /boms/{id}</code>; emir satırına mamul kodu/adı, izleme modu, "n / m operasyon", <i>çizelgelenebilir / serbest bırakılabilir / tamamlanabilir</i> işaretleri; emir listesi yanıtına tüm-kayıt toplamları. Davranış değişmez, yalnız ek alan.</p>
+    <div class="cmp"><div class="old">Bugün: "Çizelgelenmemiş 1 · bu sayfa"</div><div class="new">Yeni: "Çizelgelenmemiş 3 · tüm kayıtlar"</div></div></div>
+  <div class="d"><b class="h">5 · İptal onayı<span class="tagb">standart</span><span class="tagr">kusur</span></b><p>Bugün iptal tek tıkla, onaysız çalışıyor. Ayrıca sunucu, operasyonları başlamış hatta bitmiş bir emrin iptaline de izin veriyor; fiili süre ve maliyet kayıtları iptal edilen emirde kalıyor.</p><p class="rec">Öneri: sistem sayfasında onay; başlamış operasyon varsa uyarılı onay. Sunucu kuralı değişmez (değiştirmek ayrı karar).</p></div>
+  <div class="d"><b class="h">6 · "Seçince doldur" ve çarpanlı önizleme<span class="tagw">ortak motor</span></b><p>Yeni emirde sipariş satırı seçilince reçete/miktar/tarih dolması ve önizlemede çarpılmış miktar, satış ve satınalma işlerinde <b>farklı adlarla</b> yazılan motor eklerine bağlı.</p><p class="rec">Öneri: Üretim üçüncü bir ad açmaz; ekler birleşince kullanılır. O zamana kadar alanlar elle girilir, önizleme birim başına gösterilir. Kayıt davranışı değişmez.</p></div>
+  <div class="d"><b class="h">7 · Lot / seri girişi tablo olur<span class="tagb">standart</span></b><p>Bugün seri numaraları tek kutuya virgülle yazılıyor; sayfa motoru metni satırlara bölemiyor.</p><p class="rec">Öneri: her satıra bir lot/seri (miktar, son kullanma tarihi). Lotlu mamulde tek satır, serili mamulde adet kadar satır. Sunucu aynı denetimleri yapar.</p></div>
+  <div class="d"><b class="h">8 · Operatör seçici İK'ya bağlı<span class="tagw">İK oturumu</span></b><p>Operasyon tamamlamada operatör zorunlu. ERP işlem kataloğunda personel listesi yok; İK oturumu şu an bu işlemleri açıyor. Bugünkü "tek personel varsa otomatik seç" davranışı kaybolur.</p><p class="rec">Öneri: İK'nın personel listeleme işlemini kullan; ayrı bir kopya açma. İK PR'ı önce birleşsin.</p></div>
+  <div class="d"><b class="h">9 · Üretimin ters kaydı yok, ama stok ekranından bozulabiliyor<span class="tagr">kusur</span></b><p>Tamamlanan üretim geri alınamıyor (tasarım gereği). Ancak stok hareketleri ekranındaki genel "ters kayıt", transfer ve irsaliye hareketlerini reddederken <b>üretim hareketlerini reddetmiyor</b>: bileşen çıkışı ya da mamul girişi tek tek geri alınabiliyor, emir "Tamamlandı" kalıyor, maliyet analizi bozuluyor.</p><p class="rec">Öneri: bu işin parçası değil; ayrı küçük PR olarak "üretim hareketi yalnız üretimden geri alınır" reddi eklensin. Onay verirseniz ayrı oturum açarım.</p></div>
+  <div class="d"><b class="h">10 · Sıra ve yayın</b><p>Ortak dosyaları (ERP işlem kataloğu etiketleri, ad listesi, sistem sayfası anahtarları, menü kataloğu) açık PR'lar (#134 Satınalma, #136 Finans, Satış B, Satınalma Faz 2) değiştiriyor.</p><p class="rec">Öneri: yeni işlemler ayrı <code>ErpOperationCatalog.Manufacturing.cs</code> dosyasında. Sıra: (1) Maliyet analizi (sunucu ve motor eki gerektirmiyor) → (2) Üretim API okuma ekleri + Emirler + Yeni emir → (3) Reçete listesi + eski karta parametre eki → (4) motor ekleri gelince reçete kartı. Hepsi önizleme, varsayılan yine eski ekran; QA yalnız "QA Test Firma 20261117"de, ayrı test stok kartlarıyla (tamamlama gerçek stok hareketi yazar).</p></div>
+</div>
+<ul class="note">
+  <li>Değişmeden kalanlar: çizelgeleme algoritması (takvim, vardiya, kurulum ailesi, alternatif makine seçimi), FEFO lot ayırma, negatif stok kuralı, maliyet hesabı, kapalı dönem denetimi; hepsi sunucuda.</li>
+  <li>Bilinen ve bu işin dışında kalan kusurlar envanterde: MRP açık emir tarihleri, çizelgelemenin denetim kaydı yazmaması, iş merkezi "Sil" gerekçesinin olmayan bir kontrolü göstermesi.</li>
+  <li>Kaybolan küçük davranışlar: açık diğer üretim sekmelerinin kendiliğinden yenilenmesi, tamamlamada istemci ön denetimi (sunucu metni gösterilir), yetki hatasında izin adının yazılması (yerine düğme nedenli pasif).</li>
+</ul>
+</body></html>

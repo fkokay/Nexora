@@ -31,6 +31,15 @@ public sealed class PurchasingSystemPagesTests
 
     private static readonly string[] Keys = ["sales-requests", "sales-purchase-quotes", "sales-purchasing", "sales-purchase-delivery-notes"];
 
+    /// <summary>Current version per standard: Faz 2 (line-document writes) moved requests, orders and delivery notes to v2.</summary>
+    private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
+    {
+        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 1, ["sales-purchasing"] = 2, ["sales-purchase-delivery-notes"] = 2,
+    };
+
+    /// <summary>Non-purchasing reads a purchasing standard may bind (pickers of the Faz 2 line forms).</summary>
+    private static readonly string[] PickerOperations = ["cari.listele", "depo.listele", "depo.konumlari", "stok.kart.listele", "stok.kart.birimleri"];
+
     /// <summary>
     /// Page params each legacy purchasing screen reads (decision K7, <c>sales/purchasingPageParams.ts</c> readers). A legacy
     /// command may only send these; the quotes screen reads none.
@@ -44,18 +53,18 @@ public sealed class PurchasingSystemPagesTests
         ["sales-purchase-invoices"] = ["supplierId", "purchaseInvoiceId"],
         ["sales-purchase-quotes"] = [],
         ["sales-purchase-delivery-notes"] = ["purchaseOrderId"],
+        // Faz 2: the new order form reads no page param (it opens the created order in sales-purchasing).
+        ["sales-purchase-order-create"] = [],
     };
 
     /// <summary>Every "→ eski ekran" command per standard: button id → (pageKey, params).</summary>
     private static readonly Dictionary<string, Dictionary<string, (string Page, string[] Params)>> LegacyCommands = new(StringComparer.Ordinal)
     {
+        // Faz 2: Yeni talep, Teklif ekle and Siparişe dönüştür are system-page dialogs now.
         ["sales-requests"] = new()
         {
             ["acDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
             ["detayAc"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
-            ["yeniTalepDugmesi"] = ("sales-requests", []),
-            ["teklifEkleDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
-            ["siparisOlusturDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.id}}"]),
             ["alanlarDugmesi"] = ("sales-requests", []),
         },
         ["sales-purchase-quotes"] = new()
@@ -64,21 +73,18 @@ public sealed class PurchasingSystemPagesTests
             ["detayAc"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
             ["talepsizTeklifDugmesi"] = ("sales-purchase-quotes", []),
         },
+        // Faz 2: Yeni sipariş opens sales-purchase-order-create and Mal kabul oluştur is the receipt dialog; lot/serial
+        // tracked receipts stay on the legacy screen (K2).
         ["sales-purchasing"] = new()
         {
-            ["yeniSiparisDugmesi"] = ("sales-purchasing", []),
-            ["malKabulDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{liste.seciliSatir.id}}"]),
-            ["belgeMalKabulDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{siparisSecimi.value}}"]),
-            ["detayMalKabul"] = ("sales-purchasing", ["purchaseOrderId={{liste.seciliSatir.id}}"]),
             ["eskiEkranDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{liste.seciliSatir.id}}"]),
+            ["izlemeliKabulDugmesi"] = ("sales-purchasing", ["purchaseOrderId={{siparisSecimi.value}}"]),
             // The receipts standard does not read receiptId, so a receipt link opens the legacy screen, which does.
             ["kabulAcDugmesi"] = ("sales-purchase-receipts", ["receiptId={{kabulTablosu.seciliSatir.id}}"]),
         },
+        // Faz 2 (C-std2): create from order lines and link/unlink receipt are system-page commands now.
         ["sales-purchase-delivery-notes"] = new()
         {
-            ["yeniIrsaliyeDugmesi"] = ("sales-purchase-delivery-notes", []),
-            ["baglantiDugmesi"] = ("sales-purchase-delivery-notes", ["purchaseOrderId={{liste.seciliSatir.purchaseOrderId}}"]),
-            ["belgeBaglantiDugmesi"] = ("sales-purchase-delivery-notes", ["purchaseOrderId={{irsaliye.rows[0].purchaseOrderId}}"]),
             ["malKabuluAcDugmesi"] = ("sales-purchase-receipts", ["receiptId={{liste.seciliSatir.purchaseReceiptId}}"]),
         },
     };
@@ -102,19 +108,19 @@ public sealed class PurchasingSystemPagesTests
     [InlineData("sales-purchase-quotes", "Satınalma teklifleri", "purchase-supplier-quotes")]
     [InlineData("sales-purchasing", "Satınalma siparişleri", "purchase-orders")]
     [InlineData("sales-purchase-delivery-notes", "Satınalma İrsaliyeleri", "purchase-delivery-notes")]
-    public void Standard_is_preview_version_1_and_binds_catalog_operations(string key, string title, string screenView)
+    public void Standard_is_preview_at_its_version_and_binds_catalog_operations(string key, string title, string screenView)
     {
         var standard = Mine[key];
-        Assert.Equal((1, "preview", title, "Satın Alma"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((Versions[key], "preview", title, "Satın Alma"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since >= 1 && x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
         Assert.Equal(screenView, Assert.Single(standard.ScreenViews).Key);
         Assert.Contains(key, StandardMenuEndpoints.PageKeys);
 
         foreach (var query in Queries(key))
         {
             var name = (string)query["operation"]!;
-            Assert.True(name.StartsWith("satinalma.", StringComparison.Ordinal), name);
+            Assert.True(name.StartsWith("satinalma.", StringComparison.Ordinal) || PickerOperations.Contains(name), name);
             Assert.True(ErpOperationCatalog.TryGet(name, out var op), name);
             Assert.False(op.Deprecated, name);
             Assert.Equal(op.Kind == "read" ? "read" : op.PageKind, (string)query["kind"]!);
@@ -216,11 +222,16 @@ public sealed class PurchasingSystemPagesTests
     [Fact]
     public void Faz_1_write_operations_carry_no_request_id()
     {
-        // F10: today no bound write declares a body requestId, so the autoId rule above has nothing to bind yet.
+        // F10: the Faz 1 decisions declare no body requestId. Faz 2 adds the line-document writes of requests and orders
+        // (PurchasingFaz2SystemPagesTests); of those only the goods receipt carries one (bound to an autoId input above).
         foreach (var name in new[] { "satinalma.talep.onayla", "satinalma.talep.reddet" })
             Assert.DoesNotContain(Op(name).Parameters, x => x.Name == "requestId");
-        var writes = Keys.SelectMany(Queries).Where(x => (string)x["kind"]! != "read").Select(x => (string)x["operation"]!).Distinct().Order();
-        Assert.Equal(new[] { "satinalma.talep.onayla", "satinalma.talep.reddet" }, writes);
+        Assert.Empty(Queries("sales-purchase-quotes").Where(x => (string)x["kind"]! != "read"));
+        var writes = new[] { "sales-requests", "sales-purchasing" }.SelectMany(Queries).Where(x => (string)x["kind"]! != "read")
+            .Select(x => (string)x["operation"]!).Distinct().Order(StringComparer.Ordinal);
+        Assert.Equal(new[] { "satinalma.malKabul.olustur", "satinalma.talep.olustur", "satinalma.talep.onayla", "satinalma.talep.reddet",
+            "satinalma.talep.siparisOlustur", "satinalma.talep.teklifKaydet" }, writes);
+        Assert.Equal(new[] { "satinalma.malKabul.olustur" }, writes.Where(x => Op(x).Parameters.Any(p => p.Name == "requestId")));
     }
 
     [Fact]
@@ -330,10 +341,10 @@ public sealed class PurchasingSystemPagesTests
             var screens = (await client.GetFromJsonAsync<JsonElement>("/api/system-pages/runtime")).GetProperty("screens");
             foreach (var key in Keys)
             {
-                Assert.Equal(("preview", 1), (catalog[key].GetProperty("stage").GetString(), catalog[key].GetProperty("version").GetInt32()));
+                Assert.Equal(("preview", Versions[key]), (catalog[key].GetProperty("stage").GetString(), catalog[key].GetProperty("version").GetInt32()));
                 Assert.Equal("standard", screens.GetProperty(key).GetProperty("mode").GetString());
                 var page = await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{key}/published");
-                Assert.Equal(("@" + key, 1, "standard"), (page.GetProperty("code").GetString(), page.GetProperty("standardVersion").GetInt32(),
+                Assert.Equal(("@" + key, Versions[key], "standard"), (page.GetProperty("code").GetString(), page.GetProperty("standardVersion").GetInt32(),
                     page.GetProperty("source").GetString()));
                 var definitionJson = page.GetProperty("definitionJson").GetString()!;
                 Assert.True(JsonNode.DeepEquals(JsonNode.Parse(Mine[key].DefinitionJson), JsonNode.Parse(definitionJson)), key);
@@ -431,7 +442,7 @@ public sealed class PurchasingSystemPagesTests
 
     private static IEnumerable<string> MapKeys(JsonNode? node, char separator) => Strings(node).Select(x => x.Split(separator, 2)[0]);
 
-    private static async Task<WebApplication> StartApplicationAsync(string[] enabled)
+    internal static async Task<WebApplication> StartApplicationAsync(string[] enabled)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -468,7 +479,7 @@ public sealed class PurchasingSystemPagesTests
         return app;
     }
 
-    private static void SetIdentity(HttpClient client, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");

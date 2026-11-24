@@ -1,0 +1,810 @@
+{
+  "screenKey": "fixed-asset-create",
+  "title": "Yeni edinim",
+  "description": "Duran varlık edinim kaydı: kıymet bilgileri, tarihler ve faydalı ömür, maliyet, bağlı alış faturası ve isteğe bağlı VUK profili.",
+  "module": "Duran Varlık",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "query:olustur"
+      ]
+    },
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık"
+    },
+    "component:durumNotu": {
+      "since": 1,
+      "label": "Giriş sırası notu"
+    },
+    "component:kimlikKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Kıymet bilgileri",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:kategori"
+      ]
+    },
+    "component:kod": {
+      "since": 1,
+      "label": "Alan: Kıymet kodu"
+    },
+    "component:ad": {
+      "since": 1,
+      "label": "Alan: Ad"
+    },
+    "component:kategori": {
+      "since": 1,
+      "label": "Alan: Kategori"
+    },
+    "component:tarihKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Tarihler ve faydalı ömür",
+      "requires": [
+        "component:edinimTarihi",
+        "component:kullanimaGiris",
+        "component:omur"
+      ]
+    },
+    "component:edinimTarihi": {
+      "since": 1,
+      "label": "Alan: Edinim tarihi"
+    },
+    "component:kullanimaGiris": {
+      "since": 1,
+      "label": "Alan: Kullanıma giriş"
+    },
+    "component:omur": {
+      "since": 1,
+      "label": "Alan: Faydalı ömür (ay)"
+    },
+    "component:altSinirNotu": {
+      "since": 1,
+      "label": "VUK alt sınırı notu"
+    },
+    "component:maliyetKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Maliyet ve referans",
+      "requires": [
+        "component:maliyet",
+        "component:kalinti",
+        "component:referans"
+      ]
+    },
+    "component:maliyet": {
+      "since": 1,
+      "label": "Alan: Edinim maliyeti"
+    },
+    "component:kalinti": {
+      "since": 1,
+      "label": "Alan: Kalıntı değer"
+    },
+    "component:referans": {
+      "since": 1,
+      "label": "Alan: Kaynak referansı"
+    },
+    "component:muhasebeKarti": {
+      "since": 1,
+      "label": "Kart bölümü: Muhasebe kaynağı",
+      "requires": [
+        "component:fatura"
+      ]
+    },
+    "component:fatura": {
+      "since": 1,
+      "label": "Alan: Bağlı alış faturası",
+      "requires": [
+        "query:faturalar"
+      ]
+    },
+    "component:faturaNotu": {
+      "since": 1,
+      "label": "Bağlı fatura notu"
+    },
+    "component:vukSecimKarti": {
+      "since": 1,
+      "label": "Kart bölümü: VUK profili seçimi",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukAcik": {
+      "since": 1,
+      "label": "Alan: VUK profili ekle",
+      "requires": [
+        "component:vukKodu",
+        "component:vukAciklama",
+        "component:vukTabloYili",
+        "component:vukTebligNo",
+        "component:vukOmur",
+        "component:vukOran",
+        "component:vukBaslangic",
+        "component:vukOnay"
+      ]
+    },
+    "component:vukBilgi": {
+      "since": 1,
+      "label": "VUK profili bilgisi",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukTablosu": {
+      "since": 1,
+      "label": "GİB amortisman oranları tablosu bağlantısı",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukKarti": {
+      "since": 1,
+      "label": "Kart bölümü: VUK vergi profili",
+      "requires": [
+        "component:vukAcik",
+        "component:vukKodu",
+        "component:vukAciklama",
+        "component:vukTabloYili",
+        "component:vukTebligNo",
+        "component:vukOmur",
+        "component:vukOran",
+        "component:vukBaslangic",
+        "component:vukOnay"
+      ]
+    },
+    "component:vukKodu": {
+      "since": 1,
+      "label": "Alan: VUK tablo kodu",
+      "requires": [
+        "component:vukAcik",
+        "query:vukKatalog"
+      ]
+    },
+    "component:vukAciklama": {
+      "since": 1,
+      "label": "Alan: Kıymet sınıfı açıklaması",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukTabloYili": {
+      "since": 1,
+      "label": "Alan: Tablo yılı",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukTebligNo": {
+      "since": 1,
+      "label": "Alan: Tebliğ no",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukOmur": {
+      "since": 1,
+      "label": "Alan: Vergi faydalı ömrü (ay)",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukOran": {
+      "since": 1,
+      "label": "Alan: Normal amortisman oranı (%)",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukBaslangic": {
+      "since": 1,
+      "label": "Alan: Vergi amortisman başlangıcı",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukOnay": {
+      "since": 1,
+      "label": "Alan: Mali müşavir doğrulaması",
+      "requires": [
+        "component:vukAcik"
+      ]
+    },
+    "component:vukOnayUyarisi": {
+      "since": 1,
+      "label": "VUK doğrulama onayı uyarısı",
+      "requires": [
+        "component:vukAcik",
+        "component:vukOnay"
+      ]
+    },
+    "query:faturalar": {
+      "since": 1,
+      "label": "Bağlanabilir alış faturaları"
+    },
+    "query:vukKatalog": {
+      "since": 1,
+      "label": "VUK faydalı ömür kataloğu",
+      "requires": [
+        "component:vukKodu"
+      ]
+    },
+    "query:olustur": {
+      "since": 1,
+      "label": "Duran varlık edinimini kaydet",
+      "requires": [
+        "component:kod",
+        "component:ad",
+        "component:kategori",
+        "component:edinimTarihi",
+        "component:kullanimaGiris",
+        "component:omur",
+        "component:maliyet",
+        "component:kalinti",
+        "component:referans",
+        "component:fatura",
+        "component:vukKodu",
+        "component:vukAciklama",
+        "component:vukTabloYili",
+        "component:vukTebligNo",
+        "component:vukOmur",
+        "component:vukOran",
+        "component:vukBaslangic"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "saveQuery": "olustur",
+          "newAction": "page",
+          "newPageCode": "@fixed-asset-create",
+          "newTarget": "sameTab",
+          "saveAndNew": true,
+          "afterSaveAction": "page",
+          "afterSavePageCode": "@fixed-assets",
+          "afterSaveTarget": "sameTab",
+          "afterSaveRefresh": true,
+          "hiddenCommands": [
+            "open",
+            "delete",
+            "print",
+            "export"
+          ],
+          "commandWhen": [
+            "save=vukAcik.value != true || vukOnay.value == true"
+          ]
+        }
+      },
+      {
+        "id": "baslik",
+        "type": "heading",
+        "name": "baslik",
+        "props": {
+          "text": "Edinim kaydı oluştur",
+          "pageTitle": true
+        }
+      },
+      {
+        "id": "durumNotu",
+        "type": "text",
+        "name": "durumNotu",
+        "props": {
+          "text": "Önce kıymet bilgilerini, ardından maliyet ve muhasebe kaynağını girin. Tutarlar firma baz para birimindedir. Edinim kaydı yevmiye yazmaz; fiş kıymet kartının Edinim muhasebesi sekmesinden oluşturulur."
+        }
+      },
+      {
+        "id": "kimlikKarti",
+        "type": "formCard",
+        "name": "kimlikKarti",
+        "props": {
+          "title": "Kıymet bilgileri",
+          "columns": 3,
+          "inputs": [
+            "kod",
+            "ad",
+            "kategori"
+          ],
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "kod",
+        "type": "input",
+        "name": "kod",
+        "props": {
+          "inputType": "text",
+          "label": "Kıymet kodu",
+          "required": true,
+          "maxLength": 40,
+          "upperCase": true,
+          "placeholder": "DV-CNC-03",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "patternMessage": "Kod yalnız harf, rakam, nokta, tire ve alt çizgi içerebilir."
+        }
+      },
+      {
+        "id": "ad",
+        "type": "input",
+        "name": "ad",
+        "props": {
+          "inputType": "text",
+          "label": "Ad",
+          "required": true,
+          "maxLength": 160
+        }
+      },
+      {
+        "id": "kategori",
+        "type": "input",
+        "name": "kategori",
+        "props": {
+          "inputType": "text",
+          "label": "Kategori",
+          "maxLength": 80,
+          "placeholder": "Makine, taşıt, demirbaş…"
+        }
+      },
+      {
+        "id": "tarihKarti",
+        "type": "formCard",
+        "name": "tarihKarti",
+        "props": {
+          "title": "Tarihler ve faydalı ömür",
+          "columns": 3,
+          "inputs": [
+            "edinimTarihi",
+            "kullanimaGiris",
+            "omur"
+          ],
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "edinimTarihi",
+        "type": "input",
+        "name": "edinimTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Edinim tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "kullanimaGiris",
+        "type": "input",
+        "name": "kullanimaGiris",
+        "props": {
+          "inputType": "date",
+          "label": "Kullanıma giriş",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "omur",
+        "type": "input",
+        "name": "omur",
+        "props": {
+          "inputType": "number",
+          "label": "Faydalı ömür (ay)",
+          "required": true,
+          "min": 1,
+          "max": 1200,
+          "step": 1,
+          "defaultValue": "60"
+        }
+      },
+      {
+        "id": "altSinirNotu",
+        "type": "text",
+        "name": "altSinirNotu",
+        "props": {
+          "text": "Edinim yılının GİB VUK amortisman alt sınırı kayıtla birlikte saklanır ve kıymet kartının Genel sekmesinde görünür. Bilgilendirme amaçlıdır; otomatik gider yazma kararı değildir."
+        }
+      },
+      {
+        "id": "maliyetKarti",
+        "type": "formCard",
+        "name": "maliyetKarti",
+        "props": {
+          "title": "Maliyet ve referans",
+          "columns": 3,
+          "inputs": [
+            "maliyet",
+            "kalinti",
+            "referans"
+          ],
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "maliyet",
+        "type": "input",
+        "name": "maliyet",
+        "props": {
+          "inputType": "number",
+          "label": "Edinim maliyeti",
+          "required": true,
+          "min": 0.01,
+          "step": 0.01
+        }
+      },
+      {
+        "id": "kalinti",
+        "type": "input",
+        "name": "kalinti",
+        "props": {
+          "inputType": "number",
+          "label": "Kalıntı değer",
+          "required": true,
+          "min": 0,
+          "step": 0.01,
+          "defaultValue": "0"
+        }
+      },
+      {
+        "id": "referans",
+        "type": "input",
+        "name": "referans",
+        "props": {
+          "inputType": "text",
+          "label": "Kaynak referansı",
+          "maxLength": 120,
+          "placeholder": "Sözleşme / irsaliye no"
+        }
+      },
+      {
+        "id": "muhasebeKarti",
+        "type": "formCard",
+        "name": "muhasebeKarti",
+        "props": {
+          "title": "Muhasebe kaynağı",
+          "columns": 1,
+          "inputs": [
+            "fatura"
+          ],
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "fatura",
+        "type": "input",
+        "name": "fatura",
+        "props": {
+          "inputType": "lookup",
+          "label": "Bağlı alış faturası (isteğe bağlı)",
+          "optionsQuery": "faturalar",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "label",
+          "minChars": 0,
+          "allowClear": true,
+          "placeholder": "Fatura bağlantısı yok"
+        }
+      },
+      {
+        "id": "faturaNotu",
+        "type": "text",
+        "name": "faturaNotu",
+        "props": {
+          "text": "Fatura bağlandığında muhasebe kaynağı alış faturası olur; çift kayıt olmaması için ayrı edinim fişi engellenir."
+        }
+      },
+      {
+        "id": "vukSecimKarti",
+        "type": "formCard",
+        "name": "vukSecimKarti",
+        "props": {
+          "title": "İsteğe bağlı VUK vergi profili",
+          "columns": 1,
+          "inputs": [
+            "vukAcik"
+          ],
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "vukAcik",
+        "type": "input",
+        "name": "vukAcik",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Mali müşavir tarafından doğrulanmış VUK amortisman profili ekle",
+          "clearsOnChange": [
+            "vukKodu",
+            "vukAciklama",
+            "vukTabloYili",
+            "vukTebligNo",
+            "vukOmur",
+            "vukOran",
+            "vukBaslangic",
+            "vukOnay"
+          ]
+        }
+      },
+      {
+        "id": "vukBilgi",
+        "type": "text",
+        "name": "vukBilgi",
+        "props": {
+          "text": "Tablo kodunu GİB amortisman oranları tablosundan seçin; açıklama, tablo yılı, tebliğ no, vergi ömrü ve oranı tablodan aynen yazın. Profil yalnızca vergi amortismanı tahmini içindir.",
+          "visibleWhen": "vukAcik.value == true"
+        }
+      },
+      {
+        "id": "vukTablosu",
+        "type": "button",
+        "name": "vukTablosu",
+        "props": {
+          "text": "GİB amortisman oranları tablosu ›",
+          "actionType": "link",
+          "target": "newTab",
+          "href": "https://cdn.gib.gov.tr/api/gibportal-file/file/getFileResources?objectKey=arsiv%2Fyardim-kaynaklar%2Fyararli-bilgiler%2FAmortismanOranlariTablosu.pdf",
+          "visibleWhen": "vukAcik.value == true"
+        }
+      },
+      {
+        "id": "vukKarti",
+        "type": "formCard",
+        "name": "vukKarti",
+        "props": {
+          "title": "VUK vergi profili",
+          "columns": 3,
+          "inputs": [
+            "vukKodu",
+            "vukAciklama",
+            "vukTabloYili",
+            "vukTebligNo",
+            "vukOmur",
+            "vukOran",
+            "vukBaslangic",
+            "vukOnay"
+          ],
+          "visibleWhen": "vukAcik.value == true",
+          "recordKey": "yeni"
+        }
+      },
+      {
+        "id": "vukKodu",
+        "type": "input",
+        "name": "vukKodu",
+        "props": {
+          "inputType": "lookup",
+          "label": "Tablo kodu",
+          "requiredWhen": "vukAcik.value == true",
+          "optionsQuery": "vukKatalog",
+          "optionValueColumn": "code",
+          "optionLabelColumn": "code",
+          "optionDescriptionColumn": "description",
+          "minChars": 0,
+          "allowClear": true,
+          "placeholder": "Katalogdan seçin"
+        }
+      },
+      {
+        "id": "vukAciklama",
+        "type": "input",
+        "name": "vukAciklama",
+        "props": {
+          "inputType": "text",
+          "label": "Kıymet sınıfı açıklaması",
+          "requiredWhen": "vukAcik.value == true",
+          "maxLength": 500
+        }
+      },
+      {
+        "id": "vukTabloYili",
+        "type": "input",
+        "name": "vukTabloYili",
+        "props": {
+          "inputType": "number",
+          "label": "Tablo yılı",
+          "requiredWhen": "vukAcik.value == true",
+          "min": 2004,
+          "max": 2100,
+          "step": 1,
+          "placeholder": "ör. 2026"
+        }
+      },
+      {
+        "id": "vukTebligNo",
+        "type": "input",
+        "name": "vukTebligNo",
+        "props": {
+          "inputType": "number",
+          "label": "Tebliğ no",
+          "requiredWhen": "vukAcik.value == true",
+          "min": 1,
+          "max": 999,
+          "step": 1,
+          "placeholder": "1–999"
+        }
+      },
+      {
+        "id": "vukOmur",
+        "type": "input",
+        "name": "vukOmur",
+        "props": {
+          "inputType": "number",
+          "label": "Vergi faydalı ömrü (ay)",
+          "requiredWhen": "vukAcik.value == true",
+          "min": 1,
+          "max": 1200,
+          "step": 1
+        }
+      },
+      {
+        "id": "vukOran",
+        "type": "input",
+        "name": "vukOran",
+        "props": {
+          "inputType": "number",
+          "label": "Normal amortisman oranı (%)",
+          "requiredWhen": "vukAcik.value == true",
+          "min": 0.01,
+          "max": 100,
+          "step": 0.01
+        }
+      },
+      {
+        "id": "vukBaslangic",
+        "type": "input",
+        "name": "vukBaslangic",
+        "props": {
+          "inputType": "date",
+          "label": "Vergi amortisman başlangıcı",
+          "requiredWhen": "vukAcik.value == true",
+          "placeholder": "≥ edinim tarihi"
+        }
+      },
+      {
+        "id": "vukOnay",
+        "type": "input",
+        "name": "vukOnay",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Bu profili ve vergi başlangıç tarihini firma mali müşaviriyle doğruladım.",
+          "requiredWhen": "vukAcik.value == true"
+        }
+      },
+      {
+        "id": "vukOnayUyarisi",
+        "type": "alert",
+        "name": "vukOnayUyarisi",
+        "props": {
+          "variant": "warning",
+          "width": 12,
+          "text": "VUK profilini mali müşavirinizle doğruladığınızı onaylayın.",
+          "visibleWhen": "vukAcik.value == true && vukOnay.value != true"
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "faturalar",
+        "name": "faturalar",
+        "kind": "read",
+        "operation": "duranVarlik.alisFaturalari",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "vukKatalog",
+        "name": "vukKatalog",
+        "kind": "read",
+        "operation": "duranVarlik.vukOmurKatalogu",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{vukKodu.search}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "olustur",
+        "name": "olustur",
+        "kind": "insert",
+        "operation": "duranVarlik.kiymet.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "assetCode",
+            "binding": "{{kod.value}}",
+            "type": "text"
+          },
+          {
+            "name": "name",
+            "binding": "{{ad.value}}",
+            "type": "text"
+          },
+          {
+            "name": "category",
+            "binding": "{{kategori.value}}",
+            "type": "text"
+          },
+          {
+            "name": "acquisitionDate",
+            "binding": "{{edinimTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "inServiceDate",
+            "binding": "{{kullanimaGiris.value}}",
+            "type": "date"
+          },
+          {
+            "name": "acquisitionCostBase",
+            "binding": "{{maliyet.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "residualValueBase",
+            "binding": "{{kalinti.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "usefulLifeMonths",
+            "binding": "{{omur.value}}",
+            "type": "int"
+          },
+          {
+            "name": "sourceReference",
+            "binding": "{{referans.value}}",
+            "type": "text"
+          },
+          {
+            "name": "purchaseInvoiceId",
+            "binding": "{{fatura.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "vukUsefulLifeCode",
+            "binding": "{{vukKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "vukUsefulLifeDescription",
+            "binding": "{{vukAciklama.value}}",
+            "type": "text"
+          },
+          {
+            "name": "vukUsefulLifeTableYear",
+            "binding": "{{vukTabloYili.value}}",
+            "type": "int"
+          },
+          {
+            "name": "vukUsefulLifeCommuniqueNumber",
+            "binding": "{{vukTebligNo.value}}",
+            "type": "int"
+          },
+          {
+            "name": "vukUsefulLifeMonths",
+            "binding": "{{vukOmur.value}}",
+            "type": "int"
+          },
+          {
+            "name": "vukNormalDepreciationRatePercent",
+            "binding": "{{vukOran.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "vukTaxDepreciationStartDate",
+            "binding": "{{vukBaslangic.value}}",
+            "type": "date"
+          }
+        ]
+      }
+    ]
+  }
+}

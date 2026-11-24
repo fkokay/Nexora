@@ -74,36 +74,12 @@ public static class SalesOrderEndpoints
             var itemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
             var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
             if (items.Count != itemIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
-            var lineCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode!)).Distinct().ToArray();
-            if (lineCurrencies.Any(x => !SalesQuoteCurrencyConversion.IsCurrencyCode(x)))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satır para birimi üç büyük harfli ISO kodu olmalıdır."] });
-            var fx = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.OrderDate, lineCurrencies.Append(currencyCode!));
-            var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, decimal Rate)>();
-            for (var i = 0; i < request.Lines.Count; i++)
-            {
-                var input = request.Lines[i]; var item = items[input.StockItemId];
-                var enteredCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode!);
-                if (!SalesQuoteCurrencyConversion.TryGetConversion(fx, enteredCurrency, currencyCode!, out var rate))
-                    return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{enteredCurrency} para biriminden {currencyCode} para birimine sipariş tarihli kur bulunamadı."] });
-                var unitCode = string.IsNullOrWhiteSpace(input.UnitCode) ? item.UnitCode : input.UnitCode.Trim().ToUpperInvariant();
-                decimal factor = 1m;
-                if (!string.Equals(unitCode, item.UnitCode, StringComparison.OrdinalIgnoreCase))
-                {
-                    var conversion = await db.StockItemUnitConversions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.IsActive && x.UnitCode == unitCode).Select(x => (decimal?)x.FactorToBase).SingleOrDefaultAsync(ct);
-                    if (conversion is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
-                    factor = conversion.Value;
-                }
-                try
-                {
-                    var quantity = checked(input.Quantity * factor); var price = checked(input.UnitPrice * rate / factor);
-                    if (input.Quantity <= 0 || quantity > 99999999999999.9999m || quantity != decimal.Round(quantity, 4) || input.UnitPrice < 0 || price > 99999999999999.9999m || input.DiscountPercent is < 0 or > 100 || input.VatPercent is < 0 or > 100)
-                        return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Miktar, fiyat, iskonto veya KDV değeri geçerli değil."] });
-                    normalizedLines.Add((input, input with { Quantity = quantity, UnitPrice = price, UnitCode = item.UnitCode, CurrencyCode = currencyCode }, rate));
-                }
-                catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
-            }
+            // Shared with POST /api/sales/orders/preview (satis.siparis.hesapla).
+            var (normalizedOrNull, lineErrors) = await SalesDocumentCalculator.NormalizeOrderLinesAsync(db, tenantId, request.Lines, currencyCode!, request.OrderDate, items, ct);
+            if (lineErrors is not null) return Results.ValidationProblem(lineErrors);
+            var normalizedLines = normalizedOrNull!;
             SalesQuoteTotals totals;
-            try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
+            try { totals = SalesDocumentCalculator.Totals(normalizedLines); }
             catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Sipariş toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
 
             if (string.IsNullOrWhiteSpace(code)) code = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesOrder", null, request.OrderDate, ct);
@@ -177,7 +153,9 @@ public static class SalesOrderEndpoints
             if (request.RequestedDeliveryDate is { } deliveryDate && deliveryDate < request.OrderDate)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["requestedDeliveryDate"] = ["İstenen teslim tarihi sipariş tarihinden önce olamaz."] });
 
-            var customer = await db.CustomerAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive, ct);
+            // Tracked: the order's Customer is already tracked through Include, and assigning a second (untracked) instance with the
+            // same key below threw "another instance with the same key value is already being tracked".
+            var customer = await db.CustomerAccounts.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == request.CustomerId && x.IsActive, ct);
             if (customer is null || customer.Type is not (CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Aktif müşteri türünde bir cari seçilmelidir."] });
             var currencyCode = request.CurrencyCode?.Trim().ToUpperInvariant();
@@ -204,36 +182,12 @@ public static class SalesOrderEndpoints
             var itemIds = request.Lines.Select(x => x.StockItemId).Distinct().ToArray();
             var items = await db.StockItems.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive && itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
             if (items.Count != itemIds.Length) return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satırlardaki stok kartlarından biri bulunamadı veya pasif."] });
-            var lineCurrencies = request.Lines.Select(x => SalesQuoteCurrencyConversion.NormalizeCurrency(x.CurrencyCode, currencyCode!)).Distinct().ToArray();
-            if (lineCurrencies.Any(x => !SalesQuoteCurrencyConversion.IsCurrencyCode(x)))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Satır para birimi üç büyük harfli ISO kodu olmalıdır."] });
-            var fx = await SalesQuoteCurrencyConversion.LoadAsync(db, tenantId, request.OrderDate, lineCurrencies.Append(currencyCode!));
-            var normalizedLines = new List<(SalesQuoteLineWriteRequest Input, SalesQuoteLineWriteRequest Base, decimal Rate)>();
-            for (var i = 0; i < request.Lines.Count; i++)
-            {
-                var input = request.Lines[i]; var item = items[input.StockItemId];
-                var enteredCurrency = SalesQuoteCurrencyConversion.NormalizeCurrency(input.CurrencyCode, currencyCode!);
-                if (!SalesQuoteCurrencyConversion.TryGetConversion(fx, enteredCurrency, currencyCode!, out var rate))
-                    return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].currencyCode"] = [$"{enteredCurrency} para biriminden {currencyCode} para birimine sipariş tarihli kur bulunamadı."] });
-                var unitCode = string.IsNullOrWhiteSpace(input.UnitCode) ? item.UnitCode : input.UnitCode.Trim().ToUpperInvariant();
-                decimal factor = 1m;
-                if (!string.Equals(unitCode, item.UnitCode, StringComparison.OrdinalIgnoreCase))
-                {
-                    var conversion = await db.StockItemUnitConversions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == item.Id && x.IsActive && x.UnitCode == unitCode).Select(x => (decimal?)x.FactorToBase).SingleOrDefaultAsync(ct);
-                    if (conversion is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}].unitCode"] = ["Stok kartı için bu birim etkin değil."] });
-                    factor = conversion.Value;
-                }
-                try
-                {
-                    var quantity = checked(input.Quantity * factor); var price = checked(input.UnitPrice * rate / factor);
-                    if (input.Quantity <= 0 || quantity > 99999999999999.9999m || quantity != decimal.Round(quantity, 4) || input.UnitPrice < 0 || price > 99999999999999.9999m || input.DiscountPercent is < 0 or > 100 || input.VatPercent is < 0 or > 100)
-                        return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Miktar, fiyat, iskonto veya KDV değeri geçerli değil."] });
-                    normalizedLines.Add((input, input with { Quantity = quantity, UnitPrice = price, UnitCode = item.UnitCode, CurrencyCode = currencyCode }, rate));
-                }
-                catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { [$"lines[{i}]"] = ["Birim dönüşümü desteklenen miktar veya fiyat sınırını aşıyor."] }); }
-            }
+            // Shared with POST /api/sales/orders/preview (satis.siparis.hesapla).
+            var (normalizedOrNull, lineErrors) = await SalesDocumentCalculator.NormalizeOrderLinesAsync(db, tenantId, request.Lines, currencyCode!, request.OrderDate, items, ct);
+            if (lineErrors is not null) return Results.ValidationProblem(lineErrors);
+            var normalizedLines = normalizedOrNull!;
             SalesQuoteTotals totals;
-            try { totals = SalesQuoteValidation.Sum(normalizedLines.Select(x => SalesQuoteValidation.Calculate(x.Base))); }
+            try { totals = SalesDocumentCalculator.Totals(normalizedLines); }
             catch (OverflowException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["lines"] = ["Sipariş toplamı desteklenen decimal(18,2) sınırını aşıyor."] }); }
 
             order.Code = code; order.CustomerId = customer.Id; order.Customer = customer; order.OrderDate = request.OrderDate;

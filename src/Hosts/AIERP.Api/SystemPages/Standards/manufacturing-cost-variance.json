@@ -1,0 +1,76 @@
+{
+  "screenKey": "manufacturing-cost-variance", "title": "Üretim maliyet analizi",
+  "description": "Plan tarihi aralığındaki üretim emirlerinin planlanan ve fiilî malzeme, dönüşüm (işçilik, genel gider, enerji) maliyetleri ve farkları.",
+  "module": "Üretim",
+  "version": 1, "stage": "preview",
+  "items": {
+    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:liste", "query:rapor"]},
+    "component:parametreler": {"since": 1, "label": "Rapor parametreleri (plan tarihi aralığı)", "requires": ["component:baslangic", "component:bitis"]},
+    "component:baslangic": {"since": 1, "label": "Plan tarihi başlangıcı"},
+    "component:bitis": {"since": 1, "label": "Plan tarihi bitişi"},
+    "component:malzemeGostergesi": {"since": 1, "label": "Planlanan malzeme göstergesi (bu sayfa)", "requires": ["query:rapor"]},
+    "component:donusumGostergesi": {"since": 1, "label": "Planlanan dönüşüm göstergesi (bu sayfa)", "requires": ["query:rapor"]},
+    "component:fiiliGostergesi": {"since": 1, "label": "Fiilî malzeme göstergesi (bu sayfa)", "requires": ["query:rapor"]},
+    "component:liste": {"since": 1, "label": "Üretim emri maliyetleri", "requires": ["query:rapor"]},
+    "component:kapsamNotu": {"since": 1, "label": "Rapor kapsamı notu", "requires": ["query:rapor"]},
+    "query:rapor": {"since": 1, "label": "Üretim maliyet analizi", "requires": ["component:baslangic", "component:bitis", "component:liste"]}
+  },
+  "screenViews": [ { "key": "manufacturing-cost-variance", "component": "liste",
+                     "fields": { "orderCode": "orderCode", "plannedDate": "plannedDate", "status": "status", "plannedQuantity": "plannedQuantity",
+                                 "plannedMaterial": "plannedMaterialBase", "actualMaterial": "actualMaterialBase",
+                                 "plannedConversion": "plannedConversionBase", "actualConversion": "actualConversionBase",
+                                 "conversionVariance": "conversionVarianceBase", "actualTotalCost": "actualTotalCostBase",
+                                 "totalVariance": "totalVarianceBase", "plannedLabor": "plannedLaborBase", "actualLabor": "actualLaborBase" } } ],
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
+        "props": { "exportTable": "liste", "titleCount": "{{rapor.meta.totalCount}}",
+                   "hiddenCommands": ["new", "open", "save", "delete", "print"] } },
+
+      { "id": "parametreler", "type": "formCard", "name": "parametreler",
+        "props": { "title": "Plan tarihi", "layout": "inline", "width": 12, "inputs": ["baslangic", "bitis"] } },
+      { "id": "baslangic", "type": "input", "name": "baslangic",
+        "props": { "inputType": "date", "label": "Başlangıç", "required": true, "defaultValue": "{{bugun}}" } },
+      { "id": "bitis", "type": "input", "name": "bitis",
+        "props": { "inputType": "date", "label": "Bitiş", "required": true, "defaultValue": "{{bugun}}" } },
+
+      { "id": "malzemeGostergesi", "type": "metric", "name": "malzemeGostergesi",
+        "props": { "title": "Planlanan malzeme", "value": "{{rapor.meta.pagePlannedMaterialBase}}", "format": "money", "width": 4, "icon": "layers",
+                   "description": "bu sayfa · fire dahil · {{rapor.meta.baseCurrencyCode}}" } },
+      { "id": "donusumGostergesi", "type": "metric", "name": "donusumGostergesi",
+        "props": { "title": "Planlanan dönüşüm", "value": "{{rapor.meta.pagePlannedConversionBase}}", "format": "money", "width": 4, "icon": "settings",
+                   "description": "bu sayfa · işçilik + genel gider + enerji" } },
+      { "id": "fiiliGostergesi", "type": "metric", "name": "fiiliGostergesi",
+        "props": { "title": "Fiilî malzeme", "value": "{{rapor.meta.pageActualMaterialBase}}", "format": "money", "width": 4, "icon": "wallet",
+                   "description": "bu sayfa · {{rapor.meta.baseCurrencyCode}}" } },
+
+      { "id": "liste", "type": "dataTable", "name": "liste",
+        "props": { "title": "Üretim emirleri", "query": "rapor", "paging": "server", "pageSize": 50, "width": 12,
+                   "columns": ["orderCode", "operationCount", "plannedDate", "status", "plannedQuantity", "plannedMaterialBase", "actualMaterialBase",
+                               "plannedConversionBase", "actualConversionBase", "conversionVarianceBase", "actualTotalCostBase", "totalVarianceBase"],
+                   "columnLabels": ["orderCode=Üretim emri", "operationCount=Op.", "plannedDate=Plan tarihi", "status=Durum", "plannedQuantity=Miktar",
+                                    "plannedMaterialBase=Plan. malzeme", "actualMaterialBase=Fiilî malzeme", "plannedConversionBase=Plan. dönüşüm",
+                                    "actualConversionBase=Fiilî dönüşüm", "conversionVarianceBase=Dönüşüm farkı", "actualTotalCostBase=Fiilî toplam",
+                                    "totalVarianceBase=Toplam fark", "plannedLaborBase=Planlanan işçilik", "actualLaborBase=Fiilî işçilik"],
+                   "columnFormats": ["orderCode=code", "operationCount=number", "plannedDate=date", "status=status", "plannedQuantity=number",
+                                     "plannedMaterialBase=money", "actualMaterialBase=money", "plannedConversionBase=money", "actualConversionBase=money",
+                                     "conversionVarianceBase=money", "actualTotalCostBase=money", "totalVarianceBase=money", "plannedLaborBase=money",
+                                     "actualLaborBase=money"],
+                   "valueLabels": ["status:Planned=Planlandı", "status:Released=Serbest bırakıldı", "status:Completed=Tamamlandı", "status:Cancelled=İptal edildi"],
+                   "toneMap": ["Planlandı=info", "Serbest bırakıldı=warning", "Tamamlandı=success"],
+                   "emptyText": "Bu tarih aralığında üretim emri bulunamadı." } },
+      { "id": "kapsamNotu", "type": "alert", "name": "kapsamNotu",
+        "props": { "title": "Rapor kapsamı", "variant": "info", "width": 12, "text": "{{rapor.meta.limitations}}",
+                   "visibleWhen": "rapor.meta.limitations != null" } }
+    ],
+    "queries": [
+      { "id": "rapor", "name": "rapor", "kind": "read", "operation": "uretim.maliyetAnalizi", "runOn": "load",
+        "parameters": [
+          { "name": "from", "binding": "{{baslangic.value}}", "type": "date" },
+          { "name": "to", "binding": "{{bitis.value}}", "type": "date" },
+          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
+          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] }
+    ]
+  }
+}

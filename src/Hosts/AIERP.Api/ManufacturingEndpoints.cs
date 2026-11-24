@@ -1,4 +1,5 @@
 using System.Data;
+using System.Linq.Expressions;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -518,11 +519,12 @@ public static class ManufacturingEndpoints
             finally { if (transaction is not null) await transaction.DisposeAsync(); }
         }).WithName("ConvertMrpPlanRecommendations");
 
-        boms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct, Guid? productStockItemId = null) =>
+        boms.MapGet("/", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct, Guid? productStockItemId = null, bool? isActive = null) =>
         {
             if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
             var rows = await db.BillOfMaterials.AsNoTracking().Where(x => x.TenantId == tenantId)
                 .Where(x => productStockItemId == null || x.ProductStockItemId == productStockItemId)
+                .Where(x => isActive == null || x.IsActive == isActive)
                 .OrderBy(x => x.Code).Select(x => new BomView(x.Id, x.Code, x.Name, x.ProductStockItemId,
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.Code + " · " + s.Name).FirstOrDefault() ?? "",
                     db.StockItems.Where(s => s.TenantId == tenantId && s.Id == x.ProductStockItemId).Select(s => s.TrackingMode.ToString()).FirstOrDefault() ?? "None",
@@ -538,6 +540,13 @@ public static class ManufacturingEndpoints
                         o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList()))
                 .ToListAsync(ct);
             return Results.Ok(rows);
+        });
+
+        // One recipe (the system pages' recipe reads); same projection as the list.
+        boms.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            return await ReadBomAsync(db, tenantId, id, ct) is { } bom ? Results.Ok(bom) : Results.NotFound();
         });
 
         boms.MapPost("/", async (BomWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -715,10 +724,24 @@ public static class ManufacturingEndpoints
                     (x.SourceSalesOrderId != null && db.SalesOrders.Any(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId && s.Code.Contains(search))));
             }
             var totalCount = page.HasValue ? await query.CountAsync(ct) : 0;
-            var openOrderCount = page.HasValue
-                ? await db.ManufacturingOrders.AsNoTracking().CountAsync(x => x.TenantId == tenantId &&
-                    (x.Status == ManufacturingOrderStatus.Planned || x.Status == ManufacturingOrderStatus.Released), ct)
+            // Company-wide counters (the whole tenant, whatever the filters) for the list's summary cards.
+            var openOrders = db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId &&
+                (x.Status == ManufacturingOrderStatus.Planned || x.Status == ManufacturingOrderStatus.Released));
+            var openOrderCount = page.HasValue ? await openOrders.CountAsync(ct) : 0;
+            var unscheduledOrderCount = page.HasValue
+                ? await db.ManufacturingOrders.AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.Status == ManufacturingOrderStatus.Planned &&
+                    db.ManufacturingOrderOperations.Any(o => o.TenantId == tenantId && o.ManufacturingOrderId == x.Id && o.ScheduledStartDate == null), ct)
                 : 0;
+            var completedOrderCount = page.HasValue
+                ? await db.ManufacturingOrders.AsNoTracking().CountAsync(x => x.TenantId == tenantId && x.Status == ManufacturingOrderStatus.Completed, ct)
+                : 0;
+            // Planned cost of the open (Planned + Released) orders: component lines plus route operations, summed directly.
+            var openPlannedCostBase = page.HasValue
+                ? (await db.ManufacturingOrderLines.AsNoTracking().Where(l => l.TenantId == tenantId && openOrders.Any(o => o.Id == l.ManufacturingOrderId))
+                        .SumAsync(l => (decimal?)l.PlannedCostBase, ct) ?? 0m)
+                  + (await db.ManufacturingOrderOperations.AsNoTracking().Where(o => o.TenantId == tenantId && openOrders.Any(x => x.Id == o.ManufacturingOrderId))
+                        .SumAsync(o => (decimal?)o.PlannedCostBase, ct) ?? 0m)
+                : 0m;
             IQueryable<ManufacturingOrder> rowsQuery = query.OrderByDescending(x => x.PlannedDate).ThenBy(x => x.Code);
             var safePageSize = Math.Clamp(pageSize ?? 25, 1, 100);
             var safePage = page.HasValue ? Math.Clamp(page.Value, 1, Math.Max(1, (totalCount + safePageSize - 1) / safePageSize)) : 1;
@@ -730,28 +753,18 @@ public static class ManufacturingEndpoints
             {
                 rowsQuery = rowsQuery.Take(100);
             }
-            var rows = await rowsQuery.Select(x => new OrderView(x.Id, x.Code,
-                x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
-                x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-                x.SourceSalesOrderId, x.SourceSalesOrderLineNumber,
-                x.SourceSalesOrderId == null ? null : db.SalesOrders.Where(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId).Select(s => s.Code).FirstOrDefault(),
-                x.PlannedQuantity, x.ActualGoodQuantity, x.ScrapQuantity, x.ScrapReason, x.Status.ToString(), x.PlannedDate, x.CompletedAt,
-                x.Lines.OrderBy(l => l.ComponentCodeSnapshot).Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
-                    l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
-                x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
-                    o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
-                    o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
-                    o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
-                    o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
-                    o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
-                    o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase,
-                    o.PerformedByEmployeeId, o.PerformedByEmployeeId == null ? null : db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == o.PerformedByEmployeeId).Select(e => e.FullName).FirstOrDefault(), o.StartedAt, o.CompletedAt,
-                    db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                        .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
-                Convert.ToBase64String(x.RowVersion))).ToListAsync(ct);
+            var rows = await rowsQuery.Select(OrderProjection(db, tenantId)).ToListAsync(ct);
             return page.HasValue
-                ? Results.Ok(new { page = safePage, pageSize = safePageSize, totalCount, openOrderCount, items = rows })
+                ? Results.Ok(new { page = safePage, pageSize = safePageSize, totalCount, openOrderCount, unscheduledOrderCount, completedOrderCount,
+                    openPlannedCostBase, items = rows })
                 : Results.Ok(rows);
+        });
+
+        // One order (the system pages' detail, route and component reads); same projection as the list.
+        orders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            return await ReadOrderAsync(db, tenantId, id, ct) is { } order ? Results.Ok(order) : Results.NotFound();
         });
 
         orders.MapGet("/search", async (ClaimsPrincipal user, TenantDbContext db, string? q, CancellationToken ct) =>
@@ -774,6 +787,19 @@ public static class ManufacturingEndpoints
                     completedAt = x.CompletedAt
                 }).ToListAsync(ct);
             return Results.Ok(new { totalCount, returned = items.Count, hasMore = totalCount > items.Count, items });
+        });
+
+        // Operators for the operation actuals: the active employees the operation completion accepts (same rule), under the
+        // manufacturing read permission so production users need no HR read.
+        group.MapGet("/operators", async (ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
+        {
+            if (!TryIdentity(user, out var tenantId, out _)) return Results.Forbid();
+            var today = AIERP.Api.TcmbExchangeRateImporter.IstanbulLocalDate(DateTimeOffset.UtcNow);
+            var rows = await db.EmployeeRecords.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.Status == EmployeeEmploymentStatus.Active && (x.TerminationDate == null || x.TerminationDate >= today))
+                .OrderBy(x => x.FullName).ThenBy(x => x.PersonnelCode)
+                .Select(x => new ManufacturingOperatorView(x.Id, x.PersonnelCode == "" ? null : x.PersonnelCode, x.FullName)).ToListAsync(ct);
+            return Results.Ok(rows);
         });
 
         orders.MapPost("/", async (ManufacturingOrderWriteRequest request, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
@@ -1594,26 +1620,37 @@ public static class ManufacturingEndpoints
                     o.SetupMinutes, o.RunMinutesPerOutputUnit, o.MinimumWaitDaysAfterPrevious, o.SetupFamilyCode,
                     o.PlannedEnergyKwhPerOutput, o.PlannedEnergyCostPerKwhBase,
                     o.EligibleWorkCenters.Select(c => c.WorkCenterId).ToList())).ToList())).SingleOrDefaultAsync(ct);
-    private static async Task<object?> ReadOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
-        await db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(x => new OrderView(x.Id, x.Code,
-            x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
-            x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
-            x.SourceSalesOrderId, x.SourceSalesOrderLineNumber,
-            x.SourceSalesOrderId == null ? null : db.SalesOrders.Where(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId).Select(s => s.Code).FirstOrDefault(),
-            x.PlannedQuantity, x.ActualGoodQuantity, x.ScrapQuantity, x.ScrapReason, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
-                .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
-                    l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
-            x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
-                o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
-                o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
-                o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
-                o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
-                o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
-                o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase,
-                o.PerformedByEmployeeId, o.PerformedByEmployeeId == null ? null : db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == o.PerformedByEmployeeId).Select(e => e.FullName).FirstOrDefault(), o.StartedAt, o.CompletedAt,
-                db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
-                    .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
-            Convert.ToBase64String(x.RowVersion))).SingleOrDefaultAsync(ct);
+    private static async Task<OrderView?> ReadOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) =>
+        await db.ManufacturingOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id).Select(OrderProjection(db, tenantId)).SingleOrDefaultAsync(ct);
+
+    /// <summary>The one order projection of the list, the single read and the write responses (tenant-scoped lookups).</summary>
+    private static Expression<Func<ManufacturingOrder, OrderView>> OrderProjection(TenantDbContext db, Guid tenantId) => x => new OrderView(x.Id, x.Code,
+        x.BillOfMaterialId, db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => b.Code + " · " + b.Name).FirstOrDefault() ?? "",
+        x.WarehouseId, db.Warehouses.Where(w => w.TenantId == tenantId && w.Id == x.WarehouseId).Select(w => w.Code + " · " + w.Name).FirstOrDefault() ?? "",
+        x.SourceSalesOrderId, x.SourceSalesOrderLineNumber,
+        x.SourceSalesOrderId == null ? null : db.SalesOrders.Where(s => s.TenantId == tenantId && s.Id == x.SourceSalesOrderId).Select(s => s.Code).FirstOrDefault(),
+        x.PlannedQuantity, x.ActualGoodQuantity, x.ScrapQuantity, x.ScrapReason, x.Status.ToString(), x.PlannedDate, x.CompletedAt, x.Lines.OrderBy(l => l.ComponentCodeSnapshot)
+            .Select(l => new OrderLineView(l.ComponentStockItemId, l.ComponentCodeSnapshot, l.ComponentNameSnapshot,
+                l.RequiredQuantity, l.StandardUnitCostBaseSnapshot, l.PlannedCostBase)).ToList(),
+        x.Operations.OrderBy(o => o.Sequence).Select(o => new ManufacturingOrderOperationView(o.Id, o.Sequence, o.WorkCenterId,
+            o.WorkCenterCodeSnapshot, o.WorkCenterNameSnapshot, o.SetupMinutes, o.RunMinutes, o.MinimumWaitDaysAfterPrevious,
+            o.SetupFamilyCodeSnapshot, o.SequenceSetupMinutes, o.PlannedCostBase,
+            o.ScheduledStartDate, o.ScheduledEndDate, o.ScheduledStartMinuteOfDay, o.ScheduledEndMinuteOfDay,
+            o.LaborCostPerHourBase, o.OverheadCostPerHourBase, o.PlannedEnergyQuantityKwh,
+            o.PlannedEnergyCostPerKwhBase, o.PlannedEnergyCostBase, o.Status.ToString(),
+            o.ActualSetupMinutes, o.ActualRunMinutes, o.ActualEnergyQuantityKwh, o.ActualEnergyCostPerKwhBase, o.ActualEnergyCostBase, o.ActualCostBase,
+            o.PerformedByEmployeeId, o.PerformedByEmployeeId == null ? null : db.EmployeeRecords.Where(e => e.TenantId == tenantId && e.Id == o.PerformedByEmployeeId).Select(e => e.FullName).FirstOrDefault(), o.StartedAt, o.CompletedAt,
+            db.ManufacturingCapacityAllocations.Where(a => a.TenantId == tenantId && a.ManufacturingOrderOperationId == o.Id)
+                .OrderBy(a => a.ScheduledDate).Select(a => new CapacityDayView(a.ScheduledDate, a.AllocatedMinutes, a.StartMinuteOfDay, a.EndMinuteOfDay, a.StartSecondOfDay ?? a.StartMinuteOfDay * 60, a.EndSecondOfDay ?? a.EndMinuteOfDay * 60)).ToList(), o.ScheduledStartSecondOfDay ?? o.ScheduledStartMinuteOfDay * 60, o.ScheduledEndSecondOfDay ?? o.ScheduledEndMinuteOfDay * 60)).ToList(),
+        Convert.ToBase64String(x.RowVersion),
+        // The product of the order's recipe (current card), so a page needs no recipe lookup.
+        db.BillOfMaterials.Where(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId).Select(b => (Guid?)b.ProductStockItemId).FirstOrDefault(),
+        db.StockItems.Where(si => si.TenantId == tenantId && db.BillOfMaterials.Any(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId && b.ProductStockItemId == si.Id))
+            .Select(si => si.Code).FirstOrDefault(),
+        db.StockItems.Where(si => si.TenantId == tenantId && db.BillOfMaterials.Any(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId && b.ProductStockItemId == si.Id))
+            .Select(si => si.Name).FirstOrDefault(),
+        db.StockItems.Where(si => si.TenantId == tenantId && db.BillOfMaterials.Any(b => b.TenantId == tenantId && b.Id == x.BillOfMaterialId && b.ProductStockItemId == si.Id))
+            .Select(si => si.TrackingMode.ToString()).FirstOrDefault());
     private static async Task<IDbContextTransaction?> BeginMutationAsync(TenantDbContext db, CancellationToken ct) => db.Database.IsRelational()
         ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
     private static Task<ManufacturingOrder?> LockOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct) => db.Database.IsSqlServer()
@@ -1696,7 +1733,12 @@ public sealed record BomOperationWriteRequest(int Sequence, Guid WorkCenterId, d
     int MinimumWaitDaysAfterPrevious = 0, IReadOnlyList<Guid>? EligibleWorkCenterIds = null, string? SetupFamilyCode = null,
     decimal PlannedEnergyKwhPerOutput = 0m, decimal PlannedEnergyCostPerKwhBase = 0m);
 public sealed record BomView(Guid Id, string Code, string Name, Guid ProductStockItemId, string ProductName, string ProductTrackingMode, decimal OutputQuantity,
-    bool IsActive, int OrderCount, IReadOnlyList<BomLineView> Lines, string RowVersion, IReadOnlyList<BomOperationView> Operations);
+    bool IsActive, int OrderCount, IReadOnlyList<BomLineView> Lines, string RowVersion, IReadOnlyList<BomOperationView> Operations)
+{
+    // Computed outside the constructor, so only the operations that declare them (uretim.recete.*) list them as columns.
+    public int LineCount => Lines.Count;
+    public int OperationCount => Operations.Count;
+}
 public sealed record BomUpdateRequest(string? Code, string? Name, Guid ProductStockItemId, decimal OutputQuantity, IReadOnlyList<BomLineWriteRequest> Lines,
     string RowVersion, IReadOnlyList<BomOperationWriteRequest>? Operations = null);
 public sealed record BomLineView(Guid ComponentStockItemId, string ComponentName, decimal Quantity, decimal ScrapPercent, decimal StandardUnitCostBase);
@@ -1709,7 +1751,36 @@ public sealed record OrderView(Guid Id, string Code, Guid BillOfMaterialId, stri
     Guid? SourceSalesOrderId, int? SourceSalesOrderLineNumber, string? SourceSalesOrderCode,
     decimal PlannedQuantity, decimal? ActualGoodQuantity, decimal? ScrapQuantity, string? ScrapReason,
     string Status, DateOnly PlannedDate, DateTimeOffset? CompletedAt, IReadOnlyList<OrderLineView> Lines,
-    IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion);
+    IReadOnlyList<ManufacturingOrderOperationView> Operations, string RowVersion,
+    Guid? ProductStockItemId = null, string? ProductCode = null, string? ProductName = null, string? ProductTrackingMode = null)
+{
+    // Route counters and workflow flags, computed outside the constructor (the rules the legacy order list applies).
+    public int OperationCount => Operations.Count;
+    public int ScheduledOperationCount => Operations.Count(x => x.ScheduledStartDate != null);
+    public int StartedOperationCount => Operations.Count(x => x.Status is "InProgress" or "Completed");
+    public int CompletedOperationCount => Operations.Count(x => x.Status == "Completed");
+    /// <summary>Kapasiteye çizelgele: planned, with an operation that has no capacity slot.</summary>
+    public bool CanSchedule => Status == "Planned" && Operations.Any(x => x.ScheduledStartDate == null);
+    /// <summary>Serbest bırak: planned and every operation (if any) scheduled.</summary>
+    public bool CanRelease => Status == "Planned" && Operations.All(x => x.ScheduledStartDate != null);
+    /// <summary>Üretimi tamamla: released and every operation completed.</summary>
+    public bool CanComplete => Status == "Released" && Operations.All(x => x.Status == "Completed");
+    public bool CanCancel => Status is "Planned" or "Released";
+    public string ComponentCodes => string.Join(", ", Lines.Select(x => x.ComponentCode));
+    public decimal PlannedMaterialCostBase => Lines.Sum(x => x.PlannedCostBase);
+    public decimal PlannedOperationCostBase => Operations.Sum(x => x.PlannedCostBase);
+    public decimal PlannedCostBase => PlannedMaterialCostBase + PlannedOperationCostBase;
+    /// <summary>Actual cost of the operations that have one; null while none has.</summary>
+    public decimal? ActualOperationCostBase => Operations.Any(x => x.ActualCostBase != null) ? Operations.Sum(x => x.ActualCostBase ?? 0m) : null;
+    /// <summary>The legacy grid's route text: "rota yok", "n op · çizelgelenmedi/çizelgelendi", "n op" (cancelled), "x / n tamamlandı".</summary>
+    public string RouteSummary => Operations.Count == 0 ? "rota yok"
+        : Status == "Planned" ? $"{Operations.Count} op · {(CanSchedule ? "çizelgelenmedi" : "çizelgelendi")}"
+        : Status == "Cancelled" ? $"{Operations.Count} op"
+        : $"{CompletedOperationCount} / {Operations.Count} tamamlandı";
+    /// <summary>Üretim türü / sipariş: "SO-1 · satır 2", or "Stoka üretim" without a source sales order.</summary>
+    public string SourceText => SourceSalesOrderCode is null ? "Stoka üretim" : $"{SourceSalesOrderCode} · satır {SourceSalesOrderLineNumber}";
+}
+public sealed record ManufacturingOperatorView(Guid Id, string? Code, string FullName);
 public sealed record OrderLineView(Guid ComponentStockItemId, string ComponentCode, string ComponentName, decimal RequiredQuantity, decimal StandardUnitCostBaseSnapshot, decimal PlannedCostBase);
 public sealed record CapacityDayView(DateOnly Date, decimal Minutes, int StartMinuteOfDay, int EndMinuteOfDay, int StartSecondOfDay, int EndSecondOfDay);
 public sealed record ManufacturingOrderOperationView(Guid Id, int Sequence, Guid WorkCenterId, string WorkCenterCode, string WorkCenterName,

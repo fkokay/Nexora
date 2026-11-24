@@ -87,10 +87,25 @@ export function createHarness(key: string, catalog: { operations: { name: string
     fireEvent.click(within(dialog).getByRole('button', { name: confirm }));
     return dialog;
   };
+  /** A page input (`page-input-<id>`). */
+  const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
+  /** An editable grid cell: `key` is `dolu-<n>` (filled from the fill query) or `yeni-<n>` (added by the user). */
+  const gridCell = (grid: string, key: string, code: string) => document.getElementById(`page-grid-${grid}-${key}-${code}`) as HTMLInputElement | null;
+  const type = (element: HTMLInputElement, value: string) => fireEvent.change(element, { target: { value } });
+  /** Opens a lookup (input or grid cell), optionally searches, and picks the option whose text starts with `option`. */
+  const pick = async (element: HTMLInputElement, option: string, search?: string) => {
+    fireEvent.click(element);
+    if (search !== undefined) fireEvent.change(element, { target: { value: search } });
+    fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
+  };
+  /** The first sent write whose URL (without query) is `url`, parsed. */
+  const sent = (url: string) => writes().filter((call) => call.url.split('?')[0] === url);
   const usesOnlyCatalog = () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
+    // Fixture = exactly the operations the standard binds (as the C# Frontend_fixture_matches_catalog tests require elsewhere).
+    expect([...new Set(standard.definition.queries.map((item) => item.operation))].sort()).toEqual([...names].sort());
   };
 
-  return { standard, state, setup, before, after, gets, writes, bodyOf, command, ready, cell, row, select, menuItem, settle, answer, usesOnlyCatalog };
+  return { standard, state, setup, before, after, gets, writes, bodyOf, command, ready, cell, row, select, menuItem, settle, answer, input, gridCell, type, pick, sent, usesOnlyCatalog };
 }

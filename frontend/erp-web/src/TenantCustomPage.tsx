@@ -37,10 +37,13 @@ import { confirmDialog, promptDialog } from "./confirmDialog";
 import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
+import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
-import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, validateGrid, wireRow, MATRIX_MAX_ROWS,
+import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
+import { countedGridState, filledGridState, gridEngineReducer, lookupFillCells, optionRowOf, parseGridEngine, withFormulaColumns,
+  type GridEngine, type GridEngineAction } from "./custom-page/gridFill";
 import { customFieldSpecs, customFieldValues, validateCustomFields, type CustomFieldSpec } from "./custom-page/customFields";
 import { countVariantDrafts } from "./inventory/variantDrafts";
 import { PageDialog, type ActionStatus } from "./custom-page/PageDialog";
@@ -223,6 +226,8 @@ type GridView = {
   totals: Record<string, number>;
   pickerFor: (column: GridColumn, draft: GridDraft) => GridPicker;
   pickerLabel: (column: GridColumn, value: string, draft?: GridDraft) => string;
+  /** Hesaplanan (`calc`) hücrenin metni. */
+  calcText: (column: GridColumn, draft: GridDraft) => string;
 };
 type BlockView = {
   id: string; specs: CustomFieldSpec[]; values: Record<string, string>; onChange: (code: string, value: string) => void;
@@ -1233,18 +1238,22 @@ type GridSpec = {
   staticOptions: Record<string, string[]>; optionsWhen: Record<string, string>;
   /** Toplamı alınan `number` sütunları (`totals`). */
   totals: string[];
+  /** `list` kipinin doldurma, seçimle doldurma ve formül ekleri (gridFill.ts). */
+  engine: GridEngine;
 };
 /**
- * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–200, varsayılan 50), en az satır, satır anahtarı, kaynak
+ * Düzenlenebilir tablonun özellikleri: kip, sütunlar, en fazla satır (1–500, varsayılan 50), en az satır, satır anahtarı, kaynak
  * sorgu ve seçim sütunlarının sabit seçenekleri ile koşulları.
  */
 const gridSpecOf = (grid: ComponentDefinition): GridSpec => {
   const props = grid.props ?? {};
   const mode: GridMode = props.gridMode === "list" || props.gridMode === "matrix" ? props.gridMode : "stage";
-  const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 200 ? props.maxRows : 50;
-  const columns = mode === "matrix" ? [] : parseGridColumns(props.gridColumns);
+  const maxRows = typeof props.maxRows === "number" && Number.isInteger(props.maxRows) && props.maxRows >= 1 && props.maxRows <= 500 ? props.maxRows : 50;
+  const parsedColumns = mode === "matrix" ? [] : parseGridColumns(props.gridColumns);
+  const engine = parseGridEngine(props, parsedColumns, mode);
+  const columns = withFormulaColumns(parsedColumns, engine);
   return {
-    name: grid.name ?? "", mode, columns, maxRows,
+    name: grid.name ?? "", mode, columns, maxRows, engine,
     rowKey: mode === "stage" ? textValue(props.rowKey).trim() || "id" : "id", sourceQuery: mode === "stage" ? textValue(props.sourceQuery).trim() : "",
     ...(typeof props.minRows === "number" && Number.isInteger(props.minRows) && props.minRows >= 0 && props.minRows <= 100 ? { minRows: props.minRows } : {}),
     staticOptions: parseColumnEntries(props.columnStaticOptions),
@@ -1713,6 +1722,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const [tableStatus, setTableStatus] = useState<Record<string, ActionStatus | null>>({});
   // Düzenlenebilir tablolar (ada göre bekleyen satırlar) ve özel alan blokları (ada göre yazılan değerler).
   const [grids, setGrids] = useState<Record<string, GridState>>({});
+  // Yazma sorgusu başına gönderilen tablo satırlarının taslak anahtarları (sunucu satır hatalarını hücrelere eşlemek için).
+  const sentKeys = useRef<Record<string, Record<string, string[]>>>({});
   const [customTyped, setCustomTyped] = useState<Record<string, Record<string, string>>>({});
   const customTypedRef = useRef(customTyped);
   customTypedRef.current = customTyped;
@@ -1723,7 +1734,9 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Satır kapsamlı seçenek sorguları (`{{<tablo>.satir.<sütun>}}`) sayfa düzeyinde çalışmaz: satır değeri başına önbellekten okunur.
   const gridNames = useMemo(() => new Set(gridComponents.map((grid) => grid.name!)), [gridComponents]);
   const rowScopedQueries = useMemo(() => new Set(queryDefinitions.filter((query) => rowScopeOf(query, gridNames) !== null).map((query) => query.id)), [queryDefinitions, gridNames]);
-  const pageQueries = useMemo(() => queryDefinitions.filter((query) => !rowScopedQueries.has(query.id)), [queryDefinitions, rowScopedQueries]);
+  // Önizleme sorguları (`runOn` dizisi) sayfa sorgusu olarak çalışmaz; ayrı zamanlayıcıyla çalışır (previewQueries.ts).
+  const pageQueries = useMemo(() => queryDefinitions.filter((query) => !rowScopedQueries.has(query.id) && !query.preview), [queryDefinitions, rowScopedQueries]);
+  const previewQueries = useMemo(() => (isV2 ? queryDefinitions.filter((query) => !!query.preview && !!query.operation) : []), [isV2, queryDefinitions]);
   // Seçim hücresinde yazılan arama: tablo başına odaktaki hücre ve metni. `{{<tablo>.arama}}` yalnız odaktaki hücrenin sorgusu
   // onu bağlıyorsa doludur (başka sütunda yazmak sunucu aramasını yeniden çalıştırmaz).
   const [gridSearch, setGridSearch] = useState<Record<string, { cell: string; code: string; text: string }>>({});
@@ -1824,8 +1837,24 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   /** Kaynak anahtarı: kaynak okumasının çalıştığı değerler (`ranWith`). */
   const gridKey = (spec: GridSpec, states: Record<string, QueryState>) => JSON.stringify(gridSourceState(spec, states)?.ranWith ?? null);
   const gridSourceRows = (spec: GridSpec, states: Record<string, QueryState>) => (spec.mode === "stage" ? gridSourceState(spec, states)?.rows ?? [] : []);
-  /** Saklanmamış tablo, güncel kaynak anahtarıyla boş başlar. */
-  const gridStateOf = (spec: GridSpec, states: Record<string, QueryState>) => grids[spec.name] ?? emptyGridState(gridKey(spec, states));
+  /** Doldurma (`fillQuery`) anahtarı: yanıt almış ve hatasız doldurma sorgusunun `ranWith`'i; yoksa null. */
+  const gridFillKey = (spec: GridSpec, states: Record<string, QueryState>) => {
+    const fill = spec.engine.fillQuery ? states[queryNames[spec.engine.fillQuery]] : undefined;
+    return fill && fill.ran && !fill.error ? JSON.stringify(fill.ranWith ?? null) : null;
+  };
+  /**
+   * Saklanmamış tablo, güncel kaynak anahtarıyla boş başlar. Doldurma sorgulu tablo, saklı durumu o doldurma anahtarına ait
+   * değilse (yeni sonuç, sıfırlama, başarılı kayıt) doldurma satırlarından türetilir.
+   */
+  const resolvedGridState = (spec: GridSpec, stored: GridState | undefined, states: Record<string, QueryState>): GridState => {
+    const fillKey = gridFillKey(spec, states);
+    if (fillKey !== null && stored?.fillKey !== fillKey)
+      return filledGridState(spec.columns, spec.engine, fillKey, states[queryNames[spec.engine.fillQuery]]?.rows ?? []);
+    return stored ?? emptyGridState(gridKey(spec, states));
+  };
+  const gridStateOf = (spec: GridSpec, states: Record<string, QueryState>) => resolvedGridState(spec, grids[spec.name], states);
+  /** `list` tablosunun doldurma sorgusunun durumu (`fillQuery`; yoksa undefined): yüklenirken ya da yüklenemediyse kayıt bekler. */
+  const gridFillState = (spec: GridSpec, states: Record<string, QueryState>) => (spec.engine.fillQuery ? states[queryNames[spec.engine.fillQuery]] : undefined);
   const blockData = (block: ComponentDefinition, states: Record<string, QueryState>) => {
     const definitionsId = textValue(block.props?.definitionsQuery).trim();
     const valuesId = textValue(block.props?.valuesQuery).trim();
@@ -1879,8 +1908,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       const spec = gridSpecOf(grid);
       const matrix = spec.mode === "matrix"
         ? { code: interpolate(textValue(grid.props?.matrixCode), scope), name: interpolate(textValue(grid.props?.matrixName), scope) } : undefined;
-      const view = gridScope(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, matrix);
-      scope[spec.name] = { ...view, arama: gridSearchText(spec), ...(spec.totals.length > 0 ? { toplam: gridColumnTotals(spec.totals, view.satirlar) } : {}) };
+      const state = gridStateOf(spec, states);
+      const view = gridScope(spec.mode, spec.columns, countedGridState(spec.engine, state), gridSourceRows(spec, states), spec.rowKey, matrix);
+      // Doldurma satırlarından türetilen (dokunulmamış) tablo değişmiş sayılmaz.
+      const derived = !!spec.engine.fillQuery && state !== grids[spec.name];
+      scope[spec.name] = { ...view, degisti: view.degisti && !derived, arama: gridSearchText(spec), ...(spec.totals.length > 0 ? { toplam: gridColumnTotals(spec.totals, view.satirlar) } : {}) };
     }
     for (const block of blockComponents) {
       const data = blockData(block, states);
@@ -1900,10 +1932,16 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const usesOperations = isV2 && queryDefinitions.some((query) => query.operation !== undefined);
   const [codeWantsOperations, setCodeWantsOperations] = useState(false);
   const erpOperations = useErpOperations(token, usesOperations || codeWantsOperations);
-  const { states, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
-    queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective(current).scope,
+  const preview = usePreviewQueries(token, erpOperations.operations);
+  // Önizleme sonuçları kapsama sorgu durumu olarak girer; eskimiş önizlemenin satırları gizlenir (`eskidi`).
+  const previewStates = useMemo<Record<string, QueryState>>(() => Object.fromEntries(previewQueries.map((query) =>
+    [query.name, previewScopeState(preview.entries[query.name])])), [previewQueries, preview.entries]);
+  const { states: pageStates, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
+    queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective({ ...current, ...previewStates }).scope,
     operations: erpOperations.operations,
   });
+  const states = useMemo<Record<string, QueryState>>(() => (previewQueries.length > 0 ? { ...pageStates, ...previewStates } : pageStates),
+    [pageStates, previewStates, previewQueries]);
   const statesRef = useRef(states);
   statesRef.current = states;
   // İlk seçenek varsayılanları: seçenekleri yüklenen girişler ve süzgeçler (bkz. firstOptions, firstFilterApplied).
@@ -1991,7 +2029,15 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Başarılı yazma `{{<tablo>.satirlar}}` bağlıyorsa o list/matrix tablosunun satırları sıfırlanır (her yazma yolu buradan geçer).
   const trackedWrite = async (query: PageQueryDefinition, resolved: Record<string, unknown>, confirmWrite: boolean) => {
     const values = editMapValues(query, resolved);
+    // Gönderilen satırların taslak anahtarları: sunucunun `<liste>[i]` hataları sonradan silinen/atlanan satırlarda kaymasın.
+    sentKeys.current[query.name] = Object.fromEntries(gridComponents.filter((grid) => bindsGrid(query, grid.name!, "satirlar")).map((grid) => {
+      const spec = gridSpecOf(grid);
+      return [spec.name, gridSentRows(spec, gridStateOf(spec, statesRef.current)).map((row) => row.key)];
+    }));
     const result = await runWrite(query, values, confirmWrite, clearedParameters(query, values));
+    // Yazma sonucu (`<sorgu>.sonuc`) bir sonraki çizime kadar güncel kapsama bindirilir: kayıttan hemen sonra çalışan eylem
+    // (ör. `afterSaveButton` gezinmesi `{{olustur.sonuc.id}}`) sonucu görür.
+    if (result && typeof result === "object" && "sonuc" in result && result.sonuc !== undefined) freshResults.current[query.name] = { sonuc: result.sonuc };
     // Başarılı yazma bağladığı tekrar deneme kimliklerini yeniler (hata fırlatırsa kimlik korunur: yeniden deneme aynı istektir).
     const boundNames = new Set(boundInputNames(query));
     rotateAutoIds(inputs.filter((input) => isAutoId(input) && !!input.name && boundNames.has(input.name)).map((input) => input.id));
@@ -2007,7 +2053,10 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   // Bekleyen işlemler (dizi adımları, istem/onay sonrası) render anındaki değil en güncel kapsamı okur.
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
-  const currentScope = () => scopeRef.current;
+  // Çizimden beri biten yazmaların sonuçları (çizim kapsamı onları içerince boşalır).
+  const freshResults = useRef<Record<string, { sonuc: unknown }>>({});
+  freshResults.current = {};
+  const currentScope = () => (Object.keys(freshResults.current).length > 0 ? mergeOverlay(scopeRef.current, freshResults.current) : scopeRef.current);
   // Eylemi olan düğme (sorgu, dizi, pencere, iş akışı) İşlemler menüsüne taşınır; eylemsiz düğme sayfada kalır. İşlemler menüsü
   // gizliyse (`hiddenCommands` / `commandWhen`, kapsama bağlı) menü düğmeleri de sayfada kalır.
   const moreHidden = !!bar && barCommandHidden(bar.props, "more", barCommandVisible(bar.props, scope));
@@ -2166,7 +2215,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     for (const grid of gridComponents) {
       const spec = gridSpecOf(grid);
       if (!queries.some((query) => bindsGrid(query, spec.name))) continue;
-      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, gridStateOf(spec, states), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
+      // Doldurma satırları yükleniyor ya da yüklenemedi: yarım belge kaydedilmez (güncelleme tüm satır listesini gönderir).
+      const fill = gridFillState(spec, states);
+      if (fill?.loading) return SOURCE_LOADING;
+      if (fill?.error) return SOURCE_FAILED;
+      const errors = skipsValidation(grid) ? {} : validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, currentScope()), spec.minRows);
       shownGrids[spec.name] = Object.keys(errors).length > 0;
       if (shownGrids[spec.name]) componentFailures.push(grid.id);
     }
@@ -2783,12 +2836,11 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
 
   // ---- Düzenlenebilir tablolar ve özel alan blokları ----
   const gridByName = useMemo(() => Object.fromEntries(gridComponents.map((grid) => [grid.name!, grid])), [gridComponents]);
-  const dispatchGrid = (spec: GridSpec, action: GridAction) => {
-    const key = gridKey(spec, states);
+  const dispatchGrid = (spec: GridSpec, action: GridEngineAction) => {
     setGrids((previous) => {
-      const stored = previous[spec.name] ?? emptyGridState(key);
-      const next = gridReducer(stored, action, { mode: spec.mode, maxRows: spec.maxRows });
-      return next === stored && previous[spec.name] ? previous : { ...previous, [spec.name]: next };
+      const stored = resolvedGridState(spec, previous[spec.name], states);
+      const next = gridEngineReducer(stored, action, { mode: spec.mode, maxRows: spec.maxRows }, spec.engine);
+      return next === stored && (previous[spec.name] || spec.engine.fillQuery) ? previous : { ...previous, [spec.name]: next };
     });
   };
   /** Yinelenen dizi adımının satırları (yalnız `stage` tablosu). */
@@ -2874,26 +2926,73 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
       selected: stored !== undefined ? { value, label: stored } : own ? { value, label: optionText(own) } : null,
       onSearch: (text) => setGridSearch((previous) => (text === "" && previous[spec.name]?.cell !== cell ? previous
         : { ...previous, [spec.name]: { cell, code: column.code, text } })),
-      onChange: (next, _row, label) => {
+      onChange: (next, row, label) => {
         const option = lookupCandidates(props, base, "", false).find((item) => item.value === next);
-        dispatchGrid(spec, { type: "edit", key: draft.key, code: column.code, value: next, label: option ? optionText(option) : label });
+        // Seçenek seçilince `lookupFills` hücreleri aynı satıra yazılır (temizleme ve sabit seçenek doldurmaz).
+        const fills = next === "" ? {} : lookupFillCells(spec.columns, spec.engine, column.code, optionRowOf(option?.row ?? row), draft);
+        dispatchGrid(spec, { type: "pick", key: draft.key, code: column.code, value: next, label: option ? optionText(option) : label, fills });
       },
     };
+  };
+  /** Gönderilen satırlar ve taslak anahtarları (`list` kipi; atlanan satırlar hariç) — `satirlar` dizinleriyle aynı sırada. */
+  const gridSentRows = (spec: GridSpec, state: GridState) => sentDrafts(spec.mode, countedGridState(spec.engine, state))
+    .map((draft) => ({ key: draft.key, row: wireRow(spec.columns, draft) }));
+  /**
+   * Yazma sorgularının sunucu satır hataları: `{{<tablo>.satirlar}}` bağlayan liste parametresinin `<param>[i].<alan>` hataları,
+   * gönderilen i. satırın (taslak anahtarı) alanla aynı kodlu (büyük/küçük harf duyarsız) sütununa yazılır (yalnız `list` kipi).
+   */
+  const gridServerErrors = (spec: GridSpec, state: GridState): Record<string, Record<string, string>> => {
+    const result: Record<string, Record<string, string>> = {};
+    if (spec.mode !== "list") return result;
+    const present = new Set(state.rows.map((draft) => draft.key));
+    for (const query of queryDefinitions) {
+      const fieldErrors = query.kind === "read" ? undefined : states[query.name]?.fieldErrors;
+      const sent = sentKeys.current[query.name]?.[spec.name];
+      if (!fieldErrors || !sent) continue;
+      for (const parameter of query.parameters) {
+        if (bindingPath(parameter.binding) !== `${spec.name}.satirlar`) continue;
+        const prefix = parameter.name.toLowerCase();
+        for (const [key, message] of Object.entries(fieldErrors)) {
+          const match = /^([^[\]]+)\[(\d+)\]\.(.+)$/.exec(key);
+          if (!match || match[1].toLowerCase() !== prefix) continue;
+          const draftKey = sent[Number(match[2])];
+          const column = spec.columns.find((item) => item.code.toLowerCase() === match[3].toLowerCase());
+          if (draftKey !== undefined && present.has(draftKey) && column) (result[draftKey] ??= {})[column.code] = message;
+        }
+      }
+    }
+    return result;
+  };
+  /** Hesaplanan hücrenin metni: önizleme sorgusunun (eskimemiş) sonucundan, satır anahtarıyla; aksi halde "—". */
+  const gridCalcText = (column: GridColumn, draft: GridDraft): string => {
+    const query = column.calc ? queryById[column.calc.query] : undefined;
+    if (!query || !column.calc) return CALC_EMPTY;
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    const state = states[query.name];
+    if (!state || (state as { eskidi?: boolean }).eskidi === true || state.loading || state.error) return CALC_EMPTY;
+    return calcText(previewRows(op, state), draft.key, column.calc.field);
   };
   const gridFor = (grid: ComponentDefinition): GridView => {
     const spec = gridSpecOf(grid);
     const source = gridSourceState(spec, states);
     const state = gridStateOf(spec, states);
     const sourceRows = gridSourceRows(spec, states);
-    const errors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, state, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    const counted = countedGridState(spec.engine, state);
+    const clientErrors = gridShown[spec.name] && !skipsValidation(grid) ? validateGrid(spec.mode, spec.columns, counted, sourceRows, spec.rowKey, spec.maxRows, gridFixedValues(grid, spec, scope), spec.minRows) : {};
+    // Sunucunun satır hataları (`<liste>[i].<alan>`) hücrelerde; istemci iletisi önce gelir.
+    const serverErrors = gridServerErrors(spec, state);
+    const errors: Record<string, Record<string, string>> = { ...serverErrors };
+    for (const [key, cells] of Object.entries(clientErrors)) errors[key] = { ...errors[key], ...cells };
+    const initial = gridFillState(spec, states);
     return {
       id: spec.name, mode: spec.mode, columns: spec.columns, state, sourceRows, rowKey: spec.rowKey, errors, maxRows: spec.maxRows,
       dispatch: (action) => dispatchGrid(spec, action),
       pickerFor: pickerFor(spec), pickerLabel: (column, value, draft) => pickerText(spec, column, value, draft),
       // Yeniden yüklemede eski kaynak satırlar yerinde kalır (bekleyen satırların girişleri sökülmesin).
-      loading: !!source && source.loading && !source.ran, error: source?.error || undefined,
+      loading: (!!source && source.loading && !source.ran) || !!initial?.loading, error: source?.error || initial?.error || undefined,
       matrixPreviewCount: spec.mode === "matrix" ? matrixVariantCount(state) : undefined,
-      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, state, sourceRows, spec.rowKey).satirlar) : {},
+      totals: spec.totals.length > 0 ? gridColumnTotals(spec.totals, gridScope(spec.mode, spec.columns, counted, sourceRows, spec.rowKey).satirlar) : {},
+      calcText: (column, draft) => gridCalcText(column, draft),
     };
   };
   /** Bloğun sunucu hataları: `degerler` bağlayan yazmaların `<param>.<KOD>` alan hataları (büyük/küçük harf duyarsız önek). */
@@ -2927,6 +3026,51 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
     ...blockComponents.filter((block) => blockShown[block.name!] && !skipsValidation(block)
       && Object.keys(validateCustomFields(blockData(block, states).specs, blockData(block, states).values)).length > 0).map((block) => block.id),
   ];
+
+  // ---- Önizleme sorguları (`runOn` dizisi) ----
+  // İzlenen bileşenin kapsam değeri: tabloda gönderilen satırlar, girişte değeri (arama metni ve seçim etiketi tetiklemez).
+  const watchedValue = (name: string): unknown => {
+    const value = scope[name];
+    if (!isPlainObject(value)) return value ?? null;
+    if ("satirlar" in value) return value.satirlar;
+    if ("value" in value) return value.value;
+    return value;
+  };
+  const previewPlans: PreviewPlan[] = previewQueries.map((query) => {
+    const op = query.operation ? erpOperations.operations?.get(query.operation) : undefined;
+    const values = withRowKeys(op, query, resolveQueryParameters(query, scope), (path) => {
+      const grid = gridByName[path.replace(/\.satirlar$/, "")];
+      if (!grid || !path.endsWith(".satirlar")) return null;
+      const spec = gridSpecOf(grid);
+      return spec.mode === "list" ? gridSentRows(spec, gridStateOf(spec, states)) : null;
+    });
+    // Bağlı tabloda geçersiz satır varsa ya da başlangıç satırları yükleniyorsa önizleme çalışmaz (son sonuç eskimiş kalır, "—").
+    const blocked = gridComponents.some((grid) => {
+      if (!bindsGrid(query, grid.name!) && !query.preview!.watch.includes(grid.name!)) return false;
+      const spec = gridSpecOf(grid);
+      if (gridFillState(spec, states)?.loading) return true;
+      const errors = validateGrid(spec.mode, spec.columns, countedGridState(spec.engine, gridStateOf(spec, states)), gridSourceRows(spec, states), spec.rowKey, spec.maxRows);
+      return Object.keys(errors).length > 0;
+    });
+    return { query, values, key: JSON.stringify([values, query.preview!.watch.map(watchedValue)]), blocked, debounceMs: query.preview!.debounceMs };
+  });
+  const previewSignature = JSON.stringify([erpOperations.operations ? 1 : 0, previewPlans.map((plan) => [plan.query.name, plan.key, plan.blocked])]);
+  const latestPreviewPlans = useRef(previewPlans);
+  latestPreviewPlans.current = previewPlans;
+  useEffect(() => { if (previewQueries.length > 0) preview.sync(latestPreviewPlans.current); }, [previewSignature]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Doldurma sorgusunun yeni sonucu (`ranWith`) eski düzenlemeleri atar: aynı anahtara dönülse de geri gelmezler.
+  const gridFillSignature = JSON.stringify(gridComponents.flatMap((grid) => {
+    const spec = gridSpecOf(grid);
+    const key = gridFillKey(spec, states);
+    return key === null ? [] : [[spec.name, key]];
+  }));
+  useEffect(() => {
+    const entries = JSON.parse(gridFillSignature) as [string, string][];
+    setGrids((previous) => {
+      const stale = entries.filter(([name, key]) => previous[name] && previous[name].fillKey !== key).map(([name]) => name);
+      return stale.length > 0 ? without(previous, stale) : previous;
+    });
+  }, [gridFillSignature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Kaynak değişti (`ranWith`): bekleyen satırlar sıfırlanır; aynı kaynak yenilendiyse yalnız artık olmayan silme işaretleri düşer.
   // Yüklenmekte olan kaynak beklenir (yeniden yükleme eski satırları ve `ranWith`'i korur).

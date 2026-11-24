@@ -937,9 +937,29 @@ export function SalesPage({
   }
   // The create screens take `quoteId` / `orderId` as "edit this document", like the legacy lists' sessionStorage handoff
   // (system pages open Düzenle with erpPage `params`). Read once, then removed.
-  const editParamId = usePageParams(createQuotePage || createOrderPage ? salesActionPage : undefined)[createQuotePage ? "quoteId" : "orderId"] ?? "";
+  const createParams = usePageParams(createQuotePage || createOrderPage ? salesActionPage : undefined);
+  const editParamId = createParams[createQuotePage ? "quoteId" : "orderId"] ?? "";
+  // Liste standartları revizyonu `revisesQuoteId`, talepten teklifi `salesRequestId` ile açar (bir kez okunur, sonra silinir).
+  const reviseParamId = createQuotePage ? createParams.revisesQuoteId ?? "" : "";
+  const requestParamId = createQuotePage ? createParams.salesRequestId ?? "" : "";
   useEffect(() => {
     if (!createQuotePage) return;
+    if (reviseParamId) {
+      dropPageParam("sales-quote-create", "revisesQuoteId");
+      quoteRequestPrefill.current = true;
+      void api<SalesQuoteDetail>(`/api/sales/quotes/${encodeURIComponent(reviseParamId)}`, token)
+        .then((source) => beginQuoteRevision(source))
+        .catch((e) => setError((e as Error).message))
+        .finally(() => { quoteRequestPrefill.current = false; });
+      return;
+    }
+    if (requestParamId) {
+      dropPageParam("sales-quote-create", "salesRequestId");
+      sessionStorage.removeItem("nexora.sales-quote.request-id");
+      quoteRequestPrefill.current = true;
+      void beginQuoteFromRequest(requestParamId).finally(() => { quoteRequestPrefill.current = false; });
+      return;
+    }
     if (editParamId) {
       dropPageParam("sales-quote-create", "quoteId");
       sessionStorage.removeItem("nexora.sales-quote.edit-id");
@@ -963,7 +983,7 @@ export function SalesPage({
       return;
     }
     if (!revisesQuoteId && !editingQuoteId) void openQuoteCreatePage(false);
-  }, [createQuotePage, token, revisesQuoteId, editingQuoteId, editParamId]);
+  }, [createQuotePage, token, revisesQuoteId, editingQuoteId, editParamId, reviseParamId, requestParamId]);
   useEffect(() => {
     if (!createQuotePage) return;
     let cancelled = false;
@@ -1629,9 +1649,9 @@ export function SalesPage({
       setError((e as Error).message);
     }
   }
-  async function beginQuoteRevision() {
-    if (!detail) return;
-    const source = detail;
+  async function beginQuoteRevision(from: SalesQuoteDetail | null = detail) {
+    if (!from) return;
+    const source = from;
     await openQuoteCreatePage(false);
     setCustomerId(source.customerId ?? "");
     setCurrencyCode(source.currencyCode);

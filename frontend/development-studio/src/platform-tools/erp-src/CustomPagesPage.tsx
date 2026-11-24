@@ -34,6 +34,9 @@ import { BarCommandFields } from "./page-designer/BarCommandFields";
 import { BAR_COMMAND_PROPS, barBound, barCommandProblem, barCsvExport, migrateBarButtons, patchBarCommands } from "./page-designer/barCommands";
 import { linkProblem, NavigationFields, NAVIGATION_ACTION_TYPES, NAVIGATION_PROPS, type ScreenOption } from "./page-designer/NavigationFields";
 import { EditableGridFields } from "./page-designer/EditableGridFields";
+import { RUN_ON_TYPES, runOnProblem } from "./page-designer/queryRunOn";
+import { calcColumnProblem } from "./page-designer/gridRowSources";
+import { GRID_ENGINE_PROPS } from "./page-designer/gridEngine";
 import { CustomFieldsBlockFields } from "./page-designer/CustomFieldsBlockFields";
 import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
@@ -193,7 +196,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   // İşlem Çubuğu İşlemler › "Kaydet ve yeni".
   "saveAndNew",
   // Listenin "Sayfa parametresiyle aç" alanı (Satır eylemleri › Satır açılınca) ve toplu silme sorgusu (Satır eylemleri › Toplu silme).
-  "openParam", "bulkDeleteQuery"]);
+  "openParam", "bulkDeleteQuery",
+  // Listeli tablonun motor ekleri (Düzenlenebilir tablo bölümü): sorgudan doldurma, seçimle doldurma ve formüller.
+  ...GRID_ENGINE_PROPS]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -248,7 +253,7 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
   // (yalnız okuma sorgusu olabilir) ve pencerenin kaydet sorgusu.
   const sequence = component.props.saveSequence;
   const staleSequence = writeGone && Array.isArray(sequence) && sequence.includes(queryId);
-  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery"].filter((key) => component.props[key] === queryId) : [];
+  const readRefs = readGone ? ["sourceQuery", "definitionsQuery", "valuesQuery", "fillQuery"].filter((key) => component.props[key] === queryId) : [];
   const staleDialogSave = writeGone && component.type === "dialog" && component.props.saveQuery === queryId;
   const readRef = readGone && (component.props.query === queryId || component.props.trendQuery === queryId || component.props.optionsQuery === queryId);
   if (!readRef && !staleRefresh && !(removed && component.props.queryId === queryId)
@@ -263,6 +268,8 @@ function dropQueryReferences(component: PageComponent, queryId: string, change: 
     } else { delete props.saveSequence; delete props.sequenceWhen; delete props.stopOnError; }
   }
   for (const key of readRefs) delete props[key];
+  // Doldurma eşlemi doldurma sorgusuna bağlıdır; sorgu kalkınca birlikte kalkar.
+  if (readRefs.includes("fillQuery")) delete props.fillColumns;
   if (staleDialogSave) delete props.saveQuery;
   // Sunucu sayfalaması ERP işlemi sorgusuna bağlıdır; sorgu kalkınca sayfalama özellikleri de kalkar.
   if (readGone && props.query === queryId) { delete props.query; delete props.countWhen; delete props.totals; delete props.columnFormats; delete props.toneMap; for (const key of PAGING_PROPS) delete props[key]; }
@@ -633,6 +640,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
       if (component.type === "editableGrid") {
         // Seçim sütunu ayarları yalnız tablonun seçim (lookup) sütunlarına; varyant kipinde sütun ve satır sınırı yoktur.
         if (props.gridMode === "matrix") for (const key of ["minRows", "columnOptionsWhen", "columnStaticOptions"]) if (key in next) { delete next[key]; touched = true; }
+        // Motor ekleri yalnız listeli kipte; doldurma sorgusu sayfanın okuma sorgusu olmalı (sunucu kuralı).
+        if (props.gridMode === "stage" || props.gridMode === "matrix") for (const key of GRID_ENGINE_PROPS) if (key in next) { delete next[key]; touched = true; }
+        if ("fillQuery" in next && !(typeof next.fillQuery === "string" && readIds.has(next.fillQuery))) { delete next.fillQuery; delete next.fillColumns; touched = true; }
         const lookupCodes = new Set(parseGridColumns(props.gridColumns).filter((column) => column.inputType === "lookup").map((column) => column.code));
         for (const key of ["columnOptionsWhen", "columnStaticOptions"]) {
           if (!(key in next)) continue;
@@ -828,6 +838,8 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
     return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };
   }),
 });
+/** Yükleme (normalizeDefinition) ve kayıt (wireDefinition) dönüşümleri; testler için. */
+export const designerPersistence = { normalizeDefinition, wireDefinition };
 const localToday = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; };
 // erp-web TenantCustomPage ile aynı oturum değişkenleri: kimlik belirteçteki sub, ad yerel depodaki kullanıcı adı,
 // rol oturumdaki üyelik rolü (Studio'da `role` özelliği; ERP'de belirteçteki role iddiası).
@@ -907,7 +919,7 @@ const pickerGridProblem = (component: PageComponent, definition: PageDefinition)
   for (const entry of columnEntries(props.columnStaticOptions))
     if (!COLUMN_STATIC_OPTION.test(entry.rest)) return "'columnStaticOptions' öğeleri sütunKodu=değer=Etiket biçiminde olmalıdır.";
   if (typeof props.minRows === "number" && typeof props.maxRows === "number" && props.minRows > props.maxRows) return "'minRows' değeri 'maxRows' değerinden büyük olamaz.";
-  return null;
+  return calcColumnProblem(props, readIds);
 };
 const fazBProblem = (component: PageComponent, label: string, inputIds: ReadonlySet<string> = new Set()): string | null => {
   const props = component.props;
@@ -1879,6 +1891,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const next = { ...query, ...patch };
         // SQL moduna dönüşte `operation` anahtarı tamamen kalkar (anahtarın varlığı ERP işlemi modunu belirler).
         if ("operation" in patch && patch.operation === undefined) delete next.operation;
+        if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
         if (isOperationQuery(next)) return next;
         // Parametre adları SQL'den gelir; var olanların (ve bu oturumda SQL'den geçici düşenlerin) bağlaması ve türü korunur.
         if (!isOperationQuery(query)) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
@@ -2123,6 +2136,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ?? pickerGridProblem(component, definition)
         ?? countWhenProblem(component.props.countWhen, component.type === "metric" ? definition.queries.find((query) => query.id === component.props.query)?.name ?? null : null, pageNamesOf(definition));
       if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+    }
+    // Bileşen listeli çalışma (önizleme sorgusu): adlar sayfadaki giriş / tablo adları, gecikme 150–3000.
+    const runOnTargets = cardTree.flattenComponents(definition.components).filter((component) => RUN_ON_TYPES.has(component.type) && !!component.name).map((component) => component.name!);
+    for (const query of definition.queries) {
+      const problem = runOnProblem(query, runOnTargets);
+      if (problem) { setError(problem); setQueryEditorOpen(true); setSelectedQueryId(query.id); return null; }
     }
     // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
     for (const query of definition.queries) {

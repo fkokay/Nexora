@@ -8,14 +8,14 @@ using AIERP.Api;
 /// sandboxed at runtime. schemaVersion 1 is the original static format; schemaVersion 2 adds named read queries,
 /// component names, label/input components and <c>{{PATH}}</c> bindings in a fixed set of text properties.
 /// </summary>
-internal static class TenantCustomPageSchema
+internal static partial class TenantCustomPageSchema
 {
     private const int MaxBytesV1 = 64 * 1024;
     private const int MaxBytesV2 = 128 * 1024;
     private const int MaxComponentsV1 = 80;
     /// <summary>Faz B: tabs and dialogs own top-level components by id, so v2 pages need more of them.</summary>
     private const int MaxComponentsV2 = 120;
-    private const int MaxQueries = 30;
+    private const int MaxQueries = 40;
     private const int MaxQueryParameters = 20;
     private static readonly HashSet<string> ComponentTypes = new(StringComparer.Ordinal)
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
@@ -83,7 +83,9 @@ internal static class TenantCustomPageSchema
       // çalıştırır) ve ERP ekranının eski (yerleşik) sürümünü açan erpPage düğmesi (legacyScreen).
       "openParam", "legacyScreen",
       // Veri listesinin toplu silmesi: işaretli satırlar için "Seçilenleri sil" (satır başına bir silme sorgusu).
-      "bulkDeleteQuery" };
+      "bulkDeleteQuery",
+      // Listeli ızgaranın motor ekleri (TenantCustomPageSchema.GridEngine.cs): sorgudan doldurma, seçimle doldurma ve formüller.
+      "fillQuery", "fillColumns", "skipWhenZero", "lookupFills", "formulas", "rowNumberColumn" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -143,9 +145,15 @@ internal static class TenantCustomPageSchema
     private static readonly HashSet<string> ButtonQueryProps = new(StringComparer.Ordinal) { "queryId", "confirmEnabled", "confirmText", "refreshQueries", "successMessage", "errorMessage" };
     private const int MaxRefreshQueries = 10;
     private static readonly HashSet<string> InputTypes = new(StringComparer.Ordinal) { "text", "number", "date", "datetime", "checkbox", "select", "lookup" };
-    private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn" };
+    private static readonly HashSet<string> QueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "sql", "parameters", "runOn", "runDebounceMs" };
     /// <summary>Keys of a query bound to a named ERP operation: <see cref="QueryKeys"/> with operation instead of sql.</summary>
-    private static readonly HashSet<string> OperationQueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "operation", "parameters", "runOn" };
+    private static readonly HashSet<string> OperationQueryKeys = new(StringComparer.Ordinal) { "id", "name", "kind", "operation", "parameters", "runOn", "runDebounceMs" };
+    /// <summary>Optional query keys; every other key of <see cref="QueryKeys"/> / <see cref="OperationQueryKeys"/> is required.</summary>
+    private static readonly HashSet<string> OptionalQueryKeys = new(StringComparer.Ordinal) { "runDebounceMs" };
+    /// <summary><c>runOn</c> as a list of component names: the query re-runs (debounced) when one of them changes.</summary>
+    private const int MaxRunOnComponents = 10;
+    private const int MinRunDebounceMs = 150;
+    private const int MaxRunDebounceMs = 3000;
     /// <summary>ERP operations map request records with many scalar fields (stock card update has ~33); SQL queries keep 20.</summary>
     private const int MaxOperationQueryParameters = 60;
 
@@ -255,13 +263,23 @@ internal static class TenantCustomPageSchema
         public List<(string HeaderId, List<string> Ids)> PendingHeaderButtons { get; } = [];
         /// <summary>input <c>clearsOnChange</c> targets (input id, target); resolved after the component loop.</summary>
         public List<(string InputId, string Target)> PendingClears { get; } = [];
+        /// <summary>Queries whose <c>runOn</c> is a list of component names; resolved after the component loop.</summary>
+        public List<(string Query, List<string> Names)> PendingRunOn { get; } = [];
+        /// <summary>Computed (calc) grid columns (grid name, column code, source); resolved after the collection bindings.</summary>
+        public List<(string Grid, string Column, GridColumnSpec.Calc Calc)> PendingCalcColumns { get; } = [];
         public bool IsReadQuery(string? id) => id is not null && QueryKinds.TryGetValue(id, out var kind) && kind == "read";
     }
 
     private sealed record GridInfo(string Id, string Name, string Mode, IReadOnlyList<string> Columns, string? SourceQuery)
     {
+        /// <summary>Computed (calc) column codes: shown from a preview query, never sent.</summary>
+        public IReadOnlySet<string> CalcColumns { get; init; } = new HashSet<string>(StringComparer.Ordinal);
         /// <summary>Picker (lookup) columns by code.</summary>
         public IReadOnlyDictionary<string, GridColumnSpec.Lookup> Lookups { get; init; } = new Dictionary<string, GridColumnSpec.Lookup>();
+        /// <summary>Formula (<c>formulas</c>) column codes: computed, sent only when the list item has the code.</summary>
+        public IReadOnlySet<string> Formulas { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+        /// <summary>Read-only (<c>readOnly</c> rule) column codes: display-only when the list item lacks the code.</summary>
+        public IReadOnlySet<string> ReadOnly { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     }
 
     private sealed record FilterBarInfo(string Id, string Name, string TableId, List<string> Parameters);
@@ -327,7 +345,7 @@ internal static class TenantCustomPageSchema
             if (isOperation && query.TryGetProperty("sql", out _))
             { error = "Bir sorgu ya sql ya da operation alanını içerebilir; ikisi birlikte kullanılamaz."; return false; }
             var keys = isOperation ? OperationQueryKeys : QueryKeys;
-            if (!OnlyKeys(query, keys) || keys.Any(key => !query.TryGetProperty(key, out _)))
+            if (!OnlyKeys(query, keys) || keys.Any(key => !OptionalQueryKeys.Contains(key) && !query.TryGetProperty(key, out _)))
             {
                 error = isOperation ? "ERP işlemi sorgusu yalnız id, name, kind, operation, parameters ve runOn alanlarını içermelidir."
                     : "Her sorgu yalnız id, name, kind, sql, parameters ve runOn alanlarını içermelidir.";
@@ -341,10 +359,28 @@ internal static class TenantCustomPageSchema
             var kind = StringOf(query, "kind");
             if (kind is not ("read" or "insert" or "update" or "delete"))
             { error = $"'{name}' sorgusu: tür read, insert, update veya delete olmalıdır."; return false; }
-            var runOn = StringOf(query, "runOn");
-            if (runOn is not ("load" or "manual")) { error = $"'{name}' sorgusu: runOn load veya manual olmalıdır."; return false; }
-            if (kind != "read" && runOn != "manual")
-            { error = $"'{name}' sorgusu veri değiştirdiği için yalnız elle (manual) çalıştırılabilir."; return false; }
+            var runOnElement = query.GetProperty("runOn");
+            string? runOn;
+            if (runOnElement.ValueKind == JsonValueKind.Array)
+            {
+                // Değişince yeniden çalışan okuma (önizleme): sayfa açılınca "load" gibi, sonra listelenen bileşenler değişince.
+                if (kind != "read")
+                { error = $"'{name}' sorgusu veri değiştirdiği için yalnız elle (manual) çalıştırılabilir."; return false; }
+                if (!TryReadIds(runOnElement, MaxRunOnComponents, out var runOnNames) || runOnNames.Any(x => !TenantCustomPageQueries.IsValidName(x)))
+                { error = $"'{name}' sorgusu: runOn dizisi 1–{MaxRunOnComponents} farklı bileşen adı içermelidir."; return false; }
+                context.PendingRunOn.Add((name!, runOnNames));
+                runOn = RunOnChange;
+            }
+            else
+            {
+                runOn = StringOf(query, "runOn");
+                if (runOn is not ("load" or "manual")) { error = $"'{name}' sorgusu: runOn load, manual ya da bileşen adları dizisi olmalıdır."; return false; }
+                if (kind != "read" && runOn != "manual")
+                { error = $"'{name}' sorgusu veri değiştirdiği için yalnız elle (manual) çalıştırılabilir."; return false; }
+            }
+            if (query.TryGetProperty("runDebounceMs", out var debounce)
+                && (runOn != RunOnChange || !IsIntIn(debounce, MinRunDebounceMs, MaxRunDebounceMs)))
+            { error = $"'{name}' sorgusu: runDebounceMs yalnız runOn dizisiyle ve {MinRunDebounceMs}–{MaxRunDebounceMs} arasında bir tam sayı olabilir."; return false; }
             if (isOperation)
             {
                 if (!ValidateOperationQuery(query, id, name!, kind, context, result, pendingSources, out error)) return false;
@@ -464,7 +500,7 @@ internal static class TenantCustomPageSchema
                 operation.Parameters.Where(x => x.In == "route" && sourceRoute.Contains(x.Name)).Select(x => x.Name).ToArray()));
         }
         context.QueryKinds.Add(id, kind);
-        result.Add(new PageQuery(id, name, kind, "", parameters, StringOf(query, "runOn")!, operationName));
+        result.Add(new PageQuery(id, name, kind, "", parameters, query.GetProperty("runOn").ValueKind == JsonValueKind.Array ? RunOnChange : StringOf(query, "runOn")!, operationName));
         error = null;
         return true;
     }
@@ -579,6 +615,9 @@ internal static class TenantCustomPageSchema
                     { error = "'hidden' yalnızca kod ve giriş bileşeninde, doğru/yanlış değeriyle kullanılabilir."; return false; }
                     continue;
                 }
+                // Izgaranın nesne değerli motor özellikleri ValidateGridEngineProps içinde tümüyle denetlenir.
+                if (context.V2 && typeText == "editableGrid" && GridEngineObjectProps.Contains(prop.Name))
+                    continue;
                 // Öğeleri {{yol}} şablonu taşıyan listeler; kendi doğrulayıcıları her şablonu SafeBindableText ile denetler.
                 if (context.V2 && (prop.Name is "assignments" or "fieldUnits" || prop.Name == "fields" && typeText == "recordHeader"))
                     continue;
@@ -1194,9 +1233,12 @@ internal static class TenantCustomPageSchema
         return true;
     }
 
-    /// <summary>A page a "Sayfa aç" action may open: a custom page code or <c>@ekran-anahtarı</c> of a system screen.</summary>
+    /// <summary>
+    /// A page a "Sayfa aç" action may open: a custom page code or <c>@ekran-anahtarı</c> of a system screen (a menu page or a
+    /// screen reached by navigation, e.g. the sales order card).
+    /// </summary>
     private static bool KnownPageCode(string pageCode) => TenantCustomPageEndpoints.ValidCode(pageCode)
-        || SystemPageCodes.ScreenKeyOf(pageCode) is { } screenKey && StandardMenuEndpoints.PageKeys.Contains(screenKey);
+        || SystemPageCodes.ScreenKeyOf(pageCode) is { } screenKey && StandardMenuEndpoints.NavigablePageKeys.Contains(screenKey);
 
     /// <summary>One actionBar command (Yeni, Aç, kaydettikten sonra) chosen by flat props; see <see cref="ValidateBarCommands"/>.</summary>
     private sealed record BarCommand(string Label, string Action, string LegacyButton, string[] Choices, string PageCode, string Target, string[] PageOnly);
@@ -1613,7 +1655,11 @@ internal static class TenantCustomPageSchema
     private const int MaxSequenceSteps = 8;
     private const int MaxSequenceWhen = 8;
     private const int MaxRowActions = 4;
-    private const int MaxGridColumns = 12;
+    private const int MaxGridColumns = 16;
+    /// <summary>Grid rows per document (sales documents carry up to 200 lines).</summary>
+    private const int MaxGridRows = 500;
+    /// <summary>PageQuery.RunOn of a query whose <c>runOn</c> is a list of component names.</summary>
+    internal const string RunOnChange = "change";
     private const int MaxDialogContains = 20;
     private static readonly Regex SequenceWhenItem = new(@"^([A-Za-z0-9_-]{1,64})=(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex IterationBindingPath = new(@"^([A-Za-z_][A-Za-z0-9_]*)\.(eklenenSatir|silinenSatir)\.(.+)\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1642,7 +1688,9 @@ internal static class TenantCustomPageSchema
         ["promptText"] = ["button"], ["promptMaxLength"] = ["button"], ["minRows"] = ["editableGrid"],
         ["columnOptionsWhen"] = ["editableGrid"], ["columnStaticOptions"] = ["editableGrid"],
         ["autoId"] = ["input"], ["optionsWhen"] = ["input"], ["clearsOnChange"] = ["input"],
-        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"]
+        ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"],
+        ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
+        ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -2006,7 +2054,10 @@ internal static class TenantCustomPageSchema
         }
         var columns = new List<string>();
         var numberColumns = new HashSet<string>(StringComparer.Ordinal);
+        var readOnlyColumns = new HashSet<string>(StringComparer.Ordinal);
         var lookups = new Dictionary<string, GridColumnSpec.Lookup>(StringComparer.Ordinal);
+        var columnTypes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var calcColumns = new HashSet<string>(StringComparer.Ordinal);
         var hasColumns = props.TryGetProperty("gridColumns", out var gridColumns);
         if (matrix)
         {
@@ -2024,10 +2075,19 @@ internal static class TenantCustomPageSchema
             foreach (var item in gridColumns.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail("'gridColumns' öğesi geçersiz: metin değil", out error);
-                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out var inputType, out var lookup, out var reason))
+                if (!GridColumnSpec.TryParse(item.GetString()!, out var code, out var inputType, out var lookup, out var calc, out var reason))
                     return Fail($"'gridColumns' öğesi geçersiz: {reason} ({item.GetString()})", out error);
                 if (columns.Contains(code, StringComparer.Ordinal)) return Fail($"'gridColumns' sütun kodları benzersiz olmalıdır: {code}", out error);
                 columns.Add(code);
+                if (item.GetString()!.Split('|') is { Length: 4 } columnParts && columnParts[3].Split(',').Contains("readOnly")) readOnlyColumns.Add(code);
+                columnTypes[code] = inputType;
+                if (calc is not null)
+                {
+                    // The preview query and its row-key list parameter are resolved after every query and grid is known.
+                    calcColumns.Add(code);
+                    context.PendingCalcColumns.Add((name, code, calc));
+                    continue;
+                }
                 if (inputType == "number") numberColumns.Add(code);
                 if (lookup is null) continue;
                 // A picker column's options come from a read query of the page; an operation query must return its columns.
@@ -2038,8 +2098,8 @@ internal static class TenantCustomPageSchema
                     return Fail($"'{code}' seçim sütununun '{missingColumn}' sütunu '{lookup.QueryId}' sorgusunun sonucunda yok.", out error);
                 lookups[code] = lookup;
             }
-            if (props.TryGetProperty("maxRows", out var maxRows) && !IsIntIn(maxRows, 1, 200))
-                return Fail("'maxRows' 1 ile 200 arasında bir tam sayı olmalıdır.", out error);
+            if (props.TryGetProperty("maxRows", out var maxRows) && !IsIntIn(maxRows, 1, MaxGridRows))
+                return Fail($"'maxRows' 1 ile {MaxGridRows} arasında bir tam sayı olmalıdır.", out error);
             // A save that binds the grid is blocked while it has fewer rows ("En az {n} kalem girin.").
             if (props.TryGetProperty("minRows", out var minRows))
             {
@@ -2061,9 +2121,11 @@ internal static class TenantCustomPageSchema
                 return Fail($"'totals' ızgaranın sayı (number) sütunu olmalıdır: {notNumber}", out error);
         }
         if (!ValidatePickerColumnProps(props, lookups, context, out error)) return false;
+        if (!ValidateGridEngineProps(props, mode, columns, numberColumns, calcColumns, lookups, context, out var formulas, out error)) return false;
         if (props.TryGetProperty("addLabel", out var addLabel) && !IsStaticTextUpTo(addLabel, 40))
             return Fail("'addLabel' en fazla 40 karakterlik metin olmalıdır.", out error);
-        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery) { Lookups = lookups };
+        context.GridModesByName[name] = new GridInfo(id, name, mode, columns, sourceQuery)
+            { Lookups = lookups, CalcColumns = calcColumns, Formulas = formulas, ReadOnly = readOnlyColumns };
         return true;
     }
 
@@ -2346,7 +2408,38 @@ internal static class TenantCustomPageSchema
                 return Fail($"'{inputId}' girişinin 'clearsOnChange' öğesi bir düzenlenebilir tablonun sütunu olmalıdır: {target}", out error);
         }
         return ResolveCollectionBindings(context, out error) && ResolveGridIteration(context, out error) && ResolveGridRowBindings(context, out error)
-            && ResolveSequences(context, out error);
+            && ResolveSequences(context, out error) && ResolvePreviewReferences(context, out error);
+    }
+
+    /// <summary>
+    /// Önizleme bağlantıları: <c>runOn</c> dizisindeki adlar sayfadaki giriş ya da düzenlenebilir tablodur; bir
+    /// <c>calc:sorgu:alan</c> sütununun sorgusu, <c>rowKey</c> öğeli list parametresini bu tablonun <c>satirlar</c>'ına bağlayan
+    /// bir işlem okuma sorgusudur ve sonucunun satırları <c>rowKey</c> ile <c>alan</c>'ı taşır (satırlar anahtarla eşleşir).
+    /// </summary>
+    private static bool ResolvePreviewReferences(Context context, out string? error)
+    {
+        error = null;
+        foreach (var (queryName, names) in context.PendingRunOn)
+            foreach (var componentName in names)
+                if (!context.ComponentIdsByName.TryGetValue(componentName, out var componentId)
+                    || context.ComponentTypesById.GetValueOrDefault(componentId) is not ("input" or "editableGrid"))
+                    return Fail($"'{queryName}' sorgusu: runOn dizisindeki '{componentName}' sayfadaki bir giriş ya da düzenlenebilir tablo adı olmalıdır.", out error);
+        foreach (var (gridName, column, calc) in context.PendingCalcColumns)
+        {
+            var prefix = $"'{gridName}' tablosunun '{column}' hesaplanan sütunu";
+            if (!context.QueryById.TryGetValue(calc.QueryId, out var query) || query.Kind != "read" || query.Operation is not { } operationName
+                || !context.Lookup(operationName, out var operation))
+                return Fail($"{prefix}: '{calc.QueryId}' sayfadaki bir ERP işlemi okuma sorgusu olmalıdır.", out error);
+            var bindsRows = query.Parameters.Any(parameter => parameter.Type == "list"
+                && TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path) && path == gridName + ".satirlar"
+                && operation.Parameters.FirstOrDefault(x => x.Name == parameter.Name)?.Items?.Any(x => x.Code == "rowKey") == true);
+            if (!bindsRows)
+                return Fail($"{prefix}: '{calc.QueryId}' sorgusu rowKey alanlı bir list parametresini {{{{{gridName}.satirlar}}}} ile bağlamalıdır.", out error);
+            var columns = operation.Result.Columns.Select(x => x.Code).ToHashSet(StringComparer.Ordinal);
+            if (operation.Result.Shape != "list" || !columns.Contains("rowKey") || !columns.Contains(calc.Field))
+                return Fail($"{prefix}: '{calc.QueryId}' sorgusunun satırlarında rowKey ve '{calc.Field}' sütunları olmalıdır.", out error);
+        }
+        return true;
     }
 
     /// <summary>
@@ -2402,9 +2495,12 @@ internal static class TenantCustomPageSchema
                     return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresinin alanları varyant tablosu için code, name ve attributes içermelidir.", out error);
                 continue;
             }
-            foreach (var code in grid.Columns)
+            // Computed (calc) columns are shown from a preview and never sent.
+            foreach (var code in grid.Columns.Where(x => !grid.CalcColumns.Contains(x)))
             {
                 var item = items.FirstOrDefault(x => x.Code == GridColumnSpec.RootOf(code));
+                // A formula or read-only column without a matching item is display-only: the runtime leaves it out of the row.
+                if (item is null && (grid.Formulas.Contains(code) || grid.ReadOnly.Contains(code))) continue;
                 // A dotted column writes into a map item; a plain column into a scalar item.
                 if (item is null || code.Contains('.') != (item.DataType == "map"))
                     return Fail($"'{grid.Name}' tablosunun '{code}' sütunu '{parameterName}' parametresinin alanlarında yok.", out error);

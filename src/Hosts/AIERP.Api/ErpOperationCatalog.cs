@@ -79,7 +79,7 @@ internal static partial class ErpOperationCatalog
     private const string StockItemRoute = "/api/stock/items/{id}";
     private const string StockItemRead = "stok.kart.getir";
 
-    // Shared labels. A module's own codes live in its label block (CrmLabels, PurchasingLabel, SalesLabelMap, FinanceLabels)
+    // Shared labels. A module's own codes live in its label block (CrmLabels, PurchasingLabel, SalesLabelMap, FinanceLabels, ManufacturingLabelMap)
     // and apply to that module's operations only (see InModule), so two modules may label the same code differently.
     private static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -193,6 +193,25 @@ internal static partial class ErpOperationCatalog
     });
 
     private static readonly IReadOnlyDictionary<string, string> SalesLabelMap = ModuleLabels("Satış", SalesLabels());
+    private static readonly IReadOnlyDictionary<string, string> HrLabels = ModuleLabels("İnsan Kaynakları", HumanResourcesLabels());
+    private static readonly IReadOnlyDictionary<string, string> ManufacturingLabelMap = ModuleLabels("Üretim", ManufacturingLabels());
+
+    /// <summary>Dış Ticaret: dış ticaret dosyaları ve dosya kartı.</summary>
+    private static readonly IReadOnlyDictionary<string, string> ForeignTradeLabels = ModuleLabels("Dış Ticaret", new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["salesOrderId"] = "Satış siparişi kimliği", ["referenceCode"] = "Dış ticaret referansı", ["originCountryCode"] = "Çıkış ülkesi",
+        ["destinationCountryCode"] = "Varış ülkesi", ["incotermsCode"] = "Incoterms", ["harmonizedSystemCode"] = "HS kodu",
+        ["transportMode"] = "Taşıma", ["carrierReference"] = "Taşıyıcı / takip", ["customsReference"] = "Gümrük referansı",
+        ["declaredValue"] = "Beyan değeri", ["plannedShipDate"] = "Planlanan sevkiyat", ["actualShipDate"] = "Gerçek sevkiyat",
+        ["plannedArrivalDate"] = "Planlanan varış", ["actualArrivalDate"] = "Gerçek varış", ["notes"] = "Operasyon notu",
+        ["inventoryPostingRequired"] = "Stok belgesi gerekli", ["salesDeliveryId"] = "Teslimat kimliği",
+        ["inventoryDocumentLinkedAt"] = "Stok belgesi bağlanma zamanı", ["orderCode"] = "Sipariş", ["counterpartyName"] = "Cari",
+        ["route"] = "Rota", ["shipDate"] = "Sevk", ["arrivalDate"] = "Varış", ["importCount"] = "İthalat", ["exportCount"] = "İhracat",
+        ["draftCount"] = "Taslak", ["bookedCount"] = "Planlandı", ["shippedCount"] = "Sevkte", ["customsClearanceCount"] = "Gümrükte",
+        ["arrivedCount"] = "Ulaştı", ["closedCount"] = "Kapandı", ["cancelledCount"] = "İptal", ["actualDate"] = "Gerçek tarih",
+        ["documentId"] = "Stok belgesi kimliği", ["documentDate"] = "Belge tarihi", ["isLinked"] = "Bağlı", ["orderDate"] = "Sipariş tarihi",
+        ["grandTotal"] = "Genel toplam"
+    });
 
     /// <summary>A module label block: its codes must be new (the shared dictionary wins on a shared code) and appear once.</summary>
     private static IReadOnlyDictionary<string, string> ModuleLabels(string module, IEnumerable<KeyValuePair<string, string>> block)
@@ -270,6 +289,10 @@ internal static partial class ErpOperationCatalog
         operations.AddRange(InModule(PurchasingLabel, () => BuildPurchasing(paging)));
         operations.AddRange(InModule(code => SalesLabelMap.GetValueOrDefault(code), () => BuildSales(paging)));
         operations.AddRange(InModule(code => FinanceLabels.GetValueOrDefault(code), () => BuildFinance(paging)));
+        operations.AddRange(InModule(FixedAssetLabel, () => BuildFixedAssets(paging)));
+        operations.AddRange(InModule(code => HrLabels.GetValueOrDefault(code), () => BuildHumanResources(paging)));
+        operations.AddRange(InModule(code => ManufacturingLabelMap.GetValueOrDefault(code), () => BuildManufacturing(paging)));
+        operations.AddRange(InModule(code => ForeignTradeLabels.GetValueOrDefault(code), () => BuildForeignTrade(paging)));
 
         var reportSources = ReportEndpoints.CatalogSources(includeAdminSources: true).ToDictionary(x => x.Code, StringComparer.Ordinal);
         foreach (var source in ReportEndpoints.ReportSourcePermissions.Keys.OrderBy(x => x, StringComparer.Ordinal))

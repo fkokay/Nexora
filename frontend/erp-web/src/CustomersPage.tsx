@@ -693,6 +693,9 @@ function CustomersPage({
     };
     const action = { page, customerId: selectedCustomer.id, customer };
     sessionStorage.setItem("nexora.customer-sales-action", JSON.stringify(action));
+    // Karar 4: hedef ekranın sayfa parametreleri de yazılır (sistem sayfası kartları `customerId`, sipariş kartı `orderDate`
+    // okur); eski ekranlar yukarıdaki köprüyü ve `customerId` parametresini okumaya devam eder.
+    setPageParams(page, { customerId: selectedCustomer.id, ...(page === "sales-order-create" ? { orderDate: localDateString() } : {}) });
     onNavigate(page);
     window.setTimeout(() => {
       window.dispatchEvent(
