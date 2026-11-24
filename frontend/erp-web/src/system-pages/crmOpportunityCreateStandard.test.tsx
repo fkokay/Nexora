@@ -86,10 +86,6 @@ const input = (id: string) => document.getElementById(`page-input-${id}`) as HTM
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more')!);
-  return screen.findByRole('menuitem', { name });
-};
 const openNew = async () => {
   setup();
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
@@ -137,6 +133,20 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     expect(query(lookup.url).get('status')).toBe('Active');
   });
 
+  it('new: Not is a multi-line field and a blank code is left to the server', async () => {
+    await openNew();
+    expect(input('not').tagName).toBe('TEXTAREA');
+    expect(input('kod').required).toBe(false);
+    expect(input('kod').placeholder).toBe('Boşsa kayıtta otomatik verilir');
+    type('ad', 'Kodsuz fırsat');
+    type('not', 'Birinci satır\nİkinci satır');
+    fireEvent.click(command('save')!);
+    await waitFor(() => expect(posts()).toHaveLength(1), T);
+    const body = JSON.parse(posts()[0].body!);
+    expect(body.code ?? '').toBe('');
+    expect(body.notes).toBe('Birinci satır\nİkinci satır');
+  });
+
   it('new: probability preset, local follow-up time as UTC, then back to the list with refresh', async () => {
     await openNew();
     type('ad', 'Depo otomasyonu');
@@ -144,8 +154,13 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     type('tutar', '125000');
     type('kapanis', '2026-12-15');
     type('takip', '2026-11-24T14:00');
-    fireEvent.click(screen.getByRole('button', { name: '%75' }));
+    // Hazır değerler alanın kendi grubunda: seçili olan basılı görünür.
+    const presets = screen.getByRole('group', { name: 'Kazanma olasılığı (%): hazır değerler' });
+    expect(input('olasilikYeni').closest('.tenant-page-input')!.contains(presets)).toBe(true);
+    fireEvent.click(within(presets).getByRole('button', { name: '%75' }));
     await waitFor(() => expect(input('olasilikYeni').value).toBe('75'), T);
+    expect(within(presets).getByRole('button', { name: '%75' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(presets).getByRole('button', { name: '%10' }).getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     const body = JSON.parse(posts()[0].body!);
@@ -170,7 +185,8 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     type('ad', 'Birinci');
     type('kod', 'FRS-A');
-    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(navigations.filter((request) => request.page === 'crm-opportunities')).toEqual([]);

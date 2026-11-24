@@ -23,12 +23,12 @@ export function actionBarOf(components: Component[]): { id: string; props: Recor
 
 /**
  * İşlem Çubuğu'nda gizlenebilen komutlar (`hiddenCommands`, `commandWhen`): sekiz standart komut, İşlemler menüsü ve
- * İşlemler › Kaydet ve yeni (`saveNew`, `saveAndNew: true` ile).
+ * çubuktaki Kaydet ve yeni düğmesi (`saveNew`, `saveAndNew: true` ile).
  */
 export const BAR_COMMAND_IDS = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more", "saveNew"] as const;
 export type BarCommandId = (typeof BAR_COMMAND_IDS)[number];
 const STANDARD_BAR_IDS = BAR_COMMAND_IDS.filter((id) => id !== "more" && id !== "saveNew") as StandardCommandId[];
-/** İşlemler › Kaydet ve yeni (`actionBar.saveAndNew`): kaydeder, başarıda kayıttan sonra eylemi yerine Yeni komutunu çalıştırır. */
+/** Çubuktaki Kaydet ve yeni düğmesi (`actionBar.saveAndNew`): kaydeder, başarıda kayıttan sonra eylemi yerine Yeni komutunu çalıştırır. */
 export const SAVE_AND_NEW_COMMAND_ID = "save-and-new";
 export const SAVE_AND_NEW_LABEL = "Kaydet ve yeni";
 export const SAVE_AND_NEW_SHORTCUT = "Ctrl+F2";
@@ -261,6 +261,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     : plan.open.mode === "button" ? openButton ?? unbound
     : unbound;
 
+  const barItems: MenuCommand[] = [];
   const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
     const label = deps.buttonLabel(id);
     if (!label) return [];
@@ -282,14 +283,14 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const newSpec: CommandSpec = newCommand === unbound && !(plan.new.mode === "button" && newButton) ? unbound : { ...newCommand, primary: !saveBound };
   const saveSpec: CommandSpec = sequenceBound ? { ...gatedAll([...new Set(sequenceKinds as string[])], () => deps.run.saveSequence()), primary: true }
     : saveBound ? { ...gatedQuery(saveId, saveKind!, () => deps.run.write(saveId, "save")), primary: true } : unbound;
-  // Kaydet ve yeni: kayıt yolu ve Yeni bağlıysa İşlemler'in ilk öğesi; Kaydet ya da Yeni çalışamıyorsa nedeniyle pasif.
+  // Kaydet ve yeni: kayıt yolu ve Yeni bağlıysa çubukta Kaydet'in yanında bir düğme; Kaydet ya da Yeni çalışamıyorsa nedeniyle pasif.
   // `hiddenCommands`/`commandWhen` (`saveNew`) gizler; Kaydet ya da Yeni gizliyse o da gizlidir.
   if (props.saveAndNew === true && saveBound && newSpec !== unbound && deps.run.saveAndNew
     && !barCommandHidden(props, "saveNew", deps.commandVisible) && !barCommandHidden(props, "save", deps.commandVisible)
     && !barCommandHidden(props, "new", deps.commandVisible)) {
     const reason = saveSpec.disabledReason ?? newSpec.disabledReason;
     const saveAndNew = deps.run.saveAndNew;
-    more.unshift({ id: SAVE_AND_NEW_COMMAND_ID, label: SAVE_AND_NEW_LABEL, shortcut: SAVE_AND_NEW_SHORTCUT, ...(reason ? { disabledReason: reason } : { run: () => saveAndNew() }) });
+    barItems.push({ id: SAVE_AND_NEW_COMMAND_ID, label: SAVE_AND_NEW_LABEL, shortcut: SAVE_AND_NEW_SHORTCUT, ...(reason ? { disabledReason: reason } : { run: () => saveAndNew() }) });
   }
 
   const built: PageCommands = {
@@ -305,6 +306,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,
     export: exportHidden ? { hidden: true } : exportCommand,
     ...(more.length > 0 ? { more } : {}),
+    ...(barItems.length > 0 ? { barItems } : {}),
   };
   return applyBarVisibility(props, built, deps.commandVisible);
 }

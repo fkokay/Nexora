@@ -72,7 +72,7 @@ public sealed class CustomerSystemPagesTests
         }
         var save = Op("cari.ozelAlanKaydet");
         Assert.Equal(("values", "cari.ozelAlanDegerleri", "code", "value"), (save.BodyMap!.Property, save.BodyMap.SourceOperation, save.BodyMap.KeyColumn, save.BodyMap.ValueColumn));
-        Assert.Equal(new[] { "provinceId:query:int:True" }, Op("cari.ilceler").Parameters.Select(x => $"{x.Name}:{x.In}:{x.Type}:{x.Required}"));
+        Assert.Equal(new[] { "provinceId:query:int:False", "provinceName:query:text:False" }, Op("cari.ilceler").Parameters.Select(x => $"{x.Name}:{x.In}:{x.Type}:{x.Required}"));
         var deactivate = Op("cari.adres.pasifeAl");
         Assert.Equal("/api/customers/{id}/addresses/{addressId}", deactivate.Route);
         Assert.Equal((false, false), ((bool)deactivate.FixedBody!["isActive"]!, (bool)deactivate.FixedBody["isDefault"]!));
@@ -230,6 +230,45 @@ public sealed class CustomerSystemPagesTests
         ErpOperationCatalogTests.SetIdentity(client, Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"), "TenantUser");
         using var forbidden = await client.GetAsync("/api/customers/counts");
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+    }
+
+    [Fact]
+    public async Task Districts_load_by_province_id_or_trimmed_province_name_and_neither_returns_an_empty_list()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await ErpOperationCatalogTests.SeedAsync(factory, _ => { });
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.CustomerLocationProvinces.AddRange(new CustomerLocationProvince { Id = 9001, Name = "Deneme İli" },
+                new CustomerLocationProvince { Id = 9002, Name = "Öteki İl" });
+            db.CustomerLocationDistricts.AddRange(
+                new CustomerLocationDistrict { Id = 90011, ProvinceId = 9001, Name = "Merkez" },
+                new CustomerLocationDistrict { Id = 90012, ProvinceId = 9001, Name = "Ayrık" },
+                new CustomerLocationDistrict { Id = 90013, ProvinceId = 9001, Name = "Kapalı", IsActive = false },
+                new CustomerLocationDistrict { Id = 90021, ProvinceId = 9002, Name = "Başka" });
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, ErpOperationCatalogTests.Admin, "TenantAdmin");
+
+        async Task<JsonElement[]> Districts(string query)
+        {
+            using var response = await client.GetAsync("/api/location-definitions/districts" + query);
+            Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+            return (await response.Content.ReadFromJsonAsync<JsonElement[]>())!;
+        }
+
+        var byId = await Districts("?provinceId=9001");
+        Assert.Equal(new[] { "Ayrık", "Merkez" }, byId.Select(x => x.GetProperty("name").GetString()));
+        var byName = await Districts($"?provinceName={Uri.EscapeDataString(" Deneme İli ")}");
+        Assert.Equal(new[] { 90012, 90011 }, byName.Select(x => x.GetProperty("id").GetInt32()));
+        Assert.Equal(new[] { "id", "provinceId", "name", "isActive" }, byName[0].EnumerateObject().Select(x => x.Name));
+        Assert.Empty(await Districts(""));
+        Assert.Empty(await Districts("?provinceName=%20"));
+        Assert.Empty(await Districts("?provinceName=Yok"));
+        // Both given must agree.
+        Assert.Empty(await Districts($"?provinceId=9002&provinceName={Uri.EscapeDataString("Deneme İli")}"));
     }
 
     [Fact]

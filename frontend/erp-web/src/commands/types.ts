@@ -55,6 +55,11 @@ export type MenuCommand = { id: string; label: string; shortcut?: string; run?: 
  */
 export type PageCommands = Partial<Record<StandardCommandId, CommandSpec>> & {
   more?: MenuCommand[];
+  /**
+   * Page buttons drawn on the bar right after the record commands (Yeni, Aç, Kaydet, Sil), e.g. "Kaydet ve yeni". The bar
+   * does not bind their `shortcut`; the page handles its own keys. An open form's items come first, as in `more`.
+   */
+  barItems?: MenuCommand[];
   besideList?: boolean;
   screen?: 'list' | 'form';
   /** The page removed the İşlemler menu: the bar does not draw it and Alt+İ does nothing. */

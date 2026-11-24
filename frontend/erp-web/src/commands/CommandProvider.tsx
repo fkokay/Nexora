@@ -70,7 +70,7 @@ function structureSignature(commands: PageCommands): string {
     return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden)]] : [];
   });
   const look = commands.look ? BAR_LOOK_KEYS.map((key) => commands.look![key] ?? null) : null;
-  return JSON.stringify([specs, moreSignature(commands.more), Boolean(commands.besideList), Boolean(commands.moreHidden), look]);
+  return JSON.stringify([specs, moreSignature(commands.more), moreSignature(commands.barItems), Boolean(commands.besideList), Boolean(commands.moreHidden), look]);
 }
 
 // The registered `run` functions are stable wrappers that call through `ref`, so handlers may change every render.
@@ -94,6 +94,15 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
       shortcut: item.shortcut,
       disabledReason: item.disabledReason,
       run: item.run ? () => ref.current.more?.find((candidate) => candidate.id === item.id)?.run?.() : undefined,
+    }));
+  }
+  if (latest.barItems) {
+    built.barItems = latest.barItems.map((item) => ({
+      id: item.id,
+      label: item.label,
+      shortcut: item.shortcut,
+      disabledReason: item.disabledReason,
+      run: item.run ? () => ref.current.barItems?.find((candidate) => candidate.id === item.id)?.run?.() : undefined,
     }));
   }
   if (latest.besideList) built.besideList = true;

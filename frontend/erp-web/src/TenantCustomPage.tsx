@@ -861,7 +861,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
     return <div className={`tenant-page-input tenant-page-input-lookup tenant-page-input-searchable${requiredClass}${invalid ? " is-invalid" : ""}`} style={style} onBlur={onBlur}>
       <SearchableSelect inputId={inputId} label={label} value={typeof raw === "string" ? raw : ""} choices={selectOptions(props, optionsState)}
         emptyLabel={optionsState && neverRan(optionsState) && !optionsState.loading ? MANUAL_QUERY_IDLE : selectOptions(props, optionsState).find((option) => option.value === "")?.label || "Seçin"} loading={Boolean(optionsState?.loading)}
-        disabled={disabled} onChange={(next) => onChange(next)} />
+        disabled={disabled} allowCustom={props.allowCustom === true} onChange={(next) => onChange(next)} />
       {optionsState?.error && <QueryError message={optionsState.error} />}
       {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
     </div>;
@@ -878,6 +878,10 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
       {options.filter((option) => !loading || option.value !== "").map((option, index) => <option key={`${index}-${option.value}`} value={option.value}>{option.label}</option>)}
       {orphan && <option value={current}>{current}</option>}
     </select>;
+  } else if (inputType === "text" && props.multiline === true) {
+    // Çok satırlı metin (`multiline`, ör. not alanı): aynı kurallar, satır sonları korunur.
+    control = <textarea {...common} rows={3} disabled={disabled} maxLength={rules.maxLength}
+      placeholder={textValue(props.placeholder)} value={typeof raw === "string" ? raw : ""} onChange={(event) => onChange(applyTyping(rules, event.target.value))} />;
   } else {
     const htmlType = inputType === "number" || inputType === "date" ? inputType : inputType === "datetime" ? "datetime-local" : "text";
     // Tarih + saat girişi kaynaktan gelen ISO değeri yerel saatle gösterir; ham değer kullanıcı değiştirene kadar ISO kalır.
@@ -903,11 +907,37 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   } else if (inline) {
     field = <label className="list-v2-filter">{label && <span>{label}</span>}{control}</label>;
   }
-  return <div className={`tenant-page-input tenant-page-input-${inputType}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
+  // Hazır değerler (`presets`: "değer=Etiket", ör. olasılık %10…%90): girişin altında bitişik düğmeler; seçili olan basılı görünür.
+  const presets = !inline && (inputType === "text" || inputType === "number") ? parsePresets(props.presets) : [];
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${props.multiline === true ? " tenant-page-input-multiline" : ""}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
     {field}
+    {presets.length > 0 && <div className="tenant-page-presets" role="group" aria-label={label ? `${label}: hazır değerler` : "Hazır değerler"}>
+      {presets.map((preset) => <button key={preset.value} type="button" disabled={disabled} aria-pressed={String(raw ?? "") === preset.value}
+        onClick={() => onChange(preset.value)}>{preset.label}</button>)}
+    </div>}
     {inputType === "select" && optionsState?.error && <QueryError message={optionsState.error} />}
     {error && <small className="tenant-page-input-error" role="alert">{error}</small>}
   </div>;
+}
+
+/** Sayfa parametresinin istediği sekme: 0'dan başlayan sıra ya da sekme etiketi (büyük/küçük harf duyarsız); yoksa null. */
+function requestedTabIndex(tabs: { label: string }[], requested: string): number | null {
+  const text = requested.trim();
+  if (/^\d+$/.test(text)) { const index = Number(text); return index < tabs.length ? index : null; }
+  const needle = text.toLocaleLowerCase("tr-TR");
+  const index = tabs.findIndex((tab) => tab.label.trim().toLocaleLowerCase("tr-TR") === needle);
+  return index >= 0 ? index : null;
+}
+
+/** `presets` öğeleri ("değer=Etiket"); bozuk öğe atlanır. */
+function parsePresets(value: unknown): { value: string; label: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const at = item.indexOf("=");
+    if (at < 1 || at === item.length - 1) return [];
+    return [{ value: item.slice(0, at), label: item.slice(at + 1) }];
+  });
 }
 
 /** `requiredWhen` koşulu tutan giriş zorunludur (ör. yalnız kayıtlı kart düzenlenirken); kural `required` gibi uygulanır. */
@@ -1100,6 +1130,9 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
       if (!runtime) return null;
       const tabs = parseTabs(props.tabs).map((tab) => boundTab(tab, runtime.scope));
       const defaultTab = typeof props.defaultTab === "number" ? props.defaultTab : 0;
+      // `tabParam`: sayfa parametresi (ör. "tab=Adresler" ya da "tab=4") açılış sekmesini seçer; eşleşmezse `defaultTab`.
+      const requested = typeof props.tabParam === "string" ? displayText(resolvePath(runtime.scope, `sayfa.parametre.${props.tabParam}`)) : "";
+      const requestedTab = requested ? requestedTabIndex(tabs, requested) : null;
       // Doğrulanmayan (gizli veya pasif) girişlerin kalan iletileri sayılmaz.
       // Doğrulama iletisi gösterilen düzenlenebilir tablolar ve özel alan blokları da sayılır.
       const errorCounts = tabs.map((tab) => [...Object.keys(runtime.validationErrors).filter((inputId) => !runtime.skipsValidation(inputId)), ...runtime.componentErrorIds]
@@ -1112,7 +1145,8 @@ function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], 
         if (!owned || owned.type === "tabs" || owned.type === "actionBar" || owned.type === "dialog") return null;
         return renderComponent(owned, forms, token, pageCode, runtime);
       };
-      return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={defaultTab} renderOwned={renderOwned}
+      return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={requestedTab ?? defaultTab}
+        requestedTab={requestedTab === null ? null : { tab: requestedTab, key: JSON.stringify(resolvePath(runtime.scope, "sayfa.parametre") ?? null) }} renderOwned={renderOwned}
         errorCounts={errorCounts} jumpTo={jumpTo} style={style} />;
     }
     case "dataTable": {
@@ -1611,7 +1645,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
   runtime.openCommand.current = commands.open?.run && !commands.open.disabledReason ? commands.open.run : null;
   usePageCommands(commands);
   // Ctrl+F2 = Kaydet ve yeni (kayıt formlarındaki gibi): yalnız görünen sekmede ve açık pencere yokken.
-  const saveAndNewRun = commands.more?.find((item) => item.id === SAVE_AND_NEW_COMMAND_ID);
+  const saveAndNewRun = commands.barItems?.find((item) => item.id === SAVE_AND_NEW_COMMAND_ID);
   useWindowKeyDown(!!saveAndNewRun, (event) => {
     if (event.key !== "F2" || !event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
     const root = rootRef?.current;

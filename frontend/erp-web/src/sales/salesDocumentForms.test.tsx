@@ -93,6 +93,10 @@ function renderScreen(view: ReactNode) {
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
+/** Page buttons on the bar (Kaydet ve Yeni, Temizle): `barItems`, drawn after the record commands. */
+function barItems() {
+  return Array.from(document.querySelectorAll<HTMLElement>('[data-command^="record-form-"]')).map((item) => item.getAttribute('aria-label'));
+}
 function openMenu() {
   // No İşlemler button when the page has no menu items.
   if (!command('more')) return [];
@@ -281,8 +285,8 @@ describe('Talep oluşturma', () => {
     await settle();
     fireEvent.change(input, { target: { value: 'ST-9' } });
     await pick('Müşteri seçin', /Acme/);
-    fireEvent.click(command('more'));
-    fireEvent.click(Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.trim() === 'Temizle')!);
+    // Temizle is a bar button next to Kaydet.
+    fireEvent.click(command('record-form-reset'));
     await waitFor(() => expect(screen.getByPlaceholderText<HTMLInputElement>('ST-2026-0001').value).toBe(''));
     expect(screen.getByText('Müşteri seçin', { selector: 'button > span' })).toBeTruthy();
     expect(apiMock.mock.calls.some(([, , init]) => init?.method === 'POST')).toBe(false);
@@ -556,7 +560,8 @@ describe('Belge ekranı görünümü', () => {
     fireEvent.keyDown(window, { key: 'F2' });
     await screen.findByPlaceholderText('ST-2026-0001');
     expectKitChrome('Satış talebi');
-    expect(openMenu()).toEqual(['Kaydet ve YeniCtrl+F2', 'Temizle']);
+    expect(barItems()).toEqual(['Kaydet ve Yeni', 'Temizle']);
+    expect(openMenu()).toEqual([]);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Alt+İ işlemler', 'Esc kapat']);
     expect(flowSteps()).toEqual(['Açık', 'Kısmen teklif verildi', 'Teklif verildi']);
     expect(form().querySelector('.dd-totals')).toBeNull();
@@ -566,7 +571,8 @@ describe('Belge ekranı görünümü', () => {
     renderScreen(<SalesDeliveriesScreenPage token="t" role="TenantUser" onNavigate={vi.fn()} createDeliveryPage />);
     await waitFor(() => expect(enabled('save')).toBe(true));
     const grid = expectKitChrome('Satış irsaliyesi');
-    expect(openMenu()).toEqual(['Temizle']);
+    expect(barItems()).toEqual(['Temizle']);
+    expect(openMenu()).toEqual([]);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Alt+İ işlemler', 'Esc kapat']);
     expect(flowSteps()).toEqual(['Taslak*', 'Sevk edildi', 'Faturalandı']);
     // Taslak 20: the price columns follow the unit.
