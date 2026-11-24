@@ -621,7 +621,12 @@ internal static partial class ErpOperationCatalog
             .Append(new ErpOperationColumn("creditAmount", Label("creditAmount"), "decimal"))
             .Append(new ErpOperationColumn("balanceAmount", Label("balanceAmount"), "decimal"))
             .Append(new ErpOperationColumn("balanceSide", Label("balanceSide"), "text"))
-            .Append(new ErpOperationColumn("foreignCurrencyCode", Label("foreignCurrencyCode"), "text")).ToArray();
+            .Append(new ErpOperationColumn("foreignCurrencyCode", Label("foreignCurrencyCode"), "text"))
+            // Source document (Belgeye git). Explicit labels: the shared "source*" codes are Finans labels, built after Cari.
+            .Append(new ErpOperationColumn("sourceType", "Belge türü", "text"))
+            .Append(new ErpOperationColumn("sourceId", "Belge kimliği", "guid"))
+            .Append(new ErpOperationColumn("sourceCode", "Belge no", "text"))
+            .Append(new ErpOperationColumn("sourceOpenId", "Açılacak belge", "guid")).ToArray();
         yield return Read(CustomerModule, "cari.ekstre", "Cari hesap ekstresi", customerRoute + "/statement",
             [id, new ErpOperationParameter("from", "query", "date", true), new ErpOperationParameter("to", "query", "date", true)],
             List(statementColumns, "items") with
