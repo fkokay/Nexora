@@ -14,6 +14,7 @@ import SalesCustomerRequestsPage from '../sales-customer-requests/SalesCustomerR
 import SalesReturnsPage from '../SalesReturnsPage';
 import PurchaseReturnsPage from '../PurchaseReturnsPage';
 import { vatByRate } from './salesDocumentDetail';
+import { pageParamsOf, setPageParams } from '../pageNavigation';
 
 /*
  * Satış belge detayları (taslak 02): durum akışı, başlıkta iş akışı düğmesi yok (İşlemler'de), başlık alanları,
@@ -642,5 +643,23 @@ describe('English', () => {
       'Satış siparişi', 'Satış irsaliyesi', 'Satış faturası', 'Satış teklifi', 'Alış faturası',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
+  });
+});
+
+describe('Belge sayfa parametresiyle açılır (Cari Hesap Hareketleri)', () => {
+  it('sales-invoices invoiceId + tab=transactions opens the invoice on Tahsilat ve İadeler and drops both params', async () => {
+    setPageParams('sales-invoices', { invoiceId: 'i1', tab: 'transactions' });
+    renderScreen(<SalesInvoicesPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Tahsilat ve İadeler/ }).getAttribute('aria-selected')).toBe('true'));
+    expect(pageParamsOf('sales-invoices')).toEqual({});
+  });
+
+  it('sales-returns returnId opens the return and drops the param', async () => {
+    setPageParams('sales-returns', { returnId: 'r1' });
+    renderScreen(<SalesReturnsPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    await waitFor(() => expect(within(surface()).getByRole('table', { name: 'İade satırları' })).toBeTruthy());
+    expect(pageParamsOf('sales-returns')).toEqual({});
   });
 });

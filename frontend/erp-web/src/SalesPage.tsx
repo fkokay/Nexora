@@ -463,13 +463,22 @@ export function SalesPage({
     : section === "sales-orders" && !createOrderPage
       ? "orderId"
       : invoiceListKey ? "invoiceId" : "";
-  const listDocumentId = usePageParams(listDocumentParam ? section : undefined)[listDocumentParam] ?? "";
+  const listDocumentParams = usePageParams(listDocumentParam ? section : undefined);
+  const listDocumentId = listDocumentParams[listDocumentParam] ?? "";
+  // `tab=transactions` (invoices only): the invoice opens on Tahsilat ve İadeler (a collection opened from Cari Hesap Hareketleri).
+  const [invoiceInitialTab, setInvoiceInitialTab] = useState<"information" | "transactions">("information");
   useEffect(() => {
     if (!listDocumentParam || !listDocumentId) return;
     dropPageParam(section, listDocumentParam);
     if (listDocumentParam === "quoteId") void openQuote(listDocumentId);
     else if (listDocumentParam === "orderId") void openOrder(listDocumentId);
-    else setInvoiceId(listDocumentId);
+    else {
+      const tab = listDocumentParams.tab === "transactions" ? "transactions" : "information";
+      if (listDocumentParams.tab) dropPageParam(section, "tab");
+      // The detail is keyed by invoice and tab, so an open detail switches to the requested tab.
+      setInvoiceInitialTab(tab);
+      setInvoiceId(listDocumentId);
+    }
   }, [section, listDocumentParam, listDocumentId]);
   useEffect(() => {
     if (section === "sales-invoices" && initialInvoiceId) {
@@ -3844,11 +3853,13 @@ export function SalesPage({
       )}
       {invoiceId && (
         <SalesInvoiceModal
+          key={`${invoiceId}:${invoiceInitialTab}`}
           invoiceId={invoiceId}
           token={token}
           role={role}
           warehouses={warehouses}
-          onClose={() => setInvoiceId(null)}
+          initialTab={invoiceInitialTab}
+          onClose={() => { setInvoiceId(null); setInvoiceInitialTab("information"); }}
           onSaved={load}
           newCommand={activeTab === "invoices" && !createInvoicePage ? { run: () => onNavigate("sales-invoice-create") } : detailNewCommand}
         />

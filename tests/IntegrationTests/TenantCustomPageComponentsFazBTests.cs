@@ -311,9 +311,22 @@ public sealed class TenantCustomPageComponentsFazBTests
         AssertRejected(V2(MovementQueries(), MovementComponents(C("t2", "dataTable", new { query = "hareketler", rowActions = new[] { "b1" } }))),
             "Satır işlemleri için veri listesinin adı olmalıdır: t2");
         AssertRejected(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo", new { query = "hareketler", rowActions = new[] { "i1" } }))),
-            "'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
+            "'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
         AssertRejected(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo", new { query = "hareketler", rowActions = new[] { "b1", "b1" } }))),
-            "'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
+            "'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
+    }
+
+    [Fact]
+    public void Accepts_six_row_actions_and_rejects_a_seventh()
+    {
+        // One navigation button per document kind (Cari Hesap Hareketleri "Belgeye git ›") needs six.
+        object Nav(string id) => N(id, "button", id, new { text = "Belgeye git ›", actionType = "erpPage", pageKey = "sales-invoices" });
+        var buttons = new[] { "n2", "n3", "n4", "n5", "n6", "n7" }.Select(Nav).ToArray();
+        AssertAccepted(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo",
+            new { query = "hareketler", rowActions = new[] { "b1", "n2", "n3", "n4", "n5", "n6" } }), buttons)));
+        AssertRejected(V2(MovementQueries(), MovementComponents(N("t2", "dataTable", "hareketTablo",
+                new { query = "hareketler", rowActions = new[] { "b1", "n2", "n3", "n4", "n5", "n6", "n7" } }), buttons)),
+            "'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.");
     }
 
     [Fact]

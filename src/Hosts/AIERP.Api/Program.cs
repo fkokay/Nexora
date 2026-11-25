@@ -1754,16 +1754,21 @@ customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly
     var entries = await ledger.Where(x => x.EntryDate >= from && x.EntryDate <= to)
         .OrderBy(x => x.EntryDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id)
         .Select(x => new { x.Id, x.EntryDate, x.Direction, x.Amount, x.CurrencyCode, x.Description, x.ReversalOfId,
-            HasReversal = db.CustomerLedgerEntries.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id) })
+            HasReversal = db.CustomerLedgerEntries.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id),
+            Keys = new CustomerStatementSources.Keys(x.SalesInvoiceId, x.CustomerCollectionId, x.SalesReturnId, x.PurchaseInvoiceId,
+                x.PurchaseInvoiceDraftId, x.SupplierPaymentId, x.SupplierReturnId) })
         .ToListAsync();
+    var sources = await CustomerStatementSources.ResolveAsync(db, tenantId, entries.Select(x => (x.Id, x.ReversalOfId, x.Keys)).ToList());
     var runningBalance = openingBalance;
     var items = entries.Select(x =>
     {
         runningBalance += x.Direction == CustomerLedgerDirection.Debit ? x.Amount : -x.Amount;
+        var source = sources.GetValueOrDefault(x.Id);
         return new CustomerStatementLine(x.Id, x.EntryDate, x.Direction, x.Amount, x.CurrencyCode, x.Description,
             x.ReversalOfId, x.HasReversal, runningBalance)
         {
-            ForeignCurrencyCode = string.Equals(x.CurrencyCode, customer.CurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : x.CurrencyCode
+            ForeignCurrencyCode = string.Equals(x.CurrencyCode, customer.CurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : x.CurrencyCode,
+            SourceType = source?.Type, SourceId = source?.Id, SourceCode = source?.Code, SourceOpenId = source?.OpenId
         };
     }).ToList();
     var debitTotal = entries.Where(x => x.Direction == CustomerLedgerDirection.Debit).Sum(x => x.Amount);
