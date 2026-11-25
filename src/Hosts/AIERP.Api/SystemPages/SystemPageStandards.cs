@@ -413,6 +413,13 @@ internal static class SystemPageStandards
                 && removed.Contains(bulkDeleteId)) props.Remove("bulkDeleteQuery");
             if (type == "dataTable" && props["detailToggleInput"] is JsonValue detailToggle && detailToggle.TryGetValue<string>(out var detailToggleId)
                 && removed.Contains(detailToggleId)) props.Remove("detailToggleInput");
+            // Row buttons added in a later version (e.g. customer-ledger v2 "Belgeye git ›") leave the older table's row actions.
+            if (type == "dataTable")
+            {
+                StripList(props, "rowActions", removed, dropWhenEmpty: true);
+                if (props["rowOpenAction"] is JsonValue rowOpen && rowOpen.TryGetValue<string>(out var rowOpenId) && removed.Contains(rowOpenId))
+                    props.Remove("rowOpenAction");
+            }
         }
         if (component["children"] is JsonArray children)
             foreach (var child in children.OfType<JsonObject>()) StripReferences(child, removed);

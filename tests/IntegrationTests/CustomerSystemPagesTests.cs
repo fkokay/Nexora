@@ -146,8 +146,9 @@ public sealed class CustomerSystemPagesTests
     public void Computed_members_are_appended_only_where_declared()
     {
         Assert.Equal(new[] { "balanceAmount", "balanceSideCode", "limitUsagePercent" }, Op("cari.bakiye").Result.Columns.TakeLast(3).Select(x => x.Code));
-        Assert.Equal(new[] { "isReversal", "debitAmount", "creditAmount", "balanceAmount", "balanceSide", "foreignCurrencyCode" },
-            Op("cari.ekstre").Result.Columns.TakeLast(6).Select(x => x.Code));
+        Assert.Equal(new[] { "isReversal", "debitAmount", "creditAmount", "balanceAmount", "balanceSide", "foreignCurrencyCode",
+                "sourceType", "sourceId", "sourceCode", "sourceOpenId" },
+            Op("cari.ekstre").Result.Columns.TakeLast(10).Select(x => x.Code));
         Assert.Contains("openingAsOf", Op("cari.ekstre").Result.MetaPaths);
         Assert.Contains("hasForeignCurrency", Op("cari.ekstre").Result.MetaPaths);
         // The primary address members are cari.getir columns only; the list keeps the constructor columns.
@@ -233,6 +234,129 @@ public sealed class CustomerSystemPagesTests
     }
 
     [Fact]
+    public async Task Statement_lines_carry_their_source_document()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await ErpOperationCatalogTests.SeedAsync(factory, _ => { });
+        await SeedCustomersAsync(factory);
+        var tenantA = ErpOperationCatalogTests.TenantA;
+        var invoiceId = Guid.NewGuid();
+        var collectionId = Guid.NewGuid();
+        var looseCollectionId = Guid.NewGuid();
+        var returnId = Guid.NewGuid();
+        var invoiceEntryId = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.SalesInvoices.Add(new SalesInvoice { Id = invoiceId, TenantId = tenantA, CustomerId = CustomerA, Code = "NXR-T1", InvoiceDate = new DateOnly(2026, 6, 1) });
+            db.CustomerCollections.AddRange(
+                new CustomerCollection { Id = collectionId, TenantId = tenantA, CustomerId = CustomerA, Code = "THS-T1", CollectionDate = new DateOnly(2026, 6, 2), Amount = 40m },
+                new CustomerCollection { Id = looseCollectionId, TenantId = tenantA, CustomerId = CustomerA, Code = "THS-T2", CollectionDate = new DateOnly(2026, 6, 3), Amount = 5m });
+            db.CustomerCollectionAllocations.Add(new CustomerCollectionAllocation { TenantId = tenantA, CustomerCollectionId = collectionId, SalesInvoiceId = invoiceId, Amount = 40m });
+            db.SalesReturns.Add(new SalesReturn { Id = returnId, TenantId = tenantA, CustomerId = CustomerA, SalesInvoiceId = invoiceId, Code = "IAD-T1" });
+            CustomerLedgerEntry Line(int day, CustomerLedgerDirection direction, decimal amount) => new()
+            {
+                TenantId = tenantA, CustomerId = CustomerA, EntryDate = new DateOnly(2026, 6, day), Direction = direction, Amount = amount, CurrencyCode = "TRY",
+                Description = "Kaynaklı", CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(day)
+            };
+            var invoiceEntry = Line(1, CustomerLedgerDirection.Debit, 100m);
+            invoiceEntry.Id = invoiceEntryId;
+            invoiceEntry.SalesInvoiceId = invoiceId;
+            var collectionEntry = Line(2, CustomerLedgerDirection.Credit, 40m);
+            collectionEntry.CustomerCollectionId = collectionId;
+            var looseEntry = Line(3, CustomerLedgerDirection.Credit, 5m);
+            looseEntry.CustomerCollectionId = looseCollectionId;
+            var returnEntry = Line(4, CustomerLedgerDirection.Credit, 10m);
+            returnEntry.SalesReturnId = returnId;
+            var reversal = Line(5, CustomerLedgerDirection.Credit, 100m);
+            reversal.ReversalOfId = invoiceEntryId;
+            db.CustomerLedgerEntries.AddRange(invoiceEntry, collectionEntry, looseEntry, returnEntry, reversal);
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, ErpOperationCatalogTests.Admin, "TenantAdmin");
+
+        var statement = await client.GetFromJsonAsync<JsonElement>($"/api/customers/{CustomerA:D}/statement?from=2026-06-01&to=2026-06-30");
+        static string? Text(JsonElement line, string name) => line.GetProperty(name).ValueKind == JsonValueKind.Null ? null : line.GetProperty(name).GetString();
+        var lines = statement.GetProperty("items").EnumerateArray()
+            .Select(x => (Text(x, "sourceType"), Text(x, "sourceId"), Text(x, "sourceCode"), Text(x, "sourceOpenId"))).ToArray();
+        string Id(Guid id) => id.ToString("D");
+        Assert.Equal(new (string?, string?, string?, string?)[]
+        {
+            ("SalesInvoice", Id(invoiceId), "NXR-T1", Id(invoiceId)),
+            ("CustomerCollection", Id(collectionId), "THS-T1", Id(invoiceId)),
+            ("CustomerCollection", Id(looseCollectionId), "THS-T2", null),
+            ("SalesReturn", Id(returnId), "IAD-T1", Id(returnId)),
+            // The cancellation's reversal keeps no source key of its own: it points at the original movement's document.
+            ("SalesInvoice", Id(invoiceId), "NXR-T1", Id(invoiceId)),
+        }, lines);
+
+        // A manual movement has no document.
+        var manual = await client.GetFromJsonAsync<JsonElement>($"/api/customers/{CustomerA:D}/statement?from=2026-03-01&to=2026-03-31");
+        var manualLine = Assert.Single(manual.GetProperty("items").EnumerateArray());
+        Assert.Equal((JsonValueKind.Null, JsonValueKind.Null, JsonValueKind.Null, JsonValueKind.Null),
+            (manualLine.GetProperty("sourceType").ValueKind, manualLine.GetProperty("sourceId").ValueKind,
+             manualLine.GetProperty("sourceCode").ValueKind, manualLine.GetProperty("sourceOpenId").ValueKind));
+    }
+
+    [Fact]
+    public async Task Supplier_statement_lines_open_the_purchase_document_and_never_another_tenants()
+    {
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        await ErpOperationCatalogTests.SeedAsync(factory, _ => { });
+        await SeedCustomersAsync(factory);
+        var tenantA = ErpOperationCatalogTests.TenantA;
+        var invoiceId = Guid.NewGuid();
+        var paymentId = Guid.NewGuid();
+        var returnId = Guid.NewGuid();
+        var draftId = Guid.NewGuid();
+        var foreignInvoiceId = Guid.NewGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.PurchaseInvoices.AddRange(
+                new PurchaseInvoice { Id = invoiceId, TenantId = tenantA, SupplierId = SupplierA, Code = "AF-T1", InvoiceDate = new DateOnly(2026, 7, 1), DueDate = new DateOnly(2026, 8, 1) },
+                // Another tenant's invoice: an entry pointing at it must not reveal its number or open it.
+                new PurchaseInvoice { Id = foreignInvoiceId, TenantId = ErpOperationCatalogTests.TenantB, SupplierId = OtherTenantCustomer, Code = "AF-B",
+                    InvoiceDate = new DateOnly(2026, 7, 1), DueDate = new DateOnly(2026, 8, 1) });
+            db.SupplierPayments.Add(new SupplierPayment { Id = paymentId, TenantId = tenantA, SupplierId = SupplierA, PurchaseInvoiceId = invoiceId, Code = "TO-T1",
+                PaymentDate = new DateOnly(2026, 7, 2) });
+            db.SupplierReturns.Add(new SupplierReturn { Id = returnId, TenantId = tenantA, SupplierId = SupplierA, PurchaseInvoiceId = invoiceId, Code = "AI-T1",
+                ReturnDate = new DateOnly(2026, 7, 3) });
+            db.PurchaseInvoiceDrafts.Add(new PurchaseInvoiceDraft { Id = draftId, TenantId = tenantA, SupplierId = SupplierA, InvoiceNumber = "TF-T1",
+                InvoiceDate = new DateOnly(2026, 7, 4) });
+            CustomerLedgerEntry Line(int day, CustomerLedgerDirection direction) => new()
+            {
+                TenantId = tenantA, CustomerId = SupplierA, EntryDate = new DateOnly(2026, 7, day), Direction = direction, Amount = 10m, CurrencyCode = "EUR",
+                Description = "Kaynaklı", CreatedAt = DateTimeOffset.UnixEpoch.AddMinutes(day)
+            };
+            var invoice = Line(1, CustomerLedgerDirection.Credit); invoice.PurchaseInvoiceId = invoiceId;
+            var payment = Line(2, CustomerLedgerDirection.Debit); payment.SupplierPaymentId = paymentId;
+            var supplierReturn = Line(3, CustomerLedgerDirection.Debit); supplierReturn.SupplierReturnId = returnId;
+            var draft = Line(4, CustomerLedgerDirection.Credit); draft.PurchaseInvoiceDraftId = draftId;
+            var foreign = Line(5, CustomerLedgerDirection.Credit); foreign.PurchaseInvoiceId = foreignInvoiceId;
+            db.CustomerLedgerEntries.AddRange(invoice, payment, supplierReturn, draft, foreign);
+            await db.SaveChangesAsync();
+        }
+        using var client = factory.CreateClient();
+        ErpOperationCatalogTests.SetIdentity(client, ErpOperationCatalogTests.Admin, "TenantAdmin");
+
+        var statement = await client.GetFromJsonAsync<JsonElement>($"/api/customers/{SupplierA:D}/statement?from=2026-07-01&to=2026-07-31");
+        static string? Text(JsonElement line, string name) => line.GetProperty(name).ValueKind == JsonValueKind.Null ? null : line.GetProperty(name).GetString();
+        var lines = statement.GetProperty("items").EnumerateArray()
+            .Select(x => (Text(x, "sourceType"), Text(x, "sourceCode"), Text(x, "sourceOpenId"))).ToArray();
+        string Id(Guid id) => id.ToString("D");
+        Assert.Equal(new (string?, string?, string?)[]
+        {
+            ("PurchaseInvoice", "AF-T1", Id(invoiceId)),
+            ("SupplierPayment", "TO-T1", Id(invoiceId)),
+            ("SupplierReturn", "AI-T1", Id(returnId)),
+            ("PurchaseInvoiceDraft", "TF-T1", Id(draftId)),
+            ("PurchaseInvoice", null, null),
+        }, lines);
+    }
+
+    [Fact]
     public async Task Card_read_returns_the_primary_address_and_the_statement_its_display_members()
     {
         await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
@@ -313,13 +437,13 @@ public sealed class CustomerSystemPagesTests
     // customers v2 (Satış Aşama B): "Yeni sipariş" also sends orderDate for the order card; changed in place (since 1).
     [InlineData("customers", "Cari Hesaplar", 2)]
     [InlineData("customer-create", "Cari kart", 1)]
-    [InlineData("customer-ledger", "Cari Hesap Hareketleri", 1)]
+    [InlineData("customer-ledger", "Cari Hesap Hareketleri", 2)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];
         Assert.Equal((version, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since >= 1 && x.Since <= version && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True(name.StartsWith("cari.", StringComparison.Ordinal) && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
     }
@@ -394,7 +518,7 @@ public sealed class CustomerSystemPagesTests
         var standard = SystemPageStandards.All["customer-ledger"];
         var view = Assert.Single(standard.ScreenViews);
         Assert.Equal(("customer-ledger-entries", "liste"), (view.Key, view.Component));
-        Assert.Equal(new Dictionary<string, string> { ["entryDate"] = "entryDate", ["description"] = "description", ["direction"] = "direction",
+        Assert.Equal(new Dictionary<string, string> { ["entryDate"] = "entryDate", ["source"] = "sourceCode", ["description"] = "description", ["direction"] = "direction",
             ["debit"] = "debitAmount", ["credit"] = "creditAmount", ["balance"] = "balanceAmount", ["currencyCode"] = "currencyCode" }, view.Fields);
         // No wizard: the customer lookup sits in the filter card; the statement shows as soon as it has a value.
         var selection = Props("customer-ledger", "cariSecimi");
@@ -412,6 +536,40 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(new[] { "debitAmount=foreignCurrencyCode", "creditAmount=foreignCurrencyCode", "balanceAmount=balanceSide" },
             Strings(Props("customer-ledger", "liste")["columnUnits"]));
         Assert.Equal("{{ekstre.satirSayisi}}", (string)Props("customer-ledger", "komutlar")["titleCount"]!);
+    }
+
+    [Fact]
+    public void Ledger_lines_go_to_their_document_one_button_per_kind()
+    {
+        var liste = Props("customer-ledger", "liste");
+        Assert.Equal(new[] { "entryDate", "sourceType", "sourceCode", "description" }, Strings(liste["columns"]).Take(4));
+        Assert.Contains("sourceType:CustomerCollection=Tahsilat", Strings(liste["valueLabels"]));
+        Assert.Contains("sourceType:PurchaseInvoiceDraft=Alış faturası taslağı", Strings(liste["valueLabels"]));
+        var expected = new (string Id, string Page, string Kinds, string[] Params)[]
+        {
+            ("belgeSatisFaturasi", "sales-invoices", "SalesInvoice", ["invoiceId={{liste.seciliSatir.sourceOpenId}}"]),
+            ("belgeTahsilat", "sales-invoices", "CustomerCollection", ["invoiceId={{liste.seciliSatir.sourceOpenId}}", "tab=transactions"]),
+            ("belgeSatisIadesi", "sales-returns", "SalesReturn", ["returnId={{liste.seciliSatir.sourceOpenId}}"]),
+            ("belgeAlisFaturasi", "sales-purchase-invoices", "PurchaseInvoice|SupplierPayment", ["invoiceId={{liste.seciliSatir.sourceOpenId}}"]),
+            ("belgeAlisIadesi", "sales-purchase-returns", "SupplierReturn", ["returnId={{liste.seciliSatir.sourceOpenId}}"]),
+            ("belgeTaslak", "sales-purchase-invoice-drafts", "PurchaseInvoiceDraft", ["draftId={{liste.seciliSatir.sourceOpenId}}"]),
+        };
+        Assert.Equal(expected.Select(x => x.Id), Strings(liste["rowActions"]));
+        // Every kind has exactly one button, so a line with a document draws one "Belgeye git ›"; a manual line draws none.
+        Assert.Equal(7, expected.SelectMany(x => x.Kinds.Split('|')).Distinct().Count());
+        foreach (var (id, page, kinds, parameters) in expected)
+        {
+            var props = Props("customer-ledger", id);
+            Assert.Equal(("Belgeye git ›", "erpPage", page, "newTab", true), ((string)props["text"]!, (string)props["actionType"]!, (string)props["pageKey"]!,
+                (string)props["target"]!, (bool)props["legacyScreen"]!));
+            Assert.Equal(parameters, Strings(props["params"]));
+            Assert.Equal(string.Join(" || ", kinds.Split('|').Select(k => $"liste.seciliSatir.sourceType == '{k}'")), (string)props["visibleWhen"]!);
+            Assert.Equal("liste.seciliSatir.sourceOpenId == null", (string)props["disabledWhen"]!);
+        }
+        // A firm's v1 design has no row buttons: the restricted v1 table drops them and still validates.
+        var v1 = SystemPageStandards.Restrict(SystemPageStandards.All["customer-ledger"], 1);
+        Assert.True(TenantCustomPageSchema.Validate(v1, out var v1Error), v1Error);
+        Assert.Null(Props(JsonNode.Parse(v1)!.AsObject(), "liste")["rowActions"]);
     }
 
     // ---- Schema additions ----

@@ -9,6 +9,7 @@ import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import PurchaseInvoicesPage from '../PurchaseInvoicesPage';
 import { purchaseInvoiceListTag, purchaseInvoiceOverdueDays } from './purchaseInvoiceStatus';
 import { commandReason } from '../action-bar/commandReason';
+import { pageParamsOf, setPageParams } from '../pageNavigation';
 
 const PAST = '2020-01-10';
 const FUTURE = '2099-12-31';
@@ -452,5 +453,15 @@ describe('English', () => {
       'Alış faturası listesi', 'Alış faturası kayıtları', 'AF-pi1 fatura ayrıntılarını aç', 'Henüz ödeme yok.',
     ];
     expect(JSON.stringify(texts.filter((text) => localizedUiText(text) === text))).toBe('[]');
+  });
+});
+
+describe('Alış faturası sayfa parametresiyle açılır', () => {
+  it('invoiceId opens the invoice detail once and drops the param', async () => {
+    setPageParams('sales-purchase-invoices', { invoiceId: 'pi2' });
+    screenFor();
+    await settle();
+    await waitFor(() => expect(apiMock.mock.calls.some(([url]) => url === '/api/purchasing/invoices/pi2')).toBe(true));
+    expect(pageParamsOf('sales-purchase-invoices')).toEqual({});
   });
 });
