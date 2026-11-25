@@ -14,9 +14,7 @@ import {
   CalendarDays,
   Check,
   ChevronRight,
-  ClipboardCheck,
   Code2,
-  Database,
   Eye,
   EyeOff,
   FileText,
@@ -57,6 +55,21 @@ import "./studio-dashboard.css";
 import { resolvePlatformOrigin } from "./platformOrigin";
 import { confirmDialog } from "./ui/confirmDialog";
 import { Dialog } from "./ui/Dialog";
+import { NoStudioAccess } from "./shell/NoStudioAccess";
+import { RoleSwitcher } from "./shell/RoleSwitcher";
+import { SectionTabs } from "./shell/SectionTabs";
+import {
+  resolveShellRoute,
+  routeHash,
+  SECTION_TABS,
+  visibleMenu,
+} from "./shell/shellRoute";
+import {
+  roleLabel as menuRoleLabel,
+  type StudioMenuRole,
+  type StudioSection,
+} from "./shell/studioNav";
+import { useStudioAccess } from "./shell/useStudioAccess";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type DevelopmentProject = {
@@ -78,6 +91,8 @@ type DevelopmentRequest = {
   projectId: string | null;
   projectName: string | null;
   canEdit: boolean;
+  isMine: boolean;
+  stage: "New" | "Staging" | "Production";
 };
 type MarketplaceModule = {
   moduleCode: string;
@@ -339,7 +354,6 @@ export default function App() {
   const [marketplaceTab, setMarketplaceTab] = useState<
     "catalog" | "samples" | "starters"
   >("catalog");
-  const [toolQuery, setToolQuery] = useState("");
   const [marketplaceBusy, setMarketplaceBusy] = useState("");
   const [sampleInstallBusy, setSampleInstallBusy] = useState("");
   const [installedSamples, setInstalledSamples] = useState<string[]>([]);
@@ -347,10 +361,10 @@ export default function App() {
   const [analyticsProject, setAnalyticsProject] = useState("all");
   const projectsRequestId = useRef(0);
   const moduleStarterPrompted = useRef(false);
-  // İlk proje/talep yüklemesinin sonucu; üst çubuktaki bağlantı rozeti bundan beslenir.
-  const [dataStatus, setDataStatus] = useState<"loading" | "ok" | "error">(
-    "loading",
-  );
+  // Proje/talep yüklemesi başarısız olduysa üst çubuktaki bağlantı rozeti hatayı gösterir.
+  const [dataLoadFailed, setDataLoadFailed] = useState(false);
+  const requestsLoadedFor = useRef("");
+  const projectsLoadedFor = useRef("");
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const tenantSwitchRef = useRef<HTMLDivElement>(null);
   const tenantButtonRef = useRef<HTMLButtonElement>(null);
@@ -390,123 +404,37 @@ export default function App() {
   );
   const [moduleDisplayName, setModuleDisplayName] = useState(contextualScreen);
   const [moduleCode, setModuleCode] = useState(contextualModuleCode);
-  const [activeSection, setActiveSection] = useState(
-    window.location.hash.slice(1) || "overview",
-  );
-  const contextSection = window.location.hash.slice(1);
-  const platformTools = [
-    {
-      id: "modules",
-      title: "Modül pazaryeri",
-      description: "ERP modüllerini inceleyin ve çalışma alanınıza ekleyin.",
-      icon: Package,
-    },
-    {
-      id: "source-workspaces",
-      title: "Kod çalışma alanları",
-      description:
-        "Yetkili projelerde izole kod çalışma alanlarını açın ve değişiklikleri inceleyin.",
-      icon: GitBranch,
-    },
-    {
-      id: "custom-forms",
-      title: "Özel formlar",
-      description: "İş süreçlerinize uygun formlar ve alanlar tanımlayın.",
-      icon: FileText,
-    },
-    {
-      id: "custom-pages",
-      title: "Sayfa tasarımcısı",
-      description: "Yeni sayfalar oluşturun, ızgara ekleyin ve veri kolonlarını düzenleyin.",
-      icon: Pencil,
-    },
-    {
-      id: "custom-data",
-      title: "Veri modelleri",
-      description: "Tenant’a özel kayıt türleri ve alanlar tanımlayıp sayfalara veri kaynağı olarak bağlayın.",
-      icon: Database,
-    },
-    {
-      id: "workflows",
-      title: "İş akışları",
-      description: "Onay ve görev adımlarını görsel olarak düzenleyin.",
-      icon: ClipboardCheck,
-    },
-    {
-      id: "business-rules",
-      title: "İş kuralları",
-      description: "Süreçlerin koşullarını ve otomatik davranışlarını yönetin.",
-      icon: Zap,
-    },
-    {
-      id: "reports",
-      title: "Rapor oluşturucu",
-      description: "İş verileri için raporları yapılandırın.",
-      icon: Activity,
-    },
-    {
-      id: "custom-menus",
-      title: "Özel menüler",
-      description: "Tenant çalışma alanına özel gezinme menüleri oluşturun.",
-      icon: FolderKanban,
-    },
-    {
-      id: "settings",
-      title: "Yapay zekâ tanımlaması",
-      description: "Kurumun AI sağlayıcılarını ve çalışma ayarlarını yönetin.",
-      icon: Sparkles,
-    },
-  ];
-  const availablePlatformTools = platformTools.filter(
-    (tool) =>
-      (tool.id !== "custom-menus" && tool.id !== "settings") ||
-      tenant?.role === "TenantAdmin",
-  );
-  const normalizeToolSearch = (value: string) =>
-    value
-      .toLocaleLowerCase("tr-TR")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replaceAll("ı", "i");
-  const filteredPlatformTools = availablePlatformTools.filter((tool) =>
-    normalizeToolSearch(`${tool.title} ${tool.description}`).includes(
-      normalizeToolSearch(toolQuery.trim()),
-    ),
-  );
-  const adaptationFlows = [
-    {
-      title: "Ekranlar ve veriler",
-      description: "Sayfaları, formları ve veri modellerini düzenleyin.",
-      icon: FileText,
-      toolIds: ["custom-pages", "custom-data"],
-    },
-    {
-      title: "Süreç otomasyonu",
-      description: "Onay adımlarını ve koşullu iş kurallarını kurun.",
-      icon: Zap,
-      toolIds: ["workflows", "business-rules"],
-    },
-    {
-      title: "Çalışma alanı",
-      description: "Menü ve raporlarla ekibinizin ekranını sadeleştirin.",
-      icon: FolderKanban,
-      toolIds: ["custom-menus", "reports"],
-    },
-  ].map((flow) => ({
-    ...flow,
-    tools: flow.toolIds
-      .map((id) => availablePlatformTools.find((tool) => tool.id === id))
-      .filter((tool): tool is (typeof availablePlatformTools)[number] => !!tool),
-  }));
-  const filteredAdaptationFlows = adaptationFlows
-    .map((flow) => ({
-      ...flow,
-      tools: flow.tools.filter((tool) => filteredPlatformTools.includes(tool)),
-    }))
-    .filter((flow) => flow.tools.length > 0);
-  const advancedPlatformTools = filteredPlatformTools.filter((tool) =>
-    ["modules", "source-workspaces", "settings"].includes(tool.id),
-  );
+  const [hash, setHash] = useState(() => window.location.hash);
+  const access = useStudioAccess(token, tenant?.id ?? "");
+  const shellRoute = resolveShellRoute(hash, access.active, access.held);
+  // Adres başka rolün bölümünü açıyorsa o rol bu çizimde de kullanılır; etkin rol etkide saklanır.
+  const activeRole = shellRoute.role;
+  const activeSection: StudioSection = shellRoute.route.section;
+  const activeTab = shellRoute.tab;
+  // Kod ve çalışma alanı uçları yalnız Yazılımcıya (ya da firma yöneticisine) açık; Danışman proje listesini okuyamaz.
+  const canReadProjects =
+    access.status === "ready" && access.held.some((role) => role !== "consultant");
+  const isConsultant = activeRole === "consultant";
+  const needsRequests = (
+    ["home", "my-requests", "incoming-requests", "company-module"] as StudioSection[]
+  ).includes(activeSection);
+  const needsProjects =
+    canReadProjects &&
+    ((["home", "incoming-requests", "company-module"] as StudioSection[]).includes(
+      activeSection,
+    ) ||
+      (showRequest && !isConsultant));
+  function navigate(next: string) {
+    if (window.location.hash !== next) window.location.hash = next;
+    setHash(next);
+  }
+  function changeRole(role: StudioMenuRole) {
+    // Yeni rolün menüsünde bu bölüm yoksa ana sayfaya geçilir; yoksa adres eski rolü geri seçerdi.
+    const keep = visibleMenu(role).some((item) => item.section === activeSection);
+    access.setActive(role);
+    if (!keep) navigate("#home");
+  }
+  const requestsHash = isConsultant ? "#my-requests" : "#incoming-requests";
   const platformToolHref = (toolId: string) => {
     const url = new URL("/", platformOrigin);
     url.searchParams.set("platformTool", toolId);
@@ -612,31 +540,73 @@ export default function App() {
     }
   }
 
+  // Firma ya da oturum değişince önceki firmanın listeleri gösterilmez, yeniden yüklenir.
+  const dataScope = token ? tenant?.id || "" : "";
   useEffect(() => {
-    if (!token || !tenant) return;
+    requestsLoadedFor.current = "";
+    projectsLoadedFor.current = "";
+    setRequests([]);
+    setProjects([]);
+    setDataLoadFailed(false);
+  }, [dataScope]);
+
+  // Talepler yalnız onları gösteren bölüm açıkken bir kez yüklenir.
+  useEffect(() => {
+    if (!token || !tenant || access.status !== "ready" || !needsRequests) return;
+    if (requestsLoadedFor.current === tenant.id) return;
+    requestsLoadedFor.current = tenant.id;
     let current = true;
-    const requestId = ++projectsRequestId.current;
-    setDataStatus("loading");
-    void Promise.all([
-      api<DevelopmentRequest[]>("/studio/requests/", token),
-      api<DevelopmentProject[]>("/studio/projects/", token),
-    ])
-      .then(([items, registeredProjects]) => {
-        if (!current) return;
-        setRequests(items);
-        if (requestId === projectsRequestId.current)
-          setProjects(registeredProjects);
-        setDataStatus("ok");
+    let done = false;
+    api<DevelopmentRequest[]>("/studio/requests/", token)
+      .then((items) => {
+        done = true;
+        if (current) setRequests(items);
       })
       .catch((e) => {
+        done = true;
         if (!current) return;
+        requestsLoadedFor.current = "";
         setError((e as Error).message);
-        setDataStatus("error");
+        setDataLoadFailed(true);
       });
     return () => {
       current = false;
+      if (!done) requestsLoadedFor.current = "";
     };
-  }, [token, tenant?.id]);
+  }, [token, tenant?.id, access.status, needsRequests]);
+
+  // Projeler yalnız rol izin veriyorsa ve onları kullanan bölüm (ya da Yazılımcının talep formu) açıkken yüklenir.
+  useEffect(() => {
+    if (!token || !tenant || !needsProjects) return;
+    if (projectsLoadedFor.current === tenant.id) return;
+    projectsLoadedFor.current = tenant.id;
+    let current = true;
+    let done = false;
+    const requestId = ++projectsRequestId.current;
+    api<DevelopmentProject[]>("/studio/projects/", token)
+      .then((registeredProjects) => {
+        done = true;
+        if (current && requestId === projectsRequestId.current)
+          setProjects(
+            registeredProjects.map((project) => ({
+              ...project,
+              githubAuthorized:
+                project.githubAuthorized ?? project.gitHubAuthorized ?? false,
+            })),
+          );
+      })
+      .catch((e) => {
+        done = true;
+        if (!current) return;
+        projectsLoadedFor.current = "";
+        setError((e as Error).message);
+        setDataLoadFailed(true);
+      });
+    return () => {
+      current = false;
+      if (!done) projectsLoadedFor.current = "";
+    };
+  }, [token, tenant?.id, needsProjects]);
 
   useEffect(() => {
     if (activeSection === "marketplace" && token && tenant)
@@ -657,11 +627,25 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    const updateActiveSection = () =>
-      setActiveSection(window.location.hash.slice(1) || "overview");
-    window.addEventListener("hashchange", updateActiveSection);
-    return () => window.removeEventListener("hashchange", updateActiveSection);
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  // Adres başka bir rolün bölümünü açıyorsa o rol etkin olur ve saklanır; eski adresler kanonik adrese çevrilir.
+  const canonicalHash = routeHash(shellRoute.route);
+  useEffect(() => {
+    if (access.status !== "ready") return;
+    if (shellRoute.role !== access.active) access.setActive(shellRoute.role);
+    if (hash && hash !== canonicalHash) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}${canonicalHash}`,
+      );
+      setHash(canonicalHash);
+    }
+  }, [access.status, access.active, hash, shellRoute.role, canonicalHash]);
 
   useEffect(() => {
     if (!tenantMenuOpen) return;
@@ -681,18 +665,6 @@ export default function App() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [tenantMenuOpen]);
-
-  useEffect(() => {
-    if (contextSection !== "requests" || !token || !tenant) return;
-    const timer = window.setTimeout(
-      () =>
-        document
-          .getElementById("requests")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      0,
-    );
-    return () => window.clearTimeout(timer);
-  }, [contextSection, token, tenant?.id, requests.length]);
 
   async function login(event: FormEvent) {
     event.preventDefault();
@@ -818,17 +790,16 @@ export default function App() {
         }),
       });
       closeRequestDialog();
-      if (moduleRequestDraft) {
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}#projects`,
-        );
-        setActiveSection("projects");
+      if (moduleRequestDraft && canReadProjects) {
+        navigate("#company-module/code");
         setNotice(
-          "Modül geliştirme talebi kaydedildi. Projeler bölümünden yetkili deponuzda izole çalışma alanı isteyin.",
+          "Modül geliştirme talebi kaydedildi. Firma modülü bölümünden yetkili deponuzda izole çalışma alanı isteyin.",
         );
-      } else setNotice("Geliştirme talebi Studio’ya kaydedildi.");
+      } else if (moduleRequestDraft)
+        setNotice(
+          "Modül geliştirme talebi kaydedildi. Yazılımcı talebi Gelen talepler bölümünde görür.",
+        );
+      else setNotice("Geliştirme talebi Studio’ya kaydedildi.");
       setRequests(await api<DevelopmentRequest[]>("/studio/requests/", token));
     } catch (e) {
       setError((e as Error).message);
@@ -1142,6 +1113,39 @@ export default function App() {
     );
   }
 
+  if (
+    access.status === "denied" ||
+    access.status === "error" ||
+    (access.status === "ready" && access.held.length === 0)
+  )
+    return (
+      <NoStudioAccess
+        variant={access.status === "error" ? "error" : "denied"}
+        tenantName={tenant.name}
+        onLogout={logout}
+        onSwitchTenant={
+          tenants.length > 1 && selectionToken
+            ? () => {
+                try {
+                  localStorage.removeItem(activeTenantKey);
+                } catch {
+                  /* depolama kapalı olabilir */
+                }
+                setTenant(null);
+              }
+            : undefined
+        }
+      />
+    );
+  if (access.status === "loading")
+    return (
+      <div className="st-auth">
+        <div className="st-loading" role="status">
+          Studio yükleniyor…
+        </div>
+      </div>
+    );
+
   const connectedProjects = projects.filter(
     (project) => project.githubAuthorized,
   ).length;
@@ -1323,25 +1327,25 @@ export default function App() {
       title: "GitHub deposu bağlayın",
       hint: "Talepler yalnız yetkili depoda çalışır",
       done: connectedProjects > 0,
-      action: (
-        <a className="ns-btn ns-btn-sm" href="#projects">
+      action: canReadProjects ? (
+        <a className="ns-btn ns-btn-sm" href="#company-module/code">
           Proje ekle
         </a>
-      ),
+      ) : null,
     },
     {
       title: "İlk talebinizi oluşturun",
       hint: "Değişiklik ayrı çalışma alanında hazırlanır",
       done: requests.length > 0,
-      action: (
+      action: isConsultant ? (
         <button
           className="ns-btn ns-btn-sm"
           type="button"
           onClick={openNewRequest}
         >
-          Talep oluştur
+          Yazılımcıdan iste
         </button>
-      ),
+      ) : null,
     },
     {
       title: "İnceleyip onaylayın",
@@ -1353,53 +1357,52 @@ export default function App() {
   const onboardingDone = onboardingSteps.findIndex((step) => !step.done) < 0
     ? onboardingSteps.length
     : onboardingSteps.findIndex((step) => !step.done);
+  const quickLinkHints: Partial<Record<StudioSection, string>> = {
+    screens: "Sayfa, form ve rapor tasarımı",
+    rules: "İş akışları ve iş kuralları",
+    menus: "ERP gezinme menüleri",
+    "my-requests": "Yazılımcıdan istedikleriniz",
+    "incoming-requests": "Danışmanlardan gelen istekler",
+    "company-module": "Kod, sürümler ve veri modelleri",
+    marketplace: "Hazır modülleri etkinleştirin",
+    ai: "Yapay zekâ sağlayıcısı ve ayarları",
+  };
+  const menuItems = visibleMenu(activeRole);
   const quickLinks: {
     href: string;
     title: string;
     hint: string;
     icon: LucideIcon;
-  }[] = [
-    {
-      href: "#adaptation",
-      title: "Uyarlama araçları",
-      hint: "Ekran, rapor ve iş akışı düzenleme",
-      icon: Boxes,
-    },
-    {
-      href: "#marketplace",
-      title: "Modül pazaryeri",
-      hint: "Hazır modülleri etkinleştirin",
-      icon: Package,
-    },
-    {
-      href: "#analytics",
-      title: "Analitik",
-      hint: "Talep ve proje eğilimleri",
-      icon: TrendingUp,
-    },
-    {
-      href: "#requests",
-      title: "Tüm talepler",
-      hint: "Durum ve geçmiş",
-      icon: ListTodo,
-    },
-  ];
-  const sectionTitle = activeSection.startsWith("tool-")
-    ? platformTools.find((tool) => tool.id === activeSection.slice(5))?.title ||
-      "Uyarlama aracı"
-    : activeSection === "marketplace"
-      ? "Modül pazaryeri"
-      : activeSection === "adaptation"
-        ? "Platform uyarlama"
-        : activeSection === "requests"
-          ? "Geliştirme talepleri"
-          : activeSection === "analytics"
-            ? "Analitik"
-            : activeSection === "projects"
-              ? "Projeler"
-              : "Genel bakış";
-  const isAdaptationSection =
-    activeSection === "adaptation" || activeSection.startsWith("tool-");
+  }[] = menuItems
+    .filter((item) => item.section !== "home")
+    .slice(0, 4)
+    .map((item) => ({
+      href: `#${item.section}`,
+      title: item.label,
+      hint: quickLinkHints[item.section] || "",
+      icon: item.icon,
+    }));
+  const sectionTitle =
+    menuItems.find((item) => item.section === activeSection)?.label ||
+    "Ana sayfa";
+  const sectionTabs = SECTION_TABS[activeSection];
+  const activeToolId =
+    activeSection === "menus"
+      ? "custom-menus"
+      : sectionTabs?.find((tab) => tab.id === activeTab)?.toolId;
+  // "Kod ve sürümler" sekmesi proje ekranıdır; diğer sekmeler Studio içindeki uyarlama aracıdır.
+  const nativeToolId =
+    activeToolId && activeToolId !== "source-workspaces"
+      ? activeToolId
+      : undefined;
+  const sectionTabsBar =
+    sectionTabs && activeTab ? (
+      <SectionTabs
+        tabs={sectionTabs}
+        active={activeTab}
+        onSelect={(id) => navigate(`#${activeSection}/${id}`)}
+      />
+    ) : null;
   const canSwitchTenant = tenants.length > 1 && !!selectionToken;
   const userName = localStorage.getItem("aierp.user") || "Kullanıcı";
   const pageAlerts = (
@@ -1564,14 +1567,16 @@ export default function App() {
                   Son 12 ayı göster
                 </button>
               )}
-              <button
-                className="ns-btn ns-btn-primary ns-btn-sm"
-                type="button"
-                onClick={openNewRequest}
-              >
-                <Plus size={14} aria-hidden="true" />
-                Yeni talep
-              </button>
+              {isConsultant && (
+                <button
+                  className="ns-btn ns-btn-primary ns-btn-sm"
+                  type="button"
+                  onClick={openNewRequest}
+                >
+                  <Plus size={14} aria-hidden="true" />
+                  Yazılımcıdan iste
+                </button>
+              )}
             </div>
           </EmptyState>
         </section>
@@ -1704,7 +1709,7 @@ export default function App() {
                 <h2>Güncel talepler</h2>
                 <p>Seçilen dönemin en yeni kayıtları</p>
               </div>
-              <a className="ns-btn ns-btn-ghost ns-btn-sm" href="#requests">
+              <a className="ns-btn ns-btn-ghost ns-btn-sm" href={requestsHash}>
                 Tümü
                 <ArrowUpRight size={14} aria-hidden="true" />
               </a>
@@ -1730,7 +1735,7 @@ export default function App() {
       <aside className="st-side" aria-label="Studio kenar çubuğu">
         <a
           className="st-side-brand"
-          href="#overview"
+          href="#home"
           aria-label="Nexora Studio ana sayfa"
         >
           <StudioBrand />
@@ -1801,53 +1806,32 @@ export default function App() {
             </ul>
           )}
         </div>
+        <RoleSwitcher
+          held={access.held}
+          active={activeRole}
+          onChange={changeRole}
+        />
         <nav className="st-side-nav" aria-label="Studio gezinme">
-          <p className="st-side-label">Geliştirme</p>
-          <a
-            href="#overview"
-            aria-current={activeSection === "overview" ? "page" : undefined}
-          >
-            <Code2 size={16} aria-hidden="true" />
-            Genel bakış
-          </a>
-          <a
-            href="#projects"
-            aria-current={activeSection === "projects" ? "page" : undefined}
-          >
-            <FolderKanban size={16} aria-hidden="true" />
-            Projeler
-            <span className="st-side-count">{projects.length}</span>
-          </a>
-          <a
-            href="#requests"
-            aria-current={activeSection === "requests" ? "page" : undefined}
-          >
-            <ListTodo size={16} aria-hidden="true" />
-            Geliştirme talepleri
-            <span className="st-side-count">{requests.length}</span>
-          </a>
-          <a
-            href="#analytics"
-            aria-current={activeSection === "analytics" ? "page" : undefined}
-          >
-            <Activity size={16} aria-hidden="true" />
-            Analitik
-          </a>
-          <p className="st-side-label">Platform uyarlama</p>
-          <a
-            href="#adaptation"
-            aria-current={isAdaptationSection ? "page" : undefined}
-          >
-            <Boxes size={16} aria-hidden="true" />
-            Uyarlama araçları
-          </a>
-          <a
-            href="#marketplace"
-            aria-current={activeSection === "marketplace" ? "page" : undefined}
-          >
-            <Package size={16} aria-hidden="true" />
-            Modül pazaryeri
-          </a>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const count =
+              item.section === "my-requests"
+                ? requests.filter((request) => request.isMine).length
+                : item.section === "incoming-requests"
+                  ? requests.length
+                  : 0;
+            return (
+              <a
+                key={item.section}
+                href={`#${item.section}`}
+                aria-current={activeSection === item.section ? "page" : undefined}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {item.label}
+                {count > 0 && <span className="st-side-count">{count}</span>}
+              </a>
+            );
+          })}
         </nav>
         <div className="st-profile">
           <span className="st-avatar is-round" aria-hidden="true">
@@ -1855,7 +1839,7 @@ export default function App() {
           </span>
           <span className="st-profile-text">
             <b>{userName}</b>
-            <small>{roleLabel(tenant.role)}</small>
+            <small>{menuRoleLabel(activeRole)}</small>
           </span>
           <button
             type="button"
@@ -1877,20 +1861,21 @@ export default function App() {
             <b aria-current="page">{sectionTitle}</b>
           </nav>
           <div className="st-top-actions">
-            {dataStatus === "ok" && (
+            {dataLoadFailed ? (
+              <span className="ns-badge is-danger">Veriler yüklenemedi</span>
+            ) : (
               <span className="ns-badge is-success">Studio API bağlı</span>
             )}
-            {dataStatus === "error" && (
-              <span className="ns-badge is-danger">Veriler yüklenemedi</span>
+            {isConsultant && (
+              <button
+                type="button"
+                className="ns-btn ns-btn-primary ns-btn-sm"
+                onClick={openNewRequest}
+              >
+                <Plus size={15} aria-hidden="true" />
+                Yazılımcıdan iste
+              </button>
             )}
-            <button
-              type="button"
-              className="ns-btn ns-btn-primary ns-btn-sm"
-              onClick={openNewRequest}
-            >
-              <Plus size={15} aria-hidden="true" />
-              Yeni talep
-            </button>
           </div>
         </header>
 
@@ -2236,204 +2221,33 @@ export default function App() {
                 </section>
               )}
             </>
-          ) : activeSection === "adaptation" ? (
+          ) : nativeToolId ? (
             <>
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <h1>Platform uyarlama</h1>
-                  <p>
-                    ERP'yi {tenant.name} iş süreçlerine göre şekillendirin;
-                    araçlar Studio içinde açılır.
-                  </p>
-                </div>
-                <label className="st-search st-hero-search">
-                  <Search size={15} aria-hidden="true" />
-                  <input
-                    type="search"
-                    aria-label="Uyarlama araçlarında ara"
-                    placeholder="Araç ara…"
-                    value={toolQuery}
-                    onChange={(event) => setToolQuery(event.target.value)}
+              {sectionTabsBar}
+              <div className="studio-native-tool">
+                <Suspense
+                  fallback={
+                    <div className="st-loading" role="status">
+                      Uyarlama aracı yükleniyor…
+                    </div>
+                  }
+                >
+                  <NativePlatformTool
+                    key={nativeToolId}
+                    toolId={nativeToolId}
+                    token={token}
+                    role={tenant.role}
+                    platformOrigin={platformOrigin}
+                    tenant={tenant}
+                    backHref={`#${activeSection}`}
                   />
-                </label>
-              </header>
-              {filteredAdaptationFlows.length > 0 && (
-                <section
-                  className="st-section"
-                  aria-labelledby="studio-flows-title"
-                >
-                  <header className="st-section-head">
-                    <h2 id="studio-flows-title">Neyi düzenlemek istiyorsunuz?</h2>
-                    <span className="ns-badge" role="status">
-                      {filteredPlatformTools.length} araç
-                    </span>
-                  </header>
-                  <div className="st-flow-grid">
-                    {filteredAdaptationFlows.map((flow) => {
-                      const FlowIcon = flow.icon;
-                      return (
-                        <article className="ns-card st-flow" key={flow.title}>
-                          <header className="st-flow-head">
-                            <span className="st-tile-icon" aria-hidden="true">
-                              <FlowIcon size={16} />
-                            </span>
-                            <div>
-                              <h3>{flow.title}</h3>
-                              <p>{flow.description}</p>
-                            </div>
-                          </header>
-                          <nav
-                            className="st-flow-tools"
-                            aria-label={`${flow.title} araçları`}
-                          >
-                            {flow.tools.map((tool) => (
-                              <a href={`#tool-${tool.id}`} key={tool.id}>
-                                <span>
-                                  <b>{tool.title}</b>
-                                  <small>{tool.description}</small>
-                                </span>
-                                <ChevronRight size={16} aria-hidden="true" />
-                              </a>
-                            ))}
-                          </nav>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-              {advancedPlatformTools.length > 0 && (
-                <section
-                  className="st-section"
-                  aria-labelledby="studio-advanced-title"
-                >
-                  <header className="st-section-head">
-                    <h2 id="studio-advanced-title">Gelişmiş araçlar</h2>
-                  </header>
-                  <div className="ns-card st-advanced">
-                    <div className="st-advanced-list st-advanced-grid">
-                      {advancedPlatformTools.map((tool) => {
-                        const ToolIcon = tool.icon;
-                        const href =
-                          tool.id === "modules"
-                            ? "#marketplace"
-                            : tool.id === "source-workspaces"
-                              ? "#projects"
-                              : `#tool-${tool.id}`;
-                        return (
-                          <a href={href} key={tool.id}>
-                            <span className="st-tile-icon" aria-hidden="true">
-                              <ToolIcon size={16} />
-                            </span>
-                            <span>
-                              <b>{tool.title}</b>
-                              <small>{tool.description}</small>
-                            </span>
-                            <ChevronRight size={16} aria-hidden="true" />
-                          </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-              )}
-              {filteredPlatformTools.length === 0 && (
-                <div className="ns-card">
-                  <EmptyState
-                    icon={Search}
-                    title="Aramanızla eşleşen araç bulunamadı"
-                  >
-                    <span>
-                      Araç adı veya açıklamasındaki bir kelimeyle tekrar
-                      arayın.
-                    </span>
-                    <button
-                      className="ns-btn ns-btn-sm"
-                      type="button"
-                      onClick={() => setToolQuery("")}
-                    >
-                      Aramayı temizle
-                    </button>
-                  </EmptyState>
-                </div>
-              )}
+                </Suspense>
+              </div>
             </>
-          ) : activeSection.startsWith("tool-") ? (
-            (() => {
-              const tool = availablePlatformTools.find(
-                (item) => item.id === activeSection.slice(5),
-              );
-              if (!tool)
-                return (
-                  <div className="ns-card">
-                    <EmptyState icon={Boxes} title="Uyarlama aracı bulunamadı">
-                      <a className="ns-btn ns-btn-sm" href="#adaptation">
-                        Uyarlama araçlarına dön
-                      </a>
-                    </EmptyState>
-                  </div>
-                );
-              const nativeToolIds = [
-                "custom-forms",
-                "workflows",
-                "business-rules",
-                "reports",
-                "custom-menus",
-                "custom-pages",
-                "custom-data",
-              ];
-              return (
-                <>
-                  {nativeToolIds.includes(tool.id) ? (
-                    <div className="studio-native-tool">
-                      <Suspense
-                        fallback={
-                          <div className="st-loading" role="status">
-                            Uyarlama aracı yükleniyor…
-                          </div>
-                        }
-                      >
-                        <NativePlatformTool
-                          toolId={tool.id}
-                          token={token}
-                          role={tenant.role}
-                          platformOrigin={platformOrigin}
-                          tenant={tenant}
-                        />
-                      </Suspense>
-                    </div>
-                  ) : (
-                    <>
-                      <header className="ns-page-head st-page-head">
-                        <div>
-                          <h1>{tool.title}</h1>
-                          <p>{tool.description}</p>
-                        </div>
-                        <a className="ns-btn" href="#adaptation">
-                          Uyarlama araçlarına dön
-                        </a>
-                      </header>
-                      <iframe
-                        className="st-tool-frame"
-                        title={`${tool.title} · Studio`}
-                        src={platformToolHref(tool.id)}
-                        loading="lazy"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        onLoad={(event) =>
-                          event.currentTarget.contentWindow?.postMessage(
-                            { type: "NEXORA_STUDIO_AUTH", token, tenant },
-                            platformOrigin,
-                          )
-                        }
-                      />
-                    </>
-                  )}
-                </>
-              );
-            })()
-          ) : activeSection === "projects" ? (
+          ) : activeSection === "company-module" ? (
             <>
               {pageAlerts}
+              {sectionTabsBar}
               <div id="projects" className="studio-projects-page-content">
                 <Suspense
                   fallback={
@@ -2461,25 +2275,10 @@ export default function App() {
                 </Suspense>
               </div>
             </>
-          ) : activeSection === "requests" ? (
+          ) : activeSection === "my-requests" ||
+            activeSection === "incoming-requests" ? (
             <>
               {pageAlerts}
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <h1>Geliştirme talepleri</h1>
-                  <p>İhtiyaçlar ve durumları</p>
-                </div>
-                <div className="st-hero-actions">
-                  <button
-                    className="ns-btn ns-btn-primary"
-                    type="button"
-                    onClick={openNewRequest}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Yeni talep
-                  </button>
-                </div>
-              </header>
               <Suspense
                 fallback={
                   <div className="st-loading" role="status">
@@ -2490,6 +2289,7 @@ export default function App() {
                 {/* Bileşen bir fragment döndürür; düz blok kap, iç boşluklarının eskisi gibi kalmasını sağlar. */}
                 <div className="st-embed">
                   <DevelopmentRequestsPage
+                    mode={activeSection === "my-requests" ? "mine" : "incoming"}
                     requests={requests}
                     projects={projects}
                     busy={busy}
@@ -2500,8 +2300,28 @@ export default function App() {
                 </div>
               </Suspense>
             </>
-          ) : activeSection === "analytics" ? (
-            analyticsContent
+          ) : activeSection === "ai" ? (
+            <>
+              <header className="ns-page-head st-page-head">
+                <div>
+                  <h1>Yapay zekâ tanımlaması</h1>
+                  <p>Kurumun AI sağlayıcılarını ve çalışma ayarlarını yönetin.</p>
+                </div>
+              </header>
+              <iframe
+                className="st-tool-frame"
+                title="Yapay zekâ tanımlaması · Studio"
+                src={platformToolHref("settings")}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                onLoad={(event) =>
+                  event.currentTarget.contentWindow?.postMessage(
+                    { type: "NEXORA_STUDIO_AUTH", token, tenant },
+                    platformOrigin,
+                  )
+                }
+              />
+            </>
           ) : (
             <>
               {pageAlerts}
@@ -2564,7 +2384,7 @@ export default function App() {
               <header className="st-hero">
                 <div className="st-hero-text">
                   <small>
-                    {tenant.name} · {roleLabel(tenant.role)}
+                    {tenant.name} · {menuRoleLabel(activeRole)}
                   </small>
                   <h1>Merhaba, {userName}</h1>
                   <p>
@@ -2572,18 +2392,22 @@ export default function App() {
                   </p>
                 </div>
                 <div className="st-hero-actions">
-                  <a className="ns-btn" href="#projects">
-                    <FolderKanban size={16} aria-hidden="true" />
-                    Projeler
-                  </a>
-                  <button
-                    className="ns-btn ns-btn-primary"
-                    type="button"
-                    onClick={openNewRequest}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Yeni talep
-                  </button>
+                  {canReadProjects && (
+                    <a className="ns-btn" href="#company-module/code">
+                      <FolderKanban size={16} aria-hidden="true" />
+                      Firma modülü
+                    </a>
+                  )}
+                  {isConsultant && (
+                    <button
+                      className="ns-btn ns-btn-primary"
+                      type="button"
+                      onClick={openNewRequest}
+                    >
+                      <Plus size={16} aria-hidden="true" />
+                      Yazılımcıdan iste
+                    </button>
+                  )}
                 </div>
               </header>
 
@@ -2639,7 +2463,7 @@ export default function App() {
                       </div>
                       <a
                         className="ns-btn ns-btn-ghost ns-btn-sm"
-                        href="#requests"
+                        href={requestsHash}
                       >
                         Tümü
                         <ArrowUpRight size={14} aria-hidden="true" />
@@ -2752,6 +2576,7 @@ export default function App() {
                   </p>
                 </section>
               </div>
+              {analyticsContent}
             </>
           )}
         </main>
@@ -2796,6 +2621,7 @@ export default function App() {
                   {error}
                 </div>
               )}
+              {!isConsultant && (
               <label className="ns-field">
                 <span className="ns-field-label">Proje</span>
                 <select
@@ -2820,6 +2646,7 @@ export default function App() {
                   Seçmezseniz talep firma genelinde görünür.
                 </small>
               </label>
+              )}
               <label className="ns-field">
                 <span className="ns-field-label">Başlık</span>
                 <input
