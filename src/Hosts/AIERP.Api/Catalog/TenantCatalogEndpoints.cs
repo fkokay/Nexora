@@ -150,7 +150,7 @@ internal static partial class TenantCatalogEndpoints
             });
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/custom-pages/catalog/previews/{preview.Id:D}", new { id = preview.Id });
-        });
+        }).RequireRateLimiting(CustomPageQueryEndpoints.PreviewRateLimitPolicy);
 
         // Order of checks: admin -> the caller's own preview row -> item -> parameters -> re-validation of the SQL -> connection.
         catalog.MapPost("/previews/{id:guid}/items/{code}/run", async (Guid id, string code, PreviewRunRequest? request, ClaimsPrincipal user,

@@ -8,6 +8,9 @@ using AIERP.Platform.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -239,6 +242,18 @@ public sealed class TenantCatalogPreviewIntegrationTests
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync(Previews, new { })).StatusCode);
         await using var scope = app.Services.CreateAsyncScope();
         Assert.Empty(await scope.ServiceProvider.GetRequiredService<TenantDbContext>().TenantCatalogPreviews.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Both_preview_routes_use_the_preview_rate_limit_policy()
+    {
+        await using var app = await StartApplicationAsync(new RecordingExecutor(rowCount: 1));
+        var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(x => x.Endpoints).OfType<RouteEndpoint>().ToArray();
+        foreach (var pattern in new[] { "/api/custom-pages/catalog/previews", "/api/custom-pages/catalog/previews/{id:guid}/items/{code}/run" })
+        {
+            var endpoint = Assert.Single(endpoints, x => x.RoutePattern.RawText == pattern && x.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("POST") == true);
+            Assert.Equal(CustomPageQueryEndpoints.PreviewRateLimitPolicy, endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName);
+        }
     }
 
     /// <summary>
