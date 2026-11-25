@@ -5,8 +5,7 @@ Studio now has a role per person and company (Danışman, Yazılımcı, Yönetic
 
 If `/studio/me` cannot be read (anything other than 403: an older AIService, `studio_database_not_ready` / `studio_migrations_pending`, or an AIService outage), Studio opens with a limited menu (Ana sayfa, Ekranlar, Kurallar, Menüler), a warning banner and a retry button instead of failing; 403 still shows the no-access screen. Deploy order: apply the Platform migration `AddStudioRoleToMembership` first, then `platform-api` and `ai-service`, then `development-studio`.
 
-Verified: unit tests, integration tests, frontend tests and the Studio build passed.
-<!-- test sayıları controller tarafından eklenecek -->
+Verified (2026-11-25, branch head 2686157d): `dotnet test AIERP.slnx` — unit tests 1181/1181 passed; integration tests 1668 passed, 60 skipped (SQL Server acceptance), 22 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled, all in classes this change does not touch); those 8 classes re-run alone passed 246/246. Studio frontend: `npm test` 574 vitest + 13 node tests passed, `npm run build` passed.
 
 Not verified: a real backend login end to end; the Docker Compose manual scenario with three users (TenantAdmin, TenantUser without grants, TenantUser with a project grant); the four new screens in a real browser against the approved mockup; the narrow-screen layout.
 
