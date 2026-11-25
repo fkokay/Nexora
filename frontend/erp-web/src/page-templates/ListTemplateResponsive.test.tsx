@@ -1,0 +1,130 @@
+import { act, cleanup, fireEvent, render as renderPlain, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CommandProvider } from '../commands/CommandProvider';
+import { api } from '../erpApi';
+import TenantCustomPage from '../TenantCustomPage';
+
+// Liste kalıbı: kutu genişliğine göre yerleşim. jsdom `@container` değerlendirmez; JS kipinin sürdüğü davranış sınanır.
+
+const render = (ui: Parameters<typeof renderPlain>[0]) => renderPlain(ui, { wrapper: CommandProvider });
+
+vi.mock('../erpApi', () => ({ api: vi.fn() }));
+const mockedApi = vi.mocked(api);
+
+const codes = Array.from({ length: 20 }, (_, index) => `K${index + 1}`);
+const manyRows = Array.from({ length: 25 }, (_, index) => Object.fromEntries(codes.map((code) => [code, `${code}-${index + 1}`])));
+let definition: unknown;
+let listRows: Record<string, unknown>[];
+let listColumns: string[];
+
+const queries = [
+  { id: 'q_list', name: 'liste_sorgu', kind: 'read', runOn: 'load', sql: 'SELECT 1', parameters: [] },
+  { id: 'q_ozet', name: 'ozet', kind: 'read', runOn: 'load', sql: 'SELECT 1 AS Toplam', parameters: [] },
+  { id: 'q_sil', name: 'sil', kind: 'delete', sql: 'DELETE FROM X', parameters: [] },
+];
+const page = (tableProps: Record<string, unknown>, extra: unknown[] = []) => {
+  definition = {
+    schemaVersion: 2, template: { name: 'list' }, queries,
+    components: [
+      { id: 't1', type: 'dataTable', name: 'liste', props: { slot: 'list', query: 'q_list', title: 'Kayıtlar', columns: listColumns, ...tableProps } },
+      { id: 'rs', type: 'button', props: { slot: 'rowActions', text: 'Satırı sil', actionType: 'query', queryId: 'q_sil' } },
+      ...extra,
+    ],
+  };
+};
+
+// ResizeObserver taklidi: gözlenen öğeye istenen genişlik bildirilir.
+const observers: { callback: ResizeObserverCallback; element: Element }[] = [];
+class FakeResizeObserver {
+  constructor(private callback: ResizeObserverCallback) {}
+  observe(element: Element) { observers.push({ callback: this.callback, element }); }
+  unobserve() {}
+  disconnect() {}
+}
+const resizeTo = (width: number) => act(() => {
+  for (const { callback, element } of observers) callback([{ contentRect: { width }, target: element } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+});
+
+beforeEach(() => {
+  localStorage.clear();
+  observers.length = 0;
+  vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  mockedApi.mockReset();
+  listColumns = codes;
+  listRows = manyRows.slice(0, 3);
+  mockedApi.mockImplementation(async (endpoint: string) => {
+    if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Kayıtlar', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights: { view: true, insert: true, update: true, delete: true } } as never;
+    if (endpoint.includes('/queries/q_list/run')) return { columns: listColumns.map((code) => ({ code, label: code })), rows: listRows, rowCount: listRows.length, truncated: false } as never;
+    if (endpoint.includes('/queries/q_ozet/run')) return { columns: [{ code: 'Toplam', label: 'Toplam' }], rows: [{ Toplam: 1 }], rowCount: 1, truncated: false } as never;
+    return { items: [], total: 0 } as never;
+  });
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+const T = { timeout: 5000 };
+const headers = (container: HTMLElement) => [...container.querySelectorAll('thead th')].map((th) => th.textContent);
+
+describe('liste kalıbı kutu genişliği', () => {
+  it('twenty columns at 600px show four and move row actions to menu', async () => {
+    page({ rowActions: ['rs'] });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('K1-1', undefined, T);
+    // Geniş kutuda 20 sütun ve satır düğmeleri açıktır.
+    expect(headers(container).filter((text) => text?.startsWith('K'))).toHaveLength(20);
+    expect(screen.getAllByRole('button', { name: 'Satırı sil' }).length).toBeGreaterThan(0);
+    resizeTo(600);
+    await waitFor(() => expect(headers(container).filter((text) => text?.startsWith('K'))).toEqual(['K1', 'K2', 'K3', 'K4']));
+    expect(screen.queryByRole('button', { name: 'Satırı sil' })).toBeNull();
+    const triggers = screen.getAllByRole('button', { name: 'Satır işlemleri' });
+    expect(triggers).toHaveLength(3);
+    fireEvent.click(triggers[0]);
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Satırı sil' })).toBeTruthy();
+  });
+
+  it('cards mode at 400px', async () => {
+    listColumns = ['Ad', 'Şehir', 'Tür', 'Tutar'];
+    listRows = [{ Ad: 'Ayşe Ltd', Şehir: 'Ankara', Tür: 'A', Tutar: 1250 }, { Ad: 'Mehmet AŞ', Şehir: 'İzmir', Tür: 'S', Tutar: 300 }];
+    page({ columns: listColumns, rowActions: ['rs'], columnFormats: ['Tutar=money'] });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Ayşe Ltd', undefined, T);
+    expect(container.querySelector('.list-cards')).toBeNull();
+    resizeTo(400);
+    await waitFor(() => expect(container.querySelectorAll('.list-card')).toHaveLength(2));
+    expect(container.querySelector('table')).toBeNull();
+    const card = container.querySelector('.list-card') as HTMLElement;
+    expect(card.querySelector('.list-card-title')!.textContent).toBe('Ayşe Ltd');
+    expect([...card.querySelectorAll('.list-card-sub')].map((node) => node.textContent)).toEqual(['Ankara', 'A']);
+    expect(card.querySelector('.list-card-amount')!.textContent).toContain('1');
+    expect(within(card).getByRole('button', { name: 'Satır işlemleri' })).toBeTruthy();
+  });
+
+  it('hideOnMobile hides the component in cards mode', async () => {
+    page({}, [{ id: 'm1', type: 'metric', props: { slot: 'indicators', title: 'Toplam alacak', query: 'q_ozet', hideOnMobile: true } },
+      { id: 'm2', type: 'metric', props: { slot: 'indicators', title: 'Açık belge', query: 'q_ozet' } }]);
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('K1-1', undefined, T);
+    expect(container.querySelector('.list-template-indicators')!.textContent).toContain('Toplam alacak');
+    resizeTo(600);
+    await waitFor(() => expect(container.querySelector('.list-template-list')!.getAttribute('data-list-mode')).toBe('narrow'));
+    expect(container.querySelector('.list-template-indicators')!.textContent).toContain('Toplam alacak');
+    resizeTo(400);
+    await waitFor(() => expect(container.querySelector('.list-template-indicators')!.textContent).not.toContain('Toplam alacak'));
+    expect(container.querySelector('.list-template-indicators')!.textContent).toContain('Açık belge');
+  });
+
+  it('pageSize 10 without server paging shows 10 rows and a pager', async () => {
+    listColumns = ['Ad'];
+    listRows = Array.from({ length: 25 }, (_, index) => ({ Ad: `Kayıt ${String(index + 1).padStart(2, '0')}` }));
+    page({ columns: listColumns, pageSize: 10 });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Kayıt 01', undefined, T);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(10);
+    expect(screen.queryByText('Kayıt 11')).toBeNull();
+    const pager = container.querySelector('.tenant-page-pager') as HTMLElement;
+    expect(pager.textContent).toContain('1–10 / 25');
+    fireEvent.click(within(pager).getByRole('button', { name: 'Sonraki' }));
+    await screen.findByText('Kayıt 11');
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(10);
+    expect(screen.queryByText('Kayıt 01')).toBeNull();
+  });
+});

@@ -44,6 +44,7 @@ import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
+import { CLIENT_PAGE_SIZES } from "./page-templates/listResponsive";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
@@ -1254,6 +1255,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
           valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
+          clientPageSize={!pager && typeof props.pageSize === "number" && CLIENT_PAGE_SIZES.includes(props.pageSize) ? props.pageSize : undefined}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;

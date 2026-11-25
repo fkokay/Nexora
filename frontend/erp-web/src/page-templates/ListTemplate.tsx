@@ -1,7 +1,8 @@
-import { useContext, type ReactNode } from "react";
+import { useContext, useRef, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
 import { PageShell, type ShellAction } from "./PageShell";
+import { ListModeContext, useListMode } from "./listResponsive";
 import { templateLevel, type Component, type ListLayout } from "./listTemplateModel";
 
 /** Kabuğun ortasındaki arama kutusu: süzgeç alanının arama değerini ve kimliğini kullanır. */
@@ -28,19 +29,28 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
   actions: ShellAction[]; search?: ReactNode; detailOpen: boolean; notices?: ReactNode;
 }) {
   const canvas = useContext(CanvasAnchorContext);
+  const listRef = useRef<HTMLDivElement>(null);
+  const mode = useListMode(listRef);
   const showDetail = !!layout.detail && (detailOpen || canvas);
   const striped = layout.list.props?.striped === true;
-  return <div className="list-template" data-level={templateLevel(layout)}>
+  // `hideOnMobile`: kart kipinde (dar kutu) bileşen çizilmez.
+  const visible = <T extends Component>(items: T[]) => (mode === "cards" ? items.filter((item) => item.props?.hideOnMobile !== true) : items);
+  const above = visible(layout.above);
+  const indicators = visible(layout.indicators);
+  const below = visible(layout.below);
+  const filters = layout.filters && visible([layout.filters]).length > 0 ? layout.filters : null;
+  const detail = layout.detail && visible([layout.detail]).length > 0 ? layout.detail : null;
+  return <ListModeContext.Provider value={mode}><div className="list-template" data-level={templateLevel(layout)}>
     <PageShell title={title} crumbs={[]} count={count} actions={actions} search={search ?? undefined}>
       {notices}
-      {layout.above.length > 0 && <div className="list-template-above">{layout.above.map(render)}</div>}
-      {layout.indicators.length > 0 && <div className="list-template-indicators">{layout.indicators.map(render)}</div>}
-      {layout.filters && <div className="list-template-filters">{render(layout.filters)}</div>}
-      <div className={`list-template-main${showDetail ? " has-detail" : ""}`}>
-        <div className={`list-template-list${striped ? " is-striped" : ""}`}>{render(layout.list)}</div>
-        {showDetail && layout.detail && <div className="list-template-detail">{render(layout.detail)}</div>}
+      {above.length > 0 && <div className="list-template-above">{above.map(render)}</div>}
+      {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}
+      {filters && <div className="list-template-filters">{render(filters)}</div>}
+      <div className={`list-template-main${showDetail && detail ? " has-detail" : ""}`}>
+        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}>{render(layout.list)}</div>
+        {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
-      {layout.below.length > 0 && <div className="list-template-below">{layout.below.map(render)}</div>}
+      {below.length > 0 && <div className="list-template-below">{below.map(render)}</div>}
     </PageShell>
-  </div>;
+  </div></ListModeContext.Provider>;
 }

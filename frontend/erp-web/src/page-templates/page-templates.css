@@ -14,7 +14,27 @@
 .list-template-above, .list-template-below { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .list-template-indicators { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; min-width: 0; }
 .list-template-main { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
-.list-template-list { flex: 1 1 auto; min-width: 0; }
+.list-template-list { flex: 1 1 0; min-width: 0; container-type: inline-size; container-name: list-box; }
 .list-template-detail { flex: 0 0 320px; min-width: 0; }
 .list-template-list.is-striped tbody tr:nth-child(even) { background: rgb(0 0 0 / 3%); }
 .list-template-search { width: 100%; max-width: 360px; }
+/* Kutu genişliğine göre yerleşim: eşikler listResponsive.ts ile aynıdır (720 ve 480). JS kipi ⋯ menüsünü ve kart çizimini sürer. */
+@container list-box (max-width: 719.98px) {
+  .list-col-extra { display: none; }
+}
+.list-row-menu { position: relative; display: inline-block; }
+.list-row-menu-trigger { background: transparent; border: 0; padding: 2px 8px; font-size: 18px; line-height: 1; border-radius: 6px; cursor: pointer; }
+.list-row-menu-list { position: absolute; right: 0; top: 100%; z-index: 20; display: flex; flex-direction: column; min-width: 150px; padding: 4px; background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 14%); }
+.list-row-menu-item { text-align: left; background: transparent; border: 0; padding: 6px 10px; border-radius: 6px; }
+.list-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.list-card { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 10px 12px; background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 8px; }
+.list-card.is-selected { border-color: var(--nx-accent, currentColor); }
+.list-card-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.list-card-title { overflow: hidden; text-overflow: ellipsis; }
+.list-card-sub { font-size: 12px; color: var(--nx-muted); overflow: hidden; text-overflow: ellipsis; }
+.list-card-amount { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.list-skeleton { position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 320px; }
+.list-skeleton-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.list-skeleton-row { height: 32px; border-radius: 6px; background: linear-gradient(90deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 10%), rgb(0 0 0 / 5%)); background-size: 200% 100%; animation: list-skeleton-pulse 1.4s ease-in-out infinite; }
+@keyframes list-skeleton-pulse { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .list-skeleton-row { animation: none; } }

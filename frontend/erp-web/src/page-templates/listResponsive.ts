@@ -1,6 +1,12 @@
-import { useEffect, useState, type RefObject } from "react";
+import { createContext, useEffect, useState, type RefObject } from "react";
 
 export type ListMode = "full" | "narrow" | "cards";
+
+/** Liste kalıbının kutu genişliği kipi; kalıp dışındaki (eski) sayfalarda null olduğundan ızgara değişmez. */
+export const ListModeContext = createContext<ListMode | null>(null);
+
+/** Kalıplı listede kullanıcı satır sayısını seçemez; tasarımcının `pageSize` değerleri. */
+export const CLIENT_PAGE_SIZES = [10, 25, 50, 100];
 
 const NARROW_BELOW = 720;
 const CARDS_BELOW = 480;
