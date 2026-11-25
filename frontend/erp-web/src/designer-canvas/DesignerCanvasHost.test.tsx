@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasAnchorContext } from './anchorContext';
 import DesignerCanvasHost from './DesignerCanvasHost';
 
-const mounts = vi.hoisted(() => ({ count: 0, error: false }));
+const mounts = vi.hoisted(() => ({ count: 0, error: false, queryError: false }));
 
 vi.mock('../TenantCustomPage', () => ({
   default: function FakePage() {
     const anchored = useContext(CanvasAnchorContext);
     useEffect(() => { mounts.count += 1; }, []);
-    if (mounts.error) return <div className="tenant-custom-page-error">Sayfa yok</div>;
+    if (mounts.error) return <div className="tenant-custom-page-state tenant-custom-page-error">Sayfa yok</div>;
+    if (mounts.queryError) return <><template data-cp-anchor="x" /><div style={{ height: '50px' }}><div className="tenant-custom-page-error tenant-page-query-error">Sorgu hatası</div></div></>;
     return anchored ? <><template data-cp-anchor="x" /><div style={{ height: '50px' }} /></> : <div />;
   },
 }));
@@ -32,6 +33,7 @@ function renderHost() {
 beforeEach(() => {
   mounts.count = 0;
   mounts.error = false;
+  mounts.queryError = false;
   posted = [];
   frames = [];
   vi.spyOn(window, 'postMessage').mockImplementation(((message: unknown, target: string) => {
@@ -104,5 +106,14 @@ describe('DesignerCanvasHost', () => {
     await waitFor(() => expect(frames.length).toBeGreaterThan(0));
     flushFrames();
     expect(lastOfType('error')?.message).toMatchObject({ type: 'error', revision: 0, message: 'Sayfa yok' });
+  });
+
+  it('blok sorgu hatası layout göndermeyi durdurmaz', async () => {
+    mounts.queryError = true;
+    renderHost();
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    flushFrames();
+    expect(lastOfType('error')).toBeUndefined();
+    expect(lastOfType('layout')?.message.blocks[0].id).toBe('x');
   });
 });

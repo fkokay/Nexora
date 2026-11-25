@@ -899,7 +899,7 @@ function AppContent() {
     );
   if (embeddedStudioTool && (!token || !tenant))
     return <EmbeddedStudioWaitingPage />;
-  if (canvasParams)
+  if (canvasParams && embeddedStudioTool)
     return (
       <DesignerCanvasHost
         token={token}

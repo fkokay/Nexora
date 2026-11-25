@@ -4,7 +4,8 @@ import { CANVAS_PROTOCOL, CANVAS_VERSION, collectBlocks, parseStudioCanvasMessag
 import './designer-canvas.css';
 
 const TenantCustomPage = lazy(() => import('../TenantCustomPage'));
-const ERROR_SELECTOR = '.tenant-custom-page-error';
+// Yalnızca sayfa yükleme hatası (tenant-custom-page-state); blok sorgu hataları (tenant-page-query-error) düzeni durdurmaz.
+const ERROR_SELECTOR = '.tenant-custom-page-state.tenant-custom-page-error';
 
 export default function DesignerCanvasHost({ token, params, studioOrigin }: { token: string; params: CanvasParams; studioOrigin: string }) {
   const [revision, setRevision] = useState(0);
