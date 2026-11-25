@@ -62,8 +62,12 @@ export function applyQueryPatch(query: PageQuery, patch: Partial<PageQuery>, mem
   const next: PageQuery = { ...query, ...patch };
   if ("operation" in patch && patch.operation === undefined) delete next.operation;
   if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
-  if (typeof next.operation === "string") return next;
-  if (typeof query.operation !== "string") for (const parameter of query.parameters) memory.set(parameter.name.toLowerCase(), parameter);
+  // Katalog başvurusu: kaynak değişiminde kalkan (undefined) anahtarlar tamamen silinir; SQL metni başvuru seçilince atılır.
+  for (const key of ["dataSource", "action"] as const) if (key in patch && patch[key] === undefined) delete next[key];
+  if (typeof patch.dataSource === "string" || typeof patch.action === "string") delete next.sql;
+  const catalogQuery = typeof next.dataSource === "string" || typeof next.action === "string";
+  if (typeof next.operation === "string" || catalogQuery) return next;
+  if (typeof query.operation !== "string" && typeof query.dataSource !== "string" && typeof query.action !== "string") for (const parameter of query.parameters) memory.set(parameter.name.toLowerCase(), parameter);
   if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => memory.get(name.toLowerCase()), defaultBinding);
   return next;
 }

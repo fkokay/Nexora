@@ -1443,3 +1443,10 @@ Platform EF modelinde snapshot'a göre bekleyen operasyonel kolonlar için `2026
 - Dağıtım sırası: `TenantCustomPageWriteAudits.CatalogReference` Platform migrationı yeni API'den önce uygulanmalıdır. Uygulanmazsa özel sayfa yazma sorguları 503 verir.
 - Doğrulanmayan: SQL Server kabul testi yazılmadı ve çalıştırılmadı; migrationlar disposable SQL Server üzerinde denenmedi. Canlı bir firmada deneme yapılmadı, canlı ortama dağıtılmadı.
 - Kalan: Studio'dan katalog paketi yayınlama ve katalog seçici 2c'ye kaldı; Studio'da başvurular yalnızca salt okunur gösterilir ve korunur. Köken bilgisi (repo/commit/yol) yalnızca kaydedilir, sunucuda doğrulanmaz.
+
+### 2026-11-25 Studio katalog seçici (alt proje 2c, tasarımcı bölümü)
+
+- Kapsam: Studio sayfa tasarımcısının sorgu düzenleyicisine (Sorgular sekmesi ve "Yeni sorgu/Düzenle" penceresi) üçüncü kaynak "Katalog" eklendi. `GET /api/custom-pages/catalog` yanıtından okuma sorgusuna veri kaynakları, yazma sorgusuna aynı türdeki eylemler listelenir; seçim `dataSource`/`action` kodunu ve parametre satırlarını yazar (SQL'e dayanan öğede öğenin parametreleri, ERP işlemine dayanan öğede işlem kataloğunun parametreleri), SQL ve ERP işlemi anahtarları silinir. TenantAdmin olmayan kullanıcıda SQL'e dayanan öğeler ve eylemler pasiftir; bulunamayan kod uyarı verir, sorgu korunur; `invalidItems` gösterilmez.
+- Doğrulanan (yerel, bu görev): `catalogReference.test.ts` 10/10 geçti (liste türe göre, seçim, yönetici olmayan, bulunamayan kod, SQL'e dönüş, `invalidItems`). Studio `npm test`: 46 dosya, 497 test geçti (başka görevlerin Studio dosyaları çalışma ağacında olduğu hâliyle dahil); `npm run build` (tsc + vite) geçti.
+- Doğrulanmayan: canlı bir firmada deneme yapılmadı; SQL Server kabul testi çalıştırılmadı; Studio ile Platform arasındaki uçtan uca akış (gerçek çalışma alanı + gerçek API ile yayınlama, Önizle ve tasarımcıdan seçim) denenmedi; Seçici tarayıcıda elle denenmedi, yalnızca bileşen/saf işlev testleri var.
+

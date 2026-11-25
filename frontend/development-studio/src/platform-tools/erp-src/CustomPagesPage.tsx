@@ -16,6 +16,7 @@ import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, Cust
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, catalogReference, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, querySourceLabel, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
+import { loadCatalogRefs, type CatalogRefs } from "./page-designer/catalogItems";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, pageDateScope, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
@@ -1137,6 +1138,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [, setUndoTick] = useState(0);
   const [queryPreviews, setQueryPreviews] = useState<Record<string, QueryPreview>>({});
   const [erpCatalog, setErpCatalog] = useState<ErpCatalog>({ status: "loading" });
+  const [catalogRefs, setCatalogRefs] = useState<CatalogRefs>({ status: "loading" });
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   // İşlem Çubuğunda "Kaydet dizisi" seçildi ama henüz adım eklenmedi (boş dizi özelliği kaydedilmez).
   const [barSaveChoice, setBarSaveChoice] = useState<{ id: string; mode: "query" | "sequence" } | null>(null);
@@ -1315,6 +1317,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     void loadErpOperations(request)
       .then((operations) => { if (active) setErpCatalog({ status: "ready", operations }); })
       .catch(() => { if (active) setErpCatalog({ status: "failed" }); });
+    return () => { active = false; };
+  }, [request]);
+  // Firma kataloğu (Katalog kaynağı): alınamazsa yalnız "Katalog" seçeneği kapalı kalır.
+  useEffect(() => {
+    let active = true;
+    void loadCatalogRefs(request)
+      .then((refs) => { if (active) setCatalogRefs(refs); })
+      .catch(() => { if (active) setCatalogRefs({ status: "failed" }); });
     return () => { active = false; };
   }, [request]);
   useEffect(() => {
@@ -1953,9 +1963,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // SQL moduna dönüşte `operation` anahtarı tamamen kalkar (anahtarın varlığı ERP işlemi modunu belirler).
         if ("operation" in patch && patch.operation === undefined) delete next.operation;
         if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
-        if (isOperationQuery(next)) return next;
+        // Katalog başvurusu: kaynak değişiminde kalkan anahtarlar silinir; başvuru seçilince SQL metni atılır.
+        for (const key of ["dataSource", "action"] as const) if (key in patch && patch[key] === undefined) delete next[key];
+        if (typeof patch.dataSource === "string" || typeof patch.action === "string") delete next.sql;
+        if (isOperationQuery(next) || catalogReference(next) !== undefined) return next;
         // Parametre adları SQL'den gelir; var olanların (ve bu oturumda SQL'den geçici düşenlerin) bağlaması ve türü korunur.
-        if (!isOperationQuery(query)) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
+        if (!isOperationQuery(query) && catalogReference(query) === undefined) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
         if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => parameterMemory.current.get(`${id}:${name.toLowerCase()}`), defaultParameterBinding);
         return next;
       }),
@@ -2464,7 +2477,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     };
   };
   const queryEditor = useQueryEditor({
-    queries: definition.queries, catalog: erpCatalog, schema: sqlSchema, suggestions: suggestionsRef.current, components: definition.components,
+    queries: definition.queries, catalog: erpCatalog, catalogRefs, isAdmin, schema: sqlSchema, suggestions: suggestionsRef.current, components: definition.components,
     editable: queryEditable, readOnlyReason: !isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir." : !canEdit ? "Bu sayfa şu an düzenlenemez." : null,
     previewBlockedReason: current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null,
     previews: queryPreviews,
@@ -4282,7 +4295,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         schema={sqlSchema} suggestions={sequenceSuggestions.length > 0 ? [...bindingSuggestions, ...sequenceSuggestions] : bindingSuggestions} previews={queryPreviews} components={definition.components}
         previewBlockedReason={current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null}
         takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}
-        catalog={erpCatalog} onAddSourceQuery={addSourceQuery}/>
+        catalog={erpCatalog} catalogRefs={catalogRefs} isAdmin={isAdmin} onAddSourceQuery={addSourceQuery}/>
     </QueryEditorModal>}
     {formEditorOpen && <div className="custom-pages-form-popup" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setFormEditorOpen(false); void refreshForms(); } }}><section role="dialog" aria-modal="true" aria-label="Form tasarımcısı"><header><div><b>Form tasarımcısı</b><small>Formu oluşturun, alanları düzenleyin ve yayımlayın.</small></div><button type="button" onClick={() => { setFormEditorOpen(false); void refreshForms(); }}>Kapat</button></header><CustomFormsPage token={token} role={role}/></section></div>}
     {queryEditor.dialog}
