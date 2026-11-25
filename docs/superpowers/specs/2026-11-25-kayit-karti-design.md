@@ -91,7 +91,7 @@ Taslak: `docs/design-proposals/studio-sadelestirme/08-kayit-karti.html` (kullan�
     | Katalog türü | Girdi |
     |---|---|
     | `text` | metin |
-    | `text` + `longText` | **yeni** çok satırlı metin (`inputType: "textarea"`) |
+    | `text` + `longText` | çok satırlı metin (master'daki `multiline: true`) |
     | `int`, `decimal` | sayı |
     | `date` | tarih |
     | `bool` | onay kutusu |
@@ -160,7 +160,7 @@ Taslak: `docs/design-proposals/studio-sadelestirme/08-kayit-karti.html` (kullan�
   - Uzun değer kısaltılır ve `title` ile tamamı görünür.
   - Kayıt yüklenirken bölümlerin yerinde iskelet görünür.
   - Bu kurallar yalnız kalıplı sayfanın kutusunda geçerlidir. Eski form kartının 900/560 px medya kuralları değişmez.
-- `inputType: "textarea"` şemaya ve ERP girdisine eklenir. Her sayfada geçerlidir, ama bugün kullanan sayfa yoktur, dolayısıyla eski çıktıyı etkilemez.
+- Çok satırlı metin için master'a gelen `multiline: true` kullanılır; yeni girdi türü eklenmez. Girdiye yalnız `readOnly` (bool) eklenir.
 
 ### 5.4 Studio
 
@@ -236,7 +236,7 @@ Taslak: `docs/design-proposals/studio-sadelestirme/08-kayit-karti.html` (kullan�
 3. **Otomatik kurulum** tek sekme ve tek, 2 kolonlu bölüm olarak yapılır.
 4. **Kayıt kartında kullanılabilecek kaynak**, tek parametresi anahtarla aynı adı taşıyan kaynaktır.
 5. **Zorunluluk kilidi** yalnız Studio'da uygulanır (§5.2).
-6. **`textarea` girdi türü** bütün sayfalarda geçerlidir. Bugün hiçbir sayfa kullanmadığı için eski çıktıyı etkilemez.
+6. **Çok satırlı metin** master'daki `multiline` ile yapılır (planlama sırasında master'a geldi).
 7. **Liste'ye "+ Yeni"** bu projede eklenir; yoksa yeni kayıt kipine ulaşılamaz.
 8. **Kartın sayfa kodu**, Liste'nin `opens` koduyla eşleşecek şekilde önerilir.
 9. **Tuval** kartı açan listenin ilk kaydıyla dolu gösterilir; yoksa yeni kayıt kipindedir.

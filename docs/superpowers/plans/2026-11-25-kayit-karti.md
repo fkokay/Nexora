@@ -53,7 +53,7 @@
   - `required`: bool.
   - `maxLength`: 1–4000 arası tam sayı, yalnız `type: "text"`.
 - **Girdi:**
-  - Yeni `inputType: "textarea"`. Her sayfada geçerli, ERP'de çok satırlı.
+  - Çok satırlı metin, master'da zaten var olan `inputType: "text"` + `multiline: true` ile yapılır (yeni girdi türü eklenmez).
   - Yeni `readOnly` (bool). Girdi düzenlenemez.
   - Yardım metni bugünkü `description` özelliğidir.
 - **Kayıt kartında bağlar** (Studio üretir, ERP okur):
@@ -79,7 +79,7 @@
   | ≤ 720 px | en çok 2 |
   | ≤ 480 px | 1 |
 
-  - `textarea` ve satır tablosu her zaman tam genişliktedir.
+  - Çok satırlı (`multiline`) girdi ve satır tablosu her zaman tam genişliktedir.
   - Kurallar yalnız `.record-template-page` altında geçerlidir. Eski form kartının 900/560 px medya kuralları değişmez.
 - **Arayüz metinleri** Türkçedir. Danışman panelinde teknik terim geçmez: sorgu adı, `{{…}}`, `saveSequence`, kimlik.
 - **Dağıtım sırası:** platform-api ve erp-web önce, development-studio sonra.
@@ -111,7 +111,7 @@
    - Test: Görev 5 ve Görev 9.
 3. **Bölümden son alanı taşımak.** Bölüm boş kalır ve yer tutucu gösterir, silinmez. Sekmedeki son bölüm silinirse sekme boş kalır. Kart sunucuda yine geçerli olmalı. Bu yüzden boş `formCard` (`inputs: []`) kalıplı sayfada kabul edilir. Test: Görev 2 ve Görev 9.
 4. **Eski kart.** `customer-create` ve form kartlı kalıpsız bir sayfa önceki çıktıyı birebir verir. Test: Görev 3.
-5. **Dar tuvalde 3 kolonlu bölüm.** 600 px'te 2 kolon, 400 px'te 1 kolon olur. `textarea` her genişlikte tam satırdır. Test: Görev 5.
+5. **Dar tuvalde 3 kolonlu bölüm.** 600 px'te 2 kolon, 400 px'te 1 kolon olur. Çok satırlı girdi her genişlikte tam satırdır. Test: Görev 5.
 
 ---
 
@@ -144,12 +144,11 @@
 - [ ] **Step 4:** Aynı filtre ve `--filter "FullyQualifiedName~Catalog"` → PASS.
 - [ ] **Step 5: Commit** — `feat(katalog): kolonda uzun metin, zorunlu ve en çok uzunluk`
 
-### Task 2: Şema — Kayıt kartı kuralları, `textarea`, `readOnly`, satır tablosunda `pageSize`
+### Task 2: Şema — Kayıt kartı kuralları, `readOnly`, satır tablosunda `pageSize`
 
 **Files:**
 - Modify: `src/Hosts/AIERP.Api/PageTemplates/PageTemplateRules.cs` (`ValidateTemplate` kalıp adına göre dallanır: `ValidateList` (bugünkü gövde), `ValidateRecord`)
 - Modify: `src/Hosts/AIERP.Api/TenantCustomPageSchema.cs`
-  - izinli `inputType` listesi (~159, ~816) + `"textarea"`
   - `SafePropsV2` + `readOnly`; tür tablosunda `readOnly` yalnız `input`
   - `IsListTemplate` (~1619) → `pageSize` istisnası `record` kalıbının `slot: "lines"` tablosunu da kapsar
   - `formCard` `inputs` 1..n kuralı (~926): kalıplı sayfada 0'a izin verir
@@ -169,7 +168,7 @@
   - `Metric_in_section_slot_is_rejected`: Liste biçimindeki metin.
   - `Empty_section_is_accepted_on_record_page` (Review Focus 3).
   - `Empty_form_card_still_rejected_on_legacy_page`.
-  - `Textarea_input_is_accepted_on_legacy_page`; `ReadOnly_only_on_input`.
+  - `ReadOnly_only_on_input`; `ReadOnly_input_is_accepted_on_legacy_page`.
   - `Lines_table_page_size_is_accepted_on_record_page`; `Page_size_still_rejected_on_legacy_table`.
   - `Width_and_action_bar_rejected_on_record_page`.
   - `Record_template_round_trips_through_draft_preview_publish`.
@@ -191,16 +190,16 @@
 - [ ] **Step 2:** `cd frontend/erp-web && npx vitest run src/page-templates/legacyUnchanged` → PASS (anlık görüntü yazılır).
 - [ ] **Step 3: Commit** — `test(erp): eski kayıt kartlarının çıktısı sabitlendi`
 
-### Task 4: ERP — `textarea`, `readOnly` ve kalıp modelinin okunması
+### Task 4: ERP — `readOnly` ve kalıp modelinin okunması
 
 **Files:**
 - Modify:
   - `frontend/erp-web/src/page-templates/pageTemplate.ts`
-  - `frontend/erp-web/src/TenantCustomPage.tsx` (`PageInput` ~876–958: `textarea` ve `readOnly`)
+  - `frontend/erp-web/src/TenantCustomPage.tsx` (`PageInput` ~876–958: `readOnly`)
 - Create: `frontend/erp-web/src/page-templates/recordTemplateModel.ts`
 - Test:
   - `frontend/erp-web/src/page-templates/recordTemplateModel.test.ts`
-  - `frontend/erp-web/src/custom-page/TenantCustomPageTextarea.test.tsx`
+  - `frontend/erp-web/src/custom-page/TenantCustomPageReadOnlyInput.test.tsx`
 
 **Interfaces:**
 - Produces:
@@ -219,12 +218,11 @@
   - `layoutRecordTemplate groups tabs and keeps tab order`: iki sekme, bölüm + tablo + not.
   - `missing tab id is skipped`.
   - `recordKeyParam finds the page parameter bound to the record query`; `recordKeyParam returns null without recordKey`.
-  - `textarea input renders a multi-line field and keeps value`: kalıpsız bir v2 sayfada, `TenantCustomPageListLook.test.tsx`'teki `erpApi` taklidiyle.
-  - `readOnly input cannot be edited and is not validated as changed`.
-- [ ] **Step 2:** `npx vitest run src/page-templates/recordTemplateModel src/custom-page/TenantCustomPageTextarea` → FAIL.
-- [ ] **Step 3:** Implement. `textarea` için `PageInput` `<textarea rows={3}>` çizer. `maxLength`, `required` ve `description` bugünkü gibi işler. `readOnly`, sayfa görüntüleme kipinin girdiye yaptığını yapar.
+  - `readOnly input cannot be edited and is not validated as changed` (kalıpsız bir v2 sayfada, `TenantCustomPageListLook.test.tsx`'teki `erpApi` taklidiyle).
+- [ ] **Step 2:** `npx vitest run src/page-templates/recordTemplateModel src/custom-page/TenantCustomPageReadOnlyInput` → FAIL.
+- [ ] **Step 3:** Implement. `readOnly`, sayfa görüntüleme kipinin girdiye yaptığını yapar.
 - [ ] **Step 4:** PASS. `npx vitest run src/page-templates/legacyUnchanged` → PASS (değişmedi).
-- [ ] **Step 5: Commit** — `feat(erp): çok satırlı ve salt okunur girdi; Kayıt kartı modeli`
+- [ ] **Step 5: Commit** — `feat(erp): salt okunur girdi; Kayıt kartı modeli`
 
 ### Task 5: ERP — Kayıt kartı çizimi ve otomatik yerleşim
 
@@ -255,7 +253,7 @@
 - İşlem çubuğu: Kaydet (`actionType: "sequence"`) ana düğmedir. `delete` sorgulu düğme en sağdadır. Yeni kayıt kipinde (`isNew`: `recordKeyParam` boş) Sil gizlenir.
 - `lines` tablosu yeni kayıt kipinde çizilmez. Yerinde `"Kayıt kaydedilince burada görünür."` yazar.
 - Kayıt sorgusu yüklenirken bölümlerin yerinde iskelet görünür (`.record-skeleton`, bölümün yüksekliği kadar).
-- Bölümün kendi kutusu `container-type: inline-size` taşır. `textarea` girdisi ve `lines` tablosu tam satırdır (`grid-column: 1 / -1`).
+- Bölümün kendi kutusu `container-type: inline-size` taşır. çok satırlı (`multiline`) girdi ve `lines` tablosu tam satırdır (`grid-column: 1 / -1`).
 - Taşma (§6.5): özet değerleri ve alt satırı tek satırda kısaltılır (`text-overflow: ellipsis`), tam metin `title`'da durur. Satır tablosu kendi kutusunda yatay kayar.
 - `<Anchored>` işaretleri korunur. Ek olarak her sekme düğmesi `<AnchorMark id={`${tabsId}#tab${index}`} />` taşır (Görev 7 kullanır).
 
@@ -267,7 +265,7 @@
   - `skeleton shows while record query loads`.
   - `tab anchors are emitted`.
   - `sectionColumns thresholds`: (3, 721) → 3, (3, 600) → 2, (3, 400) → 1, (1, 900) → 1, (2, 600) → 2.
-  - `three-column section at 600px shows two columns and textarea spans the row` (Review Focus 5; `ResizeObserver` taklidi).
+  - `three-column section at 600px shows two columns and multiline input spans the row` (Review Focus 5; `ResizeObserver` taklidi).
 - [ ] **Step 2:** `npx vitest run src/page-templates/RecordTemplate` → FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** PASS. `npm test` ve `npm run build` PASS. `legacyUnchanged` değişmedi.
@@ -434,7 +432,7 @@ Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-desi
         - Her kolon için bir alan, anahtar en başta.
         - Özet: başlık, anahtar olmayan ilk `text` kolonu; alt satır, anahtar.
       - Kolon bayrakları girdiye yazılır:
-        - `longText` → `inputType: "textarea"`
+        - `longText` → `inputType: "text"`, `multiline: true`
         - `required` → `required: true`
         - `maxLength` → `maxLength`
         - Tür eşlemesi tasarım §5.1'deki gibi.
@@ -480,7 +478,7 @@ Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-desi
 - [ ] **Step 1: Write the failing tests** (`listPanelModel.test.ts` kalıbında; her test, girdinin değişmediğini de doğrular)
   - `recordSourceUsable rejects source without key-named parameter`
   - `chooseRecordSource builds Genel tab with one two-column section and key first`
-  - `chooseRecordSource maps longText to textarea and copies required and maxLength`
+  - `chooseRecordSource maps longText to multiline and copies required and maxLength`
   - `typed key gets disabledWhen; system key gets readOnly and (otomatik)`
   - `chooseRecordSource binds save when exactly one matching insert and update exist`
   - `chooseRecordSource leaves save empty when two insert actions match`
