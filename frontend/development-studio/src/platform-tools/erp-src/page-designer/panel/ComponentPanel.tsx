@@ -5,16 +5,19 @@ import "./component-panel.css";
 export function ComponentPanel(props: {
   name: string; onRename: (name: string) => void;
   what: ReactNode; basics: ReactNode; actions: ReactNode; appearance: ReactNode;
+  /** Parça başlıkları (isteğe bağlı): Liste paneli taslaktaki gibi "Ne listelensin?" der; null başlığı çizmez. */
+  whatTitle?: string; basicsTitle?: string | null; children?: ReactNode;
 }) {
   return (
     <div className="cpanel">
       <div className="cpanel-head"><input aria-label="Bileşen adı" value={props.name} onChange={(e) => props.onRename(e.target.value)} /></div>
-      <section className="cpanel-sec" data-part="what"><h4>Ne gösterilsin?</h4>{props.what}</section>
-      <section className="cpanel-sec" data-part="basics"><h4>Temel ayarlar</h4>{props.basics}</section>
+      <section className="cpanel-sec" data-part="what"><h4>{props.whatTitle ?? "Ne gösterilsin?"}</h4>{props.what}</section>
+      <section className="cpanel-sec" data-part="basics">{props.basicsTitle !== null && <h4>{props.basicsTitle ?? "Temel ayarlar"}</h4>}{props.basics}</section>
       <section className="cpanel-sec" data-part="actions"><h4>Eylemler</h4>{props.actions}</section>
       <section className="cpanel-sec" data-part="appearance">
         <details><summary>Görünüm</summary><div className="cpanel-body">{props.appearance}</div></details>
       </section>
+      {props.children}
     </div>
   );
 }
