@@ -2223,12 +2223,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     finally { setSaving(false); }
     return null;
   };
-  // ERP tuvali yalnız kaydedilmiş taslağı gösterir: tanım değişince taslak sessizce kaydedilir, başarılı kayıt tuvali yeniler.
-  // Değişiklik yoksa (sayfa açılışı, elle kayıt) PUT atılmaz ama tuval yine güncel kayda yenilenir. Elle kayıt sürerken beklenir.
-  const autosave = useDraftAutosave({
+  // ERP tuvali yalnız kaydedilmiş taslağı gösterir: tanım değişince taslak sessizce kaydedilir. Tuval, taslağın sunucu
+  // revizyonu değişince yenilenir; böylece elle kayıt, geri yükleme ve otomatik kayıt aynı yoldan yansır. Değişiklik yoksa
+  // (sayfa açılışı) ya da elle kayıt sürerken PUT atılmaz.
+  useDraftAutosave({
     enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()),
     changeKey: definition,
-    save: async () => saving ? false : !dirty && !!current ? true : Boolean(await saveDraft({ quiet: true })),
+    save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
   });
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
   const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
@@ -3623,12 +3624,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
             onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}>
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
-              revision={autosave.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
+              revision={current.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
               selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
               onBlocks={(blocks) => { erpBlocks.current = blocks; }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}/>
           </div>
-            : <div className="pd-canvas-empty"><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div>
+            : <div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
