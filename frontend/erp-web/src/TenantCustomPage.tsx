@@ -63,7 +63,8 @@ import { applyFirstChoices, firstChoiceValue, applyClientFilters, filterChoices,
 import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
-import { OPEN_PAGE_EVENT, publishRecordsDeleted, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { OPEN_PAGE_EVENT, openerOf, openWorkspacePage, publishRecordsDeleted, requestClosePage, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
+import { afterRecordDelete, afterRecordSave, RECORD_SAVED_NOTICE, type AfterSave } from "./page-templates/recordAfterSave";
 import { deletedRecordIds } from "./custom-page/deletedRecords";
 import { CanvasAnchorContext } from "./designer-canvas/anchorContext";
 import { ANCHOR_ATTRIBUTE } from "./designer-canvas/canvasProtocol";
@@ -684,10 +685,11 @@ type ButtonRunHooks = {
 
 /**
  * Eylemli düğmenin tıklaması (onay, doğrulama, yazma, yenileme dahil): sayfa düğmesi ve kalıp kabuğunun işlem çubuğu aynı
- * yolu kullanır. Pasiflik ve hak denetimi çağırana aittir.
+ * yolu kullanır. Pasiflik ve hak denetimi çağırana aittir. `onDone`: kayıt dizisi ya da yazma tam başarılı olunca (yalnız
+ * kayıt kartı kalıbının Kaydet ve Sil düğmeleri verir).
  */
 async function runButtonClick(component: ComponentDefinition, props: Record<string, unknown>, runtime: PageRuntime, action: ButtonAction,
-  opener: HTMLElement, { setFeedback, setBusy, inFlight }: ButtonRunHooks) {
+  opener: HTMLElement, { setFeedback, setBusy, inFlight }: ButtonRunHooks, onDone?: () => void) {
   const query = action.query;
   const write = action.type === "sequence" || (!!query && query.kind !== "read");
   const refreshIds = stringList(props.refreshQueries);
@@ -709,6 +711,7 @@ async function runButtonClick(component: ComponentDefinition, props: Record<stri
       props: component.props ?? {}, name: component.name,
       onStatus: (status) => setFeedback(status),
       onBusy: (next) => setBusy(next),
+      onSuccess: onDone,
     });
     return;
   }
@@ -736,9 +739,24 @@ async function runButtonClick(component: ComponentDefinition, props: Record<stri
   if ("ok" in result && result.ok) {
     setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
     runtime.rerun(refreshIds);
+    onDone?.();
   } else if ("error" in result) {
     setFeedback({ tone: "error", text: result.error });
   }
+}
+
+const PLACEHOLDER_PATH = /^\s*\{\{\s*([^{}]+?)\s*\}\}\s*$/;
+/**
+ * Kayıt kartının anahtar girdisi: ilk bölümün `recordKey`'i (`{{kayit.rows[0].<k>}}`) ile aynı alana bağlı (`defaultValue`)
+ * girdi; önce bölümün kendi girdilerinde aranır. Bulunamazsa undefined.
+ */
+function recordKeyInput(components: ComponentDefinition[], inputById: Record<string, ComponentDefinition>): ComponentDefinition | undefined {
+  const section = components.find((component) => component.type === "formCard" && component.props?.slot === "section");
+  const key = PLACEHOLDER_PATH.exec(textValue(section?.props?.recordKey))?.[1];
+  if (!section || !key) return undefined;
+  const boundToKey = (input: ComponentDefinition | undefined) => !!input && PLACEHOLDER_PATH.exec(textValue(input.props?.defaultValue))?.[1] === key;
+  return idList(section.props?.inputs).map((id) => inputById[id]).find(boundToKey)
+    ?? components.find((component) => component.type === "input" && boundToKey(component));
 }
 
 /**
@@ -1781,7 +1799,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = null, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
+function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = null, token, previewId, tabKey, pageParams, legacyLink = null, onTitle, initialStatus = null, onRestart }: {
   page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean;
   /** Sayfa tanımındaki kalıp (yoksa null: eski çizim). Liste yerinde tablo yoksa da eski çizim kullanılır. */
   pageTemplate?: PageTemplate | null; token: string; previewId?: string;
@@ -1791,6 +1809,10 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   legacyLink?: ReactNode;
   /** Görünen ilk `pageTitle` başlığının metni (yoksa null): sayfa üst bilgisinin başlığı olur. */
   onTitle?: (title: string | null, recordTitle: boolean) => void;
+  /** Gövde yeniden kurulunca gösterilen işlem bildirimi (kayıt kartı kaydedilip temizlendi ya da yeniden açıldı). */
+  initialStatus?: ActionStatus | null;
+  /** Gövdeyi baştan kurar (kayıt kartında yeni kayıt kaydedildi, form temizlenir); `status` yeni gövdede görünür. */
+  onRestart?: (status: ActionStatus | null) => void;
 }) {
   // Görüntüleme kipi: başka bir sayfanın Görüntüle komutu bu sayfayı `mode=view` ile açtı (kayıt salt okunur).
   const readOnly = isV2 && pageParams[VIEW_MODE_PARAM] === VIEW_MODE_VALUE;
@@ -1815,7 +1837,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   const [selections, setSelections] = useState<Record<string, Record<string, unknown> | null>>({});
   const selectionsRef = useRef(selections);
   selectionsRef.current = selections;
-  const [actionStatus, setActionStatus] = useState<ActionStatus | null>(null);
+  const [actionStatus, setActionStatus] = useState<ActionStatus | null>(initialStatus);
   const [actionBusy, setActionBusy] = useState(false);
   // Kalıp kabuğundaki işlem düğmelerinin ortak okuma kilidi (sayfa düğmesinin kendi `inFlight`'ı gibi).
   const shellInFlight = useRef(false);
@@ -3389,7 +3411,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     if (paramOpens.length === 0) return;
     const onOpen = (event: Event) => {
       const request = (event as CustomEvent<WorkspaceOpenRequest>).detail;
-      if (request?.page === tabKey && !request.legacy && request.params && sameOpenRequest(request.params, pageParams)) setParamOpenRound((round) => round + 1);
+      if (request?.page === tabKey && !request.legacy && !request.keepParams && request.params && sameOpenRequest(request.params, pageParams)) setParamOpenRound((round) => round + 1);
     };
     window.addEventListener(OPEN_PAGE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
@@ -3544,7 +3566,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
    * kalır); silme sorgulu düğme `danger`. Ana düğme bu süzmeden sonra seçilir: `primary`'ye uyan ilk silme olmayan düğme,
    * yoksa kalan ilk silme olmayan düğme.
    */
-  const shellActionsFor = (buttons: ComponentDefinition[], runtime: PageRuntime, primary?: (button: ComponentDefinition) => boolean): ShellAction[] => {
+  const shellActionsFor = (buttons: ComponentDefinition[], runtime: PageRuntime, primary?: (button: ComponentDefinition) => boolean,
+    onDoneFor?: (button: ComponentDefinition, kind: ShellAction["kind"]) => (() => void) | undefined): ShellAction[] => {
     const shownActions = buttons.filter((button) => {
       if (!componentVisible(button, runtime)) return false;
       const action = runtime.buttonAction(button);
@@ -3554,6 +3577,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const primaryId = (primary ? shownActions.find((button) => !isDelete(button) && primary(button)) : undefined)?.id
       ?? shownActions.find((button) => !isDelete(button))?.id;
     return shownActions.map((button): ShellAction => {
+      const kind: ShellAction["kind"] = isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal";
       const action = runtime.buttonAction(button);
       const props = bindProps(button.props ?? {}, runtime.scope);
       const text = textValue(props.text ?? props.label) || textValue(props.title);
@@ -3564,14 +3588,15 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
       const reason = blocked ? NO_OPERATION_RIGHT : conditionDisabled ? disabledReasonOf(button, props, runtime) : "";
       return {
         id: button.id, label: text || (workflowId ? "İş akışını başlat" : "Eylem"),
-        kind: isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal",
+        kind,
         disabled, disabledReason: reason || undefined, anchor: <AnchorMark id={button.id} />,
         run: (opener) => {
           if (disabled || !action) return;
           const hooks = { setFeedback: setActionStatus, setBusy: setActionBusy, inFlight: shellInFlight };
           // İş akışı düğmesi eski sayfadaki TenantWorkflowAction ile aynı başlatma yolunu kullanır.
           if (workflowId) { void runWorkflowStart({ token, workflowId, title: text || "İş akışını başlat", pageCode: page.code, componentId: button.id }, hooks); return; }
-          void runButtonClick(button, props, runtime, action, opener ?? contentRef.current ?? document.body, hooks);
+          // Kaydet ve Sil'in sonrası tıklama anında kurulur: anahtar girdinin o anki değeri okunur.
+          void runButtonClick(button, props, runtime, action, opener ?? contentRef.current ?? document.body, hooks, onDoneFor?.(button, kind));
         },
       };
     });
@@ -3582,9 +3607,43 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     {tabKey && runtime?.rights.update === true && <button type="button" className="tenant-page-button"
       onClick={() => setPageParams(tabKey, Object.fromEntries(Object.entries(pageParams).filter(([key]) => key !== VIEW_MODE_PARAM)))}>Düzenle</button>}
   </div>;
+  /**
+   * Kayıt kartında Kaydet (ana kayıt dizisi düğmesi) ve Sil (silme sorgulu düğme) tam başarılı olunca: var olan kayıt zaten
+   * yeniden yüklendi; yazılan anahtarla yeni kayıt o anahtarla yeniden açılır (ikinci Kaydet günceller); sistem anahtarlı yeni
+   * kayıttan ve silmeden sonra açan sekmeye dönülür (parametreleri korunur, açılış sorguları yenilenir), açan yoksa form
+   * temizlenir ya da sekme kapanır. Önizlemede ve sekmesiz çizimde hiçbir şey yapılmaz.
+   */
+  const recordDoneFor = (button: ComponentDefinition, kind: ShellAction["kind"], runtime: PageRuntime): (() => void) | undefined => {
+    if (!tabKey || isPreview) return undefined;
+    const action = runtime.buttonAction(button);
+    const backTo = (opener: string, notice?: string) => {
+      requestClosePage(tabKey);
+      openWorkspacePage({ page: opener, params: {}, replace: false, from: tabKey, refresh: true, keepParams: true, ...(notice ? { notice } : {}) });
+    };
+    if (kind === "danger" && action?.type === "query" && action.query?.kind === "delete") {
+      return () => {
+        const next = afterRecordDelete(openerOf(tabKey));
+        if (next.kind === "backToOpener") backTo(next.opener);
+        else requestClosePage(tabKey);
+      };
+    }
+    if (kind !== "primary" || action?.type !== "sequence") return undefined;
+    const keyInput = recordKeyInput(components, inputById);
+    const raw = keyInput && keyInput.props?.readOnly !== true ? runtime.inputValues[keyInput.id] : undefined;
+    const typedKey = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() || null : null;
+    const saved = { tone: "success" as const, text: RECORD_SAVED_NOTICE };
+    return () => {
+      const next: AfterSave = afterRecordSave({ isNew: isNewRecord, keyParam: recordParam, typedKey, opener: openerOf(tabKey) });
+      if (next.kind === "reopen") { onRestart?.(saved); setPageParams(tabKey, { ...pageParams, [next.param]: next.value }); }
+      else if (next.kind === "backToOpener") backTo(next.opener, RECORD_SAVED_NOTICE);
+      else if (next.kind === "clear") onRestart?.(saved);
+      // reload: kayıt dizisi açılış sorgularını zaten yeniden çalıştırdı.
+    };
+  };
   if (recordLayout && runtime) {
     // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate).
-    const shellActions = shellActionsFor(recordLayout.actions, runtime, (button) => runtime.buttonAction(button)?.type === "sequence");
+    const shellActions = shellActionsFor(recordLayout.actions, runtime, (button) => runtime.buttonAction(button)?.type === "sequence",
+      (button, kind) => recordDoneFor(button, kind, runtime));
     const summaryTitle = recordLayout.summary ? templateText(textValue(recordLayout.summary.props?.title), scope) : "";
     const crumbs = [page.name, isNewRecord ? "Yeni kayıt" : summaryTitle].filter((crumb) => crumb.trim() !== "");
     const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
@@ -3722,6 +3781,11 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
     setRecordTitle(fromRecord ? title : null);
   }, []);
   // Sekme başka parametrelerle yeniden açıldı (ör. başka bir kayıt): sayfa gövdesi baştan kurulur, yazılanlar ve sonuçlar taşınmaz.
+  // Kayıt kartı kaydedilip temizlenince (ya da yeniden açılınca) gövde baştan kurulur; bildirimi yeni gövdeye taşınır.
+  const [restart, setRestart] = useState<{ count: number; status: ActionStatus | null }>({ count: 0, status: null });
+  const onRestart = useCallback((status: ActionStatus | null) => setRestart((current) => ({ count: current.count + 1, status })), []);
+  // Taşınan bildirim yalnız yeni gövdenin ilk durumudur: sonraki yeniden kurulumlara (başka kayıt) geçmez.
+  useEffect(() => { if (restart.status) setRestart((current) => ({ ...current, status: null })); }, [restart.status]);
   const paramKeys = useRef(new WeakMap<object, number>());
   const paramCounter = useRef(0);
   let paramKey = paramKeys.current.get(pageParams);
@@ -3781,6 +3845,6 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
     {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || (pageTemplate?.name === "record" && hasRecordSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
-    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}:${restart.count}`} initialStatus={restart.status} onRestart={onRestart} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }

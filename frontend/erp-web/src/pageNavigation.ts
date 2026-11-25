@@ -9,9 +9,18 @@ export type WorkspaceOpenRequest = {
   refresh?: boolean;
   /** Sistem sayfası etkin olsa bile (geçerli sayfa olsa da) hedefin eski (yerleşik) ekranını açar ("Eski ekranda aç" ile aynı; erpPage `legacyScreen`). */
   legacy?: boolean;
+  /**
+   * Hedefin parametreleri yazılmaz (`params` yok sayılır) ve açan sekme kaydedilmez: kayıt kartı kaydedilip açan listeye
+   * dönerken listenin parametreleri silinmesin, kart listenin açanı olmasın.
+   */
+  keepParams?: boolean;
+  /** Sekme açılınca çalışma alanının bildirimi (ör. "Kaydedildi."). */
+  notice?: string;
 };
 
 export const OPEN_PAGE_EVENT = "nexora:open-page";
+/** Sekmeyi değişiklik sorusu sormadan kapatma isteği (useWorkspaceTabs dinler). */
+export const CLOSE_PAGE_EVENT = "nexora:close-page";
 
 const EMPTY: PageParams = Object.freeze({});
 const store = new Map<string, PageParams>();
@@ -67,10 +76,25 @@ export function useTakePageParam(page: string | undefined, name: string, onValue
   }, [page, name, params]);
 }
 
+// Her sekmeyi "Sayfa aç" ile açan sekme. Açan sekmenin yerine açılınca da (`replace`) kalır: kayıt kartı kaydedilince ya da
+// silinince listeye döner (liste kapandıysa yeniden açılır). Sekme kapanınca kaydı silinir (forgetOpener).
+const openers = new Map<string, string>();
+
+export const openerOf = (page: string): string | undefined => openers.get(page);
+export function forgetOpener(page: string) { openers.delete(page); }
+
 /** Parametreleri hedef sekmeye yazar, sonra çalışma alanından sekmeyi açmasını ister (useWorkspaceTabs dinler). */
 export function openWorkspacePage(request: WorkspaceOpenRequest) {
-  setPageParams(request.page, request.params);
+  if (!request.keepParams) {
+    setPageParams(request.page, request.params);
+    if (request.from && request.from !== request.page) openers.set(request.page, request.from);
+  }
   window.dispatchEvent(new CustomEvent<WorkspaceOpenRequest>(OPEN_PAGE_EVENT, { detail: request }));
+}
+
+/** Sekmeyi kapatır; kirli olsa da sorulmaz (ör. kaydı silinen kayıt kartı). */
+export function requestClosePage(page: string) {
+  window.dispatchEvent(new CustomEvent<{ page: string }>(CLOSE_PAGE_EVENT, { detail: { page } }));
 }
 
 // ---- Silinen kayıt: kartını gösteren sekmeler kapanır ----
