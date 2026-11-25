@@ -25,8 +25,10 @@ export function boundTab(tab: { label: string; ids: string[] }, scope: PageScope
  * etkin olmayan paneller `hidden` taşır. `jumpTo.signal` değişince o sekme etkinleşir ve içindeki ilk geçersiz denetime
  * odak verilir.
  */
-export function PageTabs({ id, tabs, defaultTab, renderOwned, errorCounts, jumpTo, style }: {
+export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style }: {
   id: string; tabs: PageTab[]; defaultTab: number;
+  /** Sayfa parametresinin istediği sekme (`tabParam`); `key` değişince (açık tutulan sayfa yeni parametreyle açıldığında) etkinleşir. */
+  requestedTab?: { tab: number; key: string } | null;
   renderOwned: (id: string) => ReactNode; errorCounts: number[]; jumpTo: { tab: number; signal: number } | null; style: CSSProperties;
 }) {
   const clamp = (index: number) => Math.max(0, Math.min(tabs.length - 1, Number.isInteger(index) ? index : 0));
@@ -36,6 +38,13 @@ export function PageTabs({ id, tabs, defaultTab, renderOwned, errorCounts, jumpT
   const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);
   const handledSignal = useRef(jumpTo?.signal);
+  const handledRequest = useRef(requestedTab?.key);
+
+  useEffect(() => {
+    if (!requestedTab || requestedTab.key === handledRequest.current) return;
+    handledRequest.current = requestedTab.key;
+    setActive(clamp(requestedTab.tab));
+  }, [requestedTab?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!jumpTo || jumpTo.signal === handledSignal.current) return;

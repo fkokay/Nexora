@@ -328,3 +328,7 @@ html[data-theme='dark'] #root .inventory-list-v2 .stock-policy-note.is-unknown .
     box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 30%, transparent);
   }
 }
+
+/* The panel is on but no stock card is current: no empty card, the list takes the full width. */
+#root .inventory-list-v2 .inventory-stock-body > .inventory-stock-detail.is-empty { display: none; }
+#root .inventory-list-v2 .inventory-stock-body.has-detail:has(> .inventory-stock-detail.is-empty) { grid-template-columns: minmax(0, 1fr); }

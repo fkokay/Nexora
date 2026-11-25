@@ -167,7 +167,6 @@
 
 .nx-action-bar__menu-item:hover:not([aria-disabled="true"]) { background: var(--nx-primary-soft); }
 .nx-action-bar__menu-item[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
-.nx-action-bar__menu-empty { padding: 6px 10px; color: var(--nx-muted); }
 
 .nx-shortcut-help-backdrop {
   position: fixed;

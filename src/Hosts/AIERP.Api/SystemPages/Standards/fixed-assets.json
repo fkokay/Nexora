@@ -16,7 +16,6 @@
     "component:liste": {"since": 1, "label": "Kıymet listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:kiymetler"]},
     "component:acDugmesi": {"since": 1, "label": "Satırı aç (kıymet kartı)", "requires": ["component:liste"]},
     "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "query:kiymet"]},
-    "component:bosSecim": {"since": 1, "label": "Detay paneli: seçim yok notu", "requires": ["component:detayPaneli", "component:liste"]},
     "component:silDugmesi": {"since": 1, "label": "Sil (her zaman pasif)"},
     "component:amortismanDugmesi": {"since": 1, "label": "Amortismanı kaydet komutu", "requires": ["component:liste", "component:amortismanPenceresi"]},
     "component:eldenCikarDugmesi": {"since": 1, "label": "Elden çıkar komutu", "requires": ["component:liste", "component:eldenCikarmaPenceresi"]},
@@ -87,7 +86,7 @@
 
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "Duran varlıklar", "query": "kiymetler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true",
+                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
                    "detailToggleInput": "detayPaneli",
                    "columns": ["assetCode", "name", "inServiceDate", "acquisitionCostBase", "remainingBookValueBase", "status"],
                    "columnLabels": ["assetCode=Kod", "name=Kıymet", "category=Kategori", "acquisitionDate=Edinim tarihi", "inServiceDate=Kullanıma giriş",
@@ -127,9 +126,6 @@
           { "id": "detayIpucu", "type": "text", "name": "detayIpucu",
             "props": { "text": "Enter kıymet kartını açar · işlemler İşlemler'de (Alt+İ)." } }
         ] },
-      { "id": "bosSecim", "type": "text", "name": "bosSecim",
-        "props": { "text": "Özetini görmek için bir kıymet seçin.", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null" } },
 
       { "id": "silDugmesi", "type": "button", "name": "silDugmesi",
         "props": { "text": "Sil", "actionType": "erpPage", "pageKey": "fixed-assets", "legacyScreen": true,

@@ -35,7 +35,8 @@ usePageCommands({
 - **Geri Al** (Ctrl+Z) yalnızca sayfa `undo` kaydettiğinde, İşlemler'in solunda görünür.
 - **İşlemler** (Alt+İ) menüsü sayfanın `more` öğelerini listeler: eski satır menüsü ("⋯") işlemleri, alan tanımları,
   CSV gibi seyrek işlemler. Açık bir kayıt formu varsa formun öğeleri önce gelir. Menü klavyeyle gezilir (↑/↓, Home,
-  End, Esc kapatır ve odağı düğmeye döndürür).
+  End, Esc kapatır ve odağı düğmeye döndürür). Sayfanın hiç `more` öğesi yoksa İşlemler düğmesi çizilmez (Alt+İ de
+  bir şey yapmaz).
 - **Kaynak önceliği** (`CommandSource`): açık kayıt formu (`form`, en son açılan) > sayfa (`page`) > liste (`list`) >
   tablo (`grid`). Aynı kaynaktan birden çok kayıt varsa ilk takılan geçerlidir: ekranda birkaç tablo varsa Excel ilk
   takılan tablonun dışa aktarmasıdır (`hideExport` verilmiş tablo da yedek olarak `export` kaydeder); başka bir

@@ -136,7 +136,7 @@
                        "params": ["customerId={{liste.seciliSatir.id}}"], "visibleWhen": "liste.seciliSatir.type != 'Supplier'" } },
           { "id": "detayAdresler", "type": "button", "name": "detayAdresler",
             "props": { "text": "Adresler ›", "actionType": "page", "pageCode": "@customer-create", "target": "newTab",
-                       "params": ["customerId={{liste.seciliSatir.id}}"] } }
+                       "params": ["customerId={{liste.seciliSatir.id}}", "tab=Adresler"] } }
         ] },
       { "id": "genelPaneli", "type": "contextPanel", "name": "genelPaneli",
         "props": { "table": "liste", "width": 12,
@@ -189,7 +189,7 @@
                    "disabledReason": "Önce tedarikçi olmayan bir cari kartı seçin." } },
       { "id": "adreslerDugmesi", "type": "button", "name": "adreslerDugmesi",
         "props": { "text": "Adresler", "actionType": "page", "pageCode": "@customer-create", "target": "newTab",
-                   "params": ["customerId={{liste.seciliSatir.id}}"],
+                   "params": ["customerId={{liste.seciliSatir.id}}", "tab=Adresler"],
                    "disabledWhen": "liste.seciliSatir.id == null", "disabledReason": "Önce bir kayıt seçin" } },
       { "id": "pasifeAlDugmesi", "type": "button", "name": "pasifeAlDugmesi",
         "props": { "text": "Pasife al", "actionType": "query", "queryId": "pasifeAl", "confirmEnabled": true,
