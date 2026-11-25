@@ -148,6 +148,86 @@ public sealed class TenantDeveloperPermissionBaselineIntegrationTests
         }
     }
 
+    [Theory]
+    [InlineData("TenantDeveloper")]
+    [InlineData("TenantUser")]
+    public async Task Baseline_seed_writes_one_audit_event_with_count_and_no_author_and_none_on_second_login(string role)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        var userId = role == "TenantUser" ? User : Developer;
+
+        await SelectTenantAsync(client, userId, role);
+        await SelectTenantAsync(client, userId, role);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        var rules = await db.TenantPermissionRules.Where(x => x.TenantId == TenantId && x.SubjectRole == role).ToListAsync();
+        Assert.NotEmpty(rules);
+        // Same convention as the migration seed: seeded baseline rules have no author.
+        Assert.All(rules, rule => Assert.Null(rule.CreatedByUserId));
+        var seeded = Assert.Single(await db.AuditEvents.Where(x => x.Action == "permission.baseline.seeded"
+            && x.Resource.StartsWith(role + ":")).ToListAsync());
+        Assert.Equal($"{role}:added={rules.Count}", seeded.Resource);
+        Assert.Equal(TenantId, seeded.TenantId);
+        Assert.Equal(userId, seeded.UserId);
+    }
+
+    [Fact]
+    public async Task Refresh_backfill_audits_only_the_rules_it_added()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        var refreshToken = await SelectTenantAsync(client, Developer, "TenantDeveloper");
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            db.TenantPermissionRules.Remove(await db.TenantPermissionRules
+                .SingleAsync(x => x.SubjectRole == "TenantDeveloper" && x.PermissionCode == "erp.tenant-customizations.execute"));
+            await db.SaveChangesAsync();
+        }
+
+        using (var refresh = await client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken }))
+            Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var events = await db.AuditEvents.Where(x => x.Action == "permission.baseline.seeded").ToListAsync();
+            Assert.Equal(2, events.Count);
+            Assert.Contains(events, x => x.Resource == "TenantDeveloper:added=1" && x.UserId == Developer);
+        }
+    }
+
+    [Fact]
+    public async Task Expired_refresh_returns_401_and_adds_no_rules_or_audit()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        var refreshToken = await SelectTenantAsync(client, Developer, "TenantDeveloper");
+        int before;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            db.TenantPermissionRules.Remove(await db.TenantPermissionRules
+                .SingleAsync(x => x.SubjectRole == "TenantDeveloper" && x.PermissionCode == "erp.tenant-customizations.execute"));
+            var session = await db.PlatformRefreshSessions.SingleAsync(x => x.UserId == Developer);
+            session.CreatedAt = DateTimeOffset.UtcNow.AddDays(-31); // past the 30-day absolute expiry, ExpiresAt still in the future
+            await db.SaveChangesAsync();
+            before = await db.TenantPermissionRules.CountAsync(x => x.SubjectRole == "TenantDeveloper");
+        }
+
+        using (var refresh = await client.PostAsJsonAsync("/api/auth/refresh", new { refreshToken }))
+            Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            Assert.Equal(before, await db.TenantPermissionRules.CountAsync(x => x.SubjectRole == "TenantDeveloper"));
+            Assert.Single(await db.AuditEvents.Where(x => x.Action == "permission.baseline.seeded").ToListAsync());
+        }
+    }
+
     [Fact]
     public async Task Developer_without_studio_role_reads_catalog_through_real_permission_pipeline_after_tenant_selection()
     {
