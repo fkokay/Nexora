@@ -8,6 +8,9 @@ import TenantCustomPage from '../TenantCustomPage';
 
 const { fetchMock } = vi.hoisted(() => ({ fetchMock: vi.fn() }));
 vi.mock('../authApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('../authApi')>()), authenticatedFetch: fetchMock }));
+// ERP işlem kataloğu ilk çizimden hazırdır: gerçek yükleme yanıtı düğme tıklamasından sonra gelebilir ve yazma
+// "katalog henüz yüklenmedi" hatasıyla biterdi (CI'da ara sıra kırılan yarış). Yazma isteği yine gerçek `api` ile gider.
+vi.mock('./useErpOperations', () => ({ useErpOperations: () => ({ operations: catalog, error: '' }) }));
 
 const cancelOp = {
   name: 'satinalma.malKabul.iptal', label: 'Mal kabul iptal', module: 'Satınalma', kind: 'write', pageKind: 'update', method: 'POST',
@@ -15,6 +18,8 @@ const cancelOp = {
   parameters: [{ name: 'note', in: 'body', type: 'text', required: false }], result: { shape: 'record', rowsPath: null, columns: [] },
   sourceOperation: null, fixedBody: null, since: '2026-11-21', deprecated: false, allowed: true,
 };
+const { catalog } = vi.hoisted(() => ({ catalog: new Map<string, unknown>() }));
+catalog.set(cancelOp.name, cancelOp);
 const definition = (buttonProps: Record<string, unknown> = {}) => ({
   schemaVersion: 2,
   components: [{ id: 'in1', type: 'input', name: 'not', props: { inputType: 'text', label: 'Not' } }, { id: 'b1', type: 'button', props: { text: 'İptal et', actionType: 'query', queryId: 'qi', ...buttonProps } }],
@@ -27,7 +32,6 @@ function serve(failure: { status: number; body: unknown }, buttonProps?: Record<
     if (url.endsWith('/published')) {
       return json({ id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true }, definitionJson: JSON.stringify(definition(buttonProps)) });
     }
-    if (url === '/api/custom-pages/erp-operations') return json({ operations: [cancelOp] });
     if (url === '/api/purchasing/receipts/void') return json(failure.body, failure.status);
     throw new Error(`unexpected ${url}`);
   });
