@@ -182,6 +182,12 @@ public sealed class TenantCustomPageSampleParamsTests
         Assert.Equal(TenantCustomPageEndpointsViewForbidden, (await forbidden.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
         Assert.Empty(executor.Calls);
 
+        // A role the route permission refuses is stopped before the page lookup, like GET /preview.
+        using var other = Client(app, Ayse, "Misafir");
+        Assert.Equal(HttpStatusCode.Forbidden, (await other.GetAsync($"/api/custom-pages/{draftId}/preview")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await other.GetAsync($"/api/custom-pages/{draftId}/preview/sample-params")).StatusCode);
+        Assert.Empty(executor.Calls);
+
         // Only open drafts are previewed; a published row or an unknown id is not found.
         using var admin = Client(app, Admin, "TenantAdmin");
         Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/custom-pages/{published}/preview/sample-params")).StatusCode);
