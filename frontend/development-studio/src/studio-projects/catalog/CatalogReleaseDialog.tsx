@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ShieldCheck } from "lucide-react";
 import { Dialog } from "../../ui/Dialog";
 import { confirmDialog } from "../../ui/confirmDialog";
@@ -48,6 +48,8 @@ export function CatalogReleaseDialog({
   const [readErrors, setReadErrors] = useState<string[]>([]);
   const [pages, setPages] = useState<BreakingPage[]>([]);
   const [done, setDone] = useState<string | null>(null);
+  // Onay penceresi açıkken ikinci "Bu sürüme dön" tıklaması yok sayılır (state bir sonraki çizime kadar güncellenmez).
+  const rollbackPending = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -70,10 +72,13 @@ export function CatalogReleaseDialog({
   const otherPath = active?.sourcePath && active.sourcePath !== root ? active.sourcePath : null;
 
   async function run(action: () => Promise<void>) {
-    setBusy(true); setError(""); setPages([]); setReadErrors([]);
+    setBusy(true); setError(""); setPages([]); setReadErrors([]); setDone(null);
     try { await action(); } catch (e) {
       setError(errorText(e));
       if (e instanceof CatalogApiError && e.pages?.length) setPages(e.pages);
+      // Kırılma raporu olmayan 409: beklenen etkin sürüm eskidi. Yalnız etkin sürüm yeniden okunur (önerilen sürüm
+      // numarası değişmez), yeniden deneme güncel kimliği gönderir.
+      else if (e instanceof CatalogApiError && e.status === 409) await activeCatalog(token).then(setActive).catch(() => undefined);
     } finally { setBusy(false); }
   }
 
@@ -95,12 +100,20 @@ export function CatalogReleaseDialog({
   });
 
   async function rollback(release: CatalogRelease) {
-    const ok = await confirmDialog({
-      title: `${release.version} sürümüne dönülsün mü?`,
-      message: "Etkin katalog bu sürümle değiştirilir. Geçerli sürüm yeniden etkinleştirilebilir.",
-      confirmLabel: "Bu sürüme dön",
-    });
-    if (ok) await activate(release.id, release.version);
+    if (rollbackPending.current || busy) return;
+    rollbackPending.current = true;
+    setBusy(true);
+    try {
+      const ok = await confirmDialog({
+        title: `${release.version} sürümüne dönülsün mü?`,
+        message: "Etkin katalog bu sürümle değiştirilir. Geçerli sürüm yeniden etkinleştirilebilir.",
+        confirmLabel: "Bu sürüme dön",
+      });
+      if (ok) await activate(release.id, release.version);
+    } finally {
+      rollbackPending.current = false;
+      setBusy(false);
+    }
   }
 
   const entryCount = readCatalogEntries(root, files).entries.length;
@@ -112,7 +125,7 @@ export function CatalogReleaseDialog({
           <h2 id="sp-catalog-release-title">Sürüm yayınla</h2>
           <p>Katalogdaki veri kaynakları ve eylemler ({entryCount} öğe) yeni bir sürüm olarak firmaya kurulur.</p>
         </div>
-        <button type="button" className="ns-btn ns-btn-sm small-button ns-btn-ghost" aria-label="Kapat" onClick={onClose}>
+        <button type="button" className="ns-btn ns-btn-sm small-button ns-btn-ghost" aria-label="Kapat" disabled={busy} onClick={onClose}>
           <X size={17} />
         </button>
       </header>
@@ -140,7 +153,7 @@ export function CatalogReleaseDialog({
         </label>
         <footer className="sp-dialog-foot">
           <small><ShieldCheck size={14} aria-hidden="true" /> Yalnız firma yöneticisi yayınlayabilir</small>
-          <button type="button" className="ns-btn" onClick={onClose}>Vazgeç</button>
+          <button type="button" className="ns-btn" disabled={busy} onClick={onClose}>Vazgeç</button>
           {draftId ? (
             <button type="button" className="ns-btn ns-btn-primary" disabled={busy} onClick={() => void activate(draftId, version)}>
               {busy ? "Etkinleştiriliyor…" : "Etkinleştir"}

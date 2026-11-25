@@ -151,4 +151,52 @@ describe("CatalogReleaseDialog", () => {
     await click(button(host, "Bu sürüme dön"));
     expect(activateRelease).not.toHaveBeenCalled();
   });
+  it("stale_conflict_refreshes_active_id_and_retry_sends_it", async () => {
+    activeCatalog.mockResolvedValueOnce({ releaseId: "old", version: "0.9.0", dataSources: [], actions: [] })
+      .mockResolvedValue({ releaseId: "newer", version: "0.9.1", dataSources: [], actions: [] });
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.0", status: "Draft", bundleSha256: "h" });
+    activateRelease.mockRejectedValueOnce(new api.CatalogApiError(409, "Etkin sürüm değişti; yeniden deneyin."));
+    const host = await render(<CatalogReleaseDialog {...props} />);
+    await click(button(host, "Taslak oluştur"));
+    await click(button(host, "Etkinleştir"));
+    expect(activateRelease).toHaveBeenLastCalledWith("t", "new", "old");
+    expect(host.textContent).toContain("Etkin sürüm değişti; yeniden deneyin.");
+    expect((host.querySelector("input") as HTMLInputElement).value).toBe("1.0.0");
+    activateRelease.mockResolvedValueOnce({});
+    await click(button(host, "Etkinleştir"));
+    expect(activateRelease).toHaveBeenLastCalledWith("t", "new", "newer");
+    expect(host.textContent).toContain("1.0.0 sürümü etkinleştirildi.");
+  });
+
+  it("previous_success_notice_is_cleared_by_next_run", async () => {
+    listReleases.mockResolvedValue([rel({ id: "a", version: "1.2.3", status: "Superseded" }), rel({ id: "b", version: "1.1.0", status: "Superseded" })]);
+    vi.mocked(confirmDialog).mockResolvedValue(true);
+    activateRelease.mockResolvedValueOnce({}).mockRejectedValueOnce(new api.CatalogApiError(400, "Olmadı"));
+    const host = await render(<CatalogReleaseDialog {...props} />);
+    await click(host.querySelectorAll<HTMLButtonElement>(".sp-catalog-releases button")[1]);
+    expect(host.textContent).toContain("1.1.0 sürümü etkinleştirildi.");
+    await click(host.querySelectorAll<HTMLButtonElement>(".sp-catalog-releases button")[0]);
+    expect(host.textContent).toContain("Olmadı");
+    expect(host.textContent).not.toContain("sürümü etkinleştirildi.");
+  });
+
+  it("rollback_double_click_asks_and_activates_once", async () => {
+    listReleases.mockResolvedValue([rel({ id: "b", status: "Superseded" })]);
+    let answer: (value: boolean) => void = () => {};
+    vi.mocked(confirmDialog).mockImplementation(() => new Promise<boolean>(resolve => { answer = resolve; }));
+    let finish: () => void = () => {};
+    activateRelease.mockImplementation(() => new Promise(resolve => { finish = () => resolve({}); }));
+    const host = await render(<CatalogReleaseDialog {...props} />);
+    const back = button(host, "Bu sürüme dön")!;
+    await click(back);
+    await click(back);
+    expect(confirmDialog).toHaveBeenCalledTimes(1);
+    await act(async () => answer(true));
+    expect(activateRelease).toHaveBeenCalledTimes(1);
+    // İşlem sürerken pencere kapatılamaz.
+    expect(button(host, "Vazgeç")!.disabled).toBe(true);
+    expect((host.querySelector('[aria-label="Kapat"]') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => finish());
+    expect(button(host, "Vazgeç")!.disabled).toBe(false);
+  });
 });
