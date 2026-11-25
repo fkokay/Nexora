@@ -92,7 +92,7 @@ public sealed class SalesCardStandardsTests
         Assert.Equal(["orderId={{liste.seciliSatir.id}}", "customerId={{liste.seciliSatir.customerId}}", "orderDate={{liste.seciliSatir.orderDate}}"],
             Props(orders, "duzenleDugmesi")["params"]!.AsArray().Select(x => (string)x!));
         Assert.True(SystemPageStandards.TryGet("sales-order-create", out var standard));
-        Assert.Equal((1, "preview"), (standard.Version, standard.Stage));
+        Assert.Equal((2, "preview"), (standard.Version, standard.Stage));
     }
 
     [Fact]
