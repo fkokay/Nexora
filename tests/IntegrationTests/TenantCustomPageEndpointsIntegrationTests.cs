@@ -105,6 +105,32 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         Assert.Empty(await db.TenantCustomPages.Where(x => x.TenantId == TenantB).ToListAsync());
     }
 
+    [Fact]
+    public async Task Custom_page_list_returns_template_and_level_for_list_pages_and_null_for_legacy()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantCustomPages.AddRange(
+                new TenantCustomPage { TenantId = TenantA, Code = "a-liste", Name = "Liste", CreatedByUserId = UserA, UpdatedByUserId = UserA,
+                    DefinitionJson = """{"schemaVersion":2,"template":{"name":"list"},"queries":[],"components":[{"id":"liste","type":"dataTable","props":{"slot":"list"}}]}""" },
+                new TenantCustomPage { TenantId = TenantA, Code = "b-eski", Name = "Eski", CreatedByUserId = UserA, UpdatedByUserId = UserA,
+                    DefinitionJson = """{"schemaVersion":2,"queries":[],"components":[]}""" });
+            await db.SaveChangesAsync();
+        }
+
+        var items = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-pages") ?? [];
+        var list = items.Single(x => x.GetProperty("code").GetString() == "a-liste");
+        var legacy = items.Single(x => x.GetProperty("code").GetString() == "b-eski");
+        Assert.Equal("list", list.GetProperty("template").GetString());
+        Assert.Equal(1, list.GetProperty("templateLevel").GetInt32());
+        Assert.Equal(JsonValueKind.Null, legacy.GetProperty("template").ValueKind);
+        Assert.Equal(JsonValueKind.Null, legacy.GetProperty("templateLevel").ValueKind);
+    }
+
     private static object PageDefinition(string title) => new
     {
         schemaVersion = 1,

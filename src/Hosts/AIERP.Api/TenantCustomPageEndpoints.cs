@@ -20,8 +20,12 @@ internal static class TenantCustomPageEndpoints
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             var items = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsArchived)
                 .OrderBy(x => x.Code).ThenByDescending(x => x.IsPublished).ThenByDescending(x => x.UpdatedAt)
-                .Select(x => new PageSummary(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey)).ToListAsync(ct);
-            return Results.Ok(items);
+                .Select(x => new { x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey, x.DefinitionJson }).ToListAsync(ct);
+            return Results.Ok(items.Select(x =>
+            {
+                var (template, level) = PageTemplateSummary.Read(x.DefinitionJson);
+                return new PageSummary(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey, template, level);
+            }).ToList());
         });
 
         // Studio "Yayınlar": open drafts and published history (headers only, never definition JSON/SQL).
@@ -429,7 +433,7 @@ internal static class TenantCustomPageEndpoints
     private sealed record DraftRequest(string Code, string Name, string? Description, JsonElement Definition);
     private sealed record UpdateRequest(int ExpectedRevision, string Name, string? Description, JsonElement Definition, int? StandardVersion = null);
     private sealed record RevisionRequest(int ExpectedRevision);
-    private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt, string? ScreenKey);
+    private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt, string? ScreenKey, string? Template, int? TemplateLevel);
     private sealed record PageDefinition(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson);
     private sealed record PublishedPage(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson, IReadOnlyList<EmbeddedForm> Forms,
         CustomPageRightsView Rights);
