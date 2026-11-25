@@ -42,6 +42,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
+import { newListTemplateDefinition, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -97,7 +98,7 @@ function childComponentsOf(component: PageComponent): PageComponent[] {
     !!child && typeof child === "object" && typeof (child as PageComponent).id === "string" && typeof (child as PageComponent).type === "string") : [];
 }
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
-type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
+type PageDefinition = { schemaVersion: 2; template?: PageTemplate; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
 type Device = "desktop" | "tablet" | "mobile";
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" | "choice"; options?: readonly (readonly [string, string])[] };
@@ -849,8 +850,9 @@ export const designerInternals = { reconcileDefinition, managedKeys, contentFiel
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
 const normalizeDefinition = (raw: unknown): PageDefinition => {
-  const value = (raw ?? {}) as { components?: unknown; queries?: unknown };
-  return { schemaVersion: 2, queries: Array.isArray(value.queries) ? value.queries as PageQuery[] : [], components: Array.isArray(value.components) ? value.components as PageComponent[] : [] };
+  const value = (raw ?? {}) as { components?: unknown; queries?: unknown; template?: unknown };
+  const pageTemplate = readPageTemplate(value.template);
+  return { schemaVersion: 2, ...(pageTemplate ? { template: pageTemplate } : {}), queries: Array.isArray(value.queries) ? value.queries as PageQuery[] : [], components: Array.isArray(value.components) ? value.components as PageComponent[] : [] };
 };
 /**
  * Sunucuya gönderilen tanım: ERP işlemi sorgusunda `sql` yoktur, SQL sorgusunda `operation` yoktur. İşlem katalogda
@@ -1455,6 +1457,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // "Yeni özel sayfa" penceresi: ad, kod ve şablon birlikte seçilir; taslak kaydedilene kadar yalnız tasarımcıdadır.
   const createFromDialog = (result: NewPageResult) => {
+    if (result.pageTemplate === "list") {
+      const listDefinition = newListTemplateDefinition() as unknown as PageDefinition;
+      setName(result.name); setCode(result.code);
+      commit((value) => ({ ...value, template: listDefinition.template, components: listDefinition.components }));
+      setNewPageDialog(null); setSelectedComponentId(null); setError("");
+      setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Taslağı kaydedin.");
+      return;
+    }
     const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
     const built = template.build();
     setName(result.name); setCode(result.code);
