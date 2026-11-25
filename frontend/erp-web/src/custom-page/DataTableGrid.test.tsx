@@ -155,6 +155,24 @@ describe('DataTableGrid (gelişmiş ızgara)', () => {
     expect(xlsx.sheets[0]).toEqual([['Ürün adı', 'Kod', 'Durum', 'Miktar'], ['Armut', 'K2', 'Kapalı', '5 Kg']]);
   });
 
+  it('satır kümesi aynı sayıyla yenilenince işaretler kalkar: "Seçilenleri sil" başka kayıtlara ulaşmaz', () => {
+    const run = vi.fn(async () => true);
+    const view = (current: QueryState) => <CommandProvider><DataTableGrid gridId="g" state={current} columns={['kod', 'ad']} title="T" description="" style={{}}
+      bulkDelete={{ disabledReason: null, run }} /></CommandProvider>;
+    const { rerender } = render(view(state));
+    fireEvent.click(within(dataRows()[1]).getByRole('checkbox'));
+    expect(document.querySelectorAll('tbody input[type=checkbox]:checked')).toHaveLength(1);
+    // Aynı satır kümesiyle yeniden çizim işareti korur.
+    rerender(view(state));
+    expect(document.querySelectorAll('tbody input[type=checkbox]:checked')).toHaveLength(1);
+    // Yenileme: aynı satır sayısı, başka kayıtlar (r1 artık başka satırdır).
+    const refreshed = [{ id: 'c', kod: 'K3', ad: 'Ayva', durum: 'Aktif', miktar: 1, birim: 'Adet' }, { id: 'd', kod: 'K4', ad: 'Nar', durum: 'Aktif', miktar: 2, birim: 'Adet' }];
+    rerender(view({ ...state, rows: refreshed }));
+    expect(document.querySelectorAll('tbody input[type=checkbox]:checked')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Seçilenleri sil' })).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('showSelectedExport: false seçimde toplu aktarım çubuğunu çizmez', () => {
     render(<Harness tools={{ ...ALL_GRID_TOOLS, selectedExport: false }} />);
     fireEvent.click(within(dataRows()[0]).getByRole('checkbox'));

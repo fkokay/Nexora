@@ -16,9 +16,9 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class TenantCustomPageEndpointsIntegrationTests
 {
-    private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    internal static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid UserA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    internal static readonly Guid UserA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     [Fact]
     public async Task Custom_page_draft_preview_publish_history_and_replacement_are_tenant_scoped()
@@ -105,13 +105,39 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         Assert.Empty(await db.TenantCustomPages.Where(x => x.TenantId == TenantB).ToListAsync());
     }
 
+    [Fact]
+    public async Task Custom_page_list_returns_template_and_level_for_list_pages_and_null_for_legacy()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantCustomPages.AddRange(
+                new TenantCustomPage { TenantId = TenantA, Code = "a-liste", Name = "Liste", CreatedByUserId = UserA, UpdatedByUserId = UserA,
+                    DefinitionJson = """{"schemaVersion":2,"template":{"name":"list"},"queries":[],"components":[{"id":"liste","type":"dataTable","props":{"slot":"list"}}]}""" },
+                new TenantCustomPage { TenantId = TenantA, Code = "b-eski", Name = "Eski", CreatedByUserId = UserA, UpdatedByUserId = UserA,
+                    DefinitionJson = """{"schemaVersion":2,"queries":[],"components":[]}""" });
+            await db.SaveChangesAsync();
+        }
+
+        var items = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-pages") ?? [];
+        var list = items.Single(x => x.GetProperty("code").GetString() == "a-liste");
+        var legacy = items.Single(x => x.GetProperty("code").GetString() == "b-eski");
+        Assert.Equal("list", list.GetProperty("template").GetString());
+        Assert.Equal(1, list.GetProperty("templateLevel").GetInt32());
+        Assert.Equal(JsonValueKind.Null, legacy.GetProperty("template").ValueKind);
+        Assert.Equal(JsonValueKind.Null, legacy.GetProperty("templateLevel").ValueKind);
+    }
+
     private static object PageDefinition(string title) => new
     {
         schemaVersion = 1,
         components = new[] { new { id = "heading_1", type = "heading", props = new { title } } }
     };
 
-    private static async Task<WebApplication> StartApplicationAsync()
+    internal static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -150,7 +176,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         return app;
     }
 
-    private static void SetIdentity(HttpClient client, Guid tenant, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid tenant, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");

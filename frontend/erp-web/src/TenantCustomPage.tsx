@@ -1,11 +1,15 @@
 import { createElement, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
+import { hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
+import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
+import type { ShellAction } from "./page-templates/PageShell";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
 import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
-import TenantWorkflowAction from "./TenantWorkflowAction";
+import TenantWorkflowAction, { runWorkflowStart } from "./TenantWorkflowAction";
 import { setWorkspacePageTitle } from "./workspacePageTitles";
 import { bindingPath, bindingsAllEmpty, displayText, interpolate, interpolateWith, joinTextParts, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -40,6 +44,7 @@ import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
+import { CLIENT_PAGE_SIZES, DEFAULT_CLIENT_PAGE_SIZE } from "./page-templates/listResponsive";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
@@ -103,6 +108,8 @@ type PageRuntime = {
   /** Seçim girişinin seçenek sorgusu durumu, `optionsWhen` ile süzülmüş (geçerli değerin satırı kalır). */
   inputOptions: (component: ComponentDefinition) => QueryState | undefined;
   selections: Record<string, Record<string, unknown> | null>;
+  /** Liste kalıbında arama kutusu kabuğa taşınan süzgeç alanları (alan aramasız çizilir). */
+  shellSearch?: ReadonlySet<string>;
   /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
   select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   queryById: Record<string, PageQueryDefinition>;
@@ -664,6 +671,69 @@ function writeErrorText(configured: string, cause: unknown): string {
   return failure.serverError || failure.message || "İşlem tamamlanamadı.";
 }
 
+type ButtonRunHooks = {
+  setFeedback: (status: ActionStatus | null) => void; setBusy: (busy: boolean) => void; inFlight: { current: boolean };
+};
+
+/**
+ * Eylemli düğmenin tıklaması (onay, doğrulama, yazma, yenileme dahil): sayfa düğmesi ve kalıp kabuğunun işlem çubuğu aynı
+ * yolu kullanır. Pasiflik ve hak denetimi çağırana aittir.
+ */
+async function runButtonClick(component: ComponentDefinition, props: Record<string, unknown>, runtime: PageRuntime, action: ButtonAction,
+  opener: HTMLElement, { setFeedback, setBusy, inFlight }: ButtonRunHooks) {
+  const query = action.query;
+  const write = action.type === "sequence" || (!!query && query.kind !== "read");
+  const refreshIds = stringList(props.refreshQueries);
+  const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
+  setFeedback(null);
+  if (action.type === "openDialog") { runtime.openDialog(props.dialogId as string, opener); return; }
+  if (action.type === "setInput") { runtime.applyAssignments(component.props ?? {}, {}); return; }
+  if (action.type === "navigate") {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const failure = await runNavigation(component.props ?? {}, runtime.currentScope, runtime.tabKey);
+      if (failure) setFeedback({ tone: "error", text: failure });
+    } finally { inFlight.current = false; }
+    return;
+  }
+  if (usesSequence(action, props)) {
+    await runtime.runSequence({
+      props: component.props ?? {}, name: component.name,
+      onStatus: (status) => setFeedback(status),
+      onBusy: (next) => setBusy(next),
+    });
+    return;
+  }
+  if (!query) return;
+  if (!write) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try { runtime.rerun([query.id]); } finally { inFlight.current = false; }
+    return;
+  }
+  const result = await runWriteAction({
+    query, isPreview: runtime.isPreview, inFlight: runtime.writeLock,
+    confirm: {
+      enabled: props.confirmEnabled === true, text: bound("confirmText"),
+      tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
+    },
+    write: async (target, confirmWrite) => {
+      setBusy(true);
+      try { return await runtime.writeFor(target, confirmWrite); } finally { setBusy(false); }
+    },
+    errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
+    validate: () => runtime.validateFor(query),
+    ...codeWriteHooks(runtime.events),
+  });
+  if ("ok" in result && result.ok) {
+    setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
+    runtime.rerun(refreshIds);
+  } else if ("error" in result) {
+    setFeedback({ tone: "error", text: result.error });
+  }
+}
+
 /**
  * Eylemli düğme (sorgu, kayıt dizisi, pencere): hak yoksa gizlenir; yazma türünde isteğe bağlı onay sorar, çalışırken pasif
  * kalır ve sonucu bildirir. İstemli yazma ve dizi `runtime.runSequence` ile, düz sorgu Faz A yoluyla çalışır.
@@ -687,58 +757,13 @@ function QueryActionButton({ component, props, label, runtime, disabled: conditi
   if (!allowed || !action) return null;
   const query = action.query;
   const write = action.type === "sequence" || (!!query && query.kind !== "read");
-  const refreshIds = stringList(props.refreshQueries);
-  const bound = (key: string) => interpolate(textValue(props[key]), runtime.scope).trim();
-
-  const click = async (opener: HTMLElement) => {
+  const click = (opener: HTMLElement) => {
     if (disabled) return;
-    setFeedback(null);
-    if (action.type === "openDialog") { runtime.openDialog(props.dialogId as string, opener); return; }
-    if (action.type === "setInput") { runtime.applyAssignments(component.props ?? {}, {}); return; }
-    if (action.type === "navigate") {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      try {
-        const failure = await runNavigation(component.props ?? {}, runtime.currentScope, runtime.tabKey);
-        if (failure && mounted.current) setFeedback({ tone: "error", text: failure });
-      } finally { inFlight.current = false; }
-      return;
-    }
-    if (usesSequence(action, props)) {
-      await runtime.runSequence({
-        props: component.props ?? {}, name: component.name,
-        onStatus: (status) => { if (mounted.current) setFeedback(status); },
-        onBusy: (next) => { if (mounted.current) setBusy(next); },
-      });
-      return;
-    }
-    if (!query) return;
-    if (!write) {
-      if (inFlight.current) return;
-      inFlight.current = true;
-      try { runtime.rerun([query.id]); } finally { inFlight.current = false; }
-      return;
-    }
-    const result = await runWriteAction({
-      query, isPreview: runtime.isPreview, inFlight: runtime.writeLock,
-      confirm: {
-        enabled: props.confirmEnabled === true, text: bound("confirmText"),
-        tone: query.kind === "delete" || query.kind === "update" ? "danger" : "default",
-      },
-      write: async (target, confirmWrite) => {
-        if (mounted.current) setBusy(true);
-        try { return await runtime.writeFor(target, confirmWrite); } finally { if (mounted.current) setBusy(false); }
-      },
-      errorText: (cause) => writeErrorText(bound("errorMessage"), cause),
-      validate: () => runtime.validateFor(query),
-      ...codeWriteHooks(runtime.events),
+    return runButtonClick(component, props, runtime, action, opener, {
+      setFeedback: (status) => { if (mounted.current) setFeedback(status); },
+      setBusy: (next) => { if (mounted.current) setBusy(next); },
+      inFlight,
     });
-    if ("ok" in result && result.ok) {
-      if (mounted.current) setFeedback({ tone: "success", text: `${bound("successMessage") || "İşlem tamamlandı."} (${result.affectedRows} kayıt)` });
-      runtime.rerun(refreshIds);
-    } else if ("error" in result) {
-      if (mounted.current) setFeedback({ tone: "error", text: result.error });
-    }
   };
   return <div className="tenant-page-query-action">
     <button className={`tenant-page-button${query && write && (query.kind === "delete" || query.kind === "update") ? " is-danger" : ""}`} type="button"
@@ -1009,6 +1034,12 @@ function Anchored({ id, children }: { id: string; children: ReactNode }): ReactN
   return <>{createElement("template", { [ANCHOR_ATTRIBUTE]: id })}{children}</>;
 }
 
+/** Tuval modunda yalnız işaretçiyi çizer: kendi `renderComponent`'i olmayan öğelerin (kabuğa taşınan düğme ve arama) önüne konur. */
+function AnchorMark({ id }: { id: string }): ReactNode {
+  const canvas = useContext(CanvasAnchorContext);
+  return canvas ? createElement("template", { [ANCHOR_ATTRIBUTE]: id }) : null;
+}
+
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
   const body = renderComponentBody(component, forms, token, pageCode, runtime);
   return body === null || body === undefined ? body : <Anchored key={component.id} id={component.id}>{body}</Anchored>;
@@ -1075,7 +1106,10 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
     }
     case "filterBar": {
       const view = runtime?.filterBarFor(component);
-      return view ? <FilterBar key={component.id} style={style} {...view} /> : null;
+      if (!view) return null;
+      // Liste kalıbında arama kutusu kabuğun ortasındadır; geriye süzgeç kalmadıysa alan çizilmez.
+      if (runtime?.shellSearch?.has(component.id)) return view.filters.length > 0 ? <FilterBar key={component.id} style={style} {...view} search={null} /> : null;
+      return <FilterBar key={component.id} style={style} {...view} />;
     }
     case "contextPanel": {
       if (!runtime) return null;
@@ -1255,6 +1289,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
           valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
+          clientPageSize={pager ? undefined : typeof props.pageSize === "number" && CLIENT_PAGE_SIZES.includes(props.pageSize) ? props.pageSize : DEFAULT_CLIENT_PAGE_SIZE}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
@@ -1699,8 +1734,10 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
-  page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
+function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = null, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
+  page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean;
+  /** Sayfa tanımındaki kalıp (yoksa null: eski çizim). Liste yerinde tablo yoksa da eski çizim kullanılır. */
+  pageTemplate?: PageTemplate | null; token: string; previewId?: string;
   /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
   tabKey?: string; pageParams: PageParams;
   /** İşlem çubuklu sayfada başlık satırına konan "Eski ekranda aç" bağlantısı. */
@@ -1733,6 +1770,8 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   selectionsRef.current = selections;
   const [actionStatus, setActionStatus] = useState<ActionStatus | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  // Kalıp kabuğundaki işlem düğmelerinin ortak okuma kilidi (sayfa düğmesinin kendi `inFlight`'ı gibi).
+  const shellInFlight = useRef(false);
   const flat = useMemo(() => flattenComponents(components), [components]);
   const bar = useMemo(() => (isV2 ? actionBarOf(flat) : null), [isV2, flat]);
   const queryById = useMemo(() => Object.fromEntries(queryDefinitions.map((query) => [query.id, query])), [queryDefinitions]);
@@ -3340,7 +3379,14 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   useEffect(() => { onTitleRef.current?.(pageTitle, recordTitle); }, [pageTitle, recordTitle]);
   useEffect(() => () => onTitleRef.current?.(null, false), []);
 
+  // Kalıp yerleri yalnız üst düzeyde çizilen bileşenlerle kurulur: sekmenin, pencerenin, satır işlemlerinin ve kayıt özetinin
+  // sahiplendiği bileşenler (eski gövdedeki gibi) yalnız sahiplerinin içinde çizilir.
+  const templateComponents = isV2 && pageTemplate?.name === "list"
+    ? components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
+    : [];
+  const listLayout = isV2 && pageTemplate?.name === "list" && hasListSlot(templateComponents) ? layoutListTemplate(templateComponents) : null;
   const runtime: PageRuntime | undefined = isV2 ? {
+    shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
     skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
@@ -3434,6 +3480,64 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const countTableHidden = !!runtime && countTable !== "" && !ancestorsOf(countTable).every((id) => { const item = flatById[id]; return !item || componentVisible(item, runtime); });
   const titleCount = bar && !countTableHidden ? pageTitleCount(bar.props.titleCount, scope) : null;
   const showTitle = !!bar && parseBarLook(bar.props.barLook)?.title !== false;
+  if (listLayout && runtime) {
+    const list = listLayout.list;
+    const listQuery = typeof list.props?.query === "string" ? runtime.queryNames[list.props.query] : undefined;
+    const listState = listQuery ? runtime.states[listQuery] : undefined;
+    // Kayıt sayısı tablonun (süzülmüş) satır sayısıdır; yüklenirken, hatada ya da hiç çalışmamışken gösterilmez.
+    const count = listState && !listState.loading && !listState.error && !neverRan(listState) ? runtime.visibleRows(list, listState).rowCount : null;
+    // Sayfa düğmesi gibi: görünmeyen ve hakkı olmayan eylem gizlenir (eylemsiz düğme pasif kalır). Ana düğme bu süzmeden
+    // sonra seçilir: kalan ilk silme olmayan düğme.
+    const shownActions = listLayout.actions.filter((button) => {
+      if (!componentVisible(button, runtime)) return false;
+      const action = runtime.buttonAction(button);
+      return !action || actionAllowed(action, runtime.rights);
+    });
+    const isDelete = (button: ComponentDefinition) => runtime.buttonAction(button)?.query?.kind === "delete";
+    const primaryId = shownActions.find((button) => !isDelete(button))?.id;
+    const shellActions = shownActions.map((button): ShellAction => {
+      const action = runtime.buttonAction(button);
+      const props = bindProps(button.props ?? {}, runtime.scope);
+      const text = textValue(props.text ?? props.label) || textValue(props.title);
+      const workflowId = action?.type === "workflow" ? textValue(props.workflowId).trim() : "";
+      const blocked = operationBlocked(action, runtime);
+      const conditionDisabled = componentDisabled(button, runtime);
+      const disabled = !action || blocked || conditionDisabled || actionBusy;
+      const reason = blocked ? NO_OPERATION_RIGHT : conditionDisabled ? disabledReasonOf(button, props, runtime) : "";
+      return {
+        id: button.id, label: text || (workflowId ? "İş akışını başlat" : "Eylem"),
+        kind: isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal",
+        disabled, disabledReason: reason || undefined, anchor: <AnchorMark id={button.id} />,
+        run: (opener) => {
+          if (disabled || !action) return;
+          const hooks = { setFeedback: setActionStatus, setBusy: setActionBusy, inFlight: shellInFlight };
+          // İş akışı düğmesi eski sayfadaki TenantWorkflowAction ile aynı başlatma yolunu kullanır.
+          if (workflowId) { void runWorkflowStart({ token, workflowId, title: text || "İş akışını başlat", pageCode: page.code, componentId: button.id }, hooks); return; }
+          void runButtonClick(button, props, runtime, action, opener ?? contentRef.current ?? document.body, hooks);
+        },
+      };
+    });
+    const filterBar = listLayout.filters;
+    const searchView = filterBar ? runtime.filterBarFor(filterBar) : null;
+    const search = filterBar && searchView?.search ? <>
+      {searchView.filters.length === 0 && <AnchorMark id={filterBar.id} />}
+      <ShellSearch inputId={searchView.searchInputId ?? `page-input-${filterBar.id}`} placeholder={searchView.search.placeholder} hint={searchView.search.hint}
+        value={searchView.values.search} onSearch={searchView.onSearch} />
+    </> : null;
+    const detailOpen = !!list.name && !!runtime.selections[list.name];
+    // Detay panelinin tablosu yazılmamışsa listenin kendisidir.
+    const renderSlot = (component: ComponentDefinition) => renderComponent(
+      component.type === "contextPanel" && typeof component.props?.table !== "string" ? { ...component, props: { ...component.props, table: list.id } } : component,
+      page.forms ?? [], token, page.code, runtime);
+    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir: `> *` kuralları (dar ekranda span 6) kalıbı daraltmasın.
+    return <div className="list-template-page" ref={contentRef}>
+      <ListTemplate layout={listLayout} render={renderSlot} title={pageTitle || page.name} count={count} actions={shellActions} search={search} detailOpen={detailOpen}
+        notices={<>
+          {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
+          {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
+        </>} />
+    </div>;
+  }
   return <div className="tenant-custom-page-content" ref={contentRef}>
     {showTitle && <div className="list-v2 tenant-custom-page-title">
       <ListPageHeader title={pageTitle || page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
@@ -3582,8 +3686,10 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   let components: ComponentDefinition[] = [];
   let queryDefinitions: ReturnType<typeof readPageQueries> = [];
   let isV2 = false;
+  let pageTemplate: PageTemplate | null = null;
   try {
     const definition = JSON.parse(page.definitionJson) as { schemaVersion?: unknown; components?: ComponentDefinition[] };
+    pageTemplate = readPageTemplate(definition);
     components = Array.isArray(definition.components) ? definition.components : [];
     isV2 = definition.schemaVersion === 2;
     if (isV2) queryDefinitions = readPageQueries(definition);
@@ -3591,7 +3697,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    {!(isV2 && hasActionBar(components)) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
-    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
+    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }

@@ -20,8 +20,12 @@ internal static class TenantCustomPageEndpoints
             if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             var items = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsArchived)
                 .OrderBy(x => x.Code).ThenByDescending(x => x.IsPublished).ThenByDescending(x => x.UpdatedAt)
-                .Select(x => new PageSummary(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey)).ToListAsync(ct);
-            return Results.Ok(items);
+                .Select(x => new { x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey, x.DefinitionJson }).ToListAsync(ct);
+            return Results.Ok(items.Select(x =>
+            {
+                var (template, level) = PageTemplateSummary.Read(x.DefinitionJson);
+                return new PageSummary(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.UpdatedAt, x.ScreenKey, template, level);
+            }).ToList());
         });
 
         // Studio "Yayınlar": open drafts and published history (headers only, never definition JSON/SQL).
@@ -374,35 +378,21 @@ internal static class TenantCustomPageEndpoints
         return await auth.IsAllowedAsync(tenant, userId, role, new ResolvedPlatformPermission(definition, attributes), ct);
     }
     /// <summary>
-    /// Pages whose definition contains SQL queries, write ERP operation queries, catalog action references, catalog data
-    /// source references that are not backed by a read ERP operation, or a code component with JavaScript (it can reach page
-    /// data and operations) may only be written by a verified TenantAdmin (role claim and current membership). Pages that
-    /// only bind read ERP operations, directly or through an operation-backed catalog data source, need no such gate: reads
-    /// run against their own endpoints with the user's own token. A SQL-backed data source counts like inline SQL until the
-    /// 2b developer role exists; when the active catalog is missing or the code is unknown or invalid it counts as SQL too
-    /// (fail closed). The active catalog is read only when a data source reference is all that could exempt the page, and
-    /// the Platform database only when one of the definitions needs the check.
+    /// Pages whose definition contains inline SQL queries, write ERP operation queries, or a code component with JavaScript
+    /// (it can reach page data and operations) may only be written by a verified TenantAdmin (role claim and current
+    /// membership). Catalog references (<c>dataSource</c> and <c>action</c>, whatever the item runs) carry only a code and
+    /// need no such gate: the catalog version is activated by a TenantAdmin and its SQL is re-validated on every run, so
+    /// any user with page write permission may save them. Pages that only bind read ERP operations need no gate either:
+    /// reads run against their own endpoints with the user's own token. The Platform database is read only when a
+    /// definition needs the check.
     /// </summary>
     internal static async Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
         params string[] definitions)
     {
-        var required = definitions.Any(x => TenantCustomPageQueries.HasSqlQueriesExceptDataSourceReferences(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
+        var required = definitions.Any(x => TenantCustomPageQueries.HasInlineSqlQueries(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
             || TenantCustomPageQueries.HasCodeScript(x));
-        if (!required)
-        {
-            var codes = definitions.SelectMany(TenantCustomPageQueries.PureDataSourceReferenceCodes).ToArray();
-            if (codes.Length > 0)
-            {
-                var catalog = await TenantCatalogStore.ActiveAsync(http.RequestServices.GetRequiredService<TenantDbContext>(), tenant, ErpOperationCatalog.TryGet, ct);
-                required = codes.Any(code => !IsReadOperationDataSource(catalog, code));
-            }
-        }
         return await VerifiedAdminRequiredAsync(http, tenant, userId, role, ct, required);
     }
-    /// <summary>A valid item of the active catalog that is a data source backed by an ERP operation whose kind is read.</summary>
-    private static bool IsReadOperationDataSource(CatalogBundle? catalog, string? code) =>
-        code is not null && catalog?.Find(code) is { ItemKind: "dataSource", ErpOperation: { } operationName }
-        && ErpOperationCatalog.TryGet(operationName, out var operation) && operation.Kind == "read";
     /// <summary>
     /// Query SQL in designer responses is shown only to a verified TenantAdmin (role claim and current membership); other
     /// users get the definition without <c>queries[].sql</c>. Definitions without SQL queries need no check.
@@ -443,7 +433,7 @@ internal static class TenantCustomPageEndpoints
     private sealed record DraftRequest(string Code, string Name, string? Description, JsonElement Definition);
     private sealed record UpdateRequest(int ExpectedRevision, string Name, string? Description, JsonElement Definition, int? StandardVersion = null);
     private sealed record RevisionRequest(int ExpectedRevision);
-    private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt, string? ScreenKey);
+    private sealed record PageSummary(Guid Id, string Code, string Name, string? Description, int Revision, bool IsPublished, bool IsArchived, DateTimeOffset UpdatedAt, string? ScreenKey, string? Template, int? TemplateLevel);
     private sealed record PageDefinition(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson);
     private sealed record PublishedPage(Guid Id, string Code, string Name, string? Description, int Revision, string DefinitionJson, IReadOnlyList<EmbeddedForm> Forms,
         CustomPageRightsView Rights);

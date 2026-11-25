@@ -43,6 +43,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
+import { NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -52,6 +53,11 @@ import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
 import ErpCanvasFrame, { type CanvasTenant } from "./page-designer/ErpCanvasFrame";
+import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
+import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
+import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector } from "./page-designer/panel/TemplateInspector";
+import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { ensureTemplateSlots, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
@@ -98,7 +104,7 @@ function childComponentsOf(component: PageComponent): PageComponent[] {
     !!child && typeof child === "object" && typeof (child as PageComponent).id === "string" && typeof (child as PageComponent).type === "string") : [];
 }
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
-type PageDefinition = { schemaVersion: 2; queries: PageQuery[]; components: PageComponent[] };
+type PageDefinition = { schemaVersion: 2; template?: PageTemplate; queries: PageQuery[]; components: PageComponent[] };
 type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
 type Device = "desktop" | "tablet" | "mobile";
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" | "choice"; options?: readonly (readonly [string, string])[] };
@@ -135,6 +141,8 @@ const palette: PaletteItem[] = [
   { type: "badge", label: "Durum rozeti", group: "Bildirim ve gelişmiş", icon: Tag, sample: { label: "Aktif", variant: "success" } },
   { type: "code", label: "Yalıtılmış kod alanı", group: "Bildirim ve gelişmiş", icon: Code2, sample: { title: "Özel bileşen", css: "", javascript: "" } },
 ];
+/** Kalıplı sayfada kullanılmayan bileşenler (sunucu kuralı): işlem çubuğu, boşluk ve ayırıcı. */
+const TEMPLATE_FORBIDDEN_TYPES = new Set<ComponentType>(["actionBar", "spacer", "divider"]);
 const paletteGroups = ["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
 const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
@@ -459,7 +467,9 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   const source = reasoned.map((component) => {
     if (component.type !== "dataTable") return component;
     const props = component.props;
-    const hasPagingProps = PAGING_PROPS.some((key) => key in props);
+    // Kalıplı sayfanın listesinde sayfalama istemcidedir (Karar 4): yalnız `pageSize` "Sayfa başına" ayarıdır, korunur.
+    const clientPaged = !!readPageTemplate(definition.template) && props.slot === "list" && props.paging === undefined;
+    const hasPagingProps = PAGING_PROPS.some((key) => key in props && !(clientPaged && key === "pageSize"));
     if (!hasPagingProps) return component;
     const query = typeof props.query === "string" ? queriesById.get(props.query) : undefined;
     // Katalog başvurusunun kaynağı bilinmiyorsa (katalog yüklenmedi, alınamadı ya da kod yok) saklanan sayfalama silinmez.
@@ -854,8 +864,9 @@ export const designerInternals = { reconcileDefinition, managedKeys, contentFiel
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
 const normalizeDefinition = (raw: unknown): PageDefinition => {
-  const value = (raw ?? {}) as { components?: unknown; queries?: unknown };
-  return { schemaVersion: 2, queries: Array.isArray(value.queries) ? value.queries as PageQuery[] : [], components: Array.isArray(value.components) ? value.components as PageComponent[] : [] };
+  const value = (raw ?? {}) as { components?: unknown; queries?: unknown; template?: unknown };
+  const pageTemplate = readPageTemplate(value.template);
+  return { schemaVersion: 2, ...(pageTemplate ? { template: pageTemplate } : {}), queries: Array.isArray(value.queries) ? value.queries as PageQuery[] : [], components: Array.isArray(value.components) ? value.components as PageComponent[] : [] };
 };
 /**
  * Sunucuya gönderilen tanım: ERP işlemi sorgusunda `sql` yoktur, SQL sorgusunda `operation` yoktur. İşlem katalogda
@@ -920,19 +931,11 @@ const focusKindText = (type: string) => type === "dialog" ? "pencerenin içi" : 
 const ejectText = (type: string) => type === "dialog" ? "Pencereden çıkar" : type === "formCard" ? "Form kartından çıkar" : type === "facetPanel" ? "Yan panelden çıkar" : "Karttan çıkar";
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
 const FULLSCREEN_STORAGE_KEY = "nexora.pageDesigner.fullscreen";
-const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
+const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa satır içi SQL, yazma işlemi ya da kod içerdiği için yalnız yöneticiler düzenleyebilir.";
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_PREVIEW_STAGE = "Bu standart tanım önizleme aşamasında; eski ekranın tüm işlevlerini içermez.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
 const SYSTEM_PAGE_RESET_CONFIRM = "Taslak, Nexora standart tasarımının güncel sürümüyle değiştirilsin mi? Yayımlayana kadar ERP'deki ekran değişmez.";
-/** Sunucudaki TenantCustomPageQueries.HasQueries ile aynı: schemaVersion 2 ve boş olmayan queries dizisi. */
-const definitionHasQueries = (definitionJson: string | undefined) => {
-  if (!definitionJson) return false;
-  try {
-    const raw = JSON.parse(definitionJson) as { schemaVersion?: unknown; queries?: unknown };
-    return raw?.schemaVersion === 2 && Array.isArray(raw.queries) && raw.queries.length > 0;
-  } catch { return false; }
-};
 /** Faz B bileşenlerinin zorunlu başvuruları (sunucu da reddeder; metinler sunucudakiyle aynı). Sorun yoksa null. */
 /**
  * Seçim hücreli düzenlenebilir tablonun kayıt sorunları (sunucu da reddeder): seçim sütununun sorgusu sayfadaki bir okuma
@@ -1170,9 +1173,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const cardGridRef = useRef<HTMLDivElement>(null);
   const resizing = useRef(false);
   const isAdmin = role === "TenantAdmin";
-  // Kayıtlı tanımı SQL sorgusu içeren sayfayı (sunucudaki kuralla aynı) yalnız tenant yöneticisi değiştirebilir.
-  const storedHasQueries = useMemo(() => definitionHasQueries(current?.definitionJson), [current?.definitionJson]);
-  const queryPageLocked = storedHasQueries && !isAdmin;
+  // Karar 1: kayıtlı tanımı satır içi SQL, yazan ERP işlemi ya da betikli kod bileşeni taşıyan sayfayı (sunucudaki kaydetme
+  // kuralıyla aynı) yalnız tenant yöneticisi değiştirebilir; katalog başvuruları ve okuma işlemleri kilitlemez. İşlem listesi
+  // gelene (ya da alınamazsa) kadar işlem sorgusu sunucudaki gibi bilinmeyen (yazma) sayılır ve sayfa kilitli kalır.
+  const storedNeedsAdmin = useMemo(() => definitionNeedsAdmin(current?.definitionJson,
+    (operation) => erpCatalog.status === "ready" ? findOperation(erpCatalog, operation)?.kind : undefined), [current?.definitionJson, erpCatalog]);
+  const queryPageLocked = storedNeedsAdmin && !isAdmin;
   // Sistem sayfası yazmaları doğrulanmış firma yöneticisi ister; liste yanıtı yoksa rol talebine bakılır (sunucu yine denetler).
   const systemAdmin = !systemMode || (systemInfo ? systemInfo.canEdit : isAdmin);
   const systemLocked = systemMode && !systemAdmin;
@@ -1182,7 +1188,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Sorgu eklemek, SQL düzenlemek ve önizlemek yalnız tenant yöneticisine açıktır.
   const queryEditable = canEdit && isAdmin;
   // Sistem kipinde erişim paneli yalnız SQL sorgusu varken anlamlıdır (ERP işlemlerinin yetkisini uç noktalar verir).
-  // Katalog başvuruları da sayılır (bilerek): öğe sunucuda SQL çalıştırabilir; sunucunun HasSqlQueries kuralıyla aynıdır.
+  // Katalog başvuruları da sayılır (bilerek): öğe sunucuda SQL çalıştırabilir; sunucunun HasSqlQueries kuralıyla aynıdır. Kaydetme yetkisi ayrı bir kuraldır: katalog başvurusunu sayfa yazma izni olan herkes kaydedebilir, yalnız satır içi SQL TenantAdmin ister.
   const hasSqlQueries = definition.queries.some((query) => !isOperationQuery(query));
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
   const designIds = useMemo(() => new Set([...cardTree.flattenComponents(definition.components).map((component) => component.id), ...definition.queries.map((query) => query.id)]), [definition]);
@@ -1194,6 +1200,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önerilen öğelerin hepsi eklendiyse sonraki kayıt tabanı güncel standart sürüme çeker.
   const allNewItemsAdded = !!newItems && newItems.items.length > 0 && pendingNewItems.length === 0 && newItems.standardVersion > newItems.baseVersion;
   const selected = selectedComponentId ? cardTree.findComponent(definition.components, selectedComponentId) : null;
+  // Sayfa kalıbı (alt proje 3): kalıplı sayfada özellikler paneli Liste paneli / tek tip bileşen panelidir.
+  const pageTemplate = readPageTemplate(definition.template);
   // Tanımdan türetilir: geri alma, silme ya da başka sayfa açılınca kart ortadan kalkarsa sayfa görünümüne dönülür.
   const focusOwner = focusId ? definition.components.find((component) => component.id === focusId && isFocusOwnerType(component.type)) ?? null : null;
   const focusCard = focusOwner && cardTree.isCardType(focusOwner.type) ? focusOwner : null;
@@ -1315,6 +1323,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       })
       .catch(() => setSources([]));
   }, [request]);
+  // Firma kataloğu (yazılımcının hazırladığı veri kaynakları ve eylemler): yalnız kalıplı sayfada gerekir.
+  const [activeCatalog, setActiveCatalog] = useState<{ status: "loading" | "ready" | "failed"; catalog: ActiveCatalog | null }>({ status: "loading", catalog: null });
+  const needsCatalog = !!readPageTemplate(definition.template);
+  useEffect(() => {
+    if (!needsCatalog) return;
+    let active = true;
+    void loadCatalog(token)
+      .then((catalog) => { if (active) setActiveCatalog({ status: "ready", catalog }); })
+      .catch(() => { if (active) setActiveCatalog({ status: "failed", catalog: null }); });
+    return () => { active = false; };
+  }, [token, needsCatalog]);
   // ERP işlem kataloğu: alınamazsa ERP işlemi modu kapalı kalır, SQL modu etkilenmez.
   useEffect(() => {
     let active = true;
@@ -1421,7 +1440,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commit = (update: (value: PageDefinition) => PageDefinition, coalesceKey?: string) => {
     if (!canEdit) return;
     const previous = definitionRef.current;
-    const next = reconcileDefinition(update(previous), { catalog: erpCatalog, catalogRefs, previous, queryEditable });
+    // Kalıplı sayfa: eski ayar yollarından gelen bileşenler de bir yer (slot) alır, genişlik yazılmaz (sunucu kuralı).
+    const next = reconcileDefinition(ensureTemplateSlots(update(previous)), { catalog: erpCatalog, catalogRefs, previous, queryEditable });
     if (next === previous) return;
     const now = Date.now();
     const last = lastCommit.current;
@@ -1469,6 +1489,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // "Yeni özel sayfa" penceresi: ad, kod ve şablon birlikte seçilir; taslak kaydedilene kadar yalnız tasarımcıdadır.
   const createFromDialog = (result: NewPageResult) => {
+    if (result.pageTemplate === "list") {
+      const listDefinition = newListTemplateDefinition() as unknown as PageDefinition;
+      setName(result.name); setCode(result.code);
+      commit((value) => ({ ...value, template: listDefinition.template, components: listDefinition.components }));
+      // Liste kaynak seçilmeden kaydedilemez (sunucu reddeder): panelinde kaynak seçilsin diye liste seçilir.
+      setNewPageDialog(null); setSelectedComponentId(NEW_LIST_ID); setRightMode("inspector"); setError("");
+      setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce ne listeleneceğini seçin.");
+      return;
+    }
     const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
     const built = template.build();
     setName(result.name); setCode(result.code);
@@ -1482,6 +1511,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (creating && !current && definition.components.length === 0 && onBack) onBack();
   };
   const applyTemplate = (template: Template) => {
+    // Bileşen ön ayarı kalıplı sayfanın yerleşimini (slot'ları) bozar; kalıplı sayfada uygulanmaz.
+    if (readPageTemplate(definitionRef.current.template)) { setError("Kalıplı sayfada bileşen şablonu uygulanmaz."); return; }
     if (!canEdit) { setError(current?.isPublished ? "Yayımlanmış sayfaya şablon uygulamak için önce yeni taslak oluşturun." : "Bu sayfayı düzenleme yetkiniz yok."); return; }
     if (definition.components.length > 0 && !window.confirm(`“${template.label}” şablonu mevcut bileşenlerin yerine geçsin mi? Geri al ile dönebilirsiniz.`)) return;
     const built = template.build();
@@ -1620,8 +1651,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (tab && tabPlacementProblem(cardTree.flatWithCardTabs(definitionRef.current.components), tab.tabsId, tab.tabIndex, { type: item.type })) return;
     if (card && !cardTree.canBeCardChild(item.type)) return;
     if (item.type === "actionBar" && actionBarOf(definitionRef.current.components)) return; // sayfada en çok bir İşlem Çubuğu
+    const templated = !!readPageTemplate(definitionRef.current.template);
+    if (templated && TEMPLATE_FORBIDDEN_TYPES.has(item.type)) return;
     const id = newId(item.type);
-    const props = { ...Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])), ...(ref ? newRefProps(ref.ownerId, item.type) : {}) };
+    const props = { ...Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])), ...(ref ? newRefProps(ref.ownerId, item.type) : {}),
+      // Kalıplı sayfada "＋ Ekle" bileşeni listenin altına (below) koyar; kartın içindeki bileşen üst düzeyde değildir.
+      ...(templated && !card ? { slot: "below" } : {}) } as PageComponent["props"];
     if (ref) {
       const problem = refTree.refPlacementProblem(definitionRef.current.components, ref.ownerId, { type: item.type, props });
       if (problem) { setError(problem); return; }
@@ -1896,7 +1931,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const id = newId("button");
     commit((value) => ({ ...value, components: [
       ...value.components.map((component) => component.id === tableId ? { ...component, props: { ...component.props, rowActions: [...idList(component.props.rowActions, MAX_ROW_ACTIONS), id] } } : component),
-      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page" } },
+      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page", ...(readPageTemplate(value.template) ? { slot: "rowActions" } : {}) } },
     ] }));
     setSettingsId(null);
     setSelectedComponentId(id);
@@ -2065,10 +2100,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     },
     operation: (operationName) => findOperation(erpCatalog, operationName)?.kind,
   };
-  const removeComponent = (id: string) => { commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
+  // Kalıplı sayfanın listesi (slot "list") silinemez ve kopyalanamaz: kalıpta tam bir liste olmalıdır.
+  const isTemplateList = (id: string) => !!readPageTemplate(definitionRef.current.template)
+    && definitionRef.current.components.some((component) => component.id === id && component.props.slot === "list");
+  const removeComponent = (id: string) => { if (isTemplateList(id)) return; commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = cardTree.findComponent(definitionRef.current.components, id);
-    if (!original || !canEdit || original.type === "actionBar") return;
+    if (!original || !canEdit || original.type === "actionBar" || isTemplateList(id) || templateDuplicateBlocked(definitionRef.current as unknown as ModelDefinition, id)) return;
     const copyId = newId(original.type);
     const duplicate: PageComponent = { ...original, id: copyId, props: Object.fromEntries(Object.entries(original.props).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])) };
     delete duplicate.name; // Ad sayfada benzersiz olmalı; kopya adsız başlar (adı zorunlu türler yeni bir boş ad alır).
@@ -2158,6 +2196,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return components === state.components ? state : { ...state, components };
   });
   const startResize = (component: PageComponent, event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (readPageTemplate(definitionRef.current.template)) return; // kalıplı sayfada genişlik yoktur
     if (!canEdit || device !== "desktop") return;
     // Sekmedeki bileşen sekme gövdesinin, kartın içindeki bileşen kart ızgarasının 12 sütununa göre boyutlanır.
     const grid = event.currentTarget.closest<HTMLElement>(".pd-tabs-canvas-panel") ?? event.currentTarget.closest<HTMLElement>(".pd-grid") ?? gridRef.current;
@@ -2217,6 +2256,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
+    // Kaynağı seçilmemiş liste kalıbı kaydedilmez (sunucu "tam bir liste" ister); ipucu kendi metniyle gösterilir.
+    const listProblem = listSourceProblem(definition);
+    if (listProblem) {
+      if (quiet) setCanvasHint(listProblem); else {
+        setError(listProblem);
+        const list = definition.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
+        if (list) { setSelectedComponentId(list.id); setRightMode("inspector"); }
+      }
+      return null;
+    }
     // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
     const pageInputIds = new Set(cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => component.id));
     for (const component of definition.components) {
@@ -2281,7 +2330,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // revizyonu değişince yenilenir; böylece elle kayıt, geri yükleme ve otomatik kayıt aynı yoldan yansır. Değişiklik yoksa
   // (sayfa açılışı) ya da elle kayıt sürerken PUT atılmaz.
   useDraftAutosave({
-    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()),
+    // Kaynağı seçilmemiş liste kalıbı kaydedilmez; kaynak seçilince (kapalıyken gelen değişiklik unutulmaz) taslak oluşur.
+    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null,
     changeKey: definition,
     save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
     // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
@@ -3021,7 +3071,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(component.id)}><Trash2 size={13}/></button>
       </div>}
       <div className="pd-block-render">{component.type === "tabs" && !nestedIds.has(component.id) ? renderTabsContainer(component) : rendered.list[index]}</div>
-      {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
+      {isSelected && canEdit && !pageTemplate && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
     </div>;
     return { id: component.id, element };
   // Olay işleyicileri `live` üzerinden güncel işlevleri çağırır; örnek veri rozeti `sampleHintKey` ile izlenir.
@@ -3036,7 +3086,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const value = query ? queryPreviews[query.id]?.meta?.[match![2]] : undefined;
     return value == null ? "N" : Number.isFinite(Number(value)) ? Number(value).toLocaleString("tr-TR") : String(value);
   };
-  const canvasEmpty = <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>;
+  const canvasEmpty = <div className="pd-canvas-empty"><LayoutTemplate size={26}/><b>Sayfanız henüz boş</b><span>Soldan bir bileşen sürükleyin, tıklayarak ekleyin ya da bir şablonla başlayın.</span>{canEdit && !pageTemplate && <button type="button" className="pd-button" onClick={(event) => { event.stopPropagation(); setNewPageDialog("template"); }}><LayoutTemplate size={14}/>Şablonla başla</button>}</div>;
   const canvasHandlers = useMemo(() => ({
     onDragOver: (event: DragEvent<HTMLElement>) => live.current.dragOverCanvas(event),
     onDragLeave: (event: DragEvent<HTMLDivElement>) => { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX <= rect.left || event.clientX >= rect.right || event.clientY <= rect.top || event.clientY >= rect.bottom) { live.current.cancelCanvasHit(); dragStore.set({ canvasDrop: null }); } },
@@ -3070,7 +3120,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(child.id)}><Trash2 size={13}/></button>
       </div>}
       <div className="pd-block-render">{child.type === "tabs" ? renderTabsContainer(child) : isCard ? rendered.cardChildNodes.get(child.id) : rendered.refNodes.get(child.id)}</div>
-      {isSelected && canEdit && resizable && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
+      {isSelected && canEdit && !pageTemplate && resizable && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
     </div>;
     return { id: child.id, element };
   }), [focusOwner, focusMembers, definition, selectedComponentId, device, canEdit, rendered, activeTabs, dragStore]);
@@ -3642,7 +3692,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
       <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
-        palette={palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        palette={palette.filter((item) => !(pageTemplate && TEMPLATE_FORBIDDEN_TYPES.has(item.type))).filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => {
@@ -3692,7 +3742,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}/>
           </div>
-            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div></>
+            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
+          : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
@@ -3777,7 +3828,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         {rightMode === "history" ? <div className="pd-right-body">
           <div className="pd-right-head"><History size={16}/><div><b>Sürüm geçmişi</b><small>Geri yükleme yayımlanmış sayfada yeni taslak, açık taslakta yeni revizyon oluşturur.</small></div><button type="button" className="pd-icon-button" aria-label="Kapat" onClick={() => setRightMode("inspector")}><X size={15}/></button></div>
           {history.length === 0 ? <p className="pd-empty-note">Bu sayfa için geçmiş sürüm bulunamadı.</p> : <ol className="pd-history">{history.map((revision) => <li key={revision.id}><div><b>#{revision.revision} · {revision.changeKind}</b><small>{new Date(revision.createdAt).toLocaleString("tr-TR")}</small><small>{revision.name}</small></div>{(current?.isPublished ? capabilities?.canCreate : capabilities?.canUpdate) && systemAdmin && <button type="button" className="pd-button small" onClick={() => void restoreRevision(revision.id)} disabled={saving}>Geri yükle</button>}</li>)}</ol>}
-        </div> : selected ? <div className="pd-right-body">
+        </div> : selected ? (() => { const legacyInspector = <div className="pd-right-body">
           <div className="pd-right-head pd-right-head-tools"><SelectedIcon size={16}/>
             <div className="pd-right-title">
               {editingNameId === selected.id
@@ -4236,7 +4287,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type !== "dataTable" && section("conditions", "Koşullar", <ConditionFields props={selected.props} allowDisabled={DISABLEABLE_TYPES.includes(selected.type)}
               pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit}
               onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>)}
-            {selected.type !== "dataTable" && section("conditions-width", "Koşullu genişlik", <>
+            {selected.type !== "dataTable" && !pageTemplate && section("conditions-width", "Koşullu genişlik", <>
               <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
                 terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
                 onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
@@ -4245,10 +4296,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               </details>
             </>)}
             {selected.type === "dataTable" && pane("view", section("style", "Görünüm", <>
-              <WidthSegment span={spanOf(selected)} disabled={!canEdit} onChange={(width) => updateComponent(selected.id, "width", width)}/>
+              {!pageTemplate && <><WidthSegment span={spanOf(selected)} disabled={!canEdit} onChange={(width) => updateComponent(selected.id, "width", width)}/>
               <WidthWhenField key={`${selected.id}-widthWhen`} value={selected.props.widthWhen} disabled={!canEdit}
                 terms={conditionTerms(definition.components.filter((component) => component.id !== selected.id || component.type === "dataTable"), (component) => typeof component.props.query === "string" ? queryColumns(component.props.query).map((column) => column.code) : [])}
-                onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+                onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/></>}
               <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>
               <div className="pd-field">Yoğunluk<div className="pd-segment">{([["comfort", "Rahat"], ["dense", "Sık"]] as const).map(([value, label]) => <button type="button" key={value} disabled={!canEdit} className={(selected.props.density === "comfort" ? "comfort" : "dense") === value ? "active" : ""} onClick={() => patchComponent(selected.id, { density: value === "dense" ? undefined : value })}>{label}</button>)}</div></div>
               <RowActionsFields table={selected} components={definition.components} parts={["empty"]} serverPaged={pagingOn} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>
@@ -4258,7 +4309,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               <details className="pd-settings-advanced">
                 <summary>Gelişmiş (iç boşluk, dış boşluk, köşe, renkler, ham koşul ifadesi)</summary>
                 {boxFields}
-                <RawWidthWhenField value={selected.props.widthWhen} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>
+                {!pageTemplate && <RawWidthWhenField value={selected.props.widthWhen} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { widthWhen: next })}/>}
               </details>
             </>))}
             {selected.type !== "dataTable" && section("style", "Görünüm", <>
@@ -4267,13 +4318,25 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                 <div className="pd-field">Anlam<ToneSelect value={(["info", "success", "warning", "danger"] as const).find((tone) => tone === selected.props.variant)} disabled={!canEdit} onChange={(tone) => patchComponent(selected.id, { variant: tone })}/></div>
                 <div className="pd-field">İkon<IconSelect value={typeof selected.props.icon === "string" ? selected.props.icon : undefined} disabled={!canEdit} onChange={(icon) => patchComponent(selected.id, { icon })}/></div>
               </>}
-              <div className="pd-field">Genişlik<small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small><div className="pd-segment">{[3, 4, 6, 8, 9, 12].map((width) => <button type="button" key={width} className={spanOf(selected) === width ? "active" : ""} onClick={() => updateComponent(selected.id, "width", width)}>{width}</button>)}{![3, 4, 6, 8, 9, 12].includes(spanOf(selected)) && <button type="button" className="active">{spanOf(selected)}</button>}</div></div>
+              {!pageTemplate && <div className="pd-field">Genişlik<small>Tuvalde bloğun sağ kenarını sürükleyerek de değiştirebilirsiniz.</small><div className="pd-segment">{[3, 4, 6, 8, 9, 12].map((width) => <button type="button" key={width} className={spanOf(selected) === width ? "active" : ""} onClick={() => updateComponent(selected.id, "width", width)}>{width}</button>)}{![3, 4, 6, 8, 9, 12].includes(spanOf(selected)) && <button type="button" className="active">{spanOf(selected)}</button>}</div></div>}
               {boxFields}
             </>)}
           </fieldset>
           </SettingsHost>
           </BindingSampleContext.Provider>
-        </div> : <div className="pd-right-body">
+        </div>;
+        // Kalıplı sayfa: liste için Liste paneli, öteki üst düzey bileşenler için tek tip panel içinde bugünkü ayarlar.
+        const topLevel = definition.components.some((component) => component.id === selected.id);
+        if (!pageTemplate || !topLevel) return legacyInspector;
+        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit}
+          onPlace={(slot) => patchComponent(selected.id, { slot })}
+          onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
+          list={{ definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
+            operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, operationsStatus: erpCatalog.status, isTenantAdmin: isAdmin,
+            recordCount: typeof selected.props.query === "string" ? queryPreviews[selected.props.query]?.rowCount ?? null : null,
+            onChange: (next) => commit(() => next as unknown as PageDefinition),
+            visibility: <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/> }}/>;
+      })() : <div className="pd-right-body">
           <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
           <fieldset className="pd-fieldset" disabled={!canEdit}>
             <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>
