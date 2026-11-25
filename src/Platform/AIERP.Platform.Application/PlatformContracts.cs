@@ -91,6 +91,14 @@ public sealed record CustomerStatementLine(Guid Id, DateOnly EntryDate, Customer
     /// <summary>The line currency when it differs from the account currency; set by the statement read, null otherwise.</summary>
     public string? ForeignCurrencyCode { get; init; }
 
+    /// <summary>The source document kind (SalesInvoice, CustomerCollection, …); a reversal carries its original's, a manual movement none.</summary>
+    public string? SourceType { get; init; }
+    public Guid? SourceId { get; init; }
+    /// <summary>The document number shown in the statement.</summary>
+    public string? SourceCode { get; init; }
+    /// <summary>The record its screen opens: the invoice of a collection or supplier payment, otherwise <see cref="SourceId"/>.</summary>
+    public Guid? SourceOpenId { get; init; }
+
     public bool IsReversal => ReversalOfId is not null;
     public decimal? DebitAmount => Direction == CustomerLedgerDirection.Debit ? Amount : null;
     public decimal? CreditAmount => Direction == CustomerLedgerDirection.Credit ? Amount : null;
