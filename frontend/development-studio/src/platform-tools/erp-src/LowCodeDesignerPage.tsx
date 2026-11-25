@@ -10,8 +10,8 @@ import BusinessRulesPage from "./BusinessRulesPage";
 import WorkflowPage from "./WorkflowPage";
 import CustomDataModelsPage from "./CustomDataModelsPage";
 import {
-  buildCatalogRows, byKind, filterCatalogRows, formatUpdatedAt, historyUrl, kindCounts, kindLabel, moduleOptions, NO_MODULE, paginate, PAGE_SIZE, readCatalogView, statusFilterOptions, writeCatalogView,
-  type CatalogFilter, type CatalogRow, type CatalogView, type CustomPageCatalogItem, type PageCatalogItem, type StatusFilter, type SystemPageItem,
+  buildCatalogRows, byKind, filterCatalogRows, formatUpdatedAt, historyUrl, kindCounts, kindLabel, moduleOptions, NO_MODULE, paginate, PAGE_SIZE, readCatalogView, rowTemplateText, templateFilterOptions, statusFilterOptions, writeCatalogView,
+  type CatalogFilter, type CatalogRow, type CatalogView, type CustomPageCatalogItem, type PageCatalogItem, type StatusFilter, type SystemPageItem, type TemplateFilter,
 } from "./pageCatalogModel";
 import "./low-code-designer.css";
 
@@ -68,6 +68,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [moduleFilter, setModuleFilter] = useState("all");
+  const [templateFilter, setTemplateFilter] = useState<TemplateFilter>("all");
   const [view, setView] = useState<CatalogView>(() => readCatalogView());
   const [page, setPage] = useState(1);
   const [menu, setMenu] = useState<MenuState | null>(null);
@@ -126,7 +127,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     window.addEventListener("resize", dismiss);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); window.removeEventListener("scroll", dismiss, true); window.removeEventListener("resize", dismiss); };
   }, [menuKey]);
-  useEffect(() => { setPage(1); }, [pageSearch, catalogFilter, statusFilter, moduleFilter]);
+  useEffect(() => { setPage(1); }, [pageSearch, catalogFilter, statusFilter, moduleFilter, templateFilter]);
 
   const showHistory = async (row: CatalogRow) => {
     const url = historyUrl(row);
@@ -181,11 +182,11 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   const allRows = useMemo(() => buildCatalogRows(pageCatalog, customPageCatalog, systemPages), [pageCatalog, customPageCatalog, systemPages]);
   const modules = useMemo(() => moduleOptions(allRows), [allRows]);
   const hasModuleless = allRows.some((row) => !row.module);
-  const filtered = filterCatalogRows(allRows, { search: pageSearch, status: statusFilter, module: moduleFilter });
+  const filtered = filterCatalogRows(allRows, { search: pageSearch, status: statusFilter, module: moduleFilter, template: templateFilter });
   const counts = kindCounts(filtered);
   const visibleRows = byKind(filtered, catalogFilter);
   const paged = paginate(visibleRows, page, PAGE_SIZE);
-  const anyFilter = !!pageSearch.trim() || statusFilter !== "all" || moduleFilter !== "all";
+  const anyFilter = !!pageSearch.trim() || statusFilter !== "all" || moduleFilter !== "all" || templateFilter !== "all";
   const editingPage = active === "pages" && !!editingCustomPage;
 
   const changeView = (next: CatalogView) => { setView(next); writeCatalogView(next); };
@@ -225,12 +226,13 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
   const rowIcon = (row: CatalogRow) => <span className={`lcp-card-icon ${row.kind === "custom" ? "custom" : row.kind === "system" ? "system" : ""}`}>{row.kind === "custom" ? <PanelsTopLeft size={16}/> : <LayoutTemplate size={16}/>}</span>;
 
   const renderTable = () => <div className="lcp-table-wrap"><table className="lcp-table">
-    <thead><tr><th>Sayfa</th><th>Tür</th><th>Durum</th><th>Modül</th><th>Sürüm</th><th>Son değişiklik</th><th><span className="lcp-sr">Eylemler</span></th></tr></thead>
+    <thead><tr><th>Sayfa</th><th>Tür</th><th>Kalıp</th><th>Durum</th><th>Modül</th><th>Sürüm</th><th>Son değişiklik</th><th><span className="lcp-sr">Eylemler</span></th></tr></thead>
     <tbody>{paged.items.map((row) => {
       const primary = primaryAction(row);
       return <tr key={row.key} className={primary.disabled ? "is-locked" : ""} title={primary.title} onClick={() => { if (!primary.disabled) primary.run(); }}>
         <td><div className="lcp-name">{rowIcon(row)}<span><b>{row.name}</b><small>{row.code}</small></span></div></td>
         <td><span className={`lcp-status ${row.kind === "system" ? "system" : "builtin"}`}>{kindLabel[row.kind]}</span></td>
+        <td>{rowTemplateText(row) ?? "—"}</td>
         <td>{statusPills(row)}</td>
         <td>{row.module ?? "—"}</td>
         <td title={row.versionIsStandard ? "Nexora standart ekran sürümü" : undefined}>{row.version != null ? `v${row.version}` : "—"}</td>
@@ -250,6 +252,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
       <b>{row.name}</b>
       <small>{[row.module, row.code, row.version != null ? `v${row.version}` : null, row.updatedAt ? formatUpdatedAt(row.updatedAt) : null].filter(Boolean).join(" · ")}</small>
       {statusPills(row)}
+      {rowTemplateText(row) && <small>{rowTemplateText(row)}</small>}
       {row.description && <p>{row.description}</p>}
       <div className="lcp-card-actions"><button type="button" className="lcp-open" disabled={primary.disabled} title={primary.title} onClick={primary.run}>{primary.label}</button>{renderMenu(row)}</div>
     </article>;
@@ -283,6 +286,9 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
               </div>
               <label className="lcp-select"><span>Durum</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} aria-label="Duruma göre süz">
                 {statusFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select></label>
+              <label className="lcp-select"><span>Kalıp</span><select value={templateFilter} onChange={(event) => setTemplateFilter(event.target.value as TemplateFilter)} aria-label="Kalıba göre süz">
+                {templateFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select></label>
               <label className="lcp-select"><span>Modül</span><select value={moduleFilter} onChange={(event) => setModuleFilter(event.target.value)} aria-label="Modüle göre süz">
                 <option value="all">Tümü</option>

@@ -20,9 +20,9 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
 {
     private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid Admin = CustomPageQueryEndpointsIntegrationTests.Admin;
-    private static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    internal static readonly Guid Ayse = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-    private const string Bundle = """
+    internal const string Bundle = """
         { "schemaVersion": 1,
           "dataSources": [ { "code": "cariler", "label": "Cari hesaplar",
               "source": { "sql": "SELECT Code, Name FROM CustomerAccounts WHERE Name LIKE @q" },
@@ -31,10 +31,10 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
           "actions": [ { "code": "cariSil", "label": "Sil", "target": "row", "kind": "delete", "run": { "erpOperation": "cari.sil" } } ] }
         """;
 
-    private static JsonElement DataSourcePage() =>
+    internal static JsonElement DataSourcePage() =>
         JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(CustomPageCatalogReferenceSchemaTests.Reference("dataSource", "cariler"))).RootElement;
 
-    private static JsonElement ActionPage() => JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
+    internal static JsonElement ActionPage() => JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
         CustomPageCatalogReferenceSchemaTests.Reference("action", "cariSil", "delete", [new { name = "id", binding = "{{arama.value}}", type = "guid" }], "manual"))).RootElement;
 
     private static JsonElement OperationDataSourcePage() => JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
@@ -55,28 +55,23 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
     }
 
     [Fact]
-    public async Task Non_admin_cannot_save_or_publish_page_with_sql_backed_data_source_reference()
+    public async Task Non_admin_can_save_and_publish_page_with_sql_backed_data_source_reference()
     {
+        // Karar 1: a catalog reference carries only a code, so any user with page write permission may save and publish it.
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() })).StatusCode);
-
-        // A verified TenantAdmin may save it; a non-admin may then neither update nor publish that draft.
-        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
         var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/cari-arama/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
-
-        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
             new { expectedRevision = 1, name = "Cari arama 2", definition = DataSourcePage() })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
 
+        // The access row is still an explicit TenantAdmin choice; with it a non-admin may publish.
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/cari-arama/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 2 })).StatusCode);
     }
 
     [Fact]
@@ -92,16 +87,11 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
     }
 
     [Fact]
-    public async Task Non_admin_cannot_save_page_with_action_reference()
+    public async Task Non_admin_can_save_page_with_action_reference()
     {
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "cari-sil", name = "Cari sil", definition = ActionPage() })).StatusCode);
-
-        // Control: the same definition is valid; a verified TenantAdmin may save it.
-        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
             new { code = "cari-sil", name = "Cari sil", definition = ActionPage() })).StatusCode);
     }
@@ -135,7 +125,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
     }
 
     /// <summary>The query-endpoint test host, but with an allow-all permission authorizer so only the page gates can deny.</summary>
-    private static async Task<WebApplication> StartApplicationAsync(bool withActiveCatalog)
+    internal static async Task<WebApplication> StartApplicationAsync(bool withActiveCatalog)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();

@@ -1,5 +1,6 @@
 using System.Data;
 using System.Security.Claims;
+using AIERP.Api;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -46,9 +47,10 @@ internal static class SystemPageEndpoints
                 var design = draft ?? published;
                 var newItemCount = design is null ? 0
                     : SystemPageMerge.NewItems(standard, design.DefinitionJson, design.StandardVersion ?? standard.Version).Count;
+                var (template, templateLevel) = PageTemplateSummary.Read((published ?? draft)?.DefinitionJson ?? standard.DefinitionJson);
                 return new SystemPageSummary(standard.ScreenKey, standard.Title, standard.Description, standard.Module, standard.Version,
                     standard.Stage, standard.ScreenViews.Select(x => x.Key).Distinct(StringComparer.Ordinal).ToArray(), draft?.Id, published?.Id,
-                    design?.StandardVersion, newItemCount, canEdit);
+                    design?.StandardVersion, newItemCount, canEdit, template, templateLevel);
             }).ToArray();
             return Results.Ok(items);
         });
@@ -327,7 +329,7 @@ internal static class SystemPageEndpoints
 
     internal sealed record SystemPageResetRequest(int? ExpectedRevision);
     private sealed record SystemPageSummary(string ScreenKey, string Title, string? Description, string Module, int Version, string Stage,
-        IReadOnlyList<string> ScreenViewKeys, Guid? DraftId, Guid? PublishedId, int? StandardVersion, int NewItemCount, bool CanEdit);
+        IReadOnlyList<string> ScreenViewKeys, Guid? DraftId, Guid? PublishedId, int? StandardVersion, int NewItemCount, bool CanEdit, string? Template, int? TemplateLevel);
     private sealed record SystemPageRuntimeScreen(string Mode, int Revision);
     private sealed record SystemPageRuntimeAlias(string ScreenKey, string Param);
     private sealed record SystemPageRuntimeMap(IReadOnlyDictionary<string, SystemPageRuntimeScreen> Screens,
