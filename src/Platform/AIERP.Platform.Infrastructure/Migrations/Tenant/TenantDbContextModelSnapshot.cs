@@ -17561,6 +17561,39 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.ToTable("TenantBusinessRuleEvaluations");
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCatalogPreview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BundleJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BundleSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedByUserId", "CreatedAt");
+
+                    b.ToTable("TenantCatalogPreviews", (string)null);
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCatalogRelease", b =>
                 {
                     b.Property<Guid>("Id")
@@ -22238,6 +22271,15 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.Navigation("Rule");
 
                     b.Navigation("WorkflowInstance");
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantCatalogPreview", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantCatalogRelease", b =>

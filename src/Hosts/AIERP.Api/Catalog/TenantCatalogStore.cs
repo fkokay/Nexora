@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace AIERP.Api;
 
 /// <summary>The tenant's active catalog bundle and the id and version of the release it came from.</summary>
-internal sealed record ActiveCatalogRelease(Guid Id, string Version, CatalogBundle Bundle);
+internal sealed record ActiveCatalogRelease(Guid Id, string Version, string? SourcePath, CatalogBundle Bundle);
 
 /// <summary>Reads the tenant's active catalog release.</summary>
 internal static class TenantCatalogStore
@@ -23,11 +23,11 @@ internal static class TenantCatalogStore
     {
         var release = await db.TenantCatalogReleases.AsNoTracking()
             .Where(x => x.TenantId == tenant && x.Status == "Active")
-            .Select(x => new { x.Id, x.Version, x.BundleJson })
+            .Select(x => new { x.Id, x.Version, x.SourcePath, x.BundleJson })
             .FirstOrDefaultAsync(ct);
         if (release is null) return null;
         var parsed = TenantCatalogSchema.TryParseLenient(release.BundleJson, lookup, out var bundle, out var problems, out var error);
-        if (parsed && problems.Count == 0) return new ActiveCatalogRelease(release.Id, release.Version, bundle!);
+        if (parsed && problems.Count == 0) return new ActiveCatalogRelease(release.Id, release.Version, release.SourcePath, bundle!);
         var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(TenantCatalogStore).FullName!);
         if (!parsed)
         {
@@ -38,7 +38,7 @@ internal static class TenantCatalogStore
         foreach (var problem in problems)
             logger.LogWarning("Active catalog release {ReleaseId} ({Version}) of tenant {TenantId} has an item that no longer validates: {Error}",
                 release.Id, release.Version, tenant, problem);
-        return new ActiveCatalogRelease(release.Id, release.Version, bundle!);
+        return new ActiveCatalogRelease(release.Id, release.Version, release.SourcePath, bundle!);
     }
 
     /// <summary>

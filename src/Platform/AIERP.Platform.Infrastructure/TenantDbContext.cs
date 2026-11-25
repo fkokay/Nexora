@@ -14,6 +14,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
     public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();
     public DbSet<TenantCustomizationPackageSnapshot> TenantCustomizationPackageSnapshots => Set<TenantCustomizationPackageSnapshot>();
     public DbSet<TenantCatalogRelease> TenantCatalogReleases => Set<TenantCatalogRelease>();
+    public DbSet<TenantCatalogPreview> TenantCatalogPreviews => Set<TenantCatalogPreview>();
     public DbSet<TenantDocumentNumberTemplate> TenantDocumentNumberTemplates => Set<TenantDocumentNumberTemplate>();
     public DbSet<TenantDocumentNumberCounter> TenantDocumentNumberCounters => Set<TenantDocumentNumberCounter>();
     public DbSet<SalesQuotePdfTemplate> SalesQuotePdfTemplates => Set<SalesQuotePdfTemplate>();
@@ -138,6 +139,15 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options, I
             e.Property(x => x.SourceCommit).HasMaxLength(64).IsUnicode(false);
             e.Property(x => x.SourcePath).HasMaxLength(200);
             e.Property(x => x.RowVersion).IsRowVersion();
+            e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TenantCatalogPreview>(e =>
+        {
+            e.ToTable("TenantCatalogPreviews");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TenantId, x.CreatedByUserId, x.CreatedAt });
+            e.Property(x => x.BundleJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.BundleSha256).HasMaxLength(64).IsUnicode(false).IsFixedLength().IsRequired();
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<TenantCustomPage>(e =>
