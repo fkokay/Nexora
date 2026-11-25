@@ -3,7 +3,7 @@ import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { designerPersistence } from "./CustomPagesPage";
 import QueriesPanel, { QueryDetailFields, catalogReference, querySourceLabel, type PageQuery } from "./page-designer/QueriesPanel";
-import { CATALOG_ADMIN_ONLY, catalogCodeMissing, catalogItemsFor, catalogPickPatch, loadCatalogRefs, sourceModePatch, type CatalogRefs } from "./page-designer/catalogItems";
+import { CATALOG_ADMIN_ONLY, CATALOG_OPERATION_MISSING, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, loadCatalogRefs, sourceModePatch, type CatalogRefs } from "./page-designer/catalogItems";
 import { applyQueryPatch } from "./page-designer/queryDraft";
 import type { ErpOperation } from "./page-designer/erpOperations";
 
@@ -135,6 +135,21 @@ describe("katalog seçici", () => {
     const erp = applyQueryPatch(catalogQuery, sourceModePatch("erp", catalogQuery), memory(), () => "");
     expect(catalogReference(erp)).toBeUndefined();
     expect(erp.operation).toBe("");
+  });
+
+  it("operation_backed_item_without_erp_operation_is_disabled_and_refused", () => {
+    const item = refs.dataSources[1];
+    expect(catalogItemDisabledReason(item, "read", true, [])).toBe(CATALOG_OPERATION_MISSING);
+    expect(catalogItemDisabledReason(item, "read", true, [operation])).toBeNull();
+    expect(catalogPickPatch(item, false, [])).toEqual({});
+    const html = renderToString(createElement(QueryDetailFields, { query: { ...base, dataSource: "" }, queries: [], editable: true, schema: [], suggestions: [], takenNames: [], onUpdate: () => undefined, catalog: { status: "ready", operations: [] }, catalogRefs: refs, isAdmin: true }));
+    expect(html.match(/<button[^>]*>(?:(?!<\/button>).)*Stok listesi.*?<\/button>/s)![0]).toContain("disabled");
+    expect(html).toContain(CATALOG_OPERATION_MISSING);
+  });
+
+  it("write_query_with_action_of_other_kind_is_flagged_missing", () => {
+    expect(catalogCodeMissing(refs, { ...base, kind: "delete", action: "cariGuncelle" })).toBe(true);
+    expect(catalogCodeMissing(refs, { ...base, kind: "update", action: "cariGuncelle" })).toBe(false);
   });
 
   it("loadCatalogRefs_never_exposes_invalid_items", async () => {

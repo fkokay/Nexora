@@ -7,7 +7,7 @@ import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVI
 import { FixedOperationValues } from "./FixedOperationValues";
 import { RunOnFields } from "./RunOnFields";
 import { runOnSummary, type QueryRunOn } from "./queryRunOn";
-import { CATALOG_ADMIN_ONLY, CATALOG_FAILED, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, sourceModePatch, type CatalogItem, type CatalogRefs, type QuerySourceMode } from "./catalogItems";
+import { CATALOG_FAILED, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, sourceModePatch, type CatalogItem, type CatalogRefs, type QuerySourceMode } from "./catalogItems";
 
 /** `list`/`map` yalnız ERP işlemi parametrelerinde (katalogdan) gelir; SQL parametre türü seçicisinde hiç sunulmaz. */
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "datetime" | "bool" | "guid" | "list" | "map";
@@ -129,14 +129,14 @@ function OperationPicker({ operations, value, disabled, onPick }: { operations: 
 }
 
 /** Katalog öğesi seçici: sorgunun türüne uyan öğeler görünen adlarıyla; yetkisiz kullanıcıya SQL'e dayananlar pasif. */
-function CatalogPicker({ items, value, kind, isAdmin, disabled, onPick }: { items: CatalogItem[]; value: string; kind: QueryKind; isAdmin: boolean; disabled: boolean; onPick: (item: CatalogItem) => void }) {
+function CatalogPicker({ items, value, kind, isAdmin, operations, disabled, onPick }: { items: CatalogItem[]; value: string; kind: QueryKind; isAdmin: boolean; operations: ErpOperation[]; disabled: boolean; onPick: (item: CatalogItem) => void }) {
   if (items.length === 0) return <p className="pd-query-muted">Katalogda bu sorgu türüne uygun öğe yok.</p>;
   return <div className="pd-op-list" role="listbox" aria-label="Katalog öğeleri">
     {items.map((item) => {
-      const reason = catalogItemDisabledReason(item, kind, isAdmin);
+      const reason = catalogItemDisabledReason(item, kind, isAdmin, operations);
       return <button type="button" role="option" key={item.code} aria-selected={item.code === value} className={item.code === value ? "is-selected" : undefined}
         disabled={disabled || reason !== null} title={reason ?? undefined} onClick={() => onPick(item)}>
-        <span>{item.label}</span>{reason && <small>{CATALOG_ADMIN_ONLY}</small>}
+        <span>{item.label}</span>{reason && <small>{reason}</small>}
       </button>;
     })}
   </div>;
@@ -266,7 +266,7 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
       </fieldset>
       {catalogMode ? <>
         <div className="pd-field">Katalog<small>Firma kataloğundaki hazır {write ? "eylem" : "veri kaynağı"}; sorgu metni katalogdan gelir.</small>
-          {catalogRefs.status === "ready" ? <CatalogPicker key={query.id} items={catalogItems} value={catalogCode ?? ""} kind={query.kind} isAdmin={isAdmin} disabled={!editable}
+          {catalogRefs.status === "ready" ? <CatalogPicker key={query.id} items={catalogItems} value={catalogCode ?? ""} kind={query.kind} isAdmin={isAdmin} operations={operations} disabled={!editable}
             onPick={(item) => onUpdate(catalogPickPatch(item, write, operations))}/>
             : <p className="pd-query-muted">{catalogRefs.status === "loading" ? "Katalog yükleniyor…" : CATALOG_FAILED}</p>}
           {catalogMissing && <small className="pd-query-warning">{`Katalogda bulunamadı: ${catalogCode}`}</small>}

@@ -13,6 +13,7 @@ export type QuerySourceMode = "sql" | "erp" | "catalog";
 
 export const CATALOG_FAILED = "Katalog alınamadı.";
 export const CATALOG_ADMIN_ONLY = "Yalnızca firma yöneticisi bağlayabilir";
+export const CATALOG_OPERATION_MISSING = "Bu yapı taşının ERP işlemi bulunamadı";
 
 const items = (value: unknown, actions: boolean): CatalogItem[] => !Array.isArray(value) ? [] : value.flatMap((raw): CatalogItem[] => {
   const item = raw as Partial<CatalogItem> | null;
@@ -37,8 +38,9 @@ export const catalogItemsFor = (refs: CatalogRefs, kind: QueryKind): CatalogItem
   refs.status !== "ready" ? [] : kind === "read" ? refs.dataSources : refs.actions.filter((item) => item.kind === kind);
 
 /** Pasif olma nedeni: SQL'e dayanan öğeler ve eylemler yalnız TenantAdmin'e açıktır; yoksa null. */
-export const catalogItemDisabledReason = (item: CatalogItem, kind: QueryKind, isAdmin: boolean): string | null =>
-  !isAdmin && (item.source === "sql" || kind !== "read") ? CATALOG_ADMIN_ONLY : null;
+export const catalogItemDisabledReason = (item: CatalogItem, kind: QueryKind, isAdmin: boolean, operations: ErpOperation[]): string | null =>
+  !isAdmin && (item.source === "sql" || kind !== "read") ? CATALOG_ADMIN_ONLY
+    : item.source === "erpOperation" && !operations.some((operation) => operation.name === item.erpOperation) ? CATALOG_OPERATION_MISSING : null;
 
 export const catalogCodeOf = (query: Pick<PageQuery, "dataSource" | "action">) =>
   typeof query.dataSource === "string" ? query.dataSource : typeof query.action === "string" ? query.action : undefined;
@@ -47,7 +49,7 @@ export const catalogCodeOf = (query: Pick<PageQuery, "dataSource" | "action">) =
 export const catalogCodeMissing = (refs: CatalogRefs, query: Pick<PageQuery, "dataSource" | "action" | "kind">): boolean => {
   const code = catalogCodeOf(query);
   if (refs.status !== "ready" || !code) return false;
-  return !(query.kind === "read" ? refs.dataSources : refs.actions).some((item) => item.code === code);
+  return !(query.kind === "read" ? refs.dataSources : refs.actions.filter((item) => item.kind === query.kind)).some((item) => item.code === code);
 };
 
 /** Kaynak geçişi yaması: katalog anahtarı yalnız "Katalog" kaynağında bulunur; SQL/ERP işlemine dönülünce silinir. */
@@ -65,6 +67,8 @@ export function sourceModePatch(target: QuerySourceMode, query: Pick<PageQuery, 
 /** Öğe seçimi: sorgu `dataSource`/`action` koduna başvurur; parametre satırları öğeden (ERP işlemine dayanıyorsa işlem kataloğundan) gelir, bağlama boştur. */
 export function catalogPickPatch(item: CatalogItem, isAction: boolean, operations: ErpOperation[]): Partial<PageQuery> {
   const operation = item.source === "erpOperation" ? operations.find((candidate) => candidate.name === item.erpOperation) : undefined;
+  // İşlem kataloğunda bulunamayan işleme dayanan öğe seçilemez (parametreler yalnız işlem kataloğundan gelir).
+  if (item.source === "erpOperation" && !operation) return {};
   const specs: { name: string; type: string }[] = operation ? operation.parameters : item.parameters;
   const parameters: PageQueryParameter[] = specs.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType }));
   return isAction
