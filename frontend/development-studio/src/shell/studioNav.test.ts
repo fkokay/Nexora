@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { menuFor, menuRolesFromApi, resolveRoute, roleLabel, type StudioSection } from "./studioNav";
+import { degradedMenu, menuFor, menuRolesFromApi, resolveDegradedRoute, resolveRoute, roleLabel, type StudioSection } from "./studioNav";
 
 describe("menuFor", () => {
   it("lists the consultant menu", () => {
@@ -89,4 +89,21 @@ describe("resolveRoute", () => {
   it("unknown hash goes home", () => {
     expect(resolveRoute("#bilinmeyen", "developer", ["developer"])).toEqual({ role: "developer", route: { section: "home" } });
   });
+});
+
+describe("degraded menu", () => {
+  it("keeps only the ERP-backed sections", () => {
+    expect(degradedMenu().map((i) => i.label)).toEqual(["Ana sayfa", "Ekranlar", "Kurallar", "Menüler"]);
+  });
+  it("resolves open sections and tabs", () => {
+    expect(resolveDegradedRoute("#screens/forms")).toEqual({ role: "consultant", route: { section: "screens", tab: "forms" } });
+    expect(resolveDegradedRoute("#tool-workflows")).toEqual({ role: "consultant", route: { section: "rules", tab: "workflows" } });
+    expect(resolveDegradedRoute("#menus").route).toEqual({ section: "menus" });
+  });
+  it.each(["#my-requests", "#incoming-requests", "#company-module", "#publications", "#people", "#marketplace", "#connections", "#ai", "#requests", "#projects", "#bilinmeyen", ""])(
+    "sends hidden section %s home",
+    (hash) => {
+      expect(resolveDegradedRoute(hash)).toEqual({ role: "consultant", route: { section: "home" } });
+    },
+  );
 });

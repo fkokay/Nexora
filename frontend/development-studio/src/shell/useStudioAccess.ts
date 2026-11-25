@@ -8,6 +8,9 @@ export type StudioAccessState = {
   held: StudioMenuRole[];
   active: StudioMenuRole;
   setActive: (role: StudioMenuRole) => void;
+  /** `/studio/me`'yi yeniden okur; yanıt gelene kadar önceki durum korunur. */
+  retry: () => void;
+  retrying: boolean;
 };
 
 type StudioMe = { isAdmin: boolean; workRole: string; menuRoles: string[] };
@@ -40,10 +43,12 @@ type Loaded = { tenantId: string; status: StudioAccessStatus; held: StudioMenuRo
 
 /**
  * Kişinin bu firmadaki Studio rollerini `/studio/me`'den okur ve etkin rolü firma başına saklar.
- * 403 Studio erişimi olmadığı anlamına gelir ("denied"); diğer hatalar "error".
+ * 403 Studio erişimi olmadığı anlamına gelir ("denied"); diğer hatalar "error" (kabuk kısıtlı menüyle açılır).
  */
 export function useStudioAccess(token: string, tenantId: string): StudioAccessState {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const tokenRef = useRef(token);
   tokenRef.current = token;
   const hasToken = !!token;
@@ -52,33 +57,43 @@ export function useStudioAccess(token: string, tenantId: string): StudioAccessSt
     if (!hasToken || !tenantId) {
       // Oturum kapanınca önceki kişinin rolleri bir sonraki girişte görünmesin.
       setLoaded(null);
+      setRetrying(false);
       return;
     }
     let current = true;
+    const finish = (next: Loaded) => {
+      setLoaded(next);
+      setRetrying(false);
+    };
     void (async () => {
       try {
         const response = await authorizedFetch("/studio/me", tokenRef.current);
         if (!current) return;
         if (response.status === 403) {
-          setLoaded({ tenantId, status: "denied", held: [], active: "consultant" });
+          finish({ tenantId, status: "denied", held: [], active: "consultant" });
           return;
         }
         if (!response.ok) {
-          setLoaded({ tenantId, status: "error", held: [], active: "consultant" });
+          finish({ tenantId, status: "error", held: [], active: "consultant" });
           return;
         }
         const me = (await response.json()) as StudioMe;
         if (!current) return;
         const held = menuRolesFromApi(Array.isArray(me.menuRoles) ? me.menuRoles : []);
-        setLoaded({ tenantId, status: "ready", held, active: pickActiveRole(readStoredRole(tenantId), held) });
+        finish({ tenantId, status: "ready", held, active: pickActiveRole(readStoredRole(tenantId), held) });
       } catch {
-        if (current) setLoaded({ tenantId, status: "error", held: [], active: "consultant" });
+        if (current) finish({ tenantId, status: "error", held: [], active: "consultant" });
       }
     })();
     return () => {
       current = false;
     };
-  }, [hasToken, tenantId]);
+  }, [hasToken, tenantId, attempt]);
+
+  const retry = useCallback(() => {
+    setRetrying(true);
+    setAttempt((value) => value + 1);
+  }, []);
 
   const setActive = useCallback(
     (role: StudioMenuRole) => {
@@ -93,6 +108,6 @@ export function useStudioAccess(token: string, tenantId: string): StudioAccessSt
 
   // Firma değişince eski firmanın rolleri hiç kullanılmaz: yeni yanıt gelene kadar "loading".
   if (!loaded || loaded.tenantId !== tenantId || !hasToken)
-    return { status: "loading", held: [], active: "consultant", setActive };
-  return { status: loaded.status, held: loaded.held, active: loaded.active, setActive };
+    return { status: "loading", held: [], active: "consultant", setActive, retry, retrying: false };
+  return { status: loaded.status, held: loaded.held, active: loaded.active, setActive, retry, retrying };
 }

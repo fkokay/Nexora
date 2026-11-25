@@ -304,6 +304,16 @@
   background: var(--ns-danger-soft);
   color: var(--ns-danger);
 }
+.st-alert.is-warning {
+  border-color: var(--ns-warning-line);
+  background: var(--ns-warning-soft);
+  color: var(--ns-warning);
+}
+.st-alert.st-degraded {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
 .st-alert.is-success {
   border-color: var(--ns-success-line);
   background: var(--ns-success-soft);

@@ -1,4 +1,4 @@
-import { resolveRoute, type Route, type StudioMenuRole, type StudioSection } from "./studioNav";
+import { resolveDegradedRoute, resolveRoute, type Route, type StudioMenuRole, type StudioSection } from "./studioNav";
 import type { SectionTab } from "./SectionTabs";
 
 /** Sekmeli bölümler; her sekme bugünkü bir aracı açar. İlk sekme varsayılandır. */
@@ -20,13 +20,15 @@ export const SECTION_TABS: Partial<Record<StudioSection, (SectionTab & { toolId:
 
 /**
  * `resolveRoute` üstüne kabuk kuralları: sekmeli bölümde bilinmeyen/eksik sekme ilk sekmeye düşer, sekmesiz bölümde sekme atılır.
+ * `degraded`: Studio rol bilgisi alınamadı; yalnız kısıtlı menünün bölümleri açılır.
  */
 export function resolveShellRoute(
   hash: string,
   active: StudioMenuRole,
   held: StudioMenuRole[],
+  degraded = false,
 ): { role: StudioMenuRole; route: Route; tab?: string } {
-  const resolved = resolveRoute(hash, active, held);
+  const resolved = degraded ? resolveDegradedRoute(hash) : resolveRoute(hash, active, held);
   const tabs = SECTION_TABS[resolved.route.section];
   if (!tabs) return { role: resolved.role, route: { section: resolved.route.section } };
   const tab = tabs.find((item) => item.id === resolved.route.tab)?.id;

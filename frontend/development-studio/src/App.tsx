@@ -77,6 +77,7 @@ import {
   SECTION_TABS,
 } from "./shell/shellRoute";
 import {
+  degradedMenu,
   menuFor,
   roleLabel as menuRoleLabel,
   type StudioMenuRole,
@@ -381,7 +382,9 @@ export default function App() {
   const [moduleCode, setModuleCode] = useState(contextualModuleCode);
   const [hash, setHash] = useState(() => window.location.hash);
   const access = useStudioAccess(token, tenant?.id ?? "");
-  const shellRoute = resolveShellRoute(hash, access.active, access.held);
+  // `/studio/me` okunamazsa (AIService kapalı/eski, Studio veritabanı hazır değil) kabuk yalnız ERP API'sine dayanan bölümlerle açılır.
+  const degraded = access.status === "error";
+  const shellRoute = resolveShellRoute(hash, access.active, access.held, degraded);
   // Adres başka rolün bölümünü açıyorsa o rol bu çizimde de kullanılır; etkin rol etkide saklanır.
   const activeRole = shellRoute.role;
   const activeSection: StudioSection = shellRoute.route.section;
@@ -390,6 +393,8 @@ export default function App() {
   const canReadProjects =
     access.status === "ready" && access.held.some((role) => role !== "consultant");
   const isConsultant = activeRole === "consultant";
+  // Talep oluşturma AIService'e gider; kısıtlı menüde gizlenir.
+  const canRequest = isConsultant && !degraded;
   const needsRequests = (
     ["home", "my-requests", "incoming-requests", "company-module"] as StudioSection[]
   ).includes(activeSection);
@@ -595,7 +600,13 @@ export default function App() {
   }, [activeSection, token, tenant?.id]);
 
   useEffect(() => {
-    if (!moduleStarterId || !token || !tenant || moduleStarterPrompted.current)
+    if (
+      !moduleStarterId ||
+      !token ||
+      !tenant ||
+      access.status !== "ready" ||
+      moduleStarterPrompted.current
+    )
       return;
     moduleStarterPrompted.current = true;
     openModuleStarterRequest();
@@ -603,6 +614,7 @@ export default function App() {
     moduleStarterId,
     token,
     tenant?.id,
+    access.status,
     contextualScreen,
     contextualModuleCode,
   ]);
@@ -881,7 +893,9 @@ export default function App() {
       `${displayName.replace(/\s+modülü?$/i, "") || "Yeni"} modülünü geliştirme`,
     );
     setRequestDescription(
-      `${displayName} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${code}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`,
+      isConsultant
+        ? `${displayName} başlangıç şablonunu temel alan bir modül istiyorum. Modül kodu: ${code}. Modülün ne yapması gerektiğini aşağıda açıklıyorum.`
+        : `${displayName} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${code}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`,
     );
     setRequestProjectId("");
     setError("");
@@ -1096,12 +1110,10 @@ export default function App() {
 
   if (
     access.status === "denied" ||
-    access.status === "error" ||
     (access.status === "ready" && access.held.length === 0)
   )
     return (
       <NoStudioAccess
-        variant={access.status === "error" ? "error" : "denied"}
         tenantName={tenant.name}
         onLogout={logout}
         onSwitchTenant={
@@ -1132,7 +1144,7 @@ export default function App() {
       .toLocaleLowerCase("tr-TR")
       .includes(marketplaceQuery.toLocaleLowerCase("tr-TR")),
   );
-  const menuItems = menuFor(activeRole);
+  const menuItems = degraded ? degradedMenu() : menuFor(activeRole);
   const sectionTitle =
     menuItems.find((item) => item.section === activeSection)?.label ||
     "Ana sayfa";
@@ -1281,7 +1293,7 @@ export default function App() {
           </span>
           <span className="st-profile-text">
             <b>{userName}</b>
-            <small>{menuRoleLabel(activeRole)}</small>
+            <small>{degraded ? "Rol bilgisi alınamadı" : menuRoleLabel(activeRole)}</small>
           </span>
           <button
             type="button"
@@ -1303,12 +1315,12 @@ export default function App() {
             <b aria-current="page">{sectionTitle}</b>
           </nav>
           <div className="st-top-actions">
-            {dataLoadFailed ? (
+            {dataLoadFailed || degraded ? (
               <span className="ns-badge is-danger">Veriler yüklenemedi</span>
             ) : (
               <span className="ns-badge is-success">Studio API bağlı</span>
             )}
-            {isConsultant && (
+            {canRequest && (
               <button
                 type="button"
                 className="ns-btn ns-btn-primary ns-btn-sm"
@@ -1322,6 +1334,23 @@ export default function App() {
         </header>
 
         <main className="st-content studio-dashboard-main" id="overview">
+          {degraded && (
+            <div className="st-alert is-warning st-degraded" role="status">
+              <span>
+                Studio rol bilgisi şu an alınamadı; bazı bölümler geçici olarak
+                gizlendi.
+              </span>
+              <button
+                type="button"
+                className="ns-btn ns-btn-sm"
+                disabled={access.retrying}
+                onClick={access.retry}
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                {access.retrying ? "Deneniyor…" : "Yeniden dene"}
+              </button>
+            </div>
+          )}
           {activeSection === "marketplace" ? (
             <>
               <header className="st-hero">
@@ -1681,7 +1710,7 @@ export default function App() {
                     role={tenant.role}
                     platformOrigin={platformOrigin}
                     tenant={tenant}
-                    backHref={`#${activeSection}`}
+                    backHref={routeHash({ section: activeSection, tab: activeTab })}
                   />
                 </Suspense>
               </div>
@@ -1803,6 +1832,17 @@ export default function App() {
                 }
               />
             </>
+          ) : degraded ? (
+            <header className="ns-page-head st-page-head">
+              <div>
+                <h1>Ana sayfa</h1>
+                <p>
+                  Ekranlar, Kurallar ve Menüler bölümlerini kullanmaya devam
+                  edebilirsiniz. Talepler ve diğer bölümler bağlantı yeniden
+                  kurulunca görünür.
+                </p>
+              </div>
+            </header>
           ) : (
             <>
               {pageAlerts}
@@ -1826,9 +1866,13 @@ export default function App() {
                       )}
                     </b>
                     <p>
-                      {moduleStarterId
-                        ? "Şablon manifestini ve kaynak kodunu ERP’deki örnek karttan alın. Proje seçip izole çalışma alanı isteyin; Cargo.toml, manifest.json ve src/lib.rs dosyalarını proje gezgininde düzenleyebilirsiniz."
-                        : "Modül kodu talebe taşınır. İlgili kaynak deposunu ayrıca seçin; proje gezgininde kodu düzenleyip farkları inceleyerek onaylayabilirsiniz."}
+                      {isConsultant
+                        ? moduleStarterId
+                          ? "Bu şablondan nasıl bir modül istediğinizi talepte anlatın; Yazılımcı modülü hazırlayıp onayınıza sunar."
+                          : "Bu ekranda neyin değişmesini istediğinizi talepte anlatın; Yazılımcı talebi inceleyip uyarlamayı hazırlar."
+                        : moduleStarterId
+                          ? "Şablon manifestini ve kaynak kodunu ERP’deki örnek karttan alın. Proje seçip izole çalışma alanı isteyin; Cargo.toml, manifest.json ve src/lib.rs dosyalarını proje gezgininde düzenleyebilirsiniz."
+                          : "Modül kodu talebe taşınır. İlgili kaynak deposunu ayrıca seçin; proje gezgininde kodu düzenleyip farkları inceleyerek onaylayabilirsiniz."}
                     </p>
                   </div>
                   <button
@@ -1848,7 +1892,7 @@ export default function App() {
                       setRequestDescription(
                         moduleStarterId
                           ? `${contextualScreen} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${contextualModuleCode}. Şablon: ${moduleStarterId}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`
-                          : `${contextualScreen} ekranı için istenen değişiklikleri açıklayın.${contextualModuleCode ? ` Modül kodu: ${contextualModuleCode}.` : ""} İlgili kaynak deposunu seçin; değişiklikler onaylı izole çalışma alanında hazırlanır.`,
+                          : `${contextualScreen} ekranı için istenen değişiklikleri açıklayın.${contextualModuleCode ? ` Modül kodu: ${contextualModuleCode}.` : ""}${isConsultant ? "" : " İlgili kaynak deposunu seçin; değişiklikler onaylı izole çalışma alanında hazırlanır."}`,
                       );
                       setRequestProjectId("");
                       setError("");

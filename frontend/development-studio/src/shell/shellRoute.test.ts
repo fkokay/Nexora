@@ -32,6 +32,15 @@ describe("resolveShellRoute", () => {
   });
 });
 
+describe("resolveShellRoute degraded", () => {
+  it("opens only the limited menu, whatever roles were held", () => {
+    expect(resolveShellRoute("#screens/reports", "admin", [...all], true)).toEqual({ role: "consultant", route: { section: "screens", tab: "reports" }, tab: "reports" });
+    expect(resolveShellRoute("#rules", "consultant", [], true).tab).toBe("workflows");
+    expect(resolveShellRoute("#company-module/code", "developer", [...all], true)).toEqual({ role: "consultant", route: { section: "home" } });
+    expect(resolveShellRoute("#publications", "consultant", [], true).route).toEqual({ section: "home" });
+  });
+});
+
 describe("routeHash", () => {
   it("writes section and optional tab", () => {
     expect(routeHash({ section: "rules", tab: "workflows" })).toBe("#rules/workflows");

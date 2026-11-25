@@ -44,6 +44,13 @@ export function menuFor(role: StudioMenuRole): NavItem[] {
   return menus[role].map((section) => items[section]);
 }
 
+/** Studio rol bilgisi alınamadığında yalnız ERP API'sine dayanan bölümler açık kalır. */
+const degradedSections: StudioSection[] = ["home", "screens", "rules", "menus"];
+
+export function degradedMenu(): NavItem[] {
+  return degradedSections.map((section) => items[section]);
+}
+
 const apiRoles: Record<string, StudioMenuRole> = {
   Admin: "admin",
   Developer: "developer",
@@ -93,6 +100,14 @@ function parseTarget(hash: string): RouteTarget | undefined {
   const route: Route = { section: section as StudioSection };
   if (tab) route.tab = tab;
   return route;
+}
+
+/** Kısıtlı menüde adres yalnız açık kalan bölümlere çözülür; diğerleri ana sayfaya düşer. */
+export function resolveDegradedRoute(hash: string): { role: StudioMenuRole; route: Route } {
+  const target = parseTarget(hash);
+  const route = typeof target === "function" ? target("consultant") : target;
+  if (route && degradedSections.includes(route.section)) return { role: "consultant", route };
+  return { role: "consultant", route: { section: "home" } };
 }
 
 export function resolveRoute(
