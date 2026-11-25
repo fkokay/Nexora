@@ -38,6 +38,7 @@ Studio'dan yayınlama ve yazılımcı formları bu planda **yok** (bkz. Kapsam).
 
 - **Kim çağırır:** paketi Platform API'ye kullanıcının kendi Platform belirteci gönderir. Studio bugün `/api/tenant/modules/activate` uçlarını da böyle çağırıyor (`frontend/development-studio/src/App.tsx:596`). 2a'da çağrıyı testler yapar, 2c'de Studio yapacak.
 - **Kapı:** paket oluşturma ve etkinleştirme **doğrulanmış TenantAdmin** ister. Sayfaya SQL kaydetmenin kapısı da budur: `CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync`, `TenantCustomPageEndpoints.QueryPageWriteAllowedAsync` ile aynı denetim.
+  - SQL'e dayanan katalog veri kaynağına başvuran sayfayı kaydetmek, güncellemek ve yayımlamak da satır içi SQL gibi **doğrulanmış TenantAdmin** ister (2b rolleri gelene kadar). Yalnızca okuma türündeki ERP işlemine dayanan veri kaynakları diğer kullanıcılara açık kalır. Kapı başvuruyu etkin katalogda çözer; katalog yoksa ya da kod bilinmiyor veya geçersizse SQL sayılır (kapalı başarısız). Katalog eylemleri her zaman TenantAdmin ister.
   - 2b'deki *Yazılımcı* rolü gelince kapı o role daraltılır. Bu kapıdan daha gevşek bir kapı hiçbir zaman kullanılmaz.
 - **Köken bilgisi:** paketle gelen `sourceRepository`, `sourceCommit`, `sourcePath` **yalnızca kaydedilir, sunucuda doğrulanmaz**. Api'ye GitHub ya da ağ erişimi verilmez (CLAUDE.md sınırı).
 - **SQL ne zaman doğrulanır:**

@@ -25,6 +25,9 @@ export const isOperationQuery = (query: PageQuery) => typeof query.operation ===
 /** Katalog başvurulu sorgu: `dataSource` ya da `action` kodu taşır; SQL ve işlem içermez. */
 export const catalogReference = (query: PageQuery): string | undefined =>
   typeof query.dataSource === "string" ? query.dataSource : typeof query.action === "string" ? query.action : undefined;
+/** Sorgu listesinde gösterilen kaynak: katalog başvurusu, ERP işlemi ya da SQL. */
+export const querySourceLabel = (query: PageQuery) =>
+  catalogReference(query) !== undefined ? "Katalog" : isOperationQuery(query) ? "ERP işlemi" : "SQL";
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; meta?: Record<string, unknown> };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createElement } from "react";
 import { designerPersistence } from "./CustomPagesPage";
-import QueriesPanel, { catalogReference, type PageQuery } from "./page-designer/QueriesPanel";
+import QueriesPanel, { catalogReference, querySourceLabel, type PageQuery } from "./page-designer/QueriesPanel";
 
 const base = { id: "q1", name: "cariler", kind: "read" as const, runOn: "load" as const, parameters: [] };
 const wire = (queries: PageQuery[]) => designerPersistence.wireDefinition({ schemaVersion: 2, queries, components: [] }, { status: "loading" }).queries;
@@ -34,5 +34,12 @@ describe("katalog başvurulu sorgular", () => {
     }));
     expect(html).toContain("Katalog: ");
     expect(html).toContain("cariler");
+  });
+
+  it("querySourceLabel_names_catalog_operation_and_sql_queries", () => {
+    expect(querySourceLabel({ ...base, dataSource: "cariler" })).toBe("Katalog");
+    expect(querySourceLabel({ ...base, kind: "delete", runOn: "manual", action: "cariSil" })).toBe("Katalog");
+    expect(querySourceLabel({ ...base, operation: "cari.listele" })).toBe("ERP işlemi");
+    expect(querySourceLabel({ ...base, sql: "SELECT 1 AS A" })).toBe("SQL");
   });
 });
