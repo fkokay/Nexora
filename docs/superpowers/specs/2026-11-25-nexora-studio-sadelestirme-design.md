@@ -284,7 +284,7 @@ Mevcut sayfalardaki sayfa içi sorgular çalışmaya devam eder. Yeni tasarımc�
   - bırakma alanları
 - Protokol, kod bileşeni köprüsündeki güvenlik ilkelerini izler (`codeBridgeStub.ts`): sürüm numarası, kaynak kontrolü ve izinli origin listesi. Nonce kullanılmaz: kod köprüsünde sandbox'lı çerçevenin origin'i opak olduğu için gerekir, tuval iframe'inin origin'i gerçek olduğundan origin + source kontrolü yeterlidir.
 - Önizlemede yazma işlemleri bugünkü gibi engellenir.
-- Studio'daki kopya çizim kodu (`CanvasPreviews.tsx`, `useCanvasSamples`, `canvasSamples`, `preview-samples.ts` ve `CustomPagesPage.tsx` içindeki çizim dalları) bu projede silinmez; silme alt proje 4'e (Detay ekranı: Sekme → Bölüm → Alan) kalır. Kart içi tasarım modu ERP'de sayfa yüzeyinde görünmediği için eski tuval bu süre boyunca yedek olarak kullanılır (ERP'ye bağlanılamadığında da).
+- Studio'daki kopya çizim kodu (`CanvasPreviews.tsx`, `useCanvasSamples`, `canvasSamples`, `preview-samples.ts` ve `CustomPagesPage.tsx` içindeki çizim dalları) bu projede silinmez. Silme önce alt proje 4'e bırakılmıştı; kullanıcı 2026-11-25'te **toplu geçişe (5b)** erteledi, çünkü kalıpsız sayfaların kart içi tasarım modu, sekmeye bileşen koyma, boyut tutamaçları ve yedek tuval yalnız bu kodda var (`preview-samples.ts` ayrıca Hazır ekran görünümleri aracında kullanılıyor). Kart içi tasarım modu ERP'de sayfa yüzeyinde görünmediği için eski tuval bu süre boyunca yedek olarak kullanılır (ERP'ye bağlanılamadığında da).
 
 ### 6.9 Studio'nun yapısı (taslak 07, kullanıcı onayladı)
 
@@ -345,7 +345,7 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    
    Eski araçlar menüden ancak yerlerini alan ekranlar hazır olunca kalkar (§11). 1. projeden bağımsızdır, onunla paralel yürüyebilir.
 3. **Sayfa kalıpları (§6.1) + yeni panel kabuğu + Liste (§6.3).**
-4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).**
+4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).** Kapsam (kullanıcının kararı, 2026-11-25): Kayıt kartı kalıbı, 1. ve 2. basamak (tasarım `2026-11-25-kayit-karti-design.md`, plan `2026-11-25-kayit-karti.md`). Serbest gövde (3. basamak) 5. projeye, Önceki / Sonraki sonraya, eski Studio tuvalinin silinmesi 5b'ye kaldı.
 5. **Kalan bileşenlerin birleştirilmesi (§6.2).**
 5b. **Toplu kalıp geçişi** (kullanıcının kararı: bütün canlı sayfalar tek seferde taşınır). 3., 4. ve 5. projelerden sonra yapılır:
    - **Dönüştürücü:** her sayfayı (firma sayfaları ve sistem standartları) bir kalıba ve basamağa eşler. Eşlenemeyen sayfa 3. basamağa (serbest gövde) düşer, hiçbir sayfa açıkta kalmaz.
@@ -353,6 +353,7 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    - **Prova:** geçiş önce firma veritabanlarının geri yüklenmiş bir kopyasında yapılır (canlı yayınlarda kullanılan prova yöntemi). Davranış testleri burada çalıştırılır: sorgular aynı sonucu veriyor mu, eylemler aynı işlemi yapıyor mu, yetkiler aynı mı.
    - **Geri dönüş:** her sayfanın geçiş öncesi tanımı bir sürüm olarak saklanır. Tek komutla bütün sayfalar ya da tek bir sayfa eski haline döner.
    - **Geçişten sonra:** eski yerleşim dalı ERP'den kaldırılır. Bu da §10'daki "iki yerleşim dalı" durumunu sona erdirir.
+   - **Eski Studio tuvali** (§6.8'deki kopya çizim kodu) bu adımda silinir.
 6. **Belge kuralları (§6.6).** Önce bir modülde (öneri: satış siparişi) belge modeli, hesaplama ve durum geçişleri kurulur, sonra Kurallar ekranı. Bu proje satış envanterindeki G-S7, G-S8 ve G-S9'u da kapatır. 2. projeden bağımsız olarak başlayabilir.
 
 ## 8. Kurucuya bırakılanlar

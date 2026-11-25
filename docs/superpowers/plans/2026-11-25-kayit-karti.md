@@ -33,13 +33,13 @@
   | `summary` | `recordHeader` | tam 1 |
   | `actions` | `button` | 0..n |
   | `tabs` | `tabs` | tam 1 |
-  | `section` | `formCard` | ≥1 |
+  | `section` | `formCard` | 0..n (boş bölüm, `inputs: []`, kabul edilir) |
   | `field` | `input` | tam 1 `formCard`'ın `inputs`'unda |
   | `lines` | `dataTable` | 0..n |
   | `note` | `text` | 0..n |
   | `above`, `below` | Liste'deki ek alan kuralı | |
 
-  - Her `section`, `lines` ve `note` tam olarak bir sekmede listelenir (`tabs` öğesi `Etiket=id1,id2`).
+  - Her `section`, `lines` ve `note` tam olarak bir sekmede listelenir (`tabs` öğesi `Etiket=id1,id2`). Boş sekme (`"Etiket="`) kayıt kartında kabul edilir; ERP'nin `parseTabs`'ı onu zaten boş sekme olarak okur. Sunucu bugün reddediyorsa istisna yalnız `record` kalıbı için açılır.
   - Liste'deki yasaklar burada da geçerlidir: `width`, `widthWhen`, `actionBar`, `spacer`, `divider`.
 - **Hata metinleri** (sunucu, tek ve Türkçe):
   - `"Kalıp yalnız \"list\" ya da \"record\" olabilir."`. Bu, Liste'nin bugünkü `"Kalıp yalnız \"list\" olabilir."` metninin yerine geçer; o metni bekleyen test güncellenir.
@@ -64,8 +64,10 @@
   - Kaydet:
     - `button`, `actionType: "sequence"`, `saveSequence: [ekle?, guncelle?]`.
     - `sequenceWhen: ["<ekle>=kayit.rows[0].<anahtar> == null", "<guncelle>=kayit.rows[0].<anahtar> != null"]`.
-    - Eylem parametreleri `{{<alanKimliği>.value}}` ile bağlanır.
+    - Eylem parametreleri `{{<alanKimliği>.value}}` ile bağlanır. **İstisna:** *güncelle* ve *sil* eylemlerinin anahtar parametresi `{{kayit.rows[0].<anahtar>}}`'a bağlanır (`customer-create`'teki gibi); anahtar alanı gizlense de bu eylemler bozulmaz. *Ekle*'nin anahtar parametresi (varsa) anahtar alanına bağlanır.
   - Sil: `button`, `actionType: "query"`, `kind: "delete"` olan sorgu.
+  - Bir eylemin bağlı olduğu alan karttan kaldırılamaz. `removeField` ve `removeSection` tanımı değiştirmez; panel nedenini gösterir: `"Bu alan Kaydet için gerekli; önce Kaydet'ten eylemi kaldırın."` (Sil ve ek eylemler için aynı kalıp, eylem adıyla).
+  - **Yeni kayıt kipi:** kayıt sorgusunun anahtar parametresi boşsa sorgu hatasız boş döner. Doğrulandı: SQL kaynaklarında boş parametre `coerceParameter` ile `null` olur ve sunucuda `DBNull`'a çevrilir (`CustomPageQueryEndpoints.cs` `Convert`); ERP işlemlerinde zorunlu değer yoksa istek atılmaz ve `readProblem` `null` döner. Böylece `sequenceReadGuard` Kaydet'i engellemez.
 - **Anahtar alanı:**
   - Anahtarı kullanıcı yazıyorsa (*ekle* eyleminde anahtarla aynı adlı parametre var): `disabledWhen: "kayit.rows[0].<anahtar> != null"`, `disabledReason: "Kayıt kodu değiştirilemez."`.
   - Anahtarı sistem üretiyorsa: `readOnly: true`, `placeholder: "(otomatik)"`.
@@ -230,7 +232,9 @@
 - Create: `frontend/erp-web/src/page-templates/RecordTemplate.tsx`
 - Modify:
   - `frontend/erp-web/src/page-templates/page-templates.css` (`.record-template-page` kuralları)
-  - `frontend/erp-web/src/TenantCustomPage.tsx`: `listLayout` dalının yanına `recordLayout` dalı. Aynı `templateComponents` süzgeci, aynı `ShellAction` üretimi. Ortak kısım bir yardımcıya taşınır: `shellActionsFor(buttons, runtime)`.
+  - `frontend/erp-web/src/TenantCustomPage.tsx`: `listLayout` dalının yanına `recordLayout` dalı. Aynı `ShellAction` üretimi; ortak kısım bir yardımcıya taşınır: `shellActionsFor(buttons, runtime)`.
+  - **Süzgeç farkı:** Liste'nin `templateComponents` süzgeci sekmeye ait bileşenleri atar, oysa kayıt kartının bölüm, tablo ve notları sekmeye aittir. `layoutRecordTemplate`, `formCard`'a ait girdiler (`ownedInputIds`), pencere, satır eylemi ve özet düğmeleri dışındaki **bütün** bileşenleri alır; sekmeye ait olanları `tabs`'ın listesinden yerleştirir.
+  - `isNew`: `recordKeyParam(...)` bir ad döner; `isNew = !name || (pageParams[name] ?? "").trim() === ""`.
 - Test:
   - `frontend/erp-web/src/page-templates/RecordTemplate.test.tsx`
   - `frontend/erp-web/src/page-templates/RecordTemplateResponsive.test.tsx`
@@ -294,7 +298,7 @@
   - `afterRecordDelete(opener: string | undefined): { kind: "backToOpener"; opener: string } | { kind: "close" }`
 - Uygulama:
   - `reopen`: `setPageParams(page, { ...params, [param]: value })`. Kayıt sorgusu yeni anahtarla çalışır.
-  - `backToOpener`: `openWorkspacePage({ page: opener, params: {}, replace: true, from: page, refresh: true })`. Bildirim: `"Kaydedildi."`.
+  - `backToOpener`: açan sekmeyi parametrelerini **silmeden** öne getirir ve açılış sorgularını yeniler; kart sekmesi kapanır. `openWorkspacePage({ params: {} })` doğrudan kullanılmaz, çünkü `setPageParams(opener, {})` listenin parametrelerini siler ve kartı listenin açanı olarak kaydeder. Uygulayıcı, `runNavigation`'daki `refreshTarget` yolunun bunu nasıl yaptığına bakar; gerekirse `openWorkspacePage`'e `keepParams: true` eklenir (açanı da kaydetmez). Bildirim: `"Kaydedildi."`.
   - `clear`: kart yeniden kurulur (`key` artırılır).
   - `close`: `requestClosePage(page)`.
   - `typedKey`: anahtar kolona bağlı girdinin kaydetme anındaki değeri. Yalnız o girdi `readOnly` değilse dolu sayılır.
@@ -307,6 +311,8 @@
   - `new record with system key returns to opener after save`.
   - `delete returns to opener; without opener requests close`.
   - `legacy sequence button still only reruns load queries`.
+  - `back to opener keeps the list tab params`.
+  - Yeni kayıt kipinde Kaydet engellenmez, her kaynak türü için bir test: `new record save is not blocked for sql source with guid key`, `… with text key`, `… with int key`, `… for erp operation source` (zorunlu değeri eksik işlem).
 - [ ] **Step 2:** `npx vitest run src/page-templates/recordAfterSave src/page-templates/RecordTemplateSave` → FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** PASS; `npm test`, `npm run build` PASS.
@@ -316,6 +322,7 @@
 
 **Files:**
 - Modify: `src/Hosts/AIERP.Api/TenantCustomPageEndpoints.cs` (yeni uç)
+- Modify: `PlatformPermissionCatalog` (yeni rotanın izin girdisi; önizleme ucunun izniyle aynı)
 - Modify: `frontend/erp-web/src/designer-canvas/canvasProtocol.ts`, `DesignerCanvasHost.tsx`
 - Test:
   - `tests/IntegrationTests/TenantCustomPageSampleParamsTests.cs`
@@ -327,7 +334,7 @@
   - **Uç:** `GET /api/custom-pages/{id}/preview/sample-params` → `{ params: Record<string, string> }`.
     - Yetki önizleme ucuyla aynı.
     - Sayfa taslağı `record` kalıplı değilse `{ params: {} }` döner.
-    - Etkin katalogda `opens` değeri bu sayfanın kodu olan, parametresiz ya da yalnız `q` parametreli ilk kaynak bulunur. Mevcut katalog sorgu yürütücüsüyle çalıştırılır (`q` boş). İlk satırın anahtar kolonu `{ <pageParamName(anahtar)>: değer }` olarak döner. C#'ta aynı kural: `pageParamName`'in sunucu eşi.
+    - Etkin katalogda `opens` değeri bu sayfanın kodu olan, parametresiz ya da yalnız `q` parametreli ilk kaynak bulunur. Mevcut katalog sorgu yürütücüsüyle çalıştırılır (`q` boş). İlk satırın anahtar kolonu döner. Parametre adı türetilmez: taslağın kayıt sorgusunun `{{sayfa.parametre.<p>}}` bağlamasından okunur (`{ <p>: değer }`).
     - Kaynak yoksa, satır yoksa ya da hata olursa `{ params: {} }` döner. Uç hata vermez.
   - **Protokol** (sürüm 1 korunur, mesajlar eklemelidir):
     - Studio→ERP: `{ type: "showTab"; tabsId: string; index: number }`.
@@ -354,7 +361,7 @@
 
 ---
 
-## PR B — Studio (Görev 8–12)
+## PR B — Studio (Görev 8–13)
 
 Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-designer/`.
 
@@ -439,7 +446,7 @@ Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-desi
     - `usedColumns(def): Set<string>`
     - `addField(def, column: CatalogColumn, sectionId: string, index: number): D`: kolon zaten kullanılıyorsa tanım değişmez.
     - `moveField(def, inputId, toSectionId, index): D`
-    - `removeField(def, inputId): D`
+    - `removeField(def, inputId): D` ve `fieldRemovalBlocked(def, inputId): string | null` (bağlı eylem varsa neden metni; `removeSection` da bölümdeki her alan için bunu sorar)
   - **Bölümler ve sekmeler:**
     - `addSection(def, tabIndex: number): { def: D; sectionId: string }`: "Yeni bölüm", 2 kolon.
     - `removeSection(def, sectionId): D`: alanları da siler; kolonlar sol listede yeniden kullanılabilir olur.
@@ -480,6 +487,8 @@ Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-desi
   - `addField ignores a column already used`
   - `moveField to another section keeps one owner`
   - `moving the last field leaves an empty section` (Review Focus 3)
+  - `removeField refuses a field bound to save and gives the reason`
+  - `update and delete bind the key to the record row, insert to the key field`
   - `removeSection frees its columns`
   - `last tab cannot be removed`
   - `setFieldProps cannot unset catalog required`
@@ -619,15 +628,38 @@ Kök: `frontend/development-studio/src/platform-tools/erp-src/`. PD = `page-desi
 - [ ] **Step 4:** PASS.
 - [ ] **Step 5: Commit** — `feat(studio): Listede yeni kayıt düğmesi`
 
+### Task 12b: Studio — yazılımcının veri kaynağı formunda üç bayrak
+
+> **Önkoşul:** 2c (PR #171, `claude/katalog-yazilimci-ekrani-plan`) bu dala birleşmiş olmalı. Birleşmemişse bu görev ondan sonraya kalır ve PR açıklamasında yazılır; o sürede bayraklar katalog dosyası elle düzenlenerek verilir.
+
+**Files:**
+- Modify: `frontend/development-studio/src/studio-projects/catalog/DataSourceForm.tsx`, `catalogFormModel.ts`, `catalogFiles.ts`
+- Test: `DataSourceForm.test.tsx`, `catalogFiles.test.ts`
+
+**Interfaces:**
+- Kolon satırına üç denetim eklenir (kullanıcıya onaylatılan metin taslağı):
+  ```
+  Kod      Etiket     Tür    Anahtar  Uzun metin  Zorunlu  En çok
+  adres    Adres      Metin  ☐        ☑           ☐        [500]
+  ```
+  - "Uzun metin" ve "En çok" yalnız tür Metin iken etkindir.
+- Dosyaya yazarken `longText`/`required` yalnız `true` ise, `maxLength` yalnız doluysa yazılır. Okurken korunur.
+
+- [ ] **Step 1: Write the failing tests**
+  - `column flags round trip through catalog file`
+  - `long text and max length disabled for non-text types`
+  - `unchanged file keeps no new keys`
+- [ ] **Step 2:** `npx vitest run src/studio-projects/catalog` → FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** PASS.
+- [ ] **Step 5: Commit** — `feat(studio): veri kaynağı formunda alan bayrakları`
+
 ### Task 13: Uçtan uca doğrulama ve belgeler
 
 **Files:**
 - Modify:
   - `docs/phase-status.md`: 4. alt proje girdisi (doğrulanan / doğrulanmayan / kalan)
-  - `docs/superpowers/specs/2026-11-25-nexora-studio-sadelestirme-design.md`:
-    - §6.8 son madde: eski tuval silme 5b'ye kaldı (kullanıcının kararı)
-    - §7: 4 ve 5b
-    - §10: bu projenin kararları
+  - `docs/superpowers/specs/2026-11-25-nexora-studio-sadelestirme-design.md` §10: bu projenin kararları (§6.8 ve §7 düzeltmeleri planla birlikte, Görev 1'den önce yapıldı)
 
 - [ ] **Step 1:** Run `dotnet test AIERP.slnx`. Then run `npm test` and `npm run build` in both frontends.
   - Paralel oturumlar varken zaman aşımına düşen entegrasyon sınıflarını tek başına yeniden çalıştır.
