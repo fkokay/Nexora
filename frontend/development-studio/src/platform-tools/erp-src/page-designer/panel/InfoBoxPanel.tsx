@@ -45,7 +45,7 @@ export function InfoBoxPanel({ component, definition, disabled, tokens = [], onC
   </>;
   const appearance = <AppearanceSection extra={extra} visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} nameReadOnly onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
+  return <ComponentPanel name={component.name ?? ""} namePlaceholder="Bilgi kutusu" nameReadOnly onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={INFO_KNOWN}/>
   </ComponentPanel>;

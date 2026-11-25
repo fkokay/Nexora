@@ -38,7 +38,7 @@ describe("InfoBoxPanel", () => {
   });
   it("renders in order, disables dismiss on list, no technical words", () => {
     const html = render(alert);
-    inOrder(html, ["Tür", "Bilgi", "Uyarı", "Başarılı", "Sade", "Başlık", "Metin", "Madde listesi olarak göster", "Eylemler", "Görünüm", "Kullanıcı kapatabilsin", "Ne zaman görünsün?", "Mobilde gizle"]);
+    inOrder(html, ["Tür", ">Bilgi<", "Uyarı", "Başarılı", "Sade", "Başlık", "Metin", "Madde listesi olarak göster", "Eylemler", "Görünüm", "Kullanıcı kapatabilsin", "Ne zaman görünsün?", "Mobilde gizle"]);
     for (const word of ["{{", "alert", "variant"]) expect(html).not.toContain(word);
     const list = render({ id: "l1", type: "list", props: { title: "T", items: ["a"] } });
     expect(list).toMatch(/Kullanıcı kapatabilsin<input[^>]*disabled/);
@@ -58,5 +58,13 @@ describe("TextPanel special cases", () => {
   it("info box dismissible switch is off on list", () => {
     const l: ModelComponent = { id: "l1", type: "list", props: { title: "T", items: ["a"], dismissible: true } };
     expect(renderToString(<InfoBoxPanel component={l} definition={def(l)} {...common}/>)).not.toMatch(/Kullanıcı kapatabilsin<input[^>]*checked/);
+  });
+});
+
+describe("name placeholder (final review fix 7)", () => {
+  it("shows the type label as placeholder of a nameless component", () => {
+    const nameless: ModelComponent = { id: "h9", type: "heading", props: { text: "x" } };
+    expect(renderToString(<TextPanel component={nameless} definition={def(nameless)} tokens={tokens} {...common}/>)).toContain('placeholder="Metin"');
+    expect(renderToString(<InfoBoxPanel component={alert} definition={def(alert)} {...common}/>)).toContain('placeholder="Bilgi kutusu"');
   });
 });

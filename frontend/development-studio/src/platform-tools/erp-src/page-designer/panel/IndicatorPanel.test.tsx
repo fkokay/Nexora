@@ -57,3 +57,20 @@ describe("IndicatorPanel", () => {
     for (const word of ["{{", "rows[0]", "metric", "badge"]) expect(html).not.toContain(word);
   });
 });
+describe("IndicatorPanel final review fixes 4 and 7", () => {
+  it("names a deleted source and a deleted column without codes", () => {
+    const gone = chooseIndicatorSource(start(), "g1", { ...ozet, code: "kalkti", label: "Kalkan" });
+    const html = renderToString(<IndicatorPanel {...props(gone)}/>);
+    expect(html).toContain("Silinmiş kaynak");
+    expect(html).not.toContain("kalkti");
+    const def = setIndicatorValue(chooseIndicatorSource(start(), "g1", ozet), "g1", "eskiKolon", "money");
+    const column = renderToString(<IndicatorPanel {...props(def)}/>);
+    expect(column).toContain("Silinmiş alan · Katalogda yok");
+    expect(column).not.toContain("eskiKolon ·");
+  });
+  it("shows Gösterge as placeholder of a nameless indicator", () => {
+    const def = start();
+    const nameless = { ...def, components: def.components.map((c) => c.id === "g1" ? { ...c, name: undefined } : c) };
+    expect(renderToString(<IndicatorPanel {...props(nameless)}/>)).toContain('placeholder="Gösterge"');
+  });
+});

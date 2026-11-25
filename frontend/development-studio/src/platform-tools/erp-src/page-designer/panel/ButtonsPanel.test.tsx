@@ -52,3 +52,19 @@ describe("ButtonsPanel", () => {
     expect(html).toContain("Nerede?");
   });
 });
+
+describe("ButtonsPanel final review fixes 4 and 5", () => {
+  it("uses a slot-specific where note", () => {
+    const row = addListAction(bound, "liste", catalog.actions[0], "row");
+    const html = renderToString(<ButtonsPanel definition={row} component={buttons(row)[0]} listId="liste" catalog={catalog} onChange={() => {}}/>);
+    expect(html).toContain("Bu panel, satırın sonundaki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.");
+    expect(html).not.toContain("sayfanın üstündeki");
+  });
+  it("falls back to Adsız düğme instead of the button id", () => {
+    const nameless = { ...withEkstre, components: withEkstre.components.map((c) => c.type === "button" ? { ...c, props: { ...c.props, text: " " } } : c) };
+    const button = buttons(nameless)[0];
+    const html = renderToString(<ButtonsPanel definition={nameless} component={button} listId="liste" catalog={catalog} onChange={() => {}}/>);
+    expect(html).toContain(">Adsız düğme</option>");
+    expect(html).not.toContain(`>${button.id}</option>`);
+  });
+});

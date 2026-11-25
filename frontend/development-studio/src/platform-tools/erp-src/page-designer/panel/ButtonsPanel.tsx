@@ -4,6 +4,13 @@ import { ComponentPanel } from "./ComponentPanel";
 import { BUTTONS_WHERE_NOTE, isDeleteButton, placeOf, setPrimaryButton, slotButtons, toggleButtonAction, actionChipState, type ButtonSlot } from "./buttonsPanelModel";
 import { listDataSourceCode, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 
+/** Düğmenin görünen adı; metni boşsa teknik kimlik yerine "Adsız düğme". */
+const buttonLabel = (button: ModelComponent) => (typeof button.props.text === "string" && button.props.text.trim() ? button.props.text : "Adsız düğme");
+const WHERE_NOTE: Record<ButtonSlot, string> = {
+  actions: "Bu panel, sayfanın üstündeki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.",
+  rowActions: "Bu panel, satırın sonundaki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.",
+};
+
 export type ButtonsPanelProps = {
   /** Seçili düğme; panel onun yerindeki (`actions` ya da `rowActions`) bütün düğmeleri bir grup olarak gösterir. */
   component: ModelComponent; definition: ModelDefinition; listId: string;
@@ -36,11 +43,11 @@ export function ButtonsPanel({ component, definition, listId, catalog, disabled,
     ? <label className="cpanel-row">Ana buton (vurgulu)<select aria-label="Ana buton" disabled={disabled || choices.length === 0} value={primary}
       onChange={(event) => onChange(setPrimaryButton(definition, event.target.value))}>
       {!primary && <option value="">Seçin</option>}
-      {choices.map((button) => <option key={button.id} value={button.id}>{String(button.props.text ?? button.id)}</option>)}</select></label>
+      {choices.map((button) => <option key={button.id} value={button.id}>{buttonLabel(button)}</option>)}</select></label>
     : null;
   const where = <>
     <div className="cpanel-q">Nerede?</div>
-    <p className="cpanel-note">Bu panel, sayfanın üstündeki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.</p>
+    <p className="cpanel-note">{WHERE_NOTE[slot]}</p>
     <p className="cpanel-note">{BUTTONS_WHERE_NOTE}</p>
   </>;
   return <ComponentPanel name="Butonlar" nameReadOnly nameLabel="Grup adı" onRename={() => {}} whatTitle="Hangi eylemler?" what={what}

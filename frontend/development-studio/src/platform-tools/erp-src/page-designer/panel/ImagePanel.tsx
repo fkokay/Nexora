@@ -22,10 +22,12 @@ export type ImagePanelProps = {
 
 export function ImagePanel({ component, definition, tokens, disabled, onChange, onRename, visibility, place }: ImagePanelProps) {
   const image = imageOf(component);
-  const problem = image.from === "address" ? (image.address.includes("{{") ? null : imageAddressProblem(image.address)) : null;
+  // Seçili satır dışındaki bir bağlama (ör. sorgu sonucu) adres kutusunda ham `{{…}}` olarak gösterilmez; "Adres" ile temizlenebilir.
+  const bound = image.from === "address" && image.address.includes("{{");
+  const problem = image.from === "address" && !bound ? imageAddressProblem(image.address) : null;
   const columnBinding = tokens.find((token) => token.binding.endsWith(`.seciliSatir.${image.column}`))?.binding ?? "";
   const choose = (value: "address" | "record") => {
-    if (value === image.from) return;
+    if (value === image.from && !bound) return;
     if (value === "address") return onChange(setImageAddress(definition, component.id, ""));
     if (tokens[0]) onChange(setImageFromRecord(definition, component.id, tokens[0].binding));
   };
@@ -33,7 +35,8 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
     <div className="cpanel-seg" role="group" aria-label="Görsel nereden?">{SOURCES.map(([label, value]) =>
       <button type="button" key={value} className={image.from === value ? "on" : ""} aria-pressed={image.from === value} disabled={disabled}
         onClick={() => choose(value)}>{label}</button>)}</div>
-    {image.from === "address"
+    {bound ? <p className="cpanel-note">Kayıttan gelen görsel</p>
+      : image.from === "address"
       ? <label className="cpanel-row">Görselin adresi<input className="cpanel-txt" aria-label="Görselin adresi" disabled={disabled} value={image.address}
         onChange={(event) => onChange(setImageAddress(definition, component.id, event.target.value))}/></label>
       : tokens.length === 0 ? <p className="cpanel-note">Önce listeye bir veri kaynağı bağlayın.</p>
@@ -54,7 +57,7 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
   </>;
   const appearance = <AppearanceSection visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} nameReadOnly onRename={onRename} place={place} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
+  return <ComponentPanel name={component.name ?? ""} namePlaceholder="Görsel" nameReadOnly onRename={onRename} place={place} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={IMAGE_KNOWN}/>
   </ComponentPanel>;

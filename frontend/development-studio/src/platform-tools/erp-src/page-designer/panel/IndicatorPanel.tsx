@@ -4,13 +4,15 @@ import type { ErpOperation } from "../erpOperations";
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import { AppearanceSection } from "./AppearanceSection";
 import {
-  chooseIndicatorSource, indicatorOf, indicatorPlaces, indicatorSourceUsable, setIndicatorCompare, setIndicatorKind, setIndicatorPlace, setIndicatorSize,
+  chooseIndicatorSource, countColumnOf, indicatorOf, indicatorPlaces, indicatorSourceUsable, setIndicatorCompare, setIndicatorKind, setIndicatorPlace, setIndicatorSize,
   setIndicatorTotal, setIndicatorValue, type IndicatorKind, type IndicatorPlace, type IndicatorSize,
 } from "./indicatorPanelModel";
 import { withOperationParameters, type ModelComponent, type ModelDefinition, type OperationListStatus } from "./listPanelModel";
 import { setHideOnMobile } from "./textPanelModel";
 
 export const INDICATOR_MISSING_IN_CATALOG = "Katalogda yok";
+export const INDICATOR_DELETED_SOURCE = "Silinmiş kaynak";
+export const INDICATOR_DELETED_COLUMN = "Silinmiş alan";
 export const INDICATOR_DEV_NOTE = "Yazılımcının hazırladığı değer · birimi ondan gelir";
 const KINDS: [IndicatorKind, string][] = [["number", "Sayı"], ["progress", "İlerleme"], ["status", "Durum"]];
 const PLACES: [IndicatorPlace, string][] = [["indicators", "Göstergeler"], ["above", "Listenin üstü"], ["below", "Listenin altı"]];
@@ -21,7 +23,8 @@ const NO_INDICATORS_NOTE: Record<string, string> = {
 };
 const COMMON = ["title", "slot", "visibleWhen", "hideOnMobile"];
 /** Panelin yazdığı özellikler (türe göre) ve ortak olanlar; ötekiler "Eski ayarlar" altında salt okunur görünür. */
-const knownOf = (type: string) => new Set([...COMMON, ...(type === "metric" ? ["query", "value", "format", "compareValue", "size"]
+/** `countWhen` yalnız Studio'nun yazdığı "Kayıt sayısı" koşuluysa panelindir; başka bir koşul "Eski ayarlar"da görünür. */
+const knownOf = (type: string, counted: boolean) => new Set([...COMMON, ...(type === "metric" ? ["query", "value", "format", "compareValue", "size", ...(counted ? ["countWhen"] : [])]
   : type === "progress" ? ["value", "progressTotal"] : ["text"])]);
 
 export type IndicatorPanelProps = {
@@ -49,13 +52,14 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
     else if (source && kind === "number" && state.column && state.column !== "count") next = setIndicatorValue(next, id, state.column, typeOf(state.column));
     change(next);
   };
-  const choose = (value: string) => change(value === "count" ? setIndicatorValue(definition, id, "count") : setIndicatorValue(definition, id, value, typeOf(value)));
+  const countColumn = source ? countColumnOf(source) : null;
+  const choose = (value: string) => change(value === "count" ? setIndicatorValue(definition, id, "count", undefined, countColumn) : setIndicatorValue(definition, id, value, typeOf(value)));
   const firstOther = source?.columns.find((item) => item.code !== state.column)?.code ?? source?.columns[0]?.code;
 
   const columnOptions = (current: string | null, withCount: boolean) => <>
-    {withCount && <option value="count">Kayıt sayısı</option>}
+    {withCount && (countColumn || current === "count") && <option value="count">Kayıt sayısı</option>}
     {source?.columns.map((column) => <option key={column.code} value={column.code}>{column.label}</option>)}
-    {current && current !== "count" && source && !source.columns.some((column) => column.code === current) && <option value={current}>{`${current} · ${INDICATOR_MISSING_IN_CATALOG}`}</option>}
+    {current && current !== "count" && source && !source.columns.some((column) => column.code === current) && <option value={current}>{`${INDICATOR_DELETED_COLUMN} · ${INDICATOR_MISSING_IN_CATALOG}`}</option>}
   </>;
 
   const what = <>
@@ -74,7 +78,7 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
                 onChange={() => change(chooseIndicatorSource(definition, id, item))}/>{item.label}</label>
               {!usable.usable && <small>{usable.reason}</small>}
             </li>;
-          })}{state.source && !source && <li className="on is-missing"><label><input type="radio" checked readOnly disabled/>{state.source}</label><small>{INDICATOR_MISSING_IN_CATALOG}</small></li>}</ul>}
+          })}{state.source && !source && <li className="on is-missing"><label><input type="radio" checked readOnly disabled/>{INDICATOR_DELETED_SOURCE}</label><small>{INDICATOR_MISSING_IN_CATALOG}</small></li>}</ul>}
   </>;
 
   const hasSource = state.source !== null;
@@ -116,8 +120,8 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
     : undefined;
   const appearance = <AppearanceSection extra={extra} visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => change(setHideOnMobile(definition, id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} nameReadOnly onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
+  return <ComponentPanel name={component.name ?? ""} namePlaceholder="Gösterge" nameReadOnly onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
-    <LegacySettings props={component.props} known={knownOf(component.type)}/>
+    <LegacySettings props={component.props} known={knownOf(component.type, state.column === "count")}/>
   </ComponentPanel>;
 }

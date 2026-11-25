@@ -104,3 +104,13 @@ describe("textPanelModel", () => {
     expect(p.props).toEqual({ text: "Baş" });
   });
 });
+
+describe("setTextStyle pageTitle (final review fix 2)", () => {
+  it("removes pageTitle when leaving heading and keeps it on heading", () => {
+    const page: ModelComponent = { id: "p1", type: "heading", props: { text: "Cariler", pageTitle: true } };
+    for (const style of ["subheading", "paragraph", "label"] as const) expect(component(setTextStyle(def(page), "p1", style), "p1").props.pageTitle, style).toBeUndefined();
+    const back = component(setTextStyle(setTextStyle(def(page), "p1", "label"), "p1", "heading"), "p1");
+    expect(back.props.pageTitle).toBeUndefined();
+    expect(page.props.pageTitle).toBe(true);
+  });
+});

@@ -39,6 +39,8 @@ export function setTextStyle<D extends ModelDefinition>(def: D, id: string, styl
     const props: Props = {};
     for (const [key, value] of Object.entries(c.props)) {
       if (key === from && from !== to) continue;
+      // Sayfa başlığı yalnız `heading` türünde geçerlidir (sunucu öteki türlerde reddeder).
+      if (key === "pageTitle" && type !== "heading") continue;
       props[key] = key === to ? content : value;
     }
     if (!(to in props)) props[to] = content;

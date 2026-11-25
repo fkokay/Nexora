@@ -62,3 +62,11 @@ describe("consultantPalette", () => {
     expect(designerInternals.paletteGroups).toEqual(["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"]);
   });
 });
+
+describe("consultantKindOf strip alert (final review fix 3)", () => {
+  it("returns null for an alert with a non-empty icon and infoBox otherwise", () => {
+    expect(consultantKindOf(comp("alert", { icon: "shield" }))).toBeNull();
+    expect(consultantKindOf(comp("alert", { icon: "" }))).toBe("infoBox");
+    expect(consultantKindOf(comp("alert", { variant: "info" }))).toBe("infoBox");
+  });
+});

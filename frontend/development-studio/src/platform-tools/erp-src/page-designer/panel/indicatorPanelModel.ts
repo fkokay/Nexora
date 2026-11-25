@@ -2,6 +2,7 @@
 // Değerler parametresiz katalog veri kaynaklarından gelir: kaynak bir okuma sorgusu olur, değer `{{<sorgu>.rows[0].<kolon>}}` bağlamasıdır.
 import type { CatalogDataSource } from "../catalogClient";
 import type { PageQuery } from "../QueriesPanel";
+import { METRIC_ICONS } from "../metricIcons";
 import { freeId, type ModelComponent, type ModelDefinition, type Usable } from "./listPanelModel";
 
 export type IndicatorKind = "number" | "progress" | "status";
@@ -25,6 +26,29 @@ const parse = (value: unknown): { query: string; column: string } | null => {
 const binding = (queryName: string, column: string) => `{{${queryName}.rows[0].${column}}}`;
 const without = (props: Props, ...keys: string[]): Props => Object.fromEntries(Object.entries(props).filter(([key]) => !keys.includes(key)));
 const formatOf = (columnType?: string) => (columnType === "number" || columnType === "money" ? columnType : "text");
+const isNumeric = (type?: string) => type === "number" || type === "money";
+
+/** Koşul yolunun bir parçası olabilecek ad (sunucu ve ERP koşul dilbilgisi: ASCII tanımlayıcı). */
+const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/**
+ * "Kayıt sayısı": ERP `QueryMetric`, `countWhen` koşulunu sağlayan yüklenmiş satırları sayar. Her satırda dolu olan anahtar kolonu
+ * (yoksa ilk uygun kolon) koşul olur: `<sorgu>.satir.<kolon> != null`. Sunucu koşulun kökünde sorgunun adını ister.
+ */
+const countCondition = (queryName: string, column: string) => `${queryName}.satir.${column} != null`;
+const COUNT_CONDITION = /^\s*([A-Za-z_][A-Za-z0-9_]*)\.satir\.([A-Za-z_][A-Za-z0-9_]*)\s*!=\s*null\s*$/;
+const countColumnIn = (value: unknown, query: PageQuery): string | null => {
+  const match = typeof value === "string" ? COUNT_CONDITION.exec(value) : null;
+  return match && match[1] === query.name ? match[2] : null;
+};
+/** Sayımın koşul kolonu: anahtar kolon, yoksa ilk tanımlayıcı adlı kolon; hiçbiri yoksa sayılamaz (null). */
+export function countColumnOf(ds: CatalogDataSource): string | null {
+  const key = ds.columns.find((column) => column.key && IDENT.test(column.code));
+  return key?.code ?? ds.columns.find((column) => IDENT.test(column.code))?.code ?? null;
+}
+
+/** Göstergenin davranış ayarları: başka türde sunucu reddeder (`trendQuery`, `filterInput`, `filterValue`, `descriptionFormat` yalnız göstergede). */
+const METRIC_ONLY = ["query", "countWhen", "format", "compareValue", "size", "trendQuery", "filterInput", "filterValue", "descriptionFormat"];
+const VARIANTS = ["info", "success", "warning", "danger"];
 
 function mapComponent<D extends ModelDefinition>(def: D, id: string, change: (c: ModelComponent) => ModelComponent): D {
   return { ...def, components: def.components.map((c) => (c.id === id ? change(c) : c)) };
@@ -60,10 +84,11 @@ export function indicatorOf(def: ModelDefinition, id: string): IndicatorState {
   const size = c.props.size === "lg" ? "lg" : "sm";
   const query = sourceQueryOf(def, c);
   if (!query) return { ...base, size };
-  const counted = c.type === "metric" && typeof c.props.query === "string";
+  const queried = c.type === "metric" && typeof c.props.query === "string";
+  // Sorgulu göstergede yalnız Studio'nun yazdığı sayım koşulu "Kayıt sayısı"dır; koşulsuz ya da başka koşullu sayım seçilmemiş görünür.
   return {
     ...base, size, source: query.dataSource as string,
-    column: counted ? "count" : columnOf(c.props[valueKey(c.type)], query),
+    column: queried ? (countColumnIn(c.props.countWhen, query) ? "count" : null) : columnOf(c.props[valueKey(c.type)], query),
     compareColumn: columnOf(c.props.compareValue, query), totalColumn: columnOf(c.props.progressTotal, query),
   };
 }
@@ -87,23 +112,31 @@ export function setIndicatorKind<D extends ModelDefinition>(def: D, id: string, 
   const fromKey = valueKey(c.type);
   const carried = parse(c.props[fromKey]) ? c.props[fromKey] : undefined;
   // Bağlama dışındaki (eski, düz) değerler yerinde kalır ve "Eski ayarlar"da görünür.
-  let props = without(c.props, "query", "format", "compareValue", "progressTotal", "size", ...(carried !== undefined || c.props[fromKey] === "" ? [fromKey] : []));
+  // Yeni türün sunucuda reddettiği ayarlar atılır: göstergeye özgü davranışlar, ilerleme hedefi, rozet dışında `toneMap`,
+  // göstergede tanımsız simge ve dört görünüm türü dışındaki `variant`.
+  const dropped = [...METRIC_ONLY, "progressTotal", ...(type === "badge" ? [] : ["toneMap"])];
+  if (type === "metric" && c.props.icon !== undefined && !(typeof c.props.icon === "string" && c.props.icon in METRIC_ICONS)) dropped.push("icon");
+  if (type !== "progress" && c.props.variant !== undefined && !VARIANTS.includes(String(c.props.variant))) dropped.push("variant");
+  const props = without(c.props, ...dropped, ...(carried !== undefined || c.props[fromKey] === "" ? [fromKey] : []));
   if (carried !== undefined) props[valueKey(type)] = carried;
   if (props.slot === "indicators" && type !== "metric") props.slot = "above";
   return pruneOrphan(mapComponent(def, id, (item) => ({ ...item, type, props })), before);
 }
 
 /**
- * Kaynağı seçer: aynı kaynağa bağlı parametresiz bir okuma sorgusu varsa onu kullanır, yoksa ekler. Sayıda "Kayıt sayısı",
- * ilerleme ve durumda kaynağın ilk uygun kolonu varsayılan olur. Artık kullanılmayan eski gösterge sorgusu silinir.
+ * Kaynağı seçer: aynı kaynağa bağlı parametresiz bir okuma sorgusu varsa onu kullanır, yoksa ekler. Sayıda ilk sayı/tutar kolonu,
+ * yoksa "Kayıt sayısı"; ilerleme ve durumda kaynağın ilk uygun kolonu varsayılan olur. Eski `source` kaldırılır; artık kullanılmayan
+ * eski gösterge sorgusu silinir.
  */
 export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: string, ds: CatalogDataSource): D {
   const c = find(def, id);
   if (!c) return def;
   const before = sourceQueryOf(def, c);
   if (before?.dataSource === ds.code) return def;
-  const first = (c.type === "progress" ? ds.columns.find((column) => column.type === "number" || column.type === "money") : undefined) ?? ds.columns[0];
-  if (c.type !== "metric" && !first) return def;
+  const numeric = ds.columns.find((column) => isNumeric(column.type));
+  const counter = c.type === "metric" && !numeric ? countColumnOf(ds) : null;
+  const first = (c.type === "metric" || c.type === "progress" ? numeric : undefined) ?? ds.columns[0];
+  if (!first) return def;
   let queries = def.queries;
   let query = queries.find((item) => isCatalogRead(item) && item.dataSource === ds.code && item.parameters.length === 0 && item.runOn === "load");
   if (!query) {
@@ -116,19 +149,28 @@ export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: str
   const current = c.props[key];
   // Eski düz değer (ör. rozet metni) korunur; varsayılan bağlama yalnız boş ya da zaten bağlama olan değerin yerine yazılır.
   const writable = current === undefined || current === "" || parse(current) !== null;
-  const props = without(c.props, "query", "format", "compareValue", "progressTotal", ...(c.type === "metric" || parse(current) ? [key] : []));
-  if (c.type === "metric") props.query = target.id;
-  else if (first && writable) props[key] = binding(target.name, first.code);
+  const props = without(c.props, "query", "countWhen", "source", "format", "compareValue", "progressTotal", ...(c.type === "metric" || parse(current) ? [key] : []));
+  if (c.type === "metric" && counter) { props.query = target.id; props.countWhen = countCondition(target.name, counter); }
+  else if (c.type === "metric") { props[key] = binding(target.name, first.code); props.format = formatOf(first.type); }
+  else if (writable) props[key] = binding(target.name, first.code);
   return pruneOrphan(mapComponent({ ...def, queries }, id, (item) => ({ ...item, props })) as D, before);
 }
 
-export function setIndicatorValue<D extends ModelDefinition>(def: D, id: string, column: string | "count", columnType?: string): D {
+/**
+ * Değeri seçer. Sayıda "count" (Kayıt sayısı) `query` + `countWhen` yazar; koşul kolonu `countColumn` (bkz. `countColumnOf`), verilmezse
+ * var olan sayım koşulunun kolonudur, ikisi de yoksa tanım değişmez. Kolon yolu `query`, `countWhen` ve eski `source`'u kaldırır.
+ */
+export function setIndicatorValue<D extends ModelDefinition>(def: D, id: string, column: string | "count", columnType?: string, countColumn?: string | null): D {
   const c = find(def, id);
   const query = c && sourceQueryOf(def, c);
   if (!c || !query) return def;
   if (c.type === "metric") {
-    if (column === "count") return mapComponent(def, id, (item) => ({ ...item, props: { ...without(item.props, "value", "format", "compareValue"), query: query.id } }));
-    return mapComponent(def, id, (item) => ({ ...item, props: { ...without(item.props, "query"), value: binding(query.name, column), format: formatOf(columnType) } }));
+    if (column === "count") {
+      const counter = countColumn ?? (c.props.query === query.id ? countColumnIn(c.props.countWhen, query) : null);
+      if (!counter) return def;
+      return mapComponent(def, id, (item) => ({ ...item, props: { ...without(item.props, "value", "format", "compareValue", "source"), query: query.id, countWhen: countCondition(query.name, counter) } }));
+    }
+    return mapComponent(def, id, (item) => ({ ...item, props: { ...without(item.props, "query", "countWhen", "source"), value: binding(query.name, column), format: formatOf(columnType) } }));
   }
   if (column === "count") return def;
   return mapComponent(def, id, (item) => ({ ...item, props: { ...item.props, [valueKey(item.type)]: binding(query.name, column) } }));

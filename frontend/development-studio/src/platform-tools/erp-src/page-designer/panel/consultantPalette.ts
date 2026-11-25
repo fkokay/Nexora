@@ -69,5 +69,7 @@ export function consultantKindOf(component: ModelComponent): ConsultantKind | nu
   if (component.type === "heading" && component.props.pageTitle === true) return null;
   if (Array.isArray(component.children) && component.children.length > 0) return null;
   if (component.type === "card" && component.props.variant === "panel") return null;
+  // Simgeli bildirim (ERP durum şeridi) danışman bileşeni değildir; eski panelde açılır.
+  if (component.type === "alert" && typeof component.props.icon === "string" && component.props.icon.trim() !== "") return null;
   return kind;
 }
