@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, FilePlus2, History, LayoutGrid, LayoutTemplate
 import { authenticatedFetch } from "./authApi";
 import CustomMenusPage from "./CustomMenusPage";
 import CustomPagesPage from "./CustomPagesPage";
+import type { CanvasTenant } from "./page-designer/ErpCanvasFrame";
 import BuiltInScreenViewsPage from "./BuiltInScreenViewsPage";
 import ReportsPage from "./ReportsPage";
 import BusinessRulesPage from "./BusinessRulesPage";
@@ -22,7 +23,7 @@ type MenuState = { key: string; top: number; right: number };
 type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
-type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string };
+type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string; tenant?: CanvasTenant };
 
 // Araçlar arası geçiş artık Studio "Uyarlama araçları" girişinden yapılır (#tool-<id>); burada sekme şeridi yok.
 const sectionTitles: Record<Section, string> = {
@@ -44,7 +45,7 @@ function readEditingPage(): EditingCustomPage | null {
   } catch { return null; }
 }
 
-export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin }: Props) {
+export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin, tenant }: Props) {
   const active = sectionFor(initialSection);
   // Düzenlenen sayfa sekmenin oturum deposunda tutulur: sayfa yenilenince tasarımcı aynı sayfayla açılır (liste ekranına düşmez).
   // Kaydedilmemiş yeni sayfa saklanmaz.
@@ -267,7 +268,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
 
       <section className="low-code-designer-content" aria-label={sectionTitles[active]}>
         {active === "pages" && <div className="low-code-pages-shell">
-          {editingCustomPage ? <CustomPagesPage key={editingCustomPage === "new" ? "new-custom-page" : editingCustomPage.id} token={token} role={role} platformOrigin={platformOrigin} initialPageId={editingCustomPage === "new" ? null : editingCustomPage.id} initialCreate={editingCustomPage === "new"}
+          {editingCustomPage ? <CustomPagesPage key={editingCustomPage === "new" ? "new-custom-page" : editingCustomPage.id} token={token} role={role} platformOrigin={platformOrigin} tenant={tenant} initialPageId={editingCustomPage === "new" ? null : editingCustomPage.id} initialCreate={editingCustomPage === "new"}
             systemScreenKey={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.systemScreenKey : undefined}
             importNotes={editingCustomPage !== "new" && "systemScreenKey" in editingCustomPage ? editingCustomPage.importNotes : undefined}
             embedded onBack={() => setEditingCustomPage(null)} />

@@ -50,6 +50,10 @@ import { CountWhenField } from "./page-designer/CountWhenField";
 import { ConditionFields } from "./page-designer/ConditionFields";
 import { TabsFields, cleanTabLabel, tabsValue, type TabEntry } from "./page-designer/TabsFields";
 import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
+import ErpCanvasFrame, { type CanvasTenant } from "./page-designer/ErpCanvasFrame";
+import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
+import { dropIndex } from "./page-designer/canvasHitTest";
+import { useDraftAutosave } from "./page-designer/useDraftAutosave";
 import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
@@ -1075,9 +1079,11 @@ type Props = {
   systemScreenKey?: string;
   /** "Tasarımcıda aç" yanıtındaki aktarım notları; bir kez, kapatılabilir bildirim olarak gösterilir. */
   importNotes?: string[];
+  /** Studio'da seçili firma: ERP tuvali (iframe) bununla oturum açar; yoksa yerleşik tuval çizilir. */
+  tenant?: CanvasTenant;
 };
 
-export default function CustomPagesPage({ token, role, platformOrigin, initialPageId, initialCreate = false, onBack, systemScreenKey, importNotes }: Props) {
+export default function CustomPagesPage({ token, role, platformOrigin, initialPageId, initialCreate = false, onBack, systemScreenKey, importNotes, tenant }: Props) {
   const systemMode = !!systemScreenKey;
   const [systemInfo, setSystemInfo] = useState<SystemPageInfo | null>(null);
   const [importNotesOpen, setImportNotesOpen] = useState(() => (importNotes?.length ?? 0) > 0);
@@ -1184,6 +1190,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const focusMembers = useMemo(() => focusOwner ? focusMembersOf(focusOwner, definition.components) : [], [focusOwner, definition]);
   // Pencerenin içindeki form kartı / kart açıkken kırıntıda ve Esc ile dönülecek üst sahip (pencere).
   const focusParent = focusOwner ? definition.components.find((component) => component.id === refTree.refLocation(definition.components, focusOwner.id)?.ownerId) ?? null : null;
+  // ERP tuvali: sayfa düzeyinde kaydedilmiş taslağı gerçek ERP sayfasında (iframe) gösterir. Bağlanamazsa yerleşik tuvale dönülür;
+  // kart / pencere içi tasarım ekranı her zaman yerleşik tuvali kullanır.
+  const [canvasFallback, setCanvasFallback] = useState(false);
+  const [canvasInteractive, setCanvasInteractive] = useState(false);
+  const erpBlocks = useRef<ErpCanvasBlock[]>([]);
+  const erpCanvasAvailable = !!platformOrigin && !!tenant && !canvasFallback;
+  const erpCanvas = erpCanvasAvailable && !focusOwner;
+  useEffect(() => { erpBlocks.current = []; }, [current?.id, systemScreenKey, erpCanvas]);
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await authenticatedFetch(url, token, {
@@ -1707,6 +1721,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const dragOverCanvas = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
     if (!canEdit || !dragStore.get().dragging) return;
+    if (erpCanvas) {
+      // ERP tuvali: bloklar iframe belgesinin koordinatlarındadır; konum yalnız üst düzey bileşenler arasında hesaplanır.
+      const frame = (event.currentTarget as HTMLElement).querySelector(".pd-erp-canvas");
+      if (!frame) return;
+      const at = dropIndex(erpBlocks.current, definitionRef.current.components.map((component) => component.id), event.clientY - frame.getBoundingClientRect().top);
+      if (dragStore.get().canvasDrop !== at) dragStore.set({ canvasDrop: at });
+      return;
+    }
     canvasHit.current = { target: event.target as Element | null, x: event.clientX, y: event.clientY };
     if (canvasFrame.current) return;
     canvasFrame.current = requestAnimationFrame(() => {
@@ -2135,13 +2157,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     window.addEventListener("pointerup", stop);
     window.addEventListener("pointercancel", stop);
   };
-  const saveDraft = async (options?: { standardVersion?: number; notice?: string }) => {
-    if (!canEdit) { setError("Bu sayfayı düzenleme yetkiniz yok."); return null; }
+  // `quiet`: otomatik kayıt; başarı bildirimi gösterilmez, eksik ad / kod ya da doğrulama sorunu hata yazmadan, seçimi ve
+  // pencereleri değiştirmeden `null` döner (bileşen düzenlenirken tanım geçici olarak eksik olabilir; elle kayıt nedeni gösterir).
+  const saveDraft = async (options?: { standardVersion?: number; notice?: string; quiet?: boolean }) => {
+    const quiet = !!options?.quiet;
+    const fail = (message: string, reveal?: () => void) => { if (!quiet) { setError(message); reveal?.(); } return null; };
+    if (!canEdit) return fail("Bu sayfayı düzenleme yetkiniz yok.");
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
     const reconciled = reconcileDefinition(definitionRef.current, { catalog: erpCatalog, queryEditable });
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
-    if (!name.trim() || !code.trim()) { setError("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin."); setSelectedComponentId(null); setRightMode("inspector"); return null; }
+    if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
     // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
     const pageInputIds = new Set(cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => component.id));
     for (const component of definition.components) {
@@ -2164,13 +2190,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ?? conditionProblem("optionsWhen", component.props.optionsWhen, [...pageNamesOf(definition), "satir"])
         ?? pickerGridProblem(component, definition)
         ?? countWhenProblem(component.props.countWhen, component.type === "metric" ? definition.queries.find((query) => query.id === component.props.query)?.name ?? null : null, pageNamesOf(definition));
-      if (condition) { setError(condition); setSelectedComponentId(component.id); setRightMode("inspector"); return null; }
+      if (condition) return fail(condition, () => { setSelectedComponentId(component.id); setRightMode("inspector"); });
     }
     // Bileşen listeli çalışma (önizleme sorgusu): adlar sayfadaki giriş / tablo adları, gecikme 150–3000.
     const runOnTargets = cardTree.flattenComponents(definition.components).filter((component) => RUN_ON_TYPES.has(component.type) && !!component.name).map((component) => component.name!);
     for (const query of definition.queries) {
       const problem = runOnProblem(query, runOnTargets);
-      if (problem) { setError(problem); setQueryEditorOpen(true); setSelectedQueryId(query.id); return null; }
+      if (problem) return fail(problem, () => { setQueryEditorOpen(true); setSelectedQueryId(query.id); });
     }
     // ERP işlemi sorguları: işlem seçilmeli ve zorunlu parametreler bağlanmalı (katalog alınamadıysa sunucu denetler).
     for (const query of definition.queries) {
@@ -2178,9 +2204,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const op = findOperation(erpCatalog, query.operation);
       const problem = !query.operation ? `“${query.name}” sorgusu için bir ERP işlemi seçin.`
         : op ? (() => { const missing = unboundRequiredParameter(op, query.parameters); return missing ? `Zorunlu parametre bağlanmadı: ${missing}` : bodyMapBlockProblem(query, op, definition); })() : null;
-      if (problem) { setError(problem); setQueryEditorOpen(true); setSelectedQueryId(query.id); return null; }
+      if (problem) return fail(problem, () => { setQueryEditorOpen(true); setSelectedQueryId(query.id); });
     }
-    setSaving(true); setError(""); setNotice("");
+    // Otomatik kayıt bildirimleri (ör. ERP tuvali yedek uyarısı) silmez.
+    setSaving(true); if (!quiet) { setError(""); setNotice(""); }
     const sentSnapshot = snapshotOf(name, description, definition);
     const wire = wireDefinition(definition, erpCatalog);
     try {
@@ -2188,7 +2215,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition: wire, ...(systemMode ? { standardVersion: options?.standardVersion ?? (allNewItemsAdded ? newItems.standardVersion : null) } : {}) }) })
         : await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: code.trim(), name, description: description || null, definition: wire }) });
       setCurrent(result); setCreating(false); setCode(result.code); setSavedSnapshot(sentSnapshot);
-      setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
+      if (!quiet) setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
       await refreshHistory(result.id);
       await refresh();
       return result;
@@ -2196,6 +2223,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     finally { setSaving(false); }
     return null;
   };
+  // ERP tuvali yalnız kaydedilmiş taslağı gösterir: tanım değişince taslak sessizce kaydedilir, başarılı kayıt tuvali yeniler.
+  // Değişiklik yoksa (sayfa açılışı, elle kayıt) PUT atılmaz ama tuval yine güncel kayda yenilenir. Elle kayıt sürerken beklenir.
+  const autosave = useDraftAutosave({
+    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()),
+    changeKey: definition,
+    save: async () => saving ? false : !dirty && !!current ? true : Boolean(await saveDraft({ quiet: true })),
+  });
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
   const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
     const operationQuery = definitionRef.current.queries.find((item) => item.id === queryId);
@@ -3578,11 +3612,24 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {([["desktop", Monitor, "Masaüstü"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Mobil"]] as const).map(([value, Icon, label]) => <button type="button" key={value} className={`pd-icon-button ${device === value ? "active" : ""}`} aria-pressed={device === value} title={label} aria-label={label} onClick={() => setDevice(value)}><Icon size={15}/></button>)}
           </div>
           <button type="button" className={`pd-button ${showGrid ? "active" : ""}`} aria-pressed={showGrid} onClick={() => setShowGrid((value) => !value)}><Grid3X3 size={14}/>Izgara</button>
-          <span className="pd-canvas-meta">{focusOwner ? `${focusMembers.length} ${focusOwner.type === "formCard" || focusOwner.type === "facetPanel" ? "giriş" : "bileşen"} · ${focusKindText(focusOwner.type)} · ` : `${definition.components.length} bileşen · `}{device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
-          {!focusOwner && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
+          {erpCanvas && <div className="pd-button-group" role="group" aria-label="Tuval kipi">
+            <button type="button" className={`pd-button ${!canvasInteractive ? "active" : ""}`} aria-pressed={!canvasInteractive} title="Tıklanan bileşen seçilir" onClick={() => setCanvasInteractive(false)}>Seç</button>
+            <button type="button" className={`pd-button ${canvasInteractive ? "active" : ""}`} aria-pressed={canvasInteractive} title="Sayfa ERP'deki gibi kullanılır" onClick={() => setCanvasInteractive(true)}>Dene</button>
+          </div>}
+          <span className="pd-canvas-meta">{focusOwner ? `${focusMembers.length} ${focusOwner.type === "formCard" || focusOwner.type === "facetPanel" ? "giriş" : "bileşen"} · ${focusKindText(focusOwner.type)} · ` : `${definition.components.length} bileşen · `}{erpCanvas ? "ERP önizlemesi · otomatik yerleşim" : device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
+          {!focusOwner && !erpCanvas && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
-          <div className={`pd-frame device-${device}`}>
+          {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
+            onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}>
+            <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
+              revision={autosave.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
+              selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
+              onBlocks={(blocks) => { erpBlocks.current = blocks; }}
+              onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}/>
+          </div>
+            : <div className="pd-canvas-empty"><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div>
+          : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
             {(() => {
@@ -3657,7 +3704,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             </div>
             : <CanvasGrid store={dragStore} gridRef={gridRef} blocks={canvasBlocks} layoutKey={canvasLayoutKey} guides={canvasGuides} empty={canvasEmpty}
               placeholderFor={placeholderFor} onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}/>}
-          </div>
+          </div>}
         </div>
       </section>
 
