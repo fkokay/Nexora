@@ -15,7 +15,7 @@ import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
 import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetGroupPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup, FilterBarPreview, RecordHeaderPreview, StepsPreview } from "./page-designer/CanvasPreviews";
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
-import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
+import QueriesPanel, { MAX_QUERIES, catalogReference, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, pageDateScope, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
@@ -860,6 +860,8 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
   ...definition,
   queries: definition.queries.map((query) => {
     const { sql, operation, ...rest } = query;
+    // Katalog başvurulu sorgu (dataSource/action): kod olduğu gibi kalır; sql ya da operation eklenmez.
+    if (catalogReference(query) !== undefined) return rest;
     if (!isOperationQuery(query)) return { ...rest, sql: sql ?? "" };
     const op = findOperation(catalog, operation);
     return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };

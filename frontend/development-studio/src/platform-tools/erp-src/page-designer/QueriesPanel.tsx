@@ -16,10 +16,15 @@ export type QueryKind = "read" | "insert" | "update" | "delete";
  * Sayfa sorgusu: ya SQL (`sql`) ya da ERP işlemi (`operation`). Düzenleyicide `operation` anahtarı varsa (boş da olsa)
  * sorgu ERP işlemi modundadır; SQL metni mod değişiminde kaybolmasın diye durumda kalır, kayıtta atılır.
  */
-export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: QueryRunOn;
+export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string;
+  /** Firma kataloğundaki veri kaynağı ya da eylem koduna salt okunur başvuru (SQL/işlem yerine); Studio'da düzenlenmez, kayıtta korunur. */
+  dataSource?: string; action?: string; parameters: PageQueryParameter[]; runOn: QueryRunOn;
   /** Yalnız bileşen listeli `runOn` ile: yeniden çalışma gecikmesi (ms, 150–3000; boşsa 400). */
   runDebounceMs?: number };
 export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
+/** Katalog başvurulu sorgu: `dataSource` ya da `action` kodu taşır; SQL ve işlem içermez. */
+export const catalogReference = (query: PageQuery): string | undefined =>
+  typeof query.dataSource === "string" ? query.dataSource : typeof query.action === "string" ? query.action : undefined;
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; meta?: Record<string, unknown> };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
@@ -362,6 +367,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
         return <li key={query.id}>
           <button type="button" className={`pd-query-card ${query.id === selectedId ? "is-selected" : ""}`} aria-pressed={query.id === selectedId} onClick={() => onSelect(query.id)}>
             <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className={`pd-query-kind${isWriteKind(query.kind) ? " is-write" : ""}`}>{queryKindLabels[query.kind]}</span></span>
+            {catalogReference(query) !== undefined && <small className="pd-query-muted">Katalog: {catalogReference(query)}</small>}
             <small>{isOperationQuery(query) ? "ERP işlemi · " : ""}{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnSummary(query.runOn)}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
           </button>
         </li>;
@@ -370,10 +376,10 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
       title={queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : undefined}><Plus size={13}/>Sorgu ekle</button>
 
     {selected && <section className="pd-query-detail" aria-label={`${selected.name} sorgusu`}>
-      <QueryDetailFields query={selected} queries={queries} editable={editable} schema={schema} suggestions={suggestions} takenNames={takenNames(selected.id)}
-        onUpdate={(patch, coalesceKey) => onUpdate(selected.id, patch, coalesceKey)} catalog={catalog} onAddSourceQuery={onAddSourceQuery} components={components}/>
+      {catalogReference(selected) !== undefined ? <p className="pd-query-muted">Bu sorgu firma kataloğundaki “{catalogReference(selected)}” koduna başvurur; Studio'da düzenlenmez, kayıtta olduğu gibi korunur.</p> : <QueryDetailFields query={selected} queries={queries} editable={editable} schema={schema} suggestions={suggestions} takenNames={takenNames(selected.id)}
+        onUpdate={(patch, coalesceKey) => onUpdate(selected.id, patch, coalesceKey)} catalog={catalog} onAddSourceQuery={onAddSourceQuery} components={components}/>}
       <div className="pd-query-actions">
-        <button type="button" className="pd-button small primary" disabled={!editable || !!runBlockedReason || running !== null} title={runBlockedReason ?? undefined}
+        <button type="button" className="pd-button small primary" disabled={!editable || !!runBlockedReason || running !== null || catalogReference(selected) !== undefined} title={runBlockedReason ?? undefined}
           onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write && !erpMode ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>
         <button type="button" className="pd-button small danger" disabled={!editable} onClick={() => onRemove(selected.id)}><Trash2 size={13}/>Sorguyu sil</button>
       </div>

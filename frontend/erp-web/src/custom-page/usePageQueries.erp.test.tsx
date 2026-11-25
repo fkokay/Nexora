@@ -336,3 +336,18 @@ describe('useErpOperations', () => {
     expect(result.current.operations).toBeNull();
   });
 });
+
+describe('usePageQueries katalog hatası', () => {
+  const catalogQuery = { id: 'q9', name: 'cariler', kind: 'read', runOn: 'load', catalogError: 'Katalogda bulunamadı: cariler', parameters: [] };
+
+  it('catalog_error_query_is_not_run_and_reports_error', async () => {
+    const queries = readPageQueries({ queries: [catalogQuery] });
+    expect(queries[0].catalogError).toBe('Katalogda bulunamadı: cariler');
+    const { result } = setup(queries, null);
+    await waitFor(() => expect(result.current.states.cariler.error).toBe('Katalogda bulunamadı: cariler'));
+    expect(result.current.states.cariler).toMatchObject({ loading: false, ran: true });
+    expect(apiMock).not.toHaveBeenCalled();
+    await expect(result.current.runRead('q9')).rejects.toThrow('Katalogda bulunamadı: cariler');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+});
