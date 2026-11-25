@@ -21,7 +21,7 @@ internal static partial class TenantCustomPageSchema
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
     private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image", "filterBar", "steps", "recordHeader" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
-    private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
+    private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries", "template" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
     private static readonly HashSet<string> ComponentKeysV2 = new(ComponentKeys, StringComparer.Ordinal) { "name" };
     private static readonly HashSet<string> SafeProps = new(StringComparer.Ordinal)
@@ -92,6 +92,8 @@ internal static partial class TenantCustomPageSchema
       "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat",
       // Veri listesi araç çubuğunun "Detay paneli" düğmesi: bağlı onay kutusu girişini açıp kapatır (giriş ayrıca çizilmez).
       "detailToggleInput",
+      // Sayfa kalıbı (alt proje 3): bileşenin kalıptaki yeri (slot), dar kutuda gizleme ve çizgili satırlar. Kalıpsız sayfada slot yok sayılır.
+      "slot", "hideOnMobile", "striped",
       // Çok satırlı metin girişi (multiline), girişin altındaki hazır değer düğmeleri (presets: "değer=Etiket"), aranabilir
       // açılır listede listede olmayan değeri kabul etme (allowCustom) ve açılış sekmesini sayfa parametresinden seçme (tabParam).
       "multiline", "presets", "allowCustom", "tabParam" };
@@ -204,6 +206,8 @@ internal static partial class TenantCustomPageSchema
     private sealed class Context(int version)
     {
         public bool V2 { get; } = version == 2;
+        /// <summary>The page carries a v2 root <c>template</c> named "list"; its slot:list table may set <c>pageSize</c> without server paging.</summary>
+        public bool ListTemplate { get; init; }
         public ErpOperationLookup Lookup { get; init; } = ErpOperationCatalog.TryGet;
         /// <summary>Operation names the page already used before this save; deprecated ones stay accepted.</summary>
         public IReadOnlySet<string> ExistingOperations { get; init; } = new HashSet<string>();
@@ -353,7 +357,7 @@ internal static partial class TenantCustomPageSchema
                 || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array
                 || components.GetArrayLength() > (version == 2 ? MaxComponentsV2 : MaxComponentsV1))
             { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli (sürüm 2: 120) components dizisi içermelidir."; return false; }
-            var context = new Context(version) { Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
+            var context = new Context(version) { ListTemplate = version == 2 && IsListTemplate(root), Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
             foreach (var pageQuery in queries) { context.QueryById[pageQuery.Id] = pageQuery; context.ExactNames.Add(pageQuery.Name); }
@@ -363,6 +367,11 @@ internal static partial class TenantCustomPageSchema
             if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x) && !IsFilterBarTarget(context, x)) is { } missingInput)
             { error = $"Göstergenin süzeceği giriş bileşeni sayfada yok: {missingInput}."; return false; }
             if (!ResolveLayoutReferences(context, out error)) return false;
+            if (context.V2 && root.TryGetProperty("template", out _))
+            {
+                root.TryGetProperty("queries", out var templateQueries);
+                if (PageTemplateRules.ValidateTemplate(root, components, templateQueries) is { } templateError) { error = templateError; return false; }
+            }
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
             return true;
@@ -1628,6 +1637,10 @@ internal static partial class TenantCustomPageSchema
         return true;
     }
 
+    private static bool IsListTemplate(JsonElement root) =>
+        root.TryGetProperty("template", out var template) && template.ValueKind == JsonValueKind.Object
+        && template.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == "list";
+
     private static bool ValidatePagingProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
     {
         error = null;
@@ -1638,8 +1651,13 @@ internal static partial class TenantCustomPageSchema
             { error = "'paging' yalnız veri listesinde \"server\" olabilir."; return false; }
             paged = true;
         }
+        // Kalıplı liste istemci sayfalar: yalnız üst düzey slot:list tablosu sunucu sayfalaması olmadan 'pageSize' alabilir.
+        var templateListTable = !paged && context.ListTemplate && typeText == "dataTable" && context.TopLevelIds.Contains(id) && StringOf(props, "slot") == "list";
+        if (templateListTable && props.TryGetProperty("pageSize", out var choice)
+            && (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100)))
+        { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
         foreach (var key in PagingProps)
-            if (!paged && props.TryGetProperty(key, out _))
+            if (!paged && !(templateListTable && key == "pageSize") && props.TryGetProperty(key, out _))
             { error = $"'{key}' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir."; return false; }
         if (!paged) return true;
         var parameterNames = new string[2];
@@ -1846,7 +1864,7 @@ internal static partial class TenantCustomPageSchema
         ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"], ["backdropClose"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
-        ["closeInput"] = ["card"],
+        ["closeInput"] = ["card"], ["striped"] = ["dataTable"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
         ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
         ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
@@ -1897,8 +1915,14 @@ internal static partial class TenantCustomPageSchema
     {
         error = null;
         foreach (var prop in props.EnumerateObject())
+        {
             if (FazBPropTypes.TryGetValue(prop.Name, out var types) && !types.Contains(typeText, StringComparer.Ordinal))
             { error = $"'{prop.Name}' özelliği bu bileşen türünde kullanılamaz."; return false; }
+            if (prop.Name is "hideOnMobile" or "striped" && prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            { error = $"'{prop.Name}' doğru ya da yanlış olmalıdır."; return false; }
+            if (prop.Name == "slot" && prop.Value.ValueKind != JsonValueKind.String)
+            { error = "'slot' bir metin olmalıdır."; return false; }
+        }
         return typeText switch
         {
             "actionBar" or "dialog" or "button" when !ValidateSequenceProps(props, id, typeText, context, out error) => false,

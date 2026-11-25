@@ -1,6 +1,27 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { startPageWorkflow } from "./custom-page/workflowStart";
 import "./tenant-workflow-action.css";
+
+type WorkflowRunHooks = {
+  setFeedback: (status: { tone: "success" | "error"; text: string } | null) => void;
+  setBusy: (busy: boolean) => void;
+  inFlight: { current: boolean };
+};
+
+/** İş akışı düğmesinin başlatması: sayfa düğmesi ve kalıp kabuğunun işlem çubuğu aynı yolu kullanır. */
+export async function runWorkflowStart({ token, workflowId, title, pageCode, componentId }: {
+  token: string; workflowId: string; title: string; pageCode: string; componentId: string;
+}, { setFeedback, setBusy, inFlight }: WorkflowRunHooks) {
+  if (!workflowId || inFlight.current) return;
+  inFlight.current = true;
+  setBusy(true); setFeedback(null);
+  try {
+    await startPageWorkflow(token, workflowId, title, pageCode, componentId);
+    setFeedback({ tone: "success", text: "İş akışı başlatıldı." });
+  } catch (cause) {
+    setFeedback({ tone: "error", text: (cause as Error).message || "İş akışı başlatılamadı." });
+  } finally { inFlight.current = false; setBusy(false); }
+}
 
 export default function TenantWorkflowAction({
   token, workflowId, title, pageCode, componentId,
@@ -14,17 +35,14 @@ export default function TenantWorkflowAction({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
+  const inFlight = useRef(false);
 
-  const start = async () => {
-    if (!workflowId || busy) return;
-    setBusy(true); setMessage(""); setFailed(false);
-    try {
-      await startPageWorkflow(token, workflowId, title, pageCode, componentId);
-      setMessage("İş akışı başlatıldı.");
-    } catch (cause) {
-      setFailed(true);
-      setMessage((cause as Error).message || "İş akışı başlatılamadı.");
-    } finally { setBusy(false); }
+  const start = () => {
+    if (busy) return;
+    return runWorkflowStart({ token, workflowId, title, pageCode, componentId }, {
+      setFeedback: (status) => { setMessage(status?.text ?? ""); setFailed(status?.tone === "error"); },
+      setBusy, inFlight,
+    });
   };
 
   return <div className="tenant-workflow-action">

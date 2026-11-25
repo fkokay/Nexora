@@ -138,7 +138,8 @@ internal static partial class TenantCustomPageQueries
     /// (an <c>operation</c> key and no <c>sql</c> key) carry no SQL and run against their own endpoint with the user's
     /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Catalog references
     /// (<c>dataSource</c> / <c>action</c>) deliberately count too: their catalog item may run SQL on the server, so the
-    /// access-row, runtime-rights and SQL-visibility rules that use this check stay unchanged for them. Never throws on stored JSON.
+    /// access-row, runtime-rights and SQL-visibility rules that use this check stay unchanged for them. The save gate
+    /// (<see cref="HasInlineSqlQueries"/>) is a different, narrower rule: it does not count catalog references. Never throws on stored JSON.
     /// </summary>
     internal static bool HasSqlQueries(string definitionJson)
     {
@@ -154,13 +155,13 @@ internal static partial class TenantCustomPageQueries
     }
 
     /// <summary>
-    /// The save gate's structural pre-check: like <see cref="HasSqlQueries"/>, but a pure catalog data source reference (an
-    /// object with a <c>dataSource</c> key, kind <c>read</c>, and none of <c>sql</c>, <c>operation</c> or <c>action</c>) does
-    /// not count here. Such references are not exempt by themselves: the gate resolves each of them
-    /// (<see cref="PureDataSourceReferenceCodes"/>) against the active catalog and still requires a verified TenantAdmin
-    /// unless the item is a read ERP operation. Action references and malformed entries count. Never throws on stored JSON.
+    /// The save gate's structural check for inline SQL: like <see cref="HasSqlQueries"/>, but a catalog reference (an object
+    /// with a <c>dataSource</c> or <c>action</c> key and neither <c>sql</c> nor <c>operation</c>) does not count. Catalog
+    /// references carry only a code: the catalog version is activated by a TenantAdmin and its SQL is re-validated on every
+    /// run, so any user with page write permission may save them (Karar 1). Malformed entries and inline SQL count.
+    /// Never throws on stored JSON.
     /// </summary>
-    internal static bool HasSqlQueriesExceptDataSourceReferences(string definitionJson)
+    internal static bool HasInlineSqlQueries(string definitionJson)
     {
         try
         {
@@ -169,33 +170,12 @@ internal static partial class TenantCustomPageQueries
             return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
                 && queries.EnumerateArray().Any(query => query.ValueKind != JsonValueKind.Object
                     || query.TryGetProperty("sql", out _)
-                    || (!query.TryGetProperty("operation", out _) && !IsPureDataSourceReference(query)));
+                    || (!query.TryGetProperty("operation", out _) && !IsCatalogReference(query)));
         }
         catch (JsonException) { return false; }
     }
 
-    /// <summary>
-    /// The codes of the pure catalog data source references that <see cref="HasSqlQueriesExceptDataSourceReferences"/> left
-    /// out; a code that is not a string yields null (the gate treats it as SQL). Never throws on stored JSON.
-    /// </summary>
-    internal static IReadOnlyList<string?> PureDataSourceReferenceCodes(string definitionJson)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
-            var root = document.RootElement;
-            if (!IsVersion2(root) || !root.TryGetProperty("queries", out var queries) || queries.ValueKind != JsonValueKind.Array) return [];
-            return queries.EnumerateArray()
-                .Where(query => query.ValueKind == JsonValueKind.Object && !query.TryGetProperty("sql", out _)
-                    && !query.TryGetProperty("operation", out _) && IsPureDataSourceReference(query))
-                .Select(query => OptionalText(query, "dataSource")).ToArray();
-        }
-        catch (JsonException) { return []; }
-    }
-
-    private static bool IsPureDataSourceReference(JsonElement query) =>
-        query.TryGetProperty("dataSource", out _) && !query.TryGetProperty("action", out _)
-        && query.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "read";
+    private static bool IsCatalogReference(JsonElement query) => query.TryGetProperty("dataSource", out _) || query.TryGetProperty("action", out _);
 
     /// <summary>Structural check: a v2 definition with a query that has a <c>dataSource</c> or <c>action</c> key (any value). Never throws on stored JSON.</summary>
     internal static bool HasCatalogReferences(string definitionJson)

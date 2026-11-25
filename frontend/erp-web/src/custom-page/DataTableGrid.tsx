@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import AdvancedDataGrid, { type GridExportActions, type GridToolbarToggle } from "../AdvancedDataGrid";
 import type { BulkAction } from "../list-page/BulkActionBar";
@@ -8,6 +8,8 @@ import { PagedTableFooter } from "./PagedTableFooter";
 import type { QueryState } from "./usePageQueries";
 import type { ActionStatus } from "./PageDialog";
 import type { RowAction, TablePaging } from "../TenantCustomPage";
+import { ListModeContext, ShellSearchContext, cardFields, visibleColumns } from "../page-templates/listResponsive";
+import { RowActionsMenu } from "../page-templates/RowActionsMenu";
 import "./data-table-grid.css";
 
 /**
@@ -61,6 +63,8 @@ export type DataTableGridProps = {
   status?: ActionStatus | null;
   /** `detailToggleInput`: ızgara araç çubuğunda, Sütunlar'ın yanında basılı/bırakılmış düğme (ör. "Detay paneli"). */
   toolbarToggles?: GridToolbarToggle[];
+  /** Liste kalıbında sunucu sayfalaması olmadan sayfa boyutu (10/25/50/100): istemci sayfalaması. Kalıp dışında yok sayılır. */
+  clientPageSize?: number;
 };
 
 const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
@@ -88,12 +92,24 @@ const labeledCell = (labels: Record<string, Record<string, string>>, code: strin
 const rowKey = (index: number) => `r${index}`;
 const keyIndex = (key: string | null) => key && /^r\d+$/.test(key) ? Number(key.slice(1)) : -1;
 
-export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS, toolbarToggles }: DataTableGridProps) {
+export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS, toolbarToggles, clientPageSize }: DataTableGridProps) {
+  // Liste kalıbının kutu genişliği kipi; kalıp dışında null: ızgara eskisi gibi çizilir.
+  const mode = useContext(ListModeContext);
+  // Kabukta arama kutusu varsa ızgara araç çubuğundaki arama gizlenir; diğer araçlar kalır.
+  const shellSearch = useContext(ShellSearchContext);
+  const [clientPage, setClientPage] = useState(1);
   // Seçilen sütunlar tasarımcının seçim sırasıyla; başlık `columnLabels` ile değişebilir.
   const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
     .map((column) => columnLabels[code] ? { ...column, label: columnLabels[code] } : column)) : [];
-  const visible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
+  const allVisible = (chosen.length > 0 ? chosen : state.columns).slice(0, 20);
+  const shownCodes = mode ? visibleColumns(allVisible.map((column) => column.code), mode) : null;
+  const visible = shownCodes ? allVisible.filter((column) => shownCodes.includes(column.code)) : allVisible;
   const drawn = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
+  const pageSize = mode && !paging && clientPageSize ? clientPageSize : null;
+  // Tablo kipinde sayfalamayı ızgara kendisi yapar (süzgeç, arama ve sıralama tüm satırlar üzerinde; satır anahtarları mutlak); yalnız kart kipi kendi sayfasını keser.
+  const cardPages = pageSize ? Math.max(1, Math.ceil(drawn.length / pageSize)) : 1;
+  const shownPage = Math.min(clientPage, cardPages);
+  const cardRows = pageSize ? drawn.slice((shownPage - 1) * pageSize, shownPage * pageSize) : drawn;
   const actionsShown = rowActions.length > 0 && drawn.some((row) => rowActions.some((action) => action.visible(row)));
   // Yeni sonuç gelince aynı kimlikli satır varsa seçim ona geçer, yoksa kalkar (açık kayıt penceresi aynı kaydı izler).
   useEffect(() => {
@@ -106,6 +122,15 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   // Tıklama satırı kendisi seçer/bırakır; ızgaranın aynı tıklamadaki güncel satır isteği yok sayılır (çift seçim olmaz).
   const clickRef = useRef(false);
   const exportRef = useRef<GridExportActions | null>(null);
+  // İşaretler satırın sırasıyla (`r<sıra>`) tutulur: satır kümesi değişince (yenileme, kabuk araması, satır işleminden sonra
+  // yeniden yükleme) aynı sıra başka bir kaydı gösterebilir. Bayat işaret toplu silmeye ulaşmasın diye işaretler kalkar;
+  // layout etkisi, eski işaret bir kare bile boyanmasın.
+  const rowsRef = useRef(state.rows);
+  useLayoutEffect(() => {
+    if (rowsRef.current === state.rows) return;
+    rowsRef.current = state.rows;
+    exportRef.current?.clearSelection?.();
+  }, [state.rows]);
   const bulkList: BulkAction[] = [];
   if (tools.selectedExport) bulkList.push({ id: "export-selected", label: SELECTED_EXPORT_LABEL, run: () => void exportRef.current?.exportExcel() });
   if (bulkDelete) {
@@ -143,7 +168,9 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
     return <span className={`tenant-page-tag${tone ? ` tone-${tone}` : ""}`}>{text}</span>;
   };
   // Satır işlemi tıklaması satır seçimini değiştirmez; satırı işlem kendisi seçer.
-  const actionCell = (row: Record<string, unknown>) => <td className="tenant-page-row-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+  const actionCell = (row: Record<string, unknown>) => mode && mode !== "full"
+    ? <td className="tenant-page-row-actions"><RowActionsMenu actions={rowActions.filter((action) => action.visible(row))} row={row} /></td>
+    : <td className="tenant-page-row-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
     {rowActions.filter((action) => action.visible(row)).map((action) => {
       const reason = action.disabled(row);
       return <button key={action.id} type="button" className="tenant-page-row-action" disabled={reason !== null} title={reason ?? undefined}
@@ -155,6 +182,32 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   const totalLabel = paging ? `Sayfa toplamı · ${drawn.length} kayıt`
     : state.truncated ? `Toplam · ilk ${drawn.length} satır` : `Toplam · ${drawn.length} kayıt`;
   // Sonuç varken yenileme ızgarayı kaldırmaz: kullanıcının filtre ve sıralaması korunur.
+  const numericCodes = new Set(allVisible.filter((column) => isRightAligned(formats[column.code], column.dataType)).map((column) => column.code));
+  const fields = cardFields(visible.map((column) => column.code), numericCodes);
+  const byCode = (code: string | null) => visible.find((column) => column.code === code);
+  // Kart kipi (dar kutu): satır bir kart; başlık, iki alt satır ve sağda tutar.
+  // Karta tek dokunuş (ya da Enter) kaydı açar (açma eylemi varsa); yoksa seçer. Dokunmatik ve klavyede çift tıklama yoktur.
+  const activate = (row: Record<string, unknown>) => {
+    if (onOpenRow) { if (selected !== row) onSelect?.(row, { user: true }); onOpenRow(row); } else toggle(row);
+  };
+  const cards = <ul className="list-cards" role="listbox" aria-label={title || "Kayıtlar"}>
+    {cardRows.length === 0 && <li className="table-empty tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</li>}
+    {cardRows.map((row, index) => {
+      const titleColumn = byCode(fields.title);
+      const amountColumn = byCode(fields.amount);
+      const interactive = !!onSelect || !!onOpenRow;
+      return <li key={rowKey(index)} role="option" aria-selected={onSelect ? selected === row : undefined} className={`list-card${selected === row ? " is-selected" : ""}`} tabIndex={interactive ? 0 : undefined}
+        onClick={interactive ? () => activate(row) : undefined}
+        onKeyDown={interactive ? (event) => { if (event.defaultPrevented || event.key !== "Enter") return; event.preventDefault(); activate(row); } : undefined}>
+        <div className="list-card-main">
+          {titleColumn && <strong className="list-card-title">{renderCell(titleColumn, row)}</strong>}
+          {fields.sub.map((code) => { const column = byCode(code); return column ? <span key={code} className="list-card-sub">{renderCell(column, row)}</span> : null; })}
+        </div>
+        {amountColumn && <span className="list-card-amount">{renderCell(amountColumn, row)}</span>}
+        <RowActionsMenu actions={rowActions.filter((action) => action.visible(row))} row={row} />
+      </li>;
+    })}
+  </ul>;
   const showGrid = !state.error && !neverRan(state) && !(state.loading && state.rows.length === 0);
 
   return <section className={`tenant-page-block tenant-page-data-grid tenant-page-report-widget ${state.error ? "is-error" : ""}`} style={style}>
@@ -164,13 +217,15 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
     {paging?.search && <div className="tenant-page-table-search">{paging.search}</div>}
     {state.error ? <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{state.error}</span></div>
       : neverRan(state) ? <div className="tenant-report-state" role="status">{emptyText || MANUAL_QUERY_IDLE}</div>
-        : !showGrid ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
+        : !showGrid ? (mode ? <div className="list-skeleton" role="status"><span className="list-skeleton-text">Yükleniyor…</span>
+          {Array.from({ length: 8 }, (_, index) => <div key={index} className="list-skeleton-row" aria-hidden="true" />)}</div>
+          : <div className="tenant-report-state" role="status">Yükleniyor…</div>)
           : <>
             {state.loading && <div className="tenant-report-state" role="status">Yükleniyor…</div>}
-            <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
+            {mode === "cards" ? cards : <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
-                externalPagination={!!paging} enableRowSelection={false} selectable
-                hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
+                externalPagination={!!paging} fixedPageSize={pageSize ?? undefined} enableRowSelection={false} selectable
+                hideSearch={!tools.search || shellSearch} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
                 bulkActions={bulkActions} exportActionsRef={exportRef} toolbarToggles={toolbarToggles}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>
@@ -196,7 +251,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
                     </tr>)}
                 </tbody>
               </AdvancedDataGrid>
-            </div>
+            </div>}
             {totalColumns.length > 0 && drawn.length > 0 && <dl className="tenant-page-grid-totals" aria-label="Toplamlar">
               <dt className="tenant-page-total-label">{totalLabel}</dt>
               {totalColumns.map((column) => {
@@ -208,6 +263,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
           </>}
     {status && <p className={`tenant-page-action-feedback is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
     {!paging && !state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
+    {mode === "cards" && pageSize && showGrid && <PagedTableFooter page={shownPage} pageSize={pageSize} total={drawn.length} meta={[]} onPage={setClientPage} />}
     {paging && !state.error && !neverRan(state) && <PagedTableFooter page={paging.page} pageSize={paging.pageSize} total={state.rowCount}
       meta={paging.meta} onPage={paging.onPage} loading={state.loading} />}
   </section>;

@@ -75,6 +75,8 @@ type Props = TableHTMLAttributes<HTMLTableElement> & {
   minimumColumnWidths?: number[];
   fillColumns?: boolean;
   externalPagination?: boolean;
+  /** The page fixes the page size (list template `pageSize`): the "Rows per page" choice is hidden. Filters, search and sort still run over all rows before paging. */
+  fixedPageSize?: number;
   hideSearch?: boolean;
   enableRowSelection?: boolean;
   /**
@@ -481,6 +483,7 @@ export default function AdvancedDataGrid({
   minimumColumnWidths,
   fillColumns = false,
   externalPagination = false,
+  fixedPageSize,
   hideSearch = false,
   enableRowSelection = true,
   selectable = false,
@@ -802,7 +805,7 @@ export default function AdvancedDataGrid({
       return a.sourceIndex - b.sourceIndex;
     });
   }, [filteredRows, sorts, locale, serverData, editedValues]);
-  const pageSize = serverData?.pageSize || settings.pageSize,
+  const pageSize = serverData?.pageSize || fixedPageSize || settings.pageSize,
     totalRows = serverData?.total ?? sortedRows.length,
     pageCount = Math.max(1, Math.ceil(totalRows / pageSize)),
     currentPage = serverData?.page ?? Math.min(page, pageCount),
@@ -2666,7 +2669,7 @@ export default function AdvancedDataGrid({
           {labels.of} {totalRows}
           {virtualized && <b> · {labels.virtualized}</b>}
         </span>
-        <label>
+        {!fixedPageSize && <label>
           <span>
             {locale === "en" ? "Rows per page" : "Sayfa başına kayıt"}
           </span>
@@ -2680,7 +2683,7 @@ export default function AdvancedDataGrid({
               </option>
             ))}
           </select>
-        </label>
+        </label>}
         <div className="advanced-grid-pagination">
           <button
             type="button"
