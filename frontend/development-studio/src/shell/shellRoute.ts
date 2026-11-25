@@ -1,5 +1,4 @@
-import { HIDDEN_SECTIONS } from "./hiddenSections";
-import { menuFor, resolveRoute, type NavItem, type Route, type StudioMenuRole, type StudioSection } from "./studioNav";
+import { resolveRoute, type Route, type StudioMenuRole, type StudioSection } from "./studioNav";
 import type { SectionTab } from "./SectionTabs";
 
 /** Sekmeli bölümler; her sekme bugünkü bir aracı açar. İlk sekme varsayılandır. */
@@ -19,14 +18,8 @@ export const SECTION_TABS: Partial<Record<StudioSection, (SectionTab & { toolId:
   ],
 };
 
-/** Rolün menüsü, geçici olarak gizlenen bölümler olmadan. */
-export function visibleMenu(role: StudioMenuRole): NavItem[] {
-  return menuFor(role).filter((item) => !HIDDEN_SECTIONS.has(item.section));
-}
-
 /**
- * `resolveRoute` üstüne kabuk kuralları: gizli bölüm etkin rolün ana sayfasına gider (rol değişmez),
- * sekmeli bölümde bilinmeyen/eksik sekme ilk sekmeye düşer, sekmesiz bölümde sekme atılır.
+ * `resolveRoute` üstüne kabuk kuralları: sekmeli bölümde bilinmeyen/eksik sekme ilk sekmeye düşer, sekmesiz bölümde sekme atılır.
  */
 export function resolveShellRoute(
   hash: string,
@@ -34,7 +27,6 @@ export function resolveShellRoute(
   held: StudioMenuRole[],
 ): { role: StudioMenuRole; route: Route; tab?: string } {
   const resolved = resolveRoute(hash, active, held);
-  if (HIDDEN_SECTIONS.has(resolved.route.section)) return { role: active, route: { section: "home" } };
   const tabs = SECTION_TABS[resolved.route.section];
   if (!tabs) return { role: resolved.role, route: { section: resolved.route.section } };
   const tab = tabs.find((item) => item.id === resolved.route.tab)?.id;

@@ -58,6 +58,11 @@ const PeoplePage = lazy(() =>
     default: module.PeoplePage,
   })),
 );
+const ConnectionsPage = lazy(() =>
+  import("./connections/ConnectionsPage").then((module) => ({
+    default: module.ConnectionsPage,
+  })),
+);
 const NativePlatformTool = lazy(
   () => import("./platform-tools/NativePlatformTool"),
 );
@@ -72,9 +77,9 @@ import {
   resolveShellRoute,
   routeHash,
   SECTION_TABS,
-  visibleMenu,
 } from "./shell/shellRoute";
 import {
+  menuFor,
   roleLabel as menuRoleLabel,
   type StudioMenuRole,
   type StudioSection,
@@ -440,7 +445,7 @@ export default function App() {
   }
   function changeRole(role: StudioMenuRole) {
     // Yeni rolün menüsünde bu bölüm yoksa ana sayfaya geçilir; yoksa adres eski rolü geri seçerdi.
-    const keep = visibleMenu(role).some((item) => item.section === activeSection);
+    const keep = menuFor(role).some((item) => item.section === activeSection);
     access.setActive(role);
     if (!keep) navigate("#home");
   }
@@ -1381,7 +1386,7 @@ export default function App() {
     marketplace: "Hazır modülleri etkinleştirin",
     ai: "Yapay zekâ sağlayıcısı ve ayarları",
   };
-  const menuItems = visibleMenu(activeRole);
+  const menuItems = menuFor(activeRole);
   const quickLinks: {
     href: string;
     title: string;
@@ -2338,6 +2343,19 @@ export default function App() {
                 }
               >
                 <PeoplePage token={token} />
+              </Suspense>
+            </>
+          ) : activeSection === "connections" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Bağlantılar yükleniyor…
+                  </div>
+                }
+              >
+                <ConnectionsPage token={token} />
               </Suspense>
             </>
           ) : activeSection === "ai" ? (

@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { resolveShellRoute, routeHash, visibleMenu } from "./shellRoute";
+import { resolveShellRoute, routeHash } from "./shellRoute";
 
 const all = ["admin", "developer", "consultant"] as const;
-
-describe("visibleMenu", () => {
-  it("hides sections without a screen yet", () => {
-    expect(visibleMenu("consultant").map((i) => i.section)).toEqual(["home", "screens", "rules", "menus", "my-requests", "publications"]);
-    expect(visibleMenu("admin").map((i) => i.section)).toEqual(["home", "people", "marketplace", "ai", "publications"]);
-  });
-});
 
 describe("resolveShellRoute", () => {
   it("opens the rules workflows tab for the legacy tool hash", () => {
@@ -23,8 +16,9 @@ describe("resolveShellRoute", () => {
   it("drops a tab on untabbed sections", () => {
     expect(resolveShellRoute("#menus/x", "consultant", ["consultant"]).route).toEqual({ section: "menus" });
   });
-  it("sends a hidden section to the active role's home without switching role", () => {
-    expect(resolveShellRoute("#connections", "consultant", [...all])).toEqual({ role: "consultant", route: { section: "home" } });
+  it("switches to the admin role for Bağlantılar, and stays on home without that role", () => {
+    expect(resolveShellRoute("#connections", "consultant", [...all])).toEqual({ role: "admin", route: { section: "connections" } });
+    expect(resolveShellRoute("#connections", "consultant", ["consultant"])).toEqual({ role: "consultant", route: { section: "home" } });
   });
   it("opens Yayınlar for every role", () => {
     expect(resolveShellRoute("#publications", "developer", [...all])).toEqual({ role: "developer", route: { section: "publications" } });
