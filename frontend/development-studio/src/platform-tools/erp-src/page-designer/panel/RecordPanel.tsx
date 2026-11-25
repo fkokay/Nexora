@@ -35,8 +35,9 @@ export type RecordPanelProps = {
 export const RECORD_LOCK_NOTE = "Kilitli olanları yazılımcı belirledi; danışman yalnız kuralı sıkılaştırabilir.";
 export const RECORD_COLUMNS_NOTE = "Dar alanda en çok 2, telefonda 1 kolon olur. Uzun metin ve satır tablosu her zaman tam genişliktir.";
 export const RECORD_MISSING_IN_CATALOG = "Katalogda yok";
-export const SOURCE_CHANGE_CONFIRM = "Kaynak değişirse kartın alanları, bölümleri ve düğmeleri yeniden kurulur. Devam edilsin mi?";
 const LINES_PAGE_SIZES = [10, 25] as const;
+/** Sayfa adının en çok uzunluğu (sayfa ayarlarındaki eski "Sayfa adı" kutusuyla aynı). */
+const MAX_PAGE_NAME = 120;
 
 const TYPE_LABELS: Record<string, string> = { text: "Metin", int: "Tam sayı", decimal: "Ondalık", date: "Tarih", bool: "Evet / Hayır", guid: "Kimlik" };
 /** Katalog kolonunun danışman dilindeki türü (uzun metin ayrı). */
@@ -124,7 +125,6 @@ const keyLabelOf = (def: ModelDefinition, catalog: ActiveCatalog | null) => {
   const column = key ? recordSourceOf(def, catalog)?.columns.find((item) => item.code === key) : undefined;
   return key ? (column?.label.trim() || key).toLocaleLowerCase("tr") : null;
 };
-const confirmed = (message: string) => typeof window === "undefined" || typeof window.confirm !== "function" || window.confirm(message);
 
 function catalogNote(props: RecordPanelProps): ReactNode {
   if (props.catalogStatus === "loading") return <p className="cpanel-note">Katalog yükleniyor…</p>;
@@ -147,7 +147,7 @@ function PagePanel(props: RecordPanelProps) {
 
   const choose = (item: CatalogDataSource) => {
     if (!catalog || item.code === code) return;
-    if (code && !confirmed(SOURCE_CHANGE_CONFIRM)) return;
+    // Kaynak değişince kart yeniden kurulur; geri alma (Ctrl+Z) eski kartı getirir.
     change(chooseRecordSource(def, item, catalog));
     props.onSelect({ kind: "page" });
   };
@@ -241,7 +241,7 @@ function PagePanel(props: RecordPanelProps) {
     <p className="cpanel-note">Ek alan eklenince sayfa 2. basamağa geçer.</p>
   </>;
 
-  return <ComponentPanel nameLabel="Ad" name={props.name ?? ""} onRename={(value) => props.onRename?.(value)} nameReadOnly={!props.onRename || disabled}
+  return <ComponentPanel nameLabel="Ad" name={props.name ?? ""} onRename={(value) => props.onRename?.(value.slice(0, MAX_PAGE_NAME))} nameReadOnly={!props.onRename || disabled} namePlaceholder="Sayfa adı"
     whatTitle="Hangi kayıt gösterilsin?" basicsTitle={null} actionsTitle="Ek eylemler" what={what} basics={basics} actions={actionsPart} appearance={appearance}>
     <div className="cpanel-ask"><b>Aradığın alan ya da eylem yok mu?</b> <AskLink onAskDeveloper={props.onAskDeveloper}/></div>
   </ComponentPanel>;

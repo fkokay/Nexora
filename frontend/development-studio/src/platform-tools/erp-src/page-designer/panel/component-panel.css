@@ -75,3 +75,5 @@ input.cpanel-colname{border:1px solid var(--ns-line);border-radius:6px;padding:2
 .rfl-tag{color:var(--ns-danger,#b42318);font-size:11.5px}
 .rfl-block{color:var(--ns-accent,#5b3fd6)}
 .rfl .cpanel-ask{padding:14px 0 0}
+/* Kayıt kartında hiçbir şey seçili değilken sayfa paneli sayfa ayarlarının içinde durur: öteki panellerle aynı kenarda. */
+.pd-right-body>.cpanel{margin:-10px -10px 10px;border-left:0}
