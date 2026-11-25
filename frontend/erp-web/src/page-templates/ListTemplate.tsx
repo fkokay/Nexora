@@ -40,17 +40,17 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
   const below = visible(layout.below);
   const filters = layout.filters && visible([layout.filters]).length > 0 ? layout.filters : null;
   const detail = layout.detail && visible([layout.detail]).length > 0 ? layout.detail : null;
-  return <ListModeContext.Provider value={mode}><div className="list-template" data-level={templateLevel(layout)}>
+  return <div className="list-template" data-level={templateLevel(layout)}>
     <PageShell title={title} crumbs={[]} count={count} actions={actions} search={search ?? undefined}>
       {notices}
       {above.length > 0 && <div className="list-template-above">{above.map(render)}</div>}
       {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}
       {filters && <div className="list-template-filters">{render(filters)}</div>}
       <div className={`list-template-main${showDetail && detail ? " has-detail" : ""}`}>
-        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}>{render(layout.list)}</div>
+        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></div>
         {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
       {below.length > 0 && <div className="list-template-below">{below.map(render)}</div>}
     </PageShell>
-  </div></ListModeContext.Provider>;
+  </div>;
 }

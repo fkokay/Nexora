@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState, type RefObject } from "react";
+import { createContext, useLayoutEffect, useState, type RefObject } from "react";
 
 export type ListMode = "full" | "narrow" | "cards";
 
@@ -37,9 +37,13 @@ export function visibleColumns(columns: string[], mode: ListMode): string[] {
 
 export function useListMode(ref: RefObject<HTMLElement | null>): ListMode {
   const [mode, setMode] = useState<ListMode>("full");
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = ref.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
+    if (!element) return;
+    // İlk boyamadan önce ölç: dar ekran önce tam tabloyu çizip sıçramasın. Yerleşimi olmayan (0 genişlik) öğede "full" kalır.
+    const initial = element.getBoundingClientRect().width;
+    if (initial > 0) setMode(listMode(initial));
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[entries.length - 1];
       const width = entry?.contentRect?.width ?? element.clientWidth;

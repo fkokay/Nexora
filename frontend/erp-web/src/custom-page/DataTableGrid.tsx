@@ -104,9 +104,10 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   const visible = shownCodes ? allVisible.filter((column) => shownCodes.includes(column.code)) : allVisible;
   const drawn = limit !== undefined ? state.rows.slice(0, limit) : state.rows;
   const pageSize = mode && !paging && clientPageSize ? clientPageSize : null;
-  const pageCount = pageSize ? Math.max(1, Math.ceil(drawn.length / pageSize)) : 1;
-  const shownPage = Math.min(clientPage, pageCount);
-  const pageRows = pageSize ? drawn.slice((shownPage - 1) * pageSize, shownPage * pageSize) : drawn;
+  // Tablo kipinde sayfalamayı ızgara kendisi yapar (süzgeç, arama ve sıralama tüm satırlar üzerinde; satır anahtarları mutlak); yalnız kart kipi kendi sayfasını keser.
+  const cardPages = pageSize ? Math.max(1, Math.ceil(drawn.length / pageSize)) : 1;
+  const shownPage = Math.min(clientPage, cardPages);
+  const cardRows = pageSize ? drawn.slice((shownPage - 1) * pageSize, shownPage * pageSize) : drawn;
   const actionsShown = rowActions.length > 0 && drawn.some((row) => rowActions.some((action) => action.visible(row)));
   // Yeni sonuç gelince aynı kimlikli satır varsa seçim ona geçer, yoksa kalkar (açık kayıt penceresi aynı kaydı izler).
   useEffect(() => {
@@ -126,7 +127,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
       id: "delete-selected", label: SELECTED_DELETE_LABEL, disabledReason: bulkDelete.disabledReason ?? undefined,
       run: (keys) => {
         // Anahtarlar onaydan önce satırlara çevrilir: onay sırasında liste yenilense de seçilen kayıtlar silinir.
-        const rows = keys.map((key) => pageRows[keyIndex(key)]).filter((row): row is Record<string, unknown> => !!row);
+        const rows = keys.map((key) => drawn[keyIndex(key)]).filter((row): row is Record<string, unknown> => !!row);
         if (rows.length === 0) return;
         void bulkDelete.run(rows).then((ran) => { if (ran) exportRef.current?.clearSelection?.(); });
       },
@@ -134,19 +135,18 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   }
   const bulkActions: BulkAction[] | undefined = bulkList.length > 0 ? bulkList : undefined;
   const toggle = (row: Record<string, unknown>) => onSelect?.(selected === row ? null : row, { user: true });
-  const selectedIndex = selected ? pageRows.indexOf(selected) : -1;
+  const selectedIndex = selected ? drawn.indexOf(selected) : -1;
   const currentRowKey = onSelect ? (selectedIndex >= 0 ? rowKey(selectedIndex) : null) : undefined;
   const onCurrentRowChange = onSelect ? (key: string | null) => {
     if (clickRef.current) return;
-    const row = pageRows[keyIndex(key)];
+    const row = drawn[keyIndex(key)];
     if (row && row !== selected) onSelect(row, { user: true });
   } : undefined;
 
   const cellClass = (column: { code: string; dataType?: string }) => {
     const format = formats[column.code];
     const right = isRightAligned(format, column.dataType);
-    const extra = mode && allVisible.findIndex((item) => item.code === column.code) >= 4;
-    return [right ? "nx-num" : "", format === "code" ? "code" : "", extra ? "list-col-extra" : ""].filter(Boolean).join(" ") || undefined;
+    return [right ? "nx-num" : "", format === "code" ? "code" : ""].filter(Boolean).join(" ") || undefined;
   };
   const renderCell = (column: { code: string; dataType?: string }, row: Record<string, unknown>): ReactNode => {
     const value = labeledCell(valueLabels, column.code, row[column.code], formats[column.code], column.dataType);
@@ -175,13 +175,19 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   const fields = cardFields(visible.map((column) => column.code), numericCodes);
   const byCode = (code: string | null) => visible.find((column) => column.code === code);
   // Kart kipi (dar kutu): satır bir kart; başlık, iki alt satır ve sağda tutar.
-  const cards = <ul className="list-cards" aria-label={title || "Kayıtlar"}>
-    {pageRows.length === 0 && <li className="table-empty tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</li>}
-    {pageRows.map((row, index) => {
+  // Karta tek dokunuş (ya da Enter) kaydı açar (açma eylemi varsa); yoksa seçer. Dokunmatik ve klavyede çift tıklama yoktur.
+  const activate = (row: Record<string, unknown>) => {
+    if (onOpenRow) { if (selected !== row) onSelect?.(row, { user: true }); onOpenRow(row); } else toggle(row);
+  };
+  const cards = <ul className="list-cards" role="listbox" aria-label={title || "Kayıtlar"}>
+    {cardRows.length === 0 && <li className="table-empty tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</li>}
+    {cardRows.map((row, index) => {
       const titleColumn = byCode(fields.title);
       const amountColumn = byCode(fields.amount);
-      return <li key={rowKey(index)} className={`list-card${selected === row ? " is-selected" : ""}`} tabIndex={onSelect || onOpenRow ? 0 : undefined}
-        onClick={onSelect ? () => toggle(row) : undefined} onDoubleClick={onOpenRow ? () => onOpenRow(row) : undefined}>
+      const interactive = !!onSelect || !!onOpenRow;
+      return <li key={rowKey(index)} role="option" aria-selected={onSelect ? selected === row : undefined} className={`list-card${selected === row ? " is-selected" : ""}`} tabIndex={interactive ? 0 : undefined}
+        onClick={interactive ? () => activate(row) : undefined}
+        onKeyDown={interactive ? (event) => { if (event.defaultPrevented || event.key !== "Enter") return; event.preventDefault(); activate(row); } : undefined}>
         <div className="list-card-main">
           {titleColumn && <strong className="list-card-title">{renderCell(titleColumn, row)}</strong>}
           {fields.sub.map((code) => { const column = byCode(code); return column ? <span key={code} className="list-card-sub">{renderCell(column, row)}</span> : null; })}
@@ -207,17 +213,17 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
             {state.loading && <div className="tenant-report-state" role="status">Yükleniyor…</div>}
             {mode === "cards" ? cards : <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
-                externalPagination={!!paging || !!pageSize} enableRowSelection={false} selectable
+                externalPagination={!!paging} fixedPageSize={pageSize ?? undefined} enableRowSelection={false} selectable
                 hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
                 bulkActions={bulkActions} exportActionsRef={exportRef} toolbarToggles={toolbarToggles}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>
-                  {visible.map((column) => <th key={column.code} className={[isRightAligned(formats[column.code], column.dataType) ? "nx-num" : "", mode && allVisible.indexOf(column) >= 4 ? "list-col-extra" : ""].filter(Boolean).join(" ") || undefined}>{column.label || column.code}</th>)}
+                  {visible.map((column) => <th key={column.code} className={isRightAligned(formats[column.code], column.dataType) ? "nx-num" : undefined}>{column.label || column.code}</th>)}
                   {actionsShown && <th className="tenant-page-row-actions">İşlemler</th>}
                 </tr></thead>
                 <tbody>
-                  {pageRows.length === 0 ? <tr><td colSpan={Math.max(2, colCount)} className="table-empty tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</td></tr>
-                    : pageRows.map((row, index) => <tr key={rowKey(index)} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
+                  {drawn.length === 0 ? <tr><td colSpan={Math.max(2, colCount)} className="table-empty tenant-report-state">{emptyText || "Gösterilecek kayıt bulunamadı."}</td></tr>
+                    : drawn.map((row, index) => <tr key={rowKey(index)} className={onSelect ? `tenant-page-row-selectable${selected === row ? " is-selected" : ""}` : undefined}
                       onClick={onSelect ? () => { clickRef.current = true; queueMicrotask(() => { clickRef.current = false; }); toggle(row); } : undefined}
                       tabIndex={onSelect || onOpenRow ? 0 : undefined}
                       onDoubleClick={onOpenRow ? () => onOpenRow(row) : undefined}
@@ -246,7 +252,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
           </>}
     {status && <p className={`tenant-page-action-feedback is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
     {!paging && !state.loading && !state.error && state.truncated && <p className="tenant-page-truncated" role="status">İlk 5.000 satır gösteriliyor.</p>}
-    {pageSize && showGrid && <PagedTableFooter page={shownPage} pageSize={pageSize} total={drawn.length} meta={[]} onPage={setClientPage} />}
+    {mode === "cards" && pageSize && showGrid && <PagedTableFooter page={shownPage} pageSize={pageSize} total={drawn.length} meta={[]} onPage={setClientPage} />}
     {paging && !state.error && !neverRan(state) && <PagedTableFooter page={paging.page} pageSize={paging.pageSize} total={state.rowCount}
       meta={paging.meta} onPage={paging.onPage} loading={state.loading} />}
   </section>;

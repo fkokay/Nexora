@@ -19,12 +19,9 @@
 .list-template-list.is-striped tbody tr:nth-child(even) { background: rgb(0 0 0 / 3%); }
 .list-template-search { width: 100%; max-width: 360px; }
 /* Kutu genişliğine göre yerleşim: eşikler listResponsive.ts ile aynıdır (720 ve 480). JS kipi ⋯ menüsünü ve kart çizimini sürer. */
-@container list-box (max-width: 719.98px) {
-  .list-col-extra { display: none; }
-}
 .list-row-menu { position: relative; display: inline-block; }
 .list-row-menu-trigger { background: transparent; border: 0; padding: 2px 8px; font-size: 18px; line-height: 1; border-radius: 6px; cursor: pointer; }
-.list-row-menu-list { position: absolute; right: 0; top: 100%; z-index: 20; display: flex; flex-direction: column; min-width: 150px; padding: 4px; background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 14%); }
+.list-row-menu-list { position: fixed; z-index: 1000; display: flex; flex-direction: column; min-width: 150px; padding: 4px; background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 14%); }
 .list-row-menu-item { text-align: left; background: transparent; border: 0; padding: 6px 10px; border-radius: 6px; }
 .list-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .list-card { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 10px 12px; background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 8px; }
