@@ -19853,6 +19853,10 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.Property<int?>("AffectedRows")
                         .HasColumnType("int");
 
+                    b.Property<string>("CatalogReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int?>("DurationMs")
                         .HasColumnType("int");
 

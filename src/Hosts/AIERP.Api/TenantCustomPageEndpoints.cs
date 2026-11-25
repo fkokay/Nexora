@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using AIERP.Api;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -49,7 +50,7 @@ internal static class TenantCustomPageEndpoints
             var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return ViewForbidden();
             var embeddedForms = await LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, await RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         // Runtime consumers receive only the currently published declarative definition. Query SQL is never sent to the
@@ -65,7 +66,7 @@ internal static class TenantCustomPageEndpoints
             var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return ViewForbidden();
             var embeddedForms = await LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, await RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         pages.MapPost("/drafts", async (DraftRequest? request, ClaimsPrincipal user, TenantDbContext db,
@@ -78,8 +79,9 @@ internal static class TenantCustomPageEndpoints
             // non-admin could replace a query page with a static one. Their operations also stay usable if deprecated.
             var liveDefinitions = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived)
                 .Select(x => x.DefinitionJson).ToListAsync(ct);
+            var catalog = await CatalogForAsync(db, tenant, request.Definition, ct);
             if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition,
-                    TenantCustomPageQueries.OperationNames([.. liveDefinitions]), out var json, out var error)) return Results.BadRequest(new { error });
+                    TenantCustomPageQueries.OperationNames([.. liveDefinitions]), catalog, out var json, out var error)) return Results.BadRequest(new { error });
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, [json!, .. liveDefinitions])) return Results.Forbid();
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
@@ -107,8 +109,9 @@ internal static class TenantCustomPageEndpoints
             var publishedDefinition = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == page.Code && x.IsPublished)
                 .Select(x => x.DefinitionJson).FirstOrDefaultAsync(ct);
             // A system row's code is fixed ("@<screenKey>"); only its name, description and definition are checked.
+            var catalog = await CatalogForAsync(db, tenant, request.Definition, ct);
             if (!ValidMetadata(page.Code, request.Name, request.Description, request.Definition,
-                    TenantCustomPageQueries.OperationNames(page.DefinitionJson, publishedDefinition), out var json, out var error, page.ScreenKey is not null)) return Results.BadRequest(new { error });
+                    TenantCustomPageQueries.OperationNames(page.DefinitionJson, publishedDefinition), catalog, out var json, out var error, page.ScreenKey is not null)) return Results.BadRequest(new { error });
             // Both the stored draft and the incoming definition count: a non-admin may neither add nor remove queries.
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, page.DefinitionJson, json!)) return Results.Forbid();
             page.Name = request!.Name.Trim(); page.Description = CleanDescription(request.Description); page.DefinitionJson = json!;
@@ -153,13 +156,16 @@ internal static class TenantCustomPageEndpoints
             if (draft.IsPublished || request?.ExpectedRevision != draft.Revision) return Results.Conflict(new { error = "Taslak değişti veya zaten yayımlandı.", currentRevision = draft.Revision });
             var previous = await db.TenantCustomPages.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == draft.Code && x.IsPublished, ct);
             // A deprecated operation the published page already uses may be published again; new use is rejected.
-            if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error, TenantCustomPageQueries.OperationNames(previous?.DefinitionJson)))
+            var catalog = await CatalogForAsync(db, tenant, draft.DefinitionJson, ct);
+            if (!TenantCustomPageSchema.Validate(draft.DefinitionJson, out var error, TenantCustomPageQueries.OperationNames(previous?.DefinitionJson),
+                    ErpOperationCatalog.TryGet, catalog))
                 return Results.BadRequest(new { error });
             // Replacing a published query page (even with a static draft) is admin-only.
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, previous is null ? [draft.DefinitionJson] : [draft.DefinitionJson, previous.DefinitionJson]))
                 return Results.Forbid();
             // A system row needs an explicit access row only for SQL queries: without one its ERP operations stay
             // visible to members, as on the standard screen. Other pages keep the rule for any query or operation.
+            // Catalog references count on both: HasSqlQueries and HasQueries include them.
             if (draft.ScreenKey is not null ? TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson) : TenantCustomPageQueries.HasQueries(draft.DefinitionJson))
             {
                 // Without a saved row a query or ERP operation page would silently become AdminsOnly; require an explicit choice.
@@ -167,7 +173,7 @@ internal static class TenantCustomPageEndpoints
                 if (!await platformDb.TenantCustomPageAccesses.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.PageCode == draft.Code, ct))
                     return Results.Conflict(new
                     {
-                        error = TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson)
+                        error = TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson) && !TenantCustomPageQueries.HasCatalogReferences(draft.DefinitionJson)
                             ? "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin."
                             : "Bu sayfa sorgu veya ERP işlemi içeriyor; yayımlamadan önce erişim kuralı seçin."
                     });
@@ -242,7 +248,7 @@ internal static class TenantCustomPageEndpoints
     }
 
     private static bool ValidMetadata(string? code, string? name, string? description, JsonElement definition,
-        IReadOnlySet<string> existingOperations, out string? json, out string? error, bool systemRow = false)
+        IReadOnlySet<string> existingOperations, CatalogBundle? catalog, out string? json, out string? error, bool systemRow = false)
     {
         json = null; error = null;
         if ((!systemRow && !ValidCode(code)) || string.IsNullOrWhiteSpace(name) || name.Trim().Length > 120 || (description?.Length ?? 0) > 500)
@@ -250,9 +256,30 @@ internal static class TenantCustomPageEndpoints
         if (definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) { error = "Sayfa tanımı gerekli."; return false; }
         json = definition.GetRawText();
         // Size limits depend on the schema version (v1: 64 KiB, v2: 128 KiB) and are enforced by the schema.
-        if (!TenantCustomPageSchema.Validate(json, out error, existingOperations)) { json = null; return false; }
+        if (!TenantCustomPageSchema.Validate(json, out error, existingOperations, ErpOperationCatalog.TryGet, catalog)) { json = null; return false; }
         return true;
     }
+    /// <summary>
+    /// The tenant's active catalog, read only when the definition references it: definitions without references validate
+    /// exactly as before and cost no catalog read.
+    /// </summary>
+    private static Task<CatalogBundle?> CatalogForAsync(TenantDbContext db, Guid tenant, string definitionJson, CancellationToken ct) =>
+        TenantCustomPageQueries.HasCatalogReferences(definitionJson)
+            ? TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct)
+            : Task.FromResult<CatalogBundle?>(null);
+    /// <summary>
+    /// The definition the ERP runtime receives: catalog references resolved against the active catalog (read only when the
+    /// definition has references), then every query's SQL removed.
+    /// </summary>
+    internal static async Task<string> RuntimeDefinitionAsync(TenantDbContext db, Guid tenant, string definitionJson, CancellationToken ct)
+    {
+        if (!TenantCustomPageQueries.HasCatalogReferences(definitionJson)) return TenantCustomPageQueries.WithoutQuerySql(definitionJson);
+        var catalog = await TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+        return TenantCustomPageQueries.WithoutQuerySql(TenantCustomPageQueries.ResolveCatalogReferences(definitionJson, catalog));
+    }
+    private static Task<CatalogBundle?> CatalogForAsync(TenantDbContext db, Guid tenant, JsonElement definition, CancellationToken ct) =>
+        definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? Task.FromResult<CatalogBundle?>(null) : CatalogForAsync(db, tenant, definition.GetRawText(), ct);
     internal static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     /// <summary>The published custom forms a page definition references, embedded in runtime responses.</summary>
@@ -314,17 +341,35 @@ internal static class TenantCustomPageEndpoints
         return await auth.IsAllowedAsync(tenant, userId, role, new ResolvedPlatformPermission(definition, attributes), ct);
     }
     /// <summary>
-    /// Pages whose definition contains SQL queries, write ERP operation queries or a code component with JavaScript
-    /// (it can reach page data and operations) may only be written by a verified
-    /// TenantAdmin (role claim and current membership). The Platform database is resolved only when one of the
-    /// definitions needs the check. Pages that only bind read ERP operations need no such gate: reads run against their
-    /// own endpoints with the user's own token.
+    /// Pages whose definition contains SQL queries, write ERP operation queries, catalog action references, catalog data
+    /// source references that are not backed by a read ERP operation, or a code component with JavaScript (it can reach page
+    /// data and operations) may only be written by a verified TenantAdmin (role claim and current membership). Pages that
+    /// only bind read ERP operations, directly or through an operation-backed catalog data source, need no such gate: reads
+    /// run against their own endpoints with the user's own token. A SQL-backed data source counts like inline SQL until the
+    /// 2b developer role exists; when the active catalog is missing or the code is unknown or invalid it counts as SQL too
+    /// (fail closed). The active catalog is read only when a data source reference is all that could exempt the page, and
+    /// the Platform database only when one of the definitions needs the check.
     /// </summary>
-    internal static Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
-        params string[] definitions) =>
-        VerifiedAdminRequiredAsync(http, tenant, userId, role, ct,
-            definitions.Any(x => TenantCustomPageQueries.HasSqlQueries(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
-                || TenantCustomPageQueries.HasCodeScript(x)));
+    internal static async Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
+        params string[] definitions)
+    {
+        var required = definitions.Any(x => TenantCustomPageQueries.HasSqlQueriesExceptDataSourceReferences(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
+            || TenantCustomPageQueries.HasCodeScript(x));
+        if (!required)
+        {
+            var codes = definitions.SelectMany(TenantCustomPageQueries.PureDataSourceReferenceCodes).ToArray();
+            if (codes.Length > 0)
+            {
+                var catalog = await TenantCatalogStore.ActiveAsync(http.RequestServices.GetRequiredService<TenantDbContext>(), tenant, ErpOperationCatalog.TryGet, ct);
+                required = codes.Any(code => !IsReadOperationDataSource(catalog, code));
+            }
+        }
+        return await VerifiedAdminRequiredAsync(http, tenant, userId, role, ct, required);
+    }
+    /// <summary>A valid item of the active catalog that is a data source backed by an ERP operation whose kind is read.</summary>
+    private static bool IsReadOperationDataSource(CatalogBundle? catalog, string? code) =>
+        code is not null && catalog?.Find(code) is { ItemKind: "dataSource", ErpOperation: { } operationName }
+        && ErpOperationCatalog.TryGet(operationName, out var operation) && operation.Kind == "read";
     /// <summary>
     /// Query SQL in designer responses is shown only to a verified TenantAdmin (role claim and current membership); other
     /// users get the definition without <c>queries[].sql</c>. Definitions without SQL queries need no check.
