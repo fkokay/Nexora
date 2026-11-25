@@ -25,10 +25,10 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class StudioAccessEndpointsIntegrationTests
 {
-    private static readonly Guid TenantId = Guid.Parse("c1a0b6f2-7d5e-4c1e-9f0a-1a2b3c4d5e6f");
+    internal static readonly Guid TenantId = Guid.Parse("c1a0b6f2-7d5e-4c1e-9f0a-1a2b3c4d5e6f");
     private static readonly Guid OtherTenantId = Guid.Parse("d2b1c7a3-8e6f-4d2f-a01b-2b3c4d5e6f70");
-    private static readonly Guid AdminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid UserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    internal static readonly Guid AdminId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    internal static readonly Guid UserId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid OutsiderId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     [Fact]
@@ -196,15 +196,16 @@ public sealed class StudioAccessEndpointsIntegrationTests
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private static Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string url, Guid userId, object? body = null)
+    internal static Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string url, Guid userId, object? body = null, bool withoutRoleClaim = false)
     {
         var request = new HttpRequestMessage(method, url);
         request.Headers.Add(TestAuthHandler.UserHeader, userId.ToString("D"));
+        if (withoutRoleClaim) request.Headers.Add(TestAuthHandler.NoRoleHeader, "1");
         if (body is not null) request.Content = JsonContent.Create(body);
         return client.SendAsync(request);
     }
 
-    private static async Task<StudioFactory> CreateFactoryAsync(bool useRealPolicy = false)
+    internal static async Task<StudioFactory> CreateFactoryAsync(bool useRealPolicy = false)
     {
         var factory = new StudioFactory(useRealPolicy);
         using var scope = factory.Services.CreateScope();
@@ -230,7 +231,7 @@ public sealed class StudioAccessEndpointsIntegrationTests
         return factory;
     }
 
-    private sealed class StudioFactory(bool useRealPolicy) : WebApplicationFactory<AIServiceEntryPointMarker>
+    internal sealed class StudioFactory(bool useRealPolicy) : WebApplicationFactory<AIServiceEntryPointMarker>
     {
         private readonly string _platformName = $"studio-access-platform-{Guid.NewGuid():N}";
         private readonly string _studioName = $"studio-access-studio-{Guid.NewGuid():N}";
@@ -301,22 +302,21 @@ public sealed class StudioAccessEndpointsIntegrationTests
             Task.FromResult(new AIStudioMigrationReadinessResult(true, null));
     }
 
-    private sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+    internal sealed class TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
         : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
     {
         public const string SchemeName = "studio-access-test";
         public const string UserHeader = "X-Test-User";
+        public const string NoRoleHeader = "X-Test-NoRole";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
             if (!Request.Headers.TryGetValue(UserHeader, out var user)) return Task.FromResult(AuthenticateResult.NoResult());
             // Token claims are deliberately minimal: the endpoints must read the role from the database.
-            var identity = new ClaimsIdentity(
-            [
-                new Claim("tenant_id", TenantId.ToString("D")),
-                new Claim("role", "TenantUser"),
-                new Claim("sub", user.ToString())
-            ], SchemeName);
+            List<Claim> claims = [new Claim("tenant_id", TenantId.ToString("D")), new Claim("sub", user.ToString())];
+            // Service tokens carry no role claim; NoRoleHeader simulates one.
+            if (!Request.Headers.ContainsKey(NoRoleHeader)) claims.Add(new Claim("role", "TenantUser"));
+            var identity = new ClaimsIdentity(claims, SchemeName);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
         }
     }
