@@ -72,23 +72,23 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
   const read = useCallback(<T,>(url: string) => api<T>(url, token), [token]);
   const readGit = useCallback(() => read<WorkspaceGitStatus>(`${base}/git-status`).catch(() => null), [read, base]);
 
+  const load = useCallback(async (): Promise<CatalogWorkspaceState | null> => {
+    const root = await detectCatalogRoot(read, base, moduleCode);
+    if (!root) return null;
+    const [files, git] = await Promise.all([loadCatalogFiles(read, base, root), readGit()]);
+    return { key, root, files, git, written: [] };
+  }, [key, base, moduleCode, read, readGit]);
+
   useEffect(() => {
     setState(null);
     setLoadError("");
     if (!key) return;
     let active = true;
-    void (async () => {
-      try {
-        const root = await detectCatalogRoot(read, base, moduleCode);
-        if (!root || !active) return;
-        const [files, git] = await Promise.all([loadCatalogFiles(read, base, root), readGit()]);
-        if (active) setState({ key, root, files, git, written: [] });
-      } catch (e) {
-        if (active) setLoadError((e as Error).message);
-      }
-    })();
+    load()
+      .then(next => { if (active) setState(next); })
+      .catch(e => { if (active) setLoadError((e as Error).message); });
     return () => { active = false; };
-  }, [key, base, moduleCode, read, readGit]);
+  }, [key, load]);
 
   const current = state && state.key === key ? state : null;
   const filesRef = useRef<CatalogFile[]>([]);
@@ -119,13 +119,23 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
     }
   }, [base, token]);
 
-  /** Yayın penceresi açılmadan önce HEAD ve commit edilmemiş değişiklikler yeniden okunur. */
-  const refreshGit = useCallback(async () => {
-    const git = await readGit();
-    setState(s => s && { ...s, git, written: [] });
-  }, [readGit]);
+  /**
+   * Dosyalar ve Git durumu yeniden okunur: Dosyalar görünümünde ya da başka bir yoldan yapılan değişiklikler
+   * pakete ve sha'lara yansısın. Yayın penceresi açılmadan önce çağrılır; okunamazsa false döner.
+   */
+  const refresh = useCallback(async () => {
+    if (!key) return false;
+    try {
+      setState(await load());
+      setLoadError("");
+      return true;
+    } catch (e) {
+      setLoadError((e as Error).message);
+      return false;
+    }
+  }, [key, load]);
 
-  if (!current) return { catalog: null, loadError, writeFiles, refreshGit };
+  if (!current) return { catalog: null, loadError, writeFiles, refresh };
   const { entries, errors } = readCatalogEntries(current.root, current.files);
   const gitState = catalogGitState(current.git, current.root);
   const changedPaths = [...new Set([...gitState.changedPaths, ...current.written])];
@@ -135,6 +145,6 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
       hasUncommitted: gitState.hasUncommitted || current.written.length > 0,
       headCommitSha: current.git?.headCommitSha ?? null,
     },
-    loadError, writeFiles, refreshGit,
+    loadError, writeFiles, refresh,
   };
 }

@@ -71,7 +71,8 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin
   useEffect(() => {
     if (pending && entries.some(e => e.kind === pending.kind && e.code === pending.code)) {
       setPending(null);
-      select(pending);
+      // formKey artırılmaz: form yeniden kurulmaz, "Kaydedildi" bildirimi kalır ve kod alanı kilitlenir.
+      setSelection(pending);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, pending]);

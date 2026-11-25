@@ -464,7 +464,10 @@ export function StudioProjects({
       <button
         type="button"
         aria-pressed={explorerView === "catalog"}
-        onClick={() => setExplorerView("catalog")}
+        onClick={() => {
+          setExplorerView("catalog");
+          void catalogWorkspace.refresh();
+        }}
       >
         Yapı taşları
       </button>
@@ -4782,8 +4785,8 @@ export function StudioProjects({
             writeFiles={catalogWorkspace.writeFiles}
             onPublish={() =>
               void catalogWorkspace
-                .refreshGit()
-                .then(() => setCatalogReleaseOpen(true))
+                .refresh()
+                .then((ok) => ok && setCatalogReleaseOpen(true))
             }
           />
         </div>
