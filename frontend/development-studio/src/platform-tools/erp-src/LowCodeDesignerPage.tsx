@@ -23,9 +23,9 @@ type MenuState = { key: string; top: number; right: number };
 type EditingCustomPage = CustomPageCatalogItem | { id: string; systemScreenKey: string; importNotes: string[] };
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
-type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string; tenant?: CanvasTenant };
+type Props = { token: string; role: string; initialSection?: string; platformOrigin?: string; tenant?: CanvasTenant; backHref?: string };
 
-// Araçlar arası geçiş artık Studio "Uyarlama araçları" girişinden yapılır (#tool-<id>); burada sekme şeridi yok.
+// Araçlar arası geçiş Studio menüsünden ve bölüm sekmelerinden yapılır (#screens/pages, #rules/workflows…); burada sekme şeridi yok.
 const sectionTitles: Record<Section, string> = {
   pages: "Sayfa tasarımcısı", reports: "Rapor oluşturucu", workflows: "İş akışları", rules: "İş kuralları", menus: "Özel menüler", data: "Veri modelleri",
 };
@@ -45,7 +45,7 @@ function readEditingPage(): EditingCustomPage | null {
   } catch { return null; }
 }
 
-export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin, tenant }: Props) {
+export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin, tenant, backHref }: Props) {
   const active = sectionFor(initialSection);
   // Düzenlenen sayfa sekmenin oturum deposunda tutulur: sayfa yenilenince tasarımcı aynı sayfayla açılır (liste ekranına düşmez).
   // Kaydedilmemiş yeni sayfa saklanmaz.
@@ -259,7 +259,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     <main className={`low-code-designer ${editingPage ? "is-designing" : ""}`}>
       {!editingPage && <header className="lcd-top">
         <div className="lcd-top-title">
-          <a className="lcd-crumb" href="#adaptation">Uyarlama araçları <ChevronRight size={12} aria-hidden="true"/></a>
+          {!backHref && <a className="lcd-crumb" href="#screens">Studio <ChevronRight size={12} aria-hidden="true"/></a>}
           <h1>{sectionTitles[active]}</h1>
         </div>
         {active === "pages" && <span className="lcd-save-state"><i aria-hidden="true"/> Taslaklar güvenle kaydedilir</span>}

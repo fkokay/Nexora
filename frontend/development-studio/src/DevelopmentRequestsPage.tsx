@@ -25,9 +25,14 @@ type Request = {
   projectId: string | null;
   projectName: string | null;
   canEdit: boolean;
+  isMine: boolean;
+  stage: RequestStage;
 };
+export type RequestStage = "New" | "Staging" | "Production";
 type Project = { id: string; name: string; defaultBranch: string };
 type Props = {
+  /** `mine`: danışmanın kendi talepleri ve oluşturma düğmesi; `incoming`: yazılımcıya gelen bütün talepler. */
+  mode: "mine" | "incoming";
   requests: Request[];
   projects: Project[];
   busy: boolean;
@@ -84,6 +89,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+const stages: Record<RequestStage, string> = {
+  New: "Yeni",
+  Staging: "Deneme ortamında",
+  Production: "Yayında",
+};
+const stageTones: Record<RequestStage, string> = {
+  New: "",
+  Staging: "is-info",
+  Production: "is-success",
+};
+
+function StageBadge({ stage }: { stage: RequestStage }) {
+  return (
+    <span className={`ns-badge ${stageTones[stage] ?? ""}`.trim()} data-stage={stage}>
+      {stages[stage] ?? stage}
+    </span>
+  );
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleString("tr-TR", {
     dateStyle: "medium",
@@ -92,13 +116,16 @@ function formatDate(value: string) {
 }
 
 export function DevelopmentRequestsPage({
-  requests,
+  mode,
+  requests: allRequests,
   projects,
   busy,
   onCreate,
   onEdit,
   onDelete,
 }: Props) {
+  const requests =
+    mode === "mine" ? allRequests.filter((item) => item.isMine) : allRequests;
   const [group, setGroup] = useState<StatusGroup>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("newest");
@@ -211,6 +238,28 @@ export function DevelopmentRequestsPage({
 
   return (
     <>
+      <header className="st-hero">
+        <div className="st-hero-text">
+          <h1>{mode === "mine" ? "Taleplerim" : "Gelen talepler"}</h1>
+          <p>
+            {mode === "mine"
+              ? "Yazılımcıdan istedikleriniz ve durumları"
+              : "Danışmanlardan gelen istekler ve aşamaları"}
+          </p>
+        </div>
+        {mode === "mine" && (
+          <div className="st-hero-actions">
+            <button
+              className="ns-btn ns-btn-primary"
+              type="button"
+              onClick={onCreate}
+            >
+              <Plus size={16} aria-hidden="true" />
+              Yazılımcıdan iste
+            </button>
+          </div>
+        )}
+      </header>
       {requests.length > 0 && (
         <div className="dr-toolbar">
           <div
@@ -301,7 +350,7 @@ export function DevelopmentRequestsPage({
               <thead>
                 <tr>
                   <th scope="col">Talep</th>
-                  <th scope="col">Proje</th>
+                  {mode === "incoming" && <th scope="col">Proje</th>}
                   <th scope="col">Durum</th>
                   <th scope="col">Tarih</th>
                   <th scope="col">
@@ -316,9 +365,12 @@ export function DevelopmentRequestsPage({
                       <b>{item.title}</b>
                       <p>{item.description}</p>
                     </td>
-                    <td>{renderProject(item)}</td>
+                    {mode === "incoming" && <td className="dr-project-cell">{renderProject(item)}</td>}
                     <td>
-                      <StatusBadge status={item.status} />
+                      <span className="dr-badges">
+                        <StageBadge stage={item.stage} />
+                        <StatusBadge status={item.status} />
+                      </span>
                     </td>
                     <td className="dr-date">
                       <time dateTime={item.createdAt}>
@@ -340,7 +392,10 @@ export function DevelopmentRequestsPage({
                   <span className="dr-card-icon" aria-hidden="true">
                     <FileText size={18} />
                   </span>
-                  <StatusBadge status={item.status} />
+                  <span className="dr-badges">
+                    <StageBadge stage={item.stage} />
+                    <StatusBadge status={item.status} />
+                  </span>
                 </div>
                 <h3>{item.title}</h3>
                 <p>{item.description}</p>
@@ -363,19 +418,28 @@ export function DevelopmentRequestsPage({
             <span className="dr-empty-icon" aria-hidden="true">
               <ListTodo size={22} />
             </span>
-            <b>İlk talebinizi oluşturun</b>
-            <span>
-              Ne değişmesini istediğinizi yazın; Studio ayrı çalışma alanında
-              hazırlar.
-            </span>
-            <button
-              type="button"
-              className="ns-btn ns-btn-primary"
-              onClick={onCreate}
-            >
-              <Plus size={15} aria-hidden="true" />
-              Talep oluştur
-            </button>
+            {mode === "mine" ? (
+              <>
+                <b>İlk talebinizi oluşturun</b>
+                <span>
+                  Ne değişmesini istediğinizi yazın; yazılımcı ayrı çalışma
+                  alanında hazırlar.
+                </span>
+                <button
+                  type="button"
+                  className="ns-btn ns-btn-primary"
+                  onClick={onCreate}
+                >
+                  <Plus size={15} aria-hidden="true" />
+                  Yazılımcıdan iste
+                </button>
+              </>
+            ) : (
+              <>
+                <b>Henüz gelen talep yok</b>
+                <span>Danışmanların istekleri burada listelenir.</span>
+              </>
+            )}
           </div>
         )}
         {requests.length > 0 && filtered.length === 0 && (
@@ -431,6 +495,12 @@ export function DevelopmentRequestsPage({
           </header>
           <div className="ns-dialog-body">
             <dl className="ns-confirm-facts">
+              <div>
+                <dt>Aşama</dt>
+                <dd>
+                  <StageBadge stage={selected.stage} />
+                </dd>
+              </div>
               <div>
                 <dt>Durum</dt>
                 <dd>

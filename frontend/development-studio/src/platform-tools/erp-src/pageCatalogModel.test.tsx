@@ -63,7 +63,7 @@ describe("sayfa tasarımcısı girişi", { timeout: 30_000 }, () => {
     const html = renderToString(<LowCodeDesignerPage token="t" role="TenantAdmin" initialSection="custom-pages" />);
     expect(html).not.toContain("low-code-designer-tabs");
     expect(html).not.toContain("LOW-CODE STUDIO");
-    expect(html).toContain('href="#adaptation"');
+    expect(html).toContain('href="#screens"');
     expect(html).toContain("Sayfa tasarımcısı");
     expect(html).toContain("Yeni sayfa");
   });

@@ -98,7 +98,11 @@ internal static partial class TenantCustomPageSchema
     private static readonly HashSet<string> ActionBarProps = new(StringComparer.Ordinal) { "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "exportCsv", "moreButtons", "formDialog", "titleCount", "newButton", "openButton", "afterSaveButton",
       "newAction", "newPageCode", "newTarget", "openAction", "openPageCode", "openTarget", "openTable", "openParams",
       "afterSaveAction", "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "hiddenCommands", "commandWhen", "barLook", "saveAndNew", "deleteConfirmText" };
-    private static readonly string[] BarCommandIds = ["new", "open", "save", "delete", "refresh", "filter", "print", "export", "more"];
+    /// <summary>
+    /// The bar commands; <c>view</c> (Görüntüle) opens the record of the page-opening <c>open</c> (Düzenle) read-only and is
+    /// hidden together with it.
+    /// </summary>
+    private static readonly string[] BarCommandIds = ["new", "open", "view", "save", "delete", "refresh", "filter", "print", "export", "more"];
     /// <summary><c>commandWhen</c> keys: the bar commands plus İşlemler › "Kaydet ve yeni" (<c>saveNew</c>, with <c>saveAndNew</c>).</summary>
     private static readonly string[] ConditionalBarCommandIds = [.. BarCommandIds, "saveNew"];
     /// <summary>actionBar <c>barLook</c> "anahtar=değer" öğeleri: anahtar başına izin verilen değerler (renkler #RRGGBB).</summary>
@@ -278,6 +282,8 @@ internal static partial class TenantCustomPageSchema
         public List<FilterBarInfo> PendingFilterBars { get; } = [];
         /// <summary>filterBar ids with a search box (valid actionBar <c>focusInput</c> targets besides inputs).</summary>
         public HashSet<string> SearchFilterBarIds { get; } = new(StringComparer.Ordinal);
+        /// <summary>filterBar id → its filter keys (a metric's <c>filterInput</c> may target <c>&lt;filterBar&gt;.&lt;key&gt;</c>).</summary>
+        public Dictionary<string, HashSet<string>> FilterBarKeys { get; } = new(StringComparer.Ordinal);
         /// <summary>setInput buttons' assignment targets (button id, input id); resolved against <see cref="InputIds"/>.</summary>
         public List<(string ButtonId, string InputId)> PendingAssignments { get; } = [];
         /// <summary>dataTable <c>rowOpenAction</c> buttons; resolved after the row actions (the same table may own both).</summary>
@@ -350,7 +356,8 @@ internal static partial class TenantCustomPageSchema
             foreach (var pageQuery in queries) { context.QueryById[pageQuery.Id] = pageQuery; context.ExactNames.Add(pageQuery.Name); }
             foreach (var component in components.EnumerateArray())
                 if (!ValidateComponent(component, context, 0, out error)) return false;
-            if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x)) is { } missingInput)
+            // Göstergenin süzeceği hedef: bir giriş ya da süzgeç alanının bir süzgeci ("<süzgeçAlanı>.<anahtar>").
+            if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x) && !IsFilterBarTarget(context, x)) is { } missingInput)
             { error = $"Göstergenin süzeceği giriş bileşeni sayfada yok: {missingInput}."; return false; }
             if (!ResolveLayoutReferences(context, out error)) return false;
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
@@ -863,7 +870,7 @@ internal static partial class TenantCustomPageSchema
         if (props.TryGetProperty("filterInput", out var filterInput))
         {
             if (typeText != "metric" || filterInput.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(filterInput.GetString()))
-            { error = "'filterInput' özelliği yalnızca gösterge bileşeninde ve bir giriş bileşeni kimliğiyle kullanılabilir."; return false; }
+            { error = "'filterInput' özelliği yalnızca gösterge bileşeninde ve bir giriş bileşeni kimliğiyle (ya da süzgeç alanı.süzgeç anahtarı) kullanılabilir."; return false; }
             context.PendingFilterInputs.Add(filterInput.GetString()!);
             hasFilterInput = true;
         }
@@ -1085,8 +1092,8 @@ internal static partial class TenantCustomPageSchema
         if (props.TryGetProperty("hiddenCommands", out var hidden))
         {
             var ids = StringItems(hidden);
-            if (ids is null || ids.Count is < 1 or > 9 || ids.Any(id => !BarCommandIds.Contains(id)) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
-            { error = $"'hiddenCommands' 1–9 farklı komut içermelidir: {string.Join(", ", BarCommandIds)}."; return false; }
+            if (ids is null || ids.Count < 1 || ids.Count > BarCommandIds.Length || ids.Any(id => !BarCommandIds.Contains(id)) || ids.Distinct(StringComparer.Ordinal).Count() != ids.Count)
+            { error = $"'hiddenCommands' 1–{BarCommandIds.Length} farklı komut içermelidir: {string.Join(", ", BarCommandIds)}."; return false; }
         }
         if (props.TryGetProperty("commandWhen", out var when))
         {
@@ -1798,7 +1805,7 @@ internal static partial class TenantCustomPageSchema
 
     private const int MaxSequenceSteps = 8;
     private const int MaxSequenceWhen = 8;
-    private const int MaxRowActions = 4;
+    private const int MaxRowActions = 6;
     private const int MaxGridColumns = 16;
     /// <summary>Grid rows per document (sales documents carry up to 200 lines).</summary>
     private const int MaxGridRows = 500;
@@ -2122,7 +2129,7 @@ internal static partial class TenantCustomPageSchema
         if (props.TryGetProperty("rowActions", out var rowActions))
         {
             if (!TryReadIds(rowActions, MaxRowActions, out var ids))
-                return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
+                return Fail("'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
             if (name is null) return Fail($"Satır işlemleri için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır işlemleri yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowActions.Add((id, ids));
@@ -2413,11 +2420,12 @@ internal static partial class TenantCustomPageSchema
             parameters.Add(searchParam.GetString()!);
         }
         var filterCount = 0;
+        var filterKeys = new HashSet<string>(StringComparer.Ordinal);
         if (props.TryGetProperty("filters", out var filters))
         {
             if (filters.ValueKind != JsonValueKind.Array || filters.GetArrayLength() > MaxFilterBarFilters)
                 return Fail($"'filters' en fazla {MaxFilterBarFilters} öğeli bir dizi olmalıdır.", out error);
-            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var keys = filterKeys;
             foreach (var item in filters.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String) return Fail(FilterFormat, out error);
@@ -2464,6 +2472,7 @@ internal static partial class TenantCustomPageSchema
         if (parameters.GroupBy(x => x, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1) is { } duplicate)
             return Fail($"Süzgeç alanında aynı parametre birden fazla kez kullanılamaz: {duplicate.Key}", out error);
         context.PendingFilterBars.Add(new FilterBarInfo(id, name, table, parameters));
+        context.FilterBarKeys[id] = filterKeys;
         if (search) context.SearchFilterBarIds.Add(id);
         return true;
     }
@@ -2490,6 +2499,12 @@ internal static partial class TenantCustomPageSchema
             }
         }
         return true;
+    }
+
+    private static bool IsFilterBarTarget(Context context, string target)
+    {
+        var at = target.IndexOf('.');
+        return at > 0 && context.FilterBarKeys.TryGetValue(target[..at], out var keys) && keys.Contains(target[(at + 1)..]);
     }
 
     private static bool ValidateImageProps(JsonElement props, out string? error)
@@ -2526,7 +2541,7 @@ internal static partial class TenantCustomPageSchema
             foreach (var buttonId in ids)
             {
                 if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page" or "setInput"))
-                    return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
+                    return Fail("'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
                 if (menuButtons.Contains(buttonId)) return Fail($"Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
                 if (!owners.TryAdd(buttonId, tableId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
             }

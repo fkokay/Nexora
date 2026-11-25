@@ -70,7 +70,7 @@ describe('shortcuts', () => {
 
   it('STANDARD_SHORTCUTS has the agreed values', () => {
     expect(STANDARD_SHORTCUTS).toEqual({
-      new: 'F2', open: 'Enter', save: 'Ctrl+S', delete: 'Ctrl+Delete', refresh: 'F5',
+      new: 'F2', open: 'Enter', view: 'Shift+Enter', save: 'Ctrl+S', delete: 'Ctrl+Delete', refresh: 'F5',
       filter: 'Ctrl+F', print: 'Ctrl+P', export: 'Ctrl+E', undo: 'Ctrl+Z',
     });
   });

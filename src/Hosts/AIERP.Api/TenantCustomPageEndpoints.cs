@@ -24,6 +24,39 @@ internal static class TenantCustomPageEndpoints
             return Results.Ok(items);
         });
 
+        // Studio "Yayınlar": open drafts and published history (headers only, never definition JSON/SQL).
+        pages.MapGet("/publications", async (int? take, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
+            IPlatformPermissionAuthorizer auth, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
+            var limit = Math.Clamp(take ?? 100, 1, 200);
+            var drafts = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsPublished && !x.IsArchived)
+                .OrderByDescending(x => x.UpdatedAt).Take(limit)
+                .Select(x => new { x.Id, x.Code, x.Name, x.ScreenKey, x.UpdatedAt, x.UpdatedByUserId }).ToListAsync(ct);
+            var published = await (from r in db.TenantCustomPageRevisions.AsNoTracking()
+                                   join p in db.TenantCustomPages.AsNoTracking() on r.CustomPageId equals p.Id
+                                   where r.TenantId == tenant && p.TenantId == tenant && r.ChangeKind == "Published"
+                                   orderby r.CreatedAt descending
+                                   select new { r.CustomPageId, RevisionId = r.Id, r.Revision, r.Code, r.Name, p.ScreenKey, r.CreatedAt, r.ChangedByUserId })
+                .Take(limit).ToListAsync(ct);
+            // The newest publish per code, regardless of the take window.
+            var codes = published.Select(x => x.Code).Distinct().ToList();
+            var latest = (await db.TenantCustomPageRevisions.AsNoTracking()
+                    .Where(x => x.TenantId == tenant && x.ChangeKind == "Published" && codes.Contains(x.Code))
+                    .Select(x => new { x.Code, x.Id, x.CreatedAt }).ToListAsync(ct))
+                .GroupBy(x => x.Code).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.CreatedAt).First().Id);
+            var userIds = drafts.Select(x => x.UpdatedByUserId).Concat(published.Select(x => x.ChangedByUserId)).Distinct().ToList();
+            var names = await (from m in platformDb.TenantMemberships.AsNoTracking()
+                               join u in platformDb.Users.AsNoTracking() on m.UserId equals u.Id
+                               where m.TenantId == tenant && userIds.Contains(m.UserId)
+                               select new { u.Id, u.DisplayName }).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+            string? NameOf(Guid id) => names.TryGetValue(id, out var n) ? n : null;
+            return Results.Ok(new PublicationsView(
+                [.. drafts.Select(x => new PendingPublicationView(x.Id, x.Code, x.Name, x.ScreenKey, x.UpdatedAt, NameOf(x.UpdatedByUserId)))],
+                [.. published.Select(x => new PublishedRevisionView(x.CustomPageId, x.RevisionId, x.Revision, x.Code, x.Name, x.ScreenKey, x.CreatedAt, NameOf(x.ChangedByUserId),
+                    latest.TryGetValue(x.Code, out var current) && current == x.RevisionId))]));
+        });
+
         pages.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, TenantDbContext db,
             IPlatformPermissionAuthorizer auth, HttpContext http, CancellationToken ct) =>
         {
@@ -404,6 +437,9 @@ internal static class TenantCustomPageEndpoints
     internal static void AddAudit(TenantDbContext db, Guid tenant, Guid userId, string action, string code) => db.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = userId, Action = action, Resource = $"custom-page:{code}" });
     internal static PageDetail ToDetail(TenantCustomPage x) => new(x.Id, x.Code, x.Name, x.Description, x.Revision, x.IsPublished, x.IsArchived, x.DefinitionJson, x.UpdatedAt, x.ScreenKey, x.StandardVersion);
 
+    internal sealed record PendingPublicationView(Guid PageId, string Code, string Name, string? ScreenKey, DateTimeOffset UpdatedAt, string? UpdatedByName);
+    internal sealed record PublishedRevisionView(Guid PageId, Guid RevisionId, int Revision, string Code, string Name, string? ScreenKey, DateTimeOffset PublishedAt, string? ChangedByName, bool IsCurrent);
+    internal sealed record PublicationsView(IReadOnlyList<PendingPublicationView> Pending, IReadOnlyList<PublishedRevisionView> History);
     private sealed record DraftRequest(string Code, string Name, string? Description, JsonElement Definition);
     private sealed record UpdateRequest(int ExpectedRevision, string Name, string? Description, JsonElement Definition, int? StandardVersion = null);
     private sealed record RevisionRequest(int ExpectedRevision);

@@ -304,6 +304,16 @@
   background: var(--ns-danger-soft);
   color: var(--ns-danger);
 }
+.st-alert.is-warning {
+  border-color: var(--ns-warning-line);
+  background: var(--ns-warning-soft);
+  color: var(--ns-warning);
+}
+.st-alert.st-degraded {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
 .st-alert.is-success {
   border-color: var(--ns-success-line);
   background: var(--ns-success-soft);
@@ -1559,6 +1569,25 @@ button.st-tenant-box:hover:not(:disabled) {
   background: var(--ns-surface);
   color: var(--ns-accent);
 }
+/* Kenar çubuğundaki rol düğmesi: firma kutusunun altında, tam genişlik. */
+.st-role-switch {
+  display: flex;
+  flex-wrap: nowrap;
+  margin: var(--ns-space-1) 0 var(--ns-space-2);
+}
+.st-role-switch button {
+  flex: 1;
+  justify-content: center;
+  padding: 0 4px;
+}
+/* Bölüm içi sekmeler (Ekranlar, Kurallar, Firma modülü). */
+.st-section-tabs {
+  align-self: flex-start;
+}
+/* Tasarımcı açıkken araç kendi başlığını gizler ve ekran yüksekliğini kullanır; sekmeler de gizlenir. */
+.st-content:has(.low-code-designer.is-designing) > .st-section-tabs {
+  display: none;
+}
 .st-tab-desc {
   margin: 0;
   color: var(--ns-muted);
@@ -1882,3 +1911,39 @@ button.st-tenant-box:hover:not(:disabled) {
 .studio-module-source-loader>p { margin:0;color:var(--ns-faint);font-size:var(--ns-text-sm);line-height:1.5; }
 .studio-module-source-loader>button { justify-self:start;display:flex;align-items:center;gap:6px; }
 
+
+/* Studio rolü olmayan kişi: içeriğe göre daralan, ortalanmış kart */
+.st-auth-card.st-no-access {
+  display: block;
+  width: min(460px, 100%);
+  min-height: 0;
+}
+.st-no-access-main {
+  align-items: center;
+  text-align: center;
+}
+.st-no-access-main .st-auth-copy {
+  display: grid;
+  justify-items: center;
+}
+.st-no-access-main .st-empty-icon {
+  margin-bottom: var(--ns-space-3);
+}
+
+/* Kişiler ve roller */
+.st-people-hint {
+  display: block;
+}
+.st-people-roles {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  line-height: 1.7;
+}
+
+/* Telefon genişliğinde ana sayfa talep tablosu: Proje sütunu gizlenir */
+@media (max-width: 520px) {
+  .st-table .st-col-project {
+    display: none;
+  }
+}

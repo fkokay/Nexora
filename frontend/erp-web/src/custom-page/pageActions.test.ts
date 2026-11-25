@@ -280,11 +280,11 @@ describe('Yeni / Aç düğmeleri (newButton, openButton)', () => {
   it('gizli Aç düğmesi seçim bekler, pasif düğme nedenini gösterir, meşgulken çalışmaz', () => {
     const hidden = buildPageCommands({ newButton: 'yeni', openButton: 'ac' }, makeDeps({ buttonLabel: labels,
       buttonGate: (id) => (id === 'ac' ? { hidden: true } : { disabled: true, disabledReason: 'Önce depo seçin' }) }).deps);
-    expect(hidden.open).toEqual({ disabledReason: 'Önce bir kayıt seçin' });
+    expect(hidden.open).toEqual({ disabledReason: 'Önce bir kayıt seçin', label: 'Düzenle' });
     expect(hidden.new?.disabledReason).toBe('Önce depo seçin');
     expect(hidden.new?.run).toBeUndefined();
     const busy = buildPageCommands({ openButton: 'ac' }, makeDeps({ buttonLabel: labels, busy: true }).deps);
-    expect(busy.open).toEqual({ disabledReason: 'İşlem sürüyor…' });
+    expect(busy.open).toEqual({ disabledReason: 'İşlem sürüyor…', label: 'Düzenle' });
   });
   it('etiketsiz (hakkı olmayan) düğme bağlanmamış sayılır; kayıt penceresi önce gelir', () => {
     const none = buildPageCommands({ newButton: 'yok', openButton: 'yok' }, makeDeps({ buttonLabel: labels }).deps);
@@ -320,6 +320,33 @@ describe('İşlem Çubuğu düz komutları (newAction, openAction, afterSaveActi
     expect(barCommandPlan({}).new.mode).toBe('off');
     expect(barCommandPlan({ formDialog: 'd1', newAction: 'off', openAction: 'off' })).toMatchObject({ new: { mode: 'off' }, open: { mode: 'off' } });
   });
+  it('Düzenle (Aç) ve Görüntüle: Görüntüle aynı sayfayı aynı satırla mode=view ile açar, seçim bekler', () => {
+    const navigate = vi.fn();
+    let selected = false;
+    const { deps } = makeDeps({ tableSelected: (id) => id === 't1' && selected });
+    deps.run.navigate = navigate;
+    const none = buildPageCommands(page, deps);
+    expect(none.open?.label).toBe('Düzenle');
+    expect(none.view).toEqual({ disabledReason: 'Önce bir kayıt seçin' });
+    selected = true;
+    void buildPageCommands(page, deps).view?.run?.();
+    expect(navigate).toHaveBeenLastCalledWith({ actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab',
+      params: ['id={{liste.seciliSatir.id}}', 'mode=view'] });
+    // Görüntüle yalnız sayfa açan Aç'ta vardır; Aç gizlenince (hiddenCommands / commandWhen) o da gizlenir.
+    expect(buildPageCommands({ formDialog: 'd1' }, deps).view).toEqual({ hidden: true });
+    expect(buildPageCommands({ ...page, hiddenCommands: ['open'] }, deps).view).toEqual({ hidden: true });
+    expect(buildPageCommands({ ...page, hiddenCommands: ['view'] }, deps).view).toEqual({ hidden: true });
+    expect(buildPageCommands({ ...page, hiddenCommands: ['view'] }, deps).open?.run).toBeTypeOf('function');
+  });
+  it('görüntüleme kipi (readOnly): Yeni, Düzenle, Görüntüle, Kaydet, Sil ve Kaydet ve yeni yoktur', () => {
+    const { deps } = makeDeps({ readOnly: true, queryKind: (id) => (id === 'q1' ? 'update' : id === 'd1' ? 'delete' : undefined) });
+    deps.run.navigate = vi.fn();
+    deps.run.saveAndNew = vi.fn();
+    const commands = buildPageCommands({ ...page, saveQuery: 'q1', deleteQuery: 'd1', saveAndNew: true, newInputs: ['i1'] }, deps);
+    for (const id of ['new', 'open', 'view', 'save', 'delete'] as const) expect(commands[id]).toEqual({ hidden: true });
+    expect(commands.more?.some((item) => item.id === 'save-and-new') ?? false).toBe(false);
+    expect(commands.refresh?.run).toBeTypeOf('function');
+  });
   it('Yeni sayfayı açar; Aç listede satır seçilince açar, yoksa seçim bekler', () => {
     const navigate = vi.fn();
     let selected = false;
@@ -329,12 +356,12 @@ describe('İşlem Çubuğu düz komutları (newAction, openAction, afterSaveActi
     expect(none.new?.primary).toBe(true);
     void none.new?.run?.();
     expect(navigate).toHaveBeenLastCalledWith({ actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab' });
-    expect(none.open).toEqual({ disabledReason: 'Önce bir kayıt seçin' });
+    expect(none.open).toEqual({ disabledReason: 'Önce bir kayıt seçin', label: 'Düzenle' });
     selected = true;
     const some = buildPageCommands(page, deps);
     void some.open?.run?.();
     expect(navigate).toHaveBeenLastCalledWith(expect.objectContaining({ params: ['id={{liste.seciliSatir.id}}'] }));
-    expect(buildPageCommands(page, { ...deps, busy: true }).open).toEqual({ disabledReason: 'İşlem sürüyor…' });
+    expect(buildPageCommands(page, { ...deps, busy: true }).open).toEqual({ disabledReason: 'İşlem sürüyor…', label: 'Düzenle' });
     expect(buildPageCommands(page, { ...deps, rights: { view: false } }).new?.disabledReason).toBe('Bu işlem için yetkiniz yok');
   });
   it('clear ve dialog mevcut davranışı seçer; off kapatır', () => {

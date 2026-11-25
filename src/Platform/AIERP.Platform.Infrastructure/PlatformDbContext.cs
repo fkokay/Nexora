@@ -500,6 +500,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
         {
             e.HasKey(x => new { x.UserId, x.TenantId });
             e.Property(x => x.Role).HasMaxLength(64);
+            e.Property(x => x.StudioRole).HasMaxLength(20);
             e.HasOne(x => x.User).WithMany(x => x.Memberships).HasForeignKey(x => x.UserId);
             e.HasOne(x => x.Tenant).WithMany(x => x.Memberships).HasForeignKey(x => x.TenantId);
         });

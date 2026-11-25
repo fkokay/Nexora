@@ -1,0 +1,80 @@
+/* ---------- Rol bazlı ana sayfa ---------- */
+.st-home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--ns-space-3);
+}
+.st-home-card {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--ns-space-4);
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-md);
+  background: var(--ns-surface);
+  color: inherit;
+  text-decoration: none;
+}
+a.st-home-card:hover {
+  border-color: var(--ns-accent-line);
+}
+a.st-home-card:focus-visible {
+  box-shadow: var(--ns-focus);
+  outline: none;
+}
+.st-home-card h3 {
+  margin: 0;
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+  font-weight: 600;
+}
+.st-home-card b {
+  color: var(--ns-ink);
+  font: 700 var(--ns-text-2xl) / 1.25 var(--ns-font-display);
+  font-variant-numeric: tabular-nums;
+}
+.st-home-card small {
+  color: var(--ns-muted);
+  font-size: var(--ns-text-sm);
+}
+.st-home-card[data-status="error"] small {
+  color: var(--ns-danger);
+}
+.st-home-row-badge {
+  margin-left: auto;
+  flex: none;
+}
+.st-quick button {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-3);
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 9px 8px;
+  border: 0;
+  border-top: 1px solid var(--ns-line);
+  border-radius: var(--ns-radius-sm);
+  background: none;
+  color: var(--ns-faint);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.st-quick button:hover {
+  background: var(--ns-soft);
+  color: var(--ns-accent);
+}
+.st-quick button:focus-visible {
+  box-shadow: var(--ns-focus);
+  outline: none;
+}
+.st-quick-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ns-space-3);
+  padding: 9px 0;
+}
+.st-quick-row + .st-quick-row {
+  border-top: 1px solid var(--ns-line);
+}

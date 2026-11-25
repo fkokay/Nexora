@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AIERP.AIService;
 using AIERP.Platform.Application;
 using Microsoft.AspNetCore.Authorization;
 
@@ -12,6 +13,13 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         if (context.Resource is not HttpContext http || context.User.Identity?.IsAuthenticated != true) return;
         if (!Guid.TryParse(context.User.FindFirstValue("tenant_id"), out var tenantId)
             || !Guid.TryParse(context.User.FindFirstValue("sub"), out var userId)) return;
+        // Opt-in per endpoint (StudioSelfAuthorizedEndpoint metadata, not path matching). By design tenant Deny rules do not
+        // apply to these routes: each marked endpoint authorizes from the DB membership itself.
+        if (http.GetEndpoint()?.Metadata.GetMetadata<StudioSelfAuthorizedEndpoint>() is not null)
+        {
+            context.Succeed(requirement);
+            return;
+        }
         var role = context.User.FindFirstValue("role");
         if (string.IsNullOrWhiteSpace(role)) return;
         var routeValues = http.Request.RouteValues.ToDictionary(x => x.Key, x => x.Value?.ToString(), StringComparer.OrdinalIgnoreCase);

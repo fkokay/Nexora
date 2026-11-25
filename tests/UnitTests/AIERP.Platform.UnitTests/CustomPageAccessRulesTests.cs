@@ -151,6 +151,16 @@ public sealed class CustomPageAccessRulesTests
     }
 
     [Fact]
+    public void Custom_page_publications_route_resolves_to_customization_read_permission()
+    {
+        var resolved = PlatformPermissionCatalog.TryResolve("/api/custom-pages/publications", "GET", "/api/custom-pages/publications",
+            new Dictionary<string, string?>(), Guid.NewGuid(), User, "TenantUser", out var permission);
+        Assert.True(resolved);
+        Assert.Equal("erp.tenant-customizations", permission!.Permission.ResourceType);
+        Assert.Equal("read", permission.Permission.Action);
+    }
+
+    [Fact]
     public void Stock_item_balances_route_resolves_to_warehouses_permission()
     {
         var id = Guid.NewGuid().ToString("D");

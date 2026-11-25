@@ -417,7 +417,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var ledger = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "customer-ledger-entries");
-        Assert.Equal(["entryDate", "description", "direction", "debit", "credit", "balance", "currencyCode"],
+        Assert.Equal(["entryDate", "source", "description", "direction", "debit", "credit", "balance", "currencyCode"],
             ledger.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/customer-ledger-entries/draft", new { name = "Ekstre görünümü" })).Content.ReadAsStringAsync());

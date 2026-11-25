@@ -67,7 +67,7 @@ function moreSignature(more: MenuCommand[] | undefined) {
 function structureSignature(commands: PageCommands): string {
   const specs = STANDARD_IDS.flatMap((id) => {
     const spec = commands[id];
-    return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden)]] : [];
+    return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden), spec.label ?? '']] : [];
   });
   const look = commands.look ? BAR_LOOK_KEYS.map((key) => commands.look![key] ?? null) : null;
   return JSON.stringify([specs, moreSignature(commands.more), Boolean(commands.besideList), Boolean(commands.moreHidden), look]);
@@ -85,6 +85,7 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
       disabledReason: spec.disabledReason,
       primary: spec.primary,
       ...(spec.hidden ? { hidden: true } : {}),
+      ...(spec.label ? { label: spec.label } : {}),
     };
   }
   if (latest.more) {
