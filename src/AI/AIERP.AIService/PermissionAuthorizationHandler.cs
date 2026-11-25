@@ -12,6 +12,15 @@ internal sealed class PermissionAuthorizationHandler(IPlatformPermissionAuthoriz
         if (context.Resource is not HttpContext http || context.User.Identity?.IsAuthenticated != true) return;
         if (!Guid.TryParse(context.User.FindFirstValue("tenant_id"), out var tenantId)
             || !Guid.TryParse(context.User.FindFirstValue("sub"), out var userId)) return;
+        // Studio role endpoints are not part of the permission catalog; the endpoints themselves resolve
+        // the caller's access from the database membership (admin-only for /studio/people).
+        var requestPath = http.Request.Path;
+        if (requestPath.Equals("/studio/me", StringComparison.OrdinalIgnoreCase)
+            || requestPath.StartsWithSegments("/studio/people", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Succeed(requirement);
+            return;
+        }
         var role = context.User.FindFirstValue("role");
         if (string.IsNullOrWhiteSpace(role)) return;
         var routeValues = http.Request.RouteValues.ToDictionary(x => x.Key, x => x.Value?.ToString(), StringComparer.OrdinalIgnoreCase);

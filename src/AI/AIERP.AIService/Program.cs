@@ -320,6 +320,7 @@ app.MapGet("/studio/capabilities", async (ClaimsPrincipal user, IConfiguration c
             : !string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]);
     return Results.Ok(new { aiConfigured });
 }).RequireAuthorization();
+app.MapStudioAccessEndpoints();
 var studio = app.MapGroup("/studio/requests").RequireAuthorization();
 studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
