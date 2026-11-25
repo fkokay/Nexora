@@ -150,6 +150,16 @@ internal sealed record CustomPageSession(string UserId, string DisplayName, stri
         DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 }
 
+/// <summary>
+/// Runs one validated, parameterized read query in a tenant. Registered only by tests (in-process hosts have no SQL Server);
+/// when no implementation is registered the runtime uses <see cref="CustomSqlReportRunner.ExecuteSingleAsync"/> with the
+/// tenant query connection factory.
+/// </summary>
+internal interface ICustomPageReadExecutor
+{
+    Task<CustomSqlResult> ExecuteAsync(string sql, IReadOnlyList<SqlParameter> parameters, Guid tenant, CancellationToken ct);
+}
+
 /// <summary>Write runs (published and preview) share one budget of 60 per user per minute, on top of the route limits.</summary>
 internal sealed class CustomPageWriteRateLimiter : IDisposable
 {
@@ -299,7 +309,103 @@ internal static class CustomPageQueryEndpoints
         return Results.Ok(new CustomPageQueryRunResult(result.Columns, result.Rows, result.Rows.Count, result.Truncated));
     }
 
-    internal const string WriteRateLimitError = "Çok fazla yazma isteği gönderildi; bir dakika sonra yeniden deneyin.";
+    internal const string SampleParamsAuditAction = "custom-page.query.preview";
+
+    /// <summary>
+    /// The designer canvas's sample record for a Kayıt kartı draft: <c>{ &lt;p&gt;: key }</c>, where <c>&lt;p&gt;</c> is the page
+    /// parameter the record query reads (<c>{{sayfa.parametre.&lt;p&gt;}}</c>, found as the ERP runtime finds it) and the key is
+    /// the first row's key column of the first active catalog data source that opens this page and needs no parameter but
+    /// an optional <c>q</c> (run with <c>q = ""</c>). Empty for any other template, no such source, no row or any failure;
+    /// never throws except for cancellation. The caller has already authorized the request like GET /preview.
+    /// </summary>
+    internal static async Task<Dictionary<string, string>> SampleParamsAsync(string pageCode, string definitionJson, Guid tenant, Guid userId,
+        TenantDbContext db, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
+    {
+        var none = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            if (PageTemplateSummary.Read(definitionJson).Template != "record") return none;
+            var param = RecordKeyParam(definitionJson);
+            if (param is null) return none;
+            var catalog = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+            var item = catalog?.Bundle.Items.FirstOrDefault(x => x.ItemKind == "dataSource" && x.QueryKind == "read" && x.Sql is not null
+                && string.Equals(x.Opens, pageCode, StringComparison.Ordinal) && x.Columns.Any(c => c.Key)
+                && (x.Parameters.Count == 0 || x.Parameters is [{ Name: "q" }]));
+            if (item is null) return none;
+            if (!ReportEndpoints.TryValidateReadOnlySql(item.Sql!, out _)) return none;
+            var declared = item.Parameters.Select(x => new PageQueryParameter(x.Name, "", x.Type)).ToList();
+            var values = declared.ToDictionary(x => x.Name, _ => JsonSerializer.SerializeToElement(""), StringComparer.Ordinal);
+            var (parameters, _) = CustomPageQueryParameters.Build(declared, values);
+            if (parameters is null) return none;
+            var executor = http.RequestServices.GetService<ICustomPageReadExecutor>();
+            // The connection factory is resolved only after every check has passed.
+            var result = executor is not null
+                ? await executor.ExecuteAsync(item.Sql!, parameters, tenant, ct)
+                : await CustomSqlReportRunner.ExecuteSingleAsync(item.Sql!, parameters, tenant, http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>(), ct);
+            var resource = $"{pageCode}:sample-params:catalog={item.Code}@{catalog!.Version}:rows={result.Rows.Count}";
+            if (resource.Length > MaxAuditResourceLength) resource = resource[..MaxAuditResourceLength];
+            platformDb.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = userId, Action = SampleParamsAuditAction, Resource = resource });
+            await platformDb.SaveChangesAsync(ct);
+            if (result.Rows.Count == 0) return none;
+            var keyColumn = item.Columns.First(x => x.Key).Code;
+            var row = result.Rows[0];
+            var value = row.TryGetValue(keyColumn, out var exact) ? exact
+                : row.FirstOrDefault(x => string.Equals(x.Key, keyColumn, StringComparison.OrdinalIgnoreCase)).Value;
+            var text = value switch
+            {
+                null or DBNull => null,
+                string s => s,
+                Guid g => g.ToString("D"),
+                DateTime d => d.ToString(d.TimeOfDay == TimeSpan.Zero ? "yyyy-MM-dd" : "O", CultureInfo.InvariantCulture),
+                bool b => b ? "true" : "false",
+                IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+                _ => value.ToString(),
+            };
+            if (string.IsNullOrWhiteSpace(text)) return none;
+            none[param] = text;
+            return none;
+        }
+        catch (Exception exception) when (!ct.IsCancellationRequested)
+        {
+            http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CustomPageQueryEndpoints).FullName!)
+                .LogWarning(exception, "Sample params for custom page {PageCode} of tenant {TenantId} could not be read.", pageCode, tenant);
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The record page's key parameter, read as the ERP runtime's <c>recordKeyParam</c> reads it: the first section formCard's
+    /// <c>recordKey</c> (<c>{{X.rows[0].k}}</c>) names query X (by name, then id), whose parameter bound to exactly
+    /// <c>{{sayfa.parametre.&lt;p&gt;}}</c> gives <c>&lt;p&gt;</c>. Null when any step is missing.
+    /// </summary>
+    internal static string? RecordKeyParam(string definitionJson)
+    {
+        using var document = JsonDocument.Parse(definitionJson);
+        if (!document.RootElement.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array) return null;
+        string? root = null;
+        foreach (var component in components.EnumerateArray())
+        {
+            if (component.ValueKind != JsonValueKind.Object || !component.TryGetProperty("props", out var props) || props.ValueKind != JsonValueKind.Object) continue;
+            if (!(component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "formCard")
+                || !(props.TryGetProperty("slot", out var slot) && slot.ValueKind == JsonValueKind.String && slot.GetString() == "section")) continue;
+            var key = props.TryGetProperty("recordKey", out var recordKey) && recordKey.ValueKind == JsonValueKind.String ? recordKey.GetString()! : "";
+            root = RecordKeyRoot.Match(key) is { Success: true } match ? match.Groups[1].Value : null;
+            break;
+        }
+        if (root is null) return null;
+        var queries = TenantCustomPageQueries.ReadQueries(definitionJson);
+        var query = queries.FirstOrDefault(x => x.Name == root) ?? queries.FirstOrDefault(x => x.Id == root);
+        foreach (var parameter in query?.Parameters ?? [])
+            if (PageParameterBinding.Match(parameter.Binding) is { Success: true } match) return match.Groups[1].Value;
+        return null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex RecordKeyRoot = new(@"^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\.",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+    private static readonly System.Text.RegularExpressions.Regex PageParameterBinding = new(@"^\s*\{\{\s*sayfa\.parametre\.([^\s}.]+)\s*\}\}\s*\z",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    internal const string WriteRateLimitError ="Çok fazla yazma isteği gönderildi; bir dakika sonra yeniden deneyin.";
     internal const string WriteAuditUnavailableError = "Yazma işlemi denetim kaydı oluşturulamadığı için çalıştırılmadı; daha sonra yeniden deneyin.";
 
     /// <summary>

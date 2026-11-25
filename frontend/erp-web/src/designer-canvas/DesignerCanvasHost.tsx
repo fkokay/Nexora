@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { CanvasAnchorContext } from './anchorContext';
+import { api } from '../erpApi';
+import { setPageParams, type PageParams } from '../pageNavigation';
+import { CanvasAnchorContext, CanvasTabsContext } from './anchorContext';
 import { CANVAS_PROTOCOL, CANVAS_VERSION, collectBlocks, parseStudioCanvasMessage, type CanvasParams, type CanvasToStudio } from './canvasProtocol';
 import './designer-canvas.css';
 
@@ -8,9 +10,21 @@ const TenantCustomPage = lazy(() => import('../TenantCustomPage'));
 const ERROR_SELECTOR = '.tenant-custom-page-state.tenant-custom-page-error';
 // Sayfa yüklenirken (her yeniden yüklemede kısa süre) düzen gönderilmez; Studio son yükseklik ve blokları korur.
 const LOADING_SELECTOR = '.tenant-custom-page-state:not(.tenant-custom-page-error)';
+const NO_TABS: ReadonlyMap<string, number> = new Map();
+
+/** Uçtan gelen örnek kayıt parametrelerinin yalnız metin değerleri; başka her şey yok sayılır. */
+function sampleParams(value: unknown): PageParams {
+  const params = (value as { params?: unknown } | null)?.params;
+  if (typeof params !== 'object' || params === null || Array.isArray(params)) return {};
+  return Object.fromEntries(Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
 
 export default function DesignerCanvasHost({ token, params, studioOrigin }: { token: string; params: CanvasParams; studioOrigin: string }) {
+  // İstenen sürüm (reload) ve örnek kayıt parametreleri yazıldıktan sonra çizilen sürüm; arada önceki çizim kalır.
   const [revision, setRevision] = useState(0);
+  const [shown, setShown] = useState<number | null>(null);
+  // Studio'nun showTab ile istediği sekmeler; yeniden yüklemede (key değişimi) korunur.
+  const [tabs, setTabs] = useState(NO_TABS);
   const rootRef = useRef<HTMLDivElement>(null);
   const revisionRef = useRef(0);
   const notifyRef = useRef<() => void>(() => {});
@@ -55,8 +69,12 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
       if (event.origin !== studioOrigin || event.source !== window.parent) return;
       const message = parseStudioCanvasMessage(event.data);
       if (!message) return;
-      revisionRef.current = message.revision;
-      setRevision(message.revision);
+      if (message.type === 'showTab') {
+        const { tabsId, index } = message;
+        setTabs((current) => current.get(tabsId) === index ? current : new Map(current).set(tabsId, index));
+      } else {
+        setRevision(message.revision);
+      }
       schedule();
     };
     window.addEventListener('message', onMessage);
@@ -68,6 +86,25 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
     };
   }, [studioOrigin]);
 
+  // Kayıt kartı taslağı örnek bir kayıtla açılır: uç, sayfa parametresini (`{ <p>: anahtar }`) verir; kalıp `record` değilse,
+  // kaynak ya da satır yoksa boş döner. Kalıp sayfa yüklenmeden bilinmediği için her sürümde sorulur; hata da boş sayılır.
+  // Parametreler sayfanın okuduğu sekme anahtarına (TenantCustomPage: systemScreenKey ?? `custom-page-preview:<id>`) yazılır.
+  const { previewId, systemScreenKey } = params;
+  useEffect(() => {
+    let active = true;
+    const tabKey = systemScreenKey ?? `custom-page-preview:${previewId}`;
+    void api<unknown>(`/api/custom-pages/${encodeURIComponent(previewId)}/preview/sample-params`, token)
+      .then(sampleParams, () => ({}))
+      .then((sample) => {
+        if (!active) return;
+        setPageParams(tabKey, sample);
+        revisionRef.current = revision;
+        setShown(revision);
+        notifyRef.current();
+      });
+    return () => { active = false; };
+  }, [revision, token, previewId, systemScreenKey]);
+
   // Canlı çalışma alanıyla aynı ata zinciri (WorkspaceShellPage: .app-shell › .main-area › .content.workspace-content ›
   // .workspace-page-main): `.app-shell` kapsamlı sayfa kuralları tuvalde de uygulanır. Ölçüm ve blok konumları en dıştaki
   // kabuktan alınır (iframe'in sol üst köşesi); kabuğun 100vh alt sınırı designer-canvas.css'te kaldırılır.
@@ -77,9 +114,11 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
         <section className="content workspace-content">
           <div className="workspace-page-main">
             <CanvasAnchorContext.Provider value={true}>
-              <Suspense fallback={null}>
-                <TenantCustomPage key={revision} token={token} previewId={params.previewId} systemScreenKey={params.systemScreenKey} />
-              </Suspense>
+              <CanvasTabsContext.Provider value={tabs}>
+                <Suspense fallback={null}>
+                  {shown !== null && <TenantCustomPage key={shown} token={token} previewId={previewId} systemScreenKey={systemScreenKey} />}
+                </Suspense>
+              </CanvasTabsContext.Provider>
             </CanvasAnchorContext.Provider>
           </div>
         </section>

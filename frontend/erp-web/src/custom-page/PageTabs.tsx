@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { CanvasTabsContext } from "../designer-canvas/anchorContext";
 import { displayText, interpolate, literalText, resolvePath, type PageScope } from "./pageBindings";
 
 const INVALID_CONTROL = ".tenant-page-input.is-invalid input, .tenant-page-input.is-invalid select";
@@ -25,8 +26,13 @@ export function boundTab(tab: { label: string; ids: string[] }, scope: PageScope
  * etkin olmayan paneller `hidden` taşır. `jumpTo.signal` değişince o sekme etkinleşir ve içindeki ilk geçersiz denetime
  * odak verilir.
  */
-export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style, tabAnchor }: {
+export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style, tabAnchor, activeIndex }: {
   id: string; tabs: PageTab[]; defaultTab: number;
+  /**
+   * Dışarıdan denetlenen etkin sekme (yalnız Studio tuvali). Verilmezse tuvalin `CanvasTabsContext`'inde bu kimliğe
+   * istenen sekme kullanılır; ikisi de yoksa sekmeler kendi durumunu yönetir.
+   */
+  activeIndex?: number;
   /** Her sekme düğmesinin hemen önüne konan görünmez işaret (Studio tuvali; yalnız Kayıt kartı). */
   tabAnchor?: (index: number) => ReactNode;
   /** Sayfa parametresinin istediği sekme (`tabParam`); `key` değişince (açık tutulan sayfa yeni parametreyle açıldığında) etkinleşir. */
@@ -35,7 +41,9 @@ export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwne
 }) {
   const clamp = (index: number) => Math.max(0, Math.min(tabs.length - 1, Number.isInteger(index) ? index : 0));
   const [active, setActive] = useState(() => clamp(defaultTab));
-  const current = clamp(active);
+  const canvasTab = useContext(CanvasTabsContext)?.get(id);
+  const forced = activeIndex ?? canvasTab;
+  const current = clamp(forced ?? active);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);

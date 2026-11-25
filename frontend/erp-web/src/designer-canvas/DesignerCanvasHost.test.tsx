@@ -4,20 +4,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasAnchorContext } from './anchorContext';
 import DesignerCanvasHost from './DesignerCanvasHost';
 
-const mounts = vi.hoisted(() => ({ count: 0, error: false, queryError: false, loading: false, setLoading: (_: boolean) => {} }));
+const mounts = vi.hoisted(() => ({
+  count: 0, error: false, queryError: false, loading: false, tabs: false, setLoading: (_: boolean) => {},
+  params: [] as Record<string, string>[],
+}));
+const apiMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../TenantCustomPage', () => ({
-  default: function FakePage() {
+vi.mock('../erpApi', () => ({ api: apiMock }));
+
+vi.mock('../TenantCustomPage', async () => {
+  const { PageTabs } = await import('../custom-page/PageTabs');
+  const { pageParamsOf } = await import('../pageNavigation');
+  return { default: function FakePage({ previewId }: { previewId: string }) {
     const anchored = useContext(CanvasAnchorContext);
     const [loading, setLoading] = useState(mounts.loading);
     mounts.setLoading = setLoading;
-    useEffect(() => { mounts.count += 1; }, []);
+    // TenantCustomPage önizlemede parametreleri `custom-page-preview:<id>` sekme anahtarından okur.
+    useEffect(() => { mounts.count += 1; mounts.params.push({ ...pageParamsOf(`custom-page-preview:${previewId}`) }); }, []);
+    if (mounts.tabs) return <PageTabs id="sekmeler" tabs={[{ label: 'Genel', ids: [] }, { label: 'Satırlar', ids: [] }]} defaultTab={0}
+      renderOwned={() => null} errorCounts={[0, 0]} jumpTo={null} style={{}} />;
     if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
     if (mounts.error) return <div className="tenant-custom-page-state tenant-custom-page-error">Sayfa yok</div>;
     if (mounts.queryError) return <><template data-cp-anchor="x" /><div style={{ height: '50px' }}><div className="tenant-custom-page-error tenant-page-query-error">Sorgu hatası</div></div></>;
     return anchored ? <><template data-cp-anchor="x" /><div style={{ height: '50px' }} /></> : <div />;
-  },
-}));
+  } };
+});
 
 const STUDIO = 'https://studio.test';
 let posted: { message: any; target: string }[];
@@ -38,6 +49,10 @@ beforeEach(() => {
   mounts.error = false;
   mounts.queryError = false;
   mounts.loading = false;
+  mounts.tabs = false;
+  mounts.params = [];
+  apiMock.mockReset();
+  apiMock.mockResolvedValue({ params: {} });
   posted = [];
   frames = [];
   vi.spyOn(window, 'postMessage').mockImplementation(((message: unknown, target: string) => {
@@ -153,5 +168,48 @@ describe('DesignerCanvasHost', () => {
     flushFrames();
     expect(lastOfType('error')).toBeUndefined();
     expect(lastOfType('layout')?.message.blocks[0].id).toBe('x');
+  });
+
+  it('canvas host passes sample params to record page', async () => {
+    apiMock.mockResolvedValue({ params: { kartId: 'C-001', bozuk: 5 } });
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    expect(apiMock).toHaveBeenCalledWith('/api/custom-pages/p1/preview/sample-params', 't');
+    // Sayfa ilk çizimde örnek kaydı görür; metin olmayan değerler alınmaz.
+    expect(mounts.params[0]).toEqual({ kartId: 'C-001' });
+
+    // Yeniden yüklemede yeniden sorulur; uç hata verirse sayfa parametresiz açılır.
+    apiMock.mockRejectedValue(new Error('500'));
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision: 2 },
+      }));
+    });
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(mounts.params[1]).toEqual({});
+  });
+
+  it('showTab switches the active tab', async () => {
+    mounts.tabs = true;
+    const { getAllByRole } = renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    const selected = () => getAllByRole('tab').map((tab) => tab.getAttribute('aria-selected'));
+    expect(selected()).toEqual(['true', 'false']);
+    const send = (data: unknown, origin = STUDIO) => act(() => {
+      window.dispatchEvent(new MessageEvent('message', { origin, source: window.parent, data }));
+    });
+
+    send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 1 }, 'https://evil.test');
+    expect(selected()).toEqual(['true', 'false']);
+    send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 1 });
+    await waitFor(() => expect(selected()).toEqual(['false', 'true']));
+    // showTab sayfayı yeniden yüklemez; sekme yeniden yüklemeden sonra da korunur.
+    expect(mounts.count).toBe(1);
+    send({ nx: 'nexora-canvas', v: 1, type: 'reload', revision: 5 });
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(selected()).toEqual(['false', 'true']);
+    send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 0 });
+    await waitFor(() => expect(selected()).toEqual(['true', 'false']));
   });
 });
