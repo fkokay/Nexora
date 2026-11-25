@@ -1,0 +1,13 @@
+.page-shell { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.page-shell-crumbs { display: flex; gap: 6px; font-size: 12px; color: var(--nx-text-muted); }
+.page-shell-crumbs span + span::before { content: "›"; margin-right: 6px; }
+.page-shell-bar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.page-shell-bar-left, .page-shell-bar-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.page-shell-bar-search { flex: 1 1 auto; display: flex; justify-content: center; min-width: 0; }
+.page-shell-bar-right { margin-left: auto; }
+.page-shell-action--danger { color: var(--nx-danger); }
+.page-shell-more { position: relative; }
+.page-shell-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: flex; flex-direction: column; min-width: 160px; padding: 4px; background: var(--nx-surface); border: 1px solid var(--nx-border); border-radius: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 14%); }
+.page-shell-menu-item { text-align: left; background: transparent; border: 0; padding: 6px 10px; border-radius: 6px; }
+.page-shell-menu-item--danger { color: var(--nx-danger); }
+.page-shell-body { min-width: 0; }

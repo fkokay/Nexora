@@ -1,4 +1,5 @@
 import { createElement, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -1665,8 +1666,10 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
-function PageBody({ page, components, queryDefinitions, isV2, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
-  page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean; token: string; previewId?: string;
+function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = null, token, previewId, tabKey, pageParams, legacyLink = null, onTitle }: {
+  page: PublishedPage; components: ComponentDefinition[]; queryDefinitions: ReturnType<typeof readPageQueries>; isV2: boolean;
+  /** Sayfa tanımındaki kalıp (yoksa null: eski çizim). Kalıp çizimi sonraki görevde eklenir. */
+  pageTemplate?: PageTemplate | null; token: string; previewId?: string;
   /** Sayfanın çalışma sekmesi anahtarı ve "Sayfa aç" eyleminin verdiği parametreler (`{{sayfa.parametre.<ad>}}`). */
   tabKey?: string; pageParams: PageParams;
   /** İşlem çubuklu sayfada başlık satırına konan "Eski ekranda aç" bağlantısı. */
@@ -3400,7 +3403,7 @@ function PageBody({ page, components, queryDefinitions, isV2, token, previewId, 
   const countTableHidden = !!runtime && countTable !== "" && !ancestorsOf(countTable).every((id) => { const item = flatById[id]; return !item || componentVisible(item, runtime); });
   const titleCount = bar && !countTableHidden ? pageTitleCount(bar.props.titleCount, scope) : null;
   const showTitle = !!bar && parseBarLook(bar.props.barLook)?.title !== false;
-  return <div className="tenant-custom-page-content" ref={contentRef}>
+  return <div className="tenant-custom-page-content" ref={contentRef} data-page-template={pageTemplate?.name}>
     {showTitle && <div className="list-v2 tenant-custom-page-title">
       <ListPageHeader title={pageTitle || page.name} description={page.description || undefined} count={titleCount}>{legacyLink}</ListPageHeader>
     </div>}
@@ -3548,8 +3551,10 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   let components: ComponentDefinition[] = [];
   let queryDefinitions: ReturnType<typeof readPageQueries> = [];
   let isV2 = false;
+  let pageTemplate: PageTemplate | null = null;
   try {
     const definition = JSON.parse(page.definitionJson) as { schemaVersion?: unknown; components?: ComponentDefinition[] };
+    pageTemplate = readPageTemplate(definition);
     components = Array.isArray(definition.components) ? definition.components : [];
     isV2 = definition.schemaVersion === 2;
     if (isV2) queryDefinitions = readPageQueries(definition);
@@ -3558,6 +3563,6 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
     {!(isV2 && hasActionBar(components)) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
-    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
+    <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }
