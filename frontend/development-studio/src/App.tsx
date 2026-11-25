@@ -8,19 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Activity,
-  ArrowUpRight,
   Boxes,
-  CalendarDays,
   Check,
   ChevronRight,
   Code2,
   Eye,
   EyeOff,
   FileText,
-  FolderKanban,
-  GitBranch,
-  ListTodo,
   LogOut,
   Package,
   Pencil,
@@ -31,7 +25,6 @@ import {
   ChevronsUpDown,
   Sparkles,
   Trash2,
-  TrendingUp,
   X,
   Zap,
   type LucideIcon,
@@ -61,6 +54,11 @@ const PeoplePage = lazy(() =>
 const ConnectionsPage = lazy(() =>
   import("./connections/ConnectionsPage").then((module) => ({
     default: module.ConnectionsPage,
+  })),
+);
+const HomePage = lazy(() =>
+  import("./home/HomePage").then((module) => ({
+    default: module.HomePage,
   })),
 );
 const NativePlatformTool = lazy(
@@ -295,46 +293,6 @@ function EmptyState({
   );
 }
 
-const requestStatusTone: Record<string, string> = {
-  Submitted: "is-warning",
-  Planned: "is-accent",
-  InReview: "is-warning",
-  InProgress: "is-info",
-  Completed: "is-success",
-  Rejected: "is-danger",
-};
-
-function AnalyticsSparkline({ values }: { values: number[] }) {
-  const max = Math.max(1, ...values);
-  const points = values
-    .map(
-      (value, index) =>
-        `${(index * 88) / Math.max(1, values.length - 1) + 3},${36 - (value / max) * 30}`,
-    )
-    .join(" ");
-  return (
-    <svg
-      className="st-sparkline"
-      viewBox="0 0 94 42"
-      aria-hidden="true"
-    >
-      <polygon
-        points={`3,42 ${points} 91,42`}
-        fill="currentColor"
-        opacity=".09"
-      />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem(tokenKey) || "");
   const [selectionToken, setSelectionToken] = useState(
@@ -358,6 +316,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [requests, setRequests] = useState<DevelopmentRequest[]>([]);
+  // Ana sayfa kartları talep listesinin ayrı yüklenme durumunu gösterir.
+  const [requestsStatus, setRequestsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const [projects, setProjects] = useState<DevelopmentProject[]>([]);
   const [marketplaceModules, setMarketplaceModules] = useState<
     MarketplaceModule[]
@@ -372,8 +334,6 @@ export default function App() {
   const [marketplaceBusy, setMarketplaceBusy] = useState("");
   const [sampleInstallBusy, setSampleInstallBusy] = useState("");
   const [installedSamples, setInstalledSamples] = useState<string[]>([]);
-  const [analyticsRange, setAnalyticsRange] = useState(180);
-  const [analyticsProject, setAnalyticsProject] = useState("all");
   const projectsRequestId = useRef(0);
   const moduleStarterPrompted = useRef(false);
   // Proje/talep yüklemesi başarısız olduysa üst çubuktaki bağlantı rozeti hatayı gösterir.
@@ -435,7 +395,7 @@ export default function App() {
   ).includes(activeSection);
   const needsProjects =
     canReadProjects &&
-    ((["home", "incoming-requests", "company-module"] as StudioSection[]).includes(
+    ((["incoming-requests", "company-module"] as StudioSection[]).includes(
       activeSection,
     ) ||
       (showRequest && !isConsultant));
@@ -449,7 +409,6 @@ export default function App() {
     access.setActive(role);
     if (!keep) navigate("#home");
   }
-  const requestsHash = isConsultant ? "#my-requests" : "#incoming-requests";
   const platformToolHref = (toolId: string) => {
     const url = new URL("/", platformOrigin);
     url.searchParams.set("platformTool", toolId);
@@ -572,17 +531,20 @@ export default function App() {
     requestsLoadedFor.current = tenant.id;
     let current = true;
     let done = false;
+    setRequestsStatus("loading");
     api<DevelopmentRequest[]>("/studio/requests/", token)
       .then((items) => {
         done = true;
         if (!current) return;
         setRequests(items);
+        setRequestsStatus("ready");
         setDataLoadFailed(false);
       })
       .catch((e) => {
         done = true;
         if (!current) return;
         requestsLoadedFor.current = "";
+        setRequestsStatus("error");
         setError((e as Error).message);
         setDataLoadFailed(true);
       });
@@ -1165,242 +1127,12 @@ export default function App() {
       </div>
     );
 
-  const connectedProjects = projects.filter(
-    (project) => project.githubAuthorized,
-  ).length;
-  const submittedRequests = requests.filter(
-    (request) => request.status === "Submitted",
-  ).length;
-  const recentRequests = [...requests]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 3);
-  const analyticsNow = new Date();
-  const analyticsStart = new Date(
-    analyticsNow.getTime() - analyticsRange * 86400000,
-  );
-  const analyticsScopedRequests = requests.filter(
-    (item) => analyticsProject === "all" || item.projectId === analyticsProject,
-  );
-  const analyticsRequests = analyticsScopedRequests.filter((item) => {
-    const created = Date.parse(item.createdAt);
-    return (
-      Number.isFinite(created) &&
-      created >= analyticsStart.getTime() &&
-      created <= analyticsNow.getTime()
-    );
-  });
-  const analyticsPreviousStart = new Date(
-    analyticsStart.getTime() - analyticsRange * 86400000,
-  );
-  const analyticsPreviousCount = analyticsScopedRequests.filter((item) => {
-    const created = Date.parse(item.createdAt);
-    return (
-      Number.isFinite(created) &&
-      created >= analyticsPreviousStart.getTime() &&
-      created < analyticsStart.getTime()
-    );
-  }).length;
-  const analyticsChange = analyticsPreviousCount
-    ? Math.round(
-        ((analyticsRequests.length - analyticsPreviousCount) /
-          analyticsPreviousCount) *
-          100,
-      )
-    : null;
-  const closedStatuses = [
-    "completed",
-    "closed",
-    "rejected",
-    "cancelled",
-    "canceled",
-  ];
-  const analyticsOpenCount = analyticsRequests.filter(
-    (item) => !closedStatuses.includes(item.status.toLowerCase()),
-  ).length;
-  const analyticsLinkedCount = analyticsRequests.filter(
-    (item) => item.projectId,
-  ).length;
-  const analyticsBucketCount =
-    analyticsRange <= 30
-      ? 5
-      : analyticsRange <= 90
-        ? 13
-        : analyticsRange <= 180
-          ? 6
-          : 12;
-  const analyticsBuckets = Array.from(
-    { length: analyticsBucketCount },
-    (_, index) => {
-      const from = new Date(
-        analyticsStart.getTime() +
-          (analyticsRange * 86400000 * index) / analyticsBucketCount,
-      );
-      const to = new Date(
-        analyticsStart.getTime() +
-          (analyticsRange * 86400000 * (index + 1)) / analyticsBucketCount,
-      );
-      const bucketRequests = analyticsRequests.filter((item) => {
-        const created = Date.parse(item.createdAt);
-        return (
-          created >= from.getTime() &&
-          (index === analyticsBucketCount - 1
-            ? created <= to.getTime()
-            : created < to.getTime())
-        );
-      });
-      return {
-        key: `${from.toISOString()}-${index}`,
-        label:
-          analyticsRange <= 90
-            ? new Intl.DateTimeFormat("tr-TR", {
-                day: "numeric",
-                month: "short",
-              }).format(from)
-            : new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(from),
-        count: bucketRequests.length,
-        open: bucketRequests.filter(
-          (item) => !closedStatuses.includes(item.status.toLowerCase()),
-        ).length,
-        linked: bucketRequests.filter((item) => item.projectId).length,
-        projects: new Set(
-          bucketRequests
-            .filter((item) => item.projectId)
-            .map((item) => item.projectId),
-        ).size,
-      };
-    },
-  );
-  const analyticsStatuses = Object.entries(
-    analyticsRequests.reduce<Record<string, number>>((counts, item) => {
-      counts[item.status] = (counts[item.status] || 0) + 1;
-      return counts;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1]);
-  const analyticsProjects = Object.entries(
-    analyticsRequests
-      .filter((item) => item.projectId)
-      .reduce<Record<string, number>>((counts, item) => {
-        counts[item.projectId!] = (counts[item.projectId!] || 0) + 1;
-        return counts;
-      }, {}),
-  )
-    .map(([id, count]) => ({
-      id,
-      count,
-      name:
-        projects.find((project) => project.id === id)?.name ||
-        analyticsRequests.find((item) => item.projectId === id)?.projectName ||
-        "Proje",
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "tr"))
-    .slice(0, 5);
-  const analyticsMaxBucket = Math.max(
-    1,
-    ...analyticsBuckets.map((item) => item.count),
-  );
-  const analyticsMaxStatus = Math.max(
-    1,
-    ...analyticsStatuses.map(([, count]) => count),
-  );
-  const analyticsMaxProject = Math.max(
-    1,
-    ...analyticsProjects.map((item) => item.count),
-  );
-  const analyticsRecentRequests = [...analyticsRequests]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 6);
-  const statusLabel = (status: string) =>
-    ({
-      Submitted: "Alındı",
-      Planned: "Planlandı",
-      InReview: "İncelemede",
-      InProgress: "Devam ediyor",
-      Completed: "Tamamlandı",
-      Rejected: "Reddedildi",
-      Cancelled: "İptal edildi",
-    })[status] || status;
   const filteredMarketplaceModules = marketplaceModules.filter((item) =>
     `${item.manifest?.displayName || ""} ${item.moduleCode} ${item.publisher}`
       .toLocaleLowerCase("tr-TR")
       .includes(marketplaceQuery.toLocaleLowerCase("tr-TR")),
   );
-  const formatShortDate = (value: string) =>
-    new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" }).format(
-      new Date(value),
-    );
-  const openRequestCount = requests.filter(
-    (item) => !closedStatuses.includes(item.status.toLowerCase()),
-  ).length;
-  const requestStatusSummary = Object.entries(
-    requests.reduce<Record<string, number>>((acc, item) => {
-      acc[item.status] = (acc[item.status] || 0) + 1;
-      return acc;
-    }, {}),
-  ).map(([status, count]) => ({
-    status,
-    count,
-    tone: requestStatusTone[status] || "is-neutral",
-  }));
-  const onboardingSteps = [
-    {
-      title: "GitHub deposu bağlayın",
-      hint: "Talepler yalnız yetkili depoda çalışır",
-      done: connectedProjects > 0,
-      action: canReadProjects ? (
-        <a className="ns-btn ns-btn-sm" href="#company-module/code">
-          Proje ekle
-        </a>
-      ) : null,
-    },
-    {
-      title: "İlk talebinizi oluşturun",
-      hint: "Değişiklik ayrı çalışma alanında hazırlanır",
-      done: requests.length > 0,
-      action: isConsultant ? (
-        <button
-          className="ns-btn ns-btn-sm"
-          type="button"
-          onClick={openNewRequest}
-        >
-          Yazılımcıdan iste
-        </button>
-      ) : null,
-    },
-    {
-      title: "İnceleyip onaylayın",
-      hint: "Onaysız değişiklik uygulanmaz",
-      done: requests.some((item) => item.status === "Completed"),
-      action: null,
-    },
-  ];
-  const onboardingDone = onboardingSteps.findIndex((step) => !step.done) < 0
-    ? onboardingSteps.length
-    : onboardingSteps.findIndex((step) => !step.done);
-  const quickLinkHints: Partial<Record<StudioSection, string>> = {
-    screens: "Sayfa, form ve rapor tasarımı",
-    rules: "İş akışları ve iş kuralları",
-    menus: "ERP gezinme menüleri",
-    "my-requests": "Yazılımcıdan istedikleriniz",
-    "incoming-requests": "Danışmanlardan gelen istekler",
-    "company-module": "Kod, sürümler ve veri modelleri",
-    marketplace: "Hazır modülleri etkinleştirin",
-    ai: "Yapay zekâ sağlayıcısı ve ayarları",
-  };
   const menuItems = menuFor(activeRole);
-  const quickLinks: {
-    href: string;
-    title: string;
-    hint: string;
-    icon: LucideIcon;
-  }[] = menuItems
-    .filter((item) => item.section !== "home")
-    .slice(0, 4)
-    .map((item) => ({
-      href: `#${item.section}`,
-      title: item.label,
-      hint: quickLinkHints[item.section] || "",
-      icon: item.icon,
-    }));
   const sectionTitle =
     menuItems.find((item) => item.section === activeSection)?.label ||
     "Ana sayfa";
@@ -1438,315 +1170,6 @@ export default function App() {
       )}
     </>
   );
-  const recentRequestsTable = (items: DevelopmentRequest[]) => (
-    <div className="st-table-wrap">
-      <table className="st-table">
-        <thead>
-          <tr>
-            <th scope="col">Talep</th>
-            <th scope="col">Proje</th>
-            <th scope="col">Durum</th>
-            <th scope="col">Tarih</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td>
-                <b>{item.title}</b>
-              </td>
-              <td>{item.projectName || "Genel talep"}</td>
-              <td>
-                <span
-                  className={`ns-badge ${requestStatusTone[item.status] || ""}`.trim()}
-                >
-                  {statusLabel(item.status)}
-                </span>
-              </td>
-              <td className="st-num">{formatShortDate(item.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-  const analyticsContent = (
-    <section
-      className="st-analytics"
-      id="analytics"
-      aria-labelledby="studio-analytics-title"
-    >
-      <header className="st-hero">
-        <div className="st-hero-text">
-          <h1 id="studio-analytics-title">Analitik</h1>
-          <p>Talep hacmi, iş akışı ve proje dağılımı</p>
-        </div>
-        <div className="st-filters st-hero-actions">
-          <label className="st-select">
-            <CalendarDays size={15} aria-hidden="true" />
-            <select
-              aria-label="Rapor dönemi"
-              value={analyticsRange}
-              onChange={(event) =>
-                setAnalyticsRange(Number(event.target.value))
-              }
-            >
-              <option value={30}>Son 30 gün</option>
-              <option value={90}>Son 90 gün</option>
-              <option value={180}>Son 6 ay</option>
-              <option value={365}>Son 12 ay</option>
-            </select>
-          </label>
-          <label className="st-select">
-            <FolderKanban size={15} aria-hidden="true" />
-            <select
-              aria-label="Proje filtresi"
-              value={analyticsProject}
-              onChange={(event) => setAnalyticsProject(event.target.value)}
-            >
-              <option value="all">Tüm projeler</option>
-              {projects.map((project) => (
-                <option value={project.id} key={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </header>
-      <section className="st-stat-strip" aria-label="Analitik özeti">
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <ListTodo size={14} className="is-accent" aria-hidden="true" />
-            Toplam talep
-          </span>
-          <b>{analyticsRequests.length}</b>
-          <small className="st-stat-hint">
-            {analyticsChange === null
-              ? "Önceki dönemde kayıt yok"
-              : `Önceki döneme göre ${analyticsChange > 0 ? "+" : ""}${analyticsChange}%`}
-          </small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.count)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <Activity size={14} className="is-info" aria-hidden="true" />
-            Açık iş
-          </span>
-          <b>{analyticsOpenCount}</b>
-          <small className="st-stat-hint">İş akışında devam eden</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.open)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <FolderKanban size={14} className="is-success" aria-hidden="true" />
-            Projeye bağlı
-          </span>
-          <b>
-            %{analyticsRequests.length
-              ? Math.round((analyticsLinkedCount / analyticsRequests.length) * 100)
-              : 0}
-          </b>
-          <small className="st-stat-hint">{analyticsLinkedCount} talep</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.linked)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <GitBranch size={14} className="is-warning" aria-hidden="true" />
-            Aktif proje
-          </span>
-          <b>
-            {
-              new Set(
-                analyticsRequests
-                  .filter((item) => item.projectId)
-                  .map((item) => item.projectId),
-              ).size
-            }
-          </b>
-          <small className="st-stat-hint">Seçili dönemde talep alan</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.projects)} />
-        </div>
-      </section>
-      {analyticsRequests.length === 0 ? (
-        <section className="ns-card st-card st-analytics-empty">
-          <EmptyState icon={TrendingUp} title="Bu dönemde analiz edilecek talep yok">
-            <span>
-              {analyticsRange < 365
-                ? "Dönemi genişletin ya da yeni bir geliştirme talebi oluşturun."
-                : "Grafikler ilk geliştirme talebinizle birlikte dolar."}
-            </span>
-            <div className="st-empty-actions">
-              {analyticsRange < 365 && (
-                <button
-                  className="ns-btn ns-btn-sm"
-                  type="button"
-                  onClick={() => setAnalyticsRange(365)}
-                >
-                  Son 12 ayı göster
-                </button>
-              )}
-              {isConsultant && (
-                <button
-                  className="ns-btn ns-btn-primary ns-btn-sm"
-                  type="button"
-                  onClick={openNewRequest}
-                >
-                  <Plus size={14} aria-hidden="true" />
-                  Yazılımcıdan iste
-                </button>
-              )}
-            </div>
-          </EmptyState>
-        </section>
-      ) : (
-        <>
-        <div className="st-grid st-grid-wide">
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Geliştirme talebi eğilimi</h2>
-                <p>
-                  Seçilen dönem içindeki kayıtlar · {analyticsRequests.length}{" "}
-                  talep
-                </p>
-              </div>
-            </header>
-            {analyticsRequests.length ? (
-              <div className="st-trend">
-                <div className="st-trend-scale" aria-hidden="true">
-                  {[1, 0.75, 0.5, 0.25, 0].map((factor) => (
-                    <span key={factor}>
-                      {(analyticsMaxBucket * factor).toLocaleString("tr-TR", {
-                        maximumFractionDigits: 1,
-                      })}
-                    </span>
-                  ))}
-                </div>
-                <div
-                  className="st-trend-bars"
-                  style={{
-                    gridTemplateColumns: `repeat(${analyticsBucketCount}, minmax(0, 1fr))`,
-                  }}
-                  role="img"
-                  aria-label={`Talep eğilimi: ${analyticsBuckets.map((item) => `${item.label}: ${item.count}`).join(", ")}`}
-                >
-                  {analyticsBuckets.map((item) => (
-                    <div
-                      className="st-trend-column"
-                      title={`${item.label}: ${item.count} talep`}
-                      key={item.key}
-                    >
-                      <b>{item.count}</b>
-                      <span>
-                        <i
-                          style={{
-                            height: `${item.count ? Math.round((item.count / analyticsMaxBucket) * 100) : 0}%`,
-                          }}
-                        />
-                      </span>
-                      <small>{item.label}</small>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <EmptyState icon={Activity} title="Bu dönemde talep bulunmuyor">
-                <span>
-                  Farklı bir dönem veya proje seçerek kayıtları görüntüleyin.
-                </span>
-              </EmptyState>
-            )}
-          </article>
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Talep durumları</h2>
-                <p>Durumlara göre kayıt dağılımı</p>
-              </div>
-            </header>
-            {analyticsStatuses.length ? (
-              <ul className="st-bars">
-                {analyticsStatuses.map(([status, count]) => (
-                  <li key={status}>
-                    <div>
-                      <span>{statusLabel(status)}</span>
-                      <b>{count}</b>
-                    </div>
-                    <i>
-                      <span
-                        style={{
-                          width: `${Math.round((count / analyticsMaxStatus) * 100)}%`,
-                        }}
-                      />
-                    </i>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState icon={ListTodo} title="Durum verisi yok">
-                <span>Seçilen aralıkta talep bulunamadı.</span>
-              </EmptyState>
-            )}
-          </article>
-        </div>
-        <div className="st-grid st-grid-wide-end">
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Talep alan projeler</h2>
-                <p>En fazla talep içeren ilk 5 proje</p>
-              </div>
-            </header>
-            {analyticsProjects.length ? (
-              <ol className="st-bars is-ranked">
-                {analyticsProjects.map(({ id, name, count }) => (
-                  <li key={id}>
-                    <div>
-                      <span>{name}</span>
-                      <b>{count}</b>
-                    </div>
-                    <i>
-                      <span
-                        style={{
-                          width: `${Math.round((count / analyticsMaxProject) * 100)}%`,
-                        }}
-                      />
-                    </i>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <EmptyState icon={FolderKanban} title="Proje dağılımı yok">
-                <span>Projelere bağlanan talepler burada listelenir.</span>
-              </EmptyState>
-            )}
-          </article>
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Güncel talepler</h2>
-                <p>Seçilen dönemin en yeni kayıtları</p>
-              </div>
-              <a className="ns-btn ns-btn-ghost ns-btn-sm" href={requestsHash}>
-                Tümü
-                <ArrowUpRight size={14} aria-hidden="true" />
-              </a>
-            </header>
-            {analyticsRecentRequests.length ? (
-              recentRequestsTable(analyticsRecentRequests)
-            ) : (
-              <EmptyState icon={FileText} title="Henüz kayıt yok">
-                <span>Yeni geliştirme talepleri burada görünür.</span>
-              </EmptyState>
-            )}
-          </article>
-        </div>
-        </>
-      )}
-    </section>
-  );
-
   return (
     <div
       className={`studio-root studio-dashboard studio-dashboard-reference studio-section-${activeSection} st-shell`}
@@ -2439,202 +1862,23 @@ export default function App() {
                   </button>
                 </section>
               )}
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <small>
-                    {tenant.name} · {menuRoleLabel(activeRole)}
-                  </small>
-                  <h1>Merhaba, {userName}</h1>
-                  <p>
-                    Geliştirme taleplerinizi ve projelerinizi buradan yönetin.
-                  </p>
-                </div>
-                <div className="st-hero-actions">
-                  {canReadProjects && (
-                    <a className="ns-btn" href="#company-module/code">
-                      <FolderKanban size={16} aria-hidden="true" />
-                      Firma modülü
-                    </a>
-                  )}
-                  {isConsultant && (
-                    <button
-                      className="ns-btn ns-btn-primary"
-                      type="button"
-                      onClick={openNewRequest}
-                    >
-                      <Plus size={16} aria-hidden="true" />
-                      Yazılımcıdan iste
-                    </button>
-                  )}
-                </div>
-              </header>
-
-              <section className="st-stat-strip" aria-label="Studio özeti">
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <FolderKanban size={14} className="is-accent" aria-hidden="true" />
-                    Proje
-                  </span>
-                  <b>{projects.length}</b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <GitBranch size={14} className="is-success" aria-hidden="true" />
-                    GitHub bağlı
-                  </span>
-                  <b>
-                    {connectedProjects}
-                    <small> / {projects.length}</small>
-                  </b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <ListTodo size={14} className="is-info" aria-hidden="true" />
-                    Talep
-                  </span>
-                  <b>
-                    {requests.length}
-                    {submittedRequests > 0 && (
-                      <small> · {submittedRequests} yeni</small>
-                    )}
-                  </b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <Activity size={14} className="is-warning" aria-hidden="true" />
-                    Açık talep
-                  </span>
-                  <b>{openRequestCount}</b>
-                </div>
-              </section>
-
-              <div className="st-grid st-grid-wide">
-                {requests.length ? (
-                  <section
-                    className="ns-card st-card"
-                    aria-labelledby="studio-recent-title"
-                  >
-                    <header className="st-card-head">
-                      <div>
-                        <h2 id="studio-recent-title">Son talepler</h2>
-                        <p>En yeni geliştirme talepleri</p>
-                      </div>
-                      <a
-                        className="ns-btn ns-btn-ghost ns-btn-sm"
-                        href={requestsHash}
-                      >
-                        Tümü
-                        <ArrowUpRight size={14} aria-hidden="true" />
-                      </a>
-                    </header>
-                    <div className="st-status-dist">
-                      <div className="st-status-bar" aria-hidden="true">
-                        {requestStatusSummary.map((item) => (
-                          <span
-                            key={item.status}
-                            className={item.tone}
-                            style={{ flexGrow: item.count }}
-                          />
-                        ))}
-                      </div>
-                      <ul className="st-status-legend">
-                        {requestStatusSummary.map((item) => (
-                          <li key={item.status}>
-                            <i className={item.tone} aria-hidden="true" />
-                            {statusLabel(item.status)}
-                            <b>{item.count}</b>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    {recentRequestsTable(recentRequests)}
-                  </section>
-                ) : (
-                  <section
-                    className="ns-card st-card"
-                    aria-labelledby="studio-start-title"
-                  >
-                    <header className="st-card-head">
-                      <div>
-                        <h2 id="studio-start-title">Başlangıç adımları</h2>
-                        <p>
-                          Studio'yu kullanmaya hazırlanın ·{" "}
-                          {onboardingDone}/3 tamamlandı
-                        </p>
-                      </div>
-                    </header>
-                    <div
-                      className="st-progress"
-                      role="progressbar"
-                      aria-label="Başlangıç ilerlemesi"
-                      aria-valuemin={0}
-                      aria-valuemax={3}
-                      aria-valuenow={onboardingDone}
-                    >
-                      <span style={{ width: `${(onboardingDone / 3) * 100}%` }} />
-                    </div>
-                    <ol className="st-checklist">
-                      {onboardingSteps.map((step, index) => {
-                        const state = step.done
-                          ? "is-done"
-                          : index === onboardingDone
-                            ? "is-current"
-                            : "";
-                        return (
-                          <li key={step.title} className={state}>
-                            <span className="st-checklist-mark" aria-hidden="true">
-                              {step.done ? <Check size={14} /> : index + 1}
-                            </span>
-                            <div>
-                              <b>{step.title}</b>
-                              <small>{step.hint}</small>
-                            </div>
-                            {state === "is-current" && step.action}
-                            {step.done && (
-                              <span className="ns-sr-only">Tamamlandı</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                    <p className="st-card-note">
-                      İlk talebiniz oluşunca bu alanda son talepler listelenir.
-                    </p>
-                  </section>
-                )}
-                <section
-                  className="ns-card st-card"
-                  aria-labelledby="studio-quick-title"
-                >
-                  <header className="st-card-head">
-                    <div>
-                      <h2 id="studio-quick-title">Hızlı işlemler</h2>
-                    </div>
-                  </header>
-                  <nav className="st-quick" aria-labelledby="studio-quick-title">
-                    {quickLinks.map((link) => (
-                      <a key={link.href} href={link.href}>
-                        <span className="st-quick-icon" aria-hidden="true">
-                          <link.icon size={16} />
-                        </span>
-                        <span className="st-quick-text">
-                          <b>{link.title}</b>
-                          <small>{link.hint}</small>
-                        </span>
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </a>
-                    ))}
-                  </nav>
-                  <p className="st-quick-note">
-                    <ShieldCheck size={14} aria-hidden="true" />
-                    <span>
-                      Depo erişimi ve değişiklikler proje ve firma
-                      yetkileriyle denetlenir. Onaysız değişiklik uygulanmaz.
-                    </span>
-                  </p>
-                </section>
-              </div>
-              {analyticsContent}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Ana sayfa yükleniyor…
+                  </div>
+                }
+              >
+                <HomePage
+                  token={token}
+                  role={activeRole}
+                  tenantName={tenant.name}
+                  userName={userName}
+                  requests={requests}
+                  requestsStatus={requestsStatus}
+                  onNewRequest={openNewRequest}
+                />
+              </Suspense>
             </>
           )}
         </main>
