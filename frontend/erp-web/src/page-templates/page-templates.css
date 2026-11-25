@@ -1,3 +1,5 @@
+/* `.tenant-custom-page-content` 12 sütunlu ızgaradır; açık yerleştirme olmayan çocuk tek sütuna düşer (768 px'te ~1/3 genişlik). Kök tüm sütunları kaplar. */
+.list-template { grid-column: 1 / -1; width: 100%; min-width: 0; }
 .page-shell { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .page-shell-crumbs { display: flex; gap: 6px; font-size: 12px; color: var(--nx-muted); }
 .page-shell-crumbs span + span::before { content: "›"; margin-right: 6px; }
@@ -13,8 +15,8 @@
 .page-shell-body { min-width: 0; }
 .list-template-above, .list-template-below { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .list-template-indicators { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; min-width: 0; }
-.list-template-main { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
-.list-template-list { flex: 1 1 0; min-width: 0; container-type: inline-size; container-name: list-box; }
+.list-template-main { display: flex; gap: 12px; align-items: flex-start; width: 100%; min-width: 0; }
+.list-template-list { flex: 1 1 0; width: 100%; min-width: 0; container-type: inline-size; container-name: list-box; }
 .list-template-detail { flex: 0 0 320px; min-width: 0; }
 .list-template-list.is-striped tbody tr:nth-child(even) { background: rgb(0 0 0 / 3%); }
 .list-template-search { width: 100%; max-width: 360px; }

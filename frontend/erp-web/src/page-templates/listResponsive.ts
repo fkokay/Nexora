@@ -5,6 +5,9 @@ export type ListMode = "full" | "narrow" | "cards";
 /** Liste kalıbının kutu genişliği kipi; kalıp dışındaki (eski) sayfalarda null olduğundan ızgara değişmez. */
 export const ListModeContext = createContext<ListMode | null>(null);
 
+/** Kabukta orta arama kutusu varsa true: ızgara kendi "Tüm sütunlarda ara" kutusunu çizmez (çift arama olmasın). Kalıp dışında false. */
+export const ShellSearchContext = createContext<boolean>(false);
+
 /** Kalıplı listede kullanıcı satır sayısını seçemez; tasarımcının `pageSize` değerleri. */
 export const CLIENT_PAGE_SIZES = [10, 25, 50, 100];
 

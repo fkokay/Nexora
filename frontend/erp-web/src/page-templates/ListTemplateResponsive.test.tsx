@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider } from '../commands/CommandProvider';
 import { api } from '../erpApi';
 import TenantCustomPage from '../TenantCustomPage';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Liste kalıbı: kutu genişliğine göre yerleşim. jsdom `@container` değerlendirmez; JS kipinin sürdüğü davranış sınanır.
 
@@ -217,5 +219,37 @@ describe('liste kalıbı kutu genişliği', () => {
     fireEvent.keyDown(menu, { key: 'Escape' });
     expect(screen.queryByRole('menu')).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+});
+
+describe('liste kalıbı tam genişlik', () => {
+  it('kök ve liste kutusu tam genişlik sözleşmesini taşır', async () => {
+    page({});
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('K1-1', undefined, T);
+    // jsdom yerleşim ve CSS ızgara yerleşimi ölçemez; bu yüzden sınıf sözleşmesi ve CSS kuralı sınanır.
+    // Kök, 12 sütunlu `.tenant-custom-page-content` ızgarasının doğrudan çocuğudur ve tüm sütunları kaplamalıdır.
+    const root = container.querySelector('.list-template') as HTMLElement;
+    expect(root.parentElement?.classList.contains('tenant-custom-page-content')).toBe(true);
+    const listBox = container.querySelector('.list-template-list') as HTMLElement;
+    expect(listBox).not.toBeNull();
+    const css = readFileSync(resolve(__dirname, 'page-templates.css'), 'utf-8');
+    const rule = (selector: string) => css.split("\n").find((line) => line.trimEnd().startsWith(`${selector} {`)) ?? '';
+    expect(rule('.list-template')).toMatch(/grid-column:\s*1 \/ -1/);
+    expect(rule('.list-template')).toMatch(/width:\s*100%/);
+    expect(rule('.list-template')).toMatch(/min-width:\s*0/);
+    expect(rule('.list-template-main')).toMatch(/width:\s*100%/);
+    expect(rule('.list-template-list')).toMatch(/width:\s*100%/);
+    expect(rule('.list-template-list')).toMatch(/min-width:\s*0/);
+  });
+
+  it('kabukta arama varken ızgara araç çubuğu aramayı çizmez; diğer araçlar kalır', async () => {
+    page({}, [{ id: 'f1', type: 'filterBar', name: 'suzgec', props: { slot: 'filters', table: 't1', search: true, searchPlaceholder: 'Ara…', searchColumns: ['K1'] } }]);
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('K1-1', undefined, T);
+    expect(container.querySelectorAll('.page-shell-bar-search input')).toHaveLength(1);
+    expect(screen.queryByPlaceholderText('Tüm sütunlarda ara')).toBeNull();
+    expect(screen.queryByLabelText('Tüm sütunlarda ara')).toBeNull();
+    expect(screen.getByText('Sütun filtreleri')).toBeTruthy();
   });
 });

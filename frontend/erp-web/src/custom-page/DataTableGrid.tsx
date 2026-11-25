@@ -8,7 +8,7 @@ import { PagedTableFooter } from "./PagedTableFooter";
 import type { QueryState } from "./usePageQueries";
 import type { ActionStatus } from "./PageDialog";
 import type { RowAction, TablePaging } from "../TenantCustomPage";
-import { ListModeContext, cardFields, visibleColumns } from "../page-templates/listResponsive";
+import { ListModeContext, ShellSearchContext, cardFields, visibleColumns } from "../page-templates/listResponsive";
 import { RowActionsMenu } from "../page-templates/RowActionsMenu";
 import "./data-table-grid.css";
 
@@ -95,6 +95,8 @@ const keyIndex = (key: string | null) => key && /^r\d+$/.test(key) ? Number(key.
 export function DataTableGrid({ gridId, state, columns, title, description, style, selected, onSelect, onOpenRow, formats = parseColumnFormats(undefined), toneMap = [], totals = [], density = "dense", paging, rowActions = [], bulkDelete, emptyText = "", limit, status = null, valueLabels = {}, columnLabels = {}, columnUnits = {}, tools = ALL_GRID_TOOLS, toolbarToggles, clientPageSize }: DataTableGridProps) {
   // Liste kalıbının kutu genişliği kipi; kalıp dışında null: ızgara eskisi gibi çizilir.
   const mode = useContext(ListModeContext);
+  // Kabukta arama kutusu varsa ızgara araç çubuğundaki arama gizlenir; diğer araçlar kalır.
+  const shellSearch = useContext(ShellSearchContext);
   const [clientPage, setClientPage] = useState(1);
   // Seçilen sütunlar tasarımcının seçim sırasıyla; başlık `columnLabels` ile değişebilir.
   const chosen = columns.length > 0 ? columns.flatMap((code) => state.columns.filter((column) => column.code === code)
@@ -214,7 +216,7 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
             {mode === "cards" ? cards : <div className={`customer-table-wrap tenant-page-data-grid-wrap${density === "comfort" ? " is-comfort" : ""}`}>
               <AdvancedDataGrid className="customer-table tenant-page-grid-table" gridId={gridId} aria-label={title || "Kayıtlar"}
                 externalPagination={!!paging} fixedPageSize={pageSize ?? undefined} enableRowSelection={false} selectable
-                hideSearch={!tools.search} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
+                hideSearch={!tools.search || shellSearch} hideFilters={!tools.filters} hideColumnChooser={!tools.columns} hideExport={!tools.export} hideCsv={!tools.csv} hidePivot={!tools.pivot}
                 bulkActions={bulkActions} exportActionsRef={exportRef} toolbarToggles={toolbarToggles}
                 currentRowKey={currentRowKey} onCurrentRowChange={onCurrentRowChange}>
                 <thead><tr>

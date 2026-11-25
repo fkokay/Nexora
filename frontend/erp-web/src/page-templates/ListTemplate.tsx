@@ -2,7 +2,7 @@ import { useContext, useRef, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
 import { PageShell, type ShellAction } from "./PageShell";
-import { ListModeContext, useListMode } from "./listResponsive";
+import { ListModeContext, ShellSearchContext, useListMode } from "./listResponsive";
 import { templateLevel, type Component, type ListLayout } from "./listTemplateModel";
 
 /** Kabuğun ortasındaki arama kutusu: süzgeç alanının arama değerini ve kimliğini kullanır. */
@@ -47,7 +47,7 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
       {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}
       {filters && <div className="list-template-filters">{render(filters)}</div>}
       <div className={`list-template-main${showDetail && detail ? " has-detail" : ""}`}>
-        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></div>
+        <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}><ShellSearchContext.Provider value={search != null}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></ShellSearchContext.Provider></div>
         {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
       {below.length > 0 && <div className="list-template-below">{below.map(render)}</div>}
