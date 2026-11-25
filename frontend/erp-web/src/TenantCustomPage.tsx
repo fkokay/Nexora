@@ -3,6 +3,8 @@ import { readPageTemplate, type PageTemplate } from "./page-templates/pageTempla
 import { hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
 import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
 import type { ShellAction } from "./page-templates/PageShell";
+import { layoutRecordTemplate, recordKeyParam } from "./page-templates/recordTemplateModel";
+import { RecordLines, RecordSection, RecordTemplate } from "./page-templates/RecordTemplate";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -110,6 +112,11 @@ type PageRuntime = {
   selections: Record<string, Record<string, unknown> | null>;
   /** Liste kalıbında arama kutusu kabuğa taşınan süzgeç alanları (alan aramasız çizilir). */
   shellSearch?: ReadonlySet<string>;
+  /**
+   * Kayıt kartı kalıbı (yalnız `template: record`): yeni kayıt kipi, sekmede çizilen bloklar (bölüm / satır tablosu / not) ve
+   * onların sarıcısı (`draw` bileşenin kendi çizimi). Sekme düğmeleri tuval işareti taşır.
+   */
+  record?: { isNew: boolean; blockIds: ReadonlySet<string>; block: (component: ComponentDefinition, draw: () => ReactNode) => ReactNode };
   /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
   select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   queryById: Record<string, PageQueryDefinition>;
@@ -1040,6 +1047,38 @@ function AnchorMark({ id }: { id: string }): ReactNode {
   return canvas ? createElement("template", { [ANCHOR_ATTRIBUTE]: id }) : null;
 }
 
+const RECORD_KEY_ROOT = /^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\./;
+
+/**
+ * Kayıt kartının sekme blokları: bölüm kendi kutusuna göre kolon azaltır ve kayıt sorgusu yüklenirken iskelet gösterir
+ * (yeni kayıtta göstermez); satır tablosu yeni kayıtta çizilmez. Kayıt sorgusu bölümün `recordKey`'inden (`{{X.rows[0].k}}`,
+ * X sorgu adı ya da kimliği) bulunur; `recordKey`'i olmayan bölüm ilk bölümün sorgusunu izler.
+ */
+function recordBlockRuntime(layout: ReturnType<typeof layoutRecordTemplate<ComponentDefinition>>, isNew: boolean, queries: PageQueryDefinition[],
+  stateOf: (queryId: string) => QueryState | undefined): NonNullable<PageRuntime["record"]> {
+  const blocks = layout.tabList.flatMap((tab) => tab.blocks);
+  const sections = blocks.filter((block) => block.type === "formCard");
+  const queryOf = (section: ComponentDefinition | undefined) => {
+    const root = RECORD_KEY_ROOT.exec(textValue(section?.props?.recordKey))?.[1];
+    return root ? queries.find((query) => query.name === root) ?? queries.find((query) => query.id === root) : undefined;
+  };
+  const pageQuery = queryOf(sections.find((section) => RECORD_KEY_ROOT.test(textValue(section.props?.recordKey))));
+  return {
+    isNew,
+    blockIds: new Set(blocks.map((block) => block.id)),
+    block: (component, draw) => {
+      if (component.type === "formCard") {
+        const columns = component.props?.columns === 1 || component.props?.columns === 3 ? component.props.columns : 2;
+        const query = queryOf(component) ?? pageQuery;
+        const loading = !isNew && !!query && stateOf(query.id)?.loading === true;
+        return <RecordSection columns={columns} fieldCount={idList(component.props?.inputs).length} loading={loading}>{draw()}</RecordSection>;
+      }
+      if (component.type === "dataTable") return <RecordLines title={textValue(component.props?.title)} isNew={isNew} render={draw} />;
+      return draw();
+    },
+  };
+}
+
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
   const body = renderComponentBody(component, forms, token, pageCode, runtime);
   return body === null || body === undefined ? body : <Anchored key={component.id} id={component.id}>{body}</Anchored>;
@@ -1068,7 +1107,9 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       const owned = runtime ? idList(props.inputs).map((id) => runtime.inputById[id]).filter((input): input is ComponentDefinition => Boolean(input)) : [];
       const changes = runtime && props.trackChanges === true ? runtime.cardChanges(component) : 0;
       const inline = props.layout === "inline";
-      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={inline}>
+      // Kayıt kartında çok satırlı girdi tam satırdır.
+      const wideCells = runtime?.record ? owned.map((input) => input.props?.multiline === true && textValue(input.props?.inputType, "text") === "text") : undefined;
+      return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={inline} wideCells={wideCells}>
         {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime, inline))}
       </FormCard>;
     }
@@ -1196,7 +1237,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       const buttons = idList(raw.buttons, 3).map((id) => runtime.buttonById[id])
         .filter((button): button is ComponentDefinition => !!button && componentVisible(button, runtime))
         .map((button) => renderPageButton(button, bindProps(button.props ?? {}, runtime.scope), {}, token, pageCode, runtime));
-      return <RecordHeader key={component.id} icon={textValue(raw.icon) || undefined} style={style}
+      return <RecordHeader key={component.id} icon={textValue(raw.icon) || undefined} style={style} record={runtime.record ? { isNew: runtime.record.isNew } : undefined}
         title={templateText(textValue(raw.title), runtime.scope)} subtitle={templateText(textValue(raw.subtitle), runtime.scope)}
         fields={recordHeaderFields(raw, runtime.scope)} buttons={buttons.length > 0 ? buttons : undefined} />;
     }
@@ -1213,15 +1254,19 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
         .filter((id) => runtime.ancestorsOf(id).some((owner) => tab.ids.includes(owner))).length);
       const target = runtime.errorJump?.targets[component.id];
       const jumpTo = runtime.errorJump && target !== undefined ? { tab: target, signal: runtime.errorJump.signal } : null;
+      const record = runtime.record;
       const renderOwned = (id: string) => {
         const owned = runtime.topLevelById[id];
         // Sekme yalnız üst düzey bileşen sahiplenir; sekme içinde sekme, pencere ve İşlem Çubuğu çizilmez.
         if (!owned || owned.type === "tabs" || owned.type === "actionBar" || owned.type === "dialog") return null;
-        return renderComponent(owned, forms, token, pageCode, runtime);
+        if (!record) return renderComponent(owned, forms, token, pageCode, runtime);
+        // Kayıt kartı: yalnız bölüm, satır tablosu ve not; tuval işareti sarıcının (iskelet / yer tutucu dahil) önündedir.
+        if (!record.blockIds.has(id) || !componentVisible(owned, runtime)) return null;
+        return <Anchored key={owned.id} id={owned.id}>{record.block(owned, () => renderComponentBody(owned, forms, token, pageCode, runtime))}</Anchored>;
       };
       return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={requestedTab ?? defaultTab}
         requestedTab={requestedTab === null ? null : { tab: requestedTab, key: JSON.stringify(resolvePath(runtime.scope, "sayfa.parametre") ?? null) }} renderOwned={renderOwned}
-        errorCounts={errorCounts} jumpTo={jumpTo} style={style} />;
+        errorCounts={errorCounts} jumpTo={jumpTo} style={style} tabAnchor={record ? (index) => <AnchorMark id={`${component.id}#tab${index}`} /> : undefined} />;
     }
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
@@ -3387,8 +3432,17 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     ? components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
     : [];
   const listLayout = isV2 && pageTemplate?.name === "list" && hasListSlot(templateComponents) ? layoutListTemplate(templateComponents) : null;
+  // Kayıt kartının bölüm, tablo ve notları sekmeye aittir (Liste'nin tersine): formCard girdileri, pencere, satır eylemi ve
+  // özet düğmeleri dışındaki bütün üst düzey bileşenler yerleşime girer; sekmeye ait olanlar sekme listesinden yerleşir.
+  const recordLayout = isV2 && pageTemplate?.name === "record"
+    ? layoutRecordTemplate(components.filter((component) => !ownedInputs.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id)))
+    : null;
+  const recordParam = recordLayout ? recordKeyParam(components, queryDefinitions) : null;
+  const isNewRecord = !recordParam || (pageParams[recordParam] ?? "").trim() === "";
+  const recordBlocks = recordLayout ? recordBlockRuntime(recordLayout, isNewRecord, queryDefinitions, (id) => states[queryNames[id]]) : undefined;
   const runtime: PageRuntime | undefined = isV2 ? {
     shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
+    record: recordBlocks,
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
     skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
@@ -3482,22 +3536,21 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   const countTableHidden = !!runtime && countTable !== "" && !ancestorsOf(countTable).every((id) => { const item = flatById[id]; return !item || componentVisible(item, runtime); });
   const titleCount = bar && !countTableHidden ? pageTitleCount(bar.props.titleCount, scope) : null;
   const showTitle = !!bar && parseBarLook(bar.props.barLook)?.title !== false;
-  if (listLayout && runtime) {
-    const list = listLayout.list;
-    const listQuery = typeof list.props?.query === "string" ? runtime.queryNames[list.props.query] : undefined;
-    const listState = listQuery ? runtime.states[listQuery] : undefined;
-    // Kayıt sayısı tablonun (süzülmüş) satır sayısıdır; yüklenirken, hatada ya da hiç çalışmamışken gösterilmez.
-    const count = listState && !listState.loading && !listState.error && !neverRan(listState) ? runtime.visibleRows(list, listState).rowCount : null;
-    // Sayfa düğmesi gibi: görünmeyen ve hakkı olmayan eylem gizlenir (eylemsiz düğme pasif kalır). Ana düğme bu süzmeden
-    // sonra seçilir: kalan ilk silme olmayan düğme.
-    const shownActions = listLayout.actions.filter((button) => {
+  /**
+   * Kalıp kabuğunun işlem düğmeleri. Sayfa düğmesi gibi: görünmeyen ve hakkı olmayan eylem gizlenir (eylemsiz düğme pasif
+   * kalır); silme sorgulu düğme `danger`. Ana düğme bu süzmeden sonra seçilir: `primary`'ye uyan ilk silme olmayan düğme,
+   * yoksa kalan ilk silme olmayan düğme.
+   */
+  const shellActionsFor = (buttons: ComponentDefinition[], runtime: PageRuntime, primary?: (button: ComponentDefinition) => boolean): ShellAction[] => {
+    const shownActions = buttons.filter((button) => {
       if (!componentVisible(button, runtime)) return false;
       const action = runtime.buttonAction(button);
       return !action || actionAllowed(action, runtime.rights);
     });
     const isDelete = (button: ComponentDefinition) => runtime.buttonAction(button)?.query?.kind === "delete";
-    const primaryId = shownActions.find((button) => !isDelete(button))?.id;
-    const shellActions = shownActions.map((button): ShellAction => {
+    const primaryId = (primary ? shownActions.find((button) => !isDelete(button) && primary(button)) : undefined)?.id
+      ?? shownActions.find((button) => !isDelete(button))?.id;
+    return shownActions.map((button): ShellAction => {
       const action = runtime.buttonAction(button);
       const props = bindProps(button.props ?? {}, runtime.scope);
       const text = textValue(props.text ?? props.label) || textValue(props.title);
@@ -3519,6 +3572,36 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
         },
       };
     });
+  };
+  // Görüntüleme kipi şeridi: kayıt salt okunur; Düzenle aynı kaydı (mode parametresi olmadan) düzenleme kipinde yeniden açar.
+  const viewModeStrip = readOnly && <div className="tenant-page-view-mode" role="status">
+    <Eye size={15} aria-hidden="true" /><span>Görüntüleme kipi: kayıt salt okunur.</span>
+    {tabKey && runtime?.rights.update === true && <button type="button" className="tenant-page-button"
+      onClick={() => setPageParams(tabKey, Object.fromEntries(Object.entries(pageParams).filter(([key]) => key !== VIEW_MODE_PARAM)))}>Düzenle</button>}
+  </div>;
+  if (recordLayout && runtime) {
+    // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate).
+    const shellActions = shellActionsFor(recordLayout.actions, runtime, (button) => runtime.buttonAction(button)?.type === "sequence");
+    const summaryTitle = recordLayout.summary ? templateText(textValue(recordLayout.summary.props?.title), scope) : "";
+    const crumbs = [page.name, isNewRecord ? "Yeni kayıt" : summaryTitle].filter((crumb) => crumb.trim() !== "");
+    const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
+    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir (Liste gibi).
+    return <div className="record-template-page" ref={contentRef}>
+      <RecordTemplate layout={recordLayout} render={renderSlot} title={pageTitle || page.name} crumbs={crumbs} actions={shellActions} isNew={isNewRecord}
+        notices={<>
+          {viewModeStrip}
+          {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
+          {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
+        </>} />
+    </div>;
+  }
+  if (listLayout && runtime) {
+    const list = listLayout.list;
+    const listQuery = typeof list.props?.query === "string" ? runtime.queryNames[list.props.query] : undefined;
+    const listState = listQuery ? runtime.states[listQuery] : undefined;
+    // Kayıt sayısı tablonun (süzülmüş) satır sayısıdır; yüklenirken, hatada ya da hiç çalışmamışken gösterilmez.
+    const count = listState && !listState.loading && !listState.error && !neverRan(listState) ? runtime.visibleRows(list, listState).rowCount : null;
+    const shellActions = shellActionsFor(listLayout.actions, runtime);
     const filterBar = listLayout.filters;
     const searchView = filterBar ? runtime.filterBarFor(filterBar) : null;
     const search = filterBar && searchView?.search ? <>
@@ -3546,12 +3629,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     </div>}
     {runtime && bar && conditionHolds(bar.props.visibleWhen, scope, true) && <PageActionCommands barProps={bar.props} runtime={runtime} page={page} token={token} flat={flat}
       loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} rootRef={contentRef} />}
-    {/* Görüntüleme kipi şeridi: kayıt salt okunur; Düzenle aynı kaydı (mode parametresi olmadan) düzenleme kipinde yeniden açar. */}
-    {readOnly && <div className="tenant-page-view-mode" role="status">
-      <Eye size={15} aria-hidden="true" /><span>Görüntüleme kipi: kayıt salt okunur.</span>
-      {tabKey && runtime?.rights.update === true && <button type="button" className="tenant-page-button"
-        onClick={() => setPageParams(tabKey, Object.fromEntries(Object.entries(pageParams).filter(([key]) => key !== VIEW_MODE_PARAM)))}>Düzenle</button>}
-    </div>}
+    {viewModeStrip}
     {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
     {components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
       .map((component) => renderComponent(component, page.forms ?? [], token, page.code, runtime))}
@@ -3699,7 +3777,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || pageTemplate?.name === "record")) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
     <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }

@@ -54,9 +54,12 @@ function ActionButton({ action }: { action: ShellAction }) {
     disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={(event) => action.run(event.currentTarget)}>{action.label}</button></>;
 }
 
-/** Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. */
-export function PageShell({ title, crumbs, count, actions, search, footer, children }: {
-  title: string; crumbs: string[]; count?: number | null; actions: ShellAction[]; search?: ReactNode; footer?: ReactNode; children?: ReactNode;
+/**
+ * Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. `head`: başlık ile işlem çubuğu arasında
+ * çizilen içerik (Kayıt kartının ek alanı ve kayıt özeti).
+ */
+export function PageShell({ title, crumbs, count, actions, search, head, footer, children }: {
+  title: string; crumbs: string[]; count?: number | null; actions: ShellAction[]; search?: ReactNode; head?: ReactNode; footer?: ReactNode; children?: ReactNode;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -88,6 +91,7 @@ export function PageShell({ title, crumbs, count, actions, search, footer, child
   return <div className="page-shell list-v2">
     {crumbs.length > 0 && <nav className="page-shell-crumbs" aria-label="Konum">{crumbs.map((crumb, index) => <span key={`${index}:${crumb}`}>{crumb}</span>)}</nav>}
     <ListPageHeader title={title} count={count} />
+    {head}
     <div className="page-shell-bar" ref={barRef} role="toolbar" aria-label="İşlemler">
       <div className="page-shell-bar-left">{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
       {search != null && <div className="page-shell-bar-search">{search}</div>}
