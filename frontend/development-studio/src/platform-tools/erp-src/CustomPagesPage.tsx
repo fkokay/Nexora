@@ -465,8 +465,10 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
   const source = reasoned.map((component) => {
     if (component.type !== "dataTable") return component;
     const props = component.props;
-    // Kalıplı sayfanın listesinde sayfalama istemcidedir (Karar 4): yalnız `pageSize` "Sayfa başına" ayarıdır, korunur.
-    const clientPaged = !!readPageTemplate(definition.template) && props.slot === "list" && props.paging === undefined;
+    // Kalıplı sayfanın listesinde ve Kayıt kartının satır tablosunda sayfalama istemcidedir (Karar 4): yalnız `pageSize`
+    // "Sayfa başına" ayarıdır, korunur.
+    const pageTemplate = readPageTemplate(definition.template)?.name;
+    const clientPaged = (pageTemplate === "list" && props.slot === "list" || pageTemplate === "record" && props.slot === "lines") && props.paging === undefined;
     const hasPagingProps = PAGING_PROPS.some((key) => key in props && !(clientPaged && key === "pageSize"));
     if (!hasPagingProps) return component;
     const query = typeof props.query === "string" ? queriesById.get(props.query) : undefined;
