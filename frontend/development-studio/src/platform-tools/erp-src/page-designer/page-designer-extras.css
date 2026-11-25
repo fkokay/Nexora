@@ -233,3 +233,11 @@
 .pd-binding-chips .pd-binding-chip{max-width:100%;overflow:hidden;padding:0 7px;border:1px solid var(--pd-accent-line,#d9d0fb);border-radius:999px;background:var(--pd-accent-soft,#f3f0ff);color:#5132c7;font-weight:600;line-height:18px;text-overflow:ellipsis;white-space:nowrap}
 .pd-binding-chips .pd-binding-sample{flex-basis:100%;min-width:0;overflow:hidden;color:#66758c;text-overflow:ellipsis;white-space:nowrap}
 .pd-binding-chips .pd-binding-sample b{color:#45536b;font-weight:600}
+
+/* ERP tuvali: gercek ERP sayfasini gosteren iframe ve secim katmani */
+.pd-erp-canvas{position:relative;max-width:100%;margin:0 auto;background:#fff}
+.pd-erp-canvas-frame{display:block;width:100%;border:0;background:#fff}
+.pd-erp-canvas-overlay{position:absolute;inset:0;overflow:hidden;cursor:default}
+.pd-erp-canvas-overlay>div{position:absolute;box-sizing:border-box;pointer-events:none}
+.pd-erp-canvas-hover{border:1px solid var(--pd-accent-line,#d9d0fb);background:rgba(107,77,230,.04)}
+.pd-erp-canvas-selected{border:2px solid #6b4de6;background:rgba(107,77,230,.06);box-shadow:0 0 0 1px #fff}
