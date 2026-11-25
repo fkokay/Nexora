@@ -55,7 +55,10 @@ import ErpCanvasFrame, { type CanvasTenant } from "./page-designer/ErpCanvasFram
 import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
 import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector } from "./page-designer/panel/TemplateInspector";
-import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { stringList, withOperationParameters, type ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { addField, addLines, addNote, linesSourceUsable, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
+import type { RecordSelection } from "./page-designer/panel/RecordPanel";
+import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
 import { ensureTemplateSlots, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
@@ -142,6 +145,8 @@ const palette: PaletteItem[] = [
 ];
 /** Kalıplı sayfada kullanılmayan bileşenler (sunucu kuralı): işlem çubuğu, boşluk ve ayırıcı. */
 const TEMPLATE_FORBIDDEN_TYPES = new Set<ComponentType>(["actionBar", "spacer", "divider"]);
+/** Kayıt kartının kendi parçalarının türleri: kartın üstüne / altına ek alan olarak sunulmaz. */
+const RECORD_PART_TYPES = new Set<ComponentType>(["recordHeader", "tabs", "formCard", "input", "dataTable", "button"]);
 const paletteGroups = ["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
 const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
@@ -1196,6 +1201,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önerilen öğelerin hepsi eklendiyse sonraki kayıt tabanı güncel standart sürüme çeker.
   const allNewItemsAdded = !!newItems && newItems.items.length > 0 && pendingNewItems.length === 0 && newItems.standardVersion > newItems.baseVersion;
   const selected = selectedComponentId ? cardTree.findComponent(definition.components, selectedComponentId) : null;
+  // Kayıt kartında sol listeden sürüklenen kolon ya da blok (tuvaldeki bırakma bunu okur).
+  const recordDrag = useRef<{ kind: "column"; code: string } | { kind: "block"; block: RecordBlockKind } | null>(null);
   // Sayfa kalıbı (alt proje 3): kalıplı sayfada özellikler paneli Liste paneli / tek tip bileşen panelidir.
   const pageTemplate = readPageTemplate(definition.template);
   // Tanımdan türetilir: geri alma, silme ya da başka sayfa açılınca kart ortadan kalkarsa sayfa görünümüne dönülür.
@@ -3653,6 +3660,68 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const metaColumns = (pagedOp?.result.metaPaths ?? []).filter((key) => identifier.test(key) && key.length <= 64).map((key) => ({ code: key, label: key }));
   const footerMetaEntries = selected && Array.isArray(selected.props.footerMeta) ? selected.props.footerMeta.filter((item): item is string => typeof item === "string") : [];
 
+  // Kayıt kartı (alt proje 4): sol alan listesi ve Kayıt paneli. Katalog bir kez zenginleştirilir; liste, kilitler ve kurulum aynı
+  // kataloğu görür. Kaynak seçilmeden kaydetme `recordSourceProblem` ile kapalı kalır.
+  const isRecordPage = pageTemplate?.name === "record";
+  const recordDef = definition as unknown as ModelDefinition;
+  const recordCatalog: ActiveCatalog | null = isRecordPage && activeCatalog.catalog ? {
+    ...activeCatalog.catalog,
+    dataSources: activeCatalog.catalog.dataSources.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, false, erpCatalog.status)),
+    actions: activeCatalog.catalog.actions.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, true, erpCatalog.status)),
+  } : null;
+  const askDeveloper = () => {
+    if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) return;
+    window.location.hash = "#my-requests";
+  };
+  const commitRecord = (next: ModelDefinition, type: string) => {
+    if (next === recordDef) return;
+    const added = next.components.find((component) => component.type === type && !recordDef.components.some((item) => item.id === component.id));
+    commit(() => next as unknown as PageDefinition);
+    if (added) setSelectedComponentId(added.id);
+  };
+  // Tıklayarak ekleme: seçili bölüme (ya da seçili alanın bölümüne), yoksa sekme sırasıyla yeri olan ilk bölüme.
+  const recordSections = recordDef.components.filter((component) => component.type === "formCard" && component.props.slot === "section");
+  const sectionWithRoom = () => {
+    const own = recordSections.find((section) => section.id === selectedComponentId || stringList(section.props.inputs).includes(selectedComponentId ?? ""));
+    if (own && stringList(own.props.inputs).length < MAX_SECTION_FIELDS) return own.id;
+    return recordTabs(recordDef).flatMap((tab) => tab.ids).map((id) => recordSections.find((section) => section.id === id))
+      .find((section) => section && stringList(section.props.inputs).length < MAX_SECTION_FIELDS)?.id ?? null;
+  };
+  const selectedTab = () => {
+    const owner = recordSections.find((section) => stringList(section.props.inputs).includes(selectedComponentId ?? ""))?.id ?? selectedComponentId ?? "";
+    return Math.max(0, recordTabs(recordDef).findIndex((tab) => tab.ids.includes(owner)));
+  };
+  const addRecordColumn = (code: string) => {
+    const column = recordCatalog?.dataSources.find((item) => item.code === recordQuery(recordDef)?.dataSource)?.columns.find((item) => item.code === code);
+    if (!column) return;
+    const sectionId = sectionWithRoom();
+    if (!sectionId) { setError("Alanı ekleyecek yer yok: bir bölümde en çok 12 alan olur. Önce yeni bir bölüm ekleyin."); return; }
+    commitRecord(addField(recordDef, column, sectionId, MAX_SECTION_FIELDS), "input");
+  };
+  const addRecordBlock = (kind: RecordBlockKind) => {
+    const tabIndex = selectedTab();
+    const end = recordTabs(recordDef)[tabIndex]?.ids.length ?? 0;
+    if (kind === "note") { commitRecord(addNote(recordDef, tabIndex, end, "Açıklama metni"), "text"); return; }
+    const own = recordQuery(recordDef)?.dataSource;
+    const sources = (recordCatalog?.dataSources ?? []).filter((item) => linesSourceUsable(recordDef, item).usable);
+    const source = sources.find((item) => item.code !== own) ?? sources[0];
+    if (!source) { setError("Satır tablosu için bu kaydın anahtarıyla okunan bir kaynak yok; yazılımcıdan isteyin."); return; }
+    commitRecord(addLines(recordDef, source, tabIndex, end), "dataTable");
+  };
+  const recordPanel = isRecordPage ? {
+    def: recordDef, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
+    onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
+    onSelect: (selection: RecordSelection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id),
+    onAskDeveloper: askDeveloper,
+    visibility: (id: string) => {
+      const component = definition.components.find((item) => item.id === id);
+      return component ? <VisibilityField key={`${id}-visibility`} props={component.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions}
+        disabled={!canEdit} onSet={(key, value) => setOptionalProp(id, key, value)}/> : null;
+    },
+    extraTypes: palette.filter((item) => !TEMPLATE_FORBIDDEN_TYPES.has(item.type) && !RECORD_PART_TYPES.has(item.type)).map((item) => ({ type: item.type, label: item.label })),
+    onAddExtra: (type: string) => { const item = palette.find((entry) => entry.type === type); if (item) addComponent(item); },
+  } : null;
+
   return <QueryEditorProvider value={queryEditor.api}><main className={`pd-shell${fullscreen ? " pd-fullscreen" : ""}`}>
     <header className="pd-topbar">
       {onBack && <button type="button" className="pd-icon-button" onClick={goBack} title="Sayfa listesine dön" aria-label="Sayfa listesine dön"><ArrowLeft size={17}/></button>}
@@ -3687,7 +3756,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     <div className={`pd-workspace${docks.workspaceClass}`}>
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
-      <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+      {isRecordPage && !focusOwner ? <RecordFieldList def={recordDef} catalog={recordCatalog} catalogStatus={activeCatalog.status} disabled={!canEdit}
+        onDragStartColumn={(code) => { recordDrag.current = { kind: "column", code }; }} onDragStartBlock={(block) => { recordDrag.current = { kind: "block", block }; }}
+        onAddColumn={addRecordColumn} onAddBlock={addRecordBlock} onAskDeveloper={askDeveloper}/>
+      : <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
         palette={palette.filter((item) => !(pageTemplate && TEMPLATE_FORBIDDEN_TYPES.has(item.type))).filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
@@ -3711,7 +3783,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${querySourceLabel(query)}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
-        onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>}</DragSelect>
+        onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>}</DragSelect>}
       </DockPanel>
 
       <section className="pd-center" aria-label="Sayfa tuvali">
@@ -4325,7 +4397,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // Kalıplı sayfa: liste için Liste paneli, öteki üst düzey bileşenler için tek tip panel içinde bugünkü ayarlar.
         const topLevel = definition.components.some((component) => component.id === selected.id);
         if (!pageTemplate || !topLevel) return legacyInspector;
-        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit}
+        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
           list={{ definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
@@ -4334,9 +4406,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             onChange: (next) => commit(() => next as unknown as PageDefinition),
             visibility: <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/> }}/>;
       })() : <div className="pd-right-body">
-          <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>
+          {/* Kayıt kartında sayfanın panelini Kayıt paneli çizer (ad dahil); sayfa kodu, açıklama, erişim ve silme altında kalır. */}
+          {recordPanel ? <TemplateInspector component={null} legacy={null} list={null} record={recordPanel} disabled={!canEdit} onPlace={() => {}}/>
+            : <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>
+            {!recordPanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
             {systemScreenKey
               ? <label className="pd-field">Sayfa kodu<small>Sistem sayfasının kodu ekrana bağlıdır; değiştirilemez.</small><input value={`@${systemScreenKey}`} readOnly aria-readonly="true"/></label>
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}
