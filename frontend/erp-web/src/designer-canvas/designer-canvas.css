@@ -4,3 +4,11 @@ body:has(.designer-canvas-root) {
   overflow: hidden;
   background: transparent;
 }
+
+/* Tuval kabuğu canlı .app-shell zincirini taşır ama ekran yüksekliği alt sınırı ve kenar menü boşluğu olmaz: yükseklik
+   içerikten ölçülür, yoksa iframe hiçbir zaman küçülemez (scrollHeight >= 100vh = iframe yüksekliği). */
+.app-shell.designer-canvas-shell,
+.app-shell.designer-canvas-shell > .main-area {
+  min-height: 0 !important;
+  margin-left: 0 !important;
+}

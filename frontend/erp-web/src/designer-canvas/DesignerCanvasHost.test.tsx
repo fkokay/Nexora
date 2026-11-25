@@ -1,15 +1,18 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react';
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CanvasAnchorContext } from './anchorContext';
 import DesignerCanvasHost from './DesignerCanvasHost';
 
-const mounts = vi.hoisted(() => ({ count: 0, error: false, queryError: false }));
+const mounts = vi.hoisted(() => ({ count: 0, error: false, queryError: false, loading: false, setLoading: (_: boolean) => {} }));
 
 vi.mock('../TenantCustomPage', () => ({
   default: function FakePage() {
     const anchored = useContext(CanvasAnchorContext);
+    const [loading, setLoading] = useState(mounts.loading);
+    mounts.setLoading = setLoading;
     useEffect(() => { mounts.count += 1; }, []);
+    if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
     if (mounts.error) return <div className="tenant-custom-page-state tenant-custom-page-error">Sayfa yok</div>;
     if (mounts.queryError) return <><template data-cp-anchor="x" /><div style={{ height: '50px' }}><div className="tenant-custom-page-error tenant-page-query-error">Sorgu hatası</div></div></>;
     return anchored ? <><template data-cp-anchor="x" /><div style={{ height: '50px' }} /></> : <div />;
@@ -34,6 +37,7 @@ beforeEach(() => {
   mounts.count = 0;
   mounts.error = false;
   mounts.queryError = false;
+  mounts.loading = false;
   posted = [];
   frames = [];
   vi.spyOn(window, 'postMessage').mockImplementation(((message: unknown, target: string) => {
@@ -106,6 +110,40 @@ describe('DesignerCanvasHost', () => {
     await waitFor(() => expect(frames.length).toBeGreaterThan(0));
     flushFrames();
     expect(lastOfType('error')?.message).toMatchObject({ type: 'error', revision: 0, message: 'Sayfa yok' });
+  });
+
+  it('sayfa canlı çalışma alanının ata zinciri içinde çizilir', async () => {
+    const { container } = renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    const anchor = container.querySelector('template[data-cp-anchor]')!;
+    const main = anchor.closest('.workspace-page-main');
+    expect(main).not.toBeNull();
+    expect(main!.parentElement!.matches('section.content.workspace-content')).toBe(true);
+    expect(main!.parentElement!.parentElement!.matches('main.main-area')).toBe(true);
+    const shell = anchor.closest('.app-shell');
+    expect(shell).not.toBeNull();
+    expect(shell!.classList.contains('designer-canvas-shell')).toBe(true);
+    expect(shell!.classList.contains('standalone-studio')).toBe(false);
+  });
+
+  it('yükleniyor durumunda layout göndermez, yükleme bitince gönderir', async () => {
+    mounts.loading = true;
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision: 3 },
+      }));
+    });
+    await waitFor(() => expect(mounts.count).toBe(2));
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    flushFrames();
+    expect(lastOfType('layout')).toBeUndefined();
+    expect(lastOfType('error')).toBeUndefined();
+    act(() => mounts.setLoading(false));
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    flushFrames();
+    expect(lastOfType('layout')?.message).toMatchObject({ type: 'layout', revision: 3, blocks: [{ id: 'x' }] });
   });
 
   it('blok sorgu hatası layout göndermeyi durdurmaz', async () => {

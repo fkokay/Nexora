@@ -174,6 +174,9 @@ function AppContent() {
       return null;
     }
   });
+  // Tasarımcı tuvali yalnız bu belgede Studio'dan geçerli NEXORA_STUDIO_AUTH geldikten sonra çizilir; localStorage'daki
+  // (başka firmaya ait olabilecek) belirteçle sayfa yüklenmez.
+  const [studioAuthReceived, setStudioAuthReceived] = useState(false);
   // System page runtime map: fetched once per tenant selection; page keys stay unchanged.
   const systemPages = useSystemPageMap(token, tenant?.id ?? "");
   useEffect(() => {
@@ -214,6 +217,7 @@ function AppContent() {
         slug: nextTenant.slug,
         role: nextTenant.role,
       });
+      setStudioAuthReceived(true);
     };
     window.addEventListener("message", receiveStudioSession);
     return () => window.removeEventListener("message", receiveStudioSession);
@@ -898,6 +902,8 @@ function AppContent() {
       />
     );
   if (embeddedStudioTool && (!token || !tenant))
+    return <EmbeddedStudioWaitingPage />;
+  if (canvasParams && embeddedStudioTool && !studioAuthReceived)
     return <EmbeddedStudioWaitingPage />;
   if (canvasParams && embeddedStudioTool)
     return (
