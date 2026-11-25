@@ -11,3 +11,10 @@
 .page-shell-menu-item { text-align: left; background: transparent; border: 0; padding: 6px 10px; border-radius: 6px; }
 .page-shell-menu-item--danger { color: var(--nx-bad); }
 .page-shell-body { min-width: 0; }
+.list-template-above, .list-template-below { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.list-template-indicators { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; min-width: 0; }
+.list-template-main { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.list-template-list { flex: 1 1 auto; min-width: 0; }
+.list-template-detail { flex: 0 0 320px; min-width: 0; }
+.list-template-list.is-striped tbody tr:nth-child(even) { background: rgb(0 0 0 / 3%); }
+.list-template-search { width: 100%; max-width: 360px; }

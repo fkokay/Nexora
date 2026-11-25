@@ -10,6 +10,8 @@ export type ShellAction = {
   disabled?: boolean;
   disabledReason?: string;
   run: () => void;
+  /** Düğmenin hemen önüne konan görünmez işaret (Studio tuvalinde seçim için); menüde çizilmez. */
+  anchor?: ReactNode;
 };
 
 /** Ana düğme en solda, `normal`'lar aralarında, `danger` en sağda. */
@@ -47,8 +49,8 @@ function splitByWidth(actions: ShellAction[], width: number | null, hasSearch: b
 }
 
 function ActionButton({ action }: { action: ShellAction }) {
-  return <button type="button" className={`page-shell-action page-shell-action--${action.kind} ${action.kind === "primary" ? "primary" : "secondary"}`}
-    disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={action.run}>{action.label}</button>;
+  return <>{action.anchor}<button type="button" className={`page-shell-action page-shell-action--${action.kind} ${action.kind === "primary" ? "primary" : "secondary"}`}
+    disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={action.run}>{action.label}</button></>;
 }
 
 /** Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. */
