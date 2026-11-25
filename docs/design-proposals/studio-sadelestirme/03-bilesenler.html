@@ -79,7 +79,7 @@
 </style>
 </head>
 <body>
-<div class="note"><b>Bileşen örnekleri:</b> Soldan bir bileşen seç, ortada tuvaldeki görünümünü, sağda ayar panelini gör. Sağdaki her ayar ortadaki görünümü anında değiştirir. Bütün panellerin sırası aynı: <b>Ad → Ne gösterilsin? → birkaç temel ayar → Eylemler → Görünüm (kapalı)</b>.</div>
+<div class="note"><b>Güncelleme (2026-11-26):</b> Görsel, Gösterge, Metin ve Butonlar alt proje 5a planına göre güncellendi; soluk görünen bileşenler sonraki planlarda gelir. <b>Bileşen örnekleri:</b> Soldan bir bileşen seç, ortada tuvaldeki görünümünü, sağda ayar panelini gör. Sağdaki her ayar ortadaki görünümü anında değiştirir. Bütün panellerin sırası aynı: <b>Ad → Ne gösterilsin? → birkaç temel ayar → Eylemler → Görünüm (kapalı)</b>.</div>
 <div class="wrap">
   <div class="left"><h4>Bileşenler</h4><div id="list"></div>
     <div class="old" id="old"></div>
@@ -92,47 +92,54 @@ const SRC=n=>`<div class="src">${n}</div>`;
 const C={
  metin:{i:"T",n:"Metin",d:"Başlık, açıklama, etiket",old:"Başlık, Açıklama, Etiket, Bölüm başlığı",
   s:{stil:"Başlık",text:"Cari Hesaplar",hizala:"Sol"},
-  panel:[["seg","stil","Stil",["Başlık","Alt başlık","Paragraf","Küçük etiket"]],["area","text","Metin"],["opt","Metin içine alan koymak için { yazın, örn. {cari.unvan}."],["more",[["seg","hizala","Hizalama",["Sol","Orta"]]]]],
+  panel:[["seg","stil","Stil",["Başlık","Alt başlık","Paragraf","Küçük etiket"]],["area","text","Metin"],["opt","Metin içine alan koymak için { yazın, örn. {Cari kodu}. Alanlar listede seçili satırdan gelir."],["more",[["seg","hizala","Hizalama",["Sol","Orta"]]]]],
   view:s=>{const cls={"Başlık":"h1","Alt başlık":"h2","Paragraf":"p","Küçük etiket":"lbl"}[s.stil];return `<div class="${cls}" style="text-align:${s.hizala==="Orta"?"center":"left"}">${s.text}</div>`;}},
  bilgi:{i:"i",n:"Bilgi kutusu",d:"Bilgi, uyarı, madde listesi",old:"Bilgi kartı, Bildirim kutusu, Madde listesi",
   s:{tur:"Bilgi",baslik:"Vade hatırlatması",text:"Vadesi geçen faturalar kırmızı gösterilir.",liste:false,maddeler:"Ekstre her ayın 1'inde gönderilir\nLimit aşımında satış durdurulur"},
   panel:[["seg","tur","Tür",["Bilgi","Uyarı","Başarılı","Sade"]],["text","baslik","Başlık"],["area","text","Metin"],["toggle","liste","Madde listesi olarak göster"],["areaIf","maddeler","Maddeler (her satır bir madde)","liste"],["more",[["toggle","kapat","Kullanıcı kapatabilsin"]]]],
   view:s=>{const c={"Bilgi":"info","Uyarı":"warn","Başarılı":"ok","Sade":"plain"}[s.tur];const ic={"Bilgi":"ℹ","Uyarı":"⚠","Başarılı":"✓","Sade":"•"}[s.tur];return `<div class="box ${c}"><span>${ic}</span><div><b>${s.baslik}</b>${s.liste?`<ul>${s.maddeler.split("\n").filter(Boolean).map(m=>`<li>${m}</li>`).join("")}</ul>`:s.text}</div></div>`;}},
  gosterge:{i:"◔",n:"Gösterge",d:"Sayı, ilerleme, durum",old:"Veri göstergesi, İlerleme göstergesi, Durum rozeti",
-  s:{tur:"Sayı",kaynak:"Toplam alacak",karsilastir:true,deger:"Tamamlanan siparişler",durum:"Cari durumu"},
-  panel:[["seg","tur","Tür",["Sayı","İlerleme","Durum"]],["selIf","kaynak","Ne gösterilsin?",["Toplam alacak","Toplam borç","Vadesi geçen cari sayısı"],"tur","Sayı"],["selIf","deger","Ne gösterilsin?",["Tamamlanan siparişler","Sevk edilen kalemler"],"tur","İlerleme"],["selIf","durum","Ne gösterilsin?",["Cari durumu","Kredi limiti durumu"],"tur","Durum"],["src","Yazılımcının hazırladığı değer · birimi ve renk eşikleri ondan gelir"],["toggleIf","karsilastir","Geçen ayla karşılaştır","tur","Sayı"],["more",[["seg","boyut","Boyut",["Küçük","Büyük"]]]]],
-  view:s=>s.tur==="Sayı"?`<div class="metrics"><div class="metric"><span>${s.kaynak}</span><b>${s.kaynak.includes("sayısı")?"38":s.kaynak==="Toplam borç"?"412.950 ₺":"1.284.300 ₺"}</b>${s.karsilastir?`<em style="color:var(--ok)"> ▲ %12 geçen aya göre</em>`:""}</div></div>`
-   :s.tur==="İlerleme"?`<div class="metric"><span>${s.deger}</span><b>65%</b><div class="bar"><i style="width:65%"></i></div><em style="color:var(--muted)">130 / 200</em></div>`
-   :`<div class="row" style="justify-content:flex-start;gap:10px"><span style="color:var(--muted)">${s.durum}:</span>${s.durum==="Cari durumu"?`<span class="badge" style="background:var(--ok-soft);color:var(--ok)">Aktif</span>`:`<span class="badge" style="background:var(--warn-soft);color:var(--warn)">%92 kullanıldı</span>`}</div>`},
- form:{i:"▤",n:"Form",d:"Kayıt alanları",old:"Form kartı, Özel form, Giriş kutusu, Özel alanlar",
+  s:{tur:"Sayı",kaynak:"Cari bakiye özeti",deger:"Toplam alacak",karsilastir:true,onceki:"Geçen ay alacak",hedef:"Planlanan",ikaynak:"Sipariş ilerlemesi",ideger:"Tamamlanan",dkaynak:"Cari durumu",ddeger:"Durum",boyut:"Küçük",yeri:"Göstergeler"},
+  panel:[["seg","tur","Tür",["Sayı","İlerleme","Durum"]],
+   ["selIf","kaynak","Ne gösterilsin?",["Cari bakiye özeti","Açık siparişler"],"tur","Sayı"],["selIf","deger","Değer",["Kayıt sayısı","Toplam alacak","Toplam borç"],"tur","Sayı"],
+   ["selIf","ikaynak","Ne gösterilsin?",["Sipariş ilerlemesi","Sevkiyat ilerlemesi"],"tur","İlerleme"],["selIf","ideger","Değer",["Tamamlanan","Sevk edilen"],"tur","İlerleme"],["selIf","hedef","Hedef (isteğe bağlı)",["Planlanan","Yok"],"tur","İlerleme"],
+   ["selIf","dkaynak","Ne gösterilsin?",["Cari durumu","Kredi limiti durumu"],"tur","Durum"],["selIf","ddeger","Değer",["Durum","Kullanım"],"tur","Durum"],
+   ["src","Yazılımcının hazırladığı veri kaynağı · birimi kolonun türünden gelir"],
+   ["toggleIf","karsilastir","Önceki değerle karşılaştır","tur","Sayı"],["cmpIf","onceki","Neyle karşılaştırılsın?",["Geçen ay alacak","Geçen yıl alacak"]],
+   ["seg","yeri","Yeri",["Göstergeler","Listenin üstü","Listenin altı"]],["optIf","İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.","tur","İlerleme"],["optIf","Durum göstergeler sırasına konamaz; listenin üstünde ya da altında durur.","tur","Durum"],
+   ["more",[["seg","boyut","Boyut",["Küçük","Büyük"]]]]],
+  view:s=>{const big=s.boyut==="Büyük"?' style="font-size:28px"':"";return s.tur==="Sayı"?`<div class="metrics"><div class="metric"><span>${s.deger==="Kayıt sayısı"?s.kaynak:s.deger}</span><b${big}>${s.deger==="Kayıt sayısı"?"38":s.deger==="Toplam borç"?"412.950 ₺":"1.284.300 ₺"}</b>${s.karsilastir?`<em style="color:var(--ok)"> ▲ %12 önceki değere göre</em>`:""}</div></div>`
+   :s.tur==="İlerleme"?`<div class="metric"><span>${s.ideger}</span><b${big}>65%</b><div class="bar"><i style="width:65%"></i></div>${s.hedef==="Yok"?"":`<em style="color:var(--muted)">130 / 200</em>`}</div>`
+   :`<div class="row" style="justify-content:flex-start;gap:10px"><span style="color:var(--muted)">${s.dkaynak}:</span>${s.dkaynak==="Cari durumu"?`<span class="badge" style="background:var(--ok-soft);color:var(--ok)">Aktif</span>`:`<span class="badge" style="background:var(--warn-soft);color:var(--warn)">%92 kullanıldı</span>`}</div>`;}},
+ form:{i:"▤",later:"Alt proje 4 (Kayıt kartı) birleşince ikinci planla gelir.",n:"Form",d:"Kayıt alanları",old:"Form kartı, Özel form, Giriş kutusu, Özel alanlar",
   s:{kaynak:"Cari kartı",kolon:2,alanlar:["Cari kodu","Unvan","Telefon","E-posta","Adres"],ozel:true},
   panel:[["sel","kaynak","Hangi kayıt?",["Cari kartı","Sipariş başlığı"]],["src","Yazılımcının veri kaynağı · alan türleri ve doğrulama ondan gelir"],["chips","alanlar","Alanlar",["Cari kodu","Unvan","Vergi no","Telefon","E-posta","Adres","Şehir"]],["seg","kolon","Kolon sayısı",[1,2,3]],["toggle","ozel","Firmaya özel alanları da göster"],["opt","Alanları tek tek ayarlamak (zorunlu, yardım metni, ne zaman görünsün) için tuvalde alana tıklayın. Bölüm ve sekme düzeni Detay ekranındaki gibidir."]],
   view:s=>`<div class="fgrid" style="grid-template-columns:repeat(${s.kolon},1fr)">${s.alanlar.map(a=>`<div class="fld${a==="Adres"?" wide":""}"><label>${a}</label><div class="in">${{"Cari kodu":"C-1001","Unvan":"Akdeniz Gıda A.Ş.","Telefon":"0242 111 22 33","E-posta":"muhasebe@akdenizgida.com","Adres":"Liman Mah. 12. Sk. No:4","Vergi no":"1234567890","Şehir":"Antalya"}[a]}</div></div>`).join("")}${s.ozel?`<div class="fsec">Firmaya özel alanlar</div><div class="fld"><label>Bayi kodu</label><div class="in">B-07</div></div><div class="fld"><label>Bölge</label><div class="in">Akdeniz</div></div>`:""}</div>`},
- satir:{i:"▦",n:"Satır tablosu",d:"Belge satırları",old:"Düzenlenebilir tablo",
+ satir:{i:"▦",later:"Alt proje 4 (Kayıt kartı) birleşince ikinci planla gelir.",n:"Satır tablosu",d:"Belge satırları",old:"Düzenlenebilir tablo",
   s:{kaynak:"Sipariş satırları",kolonlar:["Ürün","Miktar","Birim fiyat","Tutar"],ekle:true,toplam:true},
   panel:[["sel","kaynak","Hangi satırlar?",["Sipariş satırları","Fatura satırları"]],["src","Yazılımcının veri kaynağı · hesaplamalar (Tutar = Miktar × Fiyat) ondan gelir"],["chips","kolonlar","Kolonlar",["Ürün","Açıklama","Miktar","Birim","Birim fiyat","İskonto","Tutar"]],["toggle","ekle","Kullanıcı satır ekleyip silebilsin"],["toggle","toplam","Alt satırda toplamları göster"]],
   view:s=>{const D={"Ürün":["Zeytinyağı 5L","Un 25kg"],"Açıklama":["Kampanya",""],"Miktar":["40","12"],"Birim":["Adet","Çuval"],"Birim fiyat":["640,00","720,00"],"İskonto":["%5","—"],"Tutar":["24.320,00","8.640,00"]};const num=k=>["Miktar","Birim fiyat","Tutar","İskonto"].includes(k);
    return `<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden"><table><tr>${s.kolonlar.map(k=>`<th class="${num(k)?"n":""}">${k}</th>`).join("")}${s.ekle?"<th></th>":""}</tr>${[0,1].map(r=>`<tr>${s.kolonlar.map(k=>`<td class="${num(k)?"n":""}">${k==="Tutar"?D[k][r]:`<input value="${D[k][r]}" style="text-align:${num(k)?"right":"left"}">`}</td>`).join("")}${s.ekle?`<td style="color:var(--muted);width:24px">✕</td>`:""}</tr>`).join("")}${s.toplam?`<tr class="tfoot">${s.kolonlar.map((k,i)=>`<td class="${num(k)?"n":""}">${i===0?"Toplam":k==="Tutar"?"32.960,00":k==="Miktar"?"52":""}</td>`).join("")}${s.ekle?"<td></td>":""}</tr>`:""}</table>${s.ekle?`<div style="padding:8px 10px;color:var(--accent)">+ Satır ekle</div>`:""}</div>`;}},
- ozet:{i:"◧",n:"Kayıt özeti",d:"Kaydın kimlik bilgisi",old:"Kayıt özeti, Bağlam paneli",
+ ozet:{i:"◧",later:"Alt proje 4 (Kayıt kartı) birleşince ikinci planla gelir.",n:"Kayıt özeti",d:"Kaydın kimlik bilgisi",old:"Kayıt özeti, Bağlam paneli",
   s:{konum:"Üstte",degerler:["Bakiye","Vade"],resim:true},
   panel:[["opt0","Kayıt, sayfanın veri kaynağından gelir (Cari kartı)."],["seg","konum","Konum",["Üstte","Yanda"]],["chips","degerler","Öne çıkan değerler",["Bakiye","Vade","Kredi limiti","Temsilci"]],["toggle","resim","Baş harf / logo göster"],["opt","Başlık ve alt satır kayıttan otomatik gelir: Unvan · Cari kodu · Şehir."]],
   view:s=>{const V={"Bakiye":"48.250 ₺","Vade":"30 gün","Kredi limiti":"250.000 ₺","Temsilci":"Ayşe Yılmaz"};
    if(s.konum==="Yanda")return `<div class="side"><div class="ctx" style="margin:0">Form / sekmeler</div><div class="sidebox">${s.resim?'<div class="av" style="margin-bottom:8px">AG</div>':""}<b>Akdeniz Gıda A.Ş.</b><div style="color:var(--muted);font-size:12px">C-1001 · Antalya</div><dl>${s.degerler.map(k=>`<dt>${k}</dt><dd style="margin:0">${V[k]}</dd>`).join("")}</dl></div></div>`;
    return `<div class="rh">${s.resim?'<div class="av">AG</div>':""}<div><div class="t">Akdeniz Gıda A.Ş.</div><div class="s">C-1001 · Antalya</div></div><div class="kv">${s.degerler.map(k=>`<div><span>${k}</span><b>${V[k]}</b></div>`).join("")}</div></div>`;}},
- bolum:{i:"⊟",n:"Bölümler",d:"Sekmeler ya da adımlar",old:"Sekmeler, Adımlar",
+ bolum:{i:"⊟",later:"Serbest gövdeyle birlikte ikinci planla gelir.",n:"Bölümler",d:"Sekmeler ya da adımlar",old:"Sekmeler, Adımlar",
   s:{tur:"Sekme",adlar:"Genel\nTicari\nHareketler",aktif:1},
   panel:[["seg","tur","Tür",["Sekme","Adım"]],["area","adlar","Adlar (her satır bir sekme/adım)"],["opt","İçindekileri tuvalde sürükleyip bırakarak yerleştirin."],["optIf","Adım türünde kullanıcı “İleri / Geri” ile ilerler; zorunlu alanlar dolmadan sonraki adıma geçilmez.","tur","Adım"],["more",[["toggle","sayac","Sekme başlığında kayıt sayısı göster"]]]],
   view:s=>{const a=s.adlar.split("\n").filter(Boolean);return s.tur==="Sekme"?`<div class="tabs">${a.map((n,i)=>`<div class="tab${i===s.aktif?" on":""}" data-tabi="${i}" style="cursor:pointer">${n}</div>`).join("")}</div><div class="tabbody">“${a[s.aktif]||""}” sekmesinin içeriği buraya…</div>`
    :`<div class="steps">${a.map((n,i)=>`${i?'<span class="line"></span>':""}<span class="st${i<s.aktif?" done":i===s.aktif?" on":""}" data-tabi="${i}" style="cursor:pointer"><b>${i<s.aktif?"✓":i+1}</b>${n}</span>`).join("")}</div><div class="tabbody">“${a[s.aktif]||""}” adımının içeriği… <div class="btns" style="margin-top:12px;justify-content:flex-end"><span class="b">Geri</span><span class="b pri">İleri</span></div></div>`;}},
  buton:{i:"⏵",n:"Butonlar",d:"Sayfa eylemleri",old:"İşlem çubuğu, Eylem düğmesi, Pencere",
   s:{eylemler:["Kaydet","Ekstre al","Onaya gönder","Sil"],ana:"Kaydet",yer:"Sayfanın üstünde"},
-  panel:[["chips","eylemler","Hangi eylemler?",["Kaydet","Kaydet ve yeni","Ekstre al","Mail gönder","Onaya gönder","Yazdır","Sil"]],["src","Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir"],["selDyn","ana","Ana buton (vurgulu)","eylemler"],["seg","yer","Nerede?",["Sayfanın üstünde","Sayfanın altında"]],["opt","“Sil” gibi geri alınamayan eylemler otomatik olarak kırmızı ve en sağda durur. Mobilde ana buton dışındakiler “⋯” menüsüne girer."]],
-  view:s=>{const d=s.eylemler.filter(e=>e!=="Sil");const sil=s.eylemler.includes("Sil");return `<div class="btns" style="${s.yer==="Sayfanın altında"?"justify-content:flex-end;border-top:1px solid var(--line);padding-top:12px":"border-bottom:1px solid var(--line);padding-bottom:12px"}">${d.sort((a,b)=>(b===s.ana)-(a===s.ana)).map(e=>`<span class="b${e===s.ana?" pri":""}">${e}</span>`).join("")}${sil?`<span style="flex:1"></span><span class="b dan">Sil</span>`:""}</div>`;}},
+  panel:[["chips","eylemler","Hangi eylemler?",["Kaydet","Kaydet ve yeni","Ekstre al","Mail gönder","Onaya gönder","Yazdır","Sil"]],["src","Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir"],["selDyn","ana","Ana buton (vurgulu)","eylemler"],["opt0b","Nerede?"],["opt","Düğmelerin yeri kalıpta sabittir: ana buton en solda, “Sil” gibi geri alınamayan eylemler kırmızı ve en sağda. Dar ekranda ana buton dışındakiler “⋯” menüsüne girer."],["opt","Bu panel, sayfanın üstündeki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir."]],
+  view:s=>{const d=s.eylemler.filter(e=>e!=="Sil");const sil=s.eylemler.includes("Sil");return `<div class="btns" style="border-bottom:1px solid var(--line);padding-bottom:12px">${d.sort((a,b)=>(b===s.ana)-(a===s.ana)).map(e=>`<span class="b${e===s.ana?" pri":""}">${e}</span>`).join("")}${sil?`<span style="flex:1"></span><span class="b dan">Sil</span>`:""}</div>`;}},
  gorsel:{i:"▨",n:"Görsel",d:"Resim ya da logo",old:"Görsel",
-  s:{kaynak:"Dosya yükle",boy:"Orta",alt:"Mağaza vitrini"},
-  panel:[["seg","kaynak","Görsel nereden?",["Dosya yükle","Kayıttaki resim"]],["seg","boy","Yükseklik",["Küçük","Orta","Büyük"]],["text","alt","Açıklama (erişilebilirlik için)"]],
-  view:s=>`<div class="img" style="height:${{"Küçük":90,"Orta":160,"Büyük":240}[s.boy]}px">${s.kaynak==="Dosya yükle"?"🖼 vitrin.jpg":"🖼 Cari kartındaki logo"}</div><div class="cap">${s.alt}</div>`},
- yazilimci:{i:"</>",n:"Yazılımcı bileşeni",d:"Özel çizim, harita, grafik…",old:"Yalıtılmış kod alanı",
+  s:{kaynak:"Adres",adres:"https://ornek-firma.com/vitrin.jpg",kolon:"Logo",boy:"Orta",alt:"Mağaza vitrini"},
+  panel:[["seg","kaynak","Görsel nereden?",["Adres","Kayıttaki resim"]],["adresIf","adres","Görselin adresi"],["selIf","kolon","Hangi alan?",["Logo","Ürün resmi"],"kaynak","Kayıttaki resim"],["opt","Dosya yükleme sonraki sürümde gelir."],["seg","boy","Yükseklik",["Küçük","Orta","Büyük"]],["text","alt","Açıklama (erişilebilirlik için)"]],
+  view:s=>{const ok=/^https?:\/\//.test(s.adres.trim());return `<div class="img" style="height:${{"Küçük":96,"Orta":160,"Büyük":280}[s.boy]}px">${s.kaynak==="Adres"?(ok?"🖼 "+s.adres.split("/").pop():"Görsel adresi geçersiz"):"🖼 Listede seçili satırın "+s.kolon.toLowerCase()+" alanı"}</div><div class="cap">${s.alt}</div>`;}},
+ yazilimci:{i:"</>",later:"Yazılımcı bileşenleri katalogdan gelecek; ayrı planla gelir.",n:"Yazılımcı bileşeni",d:"Özel çizim, harita, grafik…",old:"Yalıtılmış kod alanı",
   s:{bilesen:"Satış haritası",baslik:"Bölgelere göre satış",donem:"Bu ay"},
   panel:[["sel","bilesen","Hangi bileşen?",["Satış haritası","Teslimat takvimi"]],["src","Yazılımcının yayınladığı bileşen · danışman kodunu görmez"],["text","baslik","Başlık"],["seg","donem","Dönem",["Bu ay","Bu çeyrek","Bu yıl"]],["opt","“Başlık” ve “Dönem” ayarlarını yazılımcı tanımladı. Bileşen başka ayar isterse burada görünür."]],
   view:s=>`<div class="devc"><div class="row"><b>${s.baslik}</b><span style="color:var(--muted);font-size:12px">${s.donem}</span></div>${s.bilesen==="Satış haritası"?`<div class="img" style="height:150px;margin-top:8px;background:linear-gradient(135deg,#ccfbf1,#bfdbfe)">🗺 Türkiye haritası · Akdeniz %34 · Ege %22 · Marmara %19</div>`:`<div class="img" style="height:150px;margin-top:8px;background:linear-gradient(135deg,#fef3c7,#fde68a)">📅 25 Kas: 4 teslimat · 26 Kas: 7 teslimat</div>`}</div>`},
@@ -141,9 +148,13 @@ let cur="metin";
 function ctl(spec,s){
   const [t,k,label,opts,cond,condv]=spec;
   if(t==="opt")return `<div class="opt">${k}</div>`;
+  if(t==="adresIf"){if(s.kaynak!=="Adres")return "";const bad=!/^https?:\/\//.test((s[k]||"").trim());return `<div class="q">${label}</div><input class="txt" data-k="${k}" value="${s[k]??""}"><div class="opt" id="adresErr" style="color:var(--bad);display:${bad?"block":"none"}">Adres http:// ya da https:// ile başlamalı.</div>`;}
+  if(t==="opt0b")return `<div class="q">${k}</div>`;
   if(t==="opt0")return `<div class="opt" style="margin-top:0">${k}</div>`;
-  if(t==="optIf")return s[opts]===cond?`<div class="opt">${k}</div>`:"";
+  if(t==="optIf")return s[label]===opts?`<div class="opt">${k}</div>`:"";
   if(t==="src")return SRC(k);
+  if(t==="cmpIf")return s.tur==="Sayı"&&s.karsilastir?`<div class="q">${label}</div><select data-k="${k}">${opts.map(o=>`<option${s[k]===o?" selected":""}>${o}</option>`).join("")}</select>`:"";
+  if(t==="seg"&&k==="yeri"&&s.tur!=="Sayı")return `<div class="q">${label}</div><div class="seg">${opts.filter(o=>o!=="Göstergeler").map(o=>`<button class="${s[k]==o?"on":""}" data-k="${k}" data-v="${o}">${o}</button>`).join("")}</div>`;
   if(t==="seg")return `<div class="q">${label}</div><div class="seg">${opts.map(o=>`<button class="${s[k]==o?"on":""}" data-k="${k}" data-v="${o}">${o}</button>`).join("")}</div>`;
   if(t==="text")return `<div class="q">${label}</div><input class="txt" data-k="${k}" value="${s[k]??""}">`;
   if(t==="area")return `<div class="q">${label}</div><textarea rows="3" data-k="${k}">${s[k]??""}</textarea>`;
@@ -158,24 +169,24 @@ function ctl(spec,s){
   return "";
 }
 function render(){
-  document.getElementById("list").innerHTML=Object.entries(C).map(([k,c])=>`<div class="comp${k===cur?" on":""}" data-c="${k}"><i>${c.i}</i><div>${c.n}<small>${c.d}</small></div></div>`).join("")+`<div class="comp" style="opacity:.6"><i>☰</i><div>Liste<small>önceki taslakta</small></div></div>`;
+  document.getElementById("list").innerHTML=Object.entries(C).map(([k,c])=>`<div class="comp${k===cur?" on":""}" data-c="${k}"${c.later?' style="opacity:.55"':""}><i>${c.i}</i><div>${c.n}<small>${c.later?"sonraki planda":c.d}</small></div></div>`).join("")+`<div class="comp" style="opacity:.6"><i>☰</i><div>Liste<small>önceki taslakta</small></div></div>`;
   const c=C[cur];
   document.getElementById("old").innerHTML=`<b>Bugün ayrı ayrı olanlar:</b><br>${c.old}`;
   document.getElementById("view").innerHTML=`<div class="sel" data-tag="${c.n}">${c.view(c.s)}</div>`;
   const hasMore=c.panel.some(p=>p[0]==="more");
-  document.getElementById("insp").innerHTML=`<div class="ih"><span class="ico">${c.i}</span><input value="${c.n}"></div><div class="sec">${c.panel.map(p=>ctl(p,c.s)).join("")}${hasMore?"":ctl(["more",[]],c.s)}</div>`;
+  document.getElementById("insp").innerHTML=`<div class="ih"><span class="ico">${c.i}</span><input value="${c.n}"></div><div class="sec">${c.later?`<div class="opt" style="margin:0 0 10px;padding:6px 8px;border-radius:6px;background:#fff8e6;color:#6b5310">Bu bileşen 5a'da yok, paletinde soluk durur. ${c.later}</div>`:""}${c.panel.map(p=>ctl(p,c.s)).join("")}${hasMore?"":ctl(["more",[]],c.s)}</div>`;
 }
 function refreshView(){const c=C[cur];document.querySelector("#view .sel").innerHTML=c.view(c.s);}
 document.addEventListener("click",e=>{
   const c=C[cur],t=e.target;
   const comp=t.closest("[data-c]");if(comp){cur=comp.dataset.c;render();return;}
-  if(t.dataset.k&&t.tagName==="BUTTON"){const v=isNaN(t.dataset.v)?t.dataset.v:+t.dataset.v;c.s[t.dataset.k]=v;render();return;}
+  if(t.dataset.k&&t.tagName==="BUTTON"){const v=isNaN(t.dataset.v)?t.dataset.v:+t.dataset.v;c.s[t.dataset.k]=v;if(cur==="gosterge"&&c.s.tur!=="Sayı"&&c.s.yeri==="Göstergeler")c.s.yeri="Listenin üstü";render();return;}
   if(t.dataset.tk){c.s[t.dataset.tk]=!c.s[t.dataset.tk];render();return;}
   if(t.dataset.ck){const a=c.s[t.dataset.ck],i=a.indexOf(t.dataset.v);i<0?a.push(t.dataset.v):a.splice(i,1);if(cur==="buton"&&!a.includes(c.s.ana))c.s.ana=a.find(x=>x!=="Sil")||"";render();return;}
   const ti=t.closest("[data-tabi]");if(ti){c.s.aktif=+ti.dataset.tabi;refreshView();return;}
   if(t.closest(".seg button")&&!t.dataset.k){t.parentNode.querySelectorAll("button").forEach(b=>b.classList.remove("on"));t.classList.add("on");}
 });
-document.addEventListener("input",e=>{const k=e.target.dataset.k;if(!k)return;C[cur].s[k]=e.target.value;refreshView();});
+document.addEventListener("input",e=>{const k=e.target.dataset.k;if(!k)return;C[cur].s[k]=e.target.value;if(k==="adres"){const err=document.getElementById("adresErr");if(err)err.style.display=/^https?:\/\//.test(e.target.value.trim())?"none":"block";}refreshView();});
 document.addEventListener("change",e=>{if(e.target.tagName==="SELECT"&&e.target.dataset.k){C[cur].s[e.target.dataset.k]=e.target.value;render();}});
 render();
 </script>
