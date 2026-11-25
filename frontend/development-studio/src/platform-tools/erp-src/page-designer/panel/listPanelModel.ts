@@ -203,7 +203,7 @@ function takenIds(def: ModelDefinition): Set<string> {
   return taken;
 }
 /** Sayfada (bileşen kimliği/adı ya da sorgu kimliği/adı olarak) kullanılmayan ilk ad: base, base2, base3… */
-function freeId(def: ModelDefinition, base: string, extra: Set<string> = new Set()): string {
+export function freeId(def: ModelDefinition, base: string, extra: Set<string> = new Set()): string {
   const taken = takenIds(def);
   const clean = base.replace(/[^A-Za-z0-9_]/g, "").slice(0, 60) || "oge";
   const root = /^[A-Za-z_]/.test(clean) ? clean : `k${clean}`;
