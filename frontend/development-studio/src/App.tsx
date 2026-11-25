@@ -53,6 +53,11 @@ const PublicationsPage = lazy(() =>
     default: module.PublicationsPage,
   })),
 );
+const PeoplePage = lazy(() =>
+  import("./people/PeoplePage").then((module) => ({
+    default: module.PeoplePage,
+  })),
+);
 const NativePlatformTool = lazy(
   () => import("./platform-tools/NativePlatformTool"),
 );
@@ -2320,6 +2325,19 @@ export default function App() {
                 }
               >
                 <PublicationsPage token={token} includeModules={canReadProjects} />
+              </Suspense>
+            </>
+          ) : activeSection === "people" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Kişiler yükleniyor…
+                  </div>
+                }
+              >
+                <PeoplePage token={token} />
               </Suspense>
             </>
           ) : activeSection === "ai" ? (
