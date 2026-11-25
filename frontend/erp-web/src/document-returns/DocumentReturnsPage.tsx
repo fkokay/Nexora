@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import type * as AppTypes from "../erp-types";
 import { api } from "../erpApi";
 import { confirmDialog } from "../confirmDialog";
+import { dropPageParam, usePageParams } from "../pageNavigation";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import { ListToolbar } from "../list-page/ListToolbar";
 import { ListSummaryCards } from "../list-page/ListSummaryCards";
@@ -105,6 +106,15 @@ export function DocumentReturnsPage({ token, role, side, onNavigate }: Props) {
       .catch(() => {});
     return () => { active = false; };
   }, [token]);
+
+  // Karar 4: other screens (Cari Hesap Hareketleri) open a return with the page param `returnId` (read once, then removed).
+  const pageKey = side === "sales" ? "sales-returns" : "sales-purchase-returns";
+  const paramReturnId = usePageParams(pageKey).returnId ?? "";
+  useEffect(() => {
+    if (!paramReturnId) return;
+    dropPageParam(pageKey, "returnId");
+    void openDetail(paramReturnId);
+  }, [pageKey, paramReturnId]);
 
   async function openDetail(id: string) {
     setSelectedId(id);

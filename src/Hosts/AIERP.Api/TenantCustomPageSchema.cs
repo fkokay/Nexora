@@ -1725,7 +1725,7 @@ internal static partial class TenantCustomPageSchema
 
     private const int MaxSequenceSteps = 8;
     private const int MaxSequenceWhen = 8;
-    private const int MaxRowActions = 4;
+    private const int MaxRowActions = 6;
     private const int MaxGridColumns = 16;
     /// <summary>Grid rows per document (sales documents carry up to 200 lines).</summary>
     private const int MaxGridRows = 500;
@@ -2049,7 +2049,7 @@ internal static partial class TenantCustomPageSchema
         if (props.TryGetProperty("rowActions", out var rowActions))
         {
             if (!TryReadIds(rowActions, MaxRowActions, out var ids))
-                return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
+                return Fail("'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
             if (name is null) return Fail($"Satır işlemleri için veri listesinin adı olmalıdır: {id}", out error);
             if (!hasQuery) return Fail($"Satır işlemleri yalnız sorguya bağlı veri listesinde kullanılabilir: {id}", out error);
             context.PendingRowActions.Add((id, ids));
@@ -2461,7 +2461,7 @@ internal static partial class TenantCustomPageSchema
             foreach (var buttonId in ids)
             {
                 if (!context.ButtonActionTypes.TryGetValue(buttonId, out var actionType) || actionType is not ("query" or "sequence" or "openDialog" or "link" or "erpPage" or "page" or "setInput"))
-                    return Fail("'rowActions' 1–4 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
+                    return Fail("'rowActions' 1–6 adet sorgu, kayıt dizisi, pencere, bağlantı, ERP ekranı veya sayfa düğmesi içermelidir.", out error);
                 if (menuButtons.Contains(buttonId)) return Fail($"Satır işlemi düğmesi İşlem Çubuğu menüsünde kullanılamaz: {buttonId}", out error);
                 if (!owners.TryAdd(buttonId, tableId)) return Fail($"'{buttonId}' birden fazla sekmede veya yerleşimde kullanılamaz.", out error);
             }

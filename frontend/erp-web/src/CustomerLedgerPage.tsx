@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, BookOpenText, ChevronDown, Scale, Wallet } from "lucide-react";
 import { api } from "./erpApi";
-import { useTakePageParam } from "./pageNavigation";
+import { openWorkspacePage, useTakePageParam } from "./pageNavigation";
+import { LEDGER_SOURCE_LABELS, NO_LEDGER_SOURCE, ledgerSourceTarget } from "./customers/customerLedgerSource";
 import type { BuiltInScreenLayoutField, CustomerItem, CustomerStatement, CustomerStatementLine } from "./erp-types";
 import AdvancedDataGrid, { type GridExportActions } from "./AdvancedDataGrid";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
@@ -20,15 +21,16 @@ type ScreenField = Pick<BuiltInScreenLayoutField, "key" | "label" | "visible" | 
 
 const defaultLedgerFields: ScreenField[] = [
   { key: "entryDate", label: "Tarih", visible: true, position: 0 },
-  { key: "description", label: "Açıklama", visible: true, position: 1 },
-  { key: "direction", label: "Yön", visible: true, position: 2 },
-  { key: "debit", label: "Borç", visible: true, position: 3 },
-  { key: "credit", label: "Alacak", visible: true, position: 4 },
-  { key: "balance", label: "Bakiye", visible: true, position: 5 },
-  { key: "currencyCode", label: "Döviz", visible: false, position: 6 },
+  { key: "source", label: "Belge", visible: true, position: 1 },
+  { key: "description", label: "Açıklama", visible: true, position: 2 },
+  { key: "direction", label: "Yön", visible: true, position: 3 },
+  { key: "debit", label: "Borç", visible: true, position: 4 },
+  { key: "credit", label: "Alacak", visible: true, position: 5 },
+  { key: "balance", label: "Bakiye", visible: true, position: 6 },
+  { key: "currencyCode", label: "Döviz", visible: false, position: 7 },
 ];
 const numericLedgerFields = new Set(["debit", "credit", "balance"]);
-const LEDGER_WIDTHS: Record<string, number> = { entryDate: 96, direction: 76, debit: 130, credit: 130, balance: 150, currencyCode: 70 };
+const LEDGER_WIDTHS: Record<string, number> = { entryDate: 96, source: 210, direction: 76, debit: 130, credit: 130, balance: 150, currencyCode: 70 };
 
 function isoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -77,8 +79,26 @@ function lineAmount(item: CustomerStatementLine, statementCurrency: string) {
   );
 }
 
+/** Opens the line's document on its own (legacy) screen in a new tab; the statement stays. */
+function openLedgerSource(item: CustomerStatementLine) {
+  const target = ledgerSourceTarget(item);
+  if (target) openWorkspacePage({ page: target.page, params: target.params, replace: false, legacy: true });
+}
+
 function renderLedgerCell(item: CustomerStatementLine, key: string, statementCurrency: string) {
   switch (key) {
+    case "source": {
+      const label = item.sourceType ? LEDGER_SOURCE_LABELS[item.sourceType] ?? item.sourceType : "";
+      if (!label) return <span className="cl-muted">—</span>;
+      return (
+        <span className="cl-source">
+          <StatusTag tone="info">{label}</StatusTag>
+          {item.sourceCode && (ledgerSourceTarget(item)
+            ? <button type="button" className="cl-source-code nx-code" onClick={() => openLedgerSource(item)}>{item.sourceCode}</button>
+            : <span className="nx-code">{item.sourceCode}</span>)}
+        </span>
+      );
+    }
     case "entryDate":
       return displayDate(item.entryDate);
     case "description":
@@ -108,8 +128,8 @@ function renderLedgerCell(item: CustomerStatementLine, key: string, statementCur
 /**
  * Cari Hesap Hareketleri (approved mockup 03, statement layout): the chosen account's statement for a date range —
  * devir (opening balance), the movements with the running balance, period totals and the closing balance. Read only;
- * corrections are reversal entries written from the account's reconciliation window. Belge türü / no, vade and
- * aging are not drawn: the statement API does not return them.
+ * corrections are reversal entries written from the account's reconciliation window. Belge (türü + no) opens the line's
+ * document in a new tab (taslak 28); vade and aging are not drawn: the statement API does not return them.
  */
 export default function CustomerLedgerPage({ token }: { token: string }) {
   const [search, setSearch] = useState("");
@@ -408,6 +428,7 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                   {visibleFields.map((field) => (
                     <th key={field.key} className={numericLedgerFields.has(field.key) ? "nx-num" : undefined}>{field.label}</th>
                   ))}
+                  <th className="cl-open-col" aria-label="Belgeye git" />
                 </tr>
               </thead>
               <tbody>
@@ -425,8 +446,19 @@ export default function CustomerLedgerPage({ token }: { token: string }) {
                         {renderLedgerCell(item, field.key, statement.currencyCode)}
                       </td>
                     ))}
+                    <td className="cl-open-col">
+                      <button
+                        type="button"
+                        className="secondary cl-open-source"
+                        disabled={!ledgerSourceTarget(item)}
+                        title={ledgerSourceTarget(item) ? undefined : item.sourceType ? "Bağlı belge açılamıyor." : NO_LEDGER_SOURCE}
+                        onClick={() => openLedgerSource(item)}
+                      >
+                        Belgeye git ›
+                      </button>
+                    </td>
                   </tr>
-                )) : <tr><td colSpan={Math.max(visibleFields.length, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
+                )) : <tr><td colSpan={Math.max(visibleFields.length + 1, 1)} className="customer-ledger-empty">Seçilen tarih aralığında hareket bulunmuyor.</td></tr>}
               </tbody>
             </AdvancedDataGrid>
             <div className="cl-line cl-subtotal">
