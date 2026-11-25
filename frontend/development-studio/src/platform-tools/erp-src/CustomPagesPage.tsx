@@ -59,7 +59,7 @@ import { stringList, withOperationParameters, type ModelDefinition } from "./pag
 import { addField, addLines, addNote, linesSourceUsable, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
-import { ensureTemplateSlots, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { ensureTemplateSlots, recordRemoval, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
@@ -1328,6 +1328,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   }, [request]);
   // Firma kataloğu (yazılımcının hazırladığı veri kaynakları ve eylemler): yalnız kalıplı sayfada gerekir.
   const [activeCatalog, setActiveCatalog] = useState<{ status: "loading" | "ready" | "failed"; catalog: ActiveCatalog | null }>({ status: "loading", catalog: null });
+  // Kayıt kartının kataloğu bir kez zenginleştirilir (Liste panelindeki gibi `withOperationParameters`): sol liste, panel ve
+  // model aynı kataloğu görür. Kancalar erken dönüşten önce durmalı; bu yüzden burada.
+  const isRecordPage = pageTemplate?.name === "record";
+  const recordCatalog = useMemo<ActiveCatalog | null>(() => isRecordPage && activeCatalog.catalog ? {
+    ...activeCatalog.catalog,
+    dataSources: activeCatalog.catalog.dataSources.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, false, erpCatalog.status)),
+    actions: activeCatalog.catalog.actions.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, true, erpCatalog.status)),
+  } : null, [isRecordPage, activeCatalog.catalog, erpCatalog]);
   const needsCatalog = !!readPageTemplate(definition.template) || newPageDialog === "create";
   useEffect(() => {
     if (!needsCatalog) return;
@@ -2104,7 +2112,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kalıplı sayfanın listesi (slot "list") silinemez ve kopyalanamaz: kalıpta tam bir liste olmalıdır.
   const isTemplateList = (id: string) => !!readPageTemplate(definitionRef.current.template)
     && definitionRef.current.components.some((component) => component.id === id && component.props.slot === "list");
-  const removeComponent = (id: string) => { if (isTemplateList(id)) return; commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
+  const removeComponent = (id: string) => {
+    if (isTemplateList(id)) return;
+    // Kayıt kartının parçaları modelin kuralıyla silinir (eyleme bağlı alan silinmez; özet, sekmeler ve eylem düğmeleri hiç).
+    const record = recordRemoval(definitionRef.current as unknown as ModelDefinition, id);
+    if (record.kind === "none") return;
+    if (record.kind === "blocked") { setError(record.reason); return; }
+    if (record.kind === "removed") { commit(() => record.def as unknown as PageDefinition); setSelectedComponentId((value) => value === id ? null : value); return; }
+    commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = cardTree.findComponent(definitionRef.current.components, id);
     if (!original || !canEdit || original.type === "actionBar" || isTemplateList(id) || templateDuplicateBlocked(definitionRef.current as unknown as ModelDefinition, id)) return;
@@ -3662,13 +3677,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
   // Kayıt kartı (alt proje 4): sol alan listesi ve Kayıt paneli. Katalog bir kez zenginleştirilir; liste, kilitler ve kurulum aynı
   // kataloğu görür. Kaynak seçilmeden kaydetme `recordSourceProblem` ile kapalı kalır.
-  const isRecordPage = pageTemplate?.name === "record";
   const recordDef = definition as unknown as ModelDefinition;
-  const recordCatalog: ActiveCatalog | null = isRecordPage && activeCatalog.catalog ? {
-    ...activeCatalog.catalog,
-    dataSources: activeCatalog.catalog.dataSources.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, false, erpCatalog.status)),
-    actions: activeCatalog.catalog.actions.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, true, erpCatalog.status)),
-  } : null;
   const askDeveloper = () => {
     if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) return;
     window.location.hash = "#my-requests";

@@ -9,9 +9,10 @@ import {
   removeSection, saveActions, setDeleteAction, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle,
   setSummary, MAX_SUMMARY_SUBTITLE, MAX_SUMMARY_VALUES,
 } from "./recordModel";
+import { recordSelectionOf, type RecordSelection } from "./templateGuards";
 import "./component-panel.css";
 
-export type RecordSelection = { kind: "page" } | { kind: "section"; id: string } | { kind: "field"; id: string } | { kind: "lines"; id: string } | { kind: "note"; id: string };
+export { recordSelectionOf, type RecordSelection };
 export type ExtraAreaType = { type: string; label: string };
 export type RecordPanelProps = {
   def: ModelDefinition;
@@ -47,19 +48,6 @@ export function columnTypeLabel(column: Pick<CatalogColumn, "type" | "longText">
 
 const slotOf = (component: ModelComponent) => typeof component.props.slot === "string" ? component.props.slot : "";
 const text = (value: unknown) => typeof value === "string" ? value : "";
-
-/** Seçili bileşenin panel seçimi: kartın parçaları kendi paneline, ek alanlar (`above`/`below`) null, öteki her şey sayfaya. */
-export function recordSelectionOf(def: ModelDefinition, componentId: string | null): RecordSelection | null {
-  const component = componentId ? def.components.find((item) => item.id === componentId) : undefined;
-  if (!component) return { kind: "page" };
-  const slot = slotOf(component);
-  if (slot === "above" || slot === "below") return null;
-  if (slot === "section" && component.type === "formCard") return { kind: "section", id: component.id };
-  if (slot === "field" && component.type === "input") return { kind: "field", id: component.id };
-  if (slot === "lines" && component.type === "dataTable") return { kind: "lines", id: component.id };
-  if (slot === "note" && component.type === "text") return { kind: "note", id: component.id };
-  return { kind: "page" };
-}
 
 /**
  * Metin kutusu: model boş değeri yok sayar ve kırpar; yazılan taslak yerelde tutulur, değer yalnız gerçekten değişince
@@ -167,16 +155,20 @@ function PagePanel(props: RecordPanelProps) {
 
   const saved = saveActions(def);
   const removed = deleteAction(def);
-  const actionChoice = (label: string, kind: CatalogAction["kind"], current: string | null, empty: string, pick: (action: CatalogAction | null) => void) =>
-    <label className="cpanel-row">{label}
-      <select aria-label={label} value={current ?? ""} disabled={disabled || !key} onChange={(event) => pick(byCode(event.target.value))}>
+  const actionChoice = (label: string, kind: CatalogAction["kind"], current: string | null, empty: string, pick: (action: CatalogAction | null) => void, blocked: string | null = null) =>
+    <><label className="cpanel-row">{label}
+      <select aria-label={label} value={current ?? ""} disabled={disabled || !key || blocked !== null} title={blocked ?? undefined} onChange={(event) => pick(byCode(event.target.value))}>
         <option value="">{empty}</option>
         {actions.filter((action) => action.kind === kind).map((action) => {
           const usable = action.code === current ? { usable: true as const } : recordActionUsable(def, action);
           return <option key={action.code} value={action.code} disabled={!usable.usable}>{action.label}{usable.usable ? "" : ` · ${usable.reason}`}</option>;
         })}
         {current && !byCode(current) && <option value={current}>{`${current} · ${RECORD_MISSING_IN_CATALOG}`}</option>}
-      </select></label>;
+      </select></label>{blocked && <p className="cpanel-note">{blocked}</p>}</>;
+  // Kaydet iki eylemi birlikte yazar: öteki taraf katalogdan kalkmışsa bu taraf değiştirilince o da sessizce düşerdi.
+  // Önce katalogda olmayan taraf yeniden seçilir (kendi tarafı katalogdan kalkmış seçim kilitlenmez).
+  const saveBlocked = (own: string | null, other: string | null, otherLabel: string) =>
+    other && !byCode(other) && !(own && !byCode(own)) ? `“${otherLabel}” eylemi katalogda yok; önce onu yeniden seçin.` : null;
   const summary = summaryState(def);
   const columns = source?.columns ?? [];
   const columnLabel = (column: string) => columns.find((item) => item.code === column)?.label || column;
@@ -194,8 +186,8 @@ function PagePanel(props: RecordPanelProps) {
 
   const basics = <>
     <div className="cpanel-sub" data-part="save"><h4>Kaydet düğmesi</h4>
-      {actionChoice("Yeni kayıtta", "insert", saved.insert, "—", (action) => change(setSaveActions(def, action, byCode(saved.update))))}
-      {actionChoice("Var olan kayıtta", "update", saved.update, "—", (action) => change(setSaveActions(def, byCode(saved.insert), action)))}
+      {actionChoice("Yeni kayıtta", "insert", saved.insert, "—", (action) => change(setSaveActions(def, action, byCode(saved.update))), saveBlocked(saved.insert, saved.update, "Var olan kayıtta"))}
+      {actionChoice("Var olan kayıtta", "update", saved.update, "—", (action) => change(setSaveActions(def, byCode(saved.insert), action)), saveBlocked(saved.update, saved.insert, "Yeni kayıtta"))}
       {actionChoice("Sil düğmesi", "delete", removed, "Gösterme", (action) => change(setDeleteAction(def, action)))}
       {key && !saved.insert && !saved.update && <p className="cpanel-warn" role="status">Kaydet düğmesi bir eyleme bağlı değil; kart kaydedilemez.</p>}
       <p className="cpanel-note">Eylemin her bilgisi aynı adlı alandan alınır. Bilgisi kartta olmayan eylem seçilemez.</p>

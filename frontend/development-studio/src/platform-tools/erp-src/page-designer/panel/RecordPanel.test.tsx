@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "../catalogClient";
 import { newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
-import { addLines, addNote, chooseRecordSource, fieldKey, RECORD_SOURCE_NEEDS_KEY, recordTabs, setSectionColumns } from "./recordModel";
+import { addLines, addNote, chooseRecordSource, fieldKey, RECORD_SOURCE_NEEDS_KEY, recordTabs, saveActions, setSaveActions, setSectionColumns } from "./recordModel";
 import { RECORD_LOCK_NOTE, RecordPanel, recordSelectionOf, type RecordSelection } from "./RecordPanel";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -136,5 +136,23 @@ describe("recordSelectionOf", () => {
     expect(recordSelectionOf(def, summary)).toEqual({ kind: "page" });
     const extra = { ...def, components: [...def.components, { id: "ek", type: "text", props: { slot: "below", text: "x" } }] };
     expect(recordSelectionOf(extra, "ek")).toBeNull();
+  });
+});
+
+describe("Kaydet choices", () => {
+  it("keeps the other side when its action has left the catalog: the untouched side is locked with a reason", () => {
+    const shrunk: ActiveCatalog = { ...catalog, actions: catalog.actions.filter((action) => action.code !== guncelle.code) };
+    const bound = setSaveActions(built, ekle, guncelle);
+    expect(saveActions(bound)).toEqual({ insert: ekle.code, update: guncelle.code });
+    const host = mount(bound, { kind: "page" }, () => {});
+    act(() => mounted.at(-1)!.root.render(<RecordPanel def={bound} catalog={shrunk} selection={{ kind: "page" }} onChange={() => {}} onSelect={() => {}}/>));
+    const insert = host.querySelector<HTMLSelectElement>('select[aria-label="Yeni kayıtta"]')!;
+    const update = host.querySelector<HTMLSelectElement>('select[aria-label="Var olan kayıtta"]')!;
+    expect(insert.disabled).toBe(true);
+    expect(host.textContent).toContain("“Var olan kayıtta” eylemi katalogda yok; önce onu yeniden seçin.");
+    expect(update.disabled).toBe(false);
+    expect(update.value).toBe(guncelle.code);
+    expect(host.querySelector<HTMLSelectElement>('select[aria-label="Yeni kayıtta"]')!.value).toBe(ekle.code);
+    expect(render(bound, { kind: "page" })).not.toContain("katalogda yok; önce onu yeniden seçin.");
   });
 });

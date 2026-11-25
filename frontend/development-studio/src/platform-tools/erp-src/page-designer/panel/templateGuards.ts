@@ -3,6 +3,7 @@
 // gelen bileşenler de böylece kaydı bozmaz. Değişiklik yoksa aynı nesne döner.
 import { readPageTemplate } from "../pageTemplates";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
+import { fieldRemovalBlocked, removeBlock, removeField, removeSection } from "./recordModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
 export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
@@ -45,9 +46,52 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   return changed ? { ...def, components } : def;
 }
 
-/** Kalıplı sayfada kopyalanamayanlar: liste, detay paneli ve listenin satır açma ("Aç") düğmesi. */
+export type RecordSelection = { kind: "page" } | { kind: "section"; id: string } | { kind: "field"; id: string } | { kind: "lines"; id: string } | { kind: "note"; id: string };
+
+/** Kayıt kartında seçili bileşenin panel seçimi: kartın parçaları kendi paneline, ek alanlar (`above`/`below`) null, öteki her şey sayfaya. */
+export function recordSelectionOf(def: ModelDefinition, componentId: string | null): RecordSelection | null {
+  const component = componentId ? def.components.find((item) => item.id === componentId) : undefined;
+  if (!component) return { kind: "page" };
+  const slot = typeof component.props.slot === "string" ? component.props.slot : "";
+  if (slot === "above" || slot === "below") return null;
+  if (slot === "section" && component.type === "formCard") return { kind: "section", id: component.id };
+  if (slot === "field" && component.type === "input") return { kind: "field", id: component.id };
+  if (slot === "lines" && component.type === "dataTable") return { kind: "lines", id: component.id };
+  if (slot === "note" && component.type === "text") return { kind: "note", id: component.id };
+  return { kind: "page" };
+}
+
+const isRecordPage = (def: ModelDefinition) => readPageTemplate(def.template)?.name === "record";
+/** Kayıt kartının üst düzey parçası mı (ek alanlar ve iç içe bileşenler değil). */
+const isRecordPart = (def: ModelDefinition, id: string) =>
+  isRecordPage(def) && def.components.some((item) => item.id === id) && recordSelectionOf(def, id) !== null;
+
+export type RecordRemoval<D> = { kind: "generic" } | { kind: "none" } | { kind: "blocked"; reason: string } | { kind: "removed"; def: D };
+/**
+ * Tasarımcının genel silme yolunun (Delete tuşu, çöp düğmeleri) kayıt kartındaki karşılığı: alan, bölüm, satır tablosu ve not
+ * modelin kuralıyla silinir (eyleme bağlı alan silinmez, neden döner); özet, sekmeler ve eylem düğmeleri silinmez. Kalıp kayıt
+ * kartı değilse ya da bileşen ek alan / iç içe bileşense genel yol kullanılır.
+ */
+export function recordRemoval<D extends ModelDefinition>(def: D, id: string): RecordRemoval<D> {
+  if (!isRecordPart(def, id)) return { kind: "generic" };
+  const selection = recordSelectionOf(def, id)!;
+  if (selection.kind === "page") return { kind: "none" };
+  if (selection.kind === "field") {
+    const reason = fieldRemovalBlocked(def, id);
+    return reason ? { kind: "blocked", reason } : { kind: "removed", def: removeField(def, id) };
+  }
+  if (selection.kind === "section") {
+    const section = def.components.find((item) => item.id === id)!;
+    const reason = ids(section.props.inputs).map((input) => fieldRemovalBlocked(def, input)).find((item) => item !== null) ?? null;
+    return reason ? { kind: "blocked", reason } : { kind: "removed", def: removeSection(def, id) };
+  }
+  return { kind: "removed", def: removeBlock(def, id) };
+}
+
+/** Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi ve kayıt kartının her parçası. */
 export function templateDuplicateBlocked(def: ModelDefinition, id: string): boolean {
   if (!readPageTemplate(def.template)) return false;
+  if (isRecordPart(def, id)) return true;
   const component = def.components.find((item) => item.id === id);
   if (!component) return false;
   if (component.props.slot === "list" || component.props.slot === "detail") return true;

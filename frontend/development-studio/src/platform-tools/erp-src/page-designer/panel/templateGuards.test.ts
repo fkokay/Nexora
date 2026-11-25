@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "../catalogClient";
 import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
-import { ensureTemplateSlots, templateDuplicateBlocked } from "./templateGuards";
+import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField } from "./recordModel";
+import { ensureTemplateSlots, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
   const base = newListTemplateDefinition() as unknown as ModelDefinition;
@@ -49,5 +51,50 @@ describe("template guards (I2, M4)", () => {
     expect(slot("yanlis2")).toBe("below");
     expect(slot("yeni")).toBe("below");
     expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+});
+
+describe("record card guards for the designer's generic delete and duplicate", () => {
+  const col = (code: string, label: string, extra: Partial<CatalogColumn> = {}): CatalogColumn =>
+    ({ code, label, type: "text", key: false, longText: false, required: false, maxLength: null, ...extra });
+  const cari: CatalogDataSource = { code: "cariKart", label: "Cari kartı", source: "sql", erpOperation: null, parameters: [{ name: "kod", type: "text" }], opens: null,
+    columns: [col("kod", "Cari kodu", { key: true }), col("unvan", "Unvan"), col("vade", "Vade", { type: "int" })] };
+  const ekle: CatalogAction = { code: "cariEkle", label: "Cari ekle", kind: "insert", target: "page", source: "sql", erpOperation: null,
+    parameters: [{ name: "kod", type: "text" }, { name: "unvan", type: "text" }], confirmText: null };
+  const catalog: ActiveCatalog = { version: "1", dataSources: [cari], actions: [ekle] };
+  const base = addNote(chooseRecordSource(newRecordTemplateDefinition() as unknown as ModelDefinition, cari, catalog), 0, 1, "Not");
+  const def = { ...base, components: [...base.components, { id: "ek", type: "text", props: { slot: "below", text: "x" } }] };
+  const field = (column: string) => def.components.find((component) => component.type === "input" && fieldKey(def, component.id) === column)!.id;
+  const of = (slot: string) => def.components.find((component) => component.props.slot === slot)!.id;
+
+  it("Delete on a bound field is refused with the reason", () => {
+    const result = recordRemoval(def, field("unvan"));
+    expect(result).toEqual({ kind: "blocked", reason: fieldRemovalBlocked(def, field("unvan")) });
+    expect((result as { reason: string }).reason).toContain("Kaydet");
+  });
+  it("Delete on a free field and on a note uses the record model", () => {
+    expect(recordRemoval(def, field("vade"))).toEqual({ kind: "removed", def: removeField(def, field("vade")) });
+    expect(recordRemoval(def, of("note"))).toEqual({ kind: "removed", def: removeBlock(def, of("note")) });
+  });
+  it("Delete on a section removes its fields, or is refused while a field is bound", () => {
+    // Kaydet düğmesi ve eylem sorguları kalkınca hiçbir alan eyleme bağlı değildir.
+    const unbound = { ...def, components: def.components.filter((component) => component.props.slot !== "actions"), queries: def.queries.filter((query) => query.kind === "read") };
+    const result = recordRemoval(unbound, "genel");
+    expect(result.kind).toBe("removed");
+    const after = (result as { def: ModelDefinition }).def;
+    expect(after.components.some((component) => component.type === "input" && component.props.slot === "field")).toBe(false);
+    expect(after.components.some((component) => component.id === "genel")).toBe(false);
+    expect(recordRemoval(def, "genel").kind).toBe("blocked");
+  });
+  it("summary, tabs and action buttons are never deleted; extra areas use the generic path", () => {
+    expect(recordRemoval(def, of("summary"))).toEqual({ kind: "none" });
+    expect(recordRemoval(def, of("tabs"))).toEqual({ kind: "none" });
+    expect(recordRemoval(def, of("actions"))).toEqual({ kind: "none" });
+    expect(recordRemoval(def, "ek")).toEqual({ kind: "generic" });
+    expect(recordRemoval(page([list]), "liste")).toEqual({ kind: "generic" });
+  });
+  it("Ctrl+D on a record part does nothing; extra areas can still be copied", () => {
+    for (const id of [field("vade"), "genel", of("note"), of("summary"), of("tabs"), of("actions")]) expect(templateDuplicateBlocked(def, id), id).toBe(true);
+    expect(templateDuplicateBlocked(def, "ek")).toBe(false);
   });
 });
