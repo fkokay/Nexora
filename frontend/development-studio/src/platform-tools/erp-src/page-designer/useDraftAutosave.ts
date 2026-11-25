@@ -7,13 +7,16 @@ type Options = {
   changeKey: unknown;
   delayMs?: number;
   save: () => Promise<boolean>;
+  /** Değişince bekleyen kayıt ertelenir (yeni kayıt tetiklemez): ör. henüz oluşturulmamış sayfanın adı / kodu yazılırken
+   *  yarım kodla taslak açılmasın. */
+  holdKey?: unknown;
 };
 
 /**
  * Değişiklikten `delayMs` sonra taslağı sessizce kaydeder. Kayıtlar paralel çalışmaz: bir kayıt sürerken gelen değişiklik,
  * o kayıt bitince yeniden bekleme süresiyle kaydedilir. `revision` yalnız başarılı kayıtta artar (ERP tuvali yeniden yüklenir).
  */
-export function useDraftAutosave({ enabled, changeKey, delayMs = 800, save }: Options): { revision: number; saving: boolean } {
+export function useDraftAutosave({ enabled, changeKey, delayMs = 800, save, holdKey }: Options): { revision: number; saving: boolean } {
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const saveRef = useRef(save);
@@ -59,6 +62,13 @@ export function useDraftAutosave({ enabled, changeKey, delayMs = 800, save }: Op
     if (inFlight.current) { pending.current = true; return; }
     schedule.current();
   }, [changeKey, enabled]);
+
+  const lastHold = useRef(holdKey);
+  useEffect(() => {
+    if (Object.is(lastHold.current, holdKey)) return;
+    lastHold.current = holdKey;
+    if (timer.current !== undefined) schedule.current();
+  }, [holdKey]);
 
   useEffect(() => {
     alive.current = true;

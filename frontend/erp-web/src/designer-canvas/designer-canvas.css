@@ -12,3 +12,8 @@ body:has(.designer-canvas-root) {
   min-height: 0 !important;
   margin-left: 0 !important;
 }
+
+/* Dar ekranda canlı kabuk, alt menü çubuğu için içeriğin altına boşluk bırakır (shell.css); tuvalde alt çubuk yoktur. */
+@media (max-width: 760px) {
+  .app-shell.designer-canvas-shell > .main-area > .workspace-content { padding-bottom: 32px !important; }
+}

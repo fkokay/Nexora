@@ -67,15 +67,32 @@ describe("useDraftAutosave", () => {
   it("kapalıyken yapılan değişiklik açılınca kaydedilir", async () => {
     const save = vi.fn(async () => true);
     const { result, rerender } = renderHook({ enabled: false, changeKey: {}, save });
-    rerender({ enabled: false, changeKey: {}, save });
+    const key = {};
+    rerender({ enabled: false, changeKey: key, save });
     await advance(2000);
     expect(save).not.toHaveBeenCalled();
-    const key = {};
+    // Aynı anahtarla açılır: değişiklik kapalıyken yapılmıştı.
     rerender({ enabled: true, changeKey: key, save });
     await advance(800);
     expect(save).toHaveBeenCalledTimes(1);
     expect(result.current.revision).toBe(1);
     rerender({ enabled: true, changeKey: key, save });
+    await advance(2000);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("holdKey değişimi bekleyen kaydı erteler, yeni kayıt tetiklemez", async () => {
+    const save = vi.fn(async () => true);
+    const key = {};
+    const { rerender } = renderHook({ enabled: true, changeKey: {}, save, holdKey: "a" });
+    rerender({ enabled: true, changeKey: key, save, holdKey: "a" });
+    await advance(600);
+    rerender({ enabled: true, changeKey: key, save, holdKey: "ab" });
+    await advance(600);
+    expect(save).not.toHaveBeenCalled();
+    await advance(200);
+    expect(save).toHaveBeenCalledTimes(1);
+    rerender({ enabled: true, changeKey: key, save, holdKey: "abc" });
     await advance(2000);
     expect(save).toHaveBeenCalledTimes(1);
   });

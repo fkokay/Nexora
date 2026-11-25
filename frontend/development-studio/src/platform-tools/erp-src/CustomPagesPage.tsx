@@ -1203,7 +1203,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const erpCanvasAvailable = !!platformOrigin && !!tenant && !canvasFallback;
   // Önizleme uç noktası yalnız taslak açar: yayımlı sürümde (taslak yokken) sessizce yerleşik tuval gösterilir.
   const erpCanvas = erpCanvasAvailable && !focusOwner && !current?.isPublished;
-  useEffect(() => { erpBlocks.current = []; setCanvasError(""); setCanvasHint(""); }, [current?.id, systemScreenKey, erpCanvas]);
+  useEffect(() => { erpBlocks.current = []; setCanvasError(""); }, [current?.id, systemScreenKey, erpCanvas]);
+  // Kart / pencere odağına girip çıkmak sessiz kaydın sorununu silmez; yalnız başka sayfaya geçince silinir.
+  useEffect(() => { setCanvasHint(""); }, [current?.id, systemScreenKey]);
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await authenticatedFetch(url, token, {
@@ -2262,6 +2264,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()),
     changeKey: definition,
     save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
+    // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
+    holdKey: current ? null : JSON.stringify([name, code]),
   });
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
   const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
@@ -3664,7 +3668,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}/>
           </div>
-            : <div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div>
+            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div></>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
             <div className="pd-frame-breadcrumb"><span>Ana sayfa</span><span>›</span><b>{name || "Yeni sayfa"}</b></div>
