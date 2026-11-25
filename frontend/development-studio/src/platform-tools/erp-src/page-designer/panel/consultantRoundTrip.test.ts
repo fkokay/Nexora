@@ -78,6 +78,11 @@ describe("Consultant panel output through the designer", { timeout: 30_000 }, ()
       expect(ensureTemplateSlots(def), label).toBe(def);
       expect(def.components.every((c) => typeof c.props.slot === "string" && TEMPLATE_SLOTS.has(c.props.slot)), label).toBe(true);
       expect(hasWidth(def.components), label).toBe(false);
+      if (label === "status value") {
+        const status = def.components.find((c) => c.id === "g2")!;
+        expect(status.type).toBe("badge");
+        expect(status.props.text).toMatch(/^\{\{[^{}]+\.rows\[0\]\.durum\}\}$/);
+      }
     }
     const buttons = slotButtons(def, "actions");
     if (buttons.length > 1) def = setPrimaryButton(def, buttons[buttons.length - 1].id);

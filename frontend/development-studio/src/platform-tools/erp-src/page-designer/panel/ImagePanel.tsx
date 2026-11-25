@@ -54,7 +54,7 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
   </>;
   const appearance = <AppearanceSection visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} onRename={onRename} place={place} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
+  return <ComponentPanel name={component.name ?? ""} nameReadOnly onRename={onRename} place={place} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={IMAGE_KNOWN}/>
   </ComponentPanel>;

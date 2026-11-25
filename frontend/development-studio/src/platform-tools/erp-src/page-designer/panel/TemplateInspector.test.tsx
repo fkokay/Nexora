@@ -7,7 +7,7 @@ import { TemplateInspector, usesTemplateInspector } from "./TemplateInspector";
 const definition = newListTemplateDefinition() as unknown as ModelDefinition;
 const list = { definition, catalog: null, catalogStatus: "ready" as const, operationOf: () => undefined, isTenantAdmin: false, onChange: () => {} };
 const render = (component: ModelComponent, def: ModelDefinition = definition) => renderToString(
-  <TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def }} tokens={[]} onRename={() => {}} onPlace={() => {}}/>);
+  <TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def }} tokens={[]} onPlace={() => {}}/>);
 const withComponent = (component: ModelComponent) => ({ ...definition, components: [...definition.components, component] }) as ModelDefinition;
 const renderIn = (component: ModelComponent) => render(component, withComponent(component));
 
@@ -55,6 +55,26 @@ describe("TemplateInspector", () => {
       expect(buttons, slot).not.toContain("BUGUNKU");
       expect(buttons, slot).toContain("Hangi eylemler?");
     }
+  });
+
+  it("keeps the component name read-only in every consultant panel", () => {
+    const cases: ModelComponent[] = [
+      { id: "m", type: "heading", name: "metin", props: { slot: "below", text: "x" } },
+      { id: "b", type: "alert", name: "bilgi", props: { slot: "above", variant: "info", title: "Bilgi", text: "" } },
+      { id: "g", type: "metric", name: "gosterge", props: { slot: "indicators", title: "Gösterge" } },
+      { id: "r", type: "image", name: "resim", props: { slot: "below", title: "", value: "", height: 160 } },
+    ];
+    for (const component of cases) {
+      const html = renderIn(component);
+      expect(html, component.id).not.toContain("BUGUNKU");
+      expect(html, component.id).toMatch(/<input aria-label="Bileşen adı"[^>]*readOnly=""/);
+    }
+  });
+
+  it("puts the indicator place choice under the name", () => {
+    const html = renderIn({ id: "g", type: "metric", props: { slot: "indicators", title: "Gösterge" } });
+    expect(html.indexOf("Bileşen adı")).toBeLessThan(html.indexOf("Yeri"));
+    expect(html.indexOf("Yeri")).toBeLessThan(html.indexOf("Ne gösterilsin?"));
   });
 
   it("keeps today's settings for components the new panels do not open", () => {

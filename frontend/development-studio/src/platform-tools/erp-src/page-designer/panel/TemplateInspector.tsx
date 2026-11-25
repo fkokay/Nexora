@@ -25,13 +25,13 @@ export function usesTemplateInspector(def: Pick<ModelDefinition, "template" | "c
 /**
  * Kalıplı sayfanın özellikler paneli (alt proje 5a): liste için `ListPanel`; Metin, Bilgi kutusu, Gösterge, Görsel ve
  * eylem yerlerindeki düğmeler için danışman panelleri; öteki bileşenler için `ComponentPanel` içinde bugünkü ayar alanları.
- * Ek alanlarda (`above` / `below`) Ad bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
+ * Bileşen adı bağlamalarda kullanıldığından danışman panellerinde salt okunurdur. Ek alanlarda (`above` / `below`) Ad bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
  */
-export function TemplateInspector({ component, legacy, list, tokens, disabled, onLeave, onPlace, onRename }: {
+export function TemplateInspector({ component, legacy, list, tokens, disabled, onLeave, onPlace }: {
   component: ModelComponent; legacy: ReactNode; list: Omit<ListPanelProps, "listId"> | null;
   /** Metindeki `{Alan}` ifadeleri ve "Kayıttaki resim" için listenin kolonları (`fieldTokens`). */
   tokens: FieldToken[]; disabled?: boolean;
-  onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void; onRename: (name: string) => void;
+  onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
 }) {
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";
   if (slot === "list" && component.type === "dataTable" && list) return <ListPanel {...list} listId={component.id} disabled={disabled} onLeave={onLeave}/>;
@@ -43,7 +43,7 @@ export function TemplateInspector({ component, legacy, list, tokens, disabled, o
 
   const kind = list ? consultantKindOf(component) : null;
   if (list && kind) {
-    const common = { component, definition: list.definition, disabled, onChange: list.onChange, onRename, visibility: list.visibility };
+    const common = { component, definition: list.definition, disabled, onChange: list.onChange, onRename: () => {}, visibility: list.visibility };
     switch (kind) {
       case "text": return <TextPanel {...common} tokens={tokens} place={placeChoice}/>;
       case "infoBox": return <InfoBoxPanel {...common} tokens={tokens} place={placeChoice}/>;

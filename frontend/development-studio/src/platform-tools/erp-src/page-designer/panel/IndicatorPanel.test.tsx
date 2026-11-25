@@ -32,9 +32,9 @@ describe("IndicatorPanel", () => {
     def = setIndicatorValue(def, "g1", "alacak", "money");
     def = setIndicatorCompare(def, "g1", "gecenAy");
     const html = renderToString(<IndicatorPanel {...props(def)}/>);
-    inOrder(html, ["Tür", "Sayı", "İlerleme", "Durum", "Ne gösterilsin?", "Cari bakiye özeti", "Değer", "Kayıt sayısı", "Toplam alacak",
-      "Yazılımcının hazırladığı değer · birimi ondan gelir", "Önceki değerle karşılaştır", "Neyle karşılaştırılsın?", "Yeri", "Göstergeler",
-      "Listenin üstü", "Listenin altı", "Eylemler", "Görünüm", "Boyut", "Küçük", "Büyük", "Ne zaman görünsün?", "KOSUL", "Mobilde gizle"]);
+    inOrder(html, ["Bileşen adı", "Yeri", "Göstergeler", "Listenin üstü", "Listenin altı", "Tür", "Sayı", "İlerleme", "Durum", "Ne gösterilsin?",
+      "Cari bakiye özeti", "Değer", "Kayıt sayısı", "Toplam alacak",
+      "Yazılımcının hazırladığı değer · birimi ondan gelir", "Önceki değerle karşılaştır", "Neyle karşılaştırılsın?", "Eylemler", "Görünüm", "Boyut", "Küçük", "Büyük", "Ne zaman görünsün?", "KOSUL", "Mobilde gizle"]);
   });
   it("greys unusable sources with reason and shows target only for progress", () => {
     const html = renderToString(<IndicatorPanel {...props(start())}/>);

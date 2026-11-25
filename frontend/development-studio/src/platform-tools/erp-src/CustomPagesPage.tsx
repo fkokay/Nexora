@@ -4377,7 +4377,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         if (!usesTemplateInspector(modelDefinition, selected.id)) return legacyInspector;
         return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit}
           tokens={fieldTokens(modelDefinition, activeCatalog.catalog)}
-          onRename={(value) => setComponentName(selected.id, value.trim())}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
           list={{ definition: modelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,

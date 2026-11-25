@@ -100,12 +100,14 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
       <select value={state.totalColumn ?? ""} disabled={disabled || !source} onChange={(event) => change(setIndicatorTotal(definition, id, event.target.value || null))}>
         <option value="">Yok</option>{columnOptions(state.totalColumn, false)}
       </select></label>}
-    <div className="cpanel-q">Yeri</div>
+  </>;
+  // "Yeri" Ad bölümünün altında (Metin, Bilgi kutusu ve Görsel ile aynı); seçenekler `indicatorPlaces`'ten gelir.
+  const place = <div className="cpanel-row cpanel-template-place">Yeri
     <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, label]) =>
       <button type="button" key={value} className={component.props.slot === value ? "on" : ""} aria-pressed={component.props.slot === value} disabled={disabled}
         onClick={() => change(setIndicatorPlace(definition, id, value))}>{label}</button>)}</div>
     {NO_INDICATORS_NOTE[component.type] && <p className="cpanel-note">{NO_INDICATORS_NOTE[component.type]}</p>}
-  </>;
+  </div>;
 
   const extra = state.kind === "number"
     ? <div className="cpanel-row">Boyut<div className="cpanel-seg" role="group" aria-label="Boyut">{SIZES.map(([value, label]) =>
@@ -114,7 +116,7 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
     : undefined;
   const appearance = <AppearanceSection extra={extra} visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => change(setHideOnMobile(definition, id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} onRename={onRename} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
+  return <ComponentPanel name={component.name ?? ""} nameReadOnly onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={knownOf(component.type)}/>
   </ComponentPanel>;
