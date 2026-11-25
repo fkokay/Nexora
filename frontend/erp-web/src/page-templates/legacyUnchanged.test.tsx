@@ -13,8 +13,9 @@ import catalog from '../system-pages/customersOperations.fixture.json';
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 
+const loadStandard = (key: string) => JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${key}.json`), 'utf8')) as { title: string; definition: unknown };
 const KEY = 'customers';
-const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; definition: unknown };
+const standard = loadStandard(KEY);
 const jwt = `x.${btoa(JSON.stringify({ sub: 'u1', role: 'TenantAdmin' })).replace(/=+$/, '')}.y`;
 
 const customer = (id: string, code: string, name: string) => ({
@@ -38,12 +39,12 @@ const legacy = {
 const published = (code: string, name: string, definition: unknown, extra: Record<string, unknown> = {}) =>
   ({ id: code, code, name, description: null, revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true }, definitionJson: JSON.stringify(definition), ...extra });
 
-function setup(definition: unknown, system = false) {
+function setup(definition: unknown, system = false, key = KEY, title = standard.title) {
   api.mockImplementation(async (endpoint: string) => {
     const [path] = endpoint.split('?');
     if (endpoint.includes('/published')) {
       return system
-        ? published(`@${KEY}`, standard.title, definition, { screenKey: KEY, source: 'standard', standardVersion: 1 })
+        ? published(`@${key}`, title, definition, { screenKey: key, source: 'standard', standardVersion: 1 })
         : published('legacy', 'Eski sayfa', definition);
     }
     if (path === '/api/custom-pages/erp-operations') return catalog;
@@ -57,7 +58,7 @@ function setup(definition: unknown, system = false) {
     <CommandProvider>
       <ActionBar locale="tr" />
       <KeepAliveViews activeKey="v" openKeys={['v']}>
-        {system ? <TenantCustomPage systemScreenKey={KEY} token={jwt} onOpenLegacy={() => {}} /> : <TenantCustomPage code="legacy" token={jwt} />}
+        {system ? <TenantCustomPage systemScreenKey={key} token={jwt} onOpenLegacy={() => {}} /> : <TenantCustomPage code="legacy" token={jwt} />}
       </KeepAliveViews>
     </CommandProvider>,
   );
@@ -86,6 +87,34 @@ describe('kalıpsız sayfalar değişmeden çizilir', { timeout: 30000 }, () => 
     const { container } = setup(standard.definition, true);
     await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
     await waitFor(() => expect(document.body.textContent).toContain('tüm kayıtlar · 121 aktif'), T);
+    await settle();
+    expect(markup(container)).toMatchSnapshot();
+  });
+
+  it('customer-create system standard renders unchanged', async () => {
+    const create = loadStandard('customer-create');
+    const { container } = setup(create.definition, true, 'customer-create', create.title);
+    await screen.findByText('Cari kimliği', undefined, T);
+    await settle();
+    expect(markup(container)).toMatchSnapshot();
+  });
+
+  it('legacy page with formCard tabs and inputs renders unchanged', async () => {
+    const card = {
+      schemaVersion: 2,
+      components: [
+        { id: 'bar', type: 'actionBar', props: {} },
+        { id: 'kimlik', type: 'formCard', name: 'kimlik', props: { title: 'Kimlik', columns: 3, inputs: ['tur', 'tarih'] } },
+        { id: 'tur', type: 'input', name: 'tur', props: { inputType: 'select', label: 'Tür', staticOptions: ['A=Alıcı', 'B=Satıcı'], defaultFirst: true } },
+        { id: 'tarih', type: 'input', name: 'tarih', props: { inputType: 'date', label: 'Tarih' } },
+        { id: 'sekmeler', type: 'tabs', name: 'sekmeler', props: { tabs: ['Genel=ozet', 'Notlar=not'] } },
+        { id: 'ozet', type: 'metric', props: { title: 'Özet', value: '7', description: 'adet' } },
+        { id: 'not', type: 'label', props: { text: 'Not metni' } },
+      ],
+      queries: [],
+    };
+    const { container } = setup(card);
+    await screen.findByText('Kimlik', undefined, T);
     await settle();
     expect(markup(container)).toMatchSnapshot();
   });
