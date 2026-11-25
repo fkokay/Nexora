@@ -65,6 +65,7 @@ import { runSingleFlight, type FlightSlot } from "./page-designer/singleFlight";
 import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
+import { CONSULTANT_PALETTE, consultantAvailability, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, type ConsultantKind } from "./page-designer/panel/consultantPalette";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
@@ -105,7 +106,7 @@ function childComponentsOf(component: PageComponent): PageComponent[] {
 }
 // Studio her zaman schemaVersion 2 kaydeder; v1 tanımlar açılırken v2'ye yükseltilir (v1 içeriği v2'de de geçerlidir).
 type PageDefinition = { schemaVersion: 2; template?: PageTemplate; queries: PageQuery[]; components: PageComponent[] };
-type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"] };
+type PaletteItem = { type: ComponentType; label: string; group: string; icon: LucideIcon; sample: PageComponent["props"]; consultant?: ConsultantKind; slot?: string };
 type Device = "desktop" | "tablet" | "mobile";
 type FieldSpec = { key: string; label: string; kind: "text" | "textarea" | "number" | "variant" | "choice"; options?: readonly (readonly [string, string])[] };
 
@@ -144,6 +145,20 @@ const palette: PaletteItem[] = [
 /** Kalıplı sayfada kullanılmayan bileşenler (sunucu kuralı): işlem çubuğu, boşluk ve ayırıcı. */
 const TEMPLATE_FORBIDDEN_TYPES = new Set<ComponentType>(["actionBar", "spacer", "divider"]);
 const paletteGroups = ["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
+/** Palet anahtarından öğe: danışman anahtarı (`consultant:<tür>`) hazırsa oluşturacağı bileşenin tipiyle, değilse eski palette aranır. */
+function findPaletteItem(key: string): PaletteItem | undefined {
+  const kind = consultantKindFromKey(key);
+  if (!kind) return palette.find((entry) => entry.type === key);
+  if (!consultantAvailability(kind).available) return undefined;
+  const entry = CONSULTANT_PALETTE.find((item) => item.kind === kind)!;
+  const created = createConsultantComponent(kind as "text", "-");
+  return { type: created.type as ComponentType, label: entry.label, group: "Bileşenler", icon: entry.icon, sample: created.props, consultant: kind, slot: kind === "indicator" ? "indicators" : undefined };
+}
+/** Kalıplı sayfanın sol paneli: 11 danışman öğesi, gruplanmaz; hazır olmayanlar soluk ve gerekçeli. */
+const consultantPaletteEntries = () => CONSULTANT_PALETTE.map((item) => {
+  const availability = consultantAvailability(item.kind);
+  return { type: consultantPaletteKey(item.kind), label: item.label, group: "Bileşenler", icon: item.icon, disabled: !availability.available, title: availability.available ? item.description : availability.reason };
+});
 const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
   heading: [{ key: "text", label: "Başlık metni", kind: "text" }],
@@ -198,6 +213,8 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport",
   // Listenin araç çubuğundaki "Detay paneli" düğmesinin onay kutusu girişi.
   "detailToggleInput",
+  // Alt proje 5a: Metin hizalaması, bilgi kutusu maddeleri/kapatma, gösterge karşılaştırma/boyut/hedef.
+  "textAlign", "items", "dismissible", "compareValue", "size", "progressTotal",
   // İşlem Çubuğu İşlemler › "CSV olarak dışa aktar" (Excel bağlıyken; kapalıysa false yazılır).
   "exportCsv",
   // Süzgeç alanı: bağlı tablonun arama kutusu ve süzgeçleri.
@@ -868,7 +885,7 @@ function reconcileDefinition(definition: PageDefinition, options: ReconcileOptio
   return components === reconciled.components ? reconciled : { ...reconciled, components };
 }
 /** Yalnız denemeler için: standart tanımların tasarımcıda kayıpsız açılıp kaydedildiğini doğrulamak. */
-export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL, inputTypeOptions, inputTypeReset };
+export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, paletteGroups, MAIN_TAB_LABEL, inputTypeOptions, inputTypeReset };
 /** Kart tasarım ekranında kartın çocuğunu sürüklerken taşınan kimlik. */
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -1663,9 +1680,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const templated = !!readPageTemplate(definitionRef.current.template);
     if (templated && TEMPLATE_FORBIDDEN_TYPES.has(item.type)) return;
     const id = newId(item.type);
-    const props = { ...Object.fromEntries(Object.entries(item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])), ...(ref ? newRefProps(ref.ownerId, item.type) : {}),
+    const props = { ...Object.fromEntries(Object.entries(item.consultant ? createConsultantComponent(item.consultant as "text", id).props : item.sample).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])), ...(ref ? newRefProps(ref.ownerId, item.type) : {}),
       // Kalıplı sayfada "＋ Ekle" bileşeni listenin altına (below) koyar; kartın içindeki bileşen üst düzeyde değildir.
-      ...(templated && !card ? { slot: "below" } : {}) } as PageComponent["props"];
+      ...(templated && !card ? { slot: item.slot ?? "below" } : {}) } as PageComponent["props"];
     if (ref) {
       const problem = refTree.refPlacementProblem(definitionRef.current.components, ref.ownerId, { type: item.type, props });
       if (problem) { setError(problem); return; }
@@ -1736,7 +1753,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = palette.find((entry) => entry.type === type);
+      const item = findPaletteItem(type);
       if (item) addComponent(item, targetIndex);
     } else if (Number.isInteger(from) && from >= 0 && from < definition.components.length) {
       commit((state) => {
@@ -1761,7 +1778,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const childId = event.dataTransfer.getData(CARD_CHILD_MIME);
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = palette.find((entry) => entry.type === type);
+      const item = findPaletteItem(type);
       if (item) addComponent(item, undefined, { tabsId, tabIndex, position });
       return;
     }
@@ -1892,7 +1909,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = palette.find((entry) => entry.type === type);
+      const item = findPaletteItem(type);
       if (item) { if (isCard) addComponent(item, undefined, undefined, { cardId: owner.id, at: target }); else addComponent(item, undefined, undefined, undefined, { ownerId: owner.id, at: target }); }
       return;
     }
@@ -3699,13 +3716,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     <div className={`pd-workspace${docks.workspaceClass}`}>
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
-      <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
+      <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={pageTemplate ? ["Bileşenler"] : paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
-        palette={palette.filter((item) => !(pageTemplate && TEMPLATE_FORBIDDEN_TYPES.has(item.type))).filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        palette={pageTemplate ? consultantPaletteEntries() : palette.filter((item) => !(pageTemplate && TEMPLATE_FORBIDDEN_TYPES.has(item.type))).filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => {
-          const item = palette.find((entry) => entry.type === type);
+          const item = findPaletteItem(type);
           if (!item) return;
           if (!focusOwner) { addComponent(item, insertIndex()); return; }
           // İç tasarım ekranında: seçili üyenin arkasına, yoksa sahibin sonuna.
