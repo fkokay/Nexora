@@ -116,6 +116,11 @@ const CustomerLocationDefinitionsPage = lazy(() =>
     default: module.CustomerLocationDefinitionsPage,
   })),
 );
+const CustomerGroupsPage = lazy(() =>
+  import("./CustomerGroupsPage").then((module) => ({
+    default: module.CustomerGroupsPage,
+  })),
+);
 const ERPAssistantPage = lazy(() =>
   import("./ERPAssistantPage").then((module) => ({
     default: module.ERPAssistantPage,
@@ -584,6 +589,8 @@ function LegacyPageRouter({
     );
   if (page === "address-definitions" && tenant.role === "TenantAdmin")
     return <CustomerLocationDefinitionsPage token={token} />;
+  // Every role: the former "Gruplar" dialog of the customer list was open to all, and the API has no role check.
+  if (page === "customer-groups") return <CustomerGroupsPage token={token} />;
   if (page === "audit") return <AuditLogPage token={token} />;
   if (page === "access") return <AccessControlPage token={token} />;
   if (page === "company-settings")
