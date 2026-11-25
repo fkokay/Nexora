@@ -13,6 +13,7 @@ import {
   Folder,
   ShieldCheck,
   Sparkles,
+  X,
 } from "lucide-react";
 import { api, authorizedFetch } from "./api";
 import { ModuleSourceMappings } from "./ModuleSourceMappings";
@@ -98,6 +99,9 @@ import {
 } from "./studio-projects/ProjectsSection";
 import { ApprovalQueueSection } from "./studio-projects/ApprovalQueueSection";
 import { WorkspaceExplorer } from "./studio-projects/WorkspaceExplorer";
+import { CatalogWorkbench } from "./studio-projects/catalog/CatalogWorkbench";
+import { CatalogReleaseDialog } from "./studio-projects/catalog/CatalogReleaseDialog";
+import { useCatalogWorkspace } from "./studio-projects/catalog/catalogWorkspace";
 
 export function StudioProjects({
   token,
@@ -444,6 +448,35 @@ export function StudioProjects({
     moduleCodeForWorkspace(request) ||
     "Yeni modül";
   const moduleWorkspaceCode = moduleCodeForWorkspace(fileWorkspace);
+  const catalogWorkspace = useCatalogWorkspace(
+    token,
+    workspaceProject?.id ?? null,
+    fileWorkspace?.id ?? null,
+    moduleWorkspaceCode,
+  );
+  const catalog = catalogWorkspace.catalog;
+  const [explorerView, setExplorerView] = useState<"files" | "catalog">(
+    "files",
+  );
+  const [catalogReleaseOpen, setCatalogReleaseOpen] = useState(false);
+  const catalogToggle = catalog ? (
+    <span className="sp-cw-toggle" role="group" aria-label="Görünüm">
+      <button
+        type="button"
+        aria-pressed={explorerView === "catalog"}
+        onClick={() => setExplorerView("catalog")}
+      >
+        Yapı taşları
+      </button>
+      <button
+        type="button"
+        aria-pressed={explorerView === "files"}
+        onClick={() => setExplorerView("files")}
+      >
+        Dosyalar
+      </button>
+    </span>
+  ) : null;
   const moduleWorkspacePath = moduleWorkspaceCode
     ? `modules/${moduleWorkspaceCode}`
     : "";
@@ -4713,8 +4746,63 @@ export function StudioProjects({
           workspaceProject={workspaceProject}
         />
       )}
-      {fileWorkspace && (
+      {fileWorkspace && catalog && explorerView === "catalog" && (
+        <div
+          className="sp-cw-page"
+          role="main"
+          aria-labelledby="catalog-workbench-title"
+        >
+          <header className="sp-cw-page-head">
+            <h2 id="catalog-workbench-title">{workspaceProject?.name}</h2>
+            <code>
+              {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
+            </code>
+            {catalogToggle}
+            <span className="sp-cw-spacer" />
+            <button
+              type="button"
+              className="ns-btn ns-btn-sm ns-btn-ghost"
+              aria-label="Dosya gezginini kapat"
+              onClick={() => void closeWorkspaceFileExplorer()}
+            >
+              <X size={17} />
+            </button>
+          </header>
+          {catalogWorkspace.loadError && (
+            <div className="alert">{catalogWorkspace.loadError}</div>
+          )}
+          <CatalogWorkbench
+            root={catalog.root}
+            entries={catalog.entries}
+            errors={catalog.errors}
+            changedPaths={catalog.changedPaths}
+            canEdit={canEditWorkspace}
+            isTenantAdmin={tenant.role === "TenantAdmin"}
+            token={token}
+            writeFiles={catalogWorkspace.writeFiles}
+            onPublish={() =>
+              void catalogWorkspace
+                .refreshGit()
+                .then(() => setCatalogReleaseOpen(true))
+            }
+          />
+        </div>
+      )}
+      {fileWorkspace && catalog && catalogReleaseOpen && (
+        <CatalogReleaseDialog
+          token={token}
+          root={catalog.root}
+          files={catalog.files}
+          hasUncommittedCatalogChanges={catalog.hasUncommitted}
+          headCommitSha={catalog.headCommitSha}
+          repositoryUrl={workspaceProject?.repositoryUrl ?? null}
+          isTenantAdmin={tenant.role === "TenantAdmin"}
+          onClose={() => setCatalogReleaseOpen(false)}
+        />
+      )}
+      {fileWorkspace && !(catalog && explorerView === "catalog") && (
         <WorkspaceExplorer
+          headerExtra={catalogToggle}
           aiConfigured={aiConfigured}
           aiDockOpen={aiDockOpen}
           aiToolCategories={aiToolCategories}
