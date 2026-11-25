@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type ReactNode } from "react";
+import { useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import type { ActiveCatalog, CatalogAction, CatalogDataSource } from "../catalogClient";
 import type { ErpOperation } from "../erpOperations";
 import { gridToolPatch, type GridToolKey } from "../GridSettingsFields";
@@ -29,6 +29,8 @@ export type ListPanelProps = {
   onChange: (next: ModelDefinition) => void;
   /** "Ne zaman görünsün?" alanı (tasarımcının koşul düzenleyicisi); verilmezse yalnız "Her zaman" gösterilir. */
   visibility?: ReactNode;
+  /** "Yazılımcıdan iste →" tıklanınca (ör. kaydedilmemiş değişiklik onayı; `preventDefault` geçişi durdurur). */
+  onLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
 };
 
 /** Liste kalıbının paneli (taslak 01): sekme ve açılır pencere yok; sıra taslaktaki gibidir. */
@@ -101,7 +103,7 @@ export function ListPanel(props: ListPanelProps) {
     <div className="cpanel-sub" data-part="columns"><h4>Kolonlar</h4>
       {ordered.length === 0 ? <p className="cpanel-note">Önce ne listeleneceğini seçin.</p> : <ul className="cpanel-cols">{ordered.map((column) => {
         const on = columns.includes(column);
-        return <li key={column} draggable={on && !disabled} onDragStart={() => setDragging(column)} onDragOver={(event) => event.preventDefault()} onDrop={dropOn(column)}>
+        return <li key={column} draggable={on && !disabled} onDragStart={(event) => { event.dataTransfer.setData("text/plain", column); event.dataTransfer.effectAllowed = "move"; setDragging(column); }} onDragOver={(event) => event.preventDefault()} onDrop={dropOn(column)}>
           <span className="cpanel-grip" aria-hidden="true">⋮⋮</span>
           <input type="checkbox" checked={on} disabled={disabled} aria-label={labelOf(column)} onChange={(event) => toggleColumn(column, event.target.checked)}/>
           {editing === column
@@ -163,6 +165,6 @@ export function ListPanel(props: ListPanelProps) {
 
   return <ComponentPanel name={typeof table.props.title === "string" ? table.props.title : ""} onRename={(title) => patch({ title: title || undefined })}
     whatTitle="Ne listelensin?" basicsTitle={null} what={what} basics={basics} actions={actionsPart} appearance={appearance}>
-    <div className="cpanel-ask"><b>Aradığın alan ya da liste yok mu?</b> Örneğin “Son ödeme tarihi” kolonu gibi. <a href="#my-requests">Yazılımcıdan iste →</a></div>
+    <div className="cpanel-ask"><b>Aradığın alan ya da liste yok mu?</b> Örneğin “Son ödeme tarihi” kolonu gibi. <a href="#my-requests" onClick={props.onLeave}>Yazılımcıdan iste →</a></div>
   </ComponentPanel>;
 }

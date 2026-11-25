@@ -7,10 +7,12 @@ export function ComponentPanel(props: {
   what: ReactNode; basics: ReactNode; actions: ReactNode; appearance: ReactNode;
   /** Parça başlıkları (isteğe bağlı): Liste paneli taslaktaki gibi "Ne listelensin?" der; null başlığı çizmez. */
   whatTitle?: string; basicsTitle?: string | null; children?: ReactNode;
+  /** Ad bağlamalarda kullanılıyorsa panel başlığından değiştirilmez (ör. `{{suzgec.q}}`). */
+  nameReadOnly?: boolean;
 }) {
   return (
     <div className="cpanel">
-      <div className="cpanel-head"><input aria-label="Bileşen adı" value={props.name} onChange={(e) => props.onRename(e.target.value)} /></div>
+      <div className="cpanel-head"><input aria-label="Bileşen adı" value={props.name} readOnly={props.nameReadOnly} onChange={(e) => props.onRename(e.target.value)} /></div>
       <section className="cpanel-sec" data-part="what"><h4>{props.whatTitle ?? "Ne gösterilsin?"}</h4>{props.what}</section>
       <section className="cpanel-sec" data-part="basics">{props.basicsTitle !== null && <h4>{props.basicsTitle ?? "Temel ayarlar"}</h4>}{props.basics}</section>
       <section className="cpanel-sec" data-part="actions"><h4>Eylemler</h4>{props.actions}</section>

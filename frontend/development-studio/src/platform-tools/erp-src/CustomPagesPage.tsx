@@ -1168,9 +1168,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const isAdmin = role === "TenantAdmin";
   // Karar 1: kayıtlı tanımı satır içi SQL, yazan ERP işlemi ya da betikli kod bileşeni taşıyan sayfayı (sunucudaki kaydetme
   // kuralıyla aynı) yalnız tenant yöneticisi değiştirebilir; katalog başvuruları ve okuma işlemleri kilitlemez. İşlem listesi
-  // gelmeden okuma türündeki işlem sorgusu okuma sayılır (sunucu yine denetler).
+  // yüklenirken okuma türündeki işlem sorgusu okuma sayılır; liste alınamadıysa bilinmeyen (yazma) sayılır. Sunucu yine denetler.
   const storedNeedsAdmin = useMemo(() => definitionNeedsAdmin(current?.definitionJson,
-    (operation) => erpCatalog.status === "ready" ? findOperation(erpCatalog, operation)?.kind : "read"), [current?.definitionJson, erpCatalog]);
+    (operation) => erpCatalog.status === "ready" ? findOperation(erpCatalog, operation)?.kind : erpCatalog.status === "loading" ? "read" : undefined), [current?.definitionJson, erpCatalog]);
   const queryPageLocked = storedNeedsAdmin && !isAdmin;
   // Sistem sayfası yazmaları doğrulanmış firma yöneticisi ister; liste yanıtı yoksa rol talebine bakılır (sunucu yine denetler).
   const systemAdmin = !systemMode || (systemInfo ? systemInfo.canEdit : isAdmin);
@@ -4299,7 +4299,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         const topLevel = definition.components.some((component) => component.id === selected.id);
         if (!pageTemplate || !topLevel) return legacyInspector;
         return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit}
-          onRename={(value) => setComponentName(selected.id, value.trim())} onPlace={(slot) => patchComponent(selected.id, { slot })}
+          onPlace={(slot) => patchComponent(selected.id, { slot })}
+          onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
           list={{ definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
             operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, isTenantAdmin: isAdmin,
             recordCount: typeof selected.props.query === "string" ? queryPreviews[selected.props.query]?.rowCount ?? null : null,

@@ -51,3 +51,4 @@ input.cpanel-colname{border:1px solid var(--ns-line);border-radius:6px;padding:2
 .cpanel-ask a{color:var(--ns-accent,#5b3fd6)}
 .cpanel-template-place{margin-bottom:8px}
 .pd-template-canvas-note{margin:40px auto;max-width:420px;text-align:center;color:var(--ns-muted)}
+.pd-right>.cpanel{min-height:0;border-left:0}

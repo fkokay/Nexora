@@ -128,6 +128,10 @@ describe("setRowDoubleClick", () => {
     const def = bound();
     expect(setRowDoubleClick(def, "liste", "card", { ...cariler, opens: null })).toBe(def);
     expect(setRowDoubleClick(def, "liste", "card", { ...cariler, columns: cariler.columns.map((column) => ({ ...column, key: false })) })).toBe(def);
+    // Anahtar kolon adı sayfa parametresi adı olamıyorsa (sunucu: ^[a-z][a-zA-Z0-9]{0,31}$) kart açılamaz.
+    expect(setRowDoubleClick(def, "liste", "card", { ...cariler, columns: [col("Cari_Id", "Kimlik", true)] })).toBe(def);
+    // Toplu silme seçili satıra bağlanmalıdır.
+    expect(actionUsable({ ...sil, parameters: [] }, ["id"]).usable).toBe(false);
   });
   it("panel adds contextPanel in detail slot", () => {
     const def = setRowDoubleClick(setRowDoubleClick(bound(), "liste", "card", cariler), "liste", "panel", cariler);

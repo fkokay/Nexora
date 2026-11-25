@@ -17,7 +17,9 @@ export const SOURCE_NEEDS_INPUT = "Bu kaynak ek bilgi istiyor; Listede henüz ku
 export const BULK_ONLY_DELETE = "Toplu eylemlerden yalnız silme Listede kullanılabilir.";
 export const CARD_UNAVAILABLE = "Bu kaynağın açılacak kartı ya da anahtar kolonu yok.";
 export const PAGE_ACTION_NOT_ROW = "Bu eylem satıra değil sayfaya ait; yalnız listenin üstünde kullanılabilir.";
-export const actionMissingColumn = (name: string) => `Bu eylemin ${name} bilgisi listede yok.`;
+export const BULK_NEEDS_ROW = "Bu toplu silme seçili satırın hiçbir bilgisini kullanmıyor; Listede kullanılamaz.";
+const PAGE_PARAM_NAME = /^[a-z][a-zA-Z0-9]{0,31}$/;
+export const actionMissingColumn =(name: string) => `Bu eylemin ${name} bilgisi listede yok.`;
 export const FIRST_COLUMNS = 6;
 export const MAX_ROW_ACTIONS = 6;
 export const MAX_DETAIL_FIELDS = 12;
@@ -51,6 +53,8 @@ export const sourceHasSearch = (ds: CatalogDataSource) => ds.parameters.some((pa
 /** Karar 5: her parametre aynı adlı liste kolonuna bağlanabilmeli; toplu eylem yalnız silme olabilir. */
 export function actionUsable(action: CatalogAction, listColumns: string[]): Usable {
   if (action.target === "bulk" && action.kind !== "delete") return { usable: false, reason: BULK_ONLY_DELETE };
+  // Toplu silme satır başına çalışır: sunucu en az bir parametresinin seçili satıra bağlı olmasını ister.
+  if (action.target === "bulk" && action.parameters.length === 0) return { usable: false, reason: BULK_NEEDS_ROW };
   const missing = action.parameters.find((parameter) => !listColumns.includes(parameter.name));
   return missing ? { usable: false, reason: actionMissingColumn(missing.name) } : { usable: true };
 }
@@ -62,7 +66,9 @@ export function actionUsableAt(action: CatalogAction, listColumns: string[], pla
 }
 
 export function rowOpenUsable(ds: CatalogDataSource): Usable {
-  return ds.opens && keyColumn(ds) ? { usable: true } : { usable: false, reason: CARD_UNAVAILABLE };
+  const key = keyColumn(ds);
+  // Sayfa düğmesinin parametre adı sunucuda `^[a-z][a-zA-Z0-9]{0,31}$` olmalı; anahtar kolon adı parametre adı olur.
+  return ds.opens && key && PAGE_PARAM_NAME.test(key) ? { usable: true } : { usable: false, reason: CARD_UNAVAILABLE };
 }
 
 // ---------- okuma yardımcıları ----------

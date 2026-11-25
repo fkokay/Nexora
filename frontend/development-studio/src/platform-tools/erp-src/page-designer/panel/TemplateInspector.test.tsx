@@ -7,7 +7,7 @@ import { TemplateInspector } from "./TemplateInspector";
 const definition = newListTemplateDefinition() as unknown as ModelDefinition;
 const list = { definition, catalog: null, catalogStatus: "ready" as const, operationOf: () => undefined, isTenantAdmin: false, onChange: () => {} };
 const render = (component: ModelDefinition["components"][number]) => renderToString(
-  <TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={list} onRename={() => {}} onPlace={() => {}}/>);
+  <TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={list} onPlace={() => {}}/>);
 
 describe("TemplateInspector", () => {
   it("opens the List panel for the list table", () => {
