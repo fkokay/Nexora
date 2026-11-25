@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace AIERP.Api;
 
 internal sealed record CatalogParameter(string Name, string Type);
-internal sealed record CatalogColumn(string Code, string Label, string Type, bool Key);
+internal sealed record CatalogColumn(string Code, string Label, string Type, bool Key, bool LongText = false, bool Required = false, int? MaxLength = null);
 
 /// <summary>One data source or action of a tenant catalog bundle; exactly one of <see cref="Sql"/> / <see cref="ErpOperation"/> is set.</summary>
 internal sealed record CatalogItem(string Code, string Label, string ItemKind, string QueryKind, string? Sql, string? ErpOperation,
@@ -46,7 +46,8 @@ internal static class TenantCatalogSchema
     private static readonly HashSet<string> ActionKeys = new(StringComparer.Ordinal) { "code", "label", "target", "kind", "run", "parameters", "columns", "opens", "confirm" };
     private static readonly HashSet<string> SqlOrOperationKeys = new(StringComparer.Ordinal) { "sql", "erpOperation" };
     private static readonly HashSet<string> ParameterKeys = new(StringComparer.Ordinal) { "name", "type" };
-    private static readonly HashSet<string> ColumnKeys = new(StringComparer.Ordinal) { "code", "label", "type", "key" };
+    private const int MaxColumnTextLength = 4000;
+    private static readonly HashSet<string> ColumnKeys = new(StringComparer.Ordinal) { "code", "label", "type", "key", "longText", "required", "maxLength" };
     private static readonly HashSet<string> ConfirmKeys = new(StringComparer.Ordinal) { "text" };
     private static readonly HashSet<string> ValueTypes = new(StringComparer.Ordinal) { "text", "int", "decimal", "date", "bool", "guid" };
     private static readonly HashSet<string> WriteKinds = new(StringComparer.Ordinal) { "insert", "update", "delete" };
@@ -264,11 +265,35 @@ internal static class TenantCatalogSchema
                 if (keyElement.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return Fail(out error, $"{place}: kolon geçersiz.");
                 key = keyElement.GetBoolean();
             }
+            var longText = false;
+            var required = false;
+            int? maxLength = null;
+            if (isObject)
+            {
+                if (!TryFlag(column, "longText", out longText) || !TryFlag(column, "required", out required)) return Fail(out error, $"{place}: kolon geçersiz.");
+                if (column.TryGetProperty("maxLength", out var maxElement))
+                {
+                    if (maxElement.ValueKind != JsonValueKind.Number || !maxElement.TryGetInt32(out var parsedLength) || parsedLength is < 1 or > MaxColumnTextLength)
+                        return Fail(out error, $"{place}: kolon maxLength 1 ile {MaxColumnTextLength} arasında tam sayı olmalıdır.");
+                    maxLength = parsedLength;
+                }
+                if (type is not null && type != "text" && (longText || maxLength is not null))
+                    return Fail(out error, $"{place}: longText ve maxLength yalnız text tipli kolonda kullanılabilir.");
+            }
             if (!isObject || !TenantCustomPageSchema.OnlyKeys(column, ColumnKeys) || string.IsNullOrWhiteSpace(code) || code.Length > 64
                 || string.IsNullOrWhiteSpace(label) || label.Length > 100 || type is null || !ValueTypes.Contains(type) || !codes.Add(code))
                 return Fail(out error, $"{place}: kolon geçersiz ya da yinelenmiş.");
-            columns.Add(new CatalogColumn(code, label, type, key));
+            columns.Add(new CatalogColumn(code, label, type, key, longText, required, maxLength));
         }
+        return true;
+    }
+
+    private static bool TryFlag(JsonElement element, string property, out bool value)
+    {
+        value = false;
+        if (!element.TryGetProperty(property, out var flag)) return true;
+        if (flag.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return false;
+        value = flag.GetBoolean();
         return true;
     }
 

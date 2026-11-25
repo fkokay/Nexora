@@ -169,6 +169,32 @@ public sealed class TenantCatalogEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Catalog_view_returns_new_column_flags()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var bundle = """
+            { "schemaVersion": 1, "dataSources": [ { "code": "notlar", "label": "Notlar", "source": { "sql": "SELECT Code, Name FROM CustomerAccounts" },
+              "columns": [ { "code": "Code", "label": "Kod", "type": "text", "key": true },
+                           { "code": "Name", "label": "Not", "type": "text", "longText": true, "required": true, "maxLength": 200 } ] } ] }
+            """;
+        var id = await CreateOk(client, "1.0.0", bundle);
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, id, null)).StatusCode);
+
+        var catalog = await Json(await client.GetAsync("/api/custom-pages/catalog"));
+        var columns = catalog.GetProperty("dataSources")[0].GetProperty("columns");
+        var plain = columns[0];
+        Assert.False(plain.GetProperty("longText").GetBoolean());
+        Assert.False(plain.GetProperty("required").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, plain.GetProperty("maxLength").ValueKind);
+        var note = columns[1];
+        Assert.True(note.GetProperty("longText").GetBoolean());
+        Assert.True(note.GetProperty("required").GetBoolean());
+        Assert.Equal(200, note.GetProperty("maxLength").GetInt32());
+    }
+
+    [Fact]
     public async Task Rollback_reactivates_superseded_release()
     {
         await using var app = await StartApplicationAsync();
