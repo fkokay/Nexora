@@ -70,6 +70,16 @@ export function PageShell({ title, crumbs, count, actions, search, footer, child
   }, []);
   const { shownLeft, shownRight, overflow } = splitByWidth(actions, width, search != null);
   useEffect(() => { if (!overflow.length) setMenuOpen(false); }, [overflow.length]);
+  const moreRef = useRef<HTMLDivElement>(null);
+  // Menü dışına tıklama ya da Escape menüyü kapatır.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (event: MouseEvent) => { if (moreRef.current && !moreRef.current.contains(event.target as Node)) setMenuOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onPointer); document.removeEventListener("keydown", onKey); };
+  }, [menuOpen]);
 
   return <div className="page-shell list-v2">
     {crumbs.length > 0 && <nav className="page-shell-crumbs" aria-label="Konum">{crumbs.map((crumb, index) => <span key={`${index}:${crumb}`}>{crumb}</span>)}</nav>}
@@ -78,7 +88,7 @@ export function PageShell({ title, crumbs, count, actions, search, footer, child
       <div className="page-shell-bar-left">{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
       {search != null && <div className="page-shell-bar-search">{search}</div>}
       <div className="page-shell-bar-right">
-        {overflow.length > 0 && <div className="page-shell-more">
+        {overflow.length > 0 && <div className="page-shell-more" ref={moreRef}>
           <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={menuOpen} aria-label="Diğer işlemler" onClick={() => setMenuOpen((open) => !open)}>⋯</button>
           {menuOpen && <div className="page-shell-menu" role="menu">{overflow.map((action) => <button key={action.id} type="button" role="menuitem" className={`page-shell-menu-item page-shell-menu-item--${action.kind}`}
             disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={() => { setMenuOpen(false); action.run(); }}>{action.label}</button>)}</div>}
