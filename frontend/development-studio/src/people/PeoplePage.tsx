@@ -7,6 +7,7 @@ import {
   personRoleLabel,
   roleFromSelect,
   roleToSelect,
+  sameEmail,
   studioRoleOptions,
   type Person,
 } from "./peopleModel";
@@ -218,9 +219,8 @@ function InviteDialog({
 
   async function find(event: FormEvent) {
     event.preventDefault();
-    const value = email.trim().toLocaleLowerCase("tr-TR");
     setError("");
-    if (people.some((person) => person.email.toLocaleLowerCase("tr-TR") === value)) {
+    if (people.some((person) => sameEmail(person.email, email))) {
       setError(inviteErrorMessage("membership.exists"));
       return;
     }
@@ -253,7 +253,8 @@ function InviteDialog({
         const body = await readBody(response);
         if (body?.code === "license.user_limit" || body?.code === "membership.exists" || response.status === 404)
           throw new Error(inviteErrorMessage(body?.code));
-        throw new Error(response.status < 500 && body?.error ? body.error : generic(response.status));
+        // Bu ucun diğer hata metinleri İngilizcedir; kullanıcıya Türkçe genel metin gösterilir.
+        throw new Error(generic(response.status));
       }
     } catch (cause) {
       setError((cause as Error).message);

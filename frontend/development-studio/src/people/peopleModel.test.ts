@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inviteErrorMessage, personRoleLabel, studioRoleOptions, type Person } from "./peopleModel";
+import { inviteErrorMessage, personRoleLabel, sameEmail, studioRoleOptions, type Person } from "./peopleModel";
 
 const base: Person = {
   userId: "u1",
@@ -45,5 +45,12 @@ describe("inviteErrorMessage", () => {
   });
   it("explains an unknown e-mail", () => {
     expect(inviteErrorMessage()).toBe("Bu e-postayla kayıtlı bir Nexora kullanıcısı yok.");
+  });
+});
+
+describe("sameEmail", () => {
+  it("compares e-mails without Turkish casing", () => {
+    expect(sameEmail("Info@firma.com ", "info@firma.com")).toBe(true);
+    expect(sameEmail("a@firma.com", "b@firma.com")).toBe(false);
   });
 });

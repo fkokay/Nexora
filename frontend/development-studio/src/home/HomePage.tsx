@@ -197,7 +197,7 @@ export function HomePage({ token, role, tenantName, userName, requests, requests
             ) : pages.status === "error" ? (
               <p className="st-card-note">Ekranlar yüklenemedi.</p>
             ) : recent.length === 0 ? (
-              <p className="st-card-note">Henüz bir ekran üzerinde çalışmadınız.</p>
+              <p className="st-card-note">Henüz bir ekran yok.</p>
             ) : (
               <div className="st-quick">
                 {recent.map((screen, index) => (

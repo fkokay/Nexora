@@ -53,6 +53,7 @@ export function PublicationsPage({ token, includeModules }: Props) {
     setLoadError("");
     try {
       const response = await authorizedFetch(`/api/custom-pages/publications?take=${PUBLICATIONS_TAKE}`, token);
+      if (response.status === 403) throw new Error("Ekran yayınlarını görme yetkiniz yok.");
       if (!response.ok) throw new Error(publishErrorMessage(response.status, await readError(response)));
       setData((await response.json()) as Publications);
     } catch (cause) {

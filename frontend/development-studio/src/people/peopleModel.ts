@@ -42,3 +42,6 @@ export function inviteErrorMessage(code?: string): string {
 /** `<select>` değerleri metindir; boş metin "Varsayılan" (null) demektir. */
 export const roleToSelect = (value: string | null) => value ?? "";
 export const roleFromSelect = (value: string): string | null => (value === "" ? null : value);
+
+/** Sunucu e-postayı değişmez kültürle küçültür; Türkçe küçültme `I` harfini `ı` yapacağı için kullanılmaz. */
+export const sameEmail = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
