@@ -98,7 +98,7 @@ export function rowOpenUsable(ds: CatalogDataSource): Usable {
 
 const keyColumn = (ds: CatalogDataSource) => ds.columns.find((column) => column.key)?.code;
 export const findList = (def: ModelDefinition, listId: string) => def.components.find((component) => component.id === listId && component.type === "dataTable");
-const tableName = (table: ModelComponent) => table.name || table.id;
+export const tableName = (table: ModelComponent) => table.name || table.id;
 const listQueryOf = (def: ModelDefinition, table: ModelComponent | undefined) =>
   table && typeof table.props.query === "string" ? def.queries.find((query) => query.id === table.props.query) : undefined;
 
