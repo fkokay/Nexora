@@ -125,7 +125,7 @@ function builder(){return `<div class="builder"><div style="font-weight:600;marg
   <div style="margin-top:8px;display:flex;gap:6px"><button class="btn primary" id="bsave">Ekle</button><button class="btn" id="bcancel">Vazgeç</button></div></div>`;}
 function renderRight(){
   const t=TR[cur];
-  const big=document.getElementById("amt")?.value||"120000";
+  const big=esc(document.getElementById("amt")?.value||"120000");
   const n=+String(big).replace(/\D/g,"");
   let log="";
   if(tried){
@@ -134,19 +134,20 @@ function renderRight(){
     t.before.forEach(x=>{
       if(x.k==="con"){ if(!x.on){items.push(["skip","–",fmt(x),"Kapalı"]);return;}
         const hit=x.when==="her zaman"||(x.when==="tutar"&&n>100000);
-        items.push(hit?["wait","⏳",x.act,"Satış müdürünün onayı bekleniyor"]:["skip","–",fmt(x),"Koşul sağlanmadı"]); if(hit)blocked=true; return;}
+        items.push(hit?["wait","⏳",esc(x.act),"Satış müdürünün onayı bekleniyor"]:["skip","–",fmt(x),"Koşul sağlanmadı"]); if(hit)blocked=true; return;}
       items.push(["ok","✓",x.t,""]);
     });
     if(!blocked)t.after.forEach(x=>{ if(x.k==="con"&&!x.on){items.push(["skip","–",fmt(x),"Kapalı"]);return;}
       if(x.k==="dev"){items.push(["bad","!",x.t,"Bağlantı zaman aşımı · 2 dk sonra yeniden denenecek"]);return;}
-      items.push(["ok","✓",x.k==="con"?x.act:x.t,""]);});
+      items.push(["ok","✓",x.k==="con"?esc(x.act):x.t,""]);});
     log=`<h4 style="margin-top:14px">Kullanıcının belgede gördüğü işlem günlüğü</h4><div class="log">${items.map(([c,i,a,b])=>`<div class="it"><span class="st ${c}">${i}</span><div>${a}${b?`<small>${b}</small>`:""}</div></div>`).join("")}</div>
      ${blocked?`<div class="banner" style="background:var(--warn-soft);color:#7c2d12">Sipariş <b>Onay bekliyor</b> durumunda kaldı: tutar 100.000 ₺'yi aştığı için satış müdürü onayı istendi.</div>`:`<div class="banner" style="background:var(--ok-soft);color:#14532d">Sipariş <b>${STATES[cur+1]}</b> durumuna geçti. Başarısız olan alt görev arka planda yeniden denenecek, siparişi bekletmez.</div>`}`;
   }
   document.getElementById("right").innerHTML=`<h4>Dene</h4><div class="doc"><div class="r"><b>SS-1042</b><span>Akdeniz Gıda A.Ş.</span></div><div class="r"><span style="color:var(--muted)">Durum</span><span>${STATES[cur]}</span></div><div class="r"><span style="color:var(--muted)">Tutar</span><span><input id="amt" value="${big}" style="width:110px;text-align:right;padding:3px 6px"> ₺</span></div></div>
    <button class="btn primary" id="try" style="width:100%">“${t.n}” geçişini dene</button><div style="color:var(--muted);font-size:11.5px;margin-top:6px">Örnek belge üzerinde çalışır, gerçek kayıt değişmez.</div>${log}`;
 }
-const fmt=x=>x.when==="her zaman"?x.act:`${x.when} ${x.op} ${x.val} → ${x.act}`;
+const esc=v=>String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const fmt=x=>esc(x.when==="her zaman"?x.act:`${x.when} ${x.op} ${x.val} → ${x.act}`);
 document.addEventListener("click",e=>{
   const tr=e.target.closest("[data-tr]");if(tr){cur=+tr.dataset.tr;adding=false;tried=false;render();return;}
   if(e.target.dataset.tg){const [p,i]=e.target.dataset.tg.split(":");const x=TR[cur][p][+i];x.on=!x.on;render();return;}
