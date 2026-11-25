@@ -101,9 +101,11 @@
   - Kodda kalıp adı `pageTemplate` / `PageTemplate` olur. Studio'daki mevcut `templates` / `applyTemplate` / `templateId` bileşen ön ayarlarıdır; onlarla karıştırılmaz.
 - **Dağıtım sırası:** platform-api ve erp-web önce, development-studio sonra.
 
-## Benim kararlarım (kullanıcı onaylamalı)
+## Kararlar
 
-1. **Danışmanın katalog başvurusu kaydedebilmesi (yetki değişikliği; ilk onaylanacak madde).**
+Karar 1'i kullanıcı 2026-11-25'te onayladı. Ötekiler benim kararlarım; kullanıcı düzeltebilir.
+
+1. **Danışmanın katalog başvurusu kaydedebilmesi (yetki değişikliği; kullanıcı onayladı).**
    - **Bugün:** 2a'nın geçici kuralına göre, SQL'e dayanan bir veri kaynağına ya da *herhangi bir* katalog eylemine başvuran sayfayı yalnız doğrulanmış TenantAdmin kaydedebiliyor.
    - **Sonuç:** Liste panelinin asıl kullanıcısı olan Danışman, yazılımcının hazırladığı kaynak ve eylemleri seçtiği anda taslak kaydı 403 verir. Tuval de güncellenmez.
    - **Önerim:**
@@ -111,7 +113,6 @@
      - Satır içi SQL kuralı TenantAdmin'de kalsın.
      - Gerekçe: katalog sürümünü yalnız TenantAdmin etkinleştirebiliyor ve SQL her çalıştırmada yeniden doğrulanıyor. Sayfa yalnız kodu taşıyor, SQL taşımıyor.
    - **Görev 1** bunu uygular.
-   - **Onaylamazsan:** panel bu kaynakları ve eylemleri seçilemez gösterir ("Bunu yalnız firma yöneticisi ekleyebilir.") ve Görev 1'in yetki kısmı atlanır.
 2. **Onay metni ve kolon adları tasarım anında kopyalanır.**
    - Panel, katalog eylemini seçince onun `confirm.text`'ini düğmenin `confirmText`'ine, kolon etiketlerini de `columnLabels`'a yazar.
    - Katalog sonradan değişirse sayfa eski metni gösterir. Danışman bunu panelden düzeltebilir.
@@ -144,7 +145,7 @@
    - Liste alanında katalog hatası görünür, kabuk ve öteki bileşenler çizilmeye devam eder.
    - Studio panelinde kaynak "Katalogda yok" olarak işaretlenir.
    - Test: Görev 4 ve Görev 8.
-2. **Yetki.** Yönetici olmayan Danışman, SQL'e dayanan kaynak ya da eylem seçer. Karar 1'e göre ya kaydedilir ya da seçilemez görünür; hiçbir durumda sessiz 403 olmaz. Test: Görev 1 ve Görev 8.
+2. **Yetki.** Yönetici olmayan Danışman, SQL'e dayanan kaynak ya da eylem seçer. Karar 1 gereği kaydedilir; hiçbir durumda sessiz 403 olmaz. Test: Görev 1 ve Görev 8.
 3. **Anahtar kolonu ya da `opens`'u olmayan kaynak.** *Kartı aç* seçilemez ve ERP'de çift tıklama hiçbir şey yapmaz. Test: Görev 8 ve Görev 4.
 4. **Eski sayfa.** `template`'siz bir sayfa ve bir sistem standardı (`customers`) önceki çıktıyı birebir verir. Test: Görev 3.
 5. **Çok kolonlu liste dar alanda.** 20 kolonluk listede 600 px'te 4 kolon görünür, 400 px'te kart listesi olur, satır eylemleri "⋯" menüsündedir. Test: Görev 5.
@@ -162,7 +163,7 @@
   - `SafePropsV2`
   - tür başına özellik tablosu
 - Create: `src/Hosts/AIERP.Api/PageTemplates/PageTemplateRules.cs`
-- Modify: `src/Hosts/AIERP.Api/TenantCustomPageEndpoints.cs` (`QueryPageWriteAllowedAsync`; yalnız Karar 1 onaylandıysa)
+- Modify: `src/Hosts/AIERP.Api/TenantCustomPageEndpoints.cs` (`QueryPageWriteAllowedAsync`; Karar 1)
 - Test:
   - `tests/IntegrationTests/TenantCustomPageSchemaListTemplateTests.cs`
   - `tests/IntegrationTests/TenantCustomPageCatalogWriteGateTests.cs`
@@ -199,8 +200,7 @@
   - `Legacy_page_with_slot_prop_still_accepted_and_unchanged`: `template`'siz sayfada `slot` hata vermez.
   - `System_standard_envelope_with_template_is_accepted`: `SystemPageStandards` doğrulaması aynı yoldan geçer.
   - `Template_round_trips_through_draft_preview_publish_history_restore`: sayfa uçlarıyla. `definitionJson` içinde `template` her adımda korunur.
-  - **Karar 1 onaylandıysa:** `Non_admin_can_save_page_referencing_catalog_action_and_sql_data_source` (200) ve `Non_admin_still_cannot_save_inline_sql` (403).
-  - **Onaylanmadıysa:** aynı iki test, bugünkü davranışı (403/403) sabitler.
+  - `Non_admin_can_save_page_referencing_catalog_action_and_sql_data_source` (200) ve `Non_admin_still_cannot_save_inline_sql` (403).
 - [ ] **Step 2:** Run `dotnet test tests/IntegrationTests --filter "FullyQualifiedName~ListTemplate|FullyQualifiedName~CatalogWriteGate"`. Expected: FAIL.
 - [ ] **Step 3:** Implement.
   - `RootKeysV2`'ye `template` eklenir; `Validate` içinde, `template` varsa `ValidateTemplate` çağrılır.
@@ -441,7 +441,7 @@
 - Consumes: Task 6 (`PageTemplate`, `templateLevel`), Task 7 (`ActiveCatalog`, `ComponentPanel`, `ProvidedByDeveloper`, `LegacySettings`).
 - Produces. `listPanelModel.ts` içindeki saf fonksiyonların hepsi yeni bir `PageDefinition` döner; girdiyi değiştirmez.
   - `dataSourceUsable(ds: CatalogDataSource, isTenantAdmin: boolean): { usable: true } | { usable: false; reason: string }`
-    - Karar 1 onaylandıysa `isTenantAdmin` yok sayılır.
+    - Karar 1 gereği `isTenantAdmin` yalnız satır içi SQL için anlamlıdır; katalog kaynakları için yok sayılır.
     - Karar 4 kuralı uygulanır.
     - Metinler Kararlar bölümündeki gibidir.
   - `chooseDataSource(def: PageDefinition, listId: string, ds: CatalogDataSource): PageDefinition`
@@ -480,7 +480,7 @@
 
 - [ ] **Step 1: Write the failing tests**
   - `dataSourceUsable rejects sources with non-q parameters`
-  - `dataSourceUsable SQL source for non-admin` (Karar 1'e göre `usable: true`, ya da gerekçe metni)
+  - `dataSourceUsable SQL source for non-admin` (Karar 1 gereği `usable: true`)
   - `chooseDataSource writes read query bound to catalog code and first six columns`
   - `chooseDataSource adds filterBar with searchParam q when source has q`
   - `actionUsable rejects action whose parameter has no matching column`
