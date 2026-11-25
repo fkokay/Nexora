@@ -3200,6 +3200,8 @@ public sealed class TenantCustomPageWriteAudit
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     /// <summary>How long the write took, in milliseconds; null until the attempt has finished.</summary>
     public int? DurationMs { get; set; }
+    /// <summary>The catalog item the write ran, as <c>&lt;code&gt;@&lt;release version&gt;</c>; null for page SQL.</summary>
+    public string? CatalogReference { get; set; }
 }
 
 /// <summary>A tenant-owned logical table. Its user-defined schema is declarative metadata, never executable SQL.</summary>

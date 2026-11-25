@@ -158,21 +158,12 @@ internal static partial class TenantCatalogEndpoints
                 var kind = query.DataSource is not null ? "dataSource" : "action";
                 var item = newBundle.Find(code);
                 var old = oldBundle?.Find(code);
-                var intact = item is not null && item.ItemKind == kind && item.QueryKind == query.Kind
-                    && (old is null || (old.Sql is null) == (item.Sql is null))
-                    && (item.Sql is null || SameParameters(query.Parameters, item.Parameters));
+                var intact = TenantCatalogStore.Fits(item, kind, query) && (old is null || (old.Sql is null) == (item!.Sql is null));
                 if (!intact && !references.Contains(code)) references.Add(code);
             }
             if (references.Count > 0) result.Add(new BrokenPage(page.Code, page.Name, references));
         }
         return result;
-    }
-
-    private static bool SameParameters(IReadOnlyList<PageQueryParameter> page, IReadOnlyList<CatalogParameter> item)
-    {
-        if (page.Count != item.Count) return false;
-        var types = item.ToDictionary(x => x.Name, x => x.Type, StringComparer.OrdinalIgnoreCase);
-        return page.All(x => types.TryGetValue(x.Name, out var type) && type == x.Type);
     }
 
     private sealed record CreateReleaseRequest(string? Version, JsonElement Bundle, string? SourceRepository, string? SourceCommit, string? SourcePath);

@@ -43,6 +43,44 @@ internal static partial class TenantCustomPageQueries
         return root.ToJsonString();
     }
 
+    internal const string CatalogMissingPrefix = "Katalogda bulunamadı: ";
+
+    /// <summary>
+    /// Resolves the catalog references of a definition for the ERP runtime. Each query with a <c>dataSource</c> / <c>action</c>
+    /// key loses that key and becomes, when the item still fits (<see cref="AIERP.Api.TenantCatalogStore.Fits"/>):
+    /// an ERP operation query (<c>operation</c> = the item's operation), or, for a SQL item, an ordinary query run by id
+    /// whose SQL the run endpoint takes from the catalog. A missing or no longer fitting item yields
+    /// <c>catalogError</c> = "Katalogda bulunamadı: &lt;kod&gt;". Definitions without references are returned unchanged.
+    /// The result still carries page SQL; callers apply <see cref="WithoutQuerySql"/> afterwards.
+    /// </summary>
+    internal static string ResolveCatalogReferences(string definitionJson, AIERP.Api.CatalogBundle? catalog)
+    {
+        if (!HasCatalogReferences(definitionJson)) return definitionJson;
+        if (JsonNode.Parse(definitionJson) is not JsonObject root || root["queries"] is not JsonArray queries) return definitionJson;
+        // ReadQueries skips non-object entries, so its order matches the object entries here.
+        var read = ReadQueries(definitionJson);
+        var objects = queries.OfType<JsonObject>().ToArray();
+        if (read.Count != objects.Length) return definitionJson;
+        for (var i = 0; i < objects.Length; i++)
+        {
+            var query = objects[i];
+            var isDataSource = query.ContainsKey("dataSource");
+            if (!isDataSource && !query.ContainsKey("action")) continue;
+            var key = isDataSource ? "dataSource" : "action";
+            var code = query[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+            query.Remove("dataSource");
+            query.Remove("action");
+            var item = code is null ? null : catalog?.Find(code);
+            if (code is null || !AIERP.Api.TenantCatalogStore.Fits(item, key, read[i]))
+            {
+                query["catalogError"] = CatalogMissingPrefix + (code ?? "");
+                continue;
+            }
+            if (item!.ErpOperation is not null) query["operation"] = item.ErpOperation;
+        }
+        return root.ToJsonString();
+    }
+
     /// <summary>Reads the queries of a v2 definition. v1, malformed or query-less definitions yield an empty list.</summary>
     internal static IReadOnlyList<PageQuery> ReadQueries(string definitionJson)
     {

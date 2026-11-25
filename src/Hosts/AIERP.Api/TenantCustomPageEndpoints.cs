@@ -50,7 +50,7 @@ internal static class TenantCustomPageEndpoints
             var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return ViewForbidden();
             var embeddedForms = await LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, await RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         // Runtime consumers receive only the currently published declarative definition. Query SQL is never sent to the
@@ -66,7 +66,7 @@ internal static class TenantCustomPageEndpoints
             var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return ViewForbidden();
             var embeddedForms = await LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
-            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), embeddedForms, CustomPageRightsView.From(rights)));
+            return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, await RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
         pages.MapPost("/drafts", async (DraftRequest? request, ClaimsPrincipal user, TenantDbContext db,
@@ -267,6 +267,16 @@ internal static class TenantCustomPageEndpoints
         TenantCustomPageQueries.HasCatalogReferences(definitionJson)
             ? TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct)
             : Task.FromResult<CatalogBundle?>(null);
+    /// <summary>
+    /// The definition the ERP runtime receives: catalog references resolved against the active catalog (read only when the
+    /// definition has references), then every query's SQL removed.
+    /// </summary>
+    internal static async Task<string> RuntimeDefinitionAsync(TenantDbContext db, Guid tenant, string definitionJson, CancellationToken ct)
+    {
+        if (!TenantCustomPageQueries.HasCatalogReferences(definitionJson)) return TenantCustomPageQueries.WithoutQuerySql(definitionJson);
+        var catalog = await TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+        return TenantCustomPageQueries.WithoutQuerySql(TenantCustomPageQueries.ResolveCatalogReferences(definitionJson, catalog));
+    }
     private static Task<CatalogBundle?> CatalogForAsync(TenantDbContext db, Guid tenant, JsonElement definition, CancellationToken ct) =>
         definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
             ? Task.FromResult<CatalogBundle?>(null) : CatalogForAsync(db, tenant, definition.GetRawText(), ct);
