@@ -16,7 +16,8 @@ public sealed class PageTemplateSummaryTests
     [InlineData("below")]
     public void List_template_with_above_or_below_component_is_level_two(string slot)
     {
-        var json = $$"""{"schemaVersion":2,"template":{"name":"list"},"queries":[],"components":[{"id":"liste","type":"dataTable","props":{"slot":"list"}},{"id":"x","type":"text","props":{"slot":"{{slot}}"}}]}""";
+        var json = """{"schemaVersion":2,"template":{"name":"list"},"queries":[],"components":[{"id":"liste","type":"dataTable","props":{"slot":"list"}},{"id":"x","type":"text","props":{"slot":"SLOT"}}]}"""
+            .Replace("SLOT", slot);
         Assert.Equal(("list", 2), PageTemplateSummary.Read(json));
     }
 
