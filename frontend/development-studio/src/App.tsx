@@ -560,7 +560,9 @@ export default function App() {
     api<DevelopmentRequest[]>("/studio/requests/", token)
       .then((items) => {
         done = true;
-        if (current) setRequests(items);
+        if (!current) return;
+        setRequests(items);
+        setDataLoadFailed(false);
       })
       .catch((e) => {
         done = true;
@@ -586,7 +588,9 @@ export default function App() {
     api<DevelopmentProject[]>("/studio/projects/", token)
       .then((registeredProjects) => {
         done = true;
-        if (current && requestId === projectsRequestId.current)
+        if (!current) return;
+        setDataLoadFailed(false);
+        if (requestId === projectsRequestId.current)
           setProjects(
             registeredProjects.map((project) => ({
               ...project,

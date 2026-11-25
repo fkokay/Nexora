@@ -1574,6 +1574,10 @@ button.st-tenant-box:hover:not(:disabled) {
 .st-section-tabs {
   align-self: flex-start;
 }
+/* Tasarımcı açıkken araç kendi başlığını gizler ve ekran yüksekliğini kullanır; sekmeler de gizlenir. */
+.st-content:has(.low-code-designer.is-designing) > .st-section-tabs {
+  display: none;
+}
 .st-tab-desc {
   margin: 0;
   color: var(--ns-muted);
