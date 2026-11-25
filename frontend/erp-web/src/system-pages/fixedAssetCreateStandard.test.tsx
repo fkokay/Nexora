@@ -78,10 +78,6 @@ const type = (id: string, value: string) => fireEvent.change(input(id), { target
 const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 /** Boş (null / undefined) alanları atar: motor boş değeri göndermeyebilir ya da null yazabilir. */
 const filled = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== null && value !== undefined && value !== ''));
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more')!);
-  return screen.findByRole('menuitem', { name }, T);
-};
 /** Arama kutulu seçici (lookup / searchable select): yazılır ve listelenen seçenek tıklanır. */
 const pick = async (id: string, search: string, option: RegExp) => {
   fireEvent.focus(input(id));
@@ -200,7 +196,8 @@ describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
   it('Kaydet ve yeni creates and stays on an empty form', async () => {
     await openNew();
     fillRequired();
-    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     // Kayıt anahtarlı kartlar varsayılanlarına döner (girişe özel "koru" düzeneği yok): tarih bugün, ömür 60, kalıntı 0.

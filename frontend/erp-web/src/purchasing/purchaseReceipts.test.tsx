@@ -227,7 +227,8 @@ describe('Mal kabulleri list', () => {
     expect(screen.queryByRole('heading', { name: /Mal kabulleri/ })).toBeNull();
     expect(screen.queryByRole('table', { name: 'Mal kabul kayıtları' })).toBeNull();
     await waitFor(() => expect(enabled('save')).toBe(true));
-    expect(menuItems()).toContain('Temizle');
+    // Temizle is a bar button next to Kaydet.
+    expect(command('record-form-reset')).not.toBeNull();
     const listCalls = apiCalls('/api/purchasing/receipts/?page=1&pageSize=25');
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));

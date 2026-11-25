@@ -104,7 +104,8 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     type('kod', 'P-A');
     type('ad', 'Birinci');
-    fireEvent.click(await h.menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(h.state.navigations.filter((request) => request.page === 'hr-employees')).toEqual([]);

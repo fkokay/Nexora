@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Eye, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
+import { ChevronDown, CopyPlus, Eye, FileSpreadsheet, Filter, Plus, Printer, RefreshCw, Save, SquarePen, Trash2, Undo2 } from 'lucide-react';
 import { useActivePageCommands, useCommandRegistry } from '../commands/CommandProvider';
 import { formatShortcut, MORE_MENU_SHORTCUT, STANDARD_SHORTCUTS } from '../commands/shortcuts';
 import { ACTION_BAR_ORDER, offersCommand, type BarLook, type CommandSpec, type MenuCommand, type PageCommands, type StandardCommandId } from '../commands/types';
@@ -145,6 +145,35 @@ function CommandButton({ id, spec, locale, hints = true }: { id: StandardCommand
   );
 }
 
+/** A page button on the bar (`barItems`, e.g. "Kaydet ve yeni"): drawn like a standard command, dimmed with its reason. */
+function BarItemButton({ item, locale, hints = true }: { item: MenuCommand; locale: Locale; hints?: boolean }) {
+  const reasonId = useId();
+  const enabled = !!item.run && !item.disabledReason;
+  const reason = enabled ? undefined : item.disabledReason ?? UNAVAILABLE;
+  const tip = useActionTooltip<HTMLButtonElement>(item.shortcut ? tipText(hints, item.label, formatShortcut(item.shortcut, locale), reason) : reason ?? item.label);
+  return (
+    <>
+      <button
+        ref={tip.anchorRef}
+        type="button"
+        className="nx-action-bar__button"
+        data-command={item.id}
+        aria-label={item.label}
+        aria-keyshortcuts={item.shortcut}
+        aria-disabled={enabled ? undefined : 'true'}
+        aria-describedby={describedBy(tip.describedBy, enabled ? undefined : reasonId)}
+        {...tip.handlers}
+        onClick={() => { if (enabled) void item.run?.(); }}
+      >
+        <CopyPlus size={15} aria-hidden />
+        <span>{item.label}</span>
+        {!enabled && <span id={reasonId} className="nx-action-bar__sr">{reason}</span>}
+      </button>
+      {tip.tooltip}
+    </>
+  );
+}
+
 function ActionsMenu({ items, locale, open, onOpenChange, hints = true }: { items: MenuCommand[]; locale: Locale; open: boolean; onOpenChange: (open: boolean) => void; hints?: boolean }) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -282,8 +311,11 @@ export function ActionBar({ locale }: { locale: Locale }) {
           <Fragment key={group[0]}>
             {index > 0 && <span className="nx-action-bar__sep" aria-hidden="true" />}
             {group.map((id) => <CommandButton key={id} id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} hints={hints} />)}
+            {/* Page buttons (Kaydet ve yeni) follow the record commands, before the first separator. */}
+            {index === 0 && commands?.barItems?.map((item) => <BarItemButton key={item.id} item={item} locale={locale} hints={hints} />)}
           </Fragment>
         ))}
+        {visibleGroups(commands).length === 0 && commands?.barItems?.map((item) => <BarItemButton key={item.id} item={item} locale={locale} hints={hints} />)}
       </div>
       <div className="nx-action-bar__end">
         {commands?.undo && <CommandButton id="undo" spec={commands.undo} locale={locale} iconOnly={iconOnly} hints={hints} />}

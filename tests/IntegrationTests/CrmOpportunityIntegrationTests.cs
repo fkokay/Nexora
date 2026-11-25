@@ -91,7 +91,45 @@ public sealed class CrmOpportunityIntegrationTests
             (await client.PostAsJsonAsync($"/api/crm/opportunities/{id}/stage", new { stage = "Qualified" })).StatusCode);
     }
 
-    private static object Write(string code, Guid? customerId, int probability) => new
+    [Fact]
+    public async Task Crm_create_numbers_a_blank_code_skipping_manual_codes_while_update_still_requires_one()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+        var year = DateTime.UtcNow.Year;
+
+        async Task<(Guid Id, string Code)> CreateAsync(string? code)
+        {
+            var response = await client.PostAsJsonAsync("/api/crm/opportunities/", Write(code, CustomerA, 20));
+            Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return (document.RootElement.GetProperty("id").GetGuid(), document.RootElement.GetProperty("code").GetString()!);
+        }
+
+        var first = await CreateAsync(null);
+        Assert.Equal($"FRS-{year}-000001", first.Code);
+        Assert.Equal($"FRS-{year}-000002", (await CreateAsync("   ")).Code);
+        // A manual code holding the next number is skipped; an entered code still has to match the format.
+        Assert.Equal($"FRS-{year}-000003", (await CreateAsync($"frs-{year}-000003")).Code);
+        Assert.Equal($"FRS-{year}-000004", (await CreateAsync("")).Code);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync("/api/crm/opportunities/", Write("1-BAD", CustomerA, 20))).StatusCode);
+        // Tenants number separately.
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantB.ToString());
+        var otherTenant = await client.PostAsJsonAsync("/api/crm/opportunities/", Write(null, null, 20));
+        using (var document = JsonDocument.Parse(await otherTenant.Content.ReadAsStringAsync()))
+            Assert.Equal($"FRS-{year}-000001", document.RootElement.GetProperty("code").GetString());
+        client.DefaultRequestHeaders.Remove("X-Test-Tenant");
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantA.ToString());
+
+        using var update = await client.PutAsJsonAsync($"/api/crm/opportunities/{first.Id}", Write("", CustomerA, 30));
+        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
+        using var problem = JsonDocument.Parse(await update.Content.ReadAsStringAsync());
+        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty("code", out _));
+    }
+
+    private static object Write(string? code, Guid? customerId, int probability) => new
     {
         code, name = "ERP renewal", customerId, estimatedValue = 12500.50m, currencyCode = "USD",
         probabilityPercent = probability, expectedCloseDate = "2026-12-31", nextActivityAt = "2026-11-01T10:00:00+03:00", notes = "Initial opportunity"

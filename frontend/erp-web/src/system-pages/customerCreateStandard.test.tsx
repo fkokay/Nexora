@@ -47,6 +47,11 @@ function respond(url: string, method: string): unknown {
   const [path] = url.split('?');
   if (method === 'GET') {
     if (path === '/api/customer-groups') return [{ id: 'g1', code: 'BAY', name: 'Bayiler', isActive: true }];
+    if (path === '/api/location-definitions/provinces') return [{ id: 42, name: 'Konya', isActive: true }, { id: 6, name: 'Ankara', isActive: true }];
+    if (path === '/api/location-definitions/districts') {
+      return new URLSearchParams(url.split('?')[1] ?? '').get('provinceName') === 'Konya'
+        ? [{ id: 1, provinceId: 42, name: 'Meram', isActive: true }, { id: 2, provinceId: 42, name: 'Selçuklu', isActive: true }] : [];
+    }
     if (path === '/api/customers/company-options') return [];
     if (path === '/api/customers/custom-fields') return [];
     if (path === `/api/customers/${C1}`) return card(cardExtra);
@@ -95,13 +100,15 @@ const writes = () => calls.filter((call) => call.method !== 'GET');
 const posts = () => writes().filter((call) => call.method === 'POST' && call.url === '/api/customers');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
+/** Aranabilir açılır liste (il, ilçe): yazılır ve listelenen seçenek tıklanır. */
+const pick = async (id: string, option: string) => {
+  fireEvent.focus(input(id));
+  fireEvent.change(input(id), { target: { value: option } });
+  fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
+};
 const settle = (ms = 50) => new Promise((done) => setTimeout(done, ms));
 const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const tab = (name: string) => screen.queryByRole('tab', { name: new RegExp(`^${name}`) });
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name });
-};
 const openNew = async () => {
   setup();
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
@@ -164,7 +171,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
   it('new card with a primary address posts one request with the nested address and returns to the list', async () => {
     await openNew();
     fillNew('c-2001', 'Yeni Cari');
-    type('il', 'Konya');
+    await pick('il', 'Konya');
     type('adresSatiri', 'Feritpaşa Mah.');
     type('adresEtiketi', 'Merkez');
     fireEvent.click(command('save'));
@@ -177,6 +184,25 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(writes().filter((call) => call.method === 'PUT')).toEqual([]);
     await waitFor(() => expect(navigations).toHaveLength(1), T);
     expect(navigations[0]).toEqual({ page: 'customers', params: {}, replace: true, from: KEY, refresh: true });
+  });
+
+  it('il and ilçe are searchable lists: districts follow the province, a foreign city can be typed', async () => {
+    await openNew();
+    await pick('il', 'Konya');
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/api/location-definitions/districts') && call.url.includes('provinceName=Konya'))).toBe(true), T);
+    await pick('ilce', 'Selçuklu');
+    expect(input('ilce').value).toBe('Selçuklu');
+    // Listede olmayan değer (yurt dışı adres) yazıldığı gibi seçilebilir.
+    await pick('il', 'Berlin');
+    expect(input('il').value).toBe('Berlin');
+  });
+
+  it('opening the card with tab=Adresler activates the Adresler tab', async () => {
+    setup(C1);
+    // Liste ya da detay panelindeki "Adresler" düğmesi kartı tab=Adresler parametresiyle açar.
+    setPageParams(KEY, { customerId: C1, tab: 'Adresler' });
+    await waitFor(() => expect(tab('Adresler')?.getAttribute('aria-selected')).toBe('true'), T);
+    expect(await screen.findByText('Feritpaşa Mah.', { selector: '.tenant-page-data-grid td' }, T)).toBeTruthy();
   });
 
   it('new card without an address sends no address object', async () => {
@@ -194,7 +220,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
       fieldErrors: { 'address.addressLine': ['Adres satırı zorunludur ve en fazla 400 karakter olabilir.'], taxNumber: ['Vergi numarası geçersiz.'] } }];
     await openNew();
     fillNew('c-2003', 'Hatalı');
-    type('il', 'Konya');
+    await pick('il', 'Konya');
     type('adresEtiketi', 'Merkez');
     type('adresSatiri', 'x');
     fireEvent.click(command('save'));
@@ -211,7 +237,8 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
   it('Kaydet ve yeni (new card only) creates twice and stays on an empty card', async () => {
     await openNew();
     fillNew('c-3001', 'Birinci');
-    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(input('unvan').value).toBe('');
@@ -227,7 +254,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(title()).toBe('FATİH KOKAY'), T);
     expect(input('il').value).toBe('Konya');
     type('unvan', 'FATİH KOKAY LTD.');
-    type('ilce', 'Meram');
+    await pick('ilce', 'Meram');
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes().length).toBeGreaterThanOrEqual(1), T);
     await settle(150);
@@ -246,7 +273,8 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(input('vadeGunu').value).toBe('0');
     type('kod', 'c-4001');
     type('unvan', 'Varsayılanlı');
-    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     expect(JSON.parse(posts()[0].body!)).toMatchObject({ code: 'C-4001', currencyCode: 'TRY', paymentTermDays: 0 });
     expect(screen.queryByText('Bu alan zorunludur')).toBeNull();
