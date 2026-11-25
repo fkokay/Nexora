@@ -47,7 +47,7 @@ Kod: `TenantCustomPage.tsx:956-964` — `renderComponent` her bileşen gövdesin
 
 | Seçici (dosya:satır) | Çocuklar renderComponent ile mi? | Etki |
 | --- | --- | --- |
-| `.tenant-page-block:is(.tenant-page-section,.tenant-page-card) > h3 + p` (css:25) | Hayır, başlık ve alt açıklama bölümün kendi öğeleri | Etkilenmez; şablon yalnız bileşen çocuklarının önüne girer |
+| `.tenant-page-block:is(.tenant-page-section,.tenant-page-card) > h3 + p` (css:25) | KISMEN: bölümün açıklaması/metni yoksa `h3`'ten sonraki `p` ilk çocuk olan metin bileşenidir (`TenantCustomPage.tsx:982, 1086`); tuvalde araya `<template>` girer (`h3, template, p`) | DÜZELTME (son inceleme): bu satır önce yanlışlıkla "etkilenmez" diye yazılmıştı. Tuvalde eşleşmiyordu; `> h3 + template[data-cp-anchor] + p` eşdeğeri eklendi (canlı sayfa değişmez) |
 | `.tenant-page-table tbody tr:last-child td` (81), `td:first-child` (85), `td:nth-last-child` (476) | Hayır (tablo satırları) | Etkilenmez |
 | `.tenant-page-form-card-grid.is-inline > .tenant-page-form-card-cell:last-child:not(:first-child)…` (243) | Hayır: hücreleri `LayoutComponents.tsx:19` kendisi sarar; şablon hücrenin içine değil, hücrelerin dışına/öncesine girmez | Etkilenmez (çocuk `Children.map` ile hücreye sarılır, şablon hücre içinde kalır) |
 | `.tenant-page-filter-chips .tenant-page-chip > strong:first-child` (327), `.tenant-page-context-related li:last-child` (366), `detail-panel.css:61` | Hayır (bileşen iç yapıları) | Etkilenmez |
@@ -56,7 +56,7 @@ Kod: `TenantCustomPage.tsx:956-964` — `renderComponent` her bileşen gövdesin
 
 ### Bulunan riskler
 
-1. `frontend/erp-web/src/tenant-custom-page.css:440-441`: pencere (dialog) gövdesindeki bir bölümde `metin` bileşeninin hemen ardından `eylem` düğmesi gelirse (altbilgi: açıklama + düğme), tuvalde araya `<template>` girer: `text, template, action`. `:has(+ .tenant-page-action)` ve `.tenant-page-text + .tenant-page-action` eşleşmez. Tuvalde o satırın üst çizgisi/hizalaması (`flex:1 1 60%`, `border-top`, `padding`) ve düğmenin `flex:0 0 auto` kuralı uygulanmaz; gerçek ERP'de uygulanır. Yani pencere altbilgisi tuvalde gerçek sayfadan farklı çizilir. Bu görevde CSS değiştirilmedi. Olası düzeltme (ayrı görev): `:has(+ template + .tenant-page-action)` ve `.tenant-page-text + template + .tenant-page-action` ikinci seçicilerini eklemek.
+1. `frontend/erp-web/src/tenant-custom-page.css:440-441`: pencere (dialog) gövdesindeki bir bölümde `metin` bileşeninin hemen ardından `eylem` düğmesi gelirse (altbilgi: açıklama + düğme), tuvalde araya `<template>` girer: `text, template, action`. `:has(+ .tenant-page-action)` ve `.tenant-page-text + .tenant-page-action` eşleşmez. Tuvalde o satırın üst çizgisi/hizalaması (`flex:1 1 60%`, `border-top`, `padding`) ve düğmenin `flex:0 0 auto` kuralı uygulanmaz; gerçek ERP'de uygulanır. Yani pencere altbilgisi tuvalde gerçek sayfadan farklı çizilir. Son inceleme düzeltmesinde giderildi: `:has(+ template[data-cp-anchor] + .tenant-page-action)` ve `.tenant-page-text + template[data-cp-anchor] + .tenant-page-action` eşdeğerleri asıl seçicilerin yanına eklendi; canlı sayfada `<template>` olmadığı için yalnız tuvalde etkilidir.
 
 Diğer düzen etkilemeyen not: boş bölüm için `:empty` seçicisi bulunmadı (grep sonucu boş).
 
