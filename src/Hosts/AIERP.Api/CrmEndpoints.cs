@@ -1,3 +1,4 @@
+using AIERP.Api;
 using System.Security.Claims;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 public static class CrmEndpoints
 {
     private const int MaximumPageSize = 100;
+    private const int MaximumCodeAttempts = 20;
 
     public static void MapCrmEndpoints(this WebApplication app)
     {
@@ -62,11 +64,24 @@ public static class CrmEndpoints
         opportunities.MapPost("/", async (CrmOpportunityWriteRequest body, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId)) return Results.Forbid();
-            if (!ValidateWrite(body, out var code, out var name, out var currency, out var errors)) return Results.ValidationProblem(errors!);
-            if (await db.CrmOpportunities.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
+            if (!ValidateWrite(body, codeOptional: true, out var code, out var name, out var currency, out var errors)) return Results.ValidationProblem(errors!);
+            if (!string.IsNullOrEmpty(code) && await db.CrmOpportunities.AnyAsync(x => x.TenantId == tenantId && x.Code == code, ct))
                 return Results.Conflict(new { error = "Bu tenant için fırsat kodu zaten kullanılıyor." });
             if (!await IsCustomerInTenantAsync(db, tenantId, body.CustomerId, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["customerId"] = ["Seçilen cari bu tenant için aktif bir müşteri değil."] });
+            // A blank code takes the next FRS-{YYYY}-{SEQ:6} number (year of the creation day); a number a manual code already
+            // holds is skipped. NextAsync saves its counter, so it runs before the opportunity is added.
+            if (string.IsNullOrEmpty(code))
+            {
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                for (var attempt = 0; attempt < MaximumCodeAttempts && string.IsNullOrEmpty(code); attempt++)
+                {
+                    var candidate = await TenantDocumentNumbering.NextAsync(db, tenantId, TenantDocumentNumbering.Internal.CrmOpportunity, null, today, ct);
+                    if (!await db.CrmOpportunities.AnyAsync(x => x.TenantId == tenantId && x.Code == candidate, ct)) code = candidate;
+                }
+                if (string.IsNullOrEmpty(code))
+                    return Results.Conflict(new { error = "Fırsat için boş bir numara bulunamadı; kodu elle girin." });
+            }
 
             var now = DateTimeOffset.UtcNow;
             var opportunity = new CrmOpportunity
@@ -93,7 +108,7 @@ public static class CrmEndpoints
         opportunities.MapPut("/{id:guid}", async (Guid id, CrmOpportunityWriteRequest body, ClaimsPrincipal user, TenantDbContext db, CancellationToken ct) =>
         {
             if (!TryTenant(user, out var tenantId, out var userId)) return Results.Forbid();
-            if (!ValidateWrite(body, out var code, out var name, out var currency, out var errors)) return Results.ValidationProblem(errors!);
+            if (!ValidateWrite(body, codeOptional: false, out var code, out var name, out var currency, out var errors)) return Results.ValidationProblem(errors!);
             var opportunity = await db.CrmOpportunities.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (opportunity is null) return Results.NotFound();
             if (opportunity.Stage is CrmOpportunityStage.Won or CrmOpportunityStage.Lost)
@@ -173,12 +188,17 @@ public static class CrmEndpoints
         customerId is null || await db.CustomerAccounts.AnyAsync(x => x.TenantId == tenantId && x.Id == customerId && x.IsActive &&
             (x.Type == CounterpartyType.Customer || x.Type == CounterpartyType.Both), ct);
 
-    private static bool ValidateWrite(CrmOpportunityWriteRequest request, out string? code, out string? name,
+    /// <summary>
+    /// <paramref name="codeOptional"/> (create only) lets a blank code through as null so the caller numbers it; an entered
+    /// code is always held to the format.
+    /// </summary>
+    private static bool ValidateWrite(CrmOpportunityWriteRequest request, bool codeOptional, out string? code, out string? name,
         out string? currency, out Dictionary<string, string[]>? errors)
     {
         code = request.Code?.Trim().ToUpperInvariant(); name = request.Name?.Trim();
         currency = request.CurrencyCode?.Trim().ToUpperInvariant(); errors = [];
-        if (string.IsNullOrEmpty(code) || code.Length > 40 || code[0] is < 'A' or > 'Z' ||
+        if (codeOptional && string.IsNullOrEmpty(code)) code = null;
+        else if (string.IsNullOrEmpty(code) || code.Length > 40 || code[0] is < 'A' or > 'Z' ||
             code.Any(ch => !(ch is >= 'A' and <= 'Z' or >= '0' and <= '9' or '-' or '_')))
             errors["code"] = ["Kod büyük harfle başlamalı; en fazla 40 karakterli harf, rakam, tire veya alt çizgi içermelidir."];
         if (string.IsNullOrWhiteSpace(name) || name.Length > 160) errors["name"] = ["Fırsat adı 1–160 karakter olmalıdır."];

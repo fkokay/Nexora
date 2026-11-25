@@ -23,6 +23,7 @@ type Props = {
 };
 
 const READY_TIMEOUT_MS = 10_000;
+const AUTH_RESEND_MS = 1_000;
 const FALLBACK_MESSAGE = "ERP önizlemesine bağlanılamadı, yerleşik önizleme gösteriliyor.";
 const DEVICE_WIDTH = { desktop: "100%", tablet: "768px", mobile: "375px" } as const;
 const INITIAL_HEIGHT = 600;
@@ -45,9 +46,20 @@ export default function ErpCanvasFrame(props: Props) {
     lastRevision.current = -1;
     setBlocks([]);
     setHoverId(null);
+    let authTimer: number | undefined;
+    const stopAuth = () => {
+      if (authTimer !== undefined) window.clearInterval(authTimer);
+      authTimer = undefined;
+    };
     const timer = window.setTimeout(() => {
+      stopAuth();
       if (!readySeen.current) handlers.current.onUnavailable(FALLBACK_MESSAGE);
     }, READY_TIMEOUT_MS);
+    // ERP dinleyicisini iframe load olayından sonra kaydedebilir; ready gelene kadar oturum bilgisini yeniden gönder.
+    authTimer = window.setInterval(() => {
+      const { token: t, tenant: tn } = handlers.current;
+      iframeRef.current?.contentWindow?.postMessage({ type: "NEXORA_STUDIO_AUTH", token: t, tenant: tn }, platformOrigin);
+    }, AUTH_RESEND_MS);
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== platformOrigin || event.source !== iframeRef.current?.contentWindow) return;
       const msg = parseCanvasMessage(event.data);
@@ -59,6 +71,7 @@ export default function ErpCanvasFrame(props: Props) {
         setBlocks([]);
         setHoverId(null);
         window.clearTimeout(timer);
+        stopAuth();
       } else if (msg.type === "layout") {
         if (msg.revision < lastRevision.current) return;
         lastRevision.current = msg.revision;
@@ -80,6 +93,7 @@ export default function ErpCanvasFrame(props: Props) {
     window.addEventListener("message", onMessage);
     return () => {
       window.clearTimeout(timer);
+      stopAuth();
       window.removeEventListener("message", onMessage);
     };
   }, [platformOrigin, target.previewId, target.systemScreenKey]);

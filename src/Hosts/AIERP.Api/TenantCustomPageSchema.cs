@@ -91,7 +91,10 @@ internal static partial class TenantCustomPageSchema
       // (descriptionFormat: number/money; ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00").
       "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat",
       // Veri listesi araç çubuğunun "Detay paneli" düğmesi: bağlı onay kutusu girişini açıp kapatır (giriş ayrıca çizilmez).
-      "detailToggleInput" };
+      "detailToggleInput",
+      // Çok satırlı metin girişi (multiline), girişin altındaki hazır değer düğmeleri (presets: "değer=Etiket"), aranabilir
+      // açılır listede listede olmayan değeri kabul etme (allowCustom) ve açılış sekmesini sayfa parametresinden seçme (tabParam).
+      "multiline", "presets", "allowCustom", "tabParam" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -1453,6 +1456,9 @@ internal static partial class TenantCustomPageSchema
     private const int MaxPatternLength = 200;
     private const int MaxPatternMessageLength = 120;
     private static readonly Regex TabItem = new(@"^[^=,]{1,40}=([A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){0,19})?\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private const int MaxPresets = 10;
+    private static readonly Regex PresetItem = new(@"^[^=]{1,40}=[^=]{1,20}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ParamName = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex StaticOptionItem = new(@"^[^=]{0,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex FooterMetaItem = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex IsoDate = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1562,7 +1568,7 @@ internal static partial class TenantCustomPageSchema
     private static bool ValidateTabsProps(JsonElement props, string id, string typeText, Context context, out string? error)
     {
         error = null;
-        foreach (var key in new[] { "tabs", "defaultTab" })
+        foreach (var key in new[] { "tabs", "defaultTab", "tabParam" })
             if (typeText != "tabs" && props.TryGetProperty(key, out _))
             { error = $"'{key}' özelliği yalnız sekme (tabs) bileşeninde kullanılabilir."; return false; }
         if (typeText != "tabs") return true;
@@ -1578,6 +1584,8 @@ internal static partial class TenantCustomPageSchema
         }
         if (props.TryGetProperty("defaultTab", out var defaultTab) && !IsIntIn(defaultTab, 0, tabs.GetArrayLength() - 1))
         { error = "'defaultTab' sekme sırası (0'dan başlar) olmalıdır."; return false; }
+        if (props.TryGetProperty("tabParam", out var tabParam) && !MatchesSafely(ParamName, tabParam))
+        { error = "'tabParam' sayfa parametresi adı olmalıdır (harf, rakam, alt çizgi; en çok 64 karakter)."; return false; }
         context.PendingTabRefs.Add((id, owned));
         return true;
     }
@@ -1598,6 +1606,9 @@ internal static partial class TenantCustomPageSchema
         // Aranabilir açılır liste yalnız select'te (arama kutusu zaten aranır); ilk seçenek varsayılanı select ve lookup'ta.
         if (props.TryGetProperty("searchable", out var searchable) && (inputType != "select" || !IsBool(searchable)))
         { error = "'searchable' yalnız açılır liste (inputType: select) girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("allowCustom", out var allowCustom) && (inputType != "select" || !IsBool(allowCustom)
+            || !(props.TryGetProperty("searchable", out var customSearchable) && customSearchable.ValueKind == JsonValueKind.True)))
+        { error = "'allowCustom' yalnız aranabilir açılır listede (inputType: select, searchable: true) true veya false olabilir."; return false; }
         if (props.TryGetProperty("defaultFirst", out var defaultFirst) && (inputType is not ("select" or "lookup") || !IsBool(defaultFirst)))
         { error = "'defaultFirst' yalnız açılır liste veya arama kutusu (inputType: select, lookup) girişinde true veya false olabilir."; return false; }
         if (!isLookup && inputType != "select") return true;
@@ -1665,6 +1676,12 @@ internal static partial class TenantCustomPageSchema
         error = null;
         if (props.TryGetProperty("upperCase", out var upperCase) && (typeText != "input" || inputType != "text" || !IsBool(upperCase)))
         { error = "'upperCase' yalnız metin girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("multiline", out var multiline) && (typeText != "input" || inputType != "text" || !IsBool(multiline)))
+        { error = "'multiline' yalnız metin girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("presets", out var presets) && (typeText != "input" || inputType is not ("text" or "number")
+            || presets.ValueKind != JsonValueKind.Array || presets.GetArrayLength() is < 1 or > MaxPresets
+            || !presets.EnumerateArray().All(x => MatchesSafely(PresetItem, x))))
+        { error = $"'presets' yalnız metin veya sayı girişinde 1–{MaxPresets} adet değer=Etiket öğesi olabilir."; return false; }
         if (typeText != "input")
         {
             // 'required' predates Faz A on other component types and stays unchecked there (v1 behaviour).

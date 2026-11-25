@@ -205,6 +205,15 @@ describe('Cari Hesaplar list', () => {
     expect(menuItems()).not.toContain('CSV / Excel içe aktar');
   });
 
+  it('Gruplar opens the Cari Grupları screen (no dialog)', async () => {
+    const onNavigate = renderList('TenantUser');
+    await settle();
+    fireEvent.click(command('more'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Gruplar' }));
+    expect(onNavigate).toHaveBeenCalledWith('customer-groups');
+    expect(screen.queryByRole('dialog', { name: 'Cari grupları' })).toBeNull();
+  });
+
   it('sales actions are disabled with a reason on a supplier card', async () => {
     renderList();
     await settle();

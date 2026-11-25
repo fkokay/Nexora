@@ -112,10 +112,9 @@ describe('Stok Kartları on the action bar', () => {
     // F2 stays Yeni while the form is open; only Kaydet is primary.
     expect(enabled('new')).toBe(true);
     expect(primary('new')).toBe(false);
-    // The form header keeps only Vazgeç; its other actions are in the bar and its menu.
+    // The form header keeps only Vazgeç; Kaydet ve Yeni and Temizle are bar buttons next to Kaydet.
     expect(Array.from(document.querySelectorAll('.rf-toolbar button')).map((b) => b.textContent?.trim())).toEqual(['Vazgeç']);
-    expect(openMenu()).toEqual(['Kaydet ve YeniCtrl+F2', 'Temizle']);
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[data-command^="record-form-"]')).map((b) => b.getAttribute('aria-label'))).toEqual(['Kaydet ve Yeni', 'Temizle']);
     fireEvent.change(screen.getByPlaceholderText('STK-1001'), { target: { value: 'STK-1' } });
     fireEvent.change(screen.getByPlaceholderText('Stok adı'), { target: { value: 'Vida' } });
     const code = screen.getByPlaceholderText('STK-1001');
