@@ -9,7 +9,8 @@ export type ShellAction = {
   kind: "primary" | "normal" | "danger";
   disabled?: boolean;
   disabledReason?: string;
-  run: () => void;
+  /** `opener`: tıklanan düğme (menüden çalışınca "⋯" düğmesi); açılan pencere kapanınca odak ona döner. */
+  run: (opener?: HTMLElement) => void;
   /** Düğmenin hemen önüne konan görünmez işaret (Studio tuvalinde seçim için); menüde çizilmez. */
   anchor?: ReactNode;
 };
@@ -50,7 +51,7 @@ function splitByWidth(actions: ShellAction[], width: number | null, hasSearch: b
 
 function ActionButton({ action }: { action: ShellAction }) {
   return <>{action.anchor}<button type="button" className={`page-shell-action page-shell-action--${action.kind} ${action.kind === "primary" ? "primary" : "secondary"}`}
-    disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={action.run}>{action.label}</button></>;
+    disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={(event) => action.run(event.currentTarget)}>{action.label}</button></>;
 }
 
 /** Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. */
@@ -73,6 +74,7 @@ export function PageShell({ title, crumbs, count, actions, search, footer, child
   const { shownLeft, shownRight, overflow } = splitByWidth(actions, width, search != null);
   useEffect(() => { if (!overflow.length) setMenuOpen(false); }, [overflow.length]);
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   // Menü dışına tıklama ya da Escape menüyü kapatır.
   useEffect(() => {
     if (!menuOpen) return;
@@ -91,9 +93,9 @@ export function PageShell({ title, crumbs, count, actions, search, footer, child
       {search != null && <div className="page-shell-bar-search">{search}</div>}
       <div className="page-shell-bar-right">
         {overflow.length > 0 && <div className="page-shell-more" ref={moreRef}>
-          <button type="button" className="secondary" aria-haspopup="menu" aria-expanded={menuOpen} aria-label="Diğer işlemler" onClick={() => setMenuOpen((open) => !open)}>⋯</button>
+          <button type="button" ref={moreButtonRef} className="secondary" aria-haspopup="menu" aria-expanded={menuOpen} aria-label="Diğer işlemler" onClick={() => setMenuOpen((open) => !open)}>⋯</button>
           {menuOpen && <div className="page-shell-menu" role="menu">{overflow.map((action) => <button key={action.id} type="button" role="menuitem" className={`page-shell-menu-item page-shell-menu-item--${action.kind}`}
-            disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={() => { setMenuOpen(false); action.run(); }}>{action.label}</button>)}</div>}
+            disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={() => { setMenuOpen(false); moreButtonRef.current?.focus(); action.run(moreButtonRef.current ?? undefined); }}>{action.label}</button>)}</div>}
         </div>}
         {shownRight.map((action) => <ActionButton key={action.id} action={action} />)}
       </div>

@@ -9,7 +9,7 @@ import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
 import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
-import TenantWorkflowAction from "./TenantWorkflowAction";
+import TenantWorkflowAction, { runWorkflowStart } from "./TenantWorkflowAction";
 import { setWorkspacePageTitle } from "./workspacePageTitles";
 import { bindingPath, bindingsAllEmpty, displayText, interpolate, interpolateWith, joinTextParts, pageDateScope, resolvePath, type PageScope } from "./custom-page/pageBindings";
 import { readPageQueries, resolveQueryParameters, usePageQueries, type PageQueryDefinition, type QueryState, type WriteResult } from "./custom-page/usePageQueries";
@@ -3445,31 +3445,36 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const listState = listQuery ? runtime.states[listQuery] : undefined;
     // Kayıt sayısı tablonun (süzülmüş) satır sayısıdır; yüklenirken, hatada ya da hiç çalışmamışken gösterilmez.
     const count = listState && !listState.loading && !listState.error && !neverRan(listState) ? runtime.visibleRows(list, listState).rowCount : null;
-    const visibleActions = listLayout.actions.filter((button) => componentVisible(button, runtime));
-    const isDelete = (button: ComponentDefinition) => runtime.buttonAction(button)?.query?.kind === "delete";
-    // Ana düğme `actions` yerindeki ilk (silme olmayan) düğmedir; silme düğmeleri en sağa gider.
-    const primaryId = visibleActions.find((button) => !isDelete(button))?.id;
-    const shellActions = visibleActions.flatMap((button): ShellAction[] => {
+    // Sayfa düğmesi gibi: görünmeyen ve hakkı olmayan eylem gizlenir (eylemsiz düğme pasif kalır). Ana düğme bu süzmeden
+    // sonra seçilir: kalan ilk silme olmayan düğme.
+    const shownActions = listLayout.actions.filter((button) => {
+      if (!componentVisible(button, runtime)) return false;
       const action = runtime.buttonAction(button);
-      // Sayfa düğmesi gibi: hakkı olmayan eylem gizlenir; eylemsiz düğme pasif kalır.
-      if (action && !actionAllowed(action, runtime.rights)) return [];
+      return !action || actionAllowed(action, runtime.rights);
+    });
+    const isDelete = (button: ComponentDefinition) => runtime.buttonAction(button)?.query?.kind === "delete";
+    const primaryId = shownActions.find((button) => !isDelete(button))?.id;
+    const shellActions = shownActions.map((button): ShellAction => {
+      const action = runtime.buttonAction(button);
       const props = bindProps(button.props ?? {}, runtime.scope);
-      const runnable = !!action && action.type !== "workflow";
+      const text = textValue(props.text ?? props.label) || textValue(props.title);
+      const workflowId = action?.type === "workflow" ? textValue(props.workflowId).trim() : "";
       const blocked = operationBlocked(action, runtime);
       const conditionDisabled = componentDisabled(button, runtime);
-      const disabled = !runnable || blocked || conditionDisabled || actionBusy;
-      const reason = blocked ? NO_OPERATION_RIGHT : conditionDisabled ? disabledReasonOf(button, props, runtime)
-        : action?.type === "workflow" ? "İş akışı düğmesi işlem çubuğunda çalışmaz." : "";
-      return [{
-        id: button.id, label: textValue(props.text ?? props.label) || textValue(props.title) || "Eylem",
+      const disabled = !action || blocked || conditionDisabled || actionBusy;
+      const reason = blocked ? NO_OPERATION_RIGHT : conditionDisabled ? disabledReasonOf(button, props, runtime) : "";
+      return {
+        id: button.id, label: text || (workflowId ? "İş akışını başlat" : "Eylem"),
         kind: isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal",
         disabled, disabledReason: reason || undefined, anchor: <AnchorMark id={button.id} />,
-        run: () => {
+        run: (opener) => {
           if (disabled || !action) return;
-          const opener = document.activeElement instanceof HTMLElement ? document.activeElement : contentRef.current ?? document.body;
-          void runButtonClick(button, props, runtime, action, opener, { setFeedback: setActionStatus, setBusy: setActionBusy, inFlight: shellInFlight });
+          const hooks = { setFeedback: setActionStatus, setBusy: setActionBusy, inFlight: shellInFlight };
+          // İş akışı düğmesi eski sayfadaki TenantWorkflowAction ile aynı başlatma yolunu kullanır.
+          if (workflowId) { void runWorkflowStart({ token, workflowId, title: text || "İş akışını başlat", pageCode: page.code, componentId: button.id }, hooks); return; }
+          void runButtonClick(button, props, runtime, action, opener ?? contentRef.current ?? document.body, hooks);
         },
-      }];
+      };
     });
     const filterBar = listLayout.filters;
     const searchView = filterBar ? runtime.filterBarFor(filterBar) : null;

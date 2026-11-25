@@ -76,4 +76,18 @@ describe("page templates", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
   });
+
+  it('PageShell passes the clicked button as opener, and the "⋯" trigger when run from the menu', () => {
+    stubWidth(100);
+    const runs: (HTMLElement | undefined)[] = [];
+    const run = (opener?: HTMLElement) => { runs.push(opener); };
+    render(<PageShell title="T" crumbs={[]} actions={[{ id: 'yeni', label: 'Yeni kayıt', kind: 'primary', run }, { id: 'a', label: 'Dışa aktar', kind: 'normal', run }]}>x</PageShell>);
+    fireEvent.click(screen.getByRole('button', { name: 'Yeni kayıt' }));
+    expect(runs[0]).toBe(screen.getByRole('button', { name: 'Yeni kayıt' }));
+    const more = screen.getByRole('button', { name: 'Diğer işlemler' });
+    fireEvent.click(more);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dışa aktar' }));
+    expect(runs[1]).toBe(more);
+    expect(document.activeElement).toBe(more);
+  });
 });

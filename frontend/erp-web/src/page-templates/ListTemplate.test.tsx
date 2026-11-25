@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render as renderPlain, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider } from '../commands/CommandProvider';
+import { ConfirmDialogHost } from '../confirmDialog';
 import { CanvasAnchorContext } from '../designer-canvas/anchorContext';
 import { api } from '../erpApi';
 import TenantCustomPage from '../TenantCustomPage';
@@ -29,21 +30,25 @@ const rows = [{ Code: 'C001', Name: 'Ayşe Ltd', Type: 'A' }, { Code: 'C002', Na
 vi.mock('../erpApi', () => ({ api: vi.fn() }));
 const mockedApi = vi.mocked(api);
 let definition: unknown;
-const page = (queries: unknown[]) => { definition = { schemaVersion: 2, template: { name: 'list' }, queries, components }; };
+let rights: Record<string, boolean>;
+const page = (queries: unknown[], list: unknown[] = components) => { definition = { schemaVersion: 2, template: { name: 'list' }, queries, components: list }; };
 const runs = (id: string) => mockedApi.mock.calls.filter(([endpoint]) => String(endpoint).includes(`/queries/${id}/run`)).length;
 
 beforeEach(() => {
   localStorage.clear();
   mockedApi.mockReset();
   page(baseQueries);
+  rights = { view: true, insert: true, update: true, delete: true };
   mockedApi.mockImplementation(async (endpoint: string) => {
-    if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Cari Hesaplar', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights: { view: true, insert: true, update: true, delete: true } } as never;
+    if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Cari Hesaplar', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights } as never;
     if (endpoint.includes('/queries/q_list/run')) return { columns: [{ code: 'Code', label: 'Kod' }, { code: 'Name', label: 'Ad' }, { code: 'Type', label: 'Tür' }], rows, rowCount: rows.length, truncated: false } as never;
+    if (endpoint.includes('/queries/q_sil/run')) return { affectedRows: 1 } as never;
+    if (endpoint.includes('/workflows/definitions/')) return { id: 'w1' } as never;
     if (endpoint.includes('/queries/q_ozet/run')) return { columns: [{ code: 'Toplam', label: 'Toplam' }], rows: [{ Toplam: 1 }], rowCount: 1, truncated: false } as never;
     return { items: [], total: 0 } as never;
   });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const T = { timeout: 5000 };
 
@@ -133,5 +138,63 @@ describe('liste kalıbı', () => {
     for (const anchor of container.querySelectorAll('template[data-cp-anchor]')) expect(anchor.nextElementSibling).toBeTruthy();
     const yeni = container.querySelector('template[data-cp-anchor="yeni"]')!;
     expect(yeni.nextElementSibling!.textContent).toBe('Yeni');
+  });
+
+  it('primary is the first allowed non-delete button and never goes to the overflow menu', async () => {
+    rights = { view: true, update: true, delete: true };
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private cb: ResizeObserverCallback) {}
+      observe() { this.cb([{ contentRect: { width: 60 } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
+      disconnect() {}
+      unobserve() {}
+    });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('C001', undefined, T);
+    // Ekleme hakkı yok: "Yeni" gizlenir, ana düğme "Yenile" olur.
+    expect(screen.queryByRole('button', { name: 'Yeni' })).toBeNull();
+    const primary = container.querySelector('.page-shell-bar-left button')!;
+    expect(primary.textContent).toBe('Yenile');
+    expect(primary.className).toContain('page-shell-action--primary');
+    fireEvent.click(screen.getByRole('button', { name: 'Diğer işlemler' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Sil']);
+  });
+
+  it('workflow button in actions starts the workflow', async () => {
+    page(baseQueries, [...components, { id: 'onay', type: 'button', props: { slot: 'actions', text: 'Onaya gönder', actionType: 'workflow', workflowId: 'wf1' } }]);
+    render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('C001', undefined, T);
+    const button = screen.getByRole('button', { name: 'Onaya gönder' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(mockedApi.mock.calls.some(([endpoint]) => String(endpoint) === '/api/workflows/definitions/wf1/instances')).toBe(true));
+    const call = mockedApi.mock.calls.find(([endpoint]) => String(endpoint) === '/api/workflows/definitions/wf1/instances')!;
+    expect(JSON.parse(String((call[2] as RequestInit).body)).context).toEqual({ pageCode: 'p', componentId: 'onay', action: 'low-code-button' });
+    expect(await screen.findByText('İş akışı başlatıldı.')).toBeTruthy();
+  });
+
+  it('delete with confirm goes through confirm, write, success status and list refresh', async () => {
+    page(baseQueries, components.map((component) => (component.id === 'sil'
+      ? { ...component, props: { ...component.props, confirmEnabled: true, confirmText: '{{liste.seciliSatir.Code}} silinsin mi?', refreshQueries: ['q_list'] } } : component)));
+    render(<><TenantCustomPage code="p" token="t" /><ConfirmDialogHost /></>);
+    fireEvent.click((await screen.findByText('C001', undefined, T)).closest('tr')!);
+    const before = runs('q_list');
+    fireEvent.click(screen.getByRole('button', { name: 'Sil' }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(within(confirm).getByText('C001 silinsin mi?')).toBeTruthy();
+    expect(runs('q_sil')).toBe(0);
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Onayla' }));
+    await waitFor(() => expect(runs('q_sil')).toBe(1));
+    const call = mockedApi.mock.calls.find(([endpoint]) => String(endpoint).includes('/queries/q_sil/run'))!;
+    expect(JSON.parse(String((call[2] as RequestInit).body)).parameters).toEqual({ code: 'C001' });
+    await waitFor(() => expect(document.querySelector('.tenant-page-action-status.is-success')?.textContent).toBe('İşlem tamamlandı. (1 kayıt)'));
+    await waitFor(() => expect(runs('q_list')).toBeGreaterThan(before));
+  });
+
+  it('legacy page workflow button still starts the workflow through the shared start path', async () => {
+    definition = { schemaVersion: 2, queries: [], components: [{ id: 'onay', type: 'button', props: { text: 'Onaya gönder', actionType: 'workflow', workflowId: 'wf1' } }] };
+    render(<TenantCustomPage code="p" token="t" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Onaya gönder' }, T));
+    expect(await screen.findByText('İş akışı başlatıldı.')).toBeTruthy();
+    expect(mockedApi.mock.calls.filter(([endpoint]) => String(endpoint) === '/api/workflows/definitions/wf1/instances')).toHaveLength(1);
   });
 });
