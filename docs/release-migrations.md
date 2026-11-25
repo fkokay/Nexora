@@ -1,5 +1,21 @@
 # Production release migrations
 
+## Unique unconditional role rules (baseline duplicate cleanup)
+
+Platform migration `20261125195805_DeduplicateUnconditionalRoleRules` (no Tenant migration; `TenantPermissionRules` lives only in the Platform database) is expand + data cleanup in one step:
+
+1. It deletes duplicate unconditional role rules: rows with `SubjectUserId IS NULL AND AttributeName IS NULL` that share TenantId, SubjectType, SubjectRole, PermissionCode, Effect and IsActive with an older row (`ROW_NUMBER() ... ORDER BY CreatedAt, Id`, rows with `rn > 1` are deleted). These are the duplicates concurrent logins could insert through the baseline backfill. Rows differing in Effect or IsActive, user rules and conditional rules are never deleted. `ResourceType` is not compared (NULL on seeded rules, the permission's own resource type on administrator rules; evaluated identically), so a later administrator Allow identical to an older seeded Allow is removed as a duplicate; its creation stays in `access-control.rule.created` audit events. Evaluation does not change.
+2. It creates the filtered unique index `UX_TenantPermissionRules_UnconditionalRoleRule` on (TenantId, SubjectType, SubjectRole, PermissionCode, Effect, IsActive) `WHERE [SubjectUserId] IS NULL AND [AttributeName] IS NULL`.
+
+Before applying, count what will be deleted (run with `sqlcmd -I`; filtered indexes need `QUOTED_IDENTIFIER ON`):
+
+```sql
+SELECT COUNT(*) FROM (SELECT ROW_NUMBER() OVER (PARTITION BY [TenantId], [SubjectType], [SubjectRole], [PermissionCode], [Effect], [IsActive]
+  ORDER BY [CreatedAt], [Id]) AS rn FROM [dbo].[TenantPermissionRules] WHERE [SubjectUserId] IS NULL AND [AttributeName] IS NULL) x WHERE rn > 1;
+```
+
+Compatibility: the previous API image keeps working against the migrated schema except that a concurrent login on the old image may now get a 500 from the index instead of inserting a duplicate (the new image absorbs it). Deploy the new API image right after the migration. Rollback: Down drops the index only; deleted duplicates are not restored (they were exact copies). No rehearsal on a data-bearing backup and no deployment are recorded here yet.
+
 ## Requestless supplier quotes schema
 
 Platform migration `20261118204246_AllowRequestlessSupplierQuotes` and Tenant migration `20261118204408_AddTenantRequestlessSupplierQuotes` make `PurchaseSupplierQuotes.PurchaseRequestId` and `PurchaseSupplierQuoteLines.PurchaseRequestId` nullable and add the nullable `PurchaseSupplierQuoteLines.StockItemId` (index and FK to `StockItems`). The change is not purely additive: it drops the alternate key `AK_PurchaseSupplierQuotes_TenantId_Id_PurchaseRequestId` and re-points the two FKs that used it (quote lines → quote, purchase order → source quote) to `(TenantId, Id)`; the request/quote match on orders is now enforced by the API only. Existing rows keep their values; existing request-based lines keep `StockItemId` null. The migrations were applied to empty disposable copies on a local SQL Server 2025 (both histories, `has-pending-model-changes` clean); no rehearsal on a data-bearing backup and no deployment are recorded here yet. Rollback limit: once a quote without a request exists, do not roll the API back to a release from before this change; older releases assume every quote has a request.
