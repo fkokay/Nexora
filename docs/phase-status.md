@@ -1,4 +1,15 @@
 # Master Prompt Phase Status
+### 2026-11-25 Studio role structure (subproject 2b)
+
+Studio now has a role per person and company (Danışman, Yazılımcı, Yönetici), a role-based home page with cards, and four new screens: Gelen talepler, Kişiler ve roller, Bağlantılar (GitHub) and Yayınlar. The Studio role is a separate field from the ERP role. When it is empty, `TenantDeveloper` or any Studio project grant maps to Yazılımcı and everyone else to Danışman. The Yönetici sees all three menus and switches with the role button. On the server, only the AIService code, workspace and release endpoints (`/studio/projects/**`, `/studio/workspace-requests/**`) are limited to Yazılımcı and Yönetici in this step.
+
+Verified: unit tests, integration tests, frontend tests and the Studio build passed.
+<!-- test sayıları controller tarafından eklenecek -->
+
+Not verified: a real backend login end to end; the Docker Compose manual scenario with three users (TenantAdmin, TenantUser without grants, TenantUser with a project grant); the four new screens in a real browser against the approved mockup; the narrow-screen layout.
+
+Remaining for later subprojects: data-model definitions and page SQL writes become Yazılımcı-only in subproject 2; Kurallar in Yayınlar in subproject 6; external connections in Bağlantılar in subproject 2; the home cards "Yeni yapı taşları" and "Uzantı hataları" in subproject 2.
+
 ### 2026-11-17 Tenant query-login server hardening moved into the signed boundary
 
 `Install-TenantProvisioningBoundary.sql` now creates the server role `NexoraTenantQueryLogins` (`DENY VIEW ANY DATABASE`) and the master role `NexoraTenantQueryUsers` (`DENY EXECUTE` on `xp_dirtree`/`xp_fileexist`/`xp_subdirs`). The signed `NexoraEnsureTenantSqlLogin` adds every `aierp_tr_`/`aierp_tw_` login to both roles on create and password rotation, so new tenants no longer need a per-tenant DBA run of `Grant-TenantQueryPrincipals.sql`. The signer gains only `ALTER` on those two roles and `ALTER ANY USER` in master (install fails with `51009`/`51049` on anything broader). Verified on a disposable SQL Server 2022 with `TenantProvisioningSqlBoundaryAcceptanceTests` (2/2, install run twice): the query login opens its own database, cannot see other tenant databases, gets error 229 on the three `xp_*` procedures, and the Worker cannot alter the roles directly. Earlier the same day on live: a brand-new tenant provisioned Ready on attempt 1 with all four logins, and a page `query` button wrote a row through the write login with the session user bound server-side and a write-audit row. The live boundary reinstall with these roles is a separate, approved step.
