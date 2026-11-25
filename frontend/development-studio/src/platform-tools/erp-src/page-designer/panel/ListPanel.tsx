@@ -5,7 +5,7 @@ import { gridToolPatch, type GridToolKey } from "../GridSettingsFields";
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import {
   DEFAULT_LIST_PAGE_SIZE, actionUsableAt, addListAction, chooseDataSource, dataSourceUsable, findList, labelMap, listDataSourceCode,
-  missingCatalogCodes, placedActions, removeListAction, rowOpenChoice, rowOpenUsable, searchState, setColumns, setListProps, setPageSize,
+  missingCatalogCodes, placedActions, removeListAction, rowOpenChoice, rowOpenParamName, rowOpenUsable, searchState, setColumns, setListProps, setPageSize,
   setRowDoubleClick, setSearch, stringList, withOperationParameters, MAX_LIST_COLUMNS, type ActionPlace, type ModelDefinition, type OperationListStatus,
   type RowOpenChoice,
 } from "./listPanelModel";
@@ -19,9 +19,12 @@ const TOOLS: [GridToolKey, string][] = [["showColumnFilters", "Kolon filtreleri"
 const DENSITIES: [string, string][] = [["dense", "Sıkı"], ["comfort", "Rahat"]];
 export const LIST_EMPTY_DEFAULT = "Kayıt yok.";
 const OPEN_CHOICES: [RowOpenChoice, string][] = [["card", "Kartı aç"], ["panel", "Yan panelde göster"], ["none", "Hiçbir şey yapma"]];
-/** Panelin karşıladığı tablo özellikleri; ötekiler "Eski ayarlar" altında salt okunur görünür ve kayıtta korunur. */
+/**
+ * Panelin karşıladığı tablo özellikleri; ötekiler "Eski ayarlar" altında salt okunur görünür ve kayıtta korunur.
+ * `hideOnMobile` burada yoktur: sayfanın tek listesi gizlenmez (ERP listeye uygulamaz); eski kayıttaki değer eski ayarlarda görünür.
+ */
 const KNOWN = new Set(["slot", "title", "query", "columns", "columnLabels", "showGridSearch", "pageSize", "rowOpenAction", "rowActions", "bulkDeleteQuery",
-  "showColumnFilters", "showColumnChooser", "showPivot", "showExport", "hideOnMobile", "density", "striped", "emptyText", "visibleWhen"]);
+  "showColumnFilters", "showColumnChooser", "showPivot", "showExport", "density", "striped", "emptyText", "visibleWhen"]);
 
 export type ListPanelProps = {
   definition: ModelDefinition; listId: string;
@@ -75,6 +78,7 @@ export function ListPanel(props: ListPanelProps) {
   const search = searchState(definition, listId);
   const pageSize = typeof table.props.pageSize === "number" ? table.props.pageSize : DEFAULT_LIST_PAGE_SIZE;
   const open = rowOpenChoice(definition, listId);
+  const openParam = open === "card" ? rowOpenParamName(definition, listId, source) : null;
   const placed = placedActions(definition, listId);
   const sourceColumns = source?.columns.map((column) => column.code) ?? [];
   const actionChips = (place: ActionPlace) => {
@@ -139,6 +143,7 @@ export function ListPanel(props: ListPanelProps) {
           {OPEN_CHOICES.map(([value, label]) => <option key={value} value={value} disabled={value === "card" && !!source && !rowOpenUsable(source).usable}>{label}</option>)}
         </select></label>
       {source && !rowOpenUsable(source).usable && <p className="cpanel-note">{(rowOpenUsable(source) as { reason: string }).reason}</p>}
+      {open === "card" && openParam && <p className="cpanel-note" data-part="open-param">Açılan sayfa bu kaydı <code>{openParam}</code> bilgisiyle alır.</p>}
       {open === "panel" && <p className="cpanel-note">Panel açılınca ızgara kendiliğinden daralır. Mobilde panel alttan açılır.</p>}
       <div className="cpanel-q">Kullanıcı araçları</div>
       <div className="cpanel-chips">{TOOLS.map(([key, label]) => {
@@ -153,8 +158,6 @@ export function ListPanel(props: ListPanelProps) {
         <b>Tablet:</b> ilk 4 kolon görünür, satır eylemleri “⋯” menüsüne girer.<br/>
         <b>Mobil:</b> kart listesi olur. 1. kolon başlık, 2.–3. kolon alt satır, sayı kolonu sağda görünür.
       </div>
-      <label className="cpanel-row">Mobilde bu ızgarayı gizle<input type="checkbox" role="switch" checked={table.props.hideOnMobile === true} disabled={disabled}
-        onChange={(event) => patch({ hideOnMobile: event.target.checked ? true : undefined })}/></label>
     </div>
   </>;
 

@@ -42,7 +42,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { newListTemplateDefinition, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -926,7 +926,7 @@ const focusKindText = (type: string) => type === "dialog" ? "pencerenin içi" : 
 const ejectText = (type: string) => type === "dialog" ? "Pencereden çıkar" : type === "formCard" ? "Form kartından çıkar" : type === "facetPanel" ? "Yan panelden çıkar" : "Karttan çıkar";
 const snapshotOf = (name: string, description: string, definition: PageDefinition) => JSON.stringify({ name, description, definition });
 const FULLSCREEN_STORAGE_KEY = "nexora.pageDesigner.fullscreen";
-const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa SQL sorgusu içerdiği için yalnız yöneticiler düzenleyebilir.";
+const QUERY_PAGE_ADMIN_ONLY = "Bu sayfa satır içi SQL, yazma işlemi ya da kod içerdiği için yalnız yöneticiler düzenleyebilir.";
 const SYSTEM_PAGE_ADMIN_ONLY = "Sistem sayfalarını yalnız firma yöneticisi düzenleyebilir.";
 const SYSTEM_PAGE_PREVIEW_STAGE = "Bu standart tanım önizleme aşamasında; eski ekranın tüm işlevlerini içermez.";
 const SYSTEM_PAGE_REMOVE_CONFIRM = "Firma tasarımı kaldırılsın mı? Ekran, Nexora'nın standart ekranına döner; geçiş tamamlanmamış ekranlarda bu eski ekrandır.";
@@ -1479,8 +1479,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const listDefinition = newListTemplateDefinition() as unknown as PageDefinition;
       setName(result.name); setCode(result.code);
       commit((value) => ({ ...value, template: listDefinition.template, components: listDefinition.components }));
-      setNewPageDialog(null); setSelectedComponentId(null); setError("");
-      setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Taslağı kaydedin.");
+      // Liste kaynak seçilmeden kaydedilemez (sunucu reddeder): panelinde kaynak seçilsin diye liste seçilir.
+      setNewPageDialog(null); setSelectedComponentId(NEW_LIST_ID); setRightMode("inspector"); setError("");
+      setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce ne listeleneceğini seçin.");
       return;
     }
     const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
@@ -2238,6 +2239,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
+    // Kaynağı seçilmemiş liste kalıbı kaydedilmez (sunucu "tam bir liste" ister); ipucu kendi metniyle gösterilir.
+    const listProblem = listSourceProblem(definition);
+    if (listProblem) {
+      if (quiet) setCanvasHint(listProblem); else {
+        setError(listProblem);
+        const list = definition.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
+        if (list) { setSelectedComponentId(list.id); setRightMode("inspector"); }
+      }
+      return null;
+    }
     // Düzen bileşenlerinin zorunlu başvuruları: sunucu da reddeder; burada bileşen adıyla anlaşılır mesaj verilir.
     const pageInputIds = new Set(cardTree.flattenComponents(definition.components).filter((component) => component.type === "input").map((component) => component.id));
     for (const component of definition.components) {
@@ -2302,7 +2313,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // revizyonu değişince yenilenir; böylece elle kayıt, geri yükleme ve otomatik kayıt aynı yoldan yansır. Değişiklik yoksa
   // (sayfa açılışı) ya da elle kayıt sürerken PUT atılmaz.
   useDraftAutosave({
-    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()),
+    // Kaynağı seçilmemiş liste kalıbı kaydedilmez; kaynak seçilince (kapalıyken gelen değişiklik unutulmaz) taslak oluşur.
+    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null,
     changeKey: definition,
     save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
     // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
@@ -3715,7 +3727,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}/>
           </div>
-            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div></>
+            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>

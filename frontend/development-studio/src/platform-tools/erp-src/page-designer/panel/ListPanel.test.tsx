@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ActiveCatalog } from "../catalogClient";
 import { newListTemplateDefinition } from "../pageTemplates";
 import { LIST_ACTIONS_NOTE, LIST_EXPORT_NOTE, LIST_MISSING_IN_CATALOG, ListPanel } from "./ListPanel";
-import { addListAction, CARD_UNAVAILABLE, chooseDataSource, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
+import { addListAction, CARD_UNAVAILABLE, chooseDataSource, rowOpenParamName, setListProps, setRowDoubleClick, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
 
 const catalog: ActiveCatalog = {
   version: "1",
@@ -27,7 +27,7 @@ describe("ListPanel", () => {
     const html = render(bound);
     const order = ["Ne listelensin?", "Cari hesaplar", "Yazılımcının hazırladığı veri kaynağı · 312 kayıt", "Kolonlar", "Arama kutusu", "Sayfa başına",
       "Satıra çift tıklayınca", "Kullanıcı araçları", "Kolon filtreleri", "Kolon seçici", "Pivot", "Dışa aktar", LIST_EXPORT_NOTE,
-      "Küçük ekranlarda", "Mobilde bu ızgarayı gizle", "Eylemler", "Listenin üstünde", "Her satırın sonunda", LIST_ACTIONS_NOTE,
+      "Küçük ekranlarda", "Eylemler", "Listenin üstünde", "Her satırın sonunda", LIST_ACTIONS_NOTE,
       "Görünüm", "Satır yüksekliği", "Çizgili satırlar", "Liste boşken yazılacak", "Ne zaman görünsün?",
       "Aradığın alan ya da liste yok mu?", "Yazılımcıdan iste →"];
     const at = order.map((text) => html.indexOf(text));
@@ -38,6 +38,8 @@ describe("ListPanel", () => {
     expect(html).not.toContain("role=\"dialog\"");
     expect(html).not.toContain("<details open");
     expect(html).toContain("href=\"#my-requests\"");
+    // Sayfanın tek listesi gizlenemez: liste panelinde "Mobilde gizle" anahtarı yok.
+    expect(html).not.toContain("Mobilde bu ızgarayı gizle");
   });
   it("shows unusable sources dimmed with their reason", () => {
     const html = render(bound);
@@ -60,6 +62,23 @@ describe("ListPanel", () => {
     expect(html).not.toContain(">Normal</button>");
     expect(html.indexOf("Liste boşken yazılacak")).toBeLessThan(html.indexOf("Boş halini önizle"));
     expect(html).toContain('aria-label="Liste başlığı"');
+  });
+  it("eski kayıttaki hideOnMobile değeri yalnız eski ayarlarda görünür", () => {
+    const html = render(setListProps(bound, "liste", { hideOnMobile: true }));
+    expect(html).toContain("Eski ayarlar (salt okunur)");
+    expect(html).toContain("<dt>hideOnMobile</dt>");
+  });
+  it("Kartı aç seçiliyken açılan sayfanın kaydı aldığı parametre adını gösterir", () => {
+    const opener = { code: "cari-liste", label: "Cari kartlar", source: "sql" as const, erpOperation: null, parameters: [], opens: "cari-kart",
+      columns: [{ code: "Kod", label: "Kod", type: "text", key: true }, { code: "Unvan", label: "Unvan", type: "text", key: false }] };
+    const withOpener: ActiveCatalog = { ...catalog, dataSources: [opener, ...catalog.dataSources] };
+    const chosen = chooseDataSource(newListTemplateDefinition() as unknown as ModelDefinition, "liste", opener);
+    expect(render(chosen, withOpener)).not.toContain("bilgisiyle alır");
+    const card = setRowDoubleClick(chosen, "liste", "card", opener);
+    // Büyük harfli anahtar kolon (Kod) açılan sayfada küçük harfle (kod) okunur.
+    expect(rowOpenParamName(card, "liste", opener)).toBe("kod");
+    expect(render(card, withOpener)).toContain("Açılan sayfa bu kaydı <code>kod</code> bilgisiyle alır.");
+    expect(render(setRowDoubleClick(card, "liste", "none", opener), withOpener)).not.toContain("bilgisiyle alır");
   });
   it("explains a missing active catalog", () => {
     expect(render(bound, null)).toContain("Etkin katalog sürümü yok");

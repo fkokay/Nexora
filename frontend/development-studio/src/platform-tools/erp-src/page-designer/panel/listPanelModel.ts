@@ -131,6 +131,22 @@ export function rowOpenChoice(def: ModelDefinition, listId: string): RowOpenChoi
   return detailOf(def, listId) ? "panel" : "none";
 }
 
+/**
+ * "Kartı aç" seçiliyken açılan sayfanın kaydı hangi parametre adıyla aldığı: kayıtlı Aç düğmesinin `params` girdisinden
+ * (açılan sayfa bu adı okur); okunamazsa kaynağın anahtar kolonundan türetilen ad. "Kartı aç" seçili değilse null.
+ */
+export function rowOpenParamName(def: ModelDefinition, listId: string, ds?: CatalogDataSource): string | null {
+  const table = findList(def, listId);
+  const openId = table && typeof table.props.rowOpenAction === "string" ? table.props.rowOpenAction : "";
+  if (!openId) return null;
+  const button = def.components.find((component) => component.id === openId && component.type === "button");
+  const first = Array.isArray(button?.props.params) ? button.props.params.find((entry): entry is string => typeof entry === "string") : undefined;
+  const saved = first ? first.slice(0, Math.max(0, first.indexOf("="))).trim() : "";
+  if (saved) return saved;
+  const key = ds ? keyColumn(ds) : undefined;
+  return key ? pageParamName(key) : null;
+}
+
 /** Listeye bağlı arama: kaynakta `q` varsa süzgeç alanı, yoksa tablonun kendi arama kutusu. */
 export function searchState(def: ModelDefinition, listId: string): { on: boolean; server: boolean } {
   const bar = filterBarOf(def, listId);
