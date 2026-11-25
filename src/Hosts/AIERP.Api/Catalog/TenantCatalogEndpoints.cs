@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Microsoft.Data.SqlClient;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -16,6 +17,9 @@ namespace AIERP.Api;
 /// </summary>
 internal static partial class TenantCatalogEndpoints
 {
+    internal const int PreviewMaxRows = 50;
+    internal const string PreviewItemNotFoundError = "Önizlenecek veri kaynağı bulunamadı.";
+    internal const string PreviewOperationItemError = "ERP işlemine dayanan veri kaynağı önizlenmez; sonuç kolonları işlem kataloğundan gelir.";
     private const string StaleMessage = "Katalog başka bir kullanıcı tarafından değiştirildi.";
 
     [GeneratedRegex(@"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
@@ -62,7 +66,7 @@ internal static partial class TenantCatalogEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             var items = await db.TenantCatalogReleases.AsNoTracking().Where(x => x.TenantId == tenant)
                 .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Version)
-                .Select(x => new ReleaseSummary(x.Id, x.Version, x.Status, x.BundleSha256, x.SourceRepository, x.SourceCommit, x.CreatedAt, x.ActivatedAt))
+                .Select(x => new ReleaseSummary(x.Id, x.Version, x.Status, x.BundleSha256, x.SourceRepository, x.SourceCommit, x.SourcePath, x.CreatedAt, x.ActivatedAt))
                 .ToListAsync(ct);
             return Results.Ok(items);
         });
@@ -73,7 +77,7 @@ internal static partial class TenantCatalogEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             // One read of the Active row. Items that no longer validate are left out and listed by code in invalidItems.
             var active = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
-            if (active is null) return Results.Ok(new ActiveCatalog(null, null, [], [], []));
+            if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], []));
             var bundle = active.Bundle;
             // SQL text is shown to a verified TenantAdmin only (the designer); runtime consumers never need it.
             var showSql = await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
@@ -81,7 +85,7 @@ internal static partial class TenantCatalogEndpoints
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.Columns, x.Opens)).ToArray();
             var actions = bundle.Items.Where(x => x.ItemKind == "action").Select(x => new ActionView(x.Code, x.Label, x.QueryKind, x.Target, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.ConfirmText)).ToArray();
-            return Results.Ok(new ActiveCatalog(active.Id, active.Version, dataSources, actions, bundle.InvalidCodes));
+            return Results.Ok(new ActiveCatalog(active.Id, active.Version, active.SourcePath, dataSources, actions, bundle.InvalidCodes));
         });
 
         catalog.MapPost("/releases/{id:guid}/activate", async (Guid id, ActivateRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -125,6 +129,71 @@ internal static partial class TenantCatalogEndpoints
             }
             return Results.Ok(new { id = target.Id, version = target.Version, status = target.Status });
         });
+
+        // Preview: the bundle is stored first (append-only, audited); a run then carries only parameter values, never SQL.
+        catalog.MapPost("/previews", async (CreatePreviewRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
+        {
+            if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
+                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+            if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
+            if (request.Bundle.ValueKind != JsonValueKind.Object) return Results.BadRequest(new { error = "Paket bir JSON nesnesi olmalıdır." });
+            var bundleJson = request.Bundle.GetRawText();
+            if (!TenantCatalogSchema.TryParse(bundleJson, ErpOperationCatalog.TryGet, out _, out var error))
+                return Results.BadRequest(new { error });
+            var sha = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(bundleJson)));
+            var preview = new TenantCatalogPreview { TenantId = tenant, CreatedByUserId = userId, BundleJson = bundleJson, BundleSha256 = sha };
+            db.TenantCatalogPreviews.Add(preview);
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenant, UserId = userId, Action = "catalog.preview.created",
+                Resource = AuditResourceSanitizer.Sanitize($"{preview.Id:D}:{sha[..12]}"),
+            });
+            await db.SaveChangesAsync(ct);
+            return Results.Created($"/api/custom-pages/catalog/previews/{preview.Id:D}", new { id = preview.Id });
+        }).RequireRateLimiting(CustomPageQueryEndpoints.PreviewRateLimitPolicy);
+
+        // Order of checks: admin -> the caller's own preview row -> item -> parameters -> re-validation of the SQL -> connection.
+        catalog.MapPost("/previews/{id:guid}/items/{code}/run", async (Guid id, string code, PreviewRunRequest? request, ClaimsPrincipal user,
+            TenantDbContext db, PlatformDbContext platformDb, HttpContext http, CancellationToken ct) =>
+        {
+            if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
+                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+            var bundleJson = await db.TenantCatalogPreviews.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.CreatedByUserId == userId && x.Id == id)
+                .Select(x => x.BundleJson).SingleOrDefaultAsync(ct);
+            if (bundleJson is null) return Results.NotFound();
+            // A stored preview that no longer passes today's rules is never run.
+            if (!TenantCatalogSchema.TryParse(bundleJson, ErpOperationCatalog.TryGet, out var bundle, out _))
+                return Results.BadRequest(new { error = CustomPageQueryEndpoints.InvalidStoredSqlError });
+            var item = bundle!.Find(code);
+            if (item is null || item.ItemKind != "dataSource") return Results.NotFound(new { error = PreviewItemNotFoundError });
+            if (item.ErpOperation is not null || item.Sql is null) return Results.BadRequest(new { error = PreviewOperationItemError });
+            // Bindings do not matter in preview: values arrive by parameter name. Session values are not filled in.
+            var declared = item.Parameters.Select(x => new PageQueryParameter(x.Name, "", x.Type)).ToArray();
+            var (parameters, parameterError) = CustomPageQueryParameters.Build(declared, request?.Parameters);
+            if (parameters is null) return Results.BadRequest(new { error = parameterError });
+            if (!ReportEndpoints.TryValidateReadOnlySql(item.Sql, out _)) return Results.BadRequest(new { error = CustomPageQueryEndpoints.InvalidStoredSqlError });
+            // The executor and the connection factory are resolved only after every check has passed.
+            var execute = http.RequestServices.GetService<CatalogPreviewExecutor>() ?? CustomSqlReportRunner.ExecuteSingleAsync;
+            var factory = http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
+            CustomSqlResult result;
+            try
+            {
+                result = await execute(item.Sql, parameters, tenant, factory, ct, PreviewMaxRows);
+            }
+            catch (Exception exception) when (CustomSqlReportRunner.MapError(exception) is not null)
+            {
+                return CustomSqlReportRunner.MapError(exception)!;
+            }
+            // Parameter values may hold personal data and are not audited.
+            db.AuditEvents.Add(new AuditEvent
+            {
+                TenantId = tenant, UserId = userId, Action = "catalog.preview.run",
+                Resource = AuditResourceSanitizer.Sanitize($"{code}:rows={result.Rows.Count}"),
+            });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new CustomPageQueryRunResult(result.Columns, result.Rows, result.Rows.Count, result.Truncated));
+        }).RequireRateLimiting(CustomPageQueryEndpoints.PreviewRateLimitPolicy);
     }
 
     private static string SourceOf(CatalogItem item) => item.Sql is not null ? "sql" : "erpOperation";
@@ -183,12 +252,15 @@ internal static partial class TenantCatalogEndpoints
 
     private sealed record CreateReleaseRequest(string? Version, JsonElement Bundle, string? SourceRepository, string? SourceCommit, string? SourcePath);
     private sealed record ActivateRequest(Guid? ExpectedActiveReleaseId);
+    private sealed record CreatePreviewRequest(JsonElement Bundle);
+    /// <summary>A preview run carries parameter values only; any other field (SQL, a bundle) is ignored.</summary>
+    private sealed record PreviewRunRequest(Dictionary<string, JsonElement>? Parameters);
     private sealed record ReleaseSummary(Guid Id, string Version, string Status, string BundleSha256, string? SourceRepository, string? SourceCommit,
-        DateTimeOffset CreatedAt, DateTimeOffset? ActivatedAt);
+        string? SourcePath, DateTimeOffset CreatedAt, DateTimeOffset? ActivatedAt);
     /// <summary>A page the release would break; <see cref="Error"/> is the page validation message against the new bundle, when it fails.</summary>
     private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error);
-    private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
+    private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, string? SourcePath, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
         IReadOnlyList<string> InvalidItems);
     private sealed record DataSourceView(string Code, string Label, string Source,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ErpOperation,
@@ -199,3 +271,10 @@ internal static partial class TenantCatalogEndpoints
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Sql,
         IReadOnlyList<CatalogParameter> Parameters, string? Confirm);
 }
+
+/// <summary>
+/// Test seam for the catalog preview run: same contract as <see cref="CustomSqlReportRunner.ExecuteSingleAsync"/>, which is used
+/// when nothing is registered (production never registers one).
+/// </summary>
+internal delegate Task<CustomSqlResult> CatalogPreviewExecutor(string sql, IReadOnlyList<SqlParameter> parameters, Guid tenantId,
+    ITenantQueryConnectionFactory factory, CancellationToken ct, int maxRows);

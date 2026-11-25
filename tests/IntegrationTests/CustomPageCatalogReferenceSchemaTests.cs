@@ -164,6 +164,61 @@ public sealed class CustomPageCatalogReferenceSchemaTests
         Assert.Null(await TenantCatalogStore.ActiveAsync(db, invalidTenant, ErpOperationCatalog.TryGet, CancellationToken.None));
     }
 
+    private static readonly CatalogBundle OperationCatalog = new(
+    [
+        new CatalogItem("cariListe", "Cari listesi", "dataSource", "read", null, "cari.listele", [], [], null, null, null),
+        new CatalogItem("stokKartlari", "Stok kartları", "dataSource", "read", null, "stok.kart.listele", [], [], null, null, null),
+        new CatalogItem("cariKart", "Cari kartı", "dataSource", "read", null, "cari.getir", [], [], null, null, null),
+    ]);
+
+    private static string PageWith(object[] queries, params object[] components) => JsonSerializer.Serialize(new
+    {
+        schemaVersion = 2,
+        queries,
+        components = new object[] { new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } } }.Concat(components).ToArray()
+    });
+
+    [Fact]
+    public void Operation_backed_reference_drives_server_paged_table()
+    {
+        var reference = Reference("dataSource", "cariListe", parameters:
+        [
+            new { name = "q", binding = "{{arama.value}}", type = "text" },
+            new { name = "page", binding = "{{tablo.sayfa}}", type = "int" },
+            new { name = "pageSize", binding = "{{tablo.sayfaBoyutu}}", type = "int" },
+        ]);
+        var json = PageWith([reference], new { id = "t1", type = "dataTable", name = "tablo", props = new { query = "q1", paging = "server", pageSize = 25 } });
+        Assert.True(Validate(json, OperationCatalog, out var error), error);
+        // Still recorded as a reference, not as a page operation.
+        Assert.Null(Assert.Single(TenantCustomPageQueries.ReadQueries(json)).Operation);
+    }
+
+    [Fact]
+    public void Operation_backed_reference_columns_are_checked_against_operation_result()
+    {
+        static string Grid(string columns) => PageWith([Reference("dataSource", "stokKartlari")], new
+        {
+            id = "g1", type = "editableGrid", name = "kalemler",
+            props = new { gridMode = "list", gridColumns = new[] { $"stockItemId|Stok kartı|lookup:q1:{columns}" } }
+        });
+        Assert.True(Validate(Grid("id:code"), OperationCatalog, out var error), error);
+        Assert.False(Validate(Grid("id:yok"), OperationCatalog, out error));
+        Assert.Contains("'yok' sütunu 'q1' sorgusunun sonucunda yok", error);
+    }
+
+    [Fact]
+    public void Operation_backed_reference_does_not_satisfy_source_read()
+    {
+        var read = Reference("dataSource", "cariKart", parameters: [new { name = "id", binding = "{{arama.value}}", type = "guid" }]);
+        var write = new
+        {
+            id = "q2", name = "pasifeAl", kind = "update", operation = "cari.pasifeAl", runOn = "manual",
+            parameters = Array.Empty<object>()
+        };
+        Assert.False(Validate(PageWith([read, write]), OperationCatalog, out var error));
+        Assert.Contains("'cari.getir' okuma sorgusu olmalıdır", error);
+    }
+
     internal static TenantCatalogRelease Release(Guid tenant, string version, string status, string bundleJson) => new()
     {
         TenantId = tenant, Version = version, Status = status, BundleJson = bundleJson,

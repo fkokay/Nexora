@@ -16,6 +16,7 @@ import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, Cust
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
 import QueriesPanel, { MAX_QUERIES, catalogReference, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, querySourceLabel, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
+import { componentOperation, loadCatalogRefs, type CatalogRefs } from "./page-designer/catalogItems";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, pageDateScope, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
@@ -59,7 +60,7 @@ import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
-import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
+import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
 import { useCanvasSamples } from "./page-designer/useCanvasSamples";
 import { SettingsHost, SettingsPane, type SettingsTab } from "./page-designer/ComponentSettingsDialog";
@@ -328,7 +329,8 @@ const sameList = (a: unknown, b: string[]) => Array.isArray(a) && a.length === b
  * reddedeceği tanım üretilmez: silinen/uygunsuz girişler, ikinci sahip, geçersiz tablo, silinen sorgu ve sayı sütunu temizlenir.
  * Değişiklik yoksa aynı nesneyi döndürür (geri alma yığını ve commit karşılaştırması bozulmaz).
  */
-type ReconcileOptions = { catalog?: ErpCatalog; previous?: PageDefinition; queryEditable?: boolean };
+/** `catalogRefs`: firma kataloğu; ERP işlemine dayanan başvurular sayfalama kurallarına öğenin işlemiyle girer (sunucu kuralı). */
+type ReconcileOptions = { catalog?: ErpCatalog; catalogRefs?: CatalogRefs; previous?: PageDefinition; queryEditable?: boolean };
 /** `disabledWhen` / `disabledReason` alabilen türler (sunucu kuralı). */
 const DISABLEABLE_TYPES: ComponentType[] = ["button", "input", "editableGrid", "customFieldsBlock"];
 /** Izgaranın ayar penceresi sekmeleri (pencere kapalıyken Gelişmiş panelde hepsi alt alta çizilir). */
@@ -460,8 +462,11 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     const hasPagingProps = PAGING_PROPS.some((key) => key in props);
     if (!hasPagingProps) return component;
     const query = typeof props.query === "string" ? queriesById.get(props.query) : undefined;
-    const op = query && isOperationQuery(query) && catalog ? findOperation(catalog, query.operation) : undefined;
-    const unsupported = props.paging !== "server" || !query || !isOperationQuery(query) || (catalog?.status === "ready" && !!query.operation && (!op || !supportsServerPaging(op)));
+    // Katalog başvurusunun kaynağı bilinmiyorsa (katalog yüklenmedi, alınamadı ya da kod yok) saklanan sayfalama silinmez.
+    const source = query ? componentOperation(query, options.catalogRefs) : undefined;
+    const op = source?.kind === "operation" && catalog ? findOperation(catalog, source.name) : undefined;
+    const unsupported = props.paging !== "server" || !source || source.kind === "sql"
+      || (source.kind === "operation" && catalog?.status === "ready" && !!source.name && (!op || !supportsServerPaging(op)));
     if (unsupported) { changed = true; return { ...component, props: stripPagingProps(props) }; }
     const next = { ...props };
     let touched = false;
@@ -795,7 +800,7 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     const table = component.name;
     const params = pagingParams(component.props);
     const bound = (query: PageQuery, name: string, binding: string) => query.parameters.some((parameter) => parameter.name.toLowerCase() === name.toLowerCase() && parameter.binding.trim() === binding);
-    queries = queries.map((query) => query.id !== component.props.query || !isOperationQuery(query) || (bound(query, params.page, pageBinding(table)) && bound(query, params.pageSize, pageSizeBinding(table))) ? query
+    queries = queries.map((query) => query.id !== component.props.query || componentOperation(query, options.catalogRefs).kind !== "operation" || (bound(query, params.page, pageBinding(table)) && bound(query, params.pageSize, pageSizeBinding(table))) ? query
       : withPagingBindings(query, table, params));
   }
   // Süzgeç alanının parametreleri listenin sorgusuna {{<ad>.<parametre>}} ile bağlanır (sunucu kuralı). SQL sorgusunda yalnız
@@ -1137,6 +1142,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [, setUndoTick] = useState(0);
   const [queryPreviews, setQueryPreviews] = useState<Record<string, QueryPreview>>({});
   const [erpCatalog, setErpCatalog] = useState<ErpCatalog>({ status: "loading" });
+  const [catalogRefs, setCatalogRefs] = useState<CatalogRefs>({ status: "loading" });
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   // İşlem Çubuğunda "Kaydet dizisi" seçildi ama henüz adım eklenmedi (boş dizi özelliği kaydedilmez).
   const [barSaveChoice, setBarSaveChoice] = useState<{ id: string; mode: "query" | "sequence" } | null>(null);
@@ -1317,6 +1323,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       .catch(() => { if (active) setErpCatalog({ status: "failed" }); });
     return () => { active = false; };
   }, [request]);
+  // Firma kataloğu (Katalog kaynağı): alınamazsa yalnız "Katalog" seçeneği kapalı kalır.
+  useEffect(() => {
+    let active = true;
+    void loadCatalogRefs(request)
+      .then((refs) => { if (active) setCatalogRefs(refs); })
+      .catch(() => { if (active) setCatalogRefs({ status: "failed" }); });
+    return () => { active = false; };
+  }, [request]);
   useEffect(() => {
     if (!isAdmin) return;
     void request<SqlSchemaTable[]>("/api/reports/sql-schema").then((tables) => setSqlSchema(Array.isArray(tables) ? tables : [])).catch(() => setSqlSchema([]));
@@ -1407,7 +1421,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commit = (update: (value: PageDefinition) => PageDefinition, coalesceKey?: string) => {
     if (!canEdit) return;
     const previous = definitionRef.current;
-    const next = reconcileDefinition(update(previous), { catalog: erpCatalog, previous, queryEditable });
+    const next = reconcileDefinition(update(previous), { catalog: erpCatalog, catalogRefs, previous, queryEditable });
     if (next === previous) return;
     const now = Date.now();
     const last = lastCommit.current;
@@ -1953,9 +1967,12 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // SQL moduna dönüşte `operation` anahtarı tamamen kalkar (anahtarın varlığı ERP işlemi modunu belirler).
         if ("operation" in patch && patch.operation === undefined) delete next.operation;
         if ("runDebounceMs" in next && next.runDebounceMs === undefined) delete next.runDebounceMs;
-        if (isOperationQuery(next)) return next;
+        // Katalog başvurusu: kaynak değişiminde kalkan anahtarlar silinir; başvuru seçilince SQL metni atılır.
+        for (const key of ["dataSource", "action"] as const) if (key in patch && patch[key] === undefined) delete next[key];
+        if (typeof patch.dataSource === "string" || typeof patch.action === "string") delete next.sql;
+        if (isOperationQuery(next) || catalogReference(next) !== undefined) return next;
         // Parametre adları SQL'den gelir; var olanların (ve bu oturumda SQL'den geçici düşenlerin) bağlaması ve türü korunur.
-        if (!isOperationQuery(query)) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
+        if (!isOperationQuery(query) && catalogReference(query) === undefined) for (const parameter of query.parameters) parameterMemory.current.set(`${id}:${parameter.name.toLowerCase()}`, parameter);
         if (patch.sql !== undefined) next.parameters = syncParameters(patch.sql, next.parameters, (name) => parameterMemory.current.get(`${id}:${name.toLowerCase()}`), defaultParameterBinding);
         return next;
       }),
@@ -2196,7 +2213,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const fail = (message: string, reveal?: () => void) => { if (!quiet) { setError(message); reveal?.(); } else setCanvasHint(`Tuval güncellenmedi: ${message}`); return null; };
     if (!canEdit) return fail("Bu sayfayı düzenleme yetkiniz yok.");
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
-    const reconciled = reconcileDefinition(definitionRef.current, { catalog: erpCatalog, queryEditable });
+    const reconciled = reconcileDefinition(definitionRef.current, { catalog: erpCatalog, catalogRefs, queryEditable });
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
@@ -2214,7 +2231,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           : component.type === "steps" ? stepsProblem(component.props, label, pageNamesOf(definition))
             : component.type === "input" && component.props.inputType === "lookup" ? !component.props.optionsQuery && parseStaticOptions(component.props.staticOptions).length === 0 ? "Arama kutusu için seçenek sorgusu veya sabit seçenek gerekli."
               : Array.isArray(component.props.staticOptions) && component.props.staticOptions.some((entry) => typeof entry !== "string" || !STATIC_OPTION.test(entry)) ? "'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır." : null
-              : component.type === "dataTable" ? pagedTableProblem(component, definition.queries.find((query) => query.id === component.props.query)) ?? fazBProblem(component, label, pageInputIds)
+              : component.type === "dataTable" ? pagedTableProblem(component, definition.queries.find((query) => query.id === component.props.query), catalogRefs) ?? fazBProblem(component, label, pageInputIds)
                 : fazBProblem(component, label, pageInputIds);
       // Koşul sözdizimi ve kök adları: sunucu da reddeder; burada aynı metinle ve bileşen seçilerek gösterilir.
       const condition = empty ?? conditionProblem("visibleWhen", component.props.visibleWhen, pageNamesOf(definition))
@@ -2464,7 +2481,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     };
   };
   const queryEditor = useQueryEditor({
-    queries: definition.queries, catalog: erpCatalog, schema: sqlSchema, suggestions: suggestionsRef.current, components: definition.components,
+    queries: definition.queries, catalog: erpCatalog, catalogRefs, isAdmin, schema: sqlSchema, suggestions: suggestionsRef.current, components: definition.components,
     editable: queryEditable, readOnlyReason: !isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir." : !canEdit ? "Bu sayfa şu an düzenlenemez." : null,
     previewBlockedReason: current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null,
     previews: queryPreviews,
@@ -3530,16 +3547,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const setTabs = (id: string, tabs: TabEntry[], defaultTab: number) => patchComponent(id, { tabs: tabsValue(tabs), defaultTab: tabs.length > 0 ? defaultTab : undefined });
   // "Sayfalama" bölümü (veri listesi): sunucu sayfalaması adlı, ERP işlemine bağlı ve işlemi page/pageSize alan listede açılabilir.
   const pagedQuery = selected?.type === "dataTable" && selectedQueryRef ? definition.queries.find((query) => query.id === selectedQueryRef) : undefined;
-  const pagedOp = pagedQuery && isOperationQuery(pagedQuery) ? findOperation(erpCatalog, pagedQuery.operation) : undefined;
+  const pagedSource = pagedQuery ? componentOperation(pagedQuery, catalogRefs) : undefined;
+  const pagedOp = pagedSource?.kind === "operation" ? findOperation(erpCatalog, pagedSource.name) : undefined;
   const pagingOn = !!selected && isPagedTable(selected);
   const pagingSharedWith = pagedQuery ? definition.components.find((component) => component.id !== selected?.id && isPagedTable(component) && component.props.query === pagedQuery.id) : undefined;
   const pagingBlocked = !selected?.name || !identifier.test(selected.name) ? "Önce listeye bir Ad verin."
-    : !pagedQuery || !isOperationQuery(pagedQuery) ? "Liste bir ERP işlemi sorgusuna bağlı olmalıdır."
-      : erpCatalog.status !== "ready" ? "ERP işlem listesi yükleniyor."
-        : !supportsServerPaging(pagedOp) ? "Bu ERP işlemi sayfalamayı desteklemiyor (page / pageSize parametresi yok)."
-          : pagingSharedWith ? `Bu sorgu zaten “${summaryOf(pagingSharedWith)}” listesinde sayfalı kullanılıyor.`
-            : !queryEditable ? "Sayfalama sorgu parametrelerini değiştirir; yalnız tenant yöneticisi açabilir."
-              : null;
+    : pagingSourceProblem(pagedQuery, catalogRefs, erpCatalog) ?? (pagingSharedWith ? `Bu sorgu zaten “${summaryOf(pagingSharedWith)}” listesinde sayfalı kullanılıyor.`
+      : !queryEditable ? "Sayfalama sorgu parametrelerini değiştirir; yalnız tenant yöneticisi açabilir."
+        : null);
   const setServerPaging = (on: boolean) => {
     if (!selected || !pagedQuery || !queryEditable) return;
     if (on && (pagingBlocked || !selected.name)) return;
@@ -4290,7 +4305,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         schema={sqlSchema} suggestions={sequenceSuggestions.length > 0 ? [...bindingSuggestions, ...sequenceSuggestions] : bindingSuggestions} previews={queryPreviews} components={definition.components}
         previewBlockedReason={current?.isPublished ? "Önizleme yalnız taslakta çalışır; önce yeni taslak oluşturun." : null}
         takenNames={(queryId) => takenNames({ queryId })} onAdd={addQuery} onUpdate={updateQuery} onRemove={removeQuery} onPreview={runQueryPreview}
-        catalog={erpCatalog} onAddSourceQuery={addSourceQuery}/>
+        catalog={erpCatalog} catalogRefs={catalogRefs} isAdmin={isAdmin} onAddSourceQuery={addSourceQuery}/>
     </QueryEditorModal>}
     {formEditorOpen && <div className="custom-pages-form-popup" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setFormEditorOpen(false); void refreshForms(); } }}><section role="dialog" aria-modal="true" aria-label="Form tasarımcısı"><header><div><b>Form tasarımcısı</b><small>Formu oluşturun, alanları düzenleyin ve yayımlayın.</small></div><button type="button" onClick={() => { setFormEditorOpen(false); void refreshForms(); }}>Kapat</button></header><CustomFormsPage token={token} role={role}/></section></div>}
     {queryEditor.dialog}
