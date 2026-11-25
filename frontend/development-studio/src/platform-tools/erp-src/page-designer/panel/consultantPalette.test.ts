@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONSULTANT_PALETTE, consultantAvailability, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
+import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
 import { designerInternals } from "../../CustomPagesPage";
 
 const comp = (type: string, props: Record<string, string | number | boolean | string[]> = {}, extra: Record<string, unknown> = {}) => ({ id: "x", type, props, ...extra });
@@ -10,7 +10,11 @@ describe("consultantPalette", () => {
     expect(CONSULTANT_PALETTE.map((item) => item.kind)).toEqual(["text", "infoBox", "indicator", "list", "form", "lineTable", "recordSummary", "sections", "buttons", "image", "developer"]);
     expect(CONSULTANT_PALETTE[0].description).toBe("Başlık, açıklama, etiket");
     expect(CONSULTANT_PALETTE[3].description).toBe("Kayıtları listeler");
-    for (const item of CONSULTANT_PALETTE) expect(item.description.length).toBeGreaterThan(0);
+    expect(CONSULTANT_PALETTE.map((item) => item.description)).toEqual(["Başlık, açıklama, etiket", "Bilgi, uyarı, madde listesi", "Sayı, ilerleme, durum", "Kayıtları listeler", "Kayıt alanları", "Belge satırları", "Kaydın kimlik bilgisi", "Sekmeler ya da adımlar", "Sayfa eylemleri", "Resim ya da logo", "Özel çizim, harita, grafik…"]);
+  });
+
+  it("isCreatableKind accepts exactly the four ready kinds", () => {
+    expect(CONSULTANT_PALETTE.filter((item) => isCreatableKind(item.kind)).map((item) => item.kind)).toEqual(["text", "infoBox", "indicator", "image"]);
   });
 
   it("only text infoBox indicator image are available", () => {

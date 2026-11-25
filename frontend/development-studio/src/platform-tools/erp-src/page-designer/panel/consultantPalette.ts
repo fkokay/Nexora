@@ -11,13 +11,13 @@ export const CONSULTANT_PALETTE: ConsultantItem[] = [
   { kind: "infoBox", label: "Bilgi kutusu", description: "Bilgi, uyarı, madde listesi", icon: Info },
   { kind: "indicator", label: "Gösterge", description: "Sayı, ilerleme, durum", icon: Gauge },
   { kind: "list", label: "Liste", description: "Kayıtları listeler", icon: List },
-  { kind: "form", label: "Form", description: "Alanları doldurulan form", icon: ClipboardList },
-  { kind: "lineTable", label: "Satır tablosu", description: "Kalem satırları", icon: Table2 },
-  { kind: "recordSummary", label: "Kayıt özeti", description: "Kaydın öne çıkan bilgileri", icon: BadgeInfo },
-  { kind: "sections", label: "Bölümler", description: "Sekmeli ya da gruplu içerik", icon: Rows3 },
+  { kind: "form", label: "Form", description: "Kayıt alanları", icon: ClipboardList },
+  { kind: "lineTable", label: "Satır tablosu", description: "Belge satırları", icon: Table2 },
+  { kind: "recordSummary", label: "Kayıt özeti", description: "Kaydın kimlik bilgisi", icon: BadgeInfo },
+  { kind: "sections", label: "Bölümler", description: "Sekmeler ya da adımlar", icon: Rows3 },
   { kind: "buttons", label: "Butonlar", description: "Sayfa eylemleri", icon: MousePointerClick },
   { kind: "image", label: "Görsel", description: "Resim ya da logo", icon: ImageIcon },
-  { kind: "developer", label: "Yazılımcı bileşeni", description: "Yazılımcının hazırladığı bileşen", icon: Code2 },
+  { kind: "developer", label: "Yazılımcı bileşeni", description: "Özel çizim, harita, grafik…", icon: Code2 },
 ];
 
 const KEY_PREFIX = "consultant:";
@@ -42,8 +42,11 @@ export function consultantAvailability(kind: ConsultantKind): { available: true 
   return reason ? { available: false, reason } : { available: true };
 }
 
+export type CreatableKind = "text" | "infoBox" | "indicator" | "image";
+export const isCreatableKind = (kind: ConsultantKind): kind is CreatableKind => kind === "text" || kind === "infoBox" || kind === "indicator" || kind === "image";
+
 /** Palet öğesinden oluşan bileşen; `slot` eklenmez (yerini `addComponent` verir). */
-export function createConsultantComponent(kind: "text" | "infoBox" | "indicator" | "image", id: string): { id: string; type: string; props: Record<string, PropValue> } {
+export function createConsultantComponent(kind: CreatableKind, id: string): { id: string; type: string; props: Record<string, PropValue> } {
   switch (kind) {
     case "text": return { id, type: "heading", props: { text: "Başlık" } };
     case "infoBox": return { id, type: "alert", props: { variant: "info", title: "Bilgi", text: "" } };
