@@ -5,6 +5,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { loadEnglishDictionaries, localizedUiText } from '../locale';
 import CustomerLedgerPage, { periodRange } from '../CustomerLedgerPage';
+import { OPEN_PAGE_EVENT, type WorkspaceOpenRequest } from '../pageNavigation';
 
 const line = (id: string, entryDate: string, direction: 'Debit' | 'Credit', amount: number, description: string, balance: number, extra = {}) => ({
   id, entryDate, direction, amount, currencyCode: 'TRY', description, reversalOfId: null, isReversal: false, hasReversal: false, balance, ...extra,
@@ -16,7 +17,8 @@ const statement = {
     line('l1', '2026-10-14', 'Debit', 500, 'Satış faturası SF-1', 1500, { hasReversal: true }),
     line('l2', '2026-10-15', 'Credit', 500, 'Hatalı fiyat', 1000, { reversalOfId: 'l1' }),
     line('l3', '2026-10-16', 'Debit', 100, 'Satış faturası SF-2', 1100, { currencyCode: 'EUR' }),
-    line('l4', '2026-11-01', 'Credit', 1400, 'Tahsilat', -300),
+    line('l4', '2026-11-01', 'Credit', 1400, 'Tahsilat', -300,
+      { sourceType: 'CustomerCollection', sourceId: 'col1', sourceCode: 'THS-7', sourceOpenId: 'inv1' }),
   ],
 };
 
@@ -84,7 +86,7 @@ describe('Cari Hesap Hareketleri (taslak 03 ekstre)', () => {
     await renderWithStatement();
     const foreign = screen.getByText('Satış faturası SF-2').closest('tr')!;
     expect(within(foreign).getByText('100,00').closest('td')!.textContent).toContain('EUR');
-    const own = screen.getByText('Tahsilat').closest('tr')!;
+    const own = screen.getByText('Tahsilat', { selector: '.cl-desc-text' }).closest('tr')!;
     expect(own.textContent).not.toContain('TRY');
     expect(screen.getByText('Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz')).toBeTruthy();
   });
@@ -112,6 +114,32 @@ describe('Cari Hesap Hareketleri (taslak 03 ekstre)', () => {
   });
 });
 
+describe('Belgeye git (taslak 28)', () => {
+  it('shows the document kind and number and opens its legacy screen in a new tab; a manual movement has none', async () => {
+    const opened: WorkspaceOpenRequest[] = [];
+    const listen = (event: Event) => opened.push((event as CustomEvent<WorkspaceOpenRequest>).detail);
+    window.addEventListener(OPEN_PAGE_EVENT, listen);
+    try {
+      await renderWithStatement();
+      const collection = screen.getByText('THS-7').closest('tr')!;
+      expect(within(collection).getByText('Tahsilat', { selector: '.nx-status-tag' })).toBeTruthy();
+      fireEvent.click(within(collection).getByRole('button', { name: 'Belgeye git ›' }));
+      fireEvent.click(within(collection).getByRole('button', { name: 'THS-7' }));
+      expect(opened).toEqual([
+        { page: 'sales-invoices', params: { invoiceId: 'inv1', tab: 'transactions' }, replace: false, legacy: true },
+        { page: 'sales-invoices', params: { invoiceId: 'inv1', tab: 'transactions' }, replace: false, legacy: true },
+      ]);
+      const manual = screen.getByText('Hatalı fiyat').closest('tr')!;
+      const button = within(manual).getByRole('button', { name: 'Belgeye git ›' }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      expect(button.title).toBe('Elle girilen hareket; bağlı belge yok');
+      expect(within(manual).getAllByRole('cell')[1].textContent).toBe('—');
+    } finally {
+      window.removeEventListener(OPEN_PAGE_EVENT, listen);
+    }
+  });
+});
+
 describe('English labels of the statement texts', () => {
   it('translates the new statement texts', async () => {
     localStorage.setItem('aierp.locale', 'en');
@@ -123,6 +151,7 @@ describe('English labels of the statement texts', () => {
       'Farklı dövizli hareket var; toplamlar ve bakiye dövize göre ayrıştırılmaz',
       'Cari hesap hareketleri', 'Aramayla eşleşen cari bulunamadı.', 'Cari ekstre görünümüne başlayın',
       'Borç, alacak ve bakiye hareketlerini görmek için önce bir cari hesap seçin.',
+      'Belgeye git ›', 'Elle girilen hareket; bağlı belge yok', 'Bağlı belge açılamıyor.', 'Alış faturası taslağı',
     ])
       expect(localizedUiText(text), text).not.toBe(text);
   });

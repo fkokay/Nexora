@@ -446,7 +446,7 @@ describe('Satınalma faturası taslakları: liste tipi ve belge oluşturma gör�
     expect(document.querySelector('.nx-list-footer')!.textContent).toContain('Gösterilen 2 / 2');
     expect(document.querySelector('.nx-list-footer .list-pagination, .nx-list-footer nav')).toBeNull();
     // No row action column: Düzenle / Muhasebeleştir are in İşlemler.
-    expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+    expect(screen.queryAllByRole('button', { name: 'Düzenle' }).filter((button) => !button.closest('[role="toolbar"]'))).toEqual([]);
     expect(openMenu().slice(0, 2)).toEqual([
       { label: 'Düzenle', reason: 'Önce bir kayıt seçin' },
       { label: 'Muhasebeleştir', reason: 'Önce bir kayıt seçin' },

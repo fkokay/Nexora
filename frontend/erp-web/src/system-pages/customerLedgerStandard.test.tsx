@@ -7,7 +7,7 @@ import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
-import { setPageParams } from '../pageNavigation';
+import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from '../pageNavigation';
 import { pageDateScope } from '../custom-page/pageBindings';
 import catalog from './customerLedgerOperations.fixture.json';
 
@@ -39,10 +39,12 @@ const statement = (from: string, to: string) => ({
   openingBalance: 12000, debitTotal: 210000, creditTotal: 35758, closingBalance: 186242, openingAmount: 12000, openingSide: 'B',
   closingAmount: 186242, closingSide: 'B', netMovement: 174242, openingAsOf: '2025-12-31', hasForeignCurrency: foreign,
   items: [
-    line('l1', '2026-03-05', 'Debit', 150000, 162000, 'Satış faturası SF-2026-0012'),
+    line('l1', '2026-03-05', 'Debit', 150000, 162000, 'Satış faturası SF-2026-0012',
+      { sourceType: 'SalesInvoice', sourceId: 'si1', sourceCode: 'SF-2026-0012', sourceOpenId: 'si1' }),
     line('l2', '2026-04-12', 'Debit', 5000, 167000, 'Elle hareket · avans', { hasReversal: true }),
     line('l3', '2026-04-13', 'Credit', 5000, 162000, 'Ters kayıt', { isReversal: true, reversalOfId: 'l2' }),
-    line('l4', '2026-06-20', 'Credit', 30758, 131242, 'Tahsilat TH-2026-0004', foreign ? { currencyCode: 'EUR', foreignCurrencyCode: 'EUR' } : {}),
+    line('l4', '2026-06-20', 'Credit', 30758, 131242, 'Tahsilat TH-2026-0004', { sourceType: 'CustomerCollection', sourceId: 'c9', sourceCode: 'TH-2026-0004',
+      sourceOpenId: 'si1', ...(foreign ? { currencyCode: 'EUR', foreignCurrencyCode: 'EUR' } : {}) }),
   ],
 });
 
@@ -134,6 +136,28 @@ describe('Cari Hesap Hareketleri standart tanımı', { timeout: 30000 }, () => {
     expect(table.textContent).toMatch(/162\.000,00\s*B/);
     // Başlık sayacı sayfasız ekstrenin satır sayısıdır ({{ekstre.satirSayisi}}).
     await waitFor(() => expect(document.querySelector('.list-v2-title')?.textContent ?? '').toContain('4'), T);
+  });
+
+  it('a line with a document draws one Belgeye git › that opens its legacy screen in a new tab; a manual line draws none', async () => {
+    const opened: WorkspaceOpenRequest[] = [];
+    const listen = (event: Event) => opened.push((event as CustomEvent<WorkspaceOpenRequest>).detail);
+    window.addEventListener(OPEN_PAGE_EVENT, listen);
+    try {
+      setup(C1);
+      const invoiceCell = await screen.findByText('Satış faturası SF-2026-0012', {}, T);
+      const row = (node: HTMLElement) => node.closest('tr') as HTMLElement;
+      const invoice = row(invoiceCell);
+      const collection = row(screen.getByText('Tahsilat TH-2026-0004'));
+      const manual = row(screen.getByText('Elle hareket · avans'));
+      expect(within(invoice).getAllByRole('button', { name: /Belgeye git/ })).toHaveLength(1);
+      expect(within(manual).queryAllByRole('button', { name: /Belgeye git/ })).toHaveLength(0);
+      expect(within(collection).getByText('Tahsilat')).toBeTruthy();
+      fireEvent.click(within(collection).getByRole('button', { name: /Belgeye git/ }));
+      await waitFor(() => expect(opened).toHaveLength(1), T);
+      expect(opened[0]).toMatchObject({ page: 'sales-invoices', params: { invoiceId: 'si1', tab: 'transactions' }, replace: false, legacy: true });
+    } finally {
+      window.removeEventListener(OPEN_PAGE_EVENT, listen);
+    }
   });
 
   it('period chips assign both dates and re-run the statement', async () => {
