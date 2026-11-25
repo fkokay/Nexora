@@ -96,6 +96,10 @@ internal static partial class ErpOperationCatalog
             [id, .. BodyParameters<SalesOrderTransitionRequest>(sourceBacked: false, exclude: "reason")], transitionResult, null, null);
         yield return Write(SalesModule, "satis.siparis.iptal", "Satış siparişini iptal et", "update", "POST", orderRoute + "/cancel",
             [id, .. BodyParameters<SalesOrderTransitionRequest>(sourceBacked: false)], transitionResult, null, null);
+        // Belge modeli: the order as a document (order, amounts, allowed transitions, işlem günlüğü) and "alan değişince" fills.
+        yield return Read(SalesModule, "satis.siparis.belge", "Satış siparişi belgesi", orderRoute + "/document", [id], Record(Columns<SalesOrderView>()));
+        yield return new ErpOperation("satis.siparis.doldur", "Satış siparişi alanı değişince dolanlar", SalesModule, "read", "read", "POST",
+            "/api/document-models/satis.siparis/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
         var orderValues = Columns<SalesOrderCustomFieldValueView>();
         yield return Read(SalesModule, "satis.siparis.ozelAlanTanimlari", "Satış siparişi özel alan tanımları", ordersRoute + "/custom-fields", [],
             List(Columns<SalesOrderCustomFieldDefinitionView>(), null));

@@ -246,6 +246,8 @@ satis.irsaliye.kalemleri
 satis.irsaliye.listele
 satis.irsaliye.sil
 satis.kurlar
+satis.siparis.belge
+satis.siparis.doldur
 satis.siparis.getir
 satis.siparis.guncelle
 satis.siparis.hesapla

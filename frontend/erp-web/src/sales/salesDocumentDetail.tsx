@@ -43,11 +43,11 @@ export function SalesQuoteFlow({ status }: { status: string }) {
   );
 }
 
-/** Sipariş: Açık → Tamamlandı; İptal akış dışı son durum. */
+/** Sipariş: Taslak → Onay bekliyor → Onaylı → Sevk edildi → Faturalandı; İptal akış dışı son durum. */
 export function SalesOrderFlow({ status }: { status?: string }) {
   return (
     <DocumentStatusFlow
-      steps={[step("Open", salesOrderStatus("Open").label), step("Fulfilled", salesOrderStatus("Fulfilled").label)]}
+      steps={["Draft", "PendingApproval", "Open", "Fulfilled", "Invoiced"].map((key) => step(key, salesOrderStatus(key).label))}
       current={status}
       terminal={CANCELLED}
     />

@@ -1,4 +1,5 @@
 using AIERP.Api;
+using AIERP.Api.DocumentModels;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -281,6 +282,7 @@ app.MapInventoryTrackingInquiryEndpoints();
 app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesOrderTransitionEndpoints();
+app.MapDocumentModelEndpoints();
 app.MapSalesDocumentPreviewEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapSalesDeliveryListEndpoints();
@@ -4290,32 +4292,10 @@ salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCon
             x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.RequestedDeliveryDate, x.SalespersonEmployeeId)).ToListAsync();
     return Results.Ok(new SalesOrderPage(rows, page, pageSize, total));
 });
-salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var order = await db.SalesOrders.AsNoTracking().Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
-        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
-    if (order is null) return Results.NotFound();
-    var delivered = await db.SalesDeliveryLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id && x.Delivery.Status == SalesDeliveryStatus.Posted)
-        .GroupBy(x => x.OrderLineNumber).Select(g => new { LineNumber = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.LineNumber, x => x.Quantity);
-    var reservations = await db.SalesOrderReservations.AsNoTracking().Include(x => x.Warehouse)
-        .Where(x => x.TenantId == tenantId && x.OrderId == id && x.Status == SalesOrderReservationStatus.Active)
-        .ToDictionaryAsync(x => x.OrderLineNumber);
-    var lines = order.Lines.OrderBy(x => x.LineNumber).Select(x =>
-    {
-        reservations.TryGetValue(x.LineNumber, out var reservation);
-        var deliveredQuantity = delivered.GetValueOrDefault(x.LineNumber);
-        return new SalesOrderLineView(x.LineNumber, x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity,
-            x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal,
-            deliveredQuantity, Math.Max(0m, x.Quantity - deliveredQuantity), reservation?.Id, reservation?.WarehouseId,
-            reservation?.Warehouse.Name, reservation is null ? 0m : reservation.Quantity - reservation.FulfilledQuantity,
-            x.EnteredCurrencyCode, x.EnteredUnitPrice, x.EnteredUnitCode, x.IsVatIncluded, x.ExchangeRateToOrderCurrency);
-    }).ToList();
-    var customFields = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
-        join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
-        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote?.Code ?? "Bağımsız", order.CustomerId, order.Customer.Name,
-        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
+    return await SalesOrderReads.ViewAsync(db, tenantId, id, ct) is { } view ? Results.Ok(view) : Results.NotFound();
 });
 var salesDeliveries = app.MapGroup("/api/sales/deliveries").RequireAuthorization();
 salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
