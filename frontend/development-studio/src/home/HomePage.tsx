@@ -279,7 +279,7 @@ export function HomePage({ token, role, tenantName, userName, requests, requests
                 <thead>
                   <tr>
                     <th scope="col">Talep</th>
-                    <th scope="col">Proje</th>
+                    <th scope="col" className="st-col-project">Proje</th>
                     <th scope="col">Aşama</th>
                     <th scope="col">Tarih</th>
                   </tr>
@@ -290,7 +290,7 @@ export function HomePage({ token, role, tenantName, userName, requests, requests
                       <td>
                         <b>{item.title}</b>
                       </td>
-                      <td>{item.projectName || "Genel talep"}</td>
+                      <td className="st-col-project">{item.projectName || "Genel talep"}</td>
                       <td>
                         <span className={`ns-badge ${stageTones[item.stage] ?? ""}`.trim()}>{stageLabels[item.stage] ?? item.stage}</span>
                       </td>

@@ -36,7 +36,9 @@
 .dr-view > button[aria-pressed="true"] { background: var(--ns-accent-soft); color: var(--ns-accent); }
 
 /* Liste görünümü */
-.dr-table { min-width: 860px; }
+.dr-table { min-width: 640px; }
+.dr-project-cell { min-width: 150px; }
+.dr-project-cell .dr-project > span { overflow-wrap: normal; white-space: nowrap; }
 .dr-table th:last-child,
 .dr-table td:last-child { width: 1%; }
 .dr-title-cell { max-width: 420px; }

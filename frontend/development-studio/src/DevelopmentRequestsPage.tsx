@@ -350,7 +350,7 @@ export function DevelopmentRequestsPage({
               <thead>
                 <tr>
                   <th scope="col">Talep</th>
-                  <th scope="col">Proje</th>
+                  {mode === "incoming" && <th scope="col">Proje</th>}
                   <th scope="col">Durum</th>
                   <th scope="col">Tarih</th>
                   <th scope="col">
@@ -365,7 +365,7 @@ export function DevelopmentRequestsPage({
                       <b>{item.title}</b>
                       <p>{item.description}</p>
                     </td>
-                    <td>{renderProject(item)}</td>
+                    {mode === "incoming" && <td className="dr-project-cell">{renderProject(item)}</td>}
                     <td>
                       <span className="dr-badges">
                         <StageBadge stage={item.stage} />

@@ -133,7 +133,7 @@ export function PeoplePage({ token }: Props) {
                       {person.effectiveRole === "Admin" ? (
                         <>
                           <span className="ns-badge is-accent">Yönetici</span>
-                          <small className="ns-field-hint" style={{ display: "block" }}>
+                          <small className="ns-field-hint st-people-hint">
                             Yönetici rolü ERP'de, Erişim yönetimi ekranından değişir.
                           </small>
                         </>
@@ -141,6 +141,7 @@ export function PeoplePage({ token }: Props) {
                         <label className="ns-field">
                           <span className="ns-sr-only">{person.displayName} için Studio rolü</span>
                           <select
+                            aria-label={`${person.displayName} için Studio rolü`}
                             value={roleToSelect(person.studioRole)}
                             disabled={!!savingId}
                             onChange={(event) => void changeRole(person, event.target.value)}
@@ -170,7 +171,7 @@ export function PeoplePage({ token }: Props) {
             <h2 id="studio-roles-title">Roller</h2>
           </div>
         </header>
-        <ul className="st-card-note" style={{ margin: 0, paddingLeft: 0, listStyle: "none", lineHeight: 1.7 }}>
+        <ul className="st-card-note st-people-roles">
           <li>
             <b>Danışman:</b> ekran, kural ve menü tasarlar, yayınlar. Kod göremez.
           </li>

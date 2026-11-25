@@ -1911,3 +1911,39 @@ button.st-tenant-box:hover:not(:disabled) {
 .studio-module-source-loader>p { margin:0;color:var(--ns-faint);font-size:var(--ns-text-sm);line-height:1.5; }
 .studio-module-source-loader>button { justify-self:start;display:flex;align-items:center;gap:6px; }
 
+
+/* Studio rolü olmayan kişi: içeriğe göre daralan, ortalanmış kart */
+.st-auth-card.st-no-access {
+  display: block;
+  width: min(460px, 100%);
+  min-height: 0;
+}
+.st-no-access-main {
+  align-items: center;
+  text-align: center;
+}
+.st-no-access-main .st-auth-copy {
+  display: grid;
+  justify-items: center;
+}
+.st-no-access-main .st-empty-icon {
+  margin-bottom: var(--ns-space-3);
+}
+
+/* Kişiler ve roller */
+.st-people-hint {
+  display: block;
+}
+.st-people-roles {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  line-height: 1.7;
+}
+
+/* Telefon genişliğinde ana sayfa talep tablosu: Proje sütunu gizlenir */
+@media (max-width: 520px) {
+  .st-table .st-col-project {
+    display: none;
+  }
+}

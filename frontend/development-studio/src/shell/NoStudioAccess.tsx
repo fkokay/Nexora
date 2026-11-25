@@ -11,7 +11,7 @@ export function NoStudioAccess({ tenantName, onLogout, onSwitchTenant }: Props) 
   return (
     <div className="st-auth">
       <main className="st-auth-card st-no-access" aria-labelledby="studio-no-access-title">
-        <div className="st-auth-main">
+        <div className="st-auth-main st-no-access-main">
           <div className="st-auth-copy">
             <span className="st-empty-icon" aria-hidden="true">
               <ShieldCheck size={18} />

@@ -40,4 +40,14 @@ describe("DevelopmentRequestsPage", () => {
     expect(html).toMatch(/data-stage="Staging"[^>]*>Deneme ortamında</);
     expect(html).toMatch(/data-stage="Production"[^>]*>Yayında</);
   });
+  it("DevelopmentRequestsPage mine mode has no Proje column, incoming mode has", () => {
+    const mine = renderToString(
+      <DevelopmentRequestsPage mode="mine" requests={requests} projects={[]} busy={false} onCreate={noop} onEdit={noop} onDelete={noop} />,
+    );
+    const incoming = renderToString(
+      <DevelopmentRequestsPage mode="incoming" requests={requests} projects={[]} busy={false} onCreate={noop} onEdit={noop} onDelete={noop} />,
+    );
+    expect(mine).not.toContain('<th scope="col">Proje</th>');
+    expect(incoming).toContain('<th scope="col">Proje</th>');
+  });
 });

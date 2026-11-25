@@ -45,7 +45,7 @@ function readEditingPage(): EditingCustomPage | null {
   } catch { return null; }
 }
 
-export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin, tenant, backHref = "#screens" }: Props) {
+export default function LowCodeDesignerPage({ token, role, initialSection, platformOrigin, tenant, backHref }: Props) {
   const active = sectionFor(initialSection);
   // Düzenlenen sayfa sekmenin oturum deposunda tutulur: sayfa yenilenince tasarımcı aynı sayfayla açılır (liste ekranına düşmez).
   // Kaydedilmemiş yeni sayfa saklanmaz.
@@ -259,7 +259,7 @@ export default function LowCodeDesignerPage({ token, role, initialSection, platf
     <main className={`low-code-designer ${editingPage ? "is-designing" : ""}`}>
       {!editingPage && <header className="lcd-top">
         <div className="lcd-top-title">
-          <a className="lcd-crumb" href={backHref}>Studio <ChevronRight size={12} aria-hidden="true"/></a>
+          {!backHref && <a className="lcd-crumb" href="#screens">Studio <ChevronRight size={12} aria-hidden="true"/></a>}
           <h1>{sectionTitles[active]}</h1>
         </div>
         {active === "pages" && <span className="lcd-save-state"><i aria-hidden="true"/> Taslaklar güvenle kaydedilir</span>}
