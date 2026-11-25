@@ -1,6 +1,7 @@
 node_modules/
 frontend/erp-web/dist/
 frontend/development-studio/dist/
+frontend/development-studio/tsconfig.tsbuildinfo
 **/bin/
 **/obj/
 **/TestResults/
