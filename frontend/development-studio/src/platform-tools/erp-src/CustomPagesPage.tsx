@@ -211,7 +211,9 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   ...GRID_ENGINE_PROPS,
   // Boş çözülen varsayılanın sabit yedeği (İçerik › "Boşsa varsayılan"), parçalı metin (İçerik › "Parçalar") ve İşlem Çubuğu
   // Sil onayının metni (Komutlar › Sil).
-  "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat"]);
+  "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat",
+  // Giriş › çok satırlı metin, hazır değer düğmeleri, listede olmayan değer; Sekmeler › açılış sekmesi parametresi.
+  "multiline", "presets", "allowCustom", "tabParam"]);
 // schemaVersion 2'de {{yol}} ifadesi alabilen alanlar (sunucudaki BindableProps ile aynı). Düğmenin sorgu eylemi
 // mesajları (confirmText, successMessage, errorMessage) "Eylem" bölümünde kendi BindingInput alanlarıyla düzenlenir.
 const bindableKeys = new Set(["text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
@@ -225,7 +227,9 @@ const lookupReset: Record<string, undefined> = { optionDescriptionColumn: undefi
  */
 const inputTypeReset = (value: string, props: Record<string, PropValue>): Record<string, PropValue | undefined> => ({
   ...(value !== "lookup" ? { ...lookupReset, ...(value === "select" ? { staticOptions: props.staticOptions, optionDescriptionColumn: props.optionDescriptionColumn } : {}) } : {}),
-  ...(value !== "select" ? { searchable: undefined } : {}),
+  ...(value !== "select" ? { searchable: undefined, allowCustom: undefined } : {}),
+  ...(value !== "text" ? { multiline: undefined } : {}),
+  ...(value !== "text" && value !== "number" ? { presets: undefined } : {}),
   ...(value !== "select" && value !== "lookup" ? { defaultFirst: undefined, optionsWhen: undefined } : {}),
 });
 /** Gerekçe isteminin açıklaması (bağlanabilir şablon) ve yanıt alanının karakter sınırı (sunucu kuralı). */
@@ -237,6 +241,11 @@ const MAX_CLEARS_ON_CHANGE = 10;
 const MAX_COLUMN_ENTRIES = 20;
 const LOOKUP_HELP = "Sunucuda aramak için sorgunun arama parametresini {{<ad>.search}} ile bağlayın; bağlamazsanız sonuçlar tarayıcıda süzülür.";
 const STATIC_OPTION = /^[^=]{0,128}=[^=]{1,60}$/;
+/** Girişin hazır değer düğmeleri (`presets`, sunucudaki PresetItem / MaxPresets). */
+const PRESET_ITEM = /^[^=]{1,40}=[^=]{1,20}$/;
+const MAX_PRESETS = 10;
+/** Sekmelerin açılış sekmesini seçen sayfa parametresi adı (`tabParam`, sunucudaki ParamName). */
+const TAB_PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const MAX_STATIC_OPTIONS = 20;
 /** Listenin sorgusu değişince sayfalama kalkar (yeni sorgunun sayfa bağlamaları yoktur). */
 const pagingReset: Record<string, undefined> = Object.fromEntries(PAGING_PROPS.map((key) => [key, undefined]));
@@ -849,7 +858,7 @@ function reconcileDefinition(definition: PageDefinition, options: ReconcileOptio
   return components === reconciled.components ? reconciled : { ...reconciled, components };
 }
 /** Yalnız denemeler için: standart tanımların tasarımcıda kayıpsız açılıp kaydedildiğini doğrulamak. */
-export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL, inputTypeOptions };
+export const designerInternals = { reconcileDefinition, managedKeys, contentFields, palette, MAIN_TAB_LABEL, inputTypeOptions, inputTypeReset };
 /** Kart tasarım ekranında kartın çocuğunu sürüklerken taşınan kimlik. */
 const CARD_CHILD_MIME = "application/x-nexora-card-child";
 const emptyDefinition: PageDefinition = { schemaVersion: 2, queries: [], components: [] };
@@ -3877,10 +3886,24 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                     <StaticOptionsField key={selected.id} value={staticOptions} onChange={(next) => patchComponent(selected.id, { staticOptions: next.length > 0 ? next : undefined })}/>
                     {staticOptions.some((entry) => !STATIC_OPTION.test(entry)) && <small className="pd-query-warning">'staticOptions' öğeleri değer=Etiket biçiminde olmalıdır.</small>}</label>;
                 })()}
-                <label className="pd-check"><input type="checkbox" checked={selected.props.searchable === true} onChange={(event) => patchComponent(selected.id, { searchable: event.target.checked ? true : undefined })}/>Yazarak aranır</label>
+                <label className="pd-check"><input type="checkbox" checked={selected.props.searchable === true} onChange={(event) => patchComponent(selected.id, { searchable: event.target.checked ? true : undefined, ...(event.target.checked ? {} : { allowCustom: undefined }) })}/>Yazarak aranır</label>
                 <small>Açılır liste odakta yazılan metinle süzülür (eski “kod · ad” depo seçicisi gibi).</small>
+                {selected.props.searchable === true && <>
+                  <label className="pd-check"><input type="checkbox" checked={selected.props.allowCustom === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { allowCustom: event.target.checked ? true : undefined })}/>Listede olmayan değer yazılabilir</label>
+                  <small>Seçeneklerde tam karşılığı olmayan yazılan metin de seçilebilir (ör. yurt dışı il adı).</small>
+                </>}
                 {defaultFirstField(selected)}
               </>}
+              {(selected.props.inputType ?? "text") === "text" && <>
+                <label className="pd-check"><input type="checkbox" checked={selected.props.multiline === true} disabled={!canEdit} onChange={(event) => patchComponent(selected.id, { multiline: event.target.checked ? true : undefined })}/>Çok satırlı</label>
+                <small>Not gibi uzun metinler için; satır sonları korunur.</small>
+              </>}
+              {((selected.props.inputType ?? "text") === "text" || selected.props.inputType === "number") && (() => {
+                const presets = Array.isArray(selected.props.presets) ? selected.props.presets.filter((item): item is string => typeof item === "string") : [];
+                return <label className="pd-field">Hazır değerler<small>Her satıra bir “değer=Etiket” yazın (ör. “25=%25”). Girişin altında düğme olarak çizilir (en fazla {MAX_PRESETS}).</small>
+                  <StaticOptionsField key={`${selected.id}-presets`} value={presets} max={MAX_PRESETS} disabled={!canEdit} onChange={(next) => patchComponent(selected.id, { presets: next.length > 0 ? next : undefined })}/>
+                  {(presets.length > MAX_PRESETS || presets.some((entry) => !PRESET_ITEM.test(entry))) && <small className="pd-query-warning">'presets' en fazla {MAX_PRESETS} adet değer=Etiket öğesi olmalıdır (değer 40, etiket 20 karakter).</small>}</label>;
+              })()}
               {selected.props.inputType === "lookup" && renderLookupFields(selected)}
               {(selected.props.inputType === "select" || selected.props.inputType === "lookup") && renderOptionsWhenField(selected)}
               {renderValidationFields(selected)}
@@ -4201,6 +4224,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "tabs" && section("tabs", "Sekmeler", <>
               <TabsFields tabs={parseTabs(selected.props.tabs)} defaultTab={Number(selected.props.defaultTab ?? 0)}
                 disabled={!canEdit} onChange={(tabs, defaultTab) => setTabs(selected.id, tabs, defaultTab)}/>
+              <label className="pd-field">Açılış sekmesi parametresi<input value={String(selected.props.tabParam ?? "")} maxLength={64} spellCheck={false} disabled={!canEdit} placeholder="ör. tab"
+                onChange={(event) => patchComponent(selected.id, { tabParam: event.target.value.trim() || undefined })}/>
+                <small>Sayfa bu parametreyle açılırsa (ör. tab=Adresler ya da tab=4) o sekme seçilir; eşleşmezse varsayılan sekme açılır.</small>
+                {typeof selected.props.tabParam === "string" && !TAB_PARAM_NAME.test(selected.props.tabParam) && <small className="pd-query-warning">'tabParam' harf, rakam ve alt çizgiden oluşmalı, harfle başlamalıdır.</small>}</label>
             </>)}
             {selected.type === "editableGrid" && section("grid", "Düzenlenebilir tablo", <EditableGridFields name={selected.name} props={selected.props} readQueries={readQueries}
               columnsOf={queryColumns} pageNames={pageNamesOf(definition)}
