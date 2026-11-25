@@ -1630,14 +1630,13 @@ internal static partial class TenantCustomPageSchema
             { error = "'paging' yalnız veri listesinde \"server\" olabilir."; return false; }
             paged = true;
         }
-        // Kalıplı liste istemci sayfalar: slot:list tablosu sunucu sayfalaması olmadan yalnız 'pageSize' alabilir.
-        if (!paged && context.ListTemplate && typeText == "dataTable" && StringOf(props, "slot") == "list" && props.TryGetProperty("pageSize", out var choice))
-        {
-            if (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100))
-            { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
-        }
+        // Kalıplı liste istemci sayfalar: yalnız üst düzey slot:list tablosu sunucu sayfalaması olmadan 'pageSize' alabilir.
+        var templateListTable = !paged && context.ListTemplate && typeText == "dataTable" && context.TopLevelIds.Contains(id) && StringOf(props, "slot") == "list";
+        if (templateListTable && props.TryGetProperty("pageSize", out var choice)
+            && (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100)))
+        { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
         foreach (var key in PagingProps)
-            if (!paged && !(key == "pageSize" && context.ListTemplate && typeText == "dataTable" && StringOf(props, "slot") == "list") && props.TryGetProperty(key, out _))
+            if (!paged && !(templateListTable && key == "pageSize") && props.TryGetProperty(key, out _))
             { error = $"'{key}' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir."; return false; }
         if (!paged) return true;
         var parameterNames = new string[2];

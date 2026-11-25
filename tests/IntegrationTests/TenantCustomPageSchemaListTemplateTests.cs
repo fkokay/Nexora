@@ -161,6 +161,22 @@ public sealed class TenantCustomPageSchemaListTemplateTests
         Rejected(Page(null, [List(extra: new { pageSize = 25 })]), "'pageSize' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir.");
 
     [Fact]
+    public void Nested_list_slot_table_cannot_use_page_size_exemption()
+    {
+        object nested = new { id = "n1", type = "dataTable", name = "n1", props = new { query = "q1", slot = "list", pageSize = 25 } };
+        var card = new { id = "c1", type = "card", name = "c1", props = new { slot = "above" }, children = new[] { nested } };
+        Rejected(Page(Template, [List(), card]), "'pageSize' yalnız sunucu sayfalı");
+    }
+
+    [Fact]
+    public void Page_size_25_point_0_is_rejected() =>
+        Rejected(Page(Template, [List(extra: new { pageSize = 25 })]).Replace("\"pageSize\":25", "\"pageSize\":25.0"), "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı.");
+
+    [Fact]
+    public void Non_list_slot_table_on_template_page_still_requires_server_paging() =>
+        Rejected(Page(Template, [List(), List("below", new { pageSize = 25 }, id: "t2")]), "'pageSize' yalnız sunucu sayfalı");
+
+    [Fact]
     public void System_standard_envelope_with_template_is_accepted()
     {
         var envelope = JsonNode.Parse(WarehouseStandardV1.Json)!.AsObject();
