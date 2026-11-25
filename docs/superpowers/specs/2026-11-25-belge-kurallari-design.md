@@ -180,7 +180,7 @@ Sonuçları:
 - Eski satış sipariş ekranı (`SalesPage` sipariş penceresi) ve `sales-orders.json` standardı Taslak siparişe **Onayla**, Onaylı siparişe **Onayı geri al** ve **İptal et** işlemlerini alır.
 - Standardın bir sonraki sürümünde `status == 'Open'` ile gösterilen Sevk et ve Düzenle gibi eylemler yeni durumlara göre düzeltilir. Düzenle artık Taslak'ta görünür.
 - **Standardın kendi kopyasını yayımlamış firmalar.** Bu firmalar sayfanın eski anlık görüntüsünü tutar ve yeni sürümden yalnız yeni öğeleri alır (`SystemPageEndpoints.cs:41-53,231-233`).
-  - Onayla, Onayı geri al ve İptal et butonları bu yüzden **yeni öğe** olarak eklenir; birleştirme bunları kopyalara da taşır.
+  - Onayla, Onayı geri al ve İptal et butonları bu yüzden **yeni öğe** olarak eklenir. Birleştirme bunları kopyalara kendiliğinden eklemez; firma yöneticisine "Yeni" öğe olarak önerir (uygulamada görüldü, PR 1).
   - Kopyadaki Sevk et, `Open` = Onaylı olduğu için doğru çalışmaya devam eder.
   - Kopyadaki Düzenle onaylı siparişte görünmeye devam eder, ama sunucu bunu anlaşılır bir mesajla reddeder.
   - Kopyası olan firma sayısı provada sayılır.

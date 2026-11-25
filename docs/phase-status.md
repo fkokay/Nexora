@@ -1468,3 +1468,11 @@ Platform EF modelinde snapshot'a göre bekleyen operasyonel kolonlar için `2026
 - Dağıtım sırası: `TenantCustomPageWriteAudits.CatalogReference` Platform migrationı yeni API'den önce uygulanmalıdır. Uygulanmazsa özel sayfa yazma sorguları 503 verir.
 - Doğrulanmayan: SQL Server kabul testi yazılmadı ve çalıştırılmadı; migrationlar disposable SQL Server üzerinde denenmedi. Canlı bir firmada deneme yapılmadı, canlı ortama dağıtılmadı.
 - Kalan: Studio'dan katalog paketi yayınlama ve katalog seçici 2c'ye kaldı; Studio'da başvurular yalnızca salt okunur gösterilir ve korunur. Köken bilgisi (repo/commit/yol) yalnızca kaydedilir, sunucuda doğrulanmaz.
+
+### 2026-11-26 belge kuralları (alt proje 6), PR 1: satış siparişi durum zinciri
+
+Tasarım `docs/superpowers/specs/2026-11-25-belge-kurallari-design.md`, plan `docs/superpowers/plans/2026-11-25-belge-kurallari-1-durum-zinciri.md`.
+
+- **Doğrulanan (yerel):** Siparişin durum zinciri Taslak → Onaylı → Sevk edildi → Faturalandı (+ İptal). Yeni sipariş ve tekliften dönüşüm Taslak yazılır. Onayla / Onayı geri al / İptal et uçları (`erp.sales-orders.execute`) çalışıyor. İşlem günlüğü `TenantDocumentActivities`'e yazılıyor. Belge modeli uçları (`/api/document-models/satis.siparis`, `/api/sales/orders/{id}/document`, `…/fill`) çalışıyor. Eski sipariş ekranı ve `sales-orders` v3 / `sales-order-create` v2 standartları yeni zinciri izliyor. Kanıt: bellek içi entegrasyon testleri ve yerel SQL Server'da `SalesOrderStateChainSqlAcceptanceTests` (dönüşüm, sevk, fatura ve iptalleri uçtan uca).
+- **Doğrulanmayan:** Migration'lar (`AddDocumentActivities`, `BackfillInvoicedSalesOrders`, Tenant karşılıkları) hiçbir uzak ortamda uygulanmadı. Standardın kendi kopyasını yayımlamış firmalar yeni butonları "Yeni" öğe olarak önerilir, kendiliğinden almaz. Bu firmaların sayısı provada sayılmalı. "Onay bekliyor" durumu bu PR'da yazılmıyor; danışman kuralları PR 3'te.
+- **Bilinen, bu PR'dan önce de var:** Yerel SQL'de `SalesDocumentPreviewSqlAcceptanceTests.Writes_store_what_their_previews_return` teklif satırı ondalık hassasiyetinde (7.7778 / 7.7777777) düşüyor.

@@ -1382,7 +1382,7 @@ Eksikler (satış siparişleri):
   çekilir (`:927-931`). Büyük kiracıda yavaştır. Sistem sayfasında sunucu aramalı `lookup` (`stok.kart.listele q`) kullanılır.
   `fark` (olumlu). Ancak düzenlemede seçili stokun etiketi ilk sayfada yoksa `pickerLabel` ham id gösterebilir;
   **doğrulanmalı** (`TenantCustomPage.tsx:2744-2749`).
-- **G-SO27 İptal / kapama yok.** Kısmi sevk edilmiş bir sipariş, kalan miktar için ne iptal edilebilir ne kapatılabilir; sonsuza
+- **G-SO27 İptal / kapama yok.** *(2026-11-26, belge kuralları PR 1: taslak ve sevk kaydı olmayan onaylı sipariş artık `POST /api/sales/orders/{id}/cancel` ile gerekçeyle iptal edilir; kısmen sevk edilmiş siparişin kapatılması hâlâ yok.)* Kısmi sevk edilmiş bir sipariş, kalan miktar için ne iptal edilebilir ne kapatılabilir; sonsuza
   dek `Open` kalır ve "Sevk bekleyen" sayılır. Bu, sistem sayfasının kapatamayacağı bir **sunucu eksiğidir**. Taşımadan bağımsız
   olarak yol haritasına yazılmalıdır.
 - **G-SO28 Klavye ve hata gösterimi.** Ctrl+Shift+Enter satır ekleme, Ctrl+. panel, Esc ile detay kapatma ve ↑↓/Boşluk/Enter
