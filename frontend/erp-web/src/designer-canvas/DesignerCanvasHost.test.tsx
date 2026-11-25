@@ -178,8 +178,24 @@ describe('DesignerCanvasHost', () => {
     // Sayfa ilk çizimde örnek kaydı görür; metin olmayan değerler alınmaz.
     expect(mounts.params[0]).toEqual({ kartId: 'C-001' });
 
-    // Yeniden yüklemede yeniden sorulur; uç hata verirse sayfa parametresiz açılır.
+    // Bulunan örnek saklanır: sonraki sürüm ucu yeniden çağırmaz (liste kaynağı yeniden çalışmaz).
+    const reload = (revision: number) => act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision },
+      }));
+    });
+    reload(2);
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    expect(mounts.params[1]).toEqual({ kartId: 'C-001' });
+  });
+
+  it('a failed or empty sample is not cached and the page opens without params', async () => {
     apiMock.mockRejectedValue(new Error('500'));
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    expect(mounts.params[0]).toEqual({});
+    apiMock.mockResolvedValue({ params: { kartId: 'C-009' } });
     act(() => {
       window.dispatchEvent(new MessageEvent('message', {
         origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision: 2 },
@@ -187,7 +203,7 @@ describe('DesignerCanvasHost', () => {
     });
     await waitFor(() => expect(mounts.count).toBe(2));
     expect(apiMock).toHaveBeenCalledTimes(2);
-    expect(mounts.params[1]).toEqual({});
+    expect(mounts.params[1]).toEqual({ kartId: 'C-009' });
   });
 
   it('showTab switches the active tab', async () => {

@@ -206,6 +206,41 @@ public sealed class TenantCustomPageSampleParamsTests
         Assert.Equal("read", sample.Permission.Action);
     }
 
+    [Fact]
+    public async Task Sample_params_empty_for_non_admin_viewer_without_running_source()
+    {
+        var executor = new FakeReadExecutor([new Dictionary<string, object?> { ["Code"] = "C-001" }]);
+        await using var app = await StartApplicationAsync(executor);
+        await SeedReleaseAsync(app, Bundle(DataSource("cariler", PageCode)));
+        var draftId = await SeedPageAsync(app, RecordPage());
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+            var access = new TenantCustomPageAccess { TenantId = TenantA, PageCode = PageCode, Mode = CustomPageAccessModes.SelectedUsers, UpdatedByUserId = Admin };
+            access.Users.Add(new TenantCustomPageAccessUser { AccessId = access.Id, UserId = Ayse, CanView = true });
+            platform.TenantCustomPageAccesses.Add(access);
+            await platform.SaveChangesAsync();
+        }
+
+        // A TenantUser with View sees the preview, but preview query runs are TenantAdmin-only: no sample, no run.
+        using var user = Client(app, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.OK, (await user.GetAsync($"/api/custom-pages/{draftId}/preview")).StatusCode);
+        await AssertEmptyAsync(user, draftId);
+        // A TenantAdmin role claim is verified against the membership row (Ayşe is a TenantUser member).
+        using var claimedAdmin = Client(app, Ayse, "TenantAdmin");
+        await AssertEmptyAsync(claimedAdmin, draftId);
+        Assert.Empty(executor.Calls);
+    }
+
+    [Fact]
+    public async Task Sample_params_read_executor_is_not_registered_by_the_api_host()
+    {
+        // The executor is a test-only seam: the real host must run the source through the tenant query connection factory.
+        await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
+        Assert.Null(factory.Services.GetService<ICustomPageReadExecutor>());
+        Assert.NotNull(factory.Services.GetService<ITenantQueryConnectionFactory>());
+    }
+
     private const string TenantCustomPageEndpointsViewForbidden = "Bu sayfayı görüntüleme yetkiniz yok.";
 
     private static async Task AssertEmptyAsync(HttpClient client, Guid draftId)

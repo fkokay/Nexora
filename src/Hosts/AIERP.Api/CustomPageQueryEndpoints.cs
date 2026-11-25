@@ -405,7 +405,7 @@ internal static class CustomPageQueryEndpoints
     private static readonly System.Text.RegularExpressions.Regex PageParameterBinding = new(@"^\s*\{\{\s*sayfa\.parametre\.([^\s}.]+)\s*\}\}\s*\z",
         System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
-    internal const string WriteRateLimitError ="Çok fazla yazma isteği gönderildi; bir dakika sonra yeniden deneyin.";
+    internal const string WriteRateLimitError = "Çok fazla yazma isteği gönderildi; bir dakika sonra yeniden deneyin.";
     internal const string WriteAuditUnavailableError = "Yazma işlemi denetim kaydı oluşturulamadığı için çalıştırılmadı; daha sonra yeniden deneyin.";
 
     /// <summary>

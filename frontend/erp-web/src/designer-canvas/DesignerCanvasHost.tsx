@@ -87,16 +87,22 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
   }, [studioOrigin]);
 
   // Kayıt kartı taslağı örnek bir kayıtla açılır: uç, sayfa parametresini (`{ <p>: anahtar }`) verir; kalıp `record` değilse,
-  // kaynak ya da satır yoksa boş döner. Kalıp sayfa yüklenmeden bilinmediği için her sürümde sorulur; hata da boş sayılır.
+  // kaynak ya da satır yoksa boş döner; hata da boş sayılır. Bulunan örnek taslak başına saklanır: sonraki sürümler liste
+  // kaynağını yeniden çalıştırmaz. Boş sonuç saklanmaz (kalıp sayfa yüklenmeden bilinmez; taslak sonradan Kayıt kartı olabilir).
   // Parametreler sayfanın okuduğu sekme anahtarına (TenantCustomPage: systemScreenKey ?? `custom-page-preview:<id>`) yazılır.
   const { previewId, systemScreenKey } = params;
+  const samples = useRef(new Map<string, PageParams>());
   useEffect(() => {
     let active = true;
     const tabKey = systemScreenKey ?? `custom-page-preview:${previewId}`;
-    void api<unknown>(`/api/custom-pages/${encodeURIComponent(previewId)}/preview/sample-params`, token)
-      .then(sampleParams, () => ({}))
+    const cached = samples.current.get(previewId);
+    const load = cached
+      ? Promise.resolve(cached)
+      : api<unknown>(`/api/custom-pages/${encodeURIComponent(previewId)}/preview/sample-params`, token).then(sampleParams, () => ({}));
+    void load
       .then((sample) => {
         if (!active) return;
+        if (Object.keys(sample).length > 0) samples.current.set(previewId, sample);
         setPageParams(tabKey, sample);
         revisionRef.current = revision;
         setShown(revision);
