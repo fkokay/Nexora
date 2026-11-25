@@ -38,6 +38,8 @@ export default function ErpCanvasFrame(props: Props) {
   useEffect(() => {
     readySeen.current = false;
     lastRevision.current = -1;
+    setBlocks([]);
+    setHoverId(null);
     const timer = window.setTimeout(() => {
       if (!readySeen.current) handlers.current.onUnavailable(FALLBACK_MESSAGE);
     }, READY_TIMEOUT_MS);
@@ -47,6 +49,10 @@ export default function ErpCanvasFrame(props: Props) {
       if (!msg) return;
       if (msg.type === "ready") {
         readySeen.current = true;
+        // Taze ERP belgesi revision'ı 0'dan başlatır; eski belgeden kalan sayaç yeni layout'ları düşürmesin.
+        lastRevision.current = msg.revision;
+        setBlocks([]);
+        setHoverId(null);
         window.clearTimeout(timer);
       } else if (msg.type === "layout") {
         if (msg.revision < lastRevision.current) return;

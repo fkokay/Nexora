@@ -94,6 +94,22 @@ describe("ErpCanvasFrame", () => {
     expect(iframe.style.height).toBe("500px");
   });
 
+  it("iframe yeniden yüklenip ready gelince revision sayacı sıfırlanır", () => {
+    const { iframe, layout, send } = setup();
+    layout(3, 500);
+    send({ nx: "nexora-canvas", v: 1, type: "ready", revision: 0 });
+    layout(0, 420);
+    expect(iframe.style.height).toBe("420px");
+  });
+
+  it("hedef değişince eski bloklar temizlenir", () => {
+    const { layout, container, rerender, props } = setup({ selectedId: "a" });
+    layout(1, 640);
+    expect(container.querySelector(".pd-erp-canvas-selected")).not.toBeNull();
+    rerender(<ErpCanvasFrame {...props} target={{ previewId: "p2" }} />);
+    expect(container.querySelector(".pd-erp-canvas-selected")).toBeNull();
+  });
+
   it("yabancı origin yok sayılır", () => {
     const { iframe, layout } = setup();
     layout(1, 640, "https://evil.test");
