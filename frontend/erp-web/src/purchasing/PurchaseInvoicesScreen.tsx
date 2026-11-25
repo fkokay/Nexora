@@ -6,6 +6,7 @@ import { csvExportCommand, focusedRecordId } from "../commands/gridCommands";
 import type { CommandSpec, MenuCommand, PageCommands } from "../commands/types";
 import { localDateString } from "../dateUtils";
 import { api } from "../erpApi";
+import { dropPageParam, usePageParams } from "../pageNavigation";
 import type { BuiltInScreenLayoutField, PurchaseInvoiceDetail, PurchaseInvoiceSummary, SalesPageKey, Warehouse } from "../erp-types";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import { ListSummaryCards } from "../list-page/ListSummaryCards";
@@ -130,6 +131,14 @@ export function PurchaseInvoicesScreen({
       cancelled = true;
     };
   }, [token]);
+  // Karar 4: other screens (Cari Hesap Hareketleri) open an invoice with the page param `invoiceId` (read once, then removed).
+  const paramInvoiceId = usePageParams("sales-purchase-invoices").invoiceId ?? "";
+  useEffect(() => {
+    if (!paramInvoiceId) return;
+    dropPageParam("sales-purchase-invoices", "invoiceId");
+    void openInvoice(paramInvoiceId);
+  }, [paramInvoiceId]);
+
   async function openInvoice(id: string, action?: PurchaseInvoiceInitialAction) {
     setError("");
     try {

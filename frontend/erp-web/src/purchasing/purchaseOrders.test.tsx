@@ -95,6 +95,8 @@ const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command=
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
 const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function openMenu() {
+  // No İşlemler button when the page has no menu items.
+  if (!command('more')) return [];
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
   fireEvent.click(command('more'));
@@ -287,6 +289,6 @@ describe('Satınalma Siparişleri list', () => {
     await openOrderList();
     await openOrderDocument('SA-o4');
     expect(flowSteps()).toEqual(['Onay bekliyor', 'Açık', 'Kısmen alındı', 'Tam alındı', 'İptal*']);
-    expect(command('more').getAttribute('aria-disabled') === 'true' || openMenu().length === 0).toBe(true);
+    expect(!command('more') || command('more').getAttribute('aria-disabled') === 'true' || openMenu().length === 0).toBe(true);
   });
 });

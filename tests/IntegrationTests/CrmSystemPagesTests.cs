@@ -293,7 +293,9 @@ public sealed class CrmSystemPagesTests
         Assert.Equal("{{ozet.rows[0].overdueCount}}", (string)Props("crm-opportunities", "takipGostergesi")["value"]!);
         Assert.Equal("{{suzgec.q}}", Binding("crm-opportunities", "ozet", "q"));
         Assert.Equal("{{suzgec.q}}", Binding("crm-opportunities", "firsatlar", "q"));
-        Assert.Equal("{{asamaSecimi.value}}", Binding("crm-opportunities", "firsatlar", "stage"));
+        // Aşama, Süzgeç alanındaki seçim süzgecidir (filterBar `stage`).
+        Assert.Equal("{{suzgec.stage}}", Binding("crm-opportunities", "firsatlar", "stage"));
+        Assert.Contains("stage|select|row|stage|Aşama", Strings(Props("crm-opportunities", "suzgec")["filters"]));
         foreach (var button in new[] { "nitelikliDugmesi", "teklifDugmesi", "muzakereDugmesi", "kazanildiDugmesi", "kaybedildiDugmesi" })
             Assert.Equal(new[] { "firsatlar", "ozet" }, Strings(Props("crm-opportunities", button)["refreshQueries"]));
         Assert.True((bool)Props("crm-opportunities", "kaybedildiDugmesi")["confirmEnabled"]!);
@@ -317,7 +319,11 @@ public sealed class CrmSystemPagesTests
         Assert.Equal(("{{dovizYeni.value}}", "{{doviz.value}}"), (Binding(key, "olustur", "currencyCode"), Binding(key, "guncelle", "currencyCode")));
         Assert.Equal(("{{olasilikYeni.value}}", "{{olasilik.value}}"), (Binding(key, "olustur", "probabilityPercent"), Binding(key, "guncelle", "probabilityPercent")));
         Assert.Equal(("TRY", "10"), ((string)Props(key, "dovizYeni")["defaultValue"]!, (string)Props(key, "olasilikYeni")["defaultValue"]!));
-        Assert.Equal(new[] { "olasilikYeni=50", "olasilik=50" }, Strings(Props(key, "olasilik50")["assignments"]));
+        // Olasılık kısayolları alanın kendi hazır değerleridir (presets); not çok satırlı, kod yeni kartta boş bırakılabilir.
+        foreach (var input in new[] { "olasilikYeni", "olasilik" })
+            Assert.Equal(new[] { "10=%10", "25=%25", "50=%50", "75=%75", "90=%90" }, Strings(Props(key, input)["presets"]));
+        Assert.True((bool)Props(key, "not")["multiline"]!);
+        Assert.Equal("kart.rows[0].id != null", (string)Props(key, "kod")["requiredWhen"]!);
         var bar = Props(key, "komutlar");
         Assert.Equal(("@crm-opportunities", true, true), ((string)bar["afterSavePageCode"]!, (bool)bar["afterSaveRefresh"]!, (bool)bar["saveAndNew"]!));
         Assert.Contains("save=kart.rows[0].stage != 'Won' && kart.rows[0].stage != 'Lost'", Strings(bar["commandWhen"]));

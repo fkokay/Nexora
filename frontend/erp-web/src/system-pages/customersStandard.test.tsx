@@ -152,6 +152,17 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     expect(navigations[1]).toMatchObject({ page: 'customer-create', params: {}, replace: false });
   });
 
+  it('the bar reads Düzenle and Görüntüle; Görüntüle opens the same card read-only (mode=view)', async () => {
+    setup();
+    await select('FATİH KOKAY', C1);
+    expect(command('open').textContent).toBe('Düzenle');
+    await ready('view');
+    expect(command('view').textContent).toBe('Görüntüle');
+    fireEvent.click(command('view'));
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toEqual({ page: 'customer-create', params: { customerId: C1, mode: 'view' }, replace: false, from: KEY });
+  });
+
   it('İşlemler opens the legacy sales screens with customerId and the ledger with the selected account', async () => {
     setup();
     await select('FATİH KOKAY', C1);
@@ -275,6 +286,28 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull(), T);
     expect(writes()).toEqual([]);
     expect(screen.getByRole('toolbar', { name: 'Toplu işlemler' })).toBeTruthy();
+  });
+
+  it('Cari türü and Durum are filters of the filter bar; the Pasif card sets Durum and clears it again', async () => {
+    setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    const bar = document.querySelector<HTMLElement>('.tenant-page-filter-bar')!;
+    const filterSelect = (label: string) => [...bar.querySelectorAll('label')].find((item) => item.querySelector('span')?.textContent === label)!.querySelector('select')!;
+    // Ayrı "Süzgeçler" kartı ve seçim çipleri yok: iki seçim süzgeç alanının satırında.
+    expect([...filterSelect('Cari türü').options].map((option) => option.textContent))
+      .toEqual(['Tümü', 'Müşteri', 'Tedarikçi', 'Müşteri & Tedarikçi', 'Bayi', 'Personel']);
+    expect([...filterSelect('Durum').options].map((option) => option.textContent)).toEqual(['Tümü', 'Aktif', 'Pasif']);
+    expect(document.querySelector('.tenant-page-form-card:not(.tenant-page-filter-bar)')).toBeNull();
+    fireEvent.change(filterSelect('Cari türü'), { target: { value: 'Supplier' } });
+    await waitFor(() => expect(query(gets('/api/customers').at(-1)!.url).get('type')).toBe('Supplier'), T);
+    // Pasif göstergesi süzgeç alanının Durum süzgecini "Pasif" yapar; ikinci tıklama temizler.
+    const pasif = await screen.findByRole('button', { name: /Pasif/ }, T);
+    fireEvent.click(pasif);
+    await waitFor(() => expect(query(gets('/api/customers').at(-1)!.url).get('status')).toBe('Inactive'), T);
+    expect(filterSelect('Durum').value).toBe('Inactive');
+    fireEvent.click(pasif);
+    await waitFor(() => expect(filterSelect('Durum').value).toBe(''), T);
+    await waitFor(() => expect(query(gets('/api/customers').at(-1)!.url).get('status')).toBeNull(), T);
   });
 
   it('the row open button (Aç, rowOpenAction) is not drawn as a loose button under the list', async () => {

@@ -288,11 +288,18 @@ export const english: Record<string, string> = {
   'IBAN geçersiz; ülke kodu, uzunluk ve kontrol basamaklarını kontrol edin.': 'Invalid IBAN; check the country code, length and check digits.',
   'Vergi numarası en fazla 32 karakter olabilir.': 'The tax number can be at most 32 characters.', '10 haneli VKN': '10-digit tax ID', 'VKN': 'Tax ID',
   '11 haneli TCKN': '11-digit national ID',
+  // Cari Grupları definition screen (CustomerGroupsPage).
+  'Cari Grupları': 'Customer groups', 'Grup ara': 'Search groups', 'Grup kodu veya adıyla ara': 'Search by group code or name',
+  'Grupları yenile': 'Refresh groups', 'Gruplar yükleniyor…': 'Loading groups…', 'Cari grubu listesi': 'Customer group list',
+  'Aramayla eşleşen grup yok': 'No groups match the search', 'grup': 'groups', 'Cari grubu kaydı': 'Customer group record',
+  '↑↓ listede gez · Tab forma geç · Ctrl+S kaydet · Esc listeye dön · F2 yeni grup': '↑↓ move in the list · Tab go to the form · Ctrl+S save · Esc back to the list · F2 new group',
+  'Bir grup seçin ya da F2 ile yeni grup ekleyin.': 'Select a group or press F2 to add a new one.', 'Cari grubu silindi.': 'Account group deleted.',
 }
 
 /** Anchored patterns for Turkish text rendered with dynamic values. Each capture group is itself localized when a dictionary entry exists. */
 export const englishPatterns: Array<[RegExp, string]> = [
   [/^(.+?) kalem fiyatları$/, '$1 line prices'],
+  [/^“(.+?)” grubu silinsin mi\? Gruba bağlı cari kartları varsa silme işlemi engellenir\.$/, 'Delete group “$1”? Deletion is blocked if account cards use the group.'],
   [/^Sözleşme durumu “(.+?)” olarak güncellendi\.$/, 'Contract status updated to “$1”.'],
   [/^(.+?) kaydedildi\. Yeni cari kartı girebilirsiniz\.$/, '$1 saved. You can enter a new account card.'],
   [/^(.+?): (.+?) aşamasına taşındı\.$/, '$1: moved to the $2 stage.'],

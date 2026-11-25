@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createCommandRegistry, RESERVED_BROWSER_CHORDS } from './registry';
 import { offersCommand } from './types';
+import { takeRecordView } from './recordView';
 
 function key(init: KeyboardEventInit & { key: string }): KeyboardEvent {
   return new KeyboardEvent('keydown', { cancelable: true, ...init });
@@ -8,6 +9,32 @@ function key(init: KeyboardEventInit & { key: string }): KeyboardEvent {
 const idle = { typing: false, modalOpen: false };
 
 describe('command registry', () => {
+  it('adds Görüntüle next to an Aç that has none: same action, arming the read-only record form; Düzenle disarms', () => {
+    const r = createCommandRegistry();
+    const open = vi.fn();
+    r.register('a', 'list', { open: { run: open } });
+    r.setActiveView('a');
+    void r.getActive()!.view!.run!();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(takeRecordView()).toBe(true);
+    void r.getActive()!.view!.run!();
+    void r.getActive()!.open!.run!();
+    expect(open).toHaveBeenCalledTimes(3);
+    expect(takeRecordView()).toBe(false);
+    // Bekleyen Aç'ın nedeni Görüntüle'de de görünür; kendi Görüntüle'si olan kaynakta bir şey eklenmez.
+    r.register('b', 'list', { open: { disabledReason: 'Önce bir kayıt seçin' } });
+    r.setActiveView('b');
+    expect(r.getActive()!.view).toEqual({ disabledReason: 'Önce bir kayıt seçin', run: undefined });
+    const own = { hidden: true };
+    r.register('c', 'page', { open: { run: open }, view: own });
+    r.setActiveView('c');
+    expect(r.getActive()!.view).toBe(own);
+    // Shift+Enter Görüntüle'yi çalıştırır.
+    r.setActiveView('a');
+    expect(r.handleKeyDown(key({ key: 'Enter', shiftKey: true }), idle)).toBe(true);
+    expect(takeRecordView()).toBe(true);
+  });
+
   it('dispatches only to the active view', () => {
     const r = createCommandRegistry();
     const a = vi.fn();

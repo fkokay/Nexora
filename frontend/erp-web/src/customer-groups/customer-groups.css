@@ -1,0 +1,20 @@
+/* Cari Grupları tanım ekranı: yalnızca boş liste durumu; düzen nx-def-* (list-page-v2.css) ile çizilir. */
+#root .customer-groups-page .cgr-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 16px;
+}
+#root .customer-groups-page .cgr-empty > div { flex: 1 1 220px; min-width: 0; }
+#root .customer-groups-page .cgr-empty b { color: var(--nx-text); font-size: 13px; }
+#root .customer-groups-page .cgr-empty p { margin: 2px 0 0; color: var(--nx-muted); font-size: 12px; }
+#root .customer-groups-page .cgr-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nx-radius-control);
+  background: var(--nx-primary-soft);
+  color: var(--nx-primary);
+}

@@ -20,7 +20,6 @@
     "component:ozetPaneli": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
     "component:notMetni": {"since": 1, "label": "Detay: Not", "requires": ["component:liste"]},
     "component:notYok": {"since": 1, "label": "Detay: Not yok notu", "requires": ["component:liste"]},
-    "component:bosSecim": {"since": 1, "label": "Detay paneli: seçim yok notu", "requires": ["component:detayPaneli", "component:liste"]},
     "component:onaylaDugmesi": {"since": 1, "label": "Onayla", "requires": ["component:liste", "query:onayla", "query:izinler"]},
     "component:reddetDugmesi": {"since": 1, "label": "Reddet (isteğe bağlı not)", "requires": ["component:liste", "query:reddet", "query:izinler"]},
     "component:iptalDugmesi": {"since": 1, "label": "İptal et (talep eden)", "requires": ["component:liste", "query:iptal", "query:izinler"]},
@@ -87,7 +86,7 @@
 
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "İzin talepleri", "query": "izinler", "paging": "server", "pageSize": 50, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true",
+                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
                    "detailToggleInput": "detayPaneli",
                    "columns": ["employee", "department", "leaveType", "startDate", "endDate", "requestedDays", "status"],
                    "columnLabels": ["employee=Personel", "department=Departman", "leaveType=Tür", "startDate=Başlangıç", "endDate=Bitiş",
@@ -123,9 +122,6 @@
         "props": { "title": "Not", "text": "{{liste.seciliSatir.note}}", "visibleWhen": "liste.seciliSatir.note != null" } },
       { "id": "notYok", "type": "text", "name": "notYok",
         "props": { "text": "Bu talep için not girilmemiş.", "visibleWhen": "liste.seciliSatir.note == null" } },
-      { "id": "bosSecim", "type": "text", "name": "bosSecim",
-        "props": { "text": "Özetini görmek için listeden bir izin talebi seçin.", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null" } },
 
       { "id": "onaylaDugmesi", "type": "button", "name": "onaylaDugmesi",
         "props": { "text": "Onayla", "icon": "check", "actionType": "query", "queryId": "onayla",

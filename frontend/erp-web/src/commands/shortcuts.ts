@@ -6,6 +6,7 @@ export type KeyEventLike = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'met
 export const STANDARD_SHORTCUTS: Record<StandardCommandId, string> = {
   new: 'F2',
   open: 'Enter',
+  view: 'Shift+Enter',
   save: 'Ctrl+S',
   delete: 'Ctrl+Delete',
   refresh: 'F5',

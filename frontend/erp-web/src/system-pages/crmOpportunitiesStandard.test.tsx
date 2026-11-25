@@ -154,7 +154,9 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     setup();
     await cell('Depo otomasyonu');
     const before = gets('/api/crm/opportunities').length;
-    fireEvent.change(document.getElementById('page-input-asamaSecimi') as HTMLSelectElement, { target: { value: 'Won' } });
+    // Aşama, Süzgeç alanındaki seçim süzgecidir (filterBar `stage`).
+    const stage = within(screen.getByRole('region', { name: 'Süzgeçler' })).getByLabelText('Aşama') as HTMLSelectElement;
+    fireEvent.change(stage, { target: { value: 'Won' } });
     await waitFor(() => expect(gets('/api/crm/opportunities').length).toBeGreaterThan(before), T);
     const last = gets('/api/crm/opportunities').at(-1)!;
     expect(query(last.url).get('stage')).toBe('Won');
