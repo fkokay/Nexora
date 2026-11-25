@@ -5,7 +5,7 @@ import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/er
 import type { CatalogEntry } from "./catalogFiles";
 import { ParameterTable } from "./DataSourceForm";
 import {
-  parametersJson, readParameters, readSource, saveEntry, type WriteCatalogFiles, usableOperations, validateEntry,
+  parametersJson, readParameters, readSource, saveEntry, type WriteCatalogFiles, useDirtyTracking, usableOperations, validateEntry,
   type ParameterRow, type SourceKind,
 } from "./catalogFormModel";
 
@@ -20,12 +20,14 @@ export type ActionFormProps = {
   /** Dosya yolu → sha256; form açıldığında kopyalanır ve kayıtta beklenen sha olarak gönderilir. */
   fileShas?: Record<string, string>;
   onSaved?: (code: string) => void;
+  /** Kaydedilmemiş değişiklik durumu değişince çağrılır (formu yeniden kuracak işlemler önce sorar). */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const KINDS = [["insert", "Ekle"], ["update", "Güncelle"], ["delete", "Sil"]] as const;
 const TARGETS: [string, string][] = [["row", "Satır"], ["page", "Sayfa"]];
 
-export function ActionForm({ root, entry, existingCodes, canEdit, operations, writeFiles, onSaved, fileShas = {} }: ActionFormProps) {
+export function ActionForm({ root, entry, existingCodes, canEdit, operations, writeFiles, onSaved, onDirtyChange, fileShas = {} }: ActionFormProps) {
   const json = entry?.json ?? {};
   const initialSource = readSource(json.run);
   const initialConfirm = json.confirm && typeof json.confirm === "object" ? (json.confirm as { text?: unknown }).text : undefined;
@@ -69,14 +71,18 @@ export function ActionForm({ root, entry, existingCodes, canEdit, operations, wr
     };
   }
 
+  const markSaved = useDirtyTracking(JSON.stringify(currentEntry()), onDirtyChange);
+
   async function save() {
     const problem = validateEntry(code, label, isNew, existingCodes, sourceKind, sql, operation);
     if (problem) { setError(problem); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      const outcome = await saveEntry(root, currentEntry(), writeFiles, seededShas.current);
+      const saved = currentEntry();
+      const outcome = await saveEntry(root, saved, writeFiles, seededShas.current);
       if (outcome === "cancelled") return;
       if (outcome) { setError(outcome); return; }
+      markSaved(JSON.stringify(saved));
       setNotice("Kaydedildi. Yayınlamak için önce değişiklikleri commit edin.");
       onSaved?.(code);
     } finally {

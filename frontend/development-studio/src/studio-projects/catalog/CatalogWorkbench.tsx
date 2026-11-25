@@ -3,7 +3,7 @@ import { Rocket } from "lucide-react";
 import { api } from "../../api";
 import { loadErpOperations, type ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
 import type { CatalogEntry, CatalogKind } from "./catalogFiles";
-import type { WriteCatalogFiles } from "./catalogFormModel";
+import { confirmDiscardCatalogEdits, type WriteCatalogFiles } from "./catalogFormModel";
 import { DataSourceForm } from "./DataSourceForm";
 import { ActionForm } from "./ActionForm";
 import "./catalog-workbench.css";
@@ -23,16 +23,19 @@ export type CatalogWorkbenchProps = {
   fileShas?: Record<string, string>;
   /** Dosyalar her yeniden okunduğunda değişir; açık form güncel içerikle yeniden kurulur. */
   version?: number;
+  /** Açık formun kaydedilmemiş değişiklik durumu; yeniden okuma (formu yeniden kurar) öncesi sormak için. */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type Selection = { kind: CatalogKind; code: string | null } | null;
 
 const labelOf = (entry: CatalogEntry) => (typeof entry.json.label === "string" && entry.json.label) || entry.code;
 
-export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin, token, writeFiles, onPublish, changedPaths = [], fileShas = {}, version = 0 }: CatalogWorkbenchProps) {
+export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin, token, writeFiles, onPublish, changedPaths = [], fileShas = {}, version = 0, onDirtyChange }: CatalogWorkbenchProps) {
   const [selection, setSelection] = useState<Selection>(() => (entries[0] ? { kind: entries[0].kind, code: entries[0].code } : null));
   const [operations, setOperations] = useState<ErpOperation[] | null>([]);
   const [formKey, setFormKey] = useState(0);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -48,19 +51,26 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin
     .map(p => p.slice(prefix.length)).sort();
   const selected = selection?.code ? entries.find(e => e.kind === selection.kind && e.code === selection.code) ?? null : null;
   const existingCodes = entries.map(e => e.code);
-  const select = (next: Selection) => { setSelection(next); setFormKey(k => k + 1); };
+  // Başka öğeye geçmek de formu yeniden kurar: kaydedilmemiş değişiklik varsa önce sorulur.
+  const select = async (next: Selection) => {
+    if (!(await confirmDiscardCatalogEdits(dirty))) return;
+    setSelection(next); setFormKey(k => k + 1);
+  };
+  const reportDirty = (value: boolean) => { setDirty(value); onDirtyChange?.(value); };
+  // Yayın penceresi açılmadan dosyalar yeniden okunur ve form yeniden kurulur: önce kaydedin ya da vazgeçin.
+  const publish = async () => { if (await confirmDiscardCatalogEdits(dirty)) onPublish(); };
 
   const group = (kind: CatalogKind, title: string, newLabel: string, icon: string) => (
     <section className="sp-cw-group">
       <h4>
         {title}
-        {canEdit && <button type="button" className="sp-cw-new" aria-label={newLabel} onClick={() => select({ kind, code: null })}>+ Yeni</button>}
+        {canEdit && <button type="button" className="sp-cw-new" aria-label={newLabel} onClick={() => void select({ kind, code: null })}>+ Yeni</button>}
       </h4>
       {entries.filter(e => e.kind === kind).map(entry => (
         <button
           type="button" key={entry.code}
           className={`sp-cw-item${selection?.kind === kind && selection.code === entry.code ? " is-active" : ""}`}
-          onClick={() => select({ kind, code: entry.code })}
+          onClick={() => void select({ kind, code: entry.code })}
         >
           <span aria-hidden="true">{icon}</span> {labelOf(entry)}
           {(changed.has(entry.jsonPath) || (entry.sqlPath && changed.has(entry.sqlPath))) && (
@@ -87,7 +97,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin
   }, [entries, selection, pending]);
   const onSaved = (code: string) => { if (selection && !selection.code) setPending({ kind: selection.kind, code }); };
 
-  const formProps = { root, existingCodes, canEdit, operations, writeFiles, onSaved, fileShas };
+  const formProps = { root, existingCodes, canEdit, operations, writeFiles, onSaved, fileShas, onDirtyChange: reportDirty };
   const formId = `${formKey}-${version}`;
 
   return (
@@ -95,7 +105,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin
       <div className="sp-cw-top">
         <span className="sp-cw-root">{root}</span>
         <span className="sp-cw-spacer" />
-        <button type="button" className="ns-btn ns-btn-primary" onClick={onPublish}>
+        <button type="button" className="ns-btn ns-btn-primary" onClick={() => void publish()}>
           <Rocket size={14} /> Sürüm yayınla
         </button>
       </div>

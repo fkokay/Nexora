@@ -102,6 +102,7 @@ import { WorkspaceExplorer } from "./studio-projects/WorkspaceExplorer";
 import { CatalogWorkbench } from "./studio-projects/catalog/CatalogWorkbench";
 import { CatalogReleaseDialog } from "./studio-projects/catalog/CatalogReleaseDialog";
 import { useCatalogWorkspace } from "./studio-projects/catalog/catalogWorkspace";
+import { confirmDiscardCatalogEdits } from "./studio-projects/catalog/catalogFormModel";
 
 export function StudioProjects({
   token,
@@ -459,6 +460,8 @@ export function StudioProjects({
     "files",
   );
   const [catalogReleaseOpen, setCatalogReleaseOpen] = useState(false);
+  // Yapı taşları formunda kaydedilmemiş değişiklik: yeniden okuma ya da görünüm değişimi formu yeniden kurar, önce sorulur.
+  const catalogFormDirty = useRef(false);
   useEffect(() => {
     if (!catalog) setCatalogReleaseOpen(false);
   }, [catalog]);
@@ -467,17 +470,26 @@ export function StudioProjects({
       <button
         type="button"
         aria-pressed={explorerView === "catalog"}
-        onClick={() => {
-          setExplorerView("catalog");
-          void catalogWorkspace.refresh();
-        }}
+        onClick={() =>
+          void confirmDiscardCatalogEdits(catalogFormDirty.current).then(
+            (ok) => {
+              if (!ok) return;
+              setExplorerView("catalog");
+              void catalogWorkspace.refresh();
+            },
+          )
+        }
       >
         Yapı taşları
       </button>
       <button
         type="button"
         aria-pressed={explorerView === "files"}
-        onClick={() => setExplorerView("files")}
+        onClick={() =>
+          void confirmDiscardCatalogEdits(catalogFormDirty.current).then(
+            (ok) => ok && setExplorerView("files"),
+          )
+        }
       >
         Dosyalar
       </button>
@@ -4788,6 +4800,9 @@ export function StudioProjects({
             isTenantAdmin={tenant.role === "TenantAdmin"}
             token={token}
             writeFiles={catalogWorkspace.writeFiles}
+            onDirtyChange={(dirty) => {
+              catalogFormDirty.current = dirty;
+            }}
             onPublish={() =>
               void catalogWorkspace
                 .refresh()

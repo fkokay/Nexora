@@ -5,7 +5,7 @@ import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/er
 import { buildBundle, toCatalogColumnType, type CatalogEntry } from "./catalogFiles";
 import { runPreview, storePreview, type PreviewResult } from "./catalogApi";
 import {
-  TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, type WriteCatalogFiles,
+  TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, type WriteCatalogFiles, useDirtyTracking,
   trialValues, usableOperations, validateEntry, type ColumnRow, type ParameterRow, type SourceKind,
 } from "./catalogFormModel";
 
@@ -22,6 +22,8 @@ export type DataSourceFormProps = {
   /** Dosya yolu → sha256; form açıldığında kopyalanır ve kayıtta beklenen sha olarak gönderilir. */
   fileShas?: Record<string, string>;
   onSaved?: (code: string) => void;
+  /** Kaydedilmemiş değişiklik durumu değişince çağrılır (formu yeniden kuracak işlemler önce sorar). */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 const PREVIEW_ROWS = 50;
@@ -85,7 +87,7 @@ export function ParameterTable({ rows, disabled, withTrial, onChange }: {
   );
 }
 
-export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAdmin, token, operations, writeFiles, onSaved, fileShas = {} }: DataSourceFormProps) {
+export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAdmin, token, operations, writeFiles, onSaved, onDirtyChange, fileShas = {} }: DataSourceFormProps) {
   const json = entry?.json ?? {};
   const initialSource = readSource(json.source);
   const [label, setLabel] = useState(typeof json.label === "string" ? json.label : "");
@@ -126,6 +128,8 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
     };
   }
 
+  const markSaved = useDirtyTracking(JSON.stringify(currentEntry()), onDirtyChange);
+
   const invalid = () => validateEntry(code, label, isNew, existingCodes, sourceKind, sql, operation);
 
   async function preview() {
@@ -156,9 +160,11 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
     if (problem) { setError(problem); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      const outcome = await saveEntry(root, currentEntry(), writeFiles, seededShas.current);
+      const saved = currentEntry();
+      const outcome = await saveEntry(root, saved, writeFiles, seededShas.current);
       if (outcome === "cancelled") return;
       if (outcome) { setError(outcome); return; }
+      markSaved(JSON.stringify(saved));
       setNotice("Kaydedildi. Yayınlamak için önce değişiklikleri commit edin.");
       onSaved?.(code);
     } finally {

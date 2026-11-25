@@ -16,6 +16,7 @@ vi.mock("../../platform-tools/erp-src/page-designer/erpOperations", async () => 
 import { confirmDialog } from "../../ui/confirmDialog";
 import { loadErpOperations } from "../../platform-tools/erp-src/page-designer/erpOperations";
 import { CatalogWorkbench } from "./CatalogWorkbench";
+import { UNSAVED_CATALOG_EDITS, confirmDiscardCatalogEdits } from "./catalogFormModel";
 import { readCatalogEntries, type CatalogFile } from "./catalogFiles";
 import { button, click, field, render, type } from "./testUtils";
 
@@ -115,5 +116,50 @@ describe("CatalogWorkbench", () => {
     await act(async () => setEntries(entries.filter(e => e.code !== "kapat")));
     expect(field<HTMLInputElement>(host, "Kod")).toBeUndefined();
     expect(host.textContent).toContain("Soldan bir yapı taşı seçin");
+  });
+  // Yeniden okuma (Sürüm yayınla, Yapı taşları) formu yeniden kurar: kaydedilmemiş değişiklik sorulmadan kaybolmaz.
+  it("publish_with_dirty_form_asks_and_aborts_when_declined", async () => {
+    const onPublish = vi.fn();
+    const host = await render(<CatalogWorkbench {...props()} onPublish={onPublish} />);
+    await type(field(host, "Görünen ad"), "Cari hesaplar (yeni)");
+    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
+    await click(button(host, "Sürüm yayınla"));
+    expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ message: UNSAVED_CATALOG_EDITS }));
+    expect(onPublish).not.toHaveBeenCalled();
+    expect(field<HTMLInputElement>(host, "Görünen ad").value).toBe("Cari hesaplar (yeni)");
+    await click(button(host, "Sürüm yayınla"));
+    expect(onPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it("publish_with_clean_form_does_not_ask", async () => {
+    const onPublish = vi.fn();
+    const host = await render(<CatalogWorkbench {...props()} onPublish={onPublish} />);
+    await click(button(host, "Sürüm yayınla"));
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(onPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it("dirty_state_is_reported_and_cleared_by_save", async () => {
+    const onDirtyChange = vi.fn();
+    const onPublish = vi.fn();
+    const host = await render(<CatalogWorkbench {...props()} onPublish={onPublish} onDirtyChange={onDirtyChange} />);
+    expect(onDirtyChange).not.toHaveBeenLastCalledWith(true);
+    await type(field(host, "Görünen ad"), "Cari hesaplar (yeni)");
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    await click(button(host, "Kaydet"));
+    expect(writeFiles).toHaveBeenCalled();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    vi.mocked(confirmDialog).mockClear();
+    await click(button(host, "Sürüm yayınla"));
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(onPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirmDiscardCatalogEdits_asks_only_when_dirty", async () => {
+    expect(await confirmDiscardCatalogEdits(false)).toBe(true);
+    expect(confirmDialog).not.toHaveBeenCalled();
+    vi.mocked(confirmDialog).mockResolvedValueOnce(false);
+    expect(await confirmDiscardCatalogEdits(true)).toBe(false);
+    expect(confirmDialog).toHaveBeenCalledWith(expect.objectContaining({ message: UNSAVED_CATALOG_EDITS }));
   });
 });

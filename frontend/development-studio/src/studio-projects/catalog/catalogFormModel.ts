@@ -1,4 +1,5 @@
 import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
+import { useEffect, useRef, useState } from "react";
 import { confirmDialog } from "../../ui/confirmDialog";
 import { entryFiles, type CatalogEntry, type CatalogFile } from "./catalogFiles";
 
@@ -64,6 +65,25 @@ export function validateEntry(code: string, label: string, isNew: boolean, exist
   if (sourceKind === "sql" && !sql.trim()) return "SQL boş olamaz.";
   if (sourceKind === "erp" && !operation) return "Bir ERP işlemi seçin.";
   return null;
+}
+
+export const UNSAVED_CATALOG_EDITS = "Kaydedilmemiş değişiklikler var; devam ederseniz kaybolur.";
+
+/** Açık formda kaydedilmemiş değişiklik varsa formu yeniden kuracak bir işlemden önce sorulur; temiz formda sorulmaz. */
+export async function confirmDiscardCatalogEdits(dirty: boolean): Promise<boolean> {
+  if (!dirty) return true;
+  return confirmDialog({ title: "Kaydedilmemiş değişiklikler", message: UNSAVED_CATALOG_EDITS, tone: "warning", confirmLabel: "Devam et" });
+}
+
+/** Formun kaydedilmemiş değişiklik durumu: içerik açılıştaki (ya da son kayıttaki) halinden farklıysa kirlidir. */
+export function useDirtyTracking(snapshot: string, onDirtyChange?: (dirty: boolean) => void) {
+  const [baseline, setBaseline] = useState(snapshot);
+  const dirty = snapshot !== baseline;
+  const report = useRef(onDirtyChange);
+  report.current = onDirtyChange;
+  useEffect(() => { report.current?.(dirty); }, [dirty]);
+  useEffect(() => () => report.current?.(false), []);
+  return setBaseline;
 }
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : "İşlem tamamlanamadı.");
