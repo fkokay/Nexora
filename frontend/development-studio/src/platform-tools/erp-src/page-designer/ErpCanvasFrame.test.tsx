@@ -46,6 +46,7 @@ function setup(over: Record<string, unknown> = {}) {
     onSelect: vi.fn(),
     onBlocks: vi.fn(),
     onUnavailable: vi.fn(),
+    onError: vi.fn(),
     ...over,
   };
   const utils = render(<ErpCanvasFrame {...props} />);
@@ -143,10 +144,20 @@ describe("ErpCanvasFrame", () => {
     expect(props.onUnavailable).not.toHaveBeenCalled();
   });
 
-  it("error mesajı onUnavailable çağırır", () => {
-    const { props, send } = setup();
-    send({ nx: "nexora-canvas", v: 1, type: "error", revision: 0, message: "yüklenemedi" });
-    expect(props.onUnavailable).toHaveBeenCalledWith("yüklenemedi");
+  it("error mesajı kalıcı yedeğe düşürmez, onError çağırır; sonraki layout hatayı temizler", () => {
+    const { props, send, layout, iframe, container } = setup({ selectedId: "a" });
+    layout(1, 640);
+    send({ nx: "nexora-canvas", v: 1, type: "error", revision: 2, message: "yüklenemedi" });
+    expect(props.onError).toHaveBeenCalledWith("yüklenemedi");
+    expect(props.onUnavailable).not.toHaveBeenCalled();
+    expect(container.querySelector("iframe")).toBe(iframe);
+    expect(container.querySelector(".pd-erp-canvas-selected")).toBeNull();
+    expect(iframe.style.height).toBe("640px");
+    layout(1, 300);
+    expect(props.onError).toHaveBeenCalledTimes(1);
+    layout(3, 500);
+    expect(props.onError).toHaveBeenLastCalledWith(null);
+    expect(iframe.style.height).toBe("500px");
   });
 
   it("revision değişince reload", () => {

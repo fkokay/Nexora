@@ -16,7 +16,10 @@ type Props = {
   interactive: boolean;
   onSelect: (id: string | null) => void;
   onBlocks?: (blocks: CanvasBlock[]) => void;
+  /** Yalnız ERP'ye hiç bağlanılamadığında (ready zaman aşımı): kalıcı olarak yerleşik tuvale dönülür. */
   onUnavailable: (reason: string) => void;
+  /** ERP sayfası yüklenemedi (`error`): tuval açık kalır, sonraki revizyonda yeniden denenir. Sonraki düzen gelince `null`. */
+  onError: (message: string | null) => void;
 };
 
 const READY_TIMEOUT_MS = 10_000;
@@ -32,11 +35,13 @@ export default function ErpCanvasFrame(props: Props) {
   const [hoverId, setHoverId] = useState<string | null>(null);
   const lastRevision = useRef(-1);
   const readySeen = useRef(false);
+  const errored = useRef(false);
   const handlers = useRef(props);
   handlers.current = props;
 
   useEffect(() => {
     readySeen.current = false;
+    errored.current = false;
     lastRevision.current = -1;
     setBlocks([]);
     setHoverId(null);
@@ -60,8 +65,16 @@ export default function ErpCanvasFrame(props: Props) {
         setHeight(msg.height);
         setBlocks(msg.blocks);
         handlers.current.onBlocks?.(msg.blocks);
+        if (errored.current) { errored.current = false; handlers.current.onError(null); }
       } else if (msg.type === "error") {
-        handlers.current.onUnavailable(msg.message);
+        if (msg.revision < lastRevision.current) return;
+        lastRevision.current = msg.revision;
+        // Hata sayfasında bileşen yoktur: eski bloklar seçilemesin; yükseklik korunur.
+        setBlocks([]);
+        setHoverId(null);
+        handlers.current.onBlocks?.([]);
+        errored.current = true;
+        handlers.current.onError(msg.message);
       }
     };
     window.addEventListener("message", onMessage);

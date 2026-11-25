@@ -64,6 +64,31 @@ describe("useDraftAutosave", () => {
     expect(result.current.revision).toBe(0);
   });
 
+  it("kapalıyken yapılan değişiklik açılınca kaydedilir", async () => {
+    const save = vi.fn(async () => true);
+    const { result, rerender } = renderHook({ enabled: false, changeKey: {}, save });
+    rerender({ enabled: false, changeKey: {}, save });
+    await advance(2000);
+    expect(save).not.toHaveBeenCalled();
+    const key = {};
+    rerender({ enabled: true, changeKey: key, save });
+    await advance(800);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.current.revision).toBe(1);
+    rerender({ enabled: true, changeKey: key, save });
+    await advance(2000);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("değişiklik yokken açılması kayıt tetiklemez", async () => {
+    const save = vi.fn(async () => true);
+    const key = {};
+    const { rerender } = renderHook({ enabled: false, changeKey: key, save });
+    rerender({ enabled: true, changeKey: key, save });
+    await advance(2000);
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it("ilk değer kayıt tetiklemez", async () => {
     const save = vi.fn(async () => true);
     renderHook({ enabled: true, changeKey: {}, save });

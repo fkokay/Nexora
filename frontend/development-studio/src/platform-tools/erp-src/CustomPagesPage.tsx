@@ -54,6 +54,7 @@ import ErpCanvasFrame, { type CanvasTenant } from "./page-designer/ErpCanvasFram
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
+import { runSingleFlight, type FlightSlot } from "./page-designer/singleFlight";
 import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
@@ -1192,12 +1193,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const focusParent = focusOwner ? definition.components.find((component) => component.id === refTree.refLocation(definition.components, focusOwner.id)?.ownerId) ?? null : null;
   // ERP tuvali: sayfa düzeyinde kaydedilmiş taslağı gerçek ERP sayfasında (iframe) gösterir. Bağlanamazsa yerleşik tuvale dönülür;
   // kart / pencere içi tasarım ekranı her zaman yerleşik tuvali kullanır.
+  // Kalıcı yedek yalnız ERP'ye hiç bağlanılamadığında (ready zaman aşımı); sayfa yükleme hatası tuvalin üstünde ipucu olur.
   const [canvasFallback, setCanvasFallback] = useState(false);
   const [canvasInteractive, setCanvasInteractive] = useState(false);
+  // Sessiz kaydın doğrulama sorunu ("Tuval güncellenmedi: …") ve ERP sayfası yükleme hatası; sonraki başarılı kayıt / düzen siler.
+  const [canvasHint, setCanvasHint] = useState("");
+  const [canvasError, setCanvasError] = useState("");
   const erpBlocks = useRef<ErpCanvasBlock[]>([]);
   const erpCanvasAvailable = !!platformOrigin && !!tenant && !canvasFallback;
-  const erpCanvas = erpCanvasAvailable && !focusOwner;
-  useEffect(() => { erpBlocks.current = []; }, [current?.id, systemScreenKey, erpCanvas]);
+  // Önizleme uç noktası yalnız taslak açar: yayımlı sürümde (taslak yokken) sessizce yerleşik tuval gösterilir.
+  const erpCanvas = erpCanvasAvailable && !focusOwner && !current?.isPublished;
+  useEffect(() => { erpBlocks.current = []; setCanvasError(""); setCanvasHint(""); }, [current?.id, systemScreenKey, erpCanvas]);
 
   const request = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
     const response = await authenticatedFetch(url, token, {
@@ -2159,9 +2165,30 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // `quiet`: otomatik kayıt; başarı bildirimi gösterilmez, eksik ad / kod ya da doğrulama sorunu hata yazmadan, seçimi ve
   // pencereleri değiştirmeden `null` döner (bileşen düzenlenirken tanım geçici olarak eksik olabilir; elle kayıt nedeni gösterir).
-  const saveDraft = async (options?: { standardVersion?: number; notice?: string; quiet?: boolean }) => {
+  // Kayıtlar tek uçuşludur: otomatik kayıt, elle kayıt ve önizleme / yayımlama öncesi kayıt aynı anda PUT / POST atmaz
+  // (aynı expectedRevision ile 409 ya da aynı kodla iki taslak olmasın). Bekleyen çağıran, önceki kayıt bitince güncel taslak ve
+  // kayıtlı anlık görüntüyle (ref'ler, başarıda hemen yazılır) yeniden karar verir: değişiklik kalmadıysa son taslak döner.
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const savedSnapshotRef = useRef(savedSnapshot);
+  savedSnapshotRef.current = savedSnapshot;
+  const saveFlight: FlightSlot<PageDetail | null> = useRef<Promise<PageDetail | null> | null>(null);
+  const saveDraft = (options?: { standardVersion?: number; notice?: string; quiet?: boolean }) =>
+    runSingleFlight(saveFlight, () => saveDraftNow(options), () => {
+      const latest = currentRef.current;
+      if (options?.standardVersion !== undefined || !latest || latest.isPublished) return undefined;
+      if (snapshotOf(name, description, definitionRef.current) !== savedSnapshotRef.current) return undefined;
+      if (!options?.quiet) {
+        setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
+        void refreshHistory(latest.id);
+        void refresh();
+      }
+      return latest;
+    });
+  const saveDraftNow = async (options?: { standardVersion?: number; notice?: string; quiet?: boolean }) => {
     const quiet = !!options?.quiet;
-    const fail = (message: string, reveal?: () => void) => { if (!quiet) { setError(message); reveal?.(); } return null; };
+    // Sessiz kayıtta sorun hata olarak yazılmaz, ERP tuvalinin üstünde gösterilir (tuval son kaydedilmiş taslakta kalır).
+    const fail = (message: string, reveal?: () => void) => { if (!quiet) { setError(message); reveal?.(); } else setCanvasHint(`Tuval güncellenmedi: ${message}`); return null; };
     if (!canEdit) return fail("Bu sayfayı düzenleme yetkiniz yok.");
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
     const reconciled = reconcileDefinition(definitionRef.current, { catalog: erpCatalog, queryEditable });
@@ -2210,14 +2237,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setSaving(true); if (!quiet) { setError(""); setNotice(""); }
     const sentSnapshot = snapshotOf(name, description, definition);
     const wire = wireDefinition(definition, erpCatalog);
+    const base = currentRef.current;
     try {
-      const result = current
-        ? await request<PageDetail>(`/api/custom-pages/${current.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: current.revision, name, description: description || null, definition: wire, ...(systemMode ? { standardVersion: options?.standardVersion ?? (allNewItemsAdded ? newItems.standardVersion : null) } : {}) }) })
+      const result = base
+        ? await request<PageDetail>(`/api/custom-pages/${base.id}`, { method: "PUT", body: JSON.stringify({ expectedRevision: base.revision, name, description: description || null, definition: wire, ...(systemMode ? { standardVersion: options?.standardVersion ?? (allNewItemsAdded ? newItems.standardVersion : null) } : {}) }) })
         : await request<PageDetail>("/api/custom-pages/drafts", { method: "POST", body: JSON.stringify({ code: code.trim(), name, description: description || null, definition: wire }) });
-      setCurrent(result); setCreating(false); setCode(result.code); setSavedSnapshot(sentSnapshot);
-      if (!quiet) setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
-      await refreshHistory(result.id);
-      await refresh();
+      currentRef.current = result; savedSnapshotRef.current = sentSnapshot;
+      setCurrent(result); setCreating(false); setCode(result.code); setSavedSnapshot(sentSnapshot); setCanvasHint("");
+      // Otomatik kayıt geçmişi ve sayfa listesini yenilemez (her kayıtta istek atılmasın); elle kayıt yeniler.
+      if (!quiet) {
+        setNotice(options?.notice ?? "Taslak kaydedildi. Yayımlanana kadar aktif sayfa değişmez.");
+        await refreshHistory(result.id);
+        await refresh();
+      }
       return result;
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
@@ -3623,11 +3655,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
           {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
             onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}>
+            {canvasError && <div className="pd-erp-canvas-hint" role="status">ERP sayfası yüklenemedi; sonraki kayıtta yeniden denenir. Neden: {canvasError}</div>}
+            {canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
               revision={current.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
               selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
               onBlocks={(blocks) => { erpBlocks.current = blocks; }}
-              onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}/>
+              onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
+              onError={(message) => setCanvasError(message ?? "")}/>
           </div>
             : <div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>Önizleme için sağdan sayfa adı ve kodunu girin.</span></div>
           : <div className={`pd-frame device-${device}`}>

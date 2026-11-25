@@ -47,10 +47,15 @@ export function useDraftAutosave({ enabled, changeKey, delayMs = 800, save }: Op
     }, delayRef.current);
   };
 
+  // Kapalıyken gelen değişiklik unutulmaz: kayıt açılınca (ör. ad / kod girilince) bir kez kaydedilir.
+  const missed = useRef(false);
   useEffect(() => {
-    if (Object.is(lastKey.current, changeKey)) return;
+    const changed = !Object.is(lastKey.current, changeKey);
     lastKey.current = changeKey;
-    if (!enabled) return;
+    if (!enabled) { if (changed) missed.current = true; return; }
+    if (!changed && !missed.current) return;
+    // Kayıt gönderilirken değil, sıraya alınırken temizlenir: başarısız (false) kayıt kendini yeniden zamanlamaz.
+    missed.current = false;
     if (inFlight.current) { pending.current = true; return; }
     schedule.current();
   }, [changeKey, enabled]);
