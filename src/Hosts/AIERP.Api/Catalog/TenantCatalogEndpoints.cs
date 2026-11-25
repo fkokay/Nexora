@@ -140,7 +140,9 @@ internal static partial class TenantCatalogEndpoints
 
     /// <summary>
     /// Published, non-archived pages whose catalog references would stop working with the new bundle: the code is gone, the
-    /// item kind or query kind changed, the source type (sql / ERP operation) changed, or a SQL item's parameters differ.
+    /// item kind or query kind changed, the source type (sql / ERP operation) changed against the active release (its items
+    /// that no longer validate included), a SQL item's parameters differ (names compared Ordinal), or the page as a whole no
+    /// longer validates against the new bundle (e.g. an operation swapped for one whose parameters the page does not satisfy).
     /// </summary>
     private static async Task<List<BrokenPage>> BrokenPagesAsync(TenantDbContext db, Guid tenant, CatalogBundle? oldBundle, CatalogBundle newBundle, CancellationToken ct)
     {
@@ -150,18 +152,24 @@ internal static partial class TenantCatalogEndpoints
         var result = new List<BrokenPage>();
         foreach (var page in pages)
         {
+            var queries = TenantCustomPageQueries.ReadQueries(page.DefinitionJson).Where(x => (x.DataSource ?? x.Action) is not null).ToArray();
+            if (queries.Length == 0) continue;
             var references = new List<string>();
-            foreach (var query in TenantCustomPageQueries.ReadQueries(page.DefinitionJson))
+            foreach (var query in queries)
             {
-                var code = query.DataSource ?? query.Action;
-                if (code is null) continue;
+                var code = (query.DataSource ?? query.Action)!;
                 var kind = query.DataSource is not null ? "dataSource" : "action";
                 var item = newBundle.Find(code);
-                var old = oldBundle?.Find(code);
+                var old = oldBundle?.FindForRun(code);
                 var intact = TenantCatalogStore.Fits(item, kind, query) && (old is null || (old.Sql is null) == (item!.Sql is null));
                 if (!intact && !references.Contains(code)) references.Add(code);
             }
-            if (references.Count > 0) result.Add(new BrokenPage(page.Code, page.Name, references));
+            // The whole page against the new bundle, with the same rules as save and publish.
+            var valid = TenantCustomPageSchema.Validate(page.DefinitionJson, out var error, TenantCustomPageQueries.OperationNames(page.DefinitionJson),
+                ErpOperationCatalog.TryGet, newBundle);
+            if (!valid && references.Count == 0)
+                references.AddRange(queries.Select(x => (x.DataSource ?? x.Action)!).Distinct(StringComparer.Ordinal));
+            if (references.Count > 0) result.Add(new BrokenPage(page.Code, page.Name, references, valid ? null : error));
         }
         return result;
     }
@@ -170,7 +178,9 @@ internal static partial class TenantCatalogEndpoints
     private sealed record ActivateRequest(Guid? ExpectedActiveReleaseId);
     private sealed record ReleaseSummary(Guid Id, string Version, string Status, string BundleSha256, string? SourceRepository, string? SourceCommit,
         DateTimeOffset CreatedAt, DateTimeOffset? ActivatedAt);
-    private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References);
+    /// <summary>A page the release would break; <see cref="Error"/> is the page validation message against the new bundle, when it fails.</summary>
+    private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error);
     private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
         IReadOnlyList<string> InvalidItems);
     private sealed record DataSourceView(string Code, string Label, string Source,

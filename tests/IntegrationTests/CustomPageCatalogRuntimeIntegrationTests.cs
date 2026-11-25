@@ -268,6 +268,22 @@ public sealed class CustomPageCatalogRuntimeIntegrationTests
     }
 
     [Fact]
+    public async Task Run_compares_parameter_names_exactly()
+    {
+        var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);
+        await using var app = await StartApplicationAsync(factory);
+        await SeedReleaseAsync(app, "1.0.0", BundleJson());
+        // Written directly (the save rule is exact too): the page names the parameter Q, the catalog item q.
+        await SeedPageAsync(app, PageCode, published: true, Page(Query("liste", "dataSource", "cariler", parameter: "Q")));
+        using var client = Client(app);
+
+        var response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/liste/run", new { parameters = new { Q = "A%" } });
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(0, factory.Calls);
+        Assert.Equal("Katalogda bulunamadı: cariler", Assert.Single(await QueriesAsync(client, $"/api/custom-pages/{PageCode}/published")).GetProperty("catalogError").GetString());
+    }
+
+    [Fact]
     public async Task Catalog_sql_action_write_is_audited_with_catalog_code()
     {
         var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);

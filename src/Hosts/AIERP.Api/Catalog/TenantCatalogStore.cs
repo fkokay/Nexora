@@ -44,7 +44,10 @@ internal static class TenantCatalogStore
     /// <summary>
     /// Whether a page query's catalog reference still fits the item: the item exists, is of the referenced item kind
     /// (<c>dataSource</c> / <c>action</c>) and query kind, and, for a SQL item, the page declares exactly the item's
-    /// parameter names (case-insensitive) with the same types. Shared by the activation guard and the runtime.
+    /// parameter names (compared Ordinal, the same rule as page save) with the same types. Used by the runtime and, together
+    /// with a full page validation against the new bundle, by the activation guard. For an operation-backed item the page's
+    /// parameters are not re-checked here: the activation guard validates them with the ERP operation rules, and the ERP
+    /// endpoint the runtime calls validates its own input.
     /// </summary>
     internal static bool Fits(CatalogItem? item, string itemKind, PageQuery query) =>
         item is not null && item.ItemKind == itemKind && item.QueryKind == query.Kind
@@ -53,7 +56,7 @@ internal static class TenantCatalogStore
     private static bool SameParameters(IReadOnlyList<PageQueryParameter> page, IReadOnlyList<CatalogParameter> item)
     {
         if (page.Count != item.Count) return false;
-        var types = item.ToDictionary(x => x.Name, x => x.Type, StringComparer.OrdinalIgnoreCase);
+        var types = item.ToDictionary(x => x.Name, x => x.Type, StringComparer.Ordinal);
         return page.All(x => types.TryGetValue(x.Name, out var type) && type == x.Type);
     }
 }

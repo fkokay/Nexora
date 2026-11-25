@@ -247,6 +247,92 @@ public sealed class TenantCatalogEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await Activate(client, compatible, first)).StatusCode);
     }
 
+    private const string CarilerSql = """{ "code": "cariler", "label": "Cari hesaplar", "source": { "sql": "SELECT Code, Name FROM CustomerAccounts WHERE Name LIKE @q" }, "parameters": [ { "name": "q", "type": "text" } ] }""";
+
+    private static string Pack(string dataSources, string actions = "") => $$"""{ "schemaVersion": 1, "dataSources": [ {{dataSources}} ], "actions": [ {{actions}} ] }""";
+
+    private static async Task<JsonElement> AssertBlockedAsync(HttpClient client, Guid release, Guid expected, string page, string reference)
+    {
+        var blocked = await Activate(client, release, expected);
+        Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+        var body = await Json(blocked);
+        var broken = Assert.Single(body.GetProperty("pages").EnumerateArray());
+        Assert.Equal(page, broken.GetProperty("code").GetString());
+        Assert.Contains(reference, broken.GetProperty("references").EnumerateArray().Select(x => x.GetString()));
+        return broken;
+    }
+
+    [Fact]
+    public async Task Activate_blocked_when_item_kind_changes()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var first = await CreateOk(client, "1.0.0", BundleJson());
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, null)).StatusCode);
+        await SeedPageAsync(app, "cari-arama", published: true, DataSourcePage());
+        // Same code, now an action.
+        var second = await CreateOk(client, "2.0.0", Pack("", """{ "code": "cariler", "label": "Sil", "kind": "delete", "run": { "sql": "DELETE FROM CustomerAccounts WHERE Name LIKE @q" }, "parameters": [ { "name": "q", "type": "text" } ] }"""));
+
+        await AssertBlockedAsync(client, second, first, "cari-arama", "cariler");
+    }
+
+    [Fact]
+    public async Task Activate_blocked_when_sql_item_becomes_erp_operation_even_if_active_bundle_has_a_stale_item()
+    {
+        await using var app = await StartApplicationAsync();
+        Guid first;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            // The active release (written directly) also holds an item whose operation no longer exists.
+            var release = CustomPageCatalogReferenceSchemaTests.Release(TenantA, "1.0.0", "Active",
+                Pack(CarilerSql + """, { "code": "eski", "label": "Eski", "source": { "erpOperation": "yok.boyle.islem" } }"""));
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            db.TenantCatalogReleases.Add(release);
+            await db.SaveChangesAsync();
+            first = release.Id;
+        }
+        await SeedPageAsync(app, "cari-arama", published: true, DataSourcePage());
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        // cari.listele also takes q: text, so the page alone would still validate; the source change must still block.
+        var second = await CreateOk(client, "2.0.0", Pack("""{ "code": "cariler", "label": "Cari hesaplar", "source": { "erpOperation": "cari.listele" } }"""));
+
+        await AssertBlockedAsync(client, second, first, "cari-arama", "cariler");
+    }
+
+    [Fact]
+    public async Task Activate_blocked_when_operation_is_swapped_for_one_the_page_does_not_satisfy()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var first = await CreateOk(client, "1.0.0", Pack("""{ "code": "cariListe", "label": "Cari liste", "source": { "erpOperation": "cari.listele" } }"""));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, null)).StatusCode);
+        await SeedPageAsync(app, "cari-liste", published: true,
+            CustomPageCatalogReferenceSchemaTests.Page(CustomPageCatalogReferenceSchemaTests.Reference("dataSource", "cariListe", parameters: [])));
+        // Same code and kind, but cari.getir needs a route id the page does not bind.
+        var second = await CreateOk(client, "2.0.0", Pack("""{ "code": "cariListe", "label": "Cari liste", "source": { "erpOperation": "cari.getir" } }"""));
+
+        var broken = await AssertBlockedAsync(client, second, first, "cari-liste", "cariListe");
+        Assert.Contains("id", broken.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Activate_blocked_when_parameter_name_case_changes()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var first = await CreateOk(client, "1.0.0", Pack(CarilerSql));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, null)).StatusCode);
+        await SeedPageAsync(app, "cari-arama", published: true, DataSourcePage());
+        // Parameter names are compared exactly (Ordinal) at save, at activation and at run: q and Q differ.
+        var second = await CreateOk(client, "1.1.0", Pack(CarilerSql.Replace("@q", "@Q").Replace("\"name\": \"q\"", "\"name\": \"Q\"")));
+
+        await AssertBlockedAsync(client, second, first, "cari-arama", "cariler");
+    }
+
     [Fact]
     public async Task Draft_page_reference_does_not_block_activation()
     {
