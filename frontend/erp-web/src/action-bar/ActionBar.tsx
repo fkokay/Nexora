@@ -216,7 +216,6 @@ function ActionsMenu({ items, locale, open, onOpenChange, hints = true }: { item
       {tip.tooltip}
       {open && (
         <div ref={menuRef} className="nx-action-bar__menu" role="menu" aria-label="İşlemler" style={position} onKeyDown={onMenuKeyDown}>
-          {items.length === 0 && <div className="nx-action-bar__menu-empty">{UNAVAILABLE}</div>}
           {items.map((item) => {
             const { enabled, reason } = stateOf(item);
             return (
@@ -254,8 +253,9 @@ export function ActionBar({ locale }: { locale: Locale }) {
   const closeHelp = useCallback(() => setHelpOpen(false), []);
   // Record forms keep their own Kaydet only while no bar is mounted.
   useLayoutEffect(() => registry.attachActionBar(), [registry]);
-  // The page removed İşlemler (`moreHidden`): no menu, Alt+İ does nothing, and an open menu closes.
-  const moreHidden = !!commands?.moreHidden;
+  // No İşlemler when the page removed it (`moreHidden`) or registered no items: no menu, Alt+İ does nothing,
+  // and an open menu closes.
+  const moreHidden = !!commands?.moreHidden || !commands?.more?.length;
   const moreHiddenRef = useRef(moreHidden);
   moreHiddenRef.current = moreHidden;
   useEffect(() => { if (moreHidden) setMenuOpen(false); }, [moreHidden]);
