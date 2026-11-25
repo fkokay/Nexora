@@ -172,6 +172,23 @@ public sealed class StudioAccessEndpointsIntegrationTests
             .TenantMemberships.SingleAsync(x => x.UserId == OutsiderId)).StudioRole);
     }
 
+    [Fact]
+    public async Task Real_authorization_policy_allows_marked_endpoints_and_still_denies_catalog_less_paths()
+    {
+        await using var factory = await CreateFactoryAsync(useRealPolicy: true);
+        using var client = factory.CreateClient();
+
+        using var me = await SendAsync(client, HttpMethod.Get, "/studio/me", UserId);
+        using var people = await SendAsync(client, HttpMethod.Get, "/studio/people", UserId);
+        using var adminPeople = await SendAsync(client, HttpMethod.Get, "/studio/people", AdminId);
+        using var neighbour = await SendAsync(client, HttpMethod.Get, "/studio/modules/active", UserId);
+
+        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, people.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, adminPeople.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, neighbour.StatusCode);
+    }
+
     private static async Task<JsonElement> GetJsonAsync(HttpClient client, string url, Guid userId)
     {
         using var response = await SendAsync(client, HttpMethod.Get, url, userId);
@@ -187,9 +204,9 @@ public sealed class StudioAccessEndpointsIntegrationTests
         return client.SendAsync(request);
     }
 
-    private static async Task<StudioFactory> CreateFactoryAsync()
+    private static async Task<StudioFactory> CreateFactoryAsync(bool useRealPolicy = false)
     {
-        var factory = new StudioFactory();
+        var factory = new StudioFactory(useRealPolicy);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
         db.Tenants.AddRange(
@@ -213,7 +230,7 @@ public sealed class StudioAccessEndpointsIntegrationTests
         return factory;
     }
 
-    private sealed class StudioFactory : WebApplicationFactory<AIServiceEntryPointMarker>
+    private sealed class StudioFactory(bool useRealPolicy) : WebApplicationFactory<AIServiceEntryPointMarker>
     {
         private readonly string _platformName = $"studio-access-platform-{Guid.NewGuid():N}";
         private readonly string _studioName = $"studio-access-studio-{Guid.NewGuid():N}";
@@ -244,8 +261,10 @@ public sealed class StudioAccessEndpointsIntegrationTests
                     options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
                     options.DefaultForbidScheme = TestAuthHandler.SchemeName;
                 }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
-                services.AddAuthorization(options =>
-                    options.DefaultPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+                // useRealPolicy keeps the production default policy (PermissionRequirement + PermissionAuthorizationHandler).
+                if (!useRealPolicy)
+                    services.AddAuthorization(options =>
+                        options.DefaultPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
             });
         }
 
@@ -295,6 +314,7 @@ public sealed class StudioAccessEndpointsIntegrationTests
             var identity = new ClaimsIdentity(
             [
                 new Claim("tenant_id", TenantId.ToString("D")),
+                new Claim("role", "TenantUser"),
                 new Claim("sub", user.ToString())
             ], SchemeName);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));

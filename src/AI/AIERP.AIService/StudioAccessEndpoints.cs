@@ -7,6 +7,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AIERP.AIService;
 
+/// <summary>
+/// Endpoint metadata marking a route as self-authorized: the permission catalog / tenant Allow-Deny policy check is skipped
+/// by design (tenant Deny rules do not apply to these routes) because the endpoint authorizes from the DB membership itself.
+/// </summary>
+public sealed class StudioSelfAuthorizedEndpoint
+{
+    public static readonly StudioSelfAuthorizedEndpoint Instance = new();
+    private StudioSelfAuthorizedEndpoint() { }
+}
+
 public sealed record UpdateStudioRoleRequest(string? StudioRole);
 
 public sealed record StudioPersonRow(Guid UserId, string DisplayName, string Email, string MembershipRole,
@@ -22,7 +32,7 @@ public static class StudioAccessEndpoints
             var access = await StudioAccessLookup.ForUserAsync(platformDb, studioDb, tenantId, userId, ct);
             if (access is null) return Results.Forbid();
             return Results.Ok(new { isAdmin = access.IsAdmin, workRole = access.WorkRole, menuRoles = access.MenuRoles });
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithMetadata(StudioSelfAuthorizedEndpoint.Instance);
 
         app.MapGet("/studio/people", async (ClaimsPrincipal user, PlatformDbContext platformDb, AIStudioDbContext studioDb, CancellationToken ct) =>
         {
@@ -39,7 +49,7 @@ public static class StudioAccessEndpoints
             var rows = members.OrderBy(x => x.DisplayName).ThenBy(x => x.Email)
                 .Select(x => ToRow(x.UserId, x.DisplayName, x.Email, x.Role, x.StudioRole, granted.Contains(x.UserId)));
             return Results.Ok(rows);
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithMetadata(StudioSelfAuthorizedEndpoint.Instance);
 
         app.MapPut("/studio/people/{userId:guid}/studio-role", async (Guid userId, UpdateStudioRoleRequest body, ClaimsPrincipal user,
             PlatformDbContext platformDb, AIStudioDbContext studioDb, CancellationToken ct) =>
@@ -62,7 +72,7 @@ public static class StudioAccessEndpoints
             var hasGrant = await studioDb.DevelopmentProjectAccesses.AsNoTracking()
                 .AnyAsync(x => x.TenantId == tenantId && x.UserId == userId && x.Project.IsActive && x.Project.TenantId == tenantId, ct);
             return Results.Ok(ToRow(userId, membership.User.DisplayName, membership.User.Email, membership.Role, membership.StudioRole, hasGrant));
-        }).RequireAuthorization();
+        }).RequireAuthorization().WithMetadata(StudioSelfAuthorizedEndpoint.Instance);
         return app;
     }
 
