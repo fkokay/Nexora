@@ -63,7 +63,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "customers",
     title: ["Cari Hesaplar", "Customer accounts"],
-    pages: ["customers", "customer-create", "customer-edit", "customer-ledger", "crm-opportunities", "crm-opportunity-create"],
+    pages: ["customers", "customer-create", "customer-edit", "customer-ledger", "customer-groups", "crm-opportunities", "crm-opportunity-create"],
   },
   {
     railId: "inventory",

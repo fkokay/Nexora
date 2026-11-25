@@ -3205,6 +3205,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             e.Property(x => x.QueryName).HasMaxLength(64).IsRequired();
             e.Property(x => x.Kind).HasMaxLength(10).IsRequired();
             e.Property(x => x.ParametersJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.CatalogReference).HasMaxLength(100);
             e.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
         });
     }

@@ -100,14 +100,6 @@
         "query:dosya"
       ]
     },
-    "component:bosSecim": {
-      "since": 1,
-      "label": "Detay paneli: seçim yok notu",
-      "requires": [
-        "component:detayPaneli",
-        "component:liste"
-      ]
-    },
     "component:ithalatDugmesi": {
       "since": 1,
       "label": "Yeni ithalat dosyası komutu"
@@ -557,7 +549,7 @@
           "paging": "server",
           "pageSize": 50,
           "width": 12,
-          "widthWhen": "8=detayPaneli.value == true",
+          "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
           "detailToggleInput": "detayPaneli",
           "columns": [
             "referenceCode",
@@ -979,16 +971,6 @@
             }
           }
         ]
-      },
-      {
-        "id": "bosSecim",
-        "type": "text",
-        "name": "bosSecim",
-        "props": {
-          "text": "Dosya seçin. Aşamasını, ön koşullarını ve bağlı stok belgesini görmek için listeden bir dosya seçin. İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.",
-          "width": 4,
-          "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null"
-        }
       },
       {
         "id": "ithalatDugmesi",

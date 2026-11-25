@@ -3,9 +3,12 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 internal sealed record PageQueryParameter(string Name, string Binding, string Type);
-/// <summary>A page query: either SQL text (<see cref="Sql"/>) or a named ERP operation (<see cref="Operation"/>, Sql is then empty).</summary>
+/// <summary>
+/// A page query: SQL text (<see cref="Sql"/>), a named ERP operation (<see cref="Operation"/>), or a reference to a code
+/// of the tenant's active catalog (<see cref="DataSource"/> / <see cref="Action"/>). Sql is empty unless the query is SQL.
+/// </summary>
 internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn,
-    string? Operation = null);
+    string? Operation = null, string? DataSource = null, string? Action = null);
 
 /// <summary>Pure helpers for schema v2 page queries: reading, binding paths, SQL parameter names and dependency cycles.</summary>
 internal static partial class TenantCustomPageQueries
@@ -40,6 +43,56 @@ internal static partial class TenantCustomPageQueries
         return root.ToJsonString();
     }
 
+    internal const string CatalogMissingPrefix = "Katalogda bulunamadı: ";
+
+    /// <summary>
+    /// Resolves the catalog references of a definition for the ERP runtime. Each query with a <c>dataSource</c> / <c>action</c>
+    /// key loses that key and becomes, when the item still fits (<see cref="AIERP.Api.TenantCatalogStore.Fits"/>):
+    /// an ERP operation query (<c>operation</c> = the item's operation), or, for a SQL item, an ordinary query run by id
+    /// whose SQL the run endpoint takes from the catalog. A missing or no longer fitting item yields
+    /// <c>catalogError</c> = "Katalogda bulunamadı: &lt;kod&gt;". Definitions without references are returned unchanged.
+    /// The result still carries page SQL; callers apply <see cref="WithoutQuerySql"/> afterwards.
+    /// </summary>
+    internal static string ResolveCatalogReferences(string definitionJson, AIERP.Api.CatalogBundle? catalog)
+    {
+        if (!HasCatalogReferences(definitionJson)) return definitionJson;
+        if (JsonNode.Parse(definitionJson) is not JsonObject root || root["queries"] is not JsonArray queries) return definitionJson;
+        // ReadQueries skips non-object entries, so its order matches the object entries here.
+        var read = ReadQueries(definitionJson);
+        var objects = queries.OfType<JsonObject>().ToArray();
+        if (read.Count != objects.Length)
+        {
+            // Defensive (both reads parse the same JSON): never hand out unresolved references; every one becomes an error.
+            foreach (var query in objects.Where(x => x.ContainsKey("dataSource") || x.ContainsKey("action")))
+            {
+                var key = query.ContainsKey("dataSource") ? "dataSource" : "action";
+                var code = query[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : "";
+                query.Remove("dataSource");
+                query.Remove("action");
+                query["catalogError"] = CatalogMissingPrefix + code;
+            }
+            return root.ToJsonString();
+        }
+        for (var i = 0; i < objects.Length; i++)
+        {
+            var query = objects[i];
+            var isDataSource = query.ContainsKey("dataSource");
+            if (!isDataSource && !query.ContainsKey("action")) continue;
+            var key = isDataSource ? "dataSource" : "action";
+            var code = query[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+            query.Remove("dataSource");
+            query.Remove("action");
+            var item = code is null ? null : catalog?.Find(code);
+            if (code is null || !AIERP.Api.TenantCatalogStore.Fits(item, key, read[i]))
+            {
+                query["catalogError"] = CatalogMissingPrefix + (code ?? "");
+                continue;
+            }
+            if (item!.ErpOperation is not null) query["operation"] = item.ErpOperation;
+        }
+        return root.ToJsonString();
+    }
+
     /// <summary>Reads the queries of a v2 definition. v1, malformed or query-less definitions yield an empty list.</summary>
     internal static IReadOnlyList<PageQuery> ReadQueries(string definitionJson)
     {
@@ -56,8 +109,8 @@ internal static partial class TenantCustomPageQueries
                 if (query.TryGetProperty("parameters", out var list) && list.ValueKind == JsonValueKind.Array)
                     foreach (var parameter in list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object))
                         parameters.Add(new PageQueryParameter(Text(parameter, "name"), Text(parameter, "binding"), Text(parameter, "type")));
-                var operation = query.TryGetProperty("operation", out var op) && op.ValueKind == JsonValueKind.String ? op.GetString() : null;
-                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"), operation));
+                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"),
+                    OptionalText(query, "operation"), OptionalText(query, "dataSource"), OptionalText(query, "action")));
             }
             return result;
         }
@@ -83,7 +136,9 @@ internal static partial class TenantCustomPageQueries
     /// <summary>
     /// Structural check: a v2 definition with at least one query that is not a pure ERP operation query. Operation queries
     /// (an <c>operation</c> key and no <c>sql</c> key) carry no SQL and run against their own endpoint with the user's
-    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Never throws on stored JSON.
+    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Catalog references
+    /// (<c>dataSource</c> / <c>action</c>) deliberately count too: their catalog item may run SQL on the server, so the
+    /// access-row, runtime-rights and SQL-visibility rules that use this check stay unchanged for them. Never throws on stored JSON.
     /// </summary>
     internal static bool HasSqlQueries(string definitionJson)
     {
@@ -97,6 +152,69 @@ internal static partial class TenantCustomPageQueries
         }
         catch (JsonException) { return false; }
     }
+
+    /// <summary>
+    /// The save gate's structural pre-check: like <see cref="HasSqlQueries"/>, but a pure catalog data source reference (an
+    /// object with a <c>dataSource</c> key, kind <c>read</c>, and none of <c>sql</c>, <c>operation</c> or <c>action</c>) does
+    /// not count here. Such references are not exempt by themselves: the gate resolves each of them
+    /// (<see cref="PureDataSourceReferenceCodes"/>) against the active catalog and still requires a verified TenantAdmin
+    /// unless the item is a read ERP operation. Action references and malformed entries count. Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasSqlQueriesExceptDataSourceReferences(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind != JsonValueKind.Object
+                    || query.TryGetProperty("sql", out _)
+                    || (!query.TryGetProperty("operation", out _) && !IsPureDataSourceReference(query)));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>
+    /// The codes of the pure catalog data source references that <see cref="HasSqlQueriesExceptDataSourceReferences"/> left
+    /// out; a code that is not a string yields null (the gate treats it as SQL). Never throws on stored JSON.
+    /// </summary>
+    internal static IReadOnlyList<string?> PureDataSourceReferenceCodes(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            if (!IsVersion2(root) || !root.TryGetProperty("queries", out var queries) || queries.ValueKind != JsonValueKind.Array) return [];
+            return queries.EnumerateArray()
+                .Where(query => query.ValueKind == JsonValueKind.Object && !query.TryGetProperty("sql", out _)
+                    && !query.TryGetProperty("operation", out _) && IsPureDataSourceReference(query))
+                .Select(query => OptionalText(query, "dataSource")).ToArray();
+        }
+        catch (JsonException) { return []; }
+    }
+
+    private static bool IsPureDataSourceReference(JsonElement query) =>
+        query.TryGetProperty("dataSource", out _) && !query.TryGetProperty("action", out _)
+        && query.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "read";
+
+    /// <summary>Structural check: a v2 definition with a query that has a <c>dataSource</c> or <c>action</c> key (any value). Never throws on stored JSON.</summary>
+    internal static bool HasCatalogReferences(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind == JsonValueKind.Object
+                    && (query.TryGetProperty("dataSource", out _) || query.TryGetProperty("action", out _)));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>The catalog codes the definition's queries reference; Kind is <c>dataSource</c> or <c>action</c>.</summary>
+    internal static IReadOnlyList<(string QueryId, string Code, string Kind)> CatalogReferences(string definitionJson) =>
+        ReadQueries(definitionJson).SelectMany(x => new[] { (x.Id, x.DataSource, Kind: "dataSource"), (x.Id, x.Action, Kind: "action") })
+            .Where(x => x.Item2 is not null).Select(x => (x.Id, x.Item2!, x.Kind)).ToArray();
 
     /// <summary>
     /// Structural check: a v2 definition with an ERP operation query that is not a pure read (query kind other than
@@ -264,6 +382,8 @@ internal static partial class TenantCustomPageQueries
     private static bool IsVersion2(JsonElement root) => root.ValueKind == JsonValueKind.Object
         && root.TryGetProperty("schemaVersion", out var version) && version.ValueKind == JsonValueKind.Number
         && version.TryGetInt32(out var number) && number == 2;
+    private static string? OptionalText(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static string Text(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 }

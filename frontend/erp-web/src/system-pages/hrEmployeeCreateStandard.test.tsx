@@ -104,7 +104,8 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     type('kod', 'P-A');
     type('ad', 'Birinci');
-    fireEvent.click(await h.menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(h.state.navigations.filter((request) => request.page === 'hr-employees')).toEqual([]);
@@ -134,9 +135,7 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
   it('edit: no Kaydet ve yeni', async () => {
     await openCard();
     await h.ready('save');
-    fireEvent.click(h.command('more'));
     await h.settle(50);
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(h.command('more')).toBeNull();
   });
 });

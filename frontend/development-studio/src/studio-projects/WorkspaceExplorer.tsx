@@ -1,5 +1,5 @@
 // StudioProjects.tsx'ten taşındı; state ana bileşende kalır, burada yalnız props ile kullanılır.
-import type { Dispatch, KeyboardEvent, SetStateAction } from "react";
+import type { Dispatch, KeyboardEvent, ReactNode, SetStateAction } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleStarterFile } from "../moduleStarterFiles";
 import { FolderTree, X, Sparkles, ChevronRight, FileCode, Search, Play, GitBranch, History, ShieldCheck, Plus, Folder, Code2, ArrowUpRight, MessageCircle, ChevronDown, BookOpen, Network, Pencil, ListChecks } from "lucide-react";
@@ -11,6 +11,8 @@ import { DatabaseEngineer } from "../DatabaseEngineer";
 import type { ApprovedHistoryCandidate, ArchitecturePlan, DevelopmentProject, SourceAnalysisResult, StudioKnowledgeAutoRefresh, StudioKnowledgeDocument, WorkspaceFileContent, WorkspaceFileEntry, WorkspaceFileListing, WorkspaceFileSearchResult, WorkspaceRequest, WorkspaceSearchResult } from "./types";
 
 export type WorkspaceExplorerProps = {
+  /** Başlık çubuğuna eklenen isteğe bağlı öğe (ör. "Yapı taşları | Dosyalar" geçişi). */
+  headerExtra?: ReactNode;
   aiConfigured: boolean | null;
   aiDockOpen: boolean;
   aiToolCategories: string[];
@@ -210,6 +212,7 @@ export function WorkspaceExplorer({
   workspaceFileSearchLoading,
   workspaceFileSearchResult,
   workspaceProject,
+  headerExtra,
 }: WorkspaceExplorerProps) {
   return (
     <div
@@ -230,6 +233,7 @@ export function WorkspaceExplorer({
             {fileWorkspace.workspaceBranchName ?? fileWorkspace.branchName}
           </code>
         </h2>
+        {headerExtra}
         <button
           type="button"
           className="wx-command"

@@ -7,6 +7,7 @@ import { CUSTOM_FIELD_CODE, ERP_CATALOG_FAILED, ERP_NOT_ALLOWED, ERP_WRITE_PREVI
 import { FixedOperationValues } from "./FixedOperationValues";
 import { RunOnFields } from "./RunOnFields";
 import { runOnSummary, type QueryRunOn } from "./queryRunOn";
+import { CATALOG_FAILED, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, sourceModePatch, type CatalogItem, type CatalogRefs, type QuerySourceMode } from "./catalogItems";
 
 /** `list`/`map` yalnız ERP işlemi parametrelerinde (katalogdan) gelir; SQL parametre türü seçicisinde hiç sunulmaz. */
 export type QueryParameterType = "text" | "int" | "decimal" | "date" | "datetime" | "bool" | "guid" | "list" | "map";
@@ -16,10 +17,18 @@ export type QueryKind = "read" | "insert" | "update" | "delete";
  * Sayfa sorgusu: ya SQL (`sql`) ya da ERP işlemi (`operation`). Düzenleyicide `operation` anahtarı varsa (boş da olsa)
  * sorgu ERP işlemi modundadır; SQL metni mod değişiminde kaybolmasın diye durumda kalır, kayıtta atılır.
  */
-export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string; parameters: PageQueryParameter[]; runOn: QueryRunOn;
+export type PageQuery = { id: string; name: string; kind: QueryKind; sql?: string; operation?: string;
+  /** Firma kataloğundaki veri kaynağı ya da eylem koduna salt okunur başvuru (SQL/işlem yerine); Studio'da düzenlenmez, kayıtta korunur. */
+  dataSource?: string; action?: string; parameters: PageQueryParameter[]; runOn: QueryRunOn;
   /** Yalnız bileşen listeli `runOn` ile: yeniden çalışma gecikmesi (ms, 150–3000; boşsa 400). */
   runDebounceMs?: number };
 export const isOperationQuery = (query: PageQuery) => typeof query.operation === "string";
+/** Katalog başvurulu sorgu: `dataSource` ya da `action` kodu taşır; SQL ve işlem içermez. */
+export const catalogReference = (query: PageQuery): string | undefined =>
+  typeof query.dataSource === "string" ? query.dataSource : typeof query.action === "string" ? query.action : undefined;
+/** Sorgu listesinde gösterilen kaynak: katalog başvurusu, ERP işlemi ya da SQL. */
+export const querySourceLabel = (query: PageQuery) =>
+  catalogReference(query) !== undefined ? "Katalog" : isOperationQuery(query) ? "ERP işlemi" : "SQL";
 export type QueryPreview = { columns: { code: string; label: string; dataType: string }[]; rows: Record<string, unknown>[]; rowCount: number; truncated: boolean; meta?: Record<string, unknown> };
 
 export const queryKindLabels: Record<QueryKind, string> = { read: "Okuma", insert: "Ekle", update: "Güncelle", delete: "Sil" };
@@ -77,6 +86,10 @@ type Props = {
   onPreview: (id: string, confirmWrite: boolean) => Promise<number | null>;
   /** ERP işlem kataloğu; alınamazsa ERP işlemi modu kapalıdır. */
   catalog: ErpCatalog;
+  /** Firma kataloğundaki veri kaynakları ve eylemler ("Katalog" kaynağı). */
+  catalogRefs?: CatalogRefs;
+  /** TenantAdmin: SQL'e dayanan öğeleri ve eylemleri yalnız o bağlayabilir. */
+  isAdmin?: boolean;
   /** Kaynak okuma işlemini (ör. stok.kart.getir) sayfaya yeni bir sorgu olarak ekler. */
   onAddSourceQuery: (operation: ErpOperation) => void;
   /** Sayfa bileşenleri: `list`/`map` parametrelerinin bağlanabileceği tablo ve blokları listelemek için. */
@@ -112,6 +125,20 @@ function OperationPicker({ operations, value, disabled, onPick }: { operations: 
         </div>)}
       </div>
     </div>}
+  </div>;
+}
+
+/** Katalog öğesi seçici: sorgunun türüne uyan öğeler görünen adlarıyla; yetkisiz kullanıcıya SQL'e dayananlar pasif. */
+function CatalogPicker({ items, value, kind, isAdmin, operations, disabled, onPick }: { items: CatalogItem[]; value: string; kind: QueryKind; isAdmin: boolean; operations: ErpOperation[]; disabled: boolean; onPick: (item: CatalogItem) => void }) {
+  if (items.length === 0) return <p className="pd-query-muted">Katalogda bu sorgu türüne uygun öğe yok.</p>;
+  return <div className="pd-op-list" role="listbox" aria-label="Katalog öğeleri">
+    {items.map((item) => {
+      const reason = catalogItemDisabledReason(item, kind, isAdmin, operations);
+      return <button type="button" role="option" key={item.code} aria-selected={item.code === value} className={item.code === value ? "is-selected" : undefined}
+        disabled={disabled || reason !== null} title={reason ?? undefined} onClick={() => onPick(item)}>
+        <span>{item.label}</span>{reason && <small>{reason}</small>}
+      </button>;
+    })}
   </div>;
 }
 
@@ -156,6 +183,7 @@ export function queryRunBlockedReason(query: PageQuery, catalog: ErpCatalog, pre
   const operation = findOperation(catalog, query.operation);
   if (erpMode && (isWriteKind(query.kind) || operation?.kind === "write")) return ERP_WRITE_PREVIEW_BLOCKED;
   if (erpMode && !operation) return "Önce bir ERP işlemi seçin.";
+  if (catalogReference(query) !== undefined) return "Katalog öğeleri yayımlanan sayfada çalışır; tasarımcıda önizlenmez.";
   return previewBlockedReason;
 }
 
@@ -169,6 +197,8 @@ export type QueryDetailProps = {
   takenNames: string[];
   onUpdate: (patch: Partial<PageQuery>, coalesceKey?: string) => void;
   catalog: ErpCatalog;
+  catalogRefs?: CatalogRefs;
+  isAdmin?: boolean;
   onAddSourceQuery?: (operation: ErpOperation) => void;
   components?: { type: string; name?: string; props?: Record<string, unknown> }[];
   /** Alanın kabul ettiği sorgu türleri (ör. ızgara yalnız okuma); tür seçici ve ERP işlem listesi buna göre süzülür. */
@@ -176,8 +206,9 @@ export type QueryDetailProps = {
 };
 
 /** Seçili sorgunun düzenleyicisi (kaynak, ad, tür, ERP işlemi ya da SQL, parametreler): Sorgular sekmesi ve "Yeni sorgu" penceresi kullanır. */
-export function QueryDetailFields({ query, queries, editable, schema, suggestions, takenNames, onUpdate, catalog, onAddSourceQuery, components = [], allowedKinds }: QueryDetailProps) {
+export function QueryDetailFields({ query, queries, editable, schema, suggestions, takenNames, onUpdate, catalog, catalogRefs = { status: "loading" }, isAdmin = false, onAddSourceQuery, components = [], allowedKinds }: QueryDetailProps) {
   const write = isWriteKind(query.kind);
+  const catalogMode = catalogReference(query) !== undefined;
   const erpMode = isOperationQuery(query);
   const operation = findOperation(catalog, query.operation);
   const operations = catalog.status === "ready" ? catalog.operations : [];
@@ -192,25 +223,27 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
       parameters: picked.parameters.map((parameter) => ({ name: parameter.name, binding: "", type: parameter.type as QueryParameterType })),
     });
   };
-  const setMode = (toErp: boolean) => {
-    if (toErp === erpMode) return;
-    // SQL'e dönüşte parametreler SQL metninden yeniden çıkarılır (sql yaması bunu tetikler).
-    // İşlemin türü ve parametre bağlamaları SQL'e taşınmaz; aynı adlı @parametrelere eski bağlama sızmasın.
-    const sqlKind: QueryKind = !allowedKinds || allowedKinds.includes("read") ? "read" : allowedKinds[0];
-    onUpdate(toErp ? { operation: "", parameters: [] }
-      : { operation: undefined, sql: query.sql ?? (sqlKind === "read" ? "SELECT 1 AS Deger" : ""), kind: sqlKind, runOn: sqlKind === "read" ? "load" : "manual", runDebounceMs: undefined, parameters: [] });
-  };
+  const mode: QuerySourceMode = catalogMode ? "catalog" : erpMode ? "erp" : "sql";
+  const setMode = (target: QuerySourceMode) => { if (target !== mode) onUpdate(sourceModePatch(target, query, allowedKinds)); };
+  const catalogItems = catalogItemsFor(catalogRefs, query.kind);
+  const catalogCode = catalogReference(query);
+  const catalogMissing = catalogCodeMissing(catalogRefs, query);
+  const catalogRows = query.parameters;
   // Sorgu kendi sonucuna bağlanamaz (döngü); kendi adıyla başlayan öneriler gösterilmez.
   const ownSuggestions = suggestions.filter((item) => !item.path.toLowerCase().startsWith(`${query.name.toLowerCase()}.`));
   return <>
       <fieldset className="pd-fieldset" disabled={!editable}>
         <div className="pd-field">Kaynak<div className="pd-segment pd-query-mode" role="group" aria-label="Sorgu kaynağı">
-          <button type="button" aria-pressed={!erpMode} className={!erpMode ? "active" : ""} onClick={() => setMode(false)}>SQL sorgusu</button>
-          <button type="button" aria-pressed={erpMode} className={erpMode ? "active" : ""} disabled={!erpMode && catalog.status !== "ready"}
+          <button type="button" aria-pressed={mode === "sql"} className={mode === "sql" ? "active" : ""} onClick={() => setMode("sql")}>SQL sorgusu</button>
+          <button type="button" aria-pressed={mode === "erp"} className={mode === "erp" ? "active" : ""} disabled={!erpMode && catalog.status !== "ready"}
             title={catalog.status === "failed" ? ERP_CATALOG_FAILED : catalog.status === "loading" ? "ERP işlem listesi yükleniyor…" : undefined}
-            onClick={() => setMode(true)}>ERP işlemi</button>
+            onClick={() => setMode("erp")}>ERP işlemi</button>
+          <button type="button" aria-pressed={mode === "catalog"} className={mode === "catalog" ? "active" : ""} disabled={!catalogMode && catalogRefs.status !== "ready"}
+            title={catalogRefs.status === "failed" ? CATALOG_FAILED : catalogRefs.status === "loading" ? "Katalog yükleniyor…" : undefined}
+            onClick={() => setMode("catalog")}>Katalog</button>
         </div>
         {catalog.status === "failed" && <small className="pd-query-warning">{ERP_CATALOG_FAILED}</small>}
+        {catalogRefs.status === "failed" && <small className="pd-query-warning">{CATALOG_FAILED}</small>}
         </div>
         <div className="pd-field-row pd-query-meta">
           <label className="pd-field">Ad<input className="pd-query-name" value={query.name} maxLength={64} spellCheck={false}
@@ -222,11 +255,40 @@ export function QueryDetailFields({ query, queries, editable, schema, suggestion
         {erpMode ? <div className="pd-field">Tür<small>{queryKindLabels[query.kind]} · seçilen işlemden gelir.</small></div>
           : <div className="pd-field">Tür<div className="pd-segment pd-query-kinds" role="group" aria-label="Sorgu türü">
             {(Object.keys(queryKindLabels) as QueryKind[]).filter((kind) => !allowedKinds || allowedKinds.includes(kind)).map((kind) => <button type="button" key={kind} aria-pressed={query.kind === kind} className={`${query.kind === kind ? "active" : ""}${isWriteKind(kind) ? " is-write" : ""}`}
-              onClick={() => { if (kind !== query.kind) onUpdate(isWriteKind(kind) ? { kind, runOn: "manual", runDebounceMs: undefined } : { kind }); }}>{queryKindLabels[kind]}</button>)}
+              onClick={() => {
+                if (kind === query.kind) return;
+                const patch: Partial<PageQuery> = isWriteKind(kind) ? { kind, runOn: "manual", runDebounceMs: undefined } : { kind };
+                // Katalogda okuma veri kaynağına, yazma eylemine başvurur: tür değişince seçim yeniden yapılır.
+                onUpdate(catalogMode ? { ...patch, dataSource: isWriteKind(kind) ? undefined : "", action: isWriteKind(kind) ? "" : undefined, parameters: [] } : patch);
+              }}>{queryKindLabels[kind]}</button>)}
           </div></div>}
         {nameProblem(query.name, takenNames) && <small className="pd-query-warning">{nameProblem(query.name, takenNames)}</small>}
       </fieldset>
-      {erpMode ? <>
+      {catalogMode ? <>
+        <div className="pd-field">Katalog<small>Firma kataloğundaki hazır {write ? "eylem" : "veri kaynağı"}; sorgu metni katalogdan gelir.</small>
+          {catalogRefs.status === "ready" ? <CatalogPicker key={query.id} items={catalogItems} value={catalogCode ?? ""} kind={query.kind} isAdmin={isAdmin} operations={operations} disabled={!editable}
+            onPick={(item) => onUpdate(catalogPickPatch(item, write, operations))}/>
+            : <p className="pd-query-muted">{catalogRefs.status === "loading" ? "Katalog yükleniyor…" : CATALOG_FAILED}</p>}
+          {catalogMissing && <small className="pd-query-warning">{`Katalogda bulunamadı: ${catalogCode}`}</small>}
+        </div>
+        <div className="pd-field">Parametreler<small>Adlar ve türler katalogdan gelir.</small>
+          {catalogRows.length === 0 ? <p className="pd-query-muted">Bu öğede parametre yok.</p>
+            : <table className="pd-query-params"><thead><tr><th scope="col">Ad</th><th scope="col">Bağlama</th><th scope="col">Tür</th></tr></thead><tbody>
+              {catalogRows.map((row, index) => {
+                const update = (binding: string) => onUpdate({ parameters: catalogRows.map((item, itemIndex) => itemIndex === index ? { ...item, binding } : item) }, `query:${query.id}:param:${row.name}`);
+                const collection = isCollectionType(row.type) ? row.type : null;
+                return <tr key={row.name}>
+                  <td><code>{row.name}</code></td>
+                  <td>{collection ? <CollectionSelect kind={collection} binding={row.binding} candidates={collectionCandidates(collection, components)} name={row.name} disabled={!editable} onChange={update}/>
+                    : <BindingInput value={row.binding} suggestions={ownSuggestions} replaceOnInsert disabled={!editable} invalid={!bindingPath(row.binding)} placeholder="{{girisAdi.value}}"
+                      ariaLabel={`${row.name} bağlaması`} onChange={update}/>}</td>
+                  <td><small>{parameterTypeLabel(row.type)}</small></td>
+                </tr>;
+              })}
+            </tbody></table>}
+          {catalogRows.some((row) => !isCollectionType(row.type) && !bindingPath(row.binding)) && <small className="pd-query-warning">Her parametre tek bir <code>{"{{…}}"}</code> ifadesine bağlanmalıdır.</small>}
+        </div>
+      </> : erpMode ? <>
         <div className="pd-field">ERP işlemi<small>Sayfa yalnız katalogdaki işlemi çağırır; adres ve yöntem işlemden gelir, kullanıcının kendi yetkisiyle çalışır.</small>
           {catalog.status === "ready" ? <OperationPicker key={query.id} operations={pickable} value={operation} disabled={!editable} onPick={pickOperation}/>
             : query.operation ? <code className="pd-op-raw">{query.operation}</code>
@@ -329,7 +391,7 @@ export function QueryResultTable({ preview }: { preview: QueryPreview }) {
   </div>;
 }
 
-export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, onAddSourceQuery, components = [] }: Props) {
+export default function QueriesPanel({ queries, selectedId, onSelect, editable, readOnlyReason, schema, suggestions, previews, previewBlockedReason, takenNames, onAdd, onUpdate, onRemove, onPreview, catalog, catalogRefs, isAdmin = false, onAddSourceQuery, components = [] }: Props) {
   const [running, setRunning] = useState<string | null>(null);
   const [affected, setAffected] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -362,6 +424,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
         return <li key={query.id}>
           <button type="button" className={`pd-query-card ${query.id === selectedId ? "is-selected" : ""}`} aria-pressed={query.id === selectedId} onClick={() => onSelect(query.id)}>
             <span className="pd-query-card-head"><Database size={13}/><b>{query.name || "Adsız sorgu"}</b><span className={`pd-query-kind${isWriteKind(query.kind) ? " is-write" : ""}`}>{queryKindLabels[query.kind]}</span></span>
+            {catalogReference(query) !== undefined && <small className="pd-query-muted">Katalog: {catalogReference(query)}</small>}
             <small>{isOperationQuery(query) ? "ERP işlemi · " : ""}{isWriteKind(query.kind) ? "Yalnız düğmeyle" : runOnSummary(query.runOn)}{result ? ` · ${result.rowCount.toLocaleString("tr-TR")} satır` : ""}</small>
           </button>
         </li>;
@@ -371,7 +434,7 @@ export default function QueriesPanel({ queries, selectedId, onSelect, editable, 
 
     {selected && <section className="pd-query-detail" aria-label={`${selected.name} sorgusu`}>
       <QueryDetailFields query={selected} queries={queries} editable={editable} schema={schema} suggestions={suggestions} takenNames={takenNames(selected.id)}
-        onUpdate={(patch, coalesceKey) => onUpdate(selected.id, patch, coalesceKey)} catalog={catalog} onAddSourceQuery={onAddSourceQuery} components={components}/>
+        onUpdate={(patch, coalesceKey) => onUpdate(selected.id, patch, coalesceKey)} catalog={catalog} catalogRefs={catalogRefs} isAdmin={isAdmin} onAddSourceQuery={onAddSourceQuery} components={components}/>
       <div className="pd-query-actions">
         <button type="button" className="pd-button small primary" disabled={!editable || !!runBlockedReason || running !== null} title={runBlockedReason ?? undefined}
           onClick={() => void run(selected)}><Play size={13}/>{running === selected.id ? "Çalışıyor…" : write && !erpMode ? "Gerçekten çalıştır…" : "Çalıştır ve önizle"}</button>

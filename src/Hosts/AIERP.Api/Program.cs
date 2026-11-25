@@ -249,6 +249,7 @@ app.MapCustomFormEndpoints();
 app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
+app.MapTenantCatalogEndpoints();
 app.MapSystemPageEndpoints();
 app.MapCustomPageAccessEndpoints();
 app.MapCustomPageQueryEndpoints();
@@ -1082,10 +1083,18 @@ customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>
 customerLocationDefinitions.MapGet("/provinces", async (TenantDbContext db) =>
     Results.Ok(await db.CustomerLocationProvinces.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
         .Select(x => new CustomerLocationProvinceView(x.Id, x.Name, x.IsActive)).ToListAsync()));
-customerLocationDefinitions.MapGet("/districts", async (int provinceId, TenantDbContext db) =>
-    Results.Ok(await db.CustomerLocationDistricts.AsNoTracking()
-        .Where(x => x.IsActive && x.ProvinceId == provinceId && x.Province.IsActive).OrderBy(x => x.Name)
-        .Select(x => new CustomerLocationDistrictView(x.Id, x.ProvinceId, x.Name, x.IsActive)).ToListAsync()));
+// By province id or by province name (customers store the il as its name); both given must agree. Neither: an empty list.
+// The name is trimmed and compared in the database collation (case-insensitive on SQL Server), as the unique name index.
+customerLocationDefinitions.MapGet("/districts", async (int? provinceId, string? provinceName, TenantDbContext db) =>
+{
+    var name = provinceName?.Trim();
+    if (provinceId is null && string.IsNullOrEmpty(name)) return Results.Ok(Array.Empty<CustomerLocationDistrictView>());
+    var query = db.CustomerLocationDistricts.AsNoTracking().Where(x => x.IsActive && x.Province.IsActive);
+    if (provinceId is { } id) query = query.Where(x => x.ProvinceId == id);
+    if (!string.IsNullOrEmpty(name)) query = query.Where(x => x.Province.Name == name);
+    return Results.Ok(await query.OrderBy(x => x.Name)
+        .Select(x => new CustomerLocationDistrictView(x.Id, x.ProvinceId, x.Name, x.IsActive)).ToArrayAsync());
+});
 customerLocationDefinitions.MapGet("/admin", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();

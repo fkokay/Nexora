@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { Play, X } from "lucide-react";
 import type { BindingSuggestion } from "./BindingInput";
 import type { SqlSchemaTable } from "./SqlQueryEditor";
-import { MAX_QUERIES, QueryDetailFields, QueryResultTable, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, queryRunBlockedReason, type PageQuery, type PageQueryParameter, type QueryKind, type QueryPreview } from "./QueriesPanel";
+import { MAX_QUERIES, QueryDetailFields, catalogReference, QueryResultTable, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, queryRunBlockedReason, type PageQuery, type PageQueryParameter, type QueryKind, type QueryPreview } from "./QueriesPanel";
 import { findOperation, unboundRequiredParameter, type ErpCatalog, type ErpOperation } from "./erpOperations";
+import type { CatalogRefs } from "./catalogItems";
 import { applyQueryPatch, freeQueryName, newDraftQuery } from "./queryDraft";
 import type { SourceColumn } from "./columnEditing";
 import { useDesignerModal } from "./designerModals";
@@ -42,6 +43,9 @@ export function QueryFieldActions({ kinds, target, value, componentId, bind, dis
 export type QueryEditorEnv = {
   queries: PageQuery[];
   catalog: ErpCatalog;
+  catalogRefs: CatalogRefs;
+  /** TenantAdmin: SQL'e dayanan katalog öğelerini yalnız o bağlayabilir. */
+  isAdmin: boolean;
   schema: SqlSchemaTable[];
   suggestions: BindingSuggestion[];
   components: { type: string; name?: string; props?: Record<string, unknown> }[];
@@ -102,7 +106,8 @@ function QueryEditorDialog({ env, state, setState, memory }: { env: QueryEditorE
   const saveProblem = !env.editable ? (env.readOnlyReason ?? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir.")
     : nameProblem(draft.name, taken)
       ?? (!request.kinds.includes(draft.kind) ? `Bu alan yalnız ${request.kinds.map((kind) => queryKindLabels[kind]).join(" / ")} sorgusu kabul eder.` : null)
-      ?? (isOperationQuery(draft) ? (!draft.operation ? "Önce bir ERP işlemi seçin." : op ? (unboundRequiredParameter(op, draft.parameters) ? `Zorunlu parametre bağlanmadı: ${unboundRequiredParameter(op, draft.parameters)}` : null) : null)
+      ?? (catalogReference(draft) !== undefined ? (catalogReference(draft) === "" ? "Önce katalogdan bir öğe seçin." : null)
+        : isOperationQuery(draft) ? (!draft.operation ? "Önce bir ERP işlemi seçin." : op ? (unboundRequiredParameter(op, draft.parameters) ? `Zorunlu parametre bağlanmadı: ${unboundRequiredParameter(op, draft.parameters)}` : null) : null)
         : (draft.sql ?? "").trim() === "" ? "SQL metni boş olamaz." : null)
       ?? (isNew && env.queries.length >= MAX_QUERIES && !state.committedForPreview ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : null);
   const preview = state.ran || !isNew ? env.previews[draft.id] : undefined;
@@ -129,7 +134,7 @@ function QueryEditorDialog({ env, state, setState, memory }: { env: QueryEditorE
       <div className="pd-modal-body pd-query-panel">
         {!env.editable && <p className="pd-query-readonly">{env.readOnlyReason ?? "Sorguları yalnız tenant yöneticisi ekleyip düzenleyebilir; bu pencereyi salt okunur görüyorsunuz."}</p>}
         <QueryDetailFields query={draft} queries={env.queries} editable={env.editable} schema={env.schema} suggestions={env.suggestions} takenNames={taken}
-          onUpdate={update} catalog={env.catalog} onAddSourceQuery={env.onAddSourceQuery} components={env.components} allowedKinds={request.kinds}/>
+          onUpdate={update} catalog={env.catalog} catalogRefs={env.catalogRefs} isAdmin={env.isAdmin} onAddSourceQuery={env.onAddSourceQuery} components={env.components} allowedKinds={request.kinds}/>
         {error && <div className="pd-query-error" role="alert">{error}</div>}
         {!write && preview && <QueryResultTable preview={preview}/>}
         <small className="pd-query-muted">Önizleme okuma sorgularında çalışır; yazma işlemleri önizlenmez.{!isOperationQuery(draft) && !write ? " SQL önizlemesi taslağı kaydeder." : ""}</small>
