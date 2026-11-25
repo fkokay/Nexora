@@ -37,13 +37,16 @@ describe("template guards (I2, M4)", () => {
   it("ensureTemplateSlots uses record slots", () => {
     const base = newRecordTemplateDefinition() as unknown as ModelDefinition;
     const def: ModelDefinition = { ...base, components: [...base.components,
-      { id: "bolum", type: "card", props: { slot: "section" } }, { id: "not", type: "text", props: { slot: "note" } },
-      { id: "satir", type: "dataTable", props: { slot: "lines" } }, { id: "alan", type: "text", props: { slot: "field" } },
+      { id: "bolum", type: "formCard", props: { slot: "section" } }, { id: "not", type: "text", props: { slot: "note" } },
+      { id: "satir", type: "dataTable", props: { slot: "lines" } }, { id: "alan", type: "input", props: { slot: "field" } },
+      { id: "yanlis", type: "text", props: { slot: "lines" } }, { id: "yanlis2", type: "button", props: { slot: "section" } },
       { id: "liste", type: "dataTable", props: { slot: "list" } }, { id: "yeni", type: "button", props: { width: 4 } }] };
     const fixed = ensureTemplateSlots(def);
     const slot = (id: string) => fixed.components.find((c) => c.id === id)!.props.slot;
     expect(["ozet", "sekmeler", "bolum", "not", "satir", "alan"].map(slot)).toEqual(["summary", "tabs", "section", "note", "lines", "field"]);
     expect(slot("liste")).toBe("below");
+    expect(slot("yanlis")).toBe("below");
+    expect(slot("yanlis2")).toBe("below");
     expect(slot("yeni")).toBe("below");
     expect(ensureTemplateSlots(fixed)).toBe(fixed);
   });

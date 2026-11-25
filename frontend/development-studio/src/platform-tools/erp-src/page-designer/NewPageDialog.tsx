@@ -32,13 +32,16 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
   // Yeni sayfada ilk adım kalıp seçimidir (Liste / Serbest); "template" kipinde yalnız bileşen ön ayarı seçilir.
   const [pageTemplate, setPageTemplate] = useState<"list" | "record" | "free" | null>(create ? null : "free");
   const choosing = pageTemplate === null;
+  const [prefilled, setPrefilled] = useState(false);
   const choose = (id: "list" | "record" | "free") => {
     setPageTemplate(id);
-    if (id === "record" && suggestedRecordCode && !codeEdited && !code) { setCode(suggestedRecordCode); setCodeEdited(true); }
+    // Öneri yalnız kod kutusu boşken yazılır; başka kalıba dönülürse (kullanıcı değiştirmediyse) geri alınır.
+    if (id === "record" && suggestedRecordCode && !codeEdited && !code) { setCode(suggestedRecordCode); setPrefilled(true); }
+    else if (id !== "record" && prefilled) { if (code === suggestedRecordCode) setCode(""); setPrefilled(false); }
   };
   const changeName = (value: string) => {
     setName(value);
-    if (!codeEdited) setCode(uniquePageCode(pageCodeFromName(value), taken));
+    if (!codeEdited && !prefilled) setCode(uniquePageCode(pageCodeFromName(value), taken));
   };
   const codeProblem = !create || !code ? null
     : !CODE_PATTERN.test(code) ? "Kod yalnız küçük harf, rakam, - ve _ içerebilir."
@@ -63,7 +66,7 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
         {create && <div className="pd-np-grid2">
           <label className="pd-field">Sayfa adı<input autoFocus maxLength={120} value={name} onChange={(event) => changeName(event.target.value)} placeholder="Masraf merkezleri"/></label>
           <label className="pd-field">Sayfa kodu<input maxLength={PAGE_CODE_MAX} value={code} spellCheck={false} placeholder="masraf-merkezleri"
-            onChange={(event) => { setCodeEdited(true); setCode(sanitizePageCode(event.target.value)); }}/>
+            onChange={(event) => { setCodeEdited(true); setPrefilled(false); setCode(sanitizePageCode(event.target.value)); }}/>
             {codeProblem ? <small className="pd-np-problem" role="alert">{codeProblem}</small> : <small>Adres olarak kullanılır; kaydedildikten sonra değiştirilemez.</small>}</label>
         </div>}
         {pageTemplate === "free" && <div className="pd-field">Şablon

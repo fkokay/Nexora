@@ -6,7 +6,7 @@ import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
 export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
-const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs" };
+const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];

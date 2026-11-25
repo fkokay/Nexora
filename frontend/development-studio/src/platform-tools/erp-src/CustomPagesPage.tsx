@@ -2249,10 +2249,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
     // Kaynağı seçilmemiş liste kalıbı kaydedilmez (sunucu "tam bir liste" ister); ipucu kendi metniyle gösterilir.
-    const listProblem = listSourceProblem(definition) ?? recordSourceProblem(definition);
-    if (listProblem) {
-      if (quiet) setCanvasHint(listProblem); else {
-        setError(listProblem);
+    const sourceProblem = listSourceProblem(definition) ?? recordSourceProblem(definition);
+    if (sourceProblem) {
+      if (quiet) setCanvasHint(sourceProblem); else {
+        setError(sourceProblem);
         const list = definition.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
         const target = list ?? definition.components.find((component) => component.type === "recordHeader" && component.props.slot === "summary");
         if (target) { setSelectedComponentId(target.id); setRightMode("inspector"); }
