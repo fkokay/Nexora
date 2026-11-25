@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ActiveCatalog } from "../catalogClient";
 import { newListTemplateDefinition } from "../pageTemplates";
 import { LIST_ACTIONS_NOTE, LIST_EXPORT_NOTE, LIST_MISSING_IN_CATALOG, ListPanel } from "./ListPanel";
-import { addListAction, CARD_UNAVAILABLE, chooseDataSource, rowOpenParamName, setListProps, setRowDoubleClick, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
+import { addListAction, CARD_UNAVAILABLE, chooseDataSource, rowOpenParamName, setListProps, setNewButton, setRowDoubleClick, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
 
 const catalog: ActiveCatalog = {
   version: "1",
@@ -79,6 +79,19 @@ describe("ListPanel", () => {
     expect(rowOpenParamName(card, "liste", opener)).toBe("kod");
     expect(render(card, withOpener)).toContain("Açılan sayfa bu kaydı <code>kod</code> bilgisiyle alır.");
     expect(render(setRowDoubleClick(card, "liste", "none", opener), withOpener)).not.toContain("bilgisiyle alır");
+  });
+  it("ListPanel shows + Yeni toggle only for card choice", () => {
+    const opener = { code: "cari-liste", label: "Cari kartlar", source: "sql" as const, erpOperation: null, parameters: [], opens: "cari-kart",
+      columns: [{ code: "Kod", label: "Kod", type: "text", key: true, longText: false, required: false, maxLength: null }] };
+    const withOpener: ActiveCatalog = { ...catalog, dataSources: [opener, ...catalog.dataSources] };
+    const chosen = chooseDataSource(newListTemplateDefinition() as unknown as ModelDefinition, "liste", opener);
+    expect(render(chosen, withOpener)).not.toContain("+ Yeni");
+    const card = setRowDoubleClick(chosen, "liste", "card", opener);
+    const on = render(card, withOpener);
+    expect(on).toContain("Listede “+ Yeni” düğmesi");
+    expect(on.match(/data-part="new-button"[^>]*>.*?<input[^>]*>/)![0]).toContain("checked");
+    expect(render(setNewButton(card, "liste", false, opener), withOpener).match(/data-part="new-button"[^>]*>.*?<input[^>]*>/)![0]).not.toContain("checked");
+    expect(render(setRowDoubleClick(card, "liste", "panel", opener), withOpener)).not.toContain("+ Yeni");
   });
   it("explains a missing active catalog", () => {
     expect(render(bound, null)).toContain("Etkin katalog sürümü yok");
