@@ -3435,6 +3435,19 @@ public sealed class TenantCatalogRelease
     public byte[] RowVersion { get; set; } = [];
 }
 
+/// <summary>A catalog bundle a verified TenantAdmin stored for preview runs (append-only; one row per preview request).</summary>
+public sealed class TenantCatalogPreview
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    /// <summary>The strictly validated bundle; never edited after creation.</summary>
+    public string BundleJson { get; set; } = "";
+    /// <summary>Lowercase hex SHA-256 of <see cref="BundleJson"/> (64 characters).</summary>
+    public string BundleSha256 { get; set; } = "";
+}
+
 public sealed class TenantCustomMenuEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
