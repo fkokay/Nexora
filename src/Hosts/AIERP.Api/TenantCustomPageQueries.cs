@@ -3,9 +3,12 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 internal sealed record PageQueryParameter(string Name, string Binding, string Type);
-/// <summary>A page query: either SQL text (<see cref="Sql"/>) or a named ERP operation (<see cref="Operation"/>, Sql is then empty).</summary>
+/// <summary>
+/// A page query: SQL text (<see cref="Sql"/>), a named ERP operation (<see cref="Operation"/>), or a reference to a code
+/// of the tenant's active catalog (<see cref="DataSource"/> / <see cref="Action"/>). Sql is empty unless the query is SQL.
+/// </summary>
 internal sealed record PageQuery(string Id, string Name, string Kind, string Sql, IReadOnlyList<PageQueryParameter> Parameters, string RunOn,
-    string? Operation = null);
+    string? Operation = null, string? DataSource = null, string? Action = null);
 
 /// <summary>Pure helpers for schema v2 page queries: reading, binding paths, SQL parameter names and dependency cycles.</summary>
 internal static partial class TenantCustomPageQueries
@@ -56,8 +59,8 @@ internal static partial class TenantCustomPageQueries
                 if (query.TryGetProperty("parameters", out var list) && list.ValueKind == JsonValueKind.Array)
                     foreach (var parameter in list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object))
                         parameters.Add(new PageQueryParameter(Text(parameter, "name"), Text(parameter, "binding"), Text(parameter, "type")));
-                var operation = query.TryGetProperty("operation", out var op) && op.ValueKind == JsonValueKind.String ? op.GetString() : null;
-                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"), operation));
+                result.Add(new PageQuery(Text(query, "id"), Text(query, "name"), Text(query, "kind"), Text(query, "sql"), parameters, Text(query, "runOn"),
+                    OptionalText(query, "operation"), OptionalText(query, "dataSource"), OptionalText(query, "action")));
             }
             return result;
         }
@@ -83,7 +86,9 @@ internal static partial class TenantCustomPageQueries
     /// <summary>
     /// Structural check: a v2 definition with at least one query that is not a pure ERP operation query. Operation queries
     /// (an <c>operation</c> key and no <c>sql</c> key) carry no SQL and run against their own endpoint with the user's
-    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Never throws on stored JSON.
+    /// token. Like <see cref="HasQueries"/> it fails safe: a malformed entry counts as SQL. Catalog references
+    /// (<c>dataSource</c> / <c>action</c>) deliberately count too: their catalog item may run SQL on the server, so the
+    /// access-row, runtime-rights and SQL-visibility rules that use this check stay unchanged for them. Never throws on stored JSON.
     /// </summary>
     internal static bool HasSqlQueries(string definitionJson)
     {
@@ -97,6 +102,49 @@ internal static partial class TenantCustomPageQueries
         }
         catch (JsonException) { return false; }
     }
+
+    /// <summary>
+    /// The save gate's variant of <see cref="HasSqlQueries"/>: a pure catalog data source reference (an object with a
+    /// <c>dataSource</c> key, kind <c>read</c>, and none of <c>sql</c>, <c>operation</c> or <c>action</c>) does not count,
+    /// because its SQL lives in the catalog and not on the page. Action references and malformed entries still count.
+    /// Never throws on stored JSON.
+    /// </summary>
+    internal static bool HasSqlQueriesExceptDataSourceReferences(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind != JsonValueKind.Object
+                    || query.TryGetProperty("sql", out _)
+                    || (!query.TryGetProperty("operation", out _) && !IsPureDataSourceReference(query)));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool IsPureDataSourceReference(JsonElement query) =>
+        query.TryGetProperty("dataSource", out _) && !query.TryGetProperty("action", out _)
+        && query.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && kind.GetString() == "read";
+
+    /// <summary>Structural check: a v2 definition with a query that has a <c>dataSource</c> or <c>action</c> key (any value). Never throws on stored JSON.</summary>
+    internal static bool HasCatalogReferences(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            return IsVersion2(root) && root.TryGetProperty("queries", out var queries) && queries.ValueKind == JsonValueKind.Array
+                && queries.EnumerateArray().Any(query => query.ValueKind == JsonValueKind.Object
+                    && (query.TryGetProperty("dataSource", out _) || query.TryGetProperty("action", out _)));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    /// <summary>The catalog codes the definition's queries reference; Kind is <c>dataSource</c> or <c>action</c>.</summary>
+    internal static IReadOnlyList<(string QueryId, string Code, string Kind)> CatalogReferences(string definitionJson) =>
+        ReadQueries(definitionJson).SelectMany(x => new[] { (x.Id, x.DataSource, Kind: "dataSource"), (x.Id, x.Action, Kind: "action") })
+            .Where(x => x.Item2 is not null).Select(x => (x.Id, x.Item2!, x.Kind)).ToArray();
 
     /// <summary>
     /// Structural check: a v2 definition with an ERP operation query that is not a pure read (query kind other than
@@ -264,6 +312,8 @@ internal static partial class TenantCustomPageQueries
     private static bool IsVersion2(JsonElement root) => root.ValueKind == JsonValueKind.Object
         && root.TryGetProperty("schemaVersion", out var version) && version.ValueKind == JsonValueKind.Number
         && version.TryGetInt32(out var number) && number == 2;
+    private static string? OptionalText(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static string Text(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 }
