@@ -1,9 +1,11 @@
 // Sayfa tasarımcısı giriş listesi: özel, sistem ve yerleşik sayfaları tek satır modeline çevirir,
 // arama / tür / durum / modül süzgeçlerini ve istemci tarafı sayfalamayı uygular. Saf işlevler (test edilebilir).
 
+import { templateCatalogText } from "./page-designer/pageTemplates";
+
 export type PageCatalogItem = { key: string; label: string; fields: { key: string; label: string; defaultVisible: boolean }[] };
-export type CustomPageCatalogItem = { id: string; code: string; name: string; description?: string | null; isPublished: boolean; revision: number; updatedAt?: string; screenKey?: string | null };
-export type SystemPageItem = { screenKey: string; title: string; description?: string | null; module: string; version: number; stage: "preview" | "ready"; screenViewKeys: string[]; draftId?: string | null; publishedId?: string | null; standardVersion?: number | null; newItemCount: number; canEdit: boolean };
+export type CustomPageCatalogItem = { id: string; code: string; name: string; description?: string | null; isPublished: boolean; revision: number; updatedAt?: string; screenKey?: string | null; template?: string | null; templateLevel?: number | null };
+export type SystemPageItem = { screenKey: string; title: string; description?: string | null; module: string; version: number; stage: "preview" | "ready"; screenViewKeys: string[]; draftId?: string | null; publishedId?: string | null; standardVersion?: number | null; newItemCount: number; canEdit: boolean; template?: string | null; templateLevel?: number | null };
 
 export type CatalogKind = "custom" | "system" | "builtIn";
 export type CatalogFilter = "all" | CatalogKind;
@@ -27,6 +29,9 @@ export type CatalogRow = {
   /** Yerleşik ekranlarda düzenlenebilir alan sayısı. */
   fieldCount: number | null;
   newItemCount: number;
+  /** Sayfa kalıbı ("list") ve hesaplanan basamak; kalıpsız sayfada null, yerleşik ekranda tanımsız. */
+  template: string | null;
+  templateLevel: number | null;
   custom?: CustomPageCatalogItem;
   system?: SystemPageItem;
   screen?: PageCatalogItem;
@@ -60,14 +65,14 @@ const systemRow = (system: SystemPageItem, name: string, key: string): CatalogRo
   key, kind: "system", name, code: `@${system.screenKey}`, module: system.module || null,
   // Liste yanıtında firma tasarımı revizyonu yok; sistem sayfalarında sürüm Nexora standardının sürümüdür.
   version: system.version, versionIsStandard: true, updatedAt: null,
-  description: system.description ?? null, statuses: systemStatuses(system), fieldCount: null, newItemCount: system.newItemCount, system,
+  description: system.description ?? null, statuses: systemStatuses(system), fieldCount: null, newItemCount: system.newItemCount, template: system.template ?? null, templateLevel: system.templateLevel ?? null, system,
 });
 
 /** Üç kaynağı tek listeye çevirir. Sistem sayfasıyla eşleşen yerleşik ekran sistem satırı olarak görünür. */
 export function buildCatalogRows(screens: PageCatalogItem[], customPages: CustomPageCatalogItem[], systemPages: SystemPageItem[]): CatalogRow[] {
   const custom = customPages.map((page): CatalogRow => ({
     key: `custom-${page.id}`, kind: "custom", name: page.name, code: `/${page.code}`, module: null, version: page.revision, updatedAt: page.updatedAt ?? null,
-    description: page.description ?? null, statuses: [page.isPublished ? { label: "Yayında", tone: "published" } : { label: "Taslak", tone: "draft" }], fieldCount: null, newItemCount: 0, custom: page,
+    description: page.description ?? null, statuses: [page.isPublished ? { label: "Yayında", tone: "published" } : { label: "Taslak", tone: "draft" }], fieldCount: null, newItemCount: 0, template: page.template ?? null, templateLevel: page.templateLevel ?? null, custom: page,
   }));
   const builtIn = screens.map((screen): CatalogRow => {
     const title = screen.key === "customers" ? "Cari Hesaplar" : screen.label;
@@ -75,7 +80,7 @@ export function buildCatalogRows(screens: PageCatalogItem[], customPages: Custom
     if (system) return { ...systemRow(system, title, `screen-${screen.key}`), screen };
     return {
       key: `screen-${screen.key}`, kind: "builtIn", name: title, code: screen.key, module: null, version: null, updatedAt: null, description: null,
-      statuses: [{ label: `Görünüm ayarı · ${screen.fields.length} alan`, tone: "view" }], fieldCount: screen.fields.length, newItemCount: 0, screen,
+      statuses: [{ label: `Görünüm ayarı · ${screen.fields.length} alan`, tone: "view" }], fieldCount: screen.fields.length, newItemCount: 0, template: null, templateLevel: null, screen,
     };
   });
   const unmatched = systemPages.filter((page) => !page.screenViewKeys.some((key) => screens.some((screen) => screen.key === key)))
@@ -83,17 +88,25 @@ export function buildCatalogRows(screens: PageCatalogItem[], customPages: Custom
   return [...custom, ...builtIn, ...unmatched];
 }
 
-export type CatalogQuery = { search: string; status: StatusFilter; module: string };
+export type TemplateFilter = "all" | "list" | "none";
+export const templateFilterOptions: { value: TemplateFilter; label: string }[] = [
+  { value: "all", label: "Tümü" }, { value: "list", label: "Liste" }, { value: "none", label: "Kalıpsız" },
+];
+/** Satırın kalıp metni: yerleşik görünüm ayarı satırında kalıp kavramı yoktur. */
+export const rowTemplateText = (row: CatalogRow): string | null => row.kind === "builtIn" ? null : templateCatalogText(row.template, row.templateLevel);
+const templateMatches = (row: CatalogRow, template: TemplateFilter) => template === "all" || (template === "list" ? row.template === "list" : row.kind !== "builtIn" && row.template == null);
+
+export type CatalogQuery = { search: string; status: StatusFilter; module: string; template?: TemplateFilter };
 
 const statusMatches = (row: CatalogRow, status: StatusFilter) => status === "all" || row.statuses.some((item) => item.tone === status);
 const moduleMatches = (row: CatalogRow, module: string) => module === "all" || (module === NO_MODULE ? !row.module : row.module === module);
 
 /** Arama (ad + kod), durum ve modül süzgeçleri; tür süzgeci ayrı uygulanır ki sayaçlar doğru kalsın. */
-export function filterCatalogRows(rows: CatalogRow[], { search, status, module }: CatalogQuery): CatalogRow[] {
+export function filterCatalogRows(rows: CatalogRow[], { search, status, module, template = "all" }: CatalogQuery): CatalogRow[] {
   const query = search.trim().toLocaleLowerCase("tr-TR");
   return rows.filter((row) =>
     (!query || row.name.toLocaleLowerCase("tr-TR").includes(query) || row.code.toLocaleLowerCase("tr-TR").includes(query))
-    && statusMatches(row, status) && moduleMatches(row, module));
+    && statusMatches(row, status) && moduleMatches(row, module) && templateMatches(row, template));
 }
 
 export function kindCounts(rows: CatalogRow[]): Record<CatalogFilter, number> {

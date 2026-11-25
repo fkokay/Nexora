@@ -386,6 +386,14 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
   - Varsayılan roller: `TenantDeveloper` ya da Studio proje yetkisi olan kişi Yazılımcı olur, diğerleri Danışman. Bugün Studio'yu kullanan kimse erişim kaybetmez.
   - Yönetici üç menüyü de görür ve rol düğmesiyle aralarında geçer. Yazılımcı, danışmanın yapabildiğini de yapar.
   - 2b'de sunucuda zorlanan uçlar AIService'in kod, çalışma alanı ve sürüm uçlarıdır (`/studio/projects/**`, `/studio/workspace-requests/**`). Veri modeli ve sayfa SQL'i bugünkü yetkileriyle kalır. Bunlar 2. alt projede Yazılımcıya kapanır, çünkü yerini alacak ekran olmadan kapatmak danışmanın işini bozardı.
+- **Kalıplar ve Liste, alt proje 3** (plan: `docs/superpowers/plans/2026-11-25-kaliplar-ve-liste.md`).
+  - Karar 1 (kullanıcı onayladı): katalog başvurusu (veri kaynağı ya da eylem) kaydetmek için sayfa yazma izni yeter; satır içi SQL TenantAdmin'de kalır.
+  - Karar 2: onay metni ve kolon adları eylem seçildiği anda sayfaya kopyalanır; katalog sonradan değişirse sayfa eski metni gösterir.
+  - Karar 3: veri kaynağında `q` adlı metin parametresi varsa arama sunucuya gider, yoksa tablonun kendi aramasıdır.
+  - Karar 4: Liste yalnız parametresiz ya da yalnız `q` parametreli kaynakları kullanır; sayfalama istemcidedir.
+  - Karar 5: eylemin her parametresi aynı adlı liste kolonuna bağlanır; eşleşmeyen eylem seçilemez, toplu eylem yalnız silme olabilir.
+  - Karar 6: satıra çift tıklama "Kartı aç", "Yan panelde göster" ya da "Hiçbir şey" olur; kaynakta `opens` ya da anahtar kolon yoksa kartı aç seçilemez.
+  - Karar 7: ERP tuvali kullanılamıyorsa tuval alanında "Bu ekran ERP önizlemesi açılınca görünür." yazar; panel çalışır.
 
 ## 11. Kullanıcının kararları (2026-11-25)
 

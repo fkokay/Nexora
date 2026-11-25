@@ -1,0 +1,57 @@
+.cpanel{background:#fff;border-left:1px solid var(--ns-line);overflow:auto;color:var(--ns-ink);font-size:13px}
+.cpanel-head{padding:14px 16px;border-bottom:1px solid var(--ns-line)}
+.cpanel-head input{border:0;outline:none;width:100%;font:600 15px inherit;font-family:inherit;color:inherit}
+.cpanel-sec{padding:14px 16px;border-bottom:1px solid var(--ns-line)}
+.cpanel-sec h4{margin:0 0 8px;font-size:12px;color:var(--ns-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.cpanel-sec select{width:100%;border:1px solid var(--ns-line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+.cpanel details summary{cursor:pointer;font-weight:600;list-style:none}
+.cpanel details summary::before{content:"▸ ";color:var(--ns-muted)}
+.cpanel details[open] summary::before{content:"▾ "}
+.cpanel-body{margin-top:10px}
+.cpanel-dev{margin-top:6px;font-size:11.5px;color:var(--ns-success);background:var(--ns-success-soft);border:1px solid var(--ns-success-line);border-radius:6px;padding:5px 8px}
+.cpanel-legacy{margin-top:10px;color:var(--ns-muted)}
+.cpanel-legacy h4{margin:0 0 6px;font-size:12px;font-weight:600}
+.cpanel-legacy dl{margin:0}
+.cpanel-legacy dl div{display:flex;gap:8px;padding:2px 0}
+.cpanel-legacy dt{font-weight:600}
+.cpanel-legacy dd{margin:0;word-break:break-all}
+.cpanel-sub+.cpanel-sub{margin-top:14px;padding-top:14px;border-top:1px solid var(--ns-line)}
+.cpanel-sub h4{margin:0 0 8px;font-size:12px;color:var(--ns-muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.cpanel-q{display:block;margin:10px 0 6px;font-weight:600}
+.cpanel-q select,.cpanel-q .cpanel-txt{display:block;margin-top:6px;font-weight:400}
+.cpanel-txt{width:100%;border:1px solid var(--ns-line);border-radius:8px;padding:7px 8px;font:inherit}
+.cpanel-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0}
+.cpanel-seg{display:inline-flex;border:1px solid var(--ns-line);border-radius:8px;overflow:hidden}
+.cpanel-seg button{border:0;background:#fff;padding:4px 9px;font:inherit;cursor:pointer}
+.cpanel-seg button+button{border-left:1px solid var(--ns-line)}
+.cpanel-seg button.on{background:var(--ns-accent-soft,#efeafe);color:var(--ns-accent,#5b3fd6);font-weight:600}
+.cpanel-chips{display:flex;flex-wrap:wrap;gap:6px}
+.cpanel-chip{border:1px solid var(--ns-line);background:#fff;border-radius:999px;padding:3px 10px;font:inherit;cursor:pointer}
+.cpanel-chip.on{border-color:var(--ns-accent,#5b3fd6);background:var(--ns-accent-soft,#efeafe);color:var(--ns-accent,#5b3fd6)}
+.cpanel-chip:disabled{opacity:.55;cursor:default}
+.cpanel-chip small{color:var(--ns-muted)}
+.cpanel-note{margin:6px 0 0;font-size:12px;color:var(--ns-muted)}
+.cpanel-warn{margin:6px 0 0;font-size:12px;color:var(--ns-danger,#b42318)}
+.cpanel-sources{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.cpanel-sources li{border:1px solid var(--ns-line);border-radius:8px;padding:6px 8px}
+.cpanel-sources li.on{border-color:var(--ns-accent,#5b3fd6)}
+.cpanel-sources li.is-dim{opacity:.55}
+.cpanel-sources li label{display:flex;gap:6px;align-items:center}
+.cpanel-sources li small{display:block;margin-top:2px;color:var(--ns-muted)}
+.cpanel-sources li.is-missing small{color:var(--ns-danger,#b42318)}
+.cpanel-cols{list-style:none;margin:0;padding:0}
+.cpanel-cols li{display:flex;align-items:center;gap:6px;padding:4px 0}
+.cpanel-grip{color:var(--ns-muted);cursor:grab}
+.cpanel-colname{flex:1;min-width:0}
+input.cpanel-colname{border:1px solid var(--ns-line);border-radius:6px;padding:2px 6px;font:inherit}
+.cpanel-pen{border:0;background:none;color:var(--ns-muted);cursor:pointer}
+.cpanel-info{line-height:1.5}
+.cpanel-ask{padding:14px 16px;font-size:12.5px;color:var(--ns-muted)}
+.cpanel-ask b{display:block;color:var(--ns-ink);margin-bottom:2px}
+.cpanel-ask a{color:var(--ns-accent,#5b3fd6)}
+.cpanel-template-place{margin-bottom:8px}
+.pd-template-canvas-note{margin:40px auto;max-width:420px;text-align:center;color:var(--ns-muted)}
+.pd-right>.cpanel{min-height:0;border-left:0}
+.cpanel-link{border:0;background:none;padding:0;margin-top:4px;color:var(--ns-accent,#5b3fd6);font:inherit;font-size:12px;cursor:pointer}
+.cpanel-empty-preview{margin-top:6px;padding:14px;border:1px dashed var(--ns-line);border-radius:8px;text-align:center;color:var(--ns-muted)}
+.cpanel-chip.is-missing{border-color:var(--ns-danger,#b42318);color:var(--ns-danger,#b42318);background:#fff}

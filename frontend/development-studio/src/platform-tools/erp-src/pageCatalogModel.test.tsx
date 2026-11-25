@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { buildCatalogRows, byKind, historyUrl, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
+import { buildCatalogRows, byKind, historyUrl, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, rowTemplateText, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
 
 vi.mock("./authApi", () => ({ authenticatedFetch: vi.fn(() => new Promise(() => {})) }));
 
@@ -73,5 +73,31 @@ describe("sayfa tasarımcısı girişi", { timeout: 30_000 }, () => {
     const html = renderToString(<LowCodeDesignerPage token="t" role="TenantAdmin" initialSection="reports" />);
     expect(html).toContain("Rapor oluşturucu");
     expect(html).not.toContain("Sayfalarda ara");
+  });
+});
+
+describe("sayfa kataloğu kalıbı", () => {
+  const withTemplate: CustomPageCatalogItem[] = [
+    { id: "t1", code: "liste-1", name: "Liste 1", isPublished: false, revision: 1, template: "list", templateLevel: 1 },
+    { id: "t2", code: "liste-2", name: "Liste 2", isPublished: false, revision: 1, template: "list", templateLevel: 2 },
+    { id: "t3", code: "eski", name: "Eski", isPublished: true, revision: 1, template: null, templateLevel: null },
+  ];
+  const rows = buildCatalogRows(screens, withTemplate, system);
+
+  it("catalog row shows Liste · 1. basamak", () => {
+    expect(rowTemplateText(rows[0])).toBe("Liste · 1. basamak");
+    expect(rowTemplateText(rows[1])).toBe("Liste · 2. basamak");
+  });
+
+  it("legacy row shows Kalıpsız", () => {
+    expect(rowTemplateText(rows[2])).toBe("Kalıpsız");
+    expect(rowTemplateText(rows.find((row) => row.kind === "builtIn")!)).toBeNull();
+  });
+
+  it("kalıp süzgeci Liste ve Kalıpsız satırları ayırır", () => {
+    const query = { search: "", status: "all" as const, module: "all" };
+    expect(filterCatalogRows(rows, { ...query, template: "list" }).map((row) => row.name)).toEqual(["Liste 1", "Liste 2"]);
+    expect(filterCatalogRows(rows, { ...query, template: "none" }).map((row) => row.name)).toContain("Eski");
+    expect(filterCatalogRows(rows, { ...query, template: "none" }).map((row) => row.name)).not.toContain("Liste 1");
   });
 });

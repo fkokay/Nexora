@@ -453,7 +453,8 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
    üçüncü bir çerçeve gibi görünüyordu); `emptyText` iki satırsa (\n) ilk satır başlıktır. */
 #root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty { padding: 28px 16px; border: 0; border-radius: 0; color: var(--nx-muted); text-align: center; white-space: pre-line; }
 /* Izgara kabı, ızgaranın tek çerçevesiyle aynı yarıçapla kırpar: kabuğun 12px kart kuralı (overflow: auto ile) 8px dış köşeleri kesiyordu. */
-#root .app-shell .tenant-custom-page .tenant-custom-page-content .customer-table-wrap.tenant-page-data-grid-wrap { border-radius: var(--nx-radius-card, 8px) !important; }
+#root .app-shell .tenant-custom-page .tenant-custom-page-content .customer-table-wrap.tenant-page-data-grid-wrap,
+#root .app-shell .tenant-custom-page .list-template-page .customer-table-wrap.tenant-page-data-grid-wrap { border-radius: var(--nx-radius-card, 8px) !important; }
 #root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty::first-line { color: var(--nx-text); font-weight: 600; }
 .tenant-page-dialog-body .tenant-report-state { white-space: pre-line; }
 .tenant-page-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--nx-line); }
@@ -468,10 +469,14 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
    (!important) özel sayfada etiketleri/çipleri köşeli, kartları 12px yapıyordu. Etiket ve çip tam yuvarlak; bloklar
    tasarımcıda seçilen köşeyi (--tp-radius, satır içi stilden) korur.
    Eski kurallardan biri `#root .app-shell:not(.standalone-studio) .workspace-page-main :is([class*="-card"] …)` olduğu için
-   seçiciler #root ile başlar (canlı sayfada ölçüldü: etiket/çip 999px, kartlar seçilen köşe). */
-#root .app-shell .tenant-custom-page .tenant-custom-page-content :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge) { border-radius: 999px !important; }
+   seçiciler #root ile başlar (canlı sayfada ölçüldü: etiket/çip 999px, kartlar seçilen köşe). Liste kalıbı eski ızgaranın
+   dışında (`.list-template-page`) çizildiği için aynı kurallar oraya da uygulanır. */
+#root .app-shell .tenant-custom-page .tenant-custom-page-content :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge),
+#root .app-shell .tenant-custom-page .list-template-page :is(.tenant-page-tag, .tenant-page-chip, .tenant-page-badge) { border-radius: 999px !important; }
 #root .app-shell .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"],
-#root .app-shell .workspace-page-main .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"] { border-radius: var(--tp-radius) !important; }
+#root .app-shell .workspace-page-main .tenant-custom-page .tenant-custom-page-content [style*="--tp-radius"],
+#root .app-shell .tenant-custom-page .list-template-page [style*="--tp-radius"],
+#root .app-shell .workspace-page-main .tenant-custom-page .list-template-page [style*="--tp-radius"] { border-radius: var(--tp-radius) !important; }
 
 /* Düzenlenebilir tablo, özel alanlar bloğu ve değişiklik izleme (Faz B) */
 .tenant-page-grid-table { width: 100%; border-collapse: collapse; }
