@@ -4,20 +4,21 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace AIERP.Api;
 
-/// <summary>The tenant's active catalog bundle and the version of the release it came from.</summary>
-internal sealed record ActiveCatalogRelease(string Version, CatalogBundle Bundle);
+/// <summary>The tenant's active catalog bundle and the id and version of the release it came from.</summary>
+internal sealed record ActiveCatalogRelease(Guid Id, string Version, CatalogBundle Bundle);
 
 /// <summary>Reads the tenant's active catalog release.</summary>
 internal static class TenantCatalogStore
 {
     /// <summary>
-    /// The bundle of the tenant's single Active release, parsed with today's rules. Null when there is no active release,
-    /// or when the stored bundle no longer parses (a warning is logged; pages then treat the catalog as absent).
+    /// The bundle of the tenant's single Active release, read leniently (<see cref="TenantCatalogSchema.TryParseLenient"/>):
+    /// an item that no longer validates is set aside on its own (one warning per item is logged) and the other items stay
+    /// usable. Null when there is no active release, or when the stored bundle's structure no longer parses (logged too).
     /// </summary>
     public static async Task<CatalogBundle?> ActiveAsync(TenantDbContext db, Guid tenant, ErpOperationLookup lookup, CancellationToken ct) =>
         (await ActiveReleaseAsync(db, tenant, lookup, ct))?.Bundle;
 
-    /// <summary><see cref="ActiveAsync"/> together with the release version, for audit records.</summary>
+    /// <summary><see cref="ActiveAsync"/> together with the release id and version (one read of the Active row).</summary>
     public static async Task<ActiveCatalogRelease?> ActiveReleaseAsync(TenantDbContext db, Guid tenant, ErpOperationLookup lookup, CancellationToken ct)
     {
         var release = await db.TenantCatalogReleases.AsNoTracking()
@@ -25,11 +26,19 @@ internal static class TenantCatalogStore
             .Select(x => new { x.Id, x.Version, x.BundleJson })
             .FirstOrDefaultAsync(ct);
         if (release is null) return null;
-        if (TenantCatalogSchema.TryParse(release.BundleJson, lookup, out var bundle, out var error)) return new ActiveCatalogRelease(release.Version, bundle!);
+        var parsed = TenantCatalogSchema.TryParseLenient(release.BundleJson, lookup, out var bundle, out var problems, out var error);
+        if (parsed && problems.Count == 0) return new ActiveCatalogRelease(release.Id, release.Version, bundle!);
         var logger = db.GetService<ILoggerFactory>().CreateLogger(typeof(TenantCatalogStore).FullName!);
-        logger.LogWarning("Active catalog release {ReleaseId} ({Version}) of tenant {TenantId} no longer validates: {Error}",
-            release.Id, release.Version, tenant, error);
-        return null;
+        if (!parsed)
+        {
+            logger.LogWarning("Active catalog release {ReleaseId} ({Version}) of tenant {TenantId} no longer validates: {Error}",
+                release.Id, release.Version, tenant, error);
+            return null;
+        }
+        foreach (var problem in problems)
+            logger.LogWarning("Active catalog release {ReleaseId} ({Version}) of tenant {TenantId} has an item that no longer validates: {Error}",
+                release.Id, release.Version, tenant, problem);
+        return new ActiveCatalogRelease(release.Id, release.Version, bundle!);
     }
 
     /// <summary>

@@ -71,17 +71,17 @@ internal static partial class TenantCatalogEndpoints
         {
             if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
-            var bundle = await TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
-            var active = bundle is null ? null : await db.TenantCatalogReleases.AsNoTracking()
-                .Where(x => x.TenantId == tenant && x.Status == "Active").Select(x => new { x.Id, x.Version }).FirstOrDefaultAsync(ct);
-            if (bundle is null || active is null) return Results.Ok(new ActiveCatalog(null, null, [], []));
+            // One read of the Active row. Items that no longer validate are left out and listed by code in invalidItems.
+            var active = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+            if (active is null) return Results.Ok(new ActiveCatalog(null, null, [], [], []));
+            var bundle = active.Bundle;
             // SQL text is shown to a verified TenantAdmin only (the designer); runtime consumers never need it.
             var showSql = await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
             var dataSources = bundle.Items.Where(x => x.ItemKind == "dataSource").Select(x => new DataSourceView(x.Code, x.Label, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.Columns, x.Opens)).ToArray();
             var actions = bundle.Items.Where(x => x.ItemKind == "action").Select(x => new ActionView(x.Code, x.Label, x.QueryKind, x.Target, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.ConfirmText)).ToArray();
-            return Results.Ok(new ActiveCatalog(active.Id, active.Version, dataSources, actions));
+            return Results.Ok(new ActiveCatalog(active.Id, active.Version, dataSources, actions, bundle.InvalidCodes));
         });
 
         catalog.MapPost("/releases/{id:guid}/activate", async (Guid id, ActivateRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -171,7 +171,8 @@ internal static partial class TenantCatalogEndpoints
     private sealed record ReleaseSummary(Guid Id, string Version, string Status, string BundleSha256, string? SourceRepository, string? SourceCommit,
         DateTimeOffset CreatedAt, DateTimeOffset? ActivatedAt);
     private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References);
-    private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions);
+    private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
+        IReadOnlyList<string> InvalidItems);
     private sealed record DataSourceView(string Code, string Label, string Source,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ErpOperation,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Sql,

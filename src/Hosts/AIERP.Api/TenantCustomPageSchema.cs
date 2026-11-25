@@ -492,11 +492,12 @@ internal static partial class TenantCustomPageSchema
     /// parameter must be bound (route parameters of an operation with a source read come from that read's record).
     /// </summary>
     private static bool ValidateOperationQuery(JsonElement query, string id, string name, string kind, string? operationName, Context context,
-        List<PageQuery> result, List<(string Name, string Operation, string Source, IReadOnlyList<string>? BodyMapRoute)> pendingSources, out string? error)
+        List<PageQuery> result, List<(string Name, string Operation, string Source, IReadOnlyList<string>? BodyMapRoute)> pendingSources, out string? error,
+        bool allowDeprecated = false)
     {
         if (operationName is null || !context.Lookup(operationName, out var operation))
         { error = UnknownOperationError(operationName ?? ""); return false; }
-        if (operation.Deprecated && !context.ExistingOperations.Contains(operationName))
+        if (operation.Deprecated && !allowDeprecated && !context.ExistingOperations.Contains(operationName))
         { error = DeprecatedOperationError(operationName); return false; }
         if (kind != operation.PageKind)
         { error = $"'{name}' sorgusu: '{operationName}' işlemi için tür {operation.PageKind} olmalıdır."; return false; }
@@ -561,7 +562,9 @@ internal static partial class TenantCustomPageSchema
         var action = referenceKey == "action" ? code : null;
         if (item.ErpOperation is { } operation)
         {
-            if (!ValidateOperationQuery(query, id, name, kind, operation, context, result, pendingSources, out error)) return false;
+            // The catalog item was accepted when its release was installed; an operation deprecated since then stays
+            // usable through it (grandfathered, like the lenient catalog read). Activation never installs a new one.
+            if (!ValidateOperationQuery(query, id, name, kind, operation, context, result, pendingSources, out error, allowDeprecated: true)) return false;
             // Recorded as a reference: it must not satisfy another query's source read or count as a page operation.
             result[^1] = result[^1] with { Operation = null, DataSource = dataSource, Action = action };
             return true;

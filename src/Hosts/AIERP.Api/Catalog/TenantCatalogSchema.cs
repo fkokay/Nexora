@@ -11,9 +11,22 @@ internal sealed record CatalogColumn(string Code, string Label, string Type, boo
 internal sealed record CatalogItem(string Code, string Label, string ItemKind, string QueryKind, string? Sql, string? ErpOperation,
     IReadOnlyList<CatalogParameter> Parameters, IReadOnlyList<CatalogColumn> Columns, string? Opens, string? Target, string? ConfirmText);
 
+/// <summary>
+/// A parsed catalog bundle. <see cref="Items"/> are the items valid under today's rules (the only ones pages may reference,
+/// listings show and the save gate trusts). A leniently read stored bundle may also carry items that no longer validate:
+/// <see cref="InvalidCodes"/> names all of them, and <see cref="RejectedSqlItems"/> keeps those whose only fault is SQL that
+/// today's validator rejects, so the run endpoint can still answer with its stored-SQL error instead of "not found".
+/// </summary>
 internal sealed record CatalogBundle(IReadOnlyList<CatalogItem> Items)
 {
+    public IReadOnlyList<CatalogItem> RejectedSqlItems { get; init; } = [];
+    public IReadOnlyList<string> InvalidCodes { get; init; } = [];
+
     public CatalogItem? Find(string code) => Items.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
+
+    /// <summary><see cref="Find"/>, falling back to an item kept only for its rejected SQL (run endpoint only: it re-validates the SQL).</summary>
+    public CatalogItem? FindForRun(string code) =>
+        Find(code) ?? RejectedSqlItems.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
 }
 
 /// <summary>
@@ -40,8 +53,23 @@ internal static class TenantCatalogSchema
     private static readonly HashSet<string> Targets = new(StringComparer.Ordinal) { "row", "page", "bulk" };
     private static readonly Regex OpensPattern = new(@"^[a-z0-9-]{1,40}\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
-    public static bool TryParse(string json, ErpOperationLookup lookup, out CatalogBundle? bundle, out string? error)
+    /// <summary>Strict parse (release create and activate): any invalid item, a deprecated operation included, rejects the bundle.</summary>
+    public static bool TryParse(string json, ErpOperationLookup lookup, out CatalogBundle? bundle, out string? error) =>
+        Parse(json, lookup, lenient: false, out bundle, out _, out error);
+
+    /// <summary>
+    /// Lenient parse of a stored (already accepted) bundle: the structure must still be valid, but an item that fails today's
+    /// item rules is set aside on its own (<paramref name="problems"/> gets its message) instead of failing the bundle, and
+    /// an operation deprecated since installation stays accepted (grandfathered). An operation that no longer exists makes
+    /// its item invalid.
+    /// </summary>
+    public static bool TryParseLenient(string json, ErpOperationLookup lookup, out CatalogBundle? bundle, out IReadOnlyList<string> problems, out string? error) =>
+        Parse(json, lookup, lenient: true, out bundle, out problems, out error);
+
+    private static bool Parse(string json, ErpOperationLookup lookup, bool lenient, out CatalogBundle? bundle, out IReadOnlyList<string> problems, out string? error)
     {
+        var issues = new List<string>();
+        problems = issues;
         bundle = null;
         error = null;
         if (json is null || Encoding.UTF8.GetByteCount(json) > MaxBundleBytes)
@@ -59,10 +87,11 @@ internal static class TenantCatalogSchema
                 return Fail(out error, "Paket: schemaVersion 1 olmalıdır.");
 
             var items = new List<CatalogItem>();
+            var invalid = new Invalid([], [], issues);
             var codes = new HashSet<string>(StringComparer.Ordinal);
-            if (!ReadList(root, "dataSources", "dataSource", MaxDataSources, lookup, codes, items, out error)) return false;
-            if (!ReadList(root, "actions", "action", MaxActions, lookup, codes, items, out error)) return false;
-            bundle = new CatalogBundle(items);
+            if (!ReadList(root, "dataSources", "dataSource", MaxDataSources, lookup, codes, items, lenient ? invalid : null, out error)) return false;
+            if (!ReadList(root, "actions", "action", MaxActions, lookup, codes, items, lenient ? invalid : null, out error)) return false;
+            bundle = new CatalogBundle(items) { RejectedSqlItems = invalid.RejectedSql, InvalidCodes = invalid.Codes };
             return true;
         }
         catch (JsonException)
@@ -77,8 +106,11 @@ internal static class TenantCatalogSchema
         return false;
     }
 
+    /// <summary>Items a lenient parse set aside: every invalid code, the items kept for their rejected SQL, and the messages.</summary>
+    private sealed record Invalid(List<string> Codes, List<CatalogItem> RejectedSql, List<string> Problems);
+
     private static bool ReadList(JsonElement root, string property, string itemKind, int max, ErpOperationLookup lookup, HashSet<string> codes,
-        List<CatalogItem> items, out string? error)
+        List<CatalogItem> items, Invalid? lenient, out string? error)
     {
         error = null;
         if (!root.TryGetProperty(property, out var list)) return true;
@@ -88,16 +120,35 @@ internal static class TenantCatalogSchema
         foreach (var element in list.EnumerateArray())
         {
             var place = $"{property}[{index++}]";
-            if (!ReadItem(element, itemKind, place, lookup, codes, out var item, out error)) return false;
+            if (!ReadItem(element, itemKind, place, lookup, codes, lenient is not null, out var item, out var sqlRejected, out error))
+            {
+                if (lenient is null) return false;
+                lenient.Codes.Add(Text(element, "code") ?? place);
+                lenient.Problems.Add(error!);
+                error = null;
+                continue;
+            }
+            if (sqlRejected)
+            {
+                lenient!.Codes.Add(item!.Code);
+                lenient.RejectedSql.Add(item);
+                lenient.Problems.Add($"{place} ({item.Code}): SQL bugünkü doğrulayıcıya göre geçersiz.");
+                continue;
+            }
             items.Add(item!);
         }
         return true;
     }
 
+    /// <summary>
+    /// Reads one item. In <paramref name="lenient"/> mode a deprecated operation is accepted, and SQL that today's validator
+    /// rejects does not fail the item: it is returned with <paramref name="sqlRejected"/> set (the other rules still apply).
+    /// </summary>
     private static bool ReadItem(JsonElement element, string itemKind, string place, ErpOperationLookup lookup, HashSet<string> codes,
-        out CatalogItem? item, out string? error)
+        bool lenient, out CatalogItem? item, out bool sqlRejected, out string? error)
     {
         item = null;
+        sqlRejected = false;
         var isAction = itemKind == "action";
         if (element.ValueKind != JsonValueKind.Object) return Fail(out error, $"{place}: nesne olmalıdır.");
         var code = Text(element, "code");
@@ -137,7 +188,8 @@ internal static class TenantCatalogSchema
             if (string.IsNullOrWhiteSpace(sql)) return Fail(out error, $"{place}: SQL boş olamaz.");
             string? sqlError;
             var valid = isAction ? ReportEndpoints.TryValidateWriteSql(sql, queryKind, out sqlError) : ReportEndpoints.TryValidateReadOnlySql(sql, out sqlError);
-            if (!valid) return Fail(out error, $"{place}: SQL geçersiz. {sqlError}".TrimEnd());
+            if (!valid && !lenient) return Fail(out error, $"{place}: SQL geçersiz. {sqlError}".TrimEnd());
+            sqlRejected = !valid;
             if (!TenantCustomPageQueries.SqlParameterNames(sql).SetEquals(parameters.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase)))
                 return Fail(out error, $"{place}: SQL parametreleri bildirilenlerle aynı değil.");
         }
@@ -145,7 +197,7 @@ internal static class TenantCatalogSchema
         {
             operation = operationElement.ValueKind == JsonValueKind.String ? operationElement.GetString() : null;
             if (operation is null || !lookup(operation, out var op)) return Fail(out error, $"{place}: ERP işlemi bulunamadı: {operation}");
-            if (op.Deprecated) return Fail(out error, $"{place}: ERP işlemi artık kullanılamıyor: {operation}");
+            if (op.Deprecated && !lenient) return Fail(out error, $"{place}: ERP işlemi artık kullanılamıyor: {operation}");
             if (!string.Equals(op.PageKind, queryKind, StringComparison.Ordinal))
                 return Fail(out error, $"{place}: ERP işleminin türü ({op.PageKind}) öğenin türüyle ({queryKind}) aynı değil.");
             if (op.SourceOperation is not null || op.BodyMap is not null)

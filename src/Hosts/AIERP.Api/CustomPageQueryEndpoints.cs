@@ -255,7 +255,9 @@ internal static class CustomPageQueryEndpoints
         if ((query.DataSource ?? query.Action) is { } code)
         {
             var catalog = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
-            var item = catalog?.Bundle.Find(code);
+            // An item kept only for SQL that today's validator rejects still resolves here, so it reaches the
+            // re-validation below and is answered with InvalidStoredSqlError before any connection is opened.
+            var item = catalog?.Bundle.FindForRun(code);
             if (item is null) return Results.NotFound(new { error = TenantCustomPageQueries.CatalogMissingPrefix + code });
             if (item.ErpOperation is not null) return Results.BadRequest(new { error = OperationQueryRunError });
             if (!TenantCatalogStore.Fits(item, query.DataSource is not null ? "dataSource" : "action", query))

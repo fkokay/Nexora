@@ -181,20 +181,67 @@ public sealed class CustomPageCatalogRuntimeIntegrationTests
     {
         var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);
         await using var app = await StartApplicationAsync(factory);
-        // Written directly: the create endpoint would have rejected this SQL.
+        // Written directly: the create endpoint would have rejected both SQL texts (a write as a read, an UPDATE as a delete).
+        await SeedReleaseAsync(app, "1.0.0", BundleJson(readSql: "DELETE FROM CustomerAccounts WHERE Name LIKE @q")
+            .Replace("DELETE FROM CustomerAccounts WHERE Code = @kod", "UPDATE CustomerAccounts SET Name = 'x' WHERE Code = @kod"));
+        await SeedPageAsync(app, PageCode, published: true, StandardPage());
+        using var client = Client(app);
+
+        // The stored item reaches today's re-validation and is rejected there, before any connection is opened.
+        var response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/liste/run", new { parameters = new { q = "A%" } });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(CustomPageQueryEndpoints.InvalidStoredSqlError, await ErrorAsync(response));
+        response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/sil/run", new { parameters = new { kod = "C-1" } });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(CustomPageQueryEndpoints.InvalidStoredSqlError, await ErrorAsync(response));
+        Assert.Equal(0, factory.Calls);
+        Assert.Empty(await WriteAuditsAsync(app));
+        var published = await (await client.GetAsync($"/api/custom-pages/{PageCode}/published")).Content.ReadAsStringAsync();
+        Assert.DoesNotContain("DELETE", published);
+        Assert.DoesNotContain("UPDATE", published);
+    }
+
+    [Fact]
+    public async Task One_invalid_item_does_not_hide_the_other_items()
+    {
+        var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);
+        await using var app = await StartApplicationAsync(factory);
         await SeedReleaseAsync(app, "1.0.0", BundleJson(readSql: "DELETE FROM CustomerAccounts WHERE Name LIKE @q"));
         await SeedPageAsync(app, PageCode, published: true, StandardPage());
         using var client = Client(app);
 
-        // The stored bundle no longer validates, so the catalog counts as absent and nothing runs.
-        var response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/liste/run", new { parameters = new { q = "A%" } });
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/sil/run", new { parameters = new { kod = "C-1" } });
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(0, factory.Calls);
-        Assert.Empty(await WriteAuditsAsync(app));
-        Assert.DoesNotContain("DELETE", await (await client.GetAsync($"/api/custom-pages/{PageCode}/published")).Content.ReadAsStringAsync());
+        var queries = await QueriesAsync(client, $"/api/custom-pages/{PageCode}/published");
+        Assert.Equal("cari.listele", queries.Single(x => x.GetProperty("id").GetString() == "op").GetProperty("operation").GetString());
+        Assert.False(queries.Single(x => x.GetProperty("id").GetString() == "sil").TryGetProperty("catalogError", out _));
+
+        // The valid action of the same release still runs (the connection is reached), the invalid read does not.
+        var response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/sil/run", new { parameters = new { kod = "C-1" } });
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal(1, factory.Calls);
+        response = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/liste/run", new { parameters = new { q = "A%" } });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(1, factory.Calls);
     }
+
+    [Fact]
+    public async Task Deprecated_operation_item_still_resolves()
+    {
+        var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);
+        await using var app = await StartApplicationAsync(factory);
+        // Accepted when installed; the operation was deprecated afterwards (grandfathered when the catalog is read).
+        Assert.True(ErpOperationCatalog.TryGet(DeprecatedOperation, out var operation) && operation.Deprecated);
+        await SeedReleaseAsync(app, "1.0.0", $$"""
+            { "schemaVersion": 1, "dataSources": [ { "code": "kabulSatirlari", "label": "Kabul satırları", "source": { "erpOperation": "{{DeprecatedOperation}}" } } ] }
+            """);
+        await SeedPageAsync(app, PageCode, published: true, Page(Query("satirlar", "dataSource", "kabulSatirlari", type: "guid", parameter: "id")));
+        using var client = Client(app);
+
+        var query = Assert.Single(await QueriesAsync(client, $"/api/custom-pages/{PageCode}/published"));
+        Assert.Equal(DeprecatedOperation, query.GetProperty("operation").GetString());
+        Assert.False(query.TryGetProperty("catalogError", out _));
+    }
+
+    private const string DeprecatedOperation = "satinalma.malKabul.siparisSatirlari";
 
     [Fact]
     public async Task Run_after_parameter_change_returns_409()

@@ -287,6 +287,33 @@ public sealed class TenantCatalogEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Catalog_with_a_stale_item_still_shows_the_active_release()
+    {
+        await using var app = await StartApplicationAsync();
+        Guid id;
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            // Written directly: "cariler" carries SQL that today's validator rejects, "eski" an operation that no longer exists.
+            var stale = BundleJson().Replace("SELECT Code, Name FROM CustomerAccounts WHERE Name LIKE @q", "DELETE FROM CustomerAccounts WHERE Name LIKE @q")
+                .Replace("\"actions\": [", "\"actions\": [ { \"code\": \"eski\", \"label\": \"Eski\", \"kind\": \"delete\", \"run\": { \"erpOperation\": \"yok.boyle.islem\" } },");
+            var release = CustomPageCatalogReferenceSchemaTests.Release(TenantA, "3.0.0", "Active", stale);
+            scope.ServiceProvider.GetRequiredService<TenantDbContext>().TenantCatalogReleases.Add(release);
+            await scope.ServiceProvider.GetRequiredService<TenantDbContext>().SaveChangesAsync();
+            id = release.Id;
+        }
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+
+        var catalog = await Json(await client.GetAsync("/api/custom-pages/catalog"));
+
+        Assert.Equal(id, catalog.GetProperty("releaseId").GetGuid());
+        Assert.Equal("3.0.0", catalog.GetProperty("version").GetString());
+        Assert.Empty(catalog.GetProperty("dataSources").EnumerateArray());
+        Assert.Equal("cariSil", Assert.Single(catalog.GetProperty("actions").EnumerateArray()).GetProperty("code").GetString());
+        Assert.Equal(["cariler", "eski"], catalog.GetProperty("invalidItems").EnumerateArray().Select(x => x.GetString()!).ToArray());
+    }
+
+    [Fact]
     public async Task Catalog_without_active_release_is_empty()
     {
         await using var app = await StartApplicationAsync();
