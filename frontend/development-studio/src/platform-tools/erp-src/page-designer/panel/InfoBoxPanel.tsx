@@ -3,7 +3,7 @@ import { fromConsultantText, toConsultantText, type FieldToken } from "./consult
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import { AppearanceSection } from "./AppearanceSection";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { MAX_INFO_ITEMS, infoBoxOf, setHideOnMobile, setInfoBox, type InfoTone } from "./textPanelModel";
+import { MAX_INFO_ITEMS, cleanItems, infoBoxOf, setHideOnMobile, setInfoBox, type InfoTone } from "./textPanelModel";
 
 export const INFO_ITEMS_LABEL = "Maddeler (her satır bir madde)";
 export const INFO_DISMISS_LIST_NOTE = "Madde listesi kapatılamaz.";
@@ -34,10 +34,10 @@ export function InfoBoxPanel({ component, definition, disabled, tokens = [], onC
     <label className="cpanel-row">Madde listesi olarak göster<input type="checkbox" role="switch" checked={box.items !== null} disabled={disabled || isList}
       onChange={(event) => patch({ items: event.target.checked ? [] : null })}/></label>
     {box.items !== null && <label className="cpanel-q">{INFO_ITEMS_LABEL}<textarea className="cpanel-txt" rows={4} disabled={disabled} value={box.items.join("\n")}
-      onChange={(event) => patch({ items: event.target.value.split("\n") })}/><span className="cpanel-note">En çok {MAX_INFO_ITEMS} madde.</span></label>}
+      onChange={(event) => patch({ items: event.target.value.split("\n") })} onBlur={() => patch({ items: cleanItems(box.items ?? []) })}/><span className="cpanel-note">En çok {MAX_INFO_ITEMS} madde.</span></label>}
   </>;
   const extra = <>
-    <label className="cpanel-row">Kullanıcı kapatabilsin<input type="checkbox" role="switch" checked={box.dismissible} disabled={disabled || isList}
+    <label className="cpanel-row">Kullanıcı kapatabilsin<input type="checkbox" role="switch" checked={!isList && box.dismissible} disabled={disabled || isList}
       onChange={(event) => patch({ dismissible: event.target.checked })}/></label>
     {isList && <p className="cpanel-note">{INFO_DISMISS_LIST_NOTE}</p>}
   </>;

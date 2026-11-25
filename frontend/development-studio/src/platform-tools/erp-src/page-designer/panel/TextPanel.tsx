@@ -3,9 +3,10 @@ import { fromConsultantText, toConsultantText, type FieldToken } from "./consult
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import { AppearanceSection } from "./AppearanceSection";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { setHideOnMobile, setTextAlign, setTextContent, setTextStyle, textStyleOf, type TextStyle } from "./textPanelModel";
+import { setHideOnMobile, setTextAlign, setTextContent, setTextStyle, textKeyOf, textStyleOf, hasTextParts, type TextStyle } from "./textPanelModel";
 
 export const TEXT_FIELD_NOTE = "Metin içine alan koymak için { yazın, örn. {Cari kodu}.";
+export const TEXT_PARTS_NOTE = "Bu metin birden çok parçadan oluşuyor; eski ayarlardan düzenlenir.";
 export const UNKNOWN_FIELD_WARNING = "Bu metinde tanınmayan bir alan var; kaydedersen korunur.";
 const STYLES: [TextStyle, string][] = [["heading", "Başlık"], ["subheading", "Alt başlık"], ["paragraph", "Paragraf"], ["label", "Küçük etiket"]];
 const ALIGNS: [string, "start" | "center"][] = [["Sol", "start"], ["Orta", "center"]];
@@ -21,16 +22,18 @@ export type TextPanelProps = {
 
 export function TextPanel({ component, definition, tokens, disabled, onChange, onRename, visibility }: TextPanelProps) {
   const style = textStyleOf(component);
-  const stored = String((component.type === "section" ? component.props.title : component.props.text) ?? "");
+  const stored = String(component.props[textKeyOf(component)] ?? "");
+  const parts = hasTextParts(component);
   const shown = toConsultantText(stored, tokens);
   const align = component.props.textAlign === "center" ? "center" : "start";
   const what = <div className="cpanel-seg" role="group" aria-label="Stil">{STYLES.map(([value, label]) =>
-    <button type="button" key={value} className={style === value ? "on" : ""} aria-pressed={style === value} disabled={disabled}
+    <button type="button" key={value} className={style === value ? "on" : ""} aria-pressed={style === value} disabled={disabled || parts}
       onClick={() => onChange(setTextStyle(definition, component.id, value))}>{label}</button>)}</div>;
   const basics = <>
-    <textarea className="cpanel-txt" rows={4} aria-label="Metin" disabled={disabled} value={shown.text}
+    <textarea className="cpanel-txt" rows={4} aria-label="Metin" disabled={disabled || parts} value={shown.text}
       onChange={(event) => onChange(setTextContent(definition, component.id, fromConsultantText(event.target.value, tokens, stored)))}/>
     <p className="cpanel-note">{TEXT_FIELD_NOTE}</p>
+    {parts && <p className="cpanel-note">{TEXT_PARTS_NOTE}</p>}
     {shown.unknown && <p className="cpanel-warn">{UNKNOWN_FIELD_WARNING}</p>}
   </>;
   const extra = <div className="cpanel-row">Hizalama<div className="cpanel-seg" role="group" aria-label="Hizalama">{ALIGNS.map(([label, value]) =>

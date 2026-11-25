@@ -8,7 +8,14 @@ export type InfoBox = { tone: InfoTone; title: string; text: string; items: stri
 export const MAX_INFO_ITEMS = 40;
 
 const TYPE_OF: Record<TextStyle, string> = { heading: "heading", subheading: "section", paragraph: "text", label: "label" };
-const textKey = (type: string) => (type === "section" ? "title" : "text");
+/** Metnin yeri: `section` ve (ERP `title || text` çizdiği için) başlığı dolu `heading` için `title`, ötekiler için `text`. */
+const keyOfType = (type: string) => (type === "section" ? "title" : "text");
+const textKey = (c: ModelComponent) => (c.type === "heading" && str(c.props.title) ? "title" : keyOfType(c.type));
+export const textKeyOf = textKey;
+/** Birden çok parçadan oluşan metin (`parts`) panelden düzenlenmez. */
+export const hasTextParts = (c: ModelComponent) => c.type === "text" && c.props.parts !== undefined;
+/** Madde satırlarından boş olanları atar (alan odağı bırakınca). */
+export const cleanItems = (lines: string[]): string[] => lines.filter((line) => line.trim() !== "");
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
 export function textStyleOf(c: ModelComponent): TextStyle {
@@ -26,8 +33,8 @@ const without = (props: Props, ...keys: string[]): Props => Object.fromEntries(O
 export function setTextStyle<D extends ModelDefinition>(def: D, id: string, style: TextStyle): D {
   return mapComponent(def, id, (c) => {
     const type = TYPE_OF[style];
-    const from = textKey(c.type);
-    const to = textKey(type);
+    const from = textKey(c);
+    const to = keyOfType(type);
     const content = str(c.props[from]) || str(c.props[to]);
     const props: Props = {};
     for (const [key, value] of Object.entries(c.props)) {
@@ -40,7 +47,7 @@ export function setTextStyle<D extends ModelDefinition>(def: D, id: string, styl
 }
 
 export function setTextContent<D extends ModelDefinition>(def: D, id: string, stored: string): D {
-  return mapComponent(def, id, (c) => ({ ...c, props: { ...c.props, [textKey(c.type)]: stored } }));
+  return mapComponent(def, id, (c) => ({ ...c, props: { ...c.props, [textKey(c)]: stored } }));
 }
 
 export function setTextAlign<D extends ModelDefinition>(def: D, id: string, align: "start" | "center"): D {
@@ -76,7 +83,7 @@ export function setInfoBox<D extends ModelDefinition>(def: D, id: string, patch:
     // Tür: `list` yalnız başka bir türe geçilirse `alert`/`card` olur; kendi türü (Sade) seçilirse olduğu gibi kalır.
     if (patch.tone !== undefined && !(c.type === "list" && patch.tone === "plain") && patch.tone !== toneOf(c)) {
       const text = str(props[key]);
-      props = without(props, "description", "variant");
+      props = key === "description" ? without(props, "description", "variant") : without(props, "variant");
       props.text = text;
       if (patch.tone === "plain") type = "card";
       else { type = "alert"; props.variant = patch.tone; }

@@ -45,3 +45,18 @@ describe("InfoBoxPanel", () => {
     expect(html).not.toMatch(/Kullanıcı kapatabilsin<input[^>]*disabled/);
   });
 });
+
+describe("TextPanel special cases", () => {
+  it("shows title of a heading and the parts note for multi-part text", () => {
+    const h: ModelComponent = { id: "h2", type: "heading", props: { title: "Gerçek başlık", text: "eski" } };
+    expect(renderToString(<TextPanel component={h} definition={def(h)} tokens={[]} {...common}/>)).toContain("Gerçek başlık");
+    const t: ModelComponent = { id: "t2", type: "text", props: { text: "x", parts: ["a", "b"] } };
+    const html = renderToString(<TextPanel component={t} definition={def(t)} tokens={[]} {...common}/>);
+    expect(html).toContain("Bu metin birden çok parçadan oluşuyor; eski ayarlardan düzenlenir.");
+    expect(html).toContain("parts");
+  });
+  it("info box dismissible switch is off on list", () => {
+    const l: ModelComponent = { id: "l1", type: "list", props: { title: "T", items: ["a"], dismissible: true } };
+    expect(renderToString(<InfoBoxPanel component={l} definition={def(l)} {...common}/>)).not.toMatch(/Kullanıcı kapatabilsin<input[^>]*checked/);
+  });
+});

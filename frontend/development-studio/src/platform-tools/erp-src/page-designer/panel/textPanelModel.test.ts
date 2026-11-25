@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { infoBoxOf, setInfoBox, setTextAlign, setTextContent, setTextStyle, textStyleOf } from "./textPanelModel";
+import { cleanItems, infoBoxOf, setHideOnMobile, setInfoBox, setTextAlign, setTextContent, setTextStyle, textStyleOf } from "./textPanelModel";
 
 const def = (...components: ModelComponent[]): ModelDefinition => ({ schemaVersion: 2, queries: [], components });
 const heading: ModelComponent = { id: "h1", type: "heading", name: "baslik", props: { slot: "above", text: "Cari Hesaplar", textAlign: "center", visibleWhen: "{{baslik}}" } };
@@ -75,5 +75,32 @@ describe("textPanelModel", () => {
     setTextStyle(d, "h1", "paragraph"); setTextContent(d, "h1", "x"); setTextAlign(d, "h1", "start");
     setInfoBox(d, "a1", { tone: "plain", title: "x", text: "y", items: ["z"], dismissible: true });
     expect(d).toEqual(snapshot);
+  });
+  it("blank lines are dropped on blur", () => {
+    expect(cleanItems(["a", "", "  ", "b", ""])).toEqual(["a", "b"]);
+  });
+  it("setHideOnMobile writes and removes", () => {
+    const on = setHideOnMobile(def(heading), "h1", true);
+    expect(component(on, "h1").props.hideOnMobile).toBe(true);
+    expect("hideOnMobile" in component(setHideOnMobile(on, "h1", false), "h1").props).toBe(false);
+  });
+  it("list to alert tone change keeps items and name", () => {
+    const list: ModelComponent = { id: "l1", type: "list", name: "madde", props: { title: "T", items: ["a"] } };
+    const next = component(setInfoBox(def(list), "l1", { tone: "warning" }), "l1");
+    expect(next).toMatchObject({ type: "alert", name: "madde" });
+    expect(next.props.items).toEqual(["a"]);
+  });
+  it("card to alert drops description only when it was the text source", () => {
+    const both: ModelComponent = { id: "c1", type: "card", props: { text: "T", description: "D" } };
+    const next = component(setInfoBox(def(both), "c1", { tone: "info" }), "c1");
+    expect(next.props).toMatchObject({ text: "T", description: "D" });
+    const only: ModelComponent = { id: "c2", type: "card", props: { description: "D" } };
+    expect(component(setInfoBox(def(only), "c2", { tone: "info" }), "c2").props).toEqual({ variant: "info", text: "D" });
+  });
+  it("heading with title reads and edits title", () => {
+    const h: ModelComponent = { id: "h2", type: "heading", props: { title: "Baş", text: "eski" } };
+    expect(component(setTextContent(def(h), "h2", "Yeni"), "h2").props).toEqual({ title: "Yeni", text: "eski" });
+    const p = component(setTextStyle(def(h), "h2", "paragraph"), "h2");
+    expect(p.props).toEqual({ text: "Baş" });
   });
 });
