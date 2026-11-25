@@ -56,6 +56,7 @@ import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
 import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector } from "./page-designer/panel/TemplateInspector";
 import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { ensureTemplateSlots, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
@@ -1168,9 +1169,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const isAdmin = role === "TenantAdmin";
   // Karar 1: kayıtlı tanımı satır içi SQL, yazan ERP işlemi ya da betikli kod bileşeni taşıyan sayfayı (sunucudaki kaydetme
   // kuralıyla aynı) yalnız tenant yöneticisi değiştirebilir; katalog başvuruları ve okuma işlemleri kilitlemez. İşlem listesi
-  // yüklenirken okuma türündeki işlem sorgusu okuma sayılır; liste alınamadıysa bilinmeyen (yazma) sayılır. Sunucu yine denetler.
+  // gelene (ya da alınamazsa) kadar işlem sorgusu sunucudaki gibi bilinmeyen (yazma) sayılır ve sayfa kilitli kalır.
   const storedNeedsAdmin = useMemo(() => definitionNeedsAdmin(current?.definitionJson,
-    (operation) => erpCatalog.status === "ready" ? findOperation(erpCatalog, operation)?.kind : erpCatalog.status === "loading" ? "read" : undefined), [current?.definitionJson, erpCatalog]);
+    (operation) => erpCatalog.status === "ready" ? findOperation(erpCatalog, operation)?.kind : undefined), [current?.definitionJson, erpCatalog]);
   const queryPageLocked = storedNeedsAdmin && !isAdmin;
   // Sistem sayfası yazmaları doğrulanmış firma yöneticisi ister; liste yanıtı yoksa rol talebine bakılır (sunucu yine denetler).
   const systemAdmin = !systemMode || (systemInfo ? systemInfo.canEdit : isAdmin);
@@ -1425,7 +1426,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commit = (update: (value: PageDefinition) => PageDefinition, coalesceKey?: string) => {
     if (!canEdit) return;
     const previous = definitionRef.current;
-    const next = reconcileDefinition(update(previous), { catalog: erpCatalog, previous, queryEditable });
+    // Kalıplı sayfa: eski ayar yollarından gelen bileşenler de bir yer (slot) alır, genişlik yazılmaz (sunucu kuralı).
+    const next = reconcileDefinition(ensureTemplateSlots(update(previous)), { catalog: erpCatalog, previous, queryEditable });
     if (next === previous) return;
     const now = Date.now();
     const last = lastCommit.current;
@@ -1914,7 +1916,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const id = newId("button");
     commit((value) => ({ ...value, components: [
       ...value.components.map((component) => component.id === tableId ? { ...component, props: { ...component.props, rowActions: [...idList(component.props.rowActions, MAX_ROW_ACTIONS), id] } } : component),
-      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page" } },
+      { id, type: "button", props: { label: "Satır işlemi", variant: "secondary", actionType: "page", ...(readPageTemplate(value.template) ? { slot: "rowActions" } : {}) } },
     ] }));
     setSettingsId(null);
     setSelectedComponentId(id);
@@ -2086,7 +2088,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const removeComponent = (id: string) => { if (isTemplateList(id)) return; commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = cardTree.findComponent(definitionRef.current.components, id);
-    if (!original || !canEdit || original.type === "actionBar" || isTemplateList(id)) return;
+    if (!original || !canEdit || original.type === "actionBar" || isTemplateList(id) || templateDuplicateBlocked(definitionRef.current as unknown as ModelDefinition, id)) return;
     const copyId = newId(original.type);
     const duplicate: PageComponent = { ...original, id: copyId, props: Object.fromEntries(Object.entries(original.props).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])) };
     delete duplicate.name; // Ad sayfada benzersiz olmalı; kopya adsız başlar (adı zorunlu türler yeni bir boş ad alır).
@@ -2176,6 +2178,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return components === state.components ? state : { ...state, components };
   });
   const startResize = (component: PageComponent, event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (readPageTemplate(definitionRef.current.template)) return; // kalıplı sayfada genişlik yoktur
     if (!canEdit || device !== "desktop") return;
     // Sekmedeki bileşen sekme gövdesinin, kartın içindeki bileşen kart ızgarasının 12 sütununa göre boyutlanır.
     const grid = event.currentTarget.closest<HTMLElement>(".pd-tabs-canvas-panel") ?? event.currentTarget.closest<HTMLElement>(".pd-grid") ?? gridRef.current;
@@ -3039,7 +3042,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(component.id)}><Trash2 size={13}/></button>
       </div>}
       <div className="pd-block-render">{component.type === "tabs" && !nestedIds.has(component.id) ? renderTabsContainer(component) : rendered.list[index]}</div>
-      {isSelected && canEdit && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
+      {isSelected && canEdit && !pageTemplate && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(component, event)} onClick={(event) => event.stopPropagation()}/>}
     </div>;
     return { id: component.id, element };
   // Olay işleyicileri `live` üzerinden güncel işlevleri çağırır; örnek veri rozeti `sampleHintKey` ile izlenir.
@@ -3088,7 +3091,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         <button type="button" title="Sil (Delete)" aria-label="Sil" className="danger" onClick={() => live.current.removeComponent(child.id)}><Trash2 size={13}/></button>
       </div>}
       <div className="pd-block-render">{child.type === "tabs" ? renderTabsContainer(child) : isCard ? rendered.cardChildNodes.get(child.id) : rendered.refNodes.get(child.id)}</div>
-      {isSelected && canEdit && resizable && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
+      {isSelected && canEdit && !pageTemplate && resizable && device === "desktop" && <span className="pd-resize" role="presentation" draggable={false} title="Genişliği sürükleyerek değiştirin" onDragStart={(event) => { event.preventDefault(); event.stopPropagation(); }} onPointerDown={(event) => live.current.startResize(child, event)} onClick={(event) => event.stopPropagation()}/>}
     </div>;
     return { id: child.id, element };
   }), [focusOwner, focusMembers, definition, selectedComponentId, device, canEdit, rendered, activeTabs, dragStore]);
@@ -4302,7 +4305,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
           list={{ definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
-            operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, isTenantAdmin: isAdmin,
+            operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, operationsStatus: erpCatalog.status, isTenantAdmin: isAdmin,
             recordCount: typeof selected.props.query === "string" ? queryPreviews[selected.props.query]?.rowCount ?? null : null,
             onChange: (next) => commit(() => next as unknown as PageDefinition),
             visibility: <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/> }}/>;

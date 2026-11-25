@@ -46,7 +46,17 @@ describe("ListPanel", () => {
     const html = render(withAction, { version: "2", dataSources: [catalog.dataSources[1]], actions: [] });
     expect(html).toContain(LIST_MISSING_IN_CATALOG);
     expect(html).toContain("cariler");
-    expect(html).toContain("ekstre");
+    // I4: yerleştirilmiş ama katalogdan kalkmış eylem kaldırılabilir çip olarak görünür.
+    expect(html).toContain(`ekstre · ${LIST_MISSING_IN_CATALOG}`);
+    expect(html).toContain("cpanel-chip on is-missing");
+  });
+  it("offers two row heights, an empty preview and a labelled title input (M2, M6)", () => {
+    const html = render(bound);
+    expect(html).toContain(">Sıkı</button>");
+    expect(html).toContain(">Rahat</button>");
+    expect(html).not.toContain(">Normal</button>");
+    expect(html.indexOf("Liste boşken yazılacak")).toBeLessThan(html.indexOf("Boş halini önizle"));
+    expect(html).toContain('aria-label="Liste başlığı"');
   });
   it("explains a missing active catalog", () => {
     expect(render(bound, null)).toContain("Etkin katalog sürümü yok");

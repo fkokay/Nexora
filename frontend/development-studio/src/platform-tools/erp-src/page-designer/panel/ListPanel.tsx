@@ -6,7 +6,8 @@ import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import {
   DEFAULT_LIST_PAGE_SIZE, actionUsableAt, addListAction, chooseDataSource, dataSourceUsable, findList, labelMap, listDataSourceCode,
   missingCatalogCodes, placedActions, removeListAction, rowOpenChoice, rowOpenUsable, searchState, setColumns, setListProps, setPageSize,
-  setRowDoubleClick, setSearch, stringList, withOperationParameters, type ActionPlace, type ModelDefinition, type RowOpenChoice,
+  setRowDoubleClick, setSearch, stringList, withOperationParameters, MAX_LIST_COLUMNS, type ActionPlace, type ModelDefinition, type OperationListStatus,
+  type RowOpenChoice,
 } from "./listPanelModel";
 
 export const LIST_EXPORT_NOTE = "“Dışa aktar” açıkken kullanıcı Excel ya da CSV seçebilir, sadece seçili satırları da aktarabilir.";
@@ -14,7 +15,9 @@ export const LIST_ACTIONS_NOTE = "Bu eylemleri yazılımcı hazırlar, sen sadec
 export const LIST_MISSING_IN_CATALOG = "Katalogda yok";
 const PAGE_SIZES = [10, 25, 50, 100];
 const TOOLS: [GridToolKey, string][] = [["showColumnFilters", "Kolon filtreleri"], ["showColumnChooser", "Kolon seçici"], ["showPivot", "Pivot"], ["showExport", "Dışa aktar"]];
-const DENSITIES: [string | undefined, string][] = [["dense", "Sıkı"], [undefined, "Normal"], ["comfort", "Rahat"]];
+// Sunucu ve ERP yalnız iki değer bilir; değer yokken Sıkı sayılır.
+const DENSITIES: [string, string][] = [["dense", "Sıkı"], ["comfort", "Rahat"]];
+export const LIST_EMPTY_DEFAULT = "Kayıt yok.";
 const OPEN_CHOICES: [RowOpenChoice, string][] = [["card", "Kartı aç"], ["panel", "Yan panelde göster"], ["none", "Hiçbir şey yapma"]];
 /** Panelin karşıladığı tablo özellikleri; ötekiler "Eski ayarlar" altında salt okunur görünür ve kayıtta korunur. */
 const KNOWN = new Set(["slot", "title", "query", "columns", "columnLabels", "showGridSearch", "pageSize", "rowOpenAction", "rowActions", "bulkDeleteQuery",
@@ -25,6 +28,8 @@ export type ListPanelProps = {
   /** Etkin katalog; `null` etkin sürüm yok demektir. */
   catalog: ActiveCatalog | null; catalogStatus: "loading" | "ready" | "failed";
   operationOf: (name: string | null) => ErpOperation | undefined;
+  /** ERP işlem listesinin durumu: işlem bilinmeden işleme dayanan öğeler seçilemez. */
+  operationsStatus?: OperationListStatus;
   isTenantAdmin: boolean; recordCount?: number | null; disabled?: boolean;
   onChange: (next: ModelDefinition) => void;
   /** "Ne zaman görünsün?" alanı (tasarımcının koşul düzenleyicisi); verilmezse yalnız "Her zaman" gösterilir. */
@@ -39,9 +44,10 @@ export function ListPanel(props: ListPanelProps) {
   const table = findList(definition, listId);
   const [editing, setEditing] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [emptyPreview, setEmptyPreview] = useState(false);
   if (!table) return null;
-  const sources = (catalog?.dataSources ?? []).map((item) => withOperationParameters(item, props.operationOf(item.erpOperation), false));
-  const actions = (catalog?.actions ?? []).map((item) => withOperationParameters(item, props.operationOf(item.erpOperation), true));
+  const sources = (catalog?.dataSources ?? []).map((item) => withOperationParameters(item, props.operationOf(item.erpOperation), false, props.operationsStatus));
+  const actions = (catalog?.actions ?? []).map((item) => withOperationParameters(item, props.operationOf(item.erpOperation), true, props.operationsStatus));
   const code = listDataSourceCode(definition, listId);
   const source = sources.find((item) => item.code === code);
   const missing = catalog ? missingCatalogCodes(definition, catalog) : [];
@@ -53,7 +59,10 @@ export function ListPanel(props: ListPanelProps) {
   const columnCodes = source ? source.columns.map((column) => column.code) : columns;
   const ordered = [...columns, ...columnCodes.filter((column) => !columns.includes(column))];
   const labelOf = (column: string) => labels[column] ?? source?.columns.find((item) => item.code === column)?.label ?? column;
-  const toggleColumn = (column: string, on: boolean) => change(setColumns(definition, listId, on ? ordered.filter((item) => item === column || columns.includes(item)) : columns.filter((item) => item !== column), {}));
+  const full = columns.length >= MAX_LIST_COLUMNS;
+  const toggleColumn = (column: string, on: boolean) => change(on
+    ? setColumns(definition, listId, ordered.filter((item) => item === column || columns.includes(item)), labels[column] ? {} : { [column]: labelOf(column) })
+    : setColumns(definition, listId, columns.filter((item) => item !== column), {}));
   const dropOn = (target: string) => (event: DragEvent) => {
     event.preventDefault();
     if (!dragging || dragging === target || !columns.includes(dragging) || !columns.includes(target)) return setDragging(null);
@@ -70,8 +79,13 @@ export function ListPanel(props: ListPanelProps) {
   const sourceColumns = source?.columns.map((column) => column.code) ?? [];
   const actionChips = (place: ActionPlace) => {
     const list = actions.filter((action) => place === "row" ? action.target === "row" : true);
-    if (list.length === 0) return <p className="cpanel-note">Yazılımcının hazırladığı eylem yok.</p>;
-    return <div className="cpanel-chips">{list.map((action: CatalogAction) => {
+    // Yerleştirilmiş ama katalogdan kalkmış eylemler (toplu silme dahil) kaldırılabilir çip olarak görünür.
+    const known = new Set(actions.map((action) => action.code));
+    const gone = [...new Set((place === "row" ? placed.row : placed.above).filter((item) => !known.has(item)))];
+    if (list.length === 0 && gone.length === 0) return <p className="cpanel-note">Yazılımcının hazırladığı eylem yok.</p>;
+    return <div className="cpanel-chips">{gone.map((item) => <button type="button" key={`gone-${item}`} className="cpanel-chip on is-missing" aria-pressed
+      disabled={disabled} title="Kaldırmak için tıklayın" onClick={() => change(removeListAction(definition, listId, item, place))}>{`${item} · ${LIST_MISSING_IN_CATALOG}`}</button>)}
+      {list.map((action: CatalogAction) => {
       const on = (place === "row" ? placed.row : placed.above).includes(action.code);
       const usable = actionUsableAt(action, sourceColumns, place);
       return <button type="button" key={action.code} className={`cpanel-chip${on ? " on" : ""}`} aria-pressed={on}
@@ -105,7 +119,7 @@ export function ListPanel(props: ListPanelProps) {
         const on = columns.includes(column);
         return <li key={column} draggable={on && !disabled} onDragStart={(event) => { event.dataTransfer.setData("text/plain", column); event.dataTransfer.effectAllowed = "move"; setDragging(column); }} onDragOver={(event) => event.preventDefault()} onDrop={dropOn(column)}>
           <span className="cpanel-grip" aria-hidden="true">⋮⋮</span>
-          <input type="checkbox" checked={on} disabled={disabled} aria-label={labelOf(column)} onChange={(event) => toggleColumn(column, event.target.checked)}/>
+          <input type="checkbox" checked={on} disabled={disabled || (!on && full)} title={!on && full ? `En fazla ${MAX_LIST_COLUMNS} kolon gösterilir.` : undefined} aria-label={labelOf(column)} onChange={(event) => toggleColumn(column, event.target.checked)}/>
           {editing === column
             ? <input className="cpanel-colname" autoFocus defaultValue={labelOf(column)} maxLength={60} aria-label="Kolon başlığı"
                 onBlur={(event) => { setEditing(null); const value = event.target.value.trim(); if (value && value !== labelOf(column)) change(setColumns(definition, listId, columns, { [column]: value })); }}
@@ -153,17 +167,19 @@ export function ListPanel(props: ListPanelProps) {
   const density = typeof table.props.density === "string" ? table.props.density : undefined;
   const appearance = <>
     <div className="cpanel-row">Satır yüksekliği<div className="cpanel-seg" role="group" aria-label="Satır yüksekliği">{DENSITIES.map(([value, label]) =>
-      <button type="button" key={label} className={density === value ? "on" : ""} aria-pressed={density === value} disabled={disabled} onClick={() => patch({ density: value })}>{label}</button>)}</div></div>
+      <button type="button" key={label} className={(density ?? "dense") === value ? "on" : ""} aria-pressed={(density ?? "dense") === value} disabled={disabled} onClick={() => patch({ density: value })}>{label}</button>)}</div></div>
     <label className="cpanel-row">Çizgili satırlar<input type="checkbox" role="switch" checked={table.props.striped === true} disabled={disabled}
       onChange={(event) => patch({ striped: event.target.checked ? true : undefined })}/></label>
     <label className="cpanel-q">Liste boşken yazılacak<input className="cpanel-txt" maxLength={120} disabled={disabled} value={typeof table.props.emptyText === "string" ? table.props.emptyText : ""}
       onChange={(event) => patch({ emptyText: event.target.value || undefined })}/></label>
+    <button type="button" className="cpanel-link" aria-pressed={emptyPreview} onClick={() => setEmptyPreview((value) => !value)}>{emptyPreview ? "Önizlemeyi kapat" : "Boş halini önizle"}</button>
+    {emptyPreview && <div className="cpanel-empty-preview" role="status">{typeof table.props.emptyText === "string" && table.props.emptyText ? table.props.emptyText : LIST_EMPTY_DEFAULT}</div>}
     <div className="cpanel-q">Ne zaman görünsün?</div>
     {props.visibility ?? <div className="cpanel-seg"><button type="button" className="on" disabled>Her zaman</button></div>}
     <LegacySettings props={table.props} known={KNOWN}/>
   </>;
 
-  return <ComponentPanel name={typeof table.props.title === "string" ? table.props.title : ""} onRename={(title) => patch({ title: title || undefined })}
+  return <ComponentPanel nameLabel="Liste başlığı" name={typeof table.props.title === "string" ? table.props.title : ""} onRename={(title) => patch({ title: title || undefined })}
     whatTitle="Ne listelensin?" basicsTitle={null} what={what} basics={basics} actions={actionsPart} appearance={appearance}>
     <div className="cpanel-ask"><b>Aradığın alan ya da liste yok mu?</b> Örneğin “Son ödeme tarihi” kolonu gibi. <a href="#my-requests" onClick={props.onLeave}>Yazılımcıdan iste →</a></div>
   </ComponentPanel>;

@@ -31,9 +31,17 @@ const SEARCH_PARAM = "q";
  * Panelin kullanacağı parametreler işlemden doldurulur: zorunlu yol/gövde parametreleri, veri kaynağında ayrıca `q` metin
  * sorgu parametresi. İsteğe bağlı öteki parametreler (ör. page, pageSize) bağlanmaz.
  */
+export type OperationListStatus = "loading" | "ready" | "failed";
+export const OPERATIONS_LOADING = "ERP işlem listesi yükleniyor…";
+export const OPERATIONS_FAILED = "ERP işlem listesi alınamadı; bu kaynak şimdilik seçilemez.";
+/** İşlem bilinmeden (liste yükleniyor, alınamadı ya da işlem listede yok) ERP işlemine dayanan öğe seçilemez. */
+export type Enriched<T> = T & { blockedReason?: string };
+const blockedOf = (item: object): string | undefined => (item as { blockedReason?: string }).blockedReason;
+
 export function withOperationParameters<T extends { source: "sql" | "erpOperation"; parameters: CatalogParameter[] }>(
-  item: T, operation: ErpOperation | undefined, forAction: boolean): T {
-  if (item.source !== "erpOperation" || !operation) return item;
+  item: T, operation: ErpOperation | undefined, forAction: boolean, status: OperationListStatus = "ready"): Enriched<T> {
+  if (item.source !== "erpOperation") return item;
+  if (!operation) return { ...item, blockedReason: status === "loading" ? OPERATIONS_LOADING : OPERATIONS_FAILED };
   const parameters = operation.parameters
     .filter((parameter) => parameter.required && !(parameter.in === "route" && operation.sourceOperation)
       || (!forAction && parameter.name === SEARCH_PARAM && parameter.in === "query" && parameter.type === "text"))
@@ -44,6 +52,8 @@ export function withOperationParameters<T extends { source: "sql" | "erpOperatio
 /** Karar 4: yalnız parametresiz ya da yalnız `q` metin parametreli kaynak. Karar 1: yönetici olmak katalog kaynağında fark etmez. */
 export function dataSourceUsable(ds: CatalogDataSource, isTenantAdmin: boolean): Usable {
   void isTenantAdmin;
+  const blocked = blockedOf(ds);
+  if (blocked) return { usable: false, reason: blocked };
   return ds.parameters.every((parameter) => parameter.name === SEARCH_PARAM && parameter.type === "text")
     ? { usable: true } : { usable: false, reason: SOURCE_NEEDS_INPUT };
 }
@@ -52,6 +62,8 @@ export const sourceHasSearch = (ds: CatalogDataSource) => ds.parameters.some((pa
 
 /** Karar 5: her parametre aynı adlı liste kolonuna bağlanabilmeli; toplu eylem yalnız silme olabilir. */
 export function actionUsable(action: CatalogAction, listColumns: string[]): Usable {
+  const blocked = blockedOf(action);
+  if (blocked) return { usable: false, reason: blocked };
   if (action.target === "bulk" && action.kind !== "delete") return { usable: false, reason: BULK_ONLY_DELETE };
   // Toplu silme satır başına çalışır: sunucu en az bir parametresinin seçili satıra bağlı olmasını ister.
   if (action.target === "bulk" && action.parameters.length === 0) return { usable: false, reason: BULK_NEEDS_ROW };
@@ -229,7 +241,8 @@ export function chooseDataSource<D extends ModelDefinition>(def: D, listId: stri
   components = replaceComponent(components, listId, (item) => withProps({ ...item, name }, {
     query: queryId, source: undefined, paging: undefined, pageParam: undefined, pageSizeParam: undefined, searchInput: undefined, footerMeta: undefined,
     columns: ds.columns.slice(0, FIRST_COLUMNS).map((column) => column.code),
-    columnLabels: ds.columns.map((column) => `${column.code}=${safeLabel(column.label, column.code)}`),
+    // Sunucu en fazla 20 kolon etiketi kabul eder: yalnız seçili kolonların etiketi yazılır.
+    columnLabels: ds.columns.slice(0, FIRST_COLUMNS).map((column) => `${column.code}=${safeLabel(column.label, column.code)}`),
   }));
   if (search && barId) {
     const bar: ModelComponent = { id: barId, type: "filterBar", name: barName, props: { slot: "filters", table: listId, search: true, searchParam: SEARCH_PARAM } };
@@ -240,16 +253,42 @@ export function chooseDataSource<D extends ModelDefinition>(def: D, listId: stri
       components = [...components.slice(0, listAt), bar, ...components.slice(listAt)];
     }
   }
-  return { ...def, queries, components };
+  const next = { ...def, queries, components };
+  const previousCode = current?.dataSource;
+  return previousCode !== undefined && previousCode !== ds.code ? rebindToSource(next, listId, ds) : next;
 }
 
-/** Kolonlar: işaretli olanlar sırasıyla (sıra = önem sırası); verilen etiketler var olanların üstüne yazılır. */
+/**
+ * Kaynak değişince eski kaynağa bağlı parçalar yenilenir: "Aç" düğmesi yeni kaynağa göre yeniden kurulur ya da kalkar
+ * (Karar 6), yan panelin alanları yeni kaynağın ilk kolonları olur, parametresi yeni kolonlarla eşleşmeyen eylemler kalkar (Karar 5).
+ */
+function rebindToSource<D extends ModelDefinition>(def: D, listId: string, ds: CatalogDataSource): D {
+  let next = def;
+  const choice = rowOpenChoice(next, listId);
+  if (choice === "card") next = rowOpenUsable(ds).usable ? setRowDoubleClick(next, listId, "card", ds) : setRowDoubleClick(next, listId, "none", ds);
+  if (choice === "panel") next = setRowDoubleClick(next, listId, ds.columns.length > 0 ? "panel" : "none", ds);
+  const columns = new Set(ds.columns.map((column) => column.code));
+  const prefix = (() => { const table = findList(next, listId); return table ? `{{${tableName(table)}.seciliSatir.` : ""; })();
+  const stale = next.queries.filter((query) => typeof query.action === "string" && query.parameters.some((parameter) => {
+    if (!parameter.binding.startsWith(prefix)) return false;
+    return !columns.has(parameter.binding.slice(prefix.length, -2));
+  })).map((query) => query.action!);
+  for (const code of new Set(stale)) next = removePlacedAction(next, listId, code);
+  return next;
+}
+
+export const MAX_LIST_COLUMNS = 20;
+/**
+ * Kolonlar: işaretli olanlar sırasıyla (sıra = önem sırası), en fazla 20. Etiket yalnız seçili kolonlar için yazılır (sunucu
+ * sınırı 20); verilen etiketler var olanların üstüne yazılır.
+ */
 export function setColumns<D extends ModelDefinition>(def: D, listId: string, columns: string[], labels: Record<string, string>): D {
   const table = findList(def, listId);
   if (!table) return def;
+  const chosen = columns.slice(0, MAX_LIST_COLUMNS);
   const merged = { ...labelMap(table.props.columnLabels), ...labels };
-  const columnLabels = Object.entries(merged).map(([code, label]) => `${code}=${safeLabel(label, code)}`);
-  return setListProps(def, listId, { columns: [...columns], columnLabels: columnLabels.length > 0 ? columnLabels : undefined });
+  const columnLabels = chosen.filter((code) => merged[code] !== undefined).map((code) => `${code}=${safeLabel(merged[code], code)}`);
+  return setListProps(def, listId, { columns: chosen, columnLabels: columnLabels.length > 0 ? columnLabels : undefined });
 }
 
 /**
@@ -311,6 +350,11 @@ export function removeListAction<D extends ModelDefinition>(def: D, listId: stri
   }
   const queries = def.queries.filter((query) => !queryIds.has(query.id) || stillUsed.has(query.id));
   return { ...def, queries, components };
+}
+
+/** Eylemi her yerden kaldırır (üstte, satır sonunda, toplu silme); katalogdan kalkmış eylemler için de kullanılır. */
+export function removePlacedAction<D extends ModelDefinition>(def: D, listId: string, actionCode: string): D {
+  return removeListAction(removeListAction(def, listId, actionCode, "above"), listId, actionCode, "row");
 }
 
 /**
