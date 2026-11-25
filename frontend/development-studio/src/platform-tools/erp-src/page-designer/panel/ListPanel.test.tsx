@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ActiveCatalog } from "../catalogClient";
 import { newListTemplateDefinition } from "../pageTemplates";
 import { LIST_ACTIONS_NOTE, LIST_EXPORT_NOTE, LIST_MISSING_IN_CATALOG, ListPanel } from "./ListPanel";
-import { addListAction, chooseDataSource, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
+import { addListAction, CARD_UNAVAILABLE, chooseDataSource, SOURCE_NEEDS_INPUT, type ModelDefinition } from "./listPanelModel";
 
 const catalog: ActiveCatalog = {
   version: "1",
@@ -20,6 +20,9 @@ const render = (definition: ModelDefinition, active: ActiveCatalog | null = cata
     isTenantAdmin={false} recordCount={312} onChange={() => {}}/>);
 
 describe("ListPanel", () => {
+  it("shows the reason when Kartı aç is unavailable", () => {
+    expect(render(bound)).toContain(CARD_UNAVAILABLE);
+  });
   it("renders sections in mockup order without tabs", () => {
     const html = render(bound);
     const order = ["Ne listelensin?", "Cari hesaplar", "Yazılımcının hazırladığı veri kaynağı · 312 kayıt", "Kolonlar", "Arama kutusu", "Sayfa başına",

@@ -77,10 +77,21 @@ export function actionUsableAt(action: CatalogAction, listColumns: string[], pla
   return actionUsable(action, listColumns);
 }
 
+/**
+ * Kolon kodundan sunucunun sayfa parametresi adı kuralına (`^[a-z][a-zA-Z0-9]{0,31}$`) uyan ad türetir.
+ * Kural: `_` + harf camelCase olur (`Cari_Kodu` → `cariKodu`), `[a-zA-Z0-9]` dışındaki diğer karakterler atılır, ilk harf
+ * küçültülür, 32 karaktere kesilir. Sonuç yine kurala uymuyorsa (örn. rakamla başlıyor) null döner.
+ */
+export function pageParamName(column: string): string | null {
+  const joined = column.replace(/_+([a-zA-Z])/g, (_, letter: string) => letter.toUpperCase()).replace(/[^a-zA-Z0-9]/g, "");
+  const name = (joined.charAt(0).toLowerCase() + joined.slice(1)).slice(0, 32);
+  return PAGE_PARAM_NAME.test(name) ? name : null;
+}
+
 export function rowOpenUsable(ds: CatalogDataSource): Usable {
   const key = keyColumn(ds);
-  // Sayfa düğmesinin parametre adı sunucuda `^[a-z][a-zA-Z0-9]{0,31}$` olmalı; anahtar kolon adı parametre adı olur.
-  return ds.opens && key && PAGE_PARAM_NAME.test(key) ? { usable: true } : { usable: false, reason: CARD_UNAVAILABLE };
+  // Sayfa düğmesinin parametre adı kolon adından türetilir; bağlama gerçek kolon kodunu okur.
+  return ds.opens && key && pageParamName(key) ? { usable: true } : { usable: false, reason: CARD_UNAVAILABLE };
 }
 
 // ---------- okuma yardımcıları ----------
@@ -377,7 +388,7 @@ export function setRowDoubleClick<D extends ModelDefinition>(def: D, listId: str
     const key = keyColumn(ds)!;
     const buttonId = freeId(cleared, "satiriAc");
     const button: ModelComponent = { id: buttonId, type: "button", props: {
-      slot: "rowActions", text: "Aç", actionType: "page", pageCode: ds.opens!, params: [`${key}=${rowBinding({ ...table, name }, key)}`],
+      slot: "rowActions", text: "Aç", actionType: "page", pageCode: ds.opens!, params: [`${pageParamName(key)}=${rowBinding({ ...table, name }, key)}`],
     } };
     components = [...replaceComponent(components, listId, (item) => withProps(item, { rowOpenAction: buttonId })), button];
   } else if (choice === "panel") {

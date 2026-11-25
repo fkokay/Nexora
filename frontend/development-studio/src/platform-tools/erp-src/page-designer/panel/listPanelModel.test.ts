@@ -4,7 +4,7 @@ import type { ErpOperation } from "../erpOperations";
 import { newListTemplateDefinition } from "../pageTemplates";
 import {
   actionMissingColumn, actionUsable, actionUsableAt, addListAction, chooseDataSource, dataSourceUsable, missingCatalogCodes, placedActions,
-  OPERATIONS_FAILED, OPERATIONS_LOADING, removeListAction, removePlacedAction, rowOpenChoice, searchState, setColumns, setPageSize, setRowDoubleClick, setSearch, SOURCE_NEEDS_INPUT,
+  CARD_UNAVAILABLE, OPERATIONS_FAILED, pageParamName, rowOpenUsable, OPERATIONS_LOADING, removeListAction, removePlacedAction, rowOpenChoice, searchState, setColumns, setPageSize, setRowDoubleClick, setSearch, SOURCE_NEEDS_INPUT,
   withOperationParameters, type ModelDefinition,
 } from "./listPanelModel";
 
@@ -116,6 +116,29 @@ describe("actions", () => {
   });
 });
 
+describe("pageParamName and Kartı aç with PascalCase keys", () => {
+  const pascal = (key: string): CatalogDataSource => ({ ...cariler, columns: [col(key, "Anahtar", true), col("Unvan", "Unvan")] });
+  it("derives a valid parameter name", () => {
+    expect(pageParamName("Kod")).toBe("kod");
+    expect(pageParamName("CariId")).toBe("cariId");
+    expect(pageParamName("Cari_Kodu")).toBe("cariKodu");
+    expect(pageParamName("1Kod")).toBeNull();
+    expect(pageParamName("A".repeat(40))).toBe("a".repeat(1) + "A".repeat(31));
+  });
+  it("Kod key is usable and binds the real column", () => {
+    expect(rowOpenUsable(pascal("Kod")).usable).toBe(true);
+    const def = setRowDoubleClick(bound(), "liste", "card", pascal("Kod"));
+    expect(def.components.find((component) => component.type === "button")!.props.params).toEqual(["kod={{liste.seciliSatir.Kod}}"]);
+  });
+  it("CariId key gives cariId param", () => {
+    const def = setRowDoubleClick(bound(), "liste", "card", pascal("CariId"));
+    expect(def.components.find((component) => component.type === "button")!.props.params).toEqual(["cariId={{liste.seciliSatir.CariId}}"]);
+  });
+  it("key starting with a digit is unusable with the reason", () => {
+    expect(rowOpenUsable(pascal("1Kod"))).toEqual({ usable: false, reason: CARD_UNAVAILABLE });
+  });
+});
+
 describe("setRowDoubleClick", () => {
   it("card creates page button with key column param and sets rowOpenAction", () => {
     const def = setRowDoubleClick(bound(), "liste", "card", cariler);
@@ -129,8 +152,8 @@ describe("setRowDoubleClick", () => {
     const def = bound();
     expect(setRowDoubleClick(def, "liste", "card", { ...cariler, opens: null })).toBe(def);
     expect(setRowDoubleClick(def, "liste", "card", { ...cariler, columns: cariler.columns.map((column) => ({ ...column, key: false })) })).toBe(def);
-    // Anahtar kolon adı sayfa parametresi adı olamıyorsa (sunucu: ^[a-z][a-zA-Z0-9]{0,31}$) kart açılamaz.
-    expect(setRowDoubleClick(def, "liste", "card", { ...cariler, columns: [col("Cari_Id", "Kimlik", true)] })).toBe(def);
+    // Anahtar kolondan geçerli parametre adı türetilemezse (rakamla başlıyor) kart açılamaz.
+    expect(setRowDoubleClick(def, "liste", "card", { ...cariler, columns: [col("1Kod", "Kimlik", true)] })).toBe(def);
     // Toplu silme seçili satıra bağlanmalıdır.
     expect(actionUsable({ ...sil, parameters: [] }, ["id"]).usable).toBe(false);
   });
