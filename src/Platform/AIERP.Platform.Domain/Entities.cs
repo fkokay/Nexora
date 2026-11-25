@@ -2307,7 +2307,8 @@ public sealed class SalesQuoteCustomFieldValueRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public enum SalesOrderStatus { Open = 1, Fulfilled = 2, Cancelled = 3 }
+/// <summary>Names and numbers are kept (tenant row rules, standards and the API use the names); Open means "Onaylı" (approved), Fulfilled "Sevk edildi".</summary>
+public enum SalesOrderStatus { Open = 1, Fulfilled = 2, Cancelled = 3, Draft = 4, PendingApproval = 5, Invoiced = 6 }
 
 public sealed class SalesOrder
 {
