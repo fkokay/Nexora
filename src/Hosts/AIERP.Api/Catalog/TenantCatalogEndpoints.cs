@@ -162,14 +162,21 @@ internal static partial class TenantCatalogEndpoints
                 var item = newBundle.Find(code);
                 var old = oldBundle?.FindForRun(code);
                 var intact = TenantCatalogStore.Fits(item, kind, query) && (old is null || (old.Sql is null) == (item!.Sql is null));
-                if (!intact && !references.Contains(code)) references.Add(code);
+                // Only breakage this release causes blocks it: a reference that did not fit the active release either
+                // (restored from an old revision, say) is already reported at run time and must not block a fix or a rollback.
+                var fittedBefore = oldBundle is null || TenantCatalogStore.Fits(oldBundle.Find(code), kind, query);
+                if (!intact && fittedBefore && !references.Contains(code)) references.Add(code);
             }
-            // The whole page against the new bundle, with the same rules as save and publish.
-            var valid = TenantCustomPageSchema.Validate(page.DefinitionJson, out var error, TenantCustomPageQueries.OperationNames(page.DefinitionJson),
-                ErpOperationCatalog.TryGet, newBundle);
-            if (!valid && references.Count == 0)
+            // The whole page against the new bundle, with the same rules as save and publish. A page that is already
+            // invalid under the active release (for a reason unrelated to the catalog) does not block activation; only a
+            // page this release turns invalid does. Without an active bundle there is nothing to compare against.
+            var operations = TenantCustomPageQueries.OperationNames(page.DefinitionJson);
+            var validNew = TenantCustomPageSchema.Validate(page.DefinitionJson, out var error, operations, ErpOperationCatalog.TryGet, newBundle);
+            var regressed = !validNew && oldBundle is not null
+                && TenantCustomPageSchema.Validate(page.DefinitionJson, out _, operations, ErpOperationCatalog.TryGet, oldBundle);
+            if (regressed && references.Count == 0)
                 references.AddRange(queries.Select(x => (x.DataSource ?? x.Action)!).Distinct(StringComparer.Ordinal));
-            if (references.Count > 0) result.Add(new BrokenPage(page.Code, page.Name, references, valid ? null : error));
+            if (references.Count > 0) result.Add(new BrokenPage(page.Code, page.Name, references, regressed ? error : null));
         }
         return result;
     }

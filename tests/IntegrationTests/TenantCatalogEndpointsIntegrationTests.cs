@@ -334,6 +334,39 @@ public sealed class TenantCatalogEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Page_invalid_for_unrelated_reason_does_not_block_activation_or_rollback()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var first = await CreateOk(client, "1.0.0", BundleJson());
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, null)).StatusCode);
+        // Published page with an intact catalog reference plus an inline SQL query today's validator rejects.
+        var stale = new { id = "q2", name = "eski", kind = "read", sql = "SELECT 1; SELECT 2", parameters = Array.Empty<object>(), runOn = "manual" };
+        await SeedPageAsync(app, "cari-arama", published: true,
+            CustomPageCatalogReferenceSchemaTests.Page(CustomPageCatalogReferenceSchemaTests.Reference("dataSource", "cariler"), stale));
+        var second = await CreateOk(client, "1.1.0", BundleJson());
+
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, second, first)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, second)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Reference_missing_from_both_old_and_new_release_does_not_block_activation()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var first = await CreateOk(client, "1.0.0", BundleJson(keepCariler: false));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, null)).StatusCode);
+        // Already broken under the active release (restored from an old revision, for example).
+        await SeedPageAsync(app, "cari-arama", published: true, DataSourcePage());
+        var second = await CreateOk(client, "1.1.0", BundleJson(keepCariler: false));
+
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, second, first)).StatusCode);
+    }
+
+    [Fact]
     public async Task Draft_page_reference_does_not_block_activation()
     {
         await using var app = await StartApplicationAsync();
