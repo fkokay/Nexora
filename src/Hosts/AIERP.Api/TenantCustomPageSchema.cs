@@ -934,8 +934,9 @@ internal static partial class TenantCustomPageSchema
         List<string>? inputIds = null;
         if (typeText is "formCard" or "filterChips" or "facetPanel")
         {
-            // Kayıt kartında bölüm (slot:section formCard) boş kalabilir: son alanı taşınan bölüm silinmez, yer tutucu gösterir.
-            var minInputs = context.Template == "record" && typeText == "formCard" && StringOf(props, "slot") == "section" ? 0 : 1;
+            // Kayıt kartında bölüm (üst düzey slot:section formCard) boş kalabilir: son alanı taşınan bölüm silinmez, yer tutucu gösterir.
+            var minInputs = context.Template == "record" && typeText == "formCard" && context.TopLevelIds.Contains(id)
+                && StringOf(props, "slot") == "section" ? 0 : 1;
             if (!props.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Array
                 || inputs.GetArrayLength() < minInputs || inputs.GetArrayLength() > MaxLayoutInputs
                 || inputs.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())))

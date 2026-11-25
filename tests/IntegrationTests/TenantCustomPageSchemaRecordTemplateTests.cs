@@ -125,6 +125,14 @@ public sealed class TenantCustomPageSchemaRecordTemplateTests
     }
 
     [Fact]
+    public void Nested_empty_section_is_rejected_on_record_page()
+    {
+        object nested = new { id = "b2", type = "formCard", name = "b2", props = new { slot = "section", inputs = Array.Empty<string>() } };
+        var card = new { id = "c1", type = "card", name = "c1", props = new { slot = "above" }, children = new[] { nested } };
+        Rejected(Page(Template, [.. Minimal(), card]), "'inputs' 1–12 adet giriş bileşeni kimliği içeren bir dizi olmalıdır.");
+    }
+
+    [Fact]
     public void Empty_form_card_still_rejected_on_legacy_page()
     {
         var card = new { id = "b1", type = "formCard", name = "b1", props = new { inputs = Array.Empty<string>() } };
