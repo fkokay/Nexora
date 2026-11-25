@@ -60,7 +60,19 @@ internal static partial class TenantCustomPageQueries
         // ReadQueries skips non-object entries, so its order matches the object entries here.
         var read = ReadQueries(definitionJson);
         var objects = queries.OfType<JsonObject>().ToArray();
-        if (read.Count != objects.Length) return definitionJson;
+        if (read.Count != objects.Length)
+        {
+            // Defensive (both reads parse the same JSON): never hand out unresolved references; every one becomes an error.
+            foreach (var query in objects.Where(x => x.ContainsKey("dataSource") || x.ContainsKey("action")))
+            {
+                var key = query.ContainsKey("dataSource") ? "dataSource" : "action";
+                var code = query[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : "";
+                query.Remove("dataSource");
+                query.Remove("action");
+                query["catalogError"] = CatalogMissingPrefix + code;
+            }
+            return root.ToJsonString();
+        }
         for (var i = 0; i < objects.Length; i++)
         {
             var query = objects[i];
@@ -142,10 +154,11 @@ internal static partial class TenantCustomPageQueries
     }
 
     /// <summary>
-    /// The save gate's variant of <see cref="HasSqlQueries"/>: a pure catalog data source reference (an object with a
-    /// <c>dataSource</c> key, kind <c>read</c>, and none of <c>sql</c>, <c>operation</c> or <c>action</c>) does not count,
-    /// because its SQL lives in the catalog and not on the page. Action references and malformed entries still count.
-    /// Never throws on stored JSON.
+    /// The save gate's structural pre-check: like <see cref="HasSqlQueries"/>, but a pure catalog data source reference (an
+    /// object with a <c>dataSource</c> key, kind <c>read</c>, and none of <c>sql</c>, <c>operation</c> or <c>action</c>) does
+    /// not count here. Such references are not exempt by themselves: the gate resolves each of them
+    /// (<see cref="PureDataSourceReferenceCodes"/>) against the active catalog and still requires a verified TenantAdmin
+    /// unless the item is a read ERP operation. Action references and malformed entries count. Never throws on stored JSON.
     /// </summary>
     internal static bool HasSqlQueriesExceptDataSourceReferences(string definitionJson)
     {
@@ -159,6 +172,25 @@ internal static partial class TenantCustomPageQueries
                     || (!query.TryGetProperty("operation", out _) && !IsPureDataSourceReference(query)));
         }
         catch (JsonException) { return false; }
+    }
+
+    /// <summary>
+    /// The codes of the pure catalog data source references that <see cref="HasSqlQueriesExceptDataSourceReferences"/> left
+    /// out; a code that is not a string yields null (the gate treats it as SQL). Never throws on stored JSON.
+    /// </summary>
+    internal static IReadOnlyList<string?> PureDataSourceReferenceCodes(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson, new JsonDocumentOptions { MaxDepth = 16 });
+            var root = document.RootElement;
+            if (!IsVersion2(root) || !root.TryGetProperty("queries", out var queries) || queries.ValueKind != JsonValueKind.Array) return [];
+            return queries.EnumerateArray()
+                .Where(query => query.ValueKind == JsonValueKind.Object && !query.TryGetProperty("sql", out _)
+                    && !query.TryGetProperty("operation", out _) && IsPureDataSourceReference(query))
+                .Select(query => OptionalText(query, "dataSource")).ToArray();
+        }
+        catch (JsonException) { return []; }
     }
 
     private static bool IsPureDataSourceReference(JsonElement query) =>

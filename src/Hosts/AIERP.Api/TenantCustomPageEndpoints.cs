@@ -341,17 +341,35 @@ internal static class TenantCustomPageEndpoints
         return await auth.IsAllowedAsync(tenant, userId, role, new ResolvedPlatformPermission(definition, attributes), ct);
     }
     /// <summary>
-    /// Pages whose definition contains SQL queries, write ERP operation queries, catalog action references or a code
-    /// component with JavaScript (it can reach page data and operations) may only be written by a verified
-    /// TenantAdmin (role claim and current membership). The Platform database is resolved only when one of the
-    /// definitions needs the check. Pages that only bind read ERP operations need no such gate: reads run against their
-    /// own endpoints with the user's own token, and catalog data source references keep their SQL in the catalog.
+    /// Pages whose definition contains SQL queries, write ERP operation queries, catalog action references, catalog data
+    /// source references that are not backed by a read ERP operation, or a code component with JavaScript (it can reach page
+    /// data and operations) may only be written by a verified TenantAdmin (role claim and current membership). Pages that
+    /// only bind read ERP operations, directly or through an operation-backed catalog data source, need no such gate: reads
+    /// run against their own endpoints with the user's own token. A SQL-backed data source counts like inline SQL until the
+    /// 2b developer role exists; when the active catalog is missing or the code is unknown or invalid it counts as SQL too
+    /// (fail closed). The active catalog is read only when a data source reference is all that could exempt the page, and
+    /// the Platform database only when one of the definitions needs the check.
     /// </summary>
-    internal static Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
-        params string[] definitions) =>
-        VerifiedAdminRequiredAsync(http, tenant, userId, role, ct,
-            definitions.Any(x => TenantCustomPageQueries.HasSqlQueriesExceptDataSourceReferences(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
-                || TenantCustomPageQueries.HasCodeScript(x)));
+    internal static async Task<bool> QueryPageWriteAllowedAsync(HttpContext http, Guid tenant, Guid userId, string role, CancellationToken ct,
+        params string[] definitions)
+    {
+        var required = definitions.Any(x => TenantCustomPageQueries.HasSqlQueriesExceptDataSourceReferences(x) || TenantCustomPageQueries.HasWriteOperationQueries(x)
+            || TenantCustomPageQueries.HasCodeScript(x));
+        if (!required)
+        {
+            var codes = definitions.SelectMany(TenantCustomPageQueries.PureDataSourceReferenceCodes).ToArray();
+            if (codes.Length > 0)
+            {
+                var catalog = await TenantCatalogStore.ActiveAsync(http.RequestServices.GetRequiredService<TenantDbContext>(), tenant, ErpOperationCatalog.TryGet, ct);
+                required = codes.Any(code => !IsReadOperationDataSource(catalog, code));
+            }
+        }
+        return await VerifiedAdminRequiredAsync(http, tenant, userId, role, ct, required);
+    }
+    /// <summary>A valid item of the active catalog that is a data source backed by an ERP operation whose kind is read.</summary>
+    private static bool IsReadOperationDataSource(CatalogBundle? catalog, string? code) =>
+        code is not null && catalog?.Find(code) is { ItemKind: "dataSource", ErpOperation: { } operationName }
+        && ErpOperationCatalog.TryGet(operationName, out var operation) && operation.Kind == "read";
     /// <summary>
     /// Query SQL in designer responses is shown only to a verified TenantAdmin (role claim and current membership); other
     /// users get the definition without <c>queries[].sql</c>. Definitions without SQL queries need no check.

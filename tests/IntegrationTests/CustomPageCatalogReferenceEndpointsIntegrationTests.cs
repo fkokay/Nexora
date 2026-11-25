@@ -26,7 +26,8 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         { "schemaVersion": 1,
           "dataSources": [ { "code": "cariler", "label": "Cari hesaplar",
               "source": { "sql": "SELECT Code, Name FROM CustomerAccounts WHERE Name LIKE @q" },
-              "parameters": [ { "name": "q", "type": "text" } ] } ],
+              "parameters": [ { "name": "q", "type": "text" } ] },
+            { "code": "cariListe", "label": "Cari liste", "source": { "erpOperation": "cari.listele" } } ],
           "actions": [ { "code": "cariSil", "label": "Sil", "target": "row", "kind": "delete", "run": { "erpOperation": "cari.sil" } } ] }
         """;
 
@@ -36,18 +37,58 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
     private static JsonElement ActionPage() => JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
         CustomPageCatalogReferenceSchemaTests.Reference("action", "cariSil", "delete", [new { name = "id", binding = "{{arama.value}}", type = "guid" }], "manual"))).RootElement;
 
+    private static JsonElement OperationDataSourcePage() => JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
+        CustomPageCatalogReferenceSchemaTests.Reference("dataSource", "cariListe", parameters: []))).RootElement;
+
     [Fact]
-    public async Task Non_admin_can_save_page_with_data_source_reference()
+    public async Task Non_admin_can_save_page_with_operation_backed_data_source_reference()
     {
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
 
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-liste", name = "Cari liste", definition = OperationDataSourcePage() });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
+            new { expectedRevision = 1, name = "Cari liste 2", definition = OperationDataSourcePage() })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Non_admin_cannot_save_or_publish_page_with_sql_backed_data_source_reference()
+    {
+        await using var app = await StartApplicationAsync(withActiveCatalog: true);
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
+            new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() })).StatusCode);
+
+        // A verified TenantAdmin may save it; a non-admin may then neither update nor publish that draft.
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/cari-arama/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
             new { expectedRevision = 1, name = "Cari arama 2", definition = DataSourcePage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Admin_can_save_both_reference_kinds()
+    {
+        await using var app = await StartApplicationAsync(withActiveCatalog: true);
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
+            new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
+            new { code = "cari-liste", name = "Cari liste", definition = OperationDataSourcePage() })).StatusCode);
     }
 
     [Fact]
