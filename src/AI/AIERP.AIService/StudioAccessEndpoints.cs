@@ -58,7 +58,7 @@ public static class StudioAccessEndpoints
             var access = await StudioAccessLookup.ForUserAsync(platformDb, studioDb, tenantId, callerId, ct);
             if (access is null || !access.IsAdmin) return Results.Forbid();
             if (!StudioRoles.IsValid(body.StudioRole))
-                return Results.BadRequest(new { error = "Geçersiz Studio rolü. Danışman, Geliştirici, Yok veya varsayılan olmalıdır." });
+                return Results.BadRequest(new { error = "Geçersiz Studio rolü. Danışman (Consultant), Yazılımcı (Developer), Yok (None) ya da boş (varsayılan) olmalıdır." });
             var membership = await platformDb.TenantMemberships.Include(x => x.User)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.UserId == userId, ct);
             if (membership is null) return Results.NotFound(new { error = "Kişi bu firmada bulunamadı." });

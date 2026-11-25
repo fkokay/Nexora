@@ -8,12 +8,12 @@ namespace AIERP.AIService;
 public static class StudioDeveloperGuard
 {
     private static readonly PathString[] DeveloperPrefixes = ["/studio/projects", "/studio/workspace-requests"];
-    private static readonly PathString[] MemberPrefixes = ["/studio/requests", "/studio/capabilities"];
+    private static readonly PathString[] MemberPrefixes = ["/studio/requests", "/studio/capabilities", "/studio/modules/active"];
 
     /// <summary>
     /// Enforces the Studio work role server-side (resolved from the database, never the token).
     /// Code and workspace endpoints need the Developer role (or a tenant admin); request and capability endpoints
-    /// only need any Studio access. Tokens without a <c>role</c> claim (service tokens) are not user tokens and pass through.
+    /// (and the active module list) only need any Studio access. Tokens without a <c>role</c> claim (service tokens) are not user tokens and pass through.
     /// </summary>
     public static IApplicationBuilder UseStudioDeveloperGuard(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {

@@ -125,6 +125,11 @@ public sealed class StudioAccessEndpointsIntegrationTests
             new { studioRole = "Admin" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString()!;
+        Assert.Contains("Yazılımcı (Developer)", error);
+        Assert.Contains("Consultant", error);
+        Assert.Contains("None", error);
+        Assert.DoesNotContain("Geliştirici", error);
     }
 
     [Fact]

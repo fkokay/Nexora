@@ -14,7 +14,8 @@ public sealed record StudioAccess(bool IsAdmin, string WorkRole)
 {
     public IReadOnlyList<string> MenuRoles =>
         IsAdmin ? ["Admin", StudioRoles.Developer, StudioRoles.Consultant]
-        : WorkRole == StudioRoles.Developer ? [StudioRoles.Developer]
+        // Yazılımcı, danışmanın yapabildiğini de yapar: menüde Danışman rolü de görünür.
+        : WorkRole == StudioRoles.Developer ? [StudioRoles.Developer, StudioRoles.Consultant]
         : WorkRole == StudioRoles.Consultant ? [StudioRoles.Consultant]
         : [];
 

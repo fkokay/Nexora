@@ -78,6 +78,20 @@ public sealed class StudioDeveloperGuardIntegrationTests
     }
 
     [Fact]
+    public async Task Developer_menu_roles_include_consultant()
+    {
+        await using var factory = await CreateSeededFactoryAsync();
+        using var client = factory.CreateClient();
+
+        using var response = await SendAsync(client, HttpMethod.Get, "/studio/me", DeveloperId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Developer", json.GetProperty("workRole").GetString());
+        Assert.Equal(["Developer", "Consultant"], json.GetProperty("menuRoles").EnumerateArray().Select(x => x.GetString()!).ToArray());
+    }
+
+    [Fact]
     public async Task None_role_cannot_list_requests_or_read_capabilities()
     {
         await using var factory = await CreateSeededFactoryAsync();
@@ -89,6 +103,22 @@ public sealed class StudioDeveloperGuardIntegrationTests
         Assert.Equal(HttpStatusCode.Forbidden, requests.StatusCode);
         Assert.Equal("studio.role.none", (await requests.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         Assert.Equal(HttpStatusCode.Forbidden, capabilities.StatusCode);
+    }
+
+    [Fact]
+    public async Task None_role_cannot_list_active_modules_but_admin_and_consultant_can()
+    {
+        await using var factory = await CreateSeededFactoryAsync();
+        using var client = factory.CreateClient();
+
+        using var none = await SendAsync(client, HttpMethod.Get, "/studio/modules/active", NoneId);
+        using var admin = await SendAsync(client, HttpMethod.Get, "/studio/modules/active", AdminId);
+        using var consultant = await SendAsync(client, HttpMethod.Get, "/studio/modules/active", UserId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, none.StatusCode);
+        Assert.Equal("studio.role.none", (await none.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        Assert.Equal(HttpStatusCode.OK, admin.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, consultant.StatusCode);
     }
 
     [Fact]

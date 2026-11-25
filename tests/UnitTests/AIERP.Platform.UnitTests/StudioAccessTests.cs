@@ -35,7 +35,7 @@ public sealed class StudioAccessTests
 
     [Theory]
     [InlineData("Consultant", new[] { "Consultant" })]
-    [InlineData("Developer", new[] { "Developer" })]
+    [InlineData("Developer", new[] { "Developer", "Consultant" })]
     [InlineData("None", new string[0])]
     public void Menu_roles_follow_work_role(string workRole, string[] expected)
     {
