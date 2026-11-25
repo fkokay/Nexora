@@ -5,6 +5,8 @@ import { readPageTemplate } from "../pageTemplates";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
+export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
+const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -25,14 +27,17 @@ function stripWidth(component: ModelComponent): ModelComponent {
 
 /** Yeri olmayan ya da türüne uymayan bileşene yer verir: satır düğmesi `rowActions`, öteki her şey listenin altı (`below`). */
 export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
-  if (!readPageTemplate(def.template)) return def;
+  const template = readPageTemplate(def.template);
+  if (!template) return def;
+  const slots = template.name === "record" ? RECORD_TEMPLATE_SLOTS : TEMPLATE_SLOTS;
+  const slotTypes = template.name === "record" ? RECORD_SLOT_TYPES : SLOT_TYPES;
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
     ? [...ids(component.props.rowActions), ...(typeof component.props.rowOpenAction === "string" ? [component.props.rowOpenAction] : [])] : []));
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = TEMPLATE_SLOTS.has(slot) && (!SLOT_TYPES[slot] || SLOT_TYPES[slot] === next.type);
+    const fits = slots.has(slot) && (!slotTypes[slot] || slotTypes[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" && rowButtons.has(next.id) ? "rowActions" : "below" } };
     if (next !== component) changed = true;
     return next;

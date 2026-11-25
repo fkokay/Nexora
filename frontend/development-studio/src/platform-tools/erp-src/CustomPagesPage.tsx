@@ -42,7 +42,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -1319,7 +1319,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   }, [request]);
   // Firma kataloğu (yazılımcının hazırladığı veri kaynakları ve eylemler): yalnız kalıplı sayfada gerekir.
   const [activeCatalog, setActiveCatalog] = useState<{ status: "loading" | "ready" | "failed"; catalog: ActiveCatalog | null }>({ status: "loading", catalog: null });
-  const needsCatalog = !!readPageTemplate(definition.template);
+  const needsCatalog = !!readPageTemplate(definition.template) || newPageDialog === "create";
   useEffect(() => {
     if (!needsCatalog) return;
     let active = true;
@@ -1482,6 +1482,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // Liste kaynak seçilmeden kaydedilemez (sunucu reddeder): panelinde kaynak seçilsin diye liste seçilir.
       setNewPageDialog(null); setSelectedComponentId(NEW_LIST_ID); setRightMode("inspector"); setError("");
       setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce ne listeleneceğini seçin.");
+      return;
+    }
+    if (result.pageTemplate === "record") {
+      const recordDefinition = newRecordTemplateDefinition() as unknown as PageDefinition;
+      setName(result.name); setCode(result.code);
+      commit((value) => ({ ...value, template: recordDefinition.template, components: recordDefinition.components }));
+      // Kayıt kartı kaynak seçilmeden kaydedilemez (sunucu reddeder): kaynağı panelinden seçilsin diye özet seçilir.
+      setNewPageDialog(null); setSelectedComponentId("ozet"); setRightMode("inspector"); setError("");
+      setNotice("Kayıt kartı kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce hangi kaydın gösterileceğini seçin.");
       return;
     }
     const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
@@ -2240,12 +2249,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
     // Kaynağı seçilmemiş liste kalıbı kaydedilmez (sunucu "tam bir liste" ister); ipucu kendi metniyle gösterilir.
-    const listProblem = listSourceProblem(definition);
+    const listProblem = listSourceProblem(definition) ?? recordSourceProblem(definition);
     if (listProblem) {
       if (quiet) setCanvasHint(listProblem); else {
         setError(listProblem);
         const list = definition.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
-        if (list) { setSelectedComponentId(list.id); setRightMode("inspector"); }
+        const target = list ?? definition.components.find((component) => component.type === "recordHeader" && component.props.slot === "summary");
+        if (target) { setSelectedComponentId(target.id); setRightMode("inspector"); }
       }
       return null;
     }
@@ -2314,7 +2324,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // (sayfa açılışı) ya da elle kayıt sürerken PUT atılmaz.
   useDraftAutosave({
     // Kaynağı seçilmemiş liste kalıbı kaydedilmez; kaynak seçilince (kapalıyken gelen değişiklik unutulmaz) taslak oluşur.
-    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null,
+    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null && recordSourceProblem(definition) === null,
     changeKey: definition,
     save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
     // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
@@ -3727,7 +3737,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}/>
           </div>
-            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
+            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
@@ -4345,7 +4355,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       </aside>
       </DockPanel>
     </div>
-    {newPageDialog && <NewPageDialog mode={newPageDialog} templates={templates} takenCodes={pages.map((page) => page.code)} onCancel={cancelNewPage}
+    {newPageDialog && <NewPageDialog mode={newPageDialog} templates={templates} takenCodes={pages.map((page) => page.code)} suggestedRecordCode={activeCatalog.catalog ? suggestRecordPageCode(activeCatalog.catalog, pages.map((page) => page.code)) : null} onCancel={cancelNewPage}
       onConfirm={(result) => { if (newPageDialog === "create") createFromDialog(result); else { setNewPageDialog(null); const template = templates.find((item) => item.id === result.templateId); if (template) applyTemplate(template); } }}/>}
     {queryEditorOpen && <QueryEditorModal title="Sorgular" onClose={() => setQueryEditorOpen(false)}>
       <QueriesPanel queries={definition.queries} selectedId={selectedQueryId} onSelect={setSelectedQueryId}

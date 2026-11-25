@@ -8,7 +8,7 @@ import {
   withOperationParameters, type ModelDefinition,
 } from "./listPanelModel";
 
-const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key });
+const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key, longText: false, required: false, maxLength: null });
 const cariler: CatalogDataSource = {
   code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [], opens: "@customer-create",
   columns: [col("id", "Kimlik", true), col("kod", "Cari kodu"), col("unvan", "Unvan"), col("sehir", "Şehir"), col("bakiye", "Bakiye"),

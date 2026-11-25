@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newListTemplateDefinition } from "../pageTemplates";
+import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { ensureTemplateSlots, templateDuplicateBlocked } from "./templateGuards";
 
@@ -32,5 +32,19 @@ describe("template guards (I2, M4)", () => {
     const def = page([list, { id: "ac", type: "button", props: { slot: "rowActions" } }, { id: "detay", type: "contextPanel", props: { slot: "detail" } },
       { id: "not", type: "text", props: { slot: "below" } }]);
     expect(["liste", "ac", "detay", "not"].map((id) => templateDuplicateBlocked(def, id))).toEqual([true, true, true, false]);
+  });
+
+  it("ensureTemplateSlots uses record slots", () => {
+    const base = newRecordTemplateDefinition() as unknown as ModelDefinition;
+    const def: ModelDefinition = { ...base, components: [...base.components,
+      { id: "bolum", type: "card", props: { slot: "section" } }, { id: "not", type: "text", props: { slot: "note" } },
+      { id: "satir", type: "dataTable", props: { slot: "lines" } }, { id: "alan", type: "text", props: { slot: "field" } },
+      { id: "liste", type: "dataTable", props: { slot: "list" } }, { id: "yeni", type: "button", props: { width: 4 } }] };
+    const fixed = ensureTemplateSlots(def);
+    const slot = (id: string) => fixed.components.find((c) => c.id === id)!.props.slot;
+    expect(["ozet", "sekmeler", "bolum", "not", "satir", "alan"].map(slot)).toEqual(["summary", "tabs", "section", "note", "lines", "field"]);
+    expect(slot("liste")).toBe("below");
+    expect(slot("yeni")).toBe("below");
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
   });
 });

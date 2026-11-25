@@ -1,6 +1,6 @@
 import { authenticatedFetch } from "../authApi";
 
-export type CatalogColumn = { code: string; label: string; type: string; key: boolean };
+export type CatalogColumn = { code: string; label: string; type: string; key: boolean; longText: boolean; required: boolean; maxLength: number | null };
 export type CatalogParameter = { name: string; type: string };
 export type CatalogDataSource = {
   code: string; label: string; source: "sql" | "erpOperation"; erpOperation: string | null;
@@ -34,6 +34,7 @@ export async function loadCatalog(token: string): Promise<ActiveCatalog | null> 
       erpOperation: str(d.erpOperation), parameters: params(d.parameters),
       columns: arr(d.columns).map((c) => ({
         code: str(c.code) ?? "", label: str(c.label) ?? "", type: str(c.type) ?? "", key: c.key === true,
+        longText: c.longText === true, required: c.required === true, maxLength: typeof c.maxLength === "number" ? c.maxLength : null,
       })),
       opens: str(d.opens),
     })),
