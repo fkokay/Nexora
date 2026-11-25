@@ -394,7 +394,7 @@ const actionWrites = (action: ButtonAction | null) =>
  * düğmeler kilitlidir; gezinen, pencere açan ve okuyan düğmeler çalışır.
  */
 const viewModeLocked = (component: ComponentDefinition, runtime?: PageRuntime) =>
-  !!runtime?.readOnly && (component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock"
+  (!!runtime && component.type === "input" && component.props?.readOnly === true) || !!runtime?.readOnly && (component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock"
     || (component.type === "button" && actionWrites(runtime.buttonAction(component))));
 const componentDisabled = (component: ComponentDefinition, runtime?: PageRuntime) =>
   !!runtime && (component.type === "button" || component.type === "input" || component.type === "editableGrid" || component.type === "customFieldsBlock")
@@ -998,7 +998,7 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
   // İstemci doğrulama iletisi sunucunun alan hatasından önce gelir.
   const error = runtime ? runtime.validationErrors[component.id] ?? (component.name ? runtime.inputErrors[component.name] : undefined) : undefined;
   return <PageInput key={component.id} component={component} props={props} style={style}
-    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => runtime?.changeInput(component.id, next)}
+    raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => { if (!(component.props?.readOnly === true)) runtime?.changeInput(component.id, next); }}
     error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
     optionsState={runtime ? runtime.inputOptions(component) : undefined}
     lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
@@ -2340,6 +2340,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     ancestorsOf(input.id).some((id) => flatById[id] && (!conditionHolds(flatById[id].props?.visibleWhen, scope, true)
       || (flatById[id].type === "dialog" && dialogs[id] !== true)))
     || conditionHolds(input.props?.disabledWhen, scope, false)
+    // Salt okunur (`readOnly`) giriş değiştirilemez: doğrulanmaz.
+    || (input.type === "input" && input.props?.readOnly === true)
     // Gizli (`hidden`) giriş hiç çizilmez: doğrulanmaz.
     || (input.type === "input" && input.props?.hidden === true);
   const validateFor = (query: PageQueryDefinition): string | null => validateForAll([query]);
