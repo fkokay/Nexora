@@ -36,7 +36,9 @@
 .dr-view > button[aria-pressed="true"] { background: var(--ns-accent-soft); color: var(--ns-accent); }
 
 /* Liste görünümü */
-.dr-table { min-width: 860px; }
+.dr-table { min-width: 640px; }
+.dr-project-cell { min-width: 150px; }
+.dr-project-cell .dr-project > span { overflow-wrap: normal; white-space: nowrap; }
 .dr-table th:last-child,
 .dr-table td:last-child { width: 1%; }
 .dr-title-cell { max-width: 420px; }
@@ -57,6 +59,7 @@
 .dr-card { display: grid; align-content: start; gap: var(--ns-space-2); min-width: 0; padding: var(--ns-space-4); border: 1px solid var(--ns-line); border-radius: var(--ns-radius-md); background: var(--ns-surface); }
 .dr-card:hover { border-color: var(--ns-line-strong); }
 .dr-card-top { display: flex; align-items: center; justify-content: space-between; gap: var(--ns-space-2); }
+.dr-badges { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .dr-card-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ns-radius-sm); background: var(--ns-accent-soft); color: var(--ns-accent); }
 .dr-card h3 { margin: 4px 0 0; color: var(--ns-ink); font: 700 var(--ns-text-lg) / 1.35 var(--ns-font-display); overflow-wrap: anywhere; }
 .dr-card > p { display: -webkit-box; margin: 0; overflow: hidden; color: var(--ns-muted); font-size: var(--ns-text-md); line-height: 1.55; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }

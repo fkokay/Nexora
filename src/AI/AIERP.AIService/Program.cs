@@ -212,6 +212,8 @@ app.Use(async (context, next) =>
     }
     await next();
 });
+// After the migration-readiness gate so an un-migrated Studio DB yields 503, not a failed role lookup.
+app.UseStudioDeveloperGuard();
 app.UseRateLimiter();
 app.MapGet("/health", async (PlatformDbContext platformDb, IConfiguration configuration,
     ITenantSqlCredentialReader credentialReader,
@@ -320,6 +322,7 @@ app.MapGet("/studio/capabilities", async (ClaimsPrincipal user, IConfiguration c
             : !string.IsNullOrWhiteSpace(configuration["AI:OpenAI:ApiKey"]);
     return Results.Ok(new { aiConfigured });
 }).RequireAuthorization();
+app.MapStudioAccessEndpoints();
 var studio = app.MapGroup("/studio/requests").RequireAuthorization();
 studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -330,8 +333,21 @@ studio.MapGet("/", async (Guid? projectId, ClaimsPrincipal user, AIStudioDbConte
         .OrderByDescending(x => x.CreatedAt)
         .Take(100)
         .Select(x => new RequestView(x.Id, x.Title, x.Description, x.Status, x.CreatedAt, x.ProjectId, x.Project == null ? null : x.Project.Name,
-            x.Status == "Submitted" && (isTenantAdmin || x.CreatedByUserId == userId))).ToListAsync();
-    return Results.Ok(requests);
+            x.Status == "Submitted" && (isTenantAdmin || x.CreatedByUserId == userId), x.CreatedByUserId == userId, DevelopmentRequestStages.New)).ToListAsync();
+    // One batched query for the whole page: request -> workspace request -> candidate -> version -> package -> deployment.
+    var requestIds = requests.Select(x => x.Id).ToList();
+    var reached = await (from w in db.DevelopmentWorkspaceRequests.AsNoTracking()
+            join c in db.ReleaseCandidateRecords.AsNoTracking() on w.Id equals c.WorkspaceRequestId
+            join v in db.StudioReleaseVersionRecords.AsNoTracking() on c.Id equals v.ReleaseCandidateId
+            join p in db.StudioReleasePackageRecords.AsNoTracking() on v.Id equals p.ReleaseVersionId
+            join d in db.StudioReleaseDeploymentRecords.AsNoTracking() on p.Id equals d.ReleasePackageId
+            where w.TenantId == tenantId && w.DevelopmentRequestId != null && requestIds.Contains(w.DevelopmentRequestId.Value)
+                && c.TenantId == tenantId && v.TenantId == tenantId && p.TenantId == tenantId && d.TenantId == tenantId
+                && (d.Status == StudioReleaseDeploymentRules.Succeeded || d.Status == StudioReleaseDeploymentRules.Superseded)
+            select new { RequestId = w.DevelopmentRequestId!.Value, d.Environment, d.Status }).ToListAsync();
+    var stages = reached.GroupBy(x => x.RequestId)
+        .ToDictionary(g => g.Key, g => DevelopmentRequestStages.Derive(g.Select(x => (x.Environment, x.Status))));
+    return Results.Ok(requests.Select(x => stages.TryGetValue(x.Id, out var stage) ? x with { Stage = stage } : x).ToList());
 });
 studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -353,7 +369,7 @@ studio.MapPost("/", async (CreateRequest body, ClaimsPrincipal user, AIStudioDbC
     db.DevelopmentRequests.Add(request); db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.created", Resource = request.Id.ToString() });
     await db.SaveChangesAsync();
     return Results.Created($"/studio/requests/{request.Id}", new RequestView(request.Id, request.Title, request.Description,
-        request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
+        request.Status, request.CreatedAt, request.ProjectId, project?.Name, true, true, DevelopmentRequestStages.New));
 });
 studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -383,7 +399,7 @@ studio.MapPut("/{requestId:guid}", async (Guid requestId, UpdateRequest body, Cl
     request.ProjectId = project?.Id;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "studio.request.updated", Resource = request.Id.ToString() });
     await db.SaveChangesAsync();
-    return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true));
+    return Results.Ok(new RequestView(request.Id, request.Title, request.Description, request.Status, request.CreatedAt, request.ProjectId, project?.Name, true, request.CreatedByUserId == userId, DevelopmentRequestStages.New));
 });
 studio.MapDelete("/{requestId:guid}", async (Guid requestId, ClaimsPrincipal user, AIStudioDbContext db) =>
 {
@@ -5899,7 +5915,7 @@ static StudioProductionApprovalView ToProductionApprovalView(StudioProductionPro
 
 internal sealed record CreateRequest(string? Title, string? Description, Guid? ProjectId = null);
 internal sealed record UpdateRequest(string? Title, string? Description, Guid? ProjectId = null);
-internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName, bool CanEdit);
+internal sealed record RequestView(Guid Id, string Title, string Description, string Status, DateTimeOffset CreatedAt, Guid? ProjectId, string? ProjectName, bool CanEdit, bool IsMine, string Stage);
 internal sealed record CreateProject(string? Name, string? RepositoryUrl, string? DefaultBranch);
 internal sealed record CreateModuleSourceMapping(Guid ProjectId, string? ModuleCode, string? Ref, IReadOnlyList<string>? PathAllowlist, bool MappingConfirmed);
 internal sealed record ModuleSourceMappingView(Guid Id, string ModuleCode, Guid ProjectId, string ProjectName, string RepositoryUrl,

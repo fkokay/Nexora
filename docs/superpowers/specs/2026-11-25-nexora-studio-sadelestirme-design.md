@@ -381,6 +381,11 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
 - **Roller sunucuda zorlanır.** Studio'ya *Danışman* ve *Yazılımcı* rolleri eklenir. Veri kaynağı, eylem, uzantı ve bileşen yazan uçlar yalnızca *Yazılımcı* rolüne açıktır. Arayüzde araçları gizlemek tek başına yeterli sayılmaz. Bir iş ortağı birden çok firmaya bakabilir: rol, kişi ve firma çifti başına verilir.
 - **Kurulum hızı.** JSON ve SQL yapı taşları derleme gerektirmez, sürüm yayınlanınca doğrudan kurulur. Rust derlemesi yalnızca uzantılar ve bileşenler için gerekir. Danışmanın bekleme süresi, bir sürüm yayınının süresi kadardır.
 - **Danışman kuralları ve sayfa tasarımları** Git'e girmez, veritabanında durur. Sayfalarla aynı **taslak → yayınla → sürüm geçmişi** akışından geçer. "Dene" bu kuralları da kapsar.
+- **Rol yapısı, alt proje 2b** (plan: `docs/superpowers/plans/2026-11-25-studio-rol-yapisi.md`).
+  - Studio rolü ERP rolünden ayrı bir alandır. Yeni ERP rolü açılmaz, çünkü yeni rolün izin kuralı olmaz ve danışman ERP erişimini kaybederdi.
+  - Varsayılan roller: `TenantDeveloper` ya da Studio proje yetkisi olan kişi Yazılımcı olur, diğerleri Danışman. Bugün Studio'yu kullanan kimse erişim kaybetmez.
+  - Yönetici üç menüyü de görür ve rol düğmesiyle aralarında geçer. Yazılımcı, danışmanın yapabildiğini de yapar.
+  - 2b'de sunucuda zorlanan uçlar AIService'in kod, çalışma alanı ve sürüm uçlarıdır (`/studio/projects/**`, `/studio/workspace-requests/**`). Veri modeli ve sayfa SQL'i bugünkü yetkileriyle kalır. Bunlar 2. alt projede Yazılımcıya kapanır, çünkü yerini alacak ekran olmadan kapatmak danışmanın işini bozardı.
 
 ## 11. Kullanıcının kararları (2026-11-25)
 

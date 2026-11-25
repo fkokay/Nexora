@@ -8,21 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Activity,
-  ArrowUpRight,
   Boxes,
-  CalendarDays,
   Check,
   ChevronRight,
-  ClipboardCheck,
   Code2,
-  Database,
   Eye,
   EyeOff,
   FileText,
-  FolderKanban,
-  GitBranch,
-  ListTodo,
   LogOut,
   Package,
   Pencil,
@@ -33,7 +25,6 @@ import {
   ChevronsUpDown,
   Sparkles,
   Trash2,
-  TrendingUp,
   X,
   Zap,
   type LucideIcon,
@@ -50,6 +41,26 @@ const DevelopmentRequestsPage = lazy(() =>
     default: module.DevelopmentRequestsPage,
   })),
 );
+const PublicationsPage = lazy(() =>
+  import("./publications/PublicationsPage").then((module) => ({
+    default: module.PublicationsPage,
+  })),
+);
+const PeoplePage = lazy(() =>
+  import("./people/PeoplePage").then((module) => ({
+    default: module.PeoplePage,
+  })),
+);
+const ConnectionsPage = lazy(() =>
+  import("./connections/ConnectionsPage").then((module) => ({
+    default: module.ConnectionsPage,
+  })),
+);
+const HomePage = lazy(() =>
+  import("./home/HomePage").then((module) => ({
+    default: module.HomePage,
+  })),
+);
 const NativePlatformTool = lazy(
   () => import("./platform-tools/NativePlatformTool"),
 );
@@ -57,6 +68,22 @@ import "./studio-dashboard.css";
 import { resolvePlatformOrigin } from "./platformOrigin";
 import { confirmDialog } from "./ui/confirmDialog";
 import { Dialog } from "./ui/Dialog";
+import { NoStudioAccess } from "./shell/NoStudioAccess";
+import { RoleSwitcher } from "./shell/RoleSwitcher";
+import { SectionTabs } from "./shell/SectionTabs";
+import {
+  resolveShellRoute,
+  routeHash,
+  SECTION_TABS,
+} from "./shell/shellRoute";
+import {
+  degradedMenu,
+  menuFor,
+  roleLabel as menuRoleLabel,
+  type StudioMenuRole,
+  type StudioSection,
+} from "./shell/studioNav";
+import { useStudioAccess } from "./shell/useStudioAccess";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type DevelopmentProject = {
@@ -78,6 +105,8 @@ type DevelopmentRequest = {
   projectId: string | null;
   projectName: string | null;
   canEdit: boolean;
+  isMine: boolean;
+  stage: "New" | "Staging" | "Production";
 };
 type MarketplaceModule = {
   moduleCode: string;
@@ -265,46 +294,6 @@ function EmptyState({
   );
 }
 
-const requestStatusTone: Record<string, string> = {
-  Submitted: "is-warning",
-  Planned: "is-accent",
-  InReview: "is-warning",
-  InProgress: "is-info",
-  Completed: "is-success",
-  Rejected: "is-danger",
-};
-
-function AnalyticsSparkline({ values }: { values: number[] }) {
-  const max = Math.max(1, ...values);
-  const points = values
-    .map(
-      (value, index) =>
-        `${(index * 88) / Math.max(1, values.length - 1) + 3},${36 - (value / max) * 30}`,
-    )
-    .join(" ");
-  return (
-    <svg
-      className="st-sparkline"
-      viewBox="0 0 94 42"
-      aria-hidden="true"
-    >
-      <polygon
-        points={`3,42 ${points} 91,42`}
-        fill="currentColor"
-        opacity=".09"
-      />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem(tokenKey) || "");
   const [selectionToken, setSelectionToken] = useState(
@@ -328,6 +317,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [requests, setRequests] = useState<DevelopmentRequest[]>([]);
+  // Ana sayfa kartları talep listesinin ayrı yüklenme durumunu gösterir.
+  const [requestsStatus, setRequestsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
   const [projects, setProjects] = useState<DevelopmentProject[]>([]);
   const [marketplaceModules, setMarketplaceModules] = useState<
     MarketplaceModule[]
@@ -339,18 +332,15 @@ export default function App() {
   const [marketplaceTab, setMarketplaceTab] = useState<
     "catalog" | "samples" | "starters"
   >("catalog");
-  const [toolQuery, setToolQuery] = useState("");
   const [marketplaceBusy, setMarketplaceBusy] = useState("");
   const [sampleInstallBusy, setSampleInstallBusy] = useState("");
   const [installedSamples, setInstalledSamples] = useState<string[]>([]);
-  const [analyticsRange, setAnalyticsRange] = useState(180);
-  const [analyticsProject, setAnalyticsProject] = useState("all");
   const projectsRequestId = useRef(0);
   const moduleStarterPrompted = useRef(false);
-  // İlk proje/talep yüklemesinin sonucu; üst çubuktaki bağlantı rozeti bundan beslenir.
-  const [dataStatus, setDataStatus] = useState<"loading" | "ok" | "error">(
-    "loading",
-  );
+  // Proje/talep yüklemesi başarısız olduysa üst çubuktaki bağlantı rozeti hatayı gösterir.
+  const [dataLoadFailed, setDataLoadFailed] = useState(false);
+  const requestsLoadedFor = useRef("");
+  const projectsLoadedFor = useRef("");
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const tenantSwitchRef = useRef<HTMLDivElement>(null);
   const tenantButtonRef = useRef<HTMLButtonElement>(null);
@@ -390,123 +380,40 @@ export default function App() {
   );
   const [moduleDisplayName, setModuleDisplayName] = useState(contextualScreen);
   const [moduleCode, setModuleCode] = useState(contextualModuleCode);
-  const [activeSection, setActiveSection] = useState(
-    window.location.hash.slice(1) || "overview",
-  );
-  const contextSection = window.location.hash.slice(1);
-  const platformTools = [
-    {
-      id: "modules",
-      title: "Modül pazaryeri",
-      description: "ERP modüllerini inceleyin ve çalışma alanınıza ekleyin.",
-      icon: Package,
-    },
-    {
-      id: "source-workspaces",
-      title: "Kod çalışma alanları",
-      description:
-        "Yetkili projelerde izole kod çalışma alanlarını açın ve değişiklikleri inceleyin.",
-      icon: GitBranch,
-    },
-    {
-      id: "custom-forms",
-      title: "Özel formlar",
-      description: "İş süreçlerinize uygun formlar ve alanlar tanımlayın.",
-      icon: FileText,
-    },
-    {
-      id: "custom-pages",
-      title: "Sayfa tasarımcısı",
-      description: "Yeni sayfalar oluşturun, ızgara ekleyin ve veri kolonlarını düzenleyin.",
-      icon: Pencil,
-    },
-    {
-      id: "custom-data",
-      title: "Veri modelleri",
-      description: "Tenant’a özel kayıt türleri ve alanlar tanımlayıp sayfalara veri kaynağı olarak bağlayın.",
-      icon: Database,
-    },
-    {
-      id: "workflows",
-      title: "İş akışları",
-      description: "Onay ve görev adımlarını görsel olarak düzenleyin.",
-      icon: ClipboardCheck,
-    },
-    {
-      id: "business-rules",
-      title: "İş kuralları",
-      description: "Süreçlerin koşullarını ve otomatik davranışlarını yönetin.",
-      icon: Zap,
-    },
-    {
-      id: "reports",
-      title: "Rapor oluşturucu",
-      description: "İş verileri için raporları yapılandırın.",
-      icon: Activity,
-    },
-    {
-      id: "custom-menus",
-      title: "Özel menüler",
-      description: "Tenant çalışma alanına özel gezinme menüleri oluşturun.",
-      icon: FolderKanban,
-    },
-    {
-      id: "settings",
-      title: "Yapay zekâ tanımlaması",
-      description: "Kurumun AI sağlayıcılarını ve çalışma ayarlarını yönetin.",
-      icon: Sparkles,
-    },
-  ];
-  const availablePlatformTools = platformTools.filter(
-    (tool) =>
-      (tool.id !== "custom-menus" && tool.id !== "settings") ||
-      tenant?.role === "TenantAdmin",
-  );
-  const normalizeToolSearch = (value: string) =>
-    value
-      .toLocaleLowerCase("tr-TR")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replaceAll("ı", "i");
-  const filteredPlatformTools = availablePlatformTools.filter((tool) =>
-    normalizeToolSearch(`${tool.title} ${tool.description}`).includes(
-      normalizeToolSearch(toolQuery.trim()),
-    ),
-  );
-  const adaptationFlows = [
-    {
-      title: "Ekranlar ve veriler",
-      description: "Sayfaları, formları ve veri modellerini düzenleyin.",
-      icon: FileText,
-      toolIds: ["custom-pages", "custom-data"],
-    },
-    {
-      title: "Süreç otomasyonu",
-      description: "Onay adımlarını ve koşullu iş kurallarını kurun.",
-      icon: Zap,
-      toolIds: ["workflows", "business-rules"],
-    },
-    {
-      title: "Çalışma alanı",
-      description: "Menü ve raporlarla ekibinizin ekranını sadeleştirin.",
-      icon: FolderKanban,
-      toolIds: ["custom-menus", "reports"],
-    },
-  ].map((flow) => ({
-    ...flow,
-    tools: flow.toolIds
-      .map((id) => availablePlatformTools.find((tool) => tool.id === id))
-      .filter((tool): tool is (typeof availablePlatformTools)[number] => !!tool),
-  }));
-  const filteredAdaptationFlows = adaptationFlows
-    .map((flow) => ({
-      ...flow,
-      tools: flow.tools.filter((tool) => filteredPlatformTools.includes(tool)),
-    }))
-    .filter((flow) => flow.tools.length > 0);
-  const advancedPlatformTools = filteredPlatformTools.filter((tool) =>
-    ["modules", "source-workspaces", "settings"].includes(tool.id),
-  );
+  const [hash, setHash] = useState(() => window.location.hash);
+  const access = useStudioAccess(token, tenant?.id ?? "");
+  // `/studio/me` okunamazsa (AIService kapalı/eski, Studio veritabanı hazır değil) kabuk yalnız ERP API'sine dayanan bölümlerle açılır.
+  const degraded = access.status === "error";
+  const shellRoute = resolveShellRoute(hash, access.active, access.held, degraded);
+  // Adres başka rolün bölümünü açıyorsa o rol bu çizimde de kullanılır; etkin rol etkide saklanır.
+  const activeRole = shellRoute.role;
+  const activeSection: StudioSection = shellRoute.route.section;
+  const activeTab = shellRoute.tab;
+  // Kod ve çalışma alanı uçları yalnız Yazılımcıya (ya da firma yöneticisine) açık; Danışman proje listesini okuyamaz.
+  const canReadProjects =
+    access.status === "ready" && access.held.some((role) => role !== "consultant");
+  const isConsultant = activeRole === "consultant";
+  // Talep oluşturma AIService'e gider; kısıtlı menüde gizlenir.
+  const canRequest = isConsultant && !degraded;
+  const needsRequests = (
+    ["home", "my-requests", "incoming-requests", "company-module"] as StudioSection[]
+  ).includes(activeSection);
+  const needsProjects =
+    canReadProjects &&
+    ((["incoming-requests", "company-module"] as StudioSection[]).includes(
+      activeSection,
+    ) ||
+      (showRequest && !isConsultant));
+  function navigate(next: string) {
+    if (window.location.hash !== next) window.location.hash = next;
+    setHash(next);
+  }
+  function changeRole(role: StudioMenuRole) {
+    // Yeni rolün menüsünde bu bölüm yoksa ana sayfaya geçilir; yoksa adres eski rolü geri seçerdi.
+    const keep = menuFor(role).some((item) => item.section === activeSection);
+    access.setActive(role);
+    if (!keep) navigate("#home");
+  }
   const platformToolHref = (toolId: string) => {
     const url = new URL("/", platformOrigin);
     url.searchParams.set("platformTool", toolId);
@@ -612,31 +519,80 @@ export default function App() {
     }
   }
 
+  // Firma ya da oturum değişince önceki firmanın listeleri gösterilmez, yeniden yüklenir.
+  const dataScope = token ? tenant?.id || "" : "";
   useEffect(() => {
-    if (!token || !tenant) return;
+    requestsLoadedFor.current = "";
+    projectsLoadedFor.current = "";
+    setRequests([]);
+    setProjects([]);
+    setDataLoadFailed(false);
+  }, [dataScope]);
+
+  // Talepler yalnız onları gösteren bölüm açıkken bir kez yüklenir.
+  useEffect(() => {
+    if (!token || !tenant || access.status !== "ready" || !needsRequests) return;
+    if (requestsLoadedFor.current === tenant.id) return;
+    requestsLoadedFor.current = tenant.id;
     let current = true;
-    const requestId = ++projectsRequestId.current;
-    setDataStatus("loading");
-    void Promise.all([
-      api<DevelopmentRequest[]>("/studio/requests/", token),
-      api<DevelopmentProject[]>("/studio/projects/", token),
-    ])
-      .then(([items, registeredProjects]) => {
+    let done = false;
+    setRequestsStatus("loading");
+    api<DevelopmentRequest[]>("/studio/requests/", token)
+      .then((items) => {
+        done = true;
         if (!current) return;
         setRequests(items);
-        if (requestId === projectsRequestId.current)
-          setProjects(registeredProjects);
-        setDataStatus("ok");
+        setRequestsStatus("ready");
+        setDataLoadFailed(false);
       })
       .catch((e) => {
+        done = true;
         if (!current) return;
+        requestsLoadedFor.current = "";
+        setRequestsStatus("error");
         setError((e as Error).message);
-        setDataStatus("error");
+        setDataLoadFailed(true);
       });
     return () => {
       current = false;
+      if (!done) requestsLoadedFor.current = "";
     };
-  }, [token, tenant?.id]);
+  }, [token, tenant?.id, access.status, needsRequests]);
+
+  // Projeler yalnız rol izin veriyorsa ve onları kullanan bölüm (ya da Yazılımcının talep formu) açıkken yüklenir.
+  useEffect(() => {
+    if (!token || !tenant || !needsProjects) return;
+    if (projectsLoadedFor.current === tenant.id) return;
+    projectsLoadedFor.current = tenant.id;
+    let current = true;
+    let done = false;
+    const requestId = ++projectsRequestId.current;
+    api<DevelopmentProject[]>("/studio/projects/", token)
+      .then((registeredProjects) => {
+        done = true;
+        if (!current) return;
+        setDataLoadFailed(false);
+        if (requestId === projectsRequestId.current)
+          setProjects(
+            registeredProjects.map((project) => ({
+              ...project,
+              githubAuthorized:
+                project.githubAuthorized ?? project.gitHubAuthorized ?? false,
+            })),
+          );
+      })
+      .catch((e) => {
+        done = true;
+        if (!current) return;
+        projectsLoadedFor.current = "";
+        setError((e as Error).message);
+        setDataLoadFailed(true);
+      });
+    return () => {
+      current = false;
+      if (!done) projectsLoadedFor.current = "";
+    };
+  }, [token, tenant?.id, needsProjects]);
 
   useEffect(() => {
     if (activeSection === "marketplace" && token && tenant)
@@ -644,7 +600,13 @@ export default function App() {
   }, [activeSection, token, tenant?.id]);
 
   useEffect(() => {
-    if (!moduleStarterId || !token || !tenant || moduleStarterPrompted.current)
+    if (
+      !moduleStarterId ||
+      !token ||
+      !tenant ||
+      access.status !== "ready" ||
+      moduleStarterPrompted.current
+    )
       return;
     moduleStarterPrompted.current = true;
     openModuleStarterRequest();
@@ -652,16 +614,31 @@ export default function App() {
     moduleStarterId,
     token,
     tenant?.id,
+    access.status,
     contextualScreen,
     contextualModuleCode,
   ]);
 
   useEffect(() => {
-    const updateActiveSection = () =>
-      setActiveSection(window.location.hash.slice(1) || "overview");
-    window.addEventListener("hashchange", updateActiveSection);
-    return () => window.removeEventListener("hashchange", updateActiveSection);
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  // Adres başka bir rolün bölümünü açıyorsa o rol etkin olur ve saklanır; eski adresler kanonik adrese çevrilir.
+  const canonicalHash = routeHash(shellRoute.route);
+  useEffect(() => {
+    if (access.status !== "ready") return;
+    if (shellRoute.role !== access.active) access.setActive(shellRoute.role);
+    if (hash && hash !== canonicalHash) {
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}${canonicalHash}`,
+      );
+      setHash(canonicalHash);
+    }
+  }, [access.status, access.active, hash, shellRoute.role, canonicalHash]);
 
   useEffect(() => {
     if (!tenantMenuOpen) return;
@@ -681,18 +658,6 @@ export default function App() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [tenantMenuOpen]);
-
-  useEffect(() => {
-    if (contextSection !== "requests" || !token || !tenant) return;
-    const timer = window.setTimeout(
-      () =>
-        document
-          .getElementById("requests")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      0,
-    );
-    return () => window.clearTimeout(timer);
-  }, [contextSection, token, tenant?.id, requests.length]);
 
   async function login(event: FormEvent) {
     event.preventDefault();
@@ -818,17 +783,16 @@ export default function App() {
         }),
       });
       closeRequestDialog();
-      if (moduleRequestDraft) {
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}#projects`,
-        );
-        setActiveSection("projects");
+      if (moduleRequestDraft && canReadProjects) {
+        navigate("#company-module/code");
         setNotice(
-          "Modül geliştirme talebi kaydedildi. Projeler bölümünden yetkili deponuzda izole çalışma alanı isteyin.",
+          "Modül geliştirme talebi kaydedildi. Firma modülü bölümünden yetkili deponuzda izole çalışma alanı isteyin.",
         );
-      } else setNotice("Geliştirme talebi Studio’ya kaydedildi.");
+      } else if (moduleRequestDraft)
+        setNotice(
+          "Modül geliştirme talebi kaydedildi. Yazılımcı talebi Gelen talepler bölümünde görür.",
+        );
+      else setNotice("Geliştirme talebi Studio’ya kaydedildi.");
       setRequests(await api<DevelopmentRequest[]>("/studio/requests/", token));
     } catch (e) {
       setError((e as Error).message);
@@ -929,7 +893,9 @@ export default function App() {
       `${displayName.replace(/\s+modülü?$/i, "") || "Yeni"} modülünü geliştirme`,
     );
     setRequestDescription(
-      `${displayName} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${code}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`,
+      isConsultant
+        ? `${displayName} başlangıç şablonunu temel alan bir modül istiyorum. Modül kodu: ${code}. Modülün ne yapması gerektiğini aşağıda açıklıyorum.`
+        : `${displayName} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${code}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`,
     );
     setRequestProjectId("");
     setError("");
@@ -1142,264 +1108,64 @@ export default function App() {
     );
   }
 
-  const connectedProjects = projects.filter(
-    (project) => project.githubAuthorized,
-  ).length;
-  const submittedRequests = requests.filter(
-    (request) => request.status === "Submitted",
-  ).length;
-  const recentRequests = [...requests]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 3);
-  const analyticsNow = new Date();
-  const analyticsStart = new Date(
-    analyticsNow.getTime() - analyticsRange * 86400000,
-  );
-  const analyticsScopedRequests = requests.filter(
-    (item) => analyticsProject === "all" || item.projectId === analyticsProject,
-  );
-  const analyticsRequests = analyticsScopedRequests.filter((item) => {
-    const created = Date.parse(item.createdAt);
-    return (
-      Number.isFinite(created) &&
-      created >= analyticsStart.getTime() &&
-      created <= analyticsNow.getTime()
-    );
-  });
-  const analyticsPreviousStart = new Date(
-    analyticsStart.getTime() - analyticsRange * 86400000,
-  );
-  const analyticsPreviousCount = analyticsScopedRequests.filter((item) => {
-    const created = Date.parse(item.createdAt);
-    return (
-      Number.isFinite(created) &&
-      created >= analyticsPreviousStart.getTime() &&
-      created < analyticsStart.getTime()
-    );
-  }).length;
-  const analyticsChange = analyticsPreviousCount
-    ? Math.round(
-        ((analyticsRequests.length - analyticsPreviousCount) /
-          analyticsPreviousCount) *
-          100,
-      )
-    : null;
-  const closedStatuses = [
-    "completed",
-    "closed",
-    "rejected",
-    "cancelled",
-    "canceled",
-  ];
-  const analyticsOpenCount = analyticsRequests.filter(
-    (item) => !closedStatuses.includes(item.status.toLowerCase()),
-  ).length;
-  const analyticsLinkedCount = analyticsRequests.filter(
-    (item) => item.projectId,
-  ).length;
-  const analyticsBucketCount =
-    analyticsRange <= 30
-      ? 5
-      : analyticsRange <= 90
-        ? 13
-        : analyticsRange <= 180
-          ? 6
-          : 12;
-  const analyticsBuckets = Array.from(
-    { length: analyticsBucketCount },
-    (_, index) => {
-      const from = new Date(
-        analyticsStart.getTime() +
-          (analyticsRange * 86400000 * index) / analyticsBucketCount,
-      );
-      const to = new Date(
-        analyticsStart.getTime() +
-          (analyticsRange * 86400000 * (index + 1)) / analyticsBucketCount,
-      );
-      const bucketRequests = analyticsRequests.filter((item) => {
-        const created = Date.parse(item.createdAt);
-        return (
-          created >= from.getTime() &&
-          (index === analyticsBucketCount - 1
-            ? created <= to.getTime()
-            : created < to.getTime())
-        );
-      });
-      return {
-        key: `${from.toISOString()}-${index}`,
-        label:
-          analyticsRange <= 90
-            ? new Intl.DateTimeFormat("tr-TR", {
-                day: "numeric",
-                month: "short",
-              }).format(from)
-            : new Intl.DateTimeFormat("tr-TR", { month: "short" }).format(from),
-        count: bucketRequests.length,
-        open: bucketRequests.filter(
-          (item) => !closedStatuses.includes(item.status.toLowerCase()),
-        ).length,
-        linked: bucketRequests.filter((item) => item.projectId).length,
-        projects: new Set(
-          bucketRequests
-            .filter((item) => item.projectId)
-            .map((item) => item.projectId),
-        ).size,
-      };
-    },
-  );
-  const analyticsStatuses = Object.entries(
-    analyticsRequests.reduce<Record<string, number>>((counts, item) => {
-      counts[item.status] = (counts[item.status] || 0) + 1;
-      return counts;
-    }, {}),
-  ).sort((a, b) => b[1] - a[1]);
-  const analyticsProjects = Object.entries(
-    analyticsRequests
-      .filter((item) => item.projectId)
-      .reduce<Record<string, number>>((counts, item) => {
-        counts[item.projectId!] = (counts[item.projectId!] || 0) + 1;
-        return counts;
-      }, {}),
+  if (
+    access.status === "denied" ||
+    (access.status === "ready" && access.held.length === 0)
   )
-    .map(([id, count]) => ({
-      id,
-      count,
-      name:
-        projects.find((project) => project.id === id)?.name ||
-        analyticsRequests.find((item) => item.projectId === id)?.projectName ||
-        "Proje",
-    }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "tr"))
-    .slice(0, 5);
-  const analyticsMaxBucket = Math.max(
-    1,
-    ...analyticsBuckets.map((item) => item.count),
-  );
-  const analyticsMaxStatus = Math.max(
-    1,
-    ...analyticsStatuses.map(([, count]) => count),
-  );
-  const analyticsMaxProject = Math.max(
-    1,
-    ...analyticsProjects.map((item) => item.count),
-  );
-  const analyticsRecentRequests = [...analyticsRequests]
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 6);
-  const statusLabel = (status: string) =>
-    ({
-      Submitted: "Alındı",
-      Planned: "Planlandı",
-      InReview: "İncelemede",
-      InProgress: "Devam ediyor",
-      Completed: "Tamamlandı",
-      Rejected: "Reddedildi",
-      Cancelled: "İptal edildi",
-    })[status] || status;
+    return (
+      <NoStudioAccess
+        tenantName={tenant.name}
+        onLogout={logout}
+        onSwitchTenant={
+          tenants.length > 1 && selectionToken
+            ? () => {
+                try {
+                  localStorage.removeItem(activeTenantKey);
+                } catch {
+                  /* depolama kapalı olabilir */
+                }
+                setTenant(null);
+              }
+            : undefined
+        }
+      />
+    );
+  if (access.status === "loading")
+    return (
+      <div className="st-auth">
+        <div className="st-loading" role="status">
+          Studio yükleniyor…
+        </div>
+      </div>
+    );
+
   const filteredMarketplaceModules = marketplaceModules.filter((item) =>
     `${item.manifest?.displayName || ""} ${item.moduleCode} ${item.publisher}`
       .toLocaleLowerCase("tr-TR")
       .includes(marketplaceQuery.toLocaleLowerCase("tr-TR")),
   );
-  const formatShortDate = (value: string) =>
-    new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" }).format(
-      new Date(value),
-    );
-  const openRequestCount = requests.filter(
-    (item) => !closedStatuses.includes(item.status.toLowerCase()),
-  ).length;
-  const requestStatusSummary = Object.entries(
-    requests.reduce<Record<string, number>>((acc, item) => {
-      acc[item.status] = (acc[item.status] || 0) + 1;
-      return acc;
-    }, {}),
-  ).map(([status, count]) => ({
-    status,
-    count,
-    tone: requestStatusTone[status] || "is-neutral",
-  }));
-  const onboardingSteps = [
-    {
-      title: "GitHub deposu bağlayın",
-      hint: "Talepler yalnız yetkili depoda çalışır",
-      done: connectedProjects > 0,
-      action: (
-        <a className="ns-btn ns-btn-sm" href="#projects">
-          Proje ekle
-        </a>
-      ),
-    },
-    {
-      title: "İlk talebinizi oluşturun",
-      hint: "Değişiklik ayrı çalışma alanında hazırlanır",
-      done: requests.length > 0,
-      action: (
-        <button
-          className="ns-btn ns-btn-sm"
-          type="button"
-          onClick={openNewRequest}
-        >
-          Talep oluştur
-        </button>
-      ),
-    },
-    {
-      title: "İnceleyip onaylayın",
-      hint: "Onaysız değişiklik uygulanmaz",
-      done: requests.some((item) => item.status === "Completed"),
-      action: null,
-    },
-  ];
-  const onboardingDone = onboardingSteps.findIndex((step) => !step.done) < 0
-    ? onboardingSteps.length
-    : onboardingSteps.findIndex((step) => !step.done);
-  const quickLinks: {
-    href: string;
-    title: string;
-    hint: string;
-    icon: LucideIcon;
-  }[] = [
-    {
-      href: "#adaptation",
-      title: "Uyarlama araçları",
-      hint: "Ekran, rapor ve iş akışı düzenleme",
-      icon: Boxes,
-    },
-    {
-      href: "#marketplace",
-      title: "Modül pazaryeri",
-      hint: "Hazır modülleri etkinleştirin",
-      icon: Package,
-    },
-    {
-      href: "#analytics",
-      title: "Analitik",
-      hint: "Talep ve proje eğilimleri",
-      icon: TrendingUp,
-    },
-    {
-      href: "#requests",
-      title: "Tüm talepler",
-      hint: "Durum ve geçmiş",
-      icon: ListTodo,
-    },
-  ];
-  const sectionTitle = activeSection.startsWith("tool-")
-    ? platformTools.find((tool) => tool.id === activeSection.slice(5))?.title ||
-      "Uyarlama aracı"
-    : activeSection === "marketplace"
-      ? "Modül pazaryeri"
-      : activeSection === "adaptation"
-        ? "Platform uyarlama"
-        : activeSection === "requests"
-          ? "Geliştirme talepleri"
-          : activeSection === "analytics"
-            ? "Analitik"
-            : activeSection === "projects"
-              ? "Projeler"
-              : "Genel bakış";
-  const isAdaptationSection =
-    activeSection === "adaptation" || activeSection.startsWith("tool-");
+  const menuItems = degraded ? degradedMenu() : menuFor(activeRole);
+  const sectionTitle =
+    menuItems.find((item) => item.section === activeSection)?.label ||
+    "Ana sayfa";
+  const sectionTabs = SECTION_TABS[activeSection];
+  const activeToolId =
+    activeSection === "menus"
+      ? "custom-menus"
+      : sectionTabs?.find((tab) => tab.id === activeTab)?.toolId;
+  // "Kod ve sürümler" sekmesi proje ekranıdır; diğer sekmeler Studio içindeki uyarlama aracıdır.
+  const nativeToolId =
+    activeToolId && activeToolId !== "source-workspaces"
+      ? activeToolId
+      : undefined;
+  const sectionTabsBar =
+    sectionTabs && activeTab ? (
+      <SectionTabs
+        tabs={sectionTabs}
+        active={activeTab}
+        onSelect={(id) => navigate(`#${activeSection}/${id}`)}
+      />
+    ) : null;
   const canSwitchTenant = tenants.length > 1 && !!selectionToken;
   const userName = localStorage.getItem("aierp.user") || "Kullanıcı";
   const pageAlerts = (
@@ -1416,313 +1182,6 @@ export default function App() {
       )}
     </>
   );
-  const recentRequestsTable = (items: DevelopmentRequest[]) => (
-    <div className="st-table-wrap">
-      <table className="st-table">
-        <thead>
-          <tr>
-            <th scope="col">Talep</th>
-            <th scope="col">Proje</th>
-            <th scope="col">Durum</th>
-            <th scope="col">Tarih</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td>
-                <b>{item.title}</b>
-              </td>
-              <td>{item.projectName || "Genel talep"}</td>
-              <td>
-                <span
-                  className={`ns-badge ${requestStatusTone[item.status] || ""}`.trim()}
-                >
-                  {statusLabel(item.status)}
-                </span>
-              </td>
-              <td className="st-num">{formatShortDate(item.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-  const analyticsContent = (
-    <section
-      className="st-analytics"
-      id="analytics"
-      aria-labelledby="studio-analytics-title"
-    >
-      <header className="st-hero">
-        <div className="st-hero-text">
-          <h1 id="studio-analytics-title">Analitik</h1>
-          <p>Talep hacmi, iş akışı ve proje dağılımı</p>
-        </div>
-        <div className="st-filters st-hero-actions">
-          <label className="st-select">
-            <CalendarDays size={15} aria-hidden="true" />
-            <select
-              aria-label="Rapor dönemi"
-              value={analyticsRange}
-              onChange={(event) =>
-                setAnalyticsRange(Number(event.target.value))
-              }
-            >
-              <option value={30}>Son 30 gün</option>
-              <option value={90}>Son 90 gün</option>
-              <option value={180}>Son 6 ay</option>
-              <option value={365}>Son 12 ay</option>
-            </select>
-          </label>
-          <label className="st-select">
-            <FolderKanban size={15} aria-hidden="true" />
-            <select
-              aria-label="Proje filtresi"
-              value={analyticsProject}
-              onChange={(event) => setAnalyticsProject(event.target.value)}
-            >
-              <option value="all">Tüm projeler</option>
-              {projects.map((project) => (
-                <option value={project.id} key={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </header>
-      <section className="st-stat-strip" aria-label="Analitik özeti">
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <ListTodo size={14} className="is-accent" aria-hidden="true" />
-            Toplam talep
-          </span>
-          <b>{analyticsRequests.length}</b>
-          <small className="st-stat-hint">
-            {analyticsChange === null
-              ? "Önceki dönemde kayıt yok"
-              : `Önceki döneme göre ${analyticsChange > 0 ? "+" : ""}${analyticsChange}%`}
-          </small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.count)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <Activity size={14} className="is-info" aria-hidden="true" />
-            Açık iş
-          </span>
-          <b>{analyticsOpenCount}</b>
-          <small className="st-stat-hint">İş akışında devam eden</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.open)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <FolderKanban size={14} className="is-success" aria-hidden="true" />
-            Projeye bağlı
-          </span>
-          <b>
-            %{analyticsRequests.length
-              ? Math.round((analyticsLinkedCount / analyticsRequests.length) * 100)
-              : 0}
-          </b>
-          <small className="st-stat-hint">{analyticsLinkedCount} talep</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.linked)} />
-        </div>
-        <div className="st-stat">
-          <span className="st-stat-label">
-            <GitBranch size={14} className="is-warning" aria-hidden="true" />
-            Aktif proje
-          </span>
-          <b>
-            {
-              new Set(
-                analyticsRequests
-                  .filter((item) => item.projectId)
-                  .map((item) => item.projectId),
-              ).size
-            }
-          </b>
-          <small className="st-stat-hint">Seçili dönemde talep alan</small>
-          <AnalyticsSparkline values={analyticsBuckets.map((item) => item.projects)} />
-        </div>
-      </section>
-      {analyticsRequests.length === 0 ? (
-        <section className="ns-card st-card st-analytics-empty">
-          <EmptyState icon={TrendingUp} title="Bu dönemde analiz edilecek talep yok">
-            <span>
-              {analyticsRange < 365
-                ? "Dönemi genişletin ya da yeni bir geliştirme talebi oluşturun."
-                : "Grafikler ilk geliştirme talebinizle birlikte dolar."}
-            </span>
-            <div className="st-empty-actions">
-              {analyticsRange < 365 && (
-                <button
-                  className="ns-btn ns-btn-sm"
-                  type="button"
-                  onClick={() => setAnalyticsRange(365)}
-                >
-                  Son 12 ayı göster
-                </button>
-              )}
-              <button
-                className="ns-btn ns-btn-primary ns-btn-sm"
-                type="button"
-                onClick={openNewRequest}
-              >
-                <Plus size={14} aria-hidden="true" />
-                Yeni talep
-              </button>
-            </div>
-          </EmptyState>
-        </section>
-      ) : (
-        <>
-        <div className="st-grid st-grid-wide">
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Geliştirme talebi eğilimi</h2>
-                <p>
-                  Seçilen dönem içindeki kayıtlar · {analyticsRequests.length}{" "}
-                  talep
-                </p>
-              </div>
-            </header>
-            {analyticsRequests.length ? (
-              <div className="st-trend">
-                <div className="st-trend-scale" aria-hidden="true">
-                  {[1, 0.75, 0.5, 0.25, 0].map((factor) => (
-                    <span key={factor}>
-                      {(analyticsMaxBucket * factor).toLocaleString("tr-TR", {
-                        maximumFractionDigits: 1,
-                      })}
-                    </span>
-                  ))}
-                </div>
-                <div
-                  className="st-trend-bars"
-                  style={{
-                    gridTemplateColumns: `repeat(${analyticsBucketCount}, minmax(0, 1fr))`,
-                  }}
-                  role="img"
-                  aria-label={`Talep eğilimi: ${analyticsBuckets.map((item) => `${item.label}: ${item.count}`).join(", ")}`}
-                >
-                  {analyticsBuckets.map((item) => (
-                    <div
-                      className="st-trend-column"
-                      title={`${item.label}: ${item.count} talep`}
-                      key={item.key}
-                    >
-                      <b>{item.count}</b>
-                      <span>
-                        <i
-                          style={{
-                            height: `${item.count ? Math.round((item.count / analyticsMaxBucket) * 100) : 0}%`,
-                          }}
-                        />
-                      </span>
-                      <small>{item.label}</small>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <EmptyState icon={Activity} title="Bu dönemde talep bulunmuyor">
-                <span>
-                  Farklı bir dönem veya proje seçerek kayıtları görüntüleyin.
-                </span>
-              </EmptyState>
-            )}
-          </article>
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Talep durumları</h2>
-                <p>Durumlara göre kayıt dağılımı</p>
-              </div>
-            </header>
-            {analyticsStatuses.length ? (
-              <ul className="st-bars">
-                {analyticsStatuses.map(([status, count]) => (
-                  <li key={status}>
-                    <div>
-                      <span>{statusLabel(status)}</span>
-                      <b>{count}</b>
-                    </div>
-                    <i>
-                      <span
-                        style={{
-                          width: `${Math.round((count / analyticsMaxStatus) * 100)}%`,
-                        }}
-                      />
-                    </i>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState icon={ListTodo} title="Durum verisi yok">
-                <span>Seçilen aralıkta talep bulunamadı.</span>
-              </EmptyState>
-            )}
-          </article>
-        </div>
-        <div className="st-grid st-grid-wide-end">
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Talep alan projeler</h2>
-                <p>En fazla talep içeren ilk 5 proje</p>
-              </div>
-            </header>
-            {analyticsProjects.length ? (
-              <ol className="st-bars is-ranked">
-                {analyticsProjects.map(({ id, name, count }) => (
-                  <li key={id}>
-                    <div>
-                      <span>{name}</span>
-                      <b>{count}</b>
-                    </div>
-                    <i>
-                      <span
-                        style={{
-                          width: `${Math.round((count / analyticsMaxProject) * 100)}%`,
-                        }}
-                      />
-                    </i>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <EmptyState icon={FolderKanban} title="Proje dağılımı yok">
-                <span>Projelere bağlanan talepler burada listelenir.</span>
-              </EmptyState>
-            )}
-          </article>
-          <article className="ns-card st-card">
-            <header className="st-card-head">
-              <div>
-                <h2>Güncel talepler</h2>
-                <p>Seçilen dönemin en yeni kayıtları</p>
-              </div>
-              <a className="ns-btn ns-btn-ghost ns-btn-sm" href="#requests">
-                Tümü
-                <ArrowUpRight size={14} aria-hidden="true" />
-              </a>
-            </header>
-            {analyticsRecentRequests.length ? (
-              recentRequestsTable(analyticsRecentRequests)
-            ) : (
-              <EmptyState icon={FileText} title="Henüz kayıt yok">
-                <span>Yeni geliştirme talepleri burada görünür.</span>
-              </EmptyState>
-            )}
-          </article>
-        </div>
-        </>
-      )}
-    </section>
-  );
-
   return (
     <div
       className={`studio-root studio-dashboard studio-dashboard-reference studio-section-${activeSection} st-shell`}
@@ -1730,7 +1189,7 @@ export default function App() {
       <aside className="st-side" aria-label="Studio kenar çubuğu">
         <a
           className="st-side-brand"
-          href="#overview"
+          href="#home"
           aria-label="Nexora Studio ana sayfa"
         >
           <StudioBrand />
@@ -1801,53 +1260,32 @@ export default function App() {
             </ul>
           )}
         </div>
+        <RoleSwitcher
+          held={access.held}
+          active={activeRole}
+          onChange={changeRole}
+        />
         <nav className="st-side-nav" aria-label="Studio gezinme">
-          <p className="st-side-label">Geliştirme</p>
-          <a
-            href="#overview"
-            aria-current={activeSection === "overview" ? "page" : undefined}
-          >
-            <Code2 size={16} aria-hidden="true" />
-            Genel bakış
-          </a>
-          <a
-            href="#projects"
-            aria-current={activeSection === "projects" ? "page" : undefined}
-          >
-            <FolderKanban size={16} aria-hidden="true" />
-            Projeler
-            <span className="st-side-count">{projects.length}</span>
-          </a>
-          <a
-            href="#requests"
-            aria-current={activeSection === "requests" ? "page" : undefined}
-          >
-            <ListTodo size={16} aria-hidden="true" />
-            Geliştirme talepleri
-            <span className="st-side-count">{requests.length}</span>
-          </a>
-          <a
-            href="#analytics"
-            aria-current={activeSection === "analytics" ? "page" : undefined}
-          >
-            <Activity size={16} aria-hidden="true" />
-            Analitik
-          </a>
-          <p className="st-side-label">Platform uyarlama</p>
-          <a
-            href="#adaptation"
-            aria-current={isAdaptationSection ? "page" : undefined}
-          >
-            <Boxes size={16} aria-hidden="true" />
-            Uyarlama araçları
-          </a>
-          <a
-            href="#marketplace"
-            aria-current={activeSection === "marketplace" ? "page" : undefined}
-          >
-            <Package size={16} aria-hidden="true" />
-            Modül pazaryeri
-          </a>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const count =
+              item.section === "my-requests"
+                ? requests.filter((request) => request.isMine).length
+                : item.section === "incoming-requests"
+                  ? requests.length
+                  : 0;
+            return (
+              <a
+                key={item.section}
+                href={`#${item.section}`}
+                aria-current={activeSection === item.section ? "page" : undefined}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {item.label}
+                {count > 0 && <span className="st-side-count">{count}</span>}
+              </a>
+            );
+          })}
         </nav>
         <div className="st-profile">
           <span className="st-avatar is-round" aria-hidden="true">
@@ -1855,7 +1293,7 @@ export default function App() {
           </span>
           <span className="st-profile-text">
             <b>{userName}</b>
-            <small>{roleLabel(tenant.role)}</small>
+            <small>{degraded ? "Rol bilgisi alınamadı" : menuRoleLabel(activeRole)}</small>
           </span>
           <button
             type="button"
@@ -1877,24 +1315,42 @@ export default function App() {
             <b aria-current="page">{sectionTitle}</b>
           </nav>
           <div className="st-top-actions">
-            {dataStatus === "ok" && (
+            {dataLoadFailed || degraded ? (
+              <span className="ns-badge is-danger">Veriler yüklenemedi</span>
+            ) : (
               <span className="ns-badge is-success">Studio API bağlı</span>
             )}
-            {dataStatus === "error" && (
-              <span className="ns-badge is-danger">Veriler yüklenemedi</span>
+            {canRequest && (
+              <button
+                type="button"
+                className="ns-btn ns-btn-primary ns-btn-sm"
+                onClick={openNewRequest}
+              >
+                <Plus size={15} aria-hidden="true" />
+                Yazılımcıdan iste
+              </button>
             )}
-            <button
-              type="button"
-              className="ns-btn ns-btn-primary ns-btn-sm"
-              onClick={openNewRequest}
-            >
-              <Plus size={15} aria-hidden="true" />
-              Yeni talep
-            </button>
           </div>
         </header>
 
         <main className="st-content studio-dashboard-main" id="overview">
+          {degraded && (
+            <div className="st-alert is-warning st-degraded" role="status">
+              <span>
+                Studio rol bilgisi şu an alınamadı; bazı bölümler geçici olarak
+                gizlendi.
+              </span>
+              <button
+                type="button"
+                className="ns-btn ns-btn-sm"
+                disabled={access.retrying}
+                onClick={access.retry}
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                {access.retrying ? "Deneniyor…" : "Yeniden dene"}
+              </button>
+            </div>
+          )}
           {activeSection === "marketplace" ? (
             <>
               <header className="st-hero">
@@ -2236,204 +1692,33 @@ export default function App() {
                 </section>
               )}
             </>
-          ) : activeSection === "adaptation" ? (
+          ) : nativeToolId ? (
             <>
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <h1>Platform uyarlama</h1>
-                  <p>
-                    ERP'yi {tenant.name} iş süreçlerine göre şekillendirin;
-                    araçlar Studio içinde açılır.
-                  </p>
-                </div>
-                <label className="st-search st-hero-search">
-                  <Search size={15} aria-hidden="true" />
-                  <input
-                    type="search"
-                    aria-label="Uyarlama araçlarında ara"
-                    placeholder="Araç ara…"
-                    value={toolQuery}
-                    onChange={(event) => setToolQuery(event.target.value)}
+              {sectionTabsBar}
+              <div className="studio-native-tool">
+                <Suspense
+                  fallback={
+                    <div className="st-loading" role="status">
+                      Uyarlama aracı yükleniyor…
+                    </div>
+                  }
+                >
+                  <NativePlatformTool
+                    key={nativeToolId}
+                    toolId={nativeToolId}
+                    token={token}
+                    role={tenant.role}
+                    platformOrigin={platformOrigin}
+                    tenant={tenant}
+                    backHref={routeHash({ section: activeSection, tab: activeTab })}
                   />
-                </label>
-              </header>
-              {filteredAdaptationFlows.length > 0 && (
-                <section
-                  className="st-section"
-                  aria-labelledby="studio-flows-title"
-                >
-                  <header className="st-section-head">
-                    <h2 id="studio-flows-title">Neyi düzenlemek istiyorsunuz?</h2>
-                    <span className="ns-badge" role="status">
-                      {filteredPlatformTools.length} araç
-                    </span>
-                  </header>
-                  <div className="st-flow-grid">
-                    {filteredAdaptationFlows.map((flow) => {
-                      const FlowIcon = flow.icon;
-                      return (
-                        <article className="ns-card st-flow" key={flow.title}>
-                          <header className="st-flow-head">
-                            <span className="st-tile-icon" aria-hidden="true">
-                              <FlowIcon size={16} />
-                            </span>
-                            <div>
-                              <h3>{flow.title}</h3>
-                              <p>{flow.description}</p>
-                            </div>
-                          </header>
-                          <nav
-                            className="st-flow-tools"
-                            aria-label={`${flow.title} araçları`}
-                          >
-                            {flow.tools.map((tool) => (
-                              <a href={`#tool-${tool.id}`} key={tool.id}>
-                                <span>
-                                  <b>{tool.title}</b>
-                                  <small>{tool.description}</small>
-                                </span>
-                                <ChevronRight size={16} aria-hidden="true" />
-                              </a>
-                            ))}
-                          </nav>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-              {advancedPlatformTools.length > 0 && (
-                <section
-                  className="st-section"
-                  aria-labelledby="studio-advanced-title"
-                >
-                  <header className="st-section-head">
-                    <h2 id="studio-advanced-title">Gelişmiş araçlar</h2>
-                  </header>
-                  <div className="ns-card st-advanced">
-                    <div className="st-advanced-list st-advanced-grid">
-                      {advancedPlatformTools.map((tool) => {
-                        const ToolIcon = tool.icon;
-                        const href =
-                          tool.id === "modules"
-                            ? "#marketplace"
-                            : tool.id === "source-workspaces"
-                              ? "#projects"
-                              : `#tool-${tool.id}`;
-                        return (
-                          <a href={href} key={tool.id}>
-                            <span className="st-tile-icon" aria-hidden="true">
-                              <ToolIcon size={16} />
-                            </span>
-                            <span>
-                              <b>{tool.title}</b>
-                              <small>{tool.description}</small>
-                            </span>
-                            <ChevronRight size={16} aria-hidden="true" />
-                          </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </section>
-              )}
-              {filteredPlatformTools.length === 0 && (
-                <div className="ns-card">
-                  <EmptyState
-                    icon={Search}
-                    title="Aramanızla eşleşen araç bulunamadı"
-                  >
-                    <span>
-                      Araç adı veya açıklamasındaki bir kelimeyle tekrar
-                      arayın.
-                    </span>
-                    <button
-                      className="ns-btn ns-btn-sm"
-                      type="button"
-                      onClick={() => setToolQuery("")}
-                    >
-                      Aramayı temizle
-                    </button>
-                  </EmptyState>
-                </div>
-              )}
+                </Suspense>
+              </div>
             </>
-          ) : activeSection.startsWith("tool-") ? (
-            (() => {
-              const tool = availablePlatformTools.find(
-                (item) => item.id === activeSection.slice(5),
-              );
-              if (!tool)
-                return (
-                  <div className="ns-card">
-                    <EmptyState icon={Boxes} title="Uyarlama aracı bulunamadı">
-                      <a className="ns-btn ns-btn-sm" href="#adaptation">
-                        Uyarlama araçlarına dön
-                      </a>
-                    </EmptyState>
-                  </div>
-                );
-              const nativeToolIds = [
-                "custom-forms",
-                "workflows",
-                "business-rules",
-                "reports",
-                "custom-menus",
-                "custom-pages",
-                "custom-data",
-              ];
-              return (
-                <>
-                  {nativeToolIds.includes(tool.id) ? (
-                    <div className="studio-native-tool">
-                      <Suspense
-                        fallback={
-                          <div className="st-loading" role="status">
-                            Uyarlama aracı yükleniyor…
-                          </div>
-                        }
-                      >
-                        <NativePlatformTool
-                          toolId={tool.id}
-                          token={token}
-                          role={tenant.role}
-                          platformOrigin={platformOrigin}
-                          tenant={tenant}
-                        />
-                      </Suspense>
-                    </div>
-                  ) : (
-                    <>
-                      <header className="ns-page-head st-page-head">
-                        <div>
-                          <h1>{tool.title}</h1>
-                          <p>{tool.description}</p>
-                        </div>
-                        <a className="ns-btn" href="#adaptation">
-                          Uyarlama araçlarına dön
-                        </a>
-                      </header>
-                      <iframe
-                        className="st-tool-frame"
-                        title={`${tool.title} · Studio`}
-                        src={platformToolHref(tool.id)}
-                        loading="lazy"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        onLoad={(event) =>
-                          event.currentTarget.contentWindow?.postMessage(
-                            { type: "NEXORA_STUDIO_AUTH", token, tenant },
-                            platformOrigin,
-                          )
-                        }
-                      />
-                    </>
-                  )}
-                </>
-              );
-            })()
-          ) : activeSection === "projects" ? (
+          ) : activeSection === "company-module" ? (
             <>
               {pageAlerts}
+              {sectionTabsBar}
               <div id="projects" className="studio-projects-page-content">
                 <Suspense
                   fallback={
@@ -2461,25 +1746,10 @@ export default function App() {
                 </Suspense>
               </div>
             </>
-          ) : activeSection === "requests" ? (
+          ) : activeSection === "my-requests" ||
+            activeSection === "incoming-requests" ? (
             <>
               {pageAlerts}
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <h1>Geliştirme talepleri</h1>
-                  <p>İhtiyaçlar ve durumları</p>
-                </div>
-                <div className="st-hero-actions">
-                  <button
-                    className="ns-btn ns-btn-primary"
-                    type="button"
-                    onClick={openNewRequest}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Yeni talep
-                  </button>
-                </div>
-              </header>
               <Suspense
                 fallback={
                   <div className="st-loading" role="status">
@@ -2490,6 +1760,7 @@ export default function App() {
                 {/* Bileşen bir fragment döndürür; düz blok kap, iç boşluklarının eskisi gibi kalmasını sağlar. */}
                 <div className="st-embed">
                   <DevelopmentRequestsPage
+                    mode={activeSection === "my-requests" ? "mine" : "incoming"}
                     requests={requests}
                     projects={projects}
                     busy={busy}
@@ -2500,8 +1771,78 @@ export default function App() {
                 </div>
               </Suspense>
             </>
-          ) : activeSection === "analytics" ? (
-            analyticsContent
+          ) : activeSection === "publications" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Yayınlar yükleniyor…
+                  </div>
+                }
+              >
+                <PublicationsPage token={token} includeModules={canReadProjects} />
+              </Suspense>
+            </>
+          ) : activeSection === "people" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Kişiler yükleniyor…
+                  </div>
+                }
+              >
+                <PeoplePage token={token} />
+              </Suspense>
+            </>
+          ) : activeSection === "connections" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Bağlantılar yükleniyor…
+                  </div>
+                }
+              >
+                <ConnectionsPage token={token} />
+              </Suspense>
+            </>
+          ) : activeSection === "ai" ? (
+            <>
+              <header className="ns-page-head st-page-head">
+                <div>
+                  <h1>Yapay zekâ tanımlaması</h1>
+                  <p>Kurumun AI sağlayıcılarını ve çalışma ayarlarını yönetin.</p>
+                </div>
+              </header>
+              <iframe
+                className="st-tool-frame"
+                title="Yapay zekâ tanımlaması · Studio"
+                src={platformToolHref("settings")}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                onLoad={(event) =>
+                  event.currentTarget.contentWindow?.postMessage(
+                    { type: "NEXORA_STUDIO_AUTH", token, tenant },
+                    platformOrigin,
+                  )
+                }
+              />
+            </>
+          ) : degraded ? (
+            <header className="ns-page-head st-page-head">
+              <div>
+                <h1>Ana sayfa</h1>
+                <p>
+                  Ekranlar, Kurallar ve Menüler bölümlerini kullanmaya devam
+                  edebilirsiniz. Talepler ve diğer bölümler bağlantı yeniden
+                  kurulunca görünür.
+                </p>
+              </div>
+            </header>
           ) : (
             <>
               {pageAlerts}
@@ -2525,9 +1866,13 @@ export default function App() {
                       )}
                     </b>
                     <p>
-                      {moduleStarterId
-                        ? "Şablon manifestini ve kaynak kodunu ERP’deki örnek karttan alın. Proje seçip izole çalışma alanı isteyin; Cargo.toml, manifest.json ve src/lib.rs dosyalarını proje gezgininde düzenleyebilirsiniz."
-                        : "Modül kodu talebe taşınır. İlgili kaynak deposunu ayrıca seçin; proje gezgininde kodu düzenleyip farkları inceleyerek onaylayabilirsiniz."}
+                      {isConsultant
+                        ? moduleStarterId
+                          ? "Bu şablondan nasıl bir modül istediğinizi talepte anlatın; Yazılımcı modülü hazırlayıp onayınıza sunar."
+                          : "Bu ekranda neyin değişmesini istediğinizi talepte anlatın; Yazılımcı talebi inceleyip uyarlamayı hazırlar."
+                        : moduleStarterId
+                          ? "Şablon manifestini ve kaynak kodunu ERP’deki örnek karttan alın. Proje seçip izole çalışma alanı isteyin; Cargo.toml, manifest.json ve src/lib.rs dosyalarını proje gezgininde düzenleyebilirsiniz."
+                          : "Modül kodu talebe taşınır. İlgili kaynak deposunu ayrıca seçin; proje gezgininde kodu düzenleyip farkları inceleyerek onaylayabilirsiniz."}
                     </p>
                   </div>
                   <button
@@ -2547,7 +1892,7 @@ export default function App() {
                       setRequestDescription(
                         moduleStarterId
                           ? `${contextualScreen} başlangıç şablonunu temel alarak kendi modülümü geliştirmek istiyorum. Modül kodu: ${contextualModuleCode}. Şablon: ${moduleStarterId}. manifest.json, Cargo.toml ve src/lib.rs dosyalarını seçilen GitHub projesinde oluşturup düzenleyin.`
-                          : `${contextualScreen} ekranı için istenen değişiklikleri açıklayın.${contextualModuleCode ? ` Modül kodu: ${contextualModuleCode}.` : ""} İlgili kaynak deposunu seçin; değişiklikler onaylı izole çalışma alanında hazırlanır.`,
+                          : `${contextualScreen} ekranı için istenen değişiklikleri açıklayın.${contextualModuleCode ? ` Modül kodu: ${contextualModuleCode}.` : ""}${isConsultant ? "" : " İlgili kaynak deposunu seçin; değişiklikler onaylı izole çalışma alanında hazırlanır."}`,
                       );
                       setRequestProjectId("");
                       setError("");
@@ -2561,197 +1906,23 @@ export default function App() {
                   </button>
                 </section>
               )}
-              <header className="st-hero">
-                <div className="st-hero-text">
-                  <small>
-                    {tenant.name} · {roleLabel(tenant.role)}
-                  </small>
-                  <h1>Merhaba, {userName}</h1>
-                  <p>
-                    Geliştirme taleplerinizi ve projelerinizi buradan yönetin.
-                  </p>
-                </div>
-                <div className="st-hero-actions">
-                  <a className="ns-btn" href="#projects">
-                    <FolderKanban size={16} aria-hidden="true" />
-                    Projeler
-                  </a>
-                  <button
-                    className="ns-btn ns-btn-primary"
-                    type="button"
-                    onClick={openNewRequest}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    Yeni talep
-                  </button>
-                </div>
-              </header>
-
-              <section className="st-stat-strip" aria-label="Studio özeti">
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <FolderKanban size={14} className="is-accent" aria-hidden="true" />
-                    Proje
-                  </span>
-                  <b>{projects.length}</b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <GitBranch size={14} className="is-success" aria-hidden="true" />
-                    GitHub bağlı
-                  </span>
-                  <b>
-                    {connectedProjects}
-                    <small> / {projects.length}</small>
-                  </b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <ListTodo size={14} className="is-info" aria-hidden="true" />
-                    Talep
-                  </span>
-                  <b>
-                    {requests.length}
-                    {submittedRequests > 0 && (
-                      <small> · {submittedRequests} yeni</small>
-                    )}
-                  </b>
-                </div>
-                <div className="st-stat">
-                  <span className="st-stat-label">
-                    <Activity size={14} className="is-warning" aria-hidden="true" />
-                    Açık talep
-                  </span>
-                  <b>{openRequestCount}</b>
-                </div>
-              </section>
-
-              <div className="st-grid st-grid-wide">
-                {requests.length ? (
-                  <section
-                    className="ns-card st-card"
-                    aria-labelledby="studio-recent-title"
-                  >
-                    <header className="st-card-head">
-                      <div>
-                        <h2 id="studio-recent-title">Son talepler</h2>
-                        <p>En yeni geliştirme talepleri</p>
-                      </div>
-                      <a
-                        className="ns-btn ns-btn-ghost ns-btn-sm"
-                        href="#requests"
-                      >
-                        Tümü
-                        <ArrowUpRight size={14} aria-hidden="true" />
-                      </a>
-                    </header>
-                    <div className="st-status-dist">
-                      <div className="st-status-bar" aria-hidden="true">
-                        {requestStatusSummary.map((item) => (
-                          <span
-                            key={item.status}
-                            className={item.tone}
-                            style={{ flexGrow: item.count }}
-                          />
-                        ))}
-                      </div>
-                      <ul className="st-status-legend">
-                        {requestStatusSummary.map((item) => (
-                          <li key={item.status}>
-                            <i className={item.tone} aria-hidden="true" />
-                            {statusLabel(item.status)}
-                            <b>{item.count}</b>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    {recentRequestsTable(recentRequests)}
-                  </section>
-                ) : (
-                  <section
-                    className="ns-card st-card"
-                    aria-labelledby="studio-start-title"
-                  >
-                    <header className="st-card-head">
-                      <div>
-                        <h2 id="studio-start-title">Başlangıç adımları</h2>
-                        <p>
-                          Studio'yu kullanmaya hazırlanın ·{" "}
-                          {onboardingDone}/3 tamamlandı
-                        </p>
-                      </div>
-                    </header>
-                    <div
-                      className="st-progress"
-                      role="progressbar"
-                      aria-label="Başlangıç ilerlemesi"
-                      aria-valuemin={0}
-                      aria-valuemax={3}
-                      aria-valuenow={onboardingDone}
-                    >
-                      <span style={{ width: `${(onboardingDone / 3) * 100}%` }} />
-                    </div>
-                    <ol className="st-checklist">
-                      {onboardingSteps.map((step, index) => {
-                        const state = step.done
-                          ? "is-done"
-                          : index === onboardingDone
-                            ? "is-current"
-                            : "";
-                        return (
-                          <li key={step.title} className={state}>
-                            <span className="st-checklist-mark" aria-hidden="true">
-                              {step.done ? <Check size={14} /> : index + 1}
-                            </span>
-                            <div>
-                              <b>{step.title}</b>
-                              <small>{step.hint}</small>
-                            </div>
-                            {state === "is-current" && step.action}
-                            {step.done && (
-                              <span className="ns-sr-only">Tamamlandı</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                    <p className="st-card-note">
-                      İlk talebiniz oluşunca bu alanda son talepler listelenir.
-                    </p>
-                  </section>
-                )}
-                <section
-                  className="ns-card st-card"
-                  aria-labelledby="studio-quick-title"
-                >
-                  <header className="st-card-head">
-                    <div>
-                      <h2 id="studio-quick-title">Hızlı işlemler</h2>
-                    </div>
-                  </header>
-                  <nav className="st-quick" aria-labelledby="studio-quick-title">
-                    {quickLinks.map((link) => (
-                      <a key={link.href} href={link.href}>
-                        <span className="st-quick-icon" aria-hidden="true">
-                          <link.icon size={16} />
-                        </span>
-                        <span className="st-quick-text">
-                          <b>{link.title}</b>
-                          <small>{link.hint}</small>
-                        </span>
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </a>
-                    ))}
-                  </nav>
-                  <p className="st-quick-note">
-                    <ShieldCheck size={14} aria-hidden="true" />
-                    <span>
-                      Depo erişimi ve değişiklikler proje ve firma
-                      yetkileriyle denetlenir. Onaysız değişiklik uygulanmaz.
-                    </span>
-                  </p>
-                </section>
-              </div>
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Ana sayfa yükleniyor…
+                  </div>
+                }
+              >
+                <HomePage
+                  token={token}
+                  role={activeRole}
+                  tenantName={tenant.name}
+                  userName={userName}
+                  requests={requests}
+                  requestsStatus={requestsStatus}
+                  onNewRequest={openNewRequest}
+                />
+              </Suspense>
             </>
           )}
         </main>
@@ -2796,6 +1967,7 @@ export default function App() {
                   {error}
                 </div>
               )}
+              {!isConsultant && (
               <label className="ns-field">
                 <span className="ns-field-label">Proje</span>
                 <select
@@ -2820,6 +1992,7 @@ export default function App() {
                   Seçmezseniz talep firma genelinde görünür.
                 </small>
               </label>
+              )}
               <label className="ns-field">
                 <span className="ns-field-label">Başlık</span>
                 <input
