@@ -66,9 +66,6 @@ public static class TenantSelectionEndpoints
                 return Results.Unauthorized();
             }
 
-            if (membership.Role == "TenantUser")
-                await TenantPermissionDefaults.AddMissingTenantUserBaselineAsync(db, session.TenantId, session.UserId, cancellationToken);
-
             var absoluteExpiry = session.CreatedAt.AddDays(30);
             if (absoluteExpiry <= now)
             {
@@ -77,6 +74,9 @@ public static class TenantSelectionEndpoints
                 if (cookieTransport) ClearStudioRefreshCookie(context, config, environment);
                 return Results.Unauthorized();
             }
+
+            if (TenantPermissionDefaults.HasRoleBaseline(membership.Role))
+                await TenantPermissionDefaults.AddMissingRoleBaselineAsync(db, session.TenantId, membership.Role, session.UserId, cancellationToken);
 
             session.RevokedAt = now;
             var (newRefreshToken, newSession) = RefreshTokenIssuer.Create(session.UserId, session.TenantId, absoluteExpiry, session.CreatedAt);
@@ -160,8 +160,8 @@ public static class TenantSelectionEndpoints
                 return Results.Forbid();
             }
 
-            if (membership.Role == "TenantUser")
-                await TenantPermissionDefaults.AddMissingTenantUserBaselineAsync(db, membership.TenantId, userId, cancellationToken);
+            if (TenantPermissionDefaults.HasRoleBaseline(membership.Role))
+                await TenantPermissionDefaults.AddMissingRoleBaselineAsync(db, membership.TenantId, membership.Role, userId, cancellationToken);
 
             var claims = new[]
             {

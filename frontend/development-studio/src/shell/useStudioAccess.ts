@@ -111,3 +111,15 @@ export function useStudioAccess(token: string, tenantId: string): StudioAccessSt
     return { status: "loading", held: [], active: "consultant", setActive, retry, retrying: false };
   return { status: loaded.status, held: loaded.held, active: loaded.active, setActive, retry, retrying };
 }
+
+/**
+ * Katalog geliştirici işlemleri (önizleme, sürüm yayını) firma yöneticisine ve Studio yazılımcısına açıktır; sunucu da
+ * aynı kuralı üyelik satırından uygular. `/studio/me` okunamazsa yalnız firma yöneticisi kabul edilir (kısıtlayıcı).
+ * Rol seçiciden bağımsız olarak kişinin taşıdığı rollere bakılır. Yalnız proje izniyle yazılımcı olan kişi burada
+ * yazılımcı görünür ama ERP API'si onu reddeder (proje izni orada görülmez); ekranda 403 iletisi çıkar.
+ */
+export function canDevelopCatalog(access: Pick<StudioAccessState, "status" | "held">, tenantRole: string): boolean {
+  if (access.status === "ready") return access.held.includes("admin") || access.held.includes("developer");
+  if (access.status === "error") return tenantRole === "TenantAdmin";
+  return false;
+}

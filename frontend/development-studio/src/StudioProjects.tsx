@@ -111,6 +111,7 @@ export function StudioProjects({
   setProjects,
   refreshProjects,
   projectRequestCount,
+  canDevelop,
 }: {
   token: string;
   tenant: Tenant;
@@ -119,6 +120,8 @@ export function StudioProjects({
   refreshProjects: () => Promise<DevelopmentProject[]>;
   /** Projeye bağlı geliştirme talebi sayısı (özet şeridinde gösterilir). */
   projectRequestCount: number;
+  /** Katalog önizleme ve sürüm yayını: firma yöneticisi ya da Studio yazılımcısı (bkz. canDevelopCatalog). */
+  canDevelop: boolean;
 }) {
   const [members, setMembers] = useState<ProjectMember[]>([]),
     [pendingApprovals, setPendingApprovals] = useState<
@@ -4797,7 +4800,7 @@ export function StudioProjects({
             fileShas={catalog.fileShas}
             version={catalog.version}
             canEdit={canEditWorkspace}
-            isTenantAdmin={tenant.role === "TenantAdmin"}
+            canDevelop={canDevelop}
             token={token}
             writeFiles={catalogWorkspace.writeFiles}
             onDirtyChange={(dirty) => {
@@ -4819,7 +4822,7 @@ export function StudioProjects({
           hasUncommittedCatalogChanges={catalog.hasUncommitted}
           headCommitSha={catalog.headCommitSha}
           repositoryUrl={workspaceProject?.repositoryUrl ?? null}
-          isTenantAdmin={tenant.role === "TenantAdmin"}
+          canDevelop={canDevelop}
           onClose={() => setCatalogReleaseOpen(false)}
         />
       )}

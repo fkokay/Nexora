@@ -20192,6 +20192,11 @@ namespace AIERP.Platform.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "SubjectUserId", "PermissionCode", "IsActive");
 
+                    b.HasIndex("TenantId", "SubjectType", "SubjectRole", "PermissionCode", "Effect", "IsActive")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TenantPermissionRules_UnconditionalRoleRule")
+                        .HasFilter("[SubjectUserId] IS NULL AND [AttributeName] IS NULL");
+
                     b.ToTable("TenantPermissionRules", t =>
                         {
                             t.HasCheckConstraint("CK_TenantPermissionRules_Attribute", "([AttributeName] IS NULL AND [AttributeOperator] IS NULL AND [AttributeValue] IS NULL) OR ([AttributeName] IS NOT NULL AND [AttributeOperator] IS NOT NULL AND [AttributeValue] IS NOT NULL)");

@@ -13,7 +13,8 @@ namespace AIERP.Api;
 
 /// <summary>
 /// Tenant catalog releases: immutable bundles of named data sources and actions that custom pages reference by code.
-/// Creating and activating a release needs a verified TenantAdmin; exactly one release per tenant is Active.
+/// Creating and activating a release needs a verified TenantAdmin or Studio Developer (<see cref="CatalogDeveloperAccess"/>);
+/// exactly one release per tenant is Active.
 /// </summary>
 internal static partial class TenantCatalogEndpoints
 {
@@ -32,7 +33,7 @@ internal static partial class TenantCatalogEndpoints
         catalog.MapPost("/releases", async (CreateReleaseRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
-                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+                || !await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             var version = request.Version?.Trim() ?? "";
             if (version.Length > 32 || !SemVerPattern().IsMatch(version))
@@ -79,8 +80,8 @@ internal static partial class TenantCatalogEndpoints
             var active = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
             if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], []));
             var bundle = active.Bundle;
-            // SQL text is shown to a verified TenantAdmin only (the designer); runtime consumers never need it.
-            var showSql = await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct);
+            // SQL text is shown only to a verified TenantAdmin or Studio Developer (the designer); runtime consumers never need it.
+            var showSql = await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct);
             var dataSources = bundle.Items.Where(x => x.ItemKind == "dataSource").Select(x => new DataSourceView(x.Code, x.Label, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.Columns, x.Opens)).ToArray();
             var actions = bundle.Items.Where(x => x.ItemKind == "action").Select(x => new ActionView(x.Code, x.Label, x.QueryKind, x.Target, SourceOf(x),
@@ -91,7 +92,7 @@ internal static partial class TenantCatalogEndpoints
         catalog.MapPost("/releases/{id:guid}/activate", async (Guid id, ActivateRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
-                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+                || !await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
             var target = await db.TenantCatalogReleases.SingleOrDefaultAsync(x => x.TenantId == tenant && x.Id == id, ct);
             if (target is null) return Results.NotFound();
             if (target.Status == "Active") return Results.Conflict(new { error = "Bu sürüm zaten etkin." });
@@ -134,7 +135,7 @@ internal static partial class TenantCatalogEndpoints
         catalog.MapPost("/previews", async (CreatePreviewRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
         {
             if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
-                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+                || !await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
             if (request is null) return Results.BadRequest(new { error = "İstek gövdesi gerekli." });
             if (request.Bundle.ValueKind != JsonValueKind.Object) return Results.BadRequest(new { error = "Paket bir JSON nesnesi olmalıdır." });
             var bundleJson = request.Bundle.GetRawText();
@@ -152,12 +153,12 @@ internal static partial class TenantCatalogEndpoints
             return Results.Created($"/api/custom-pages/catalog/previews/{preview.Id:D}", new { id = preview.Id });
         }).RequireRateLimiting(CustomPageQueryEndpoints.PreviewRateLimitPolicy);
 
-        // Order of checks: admin -> the caller's own preview row -> item -> parameters -> re-validation of the SQL -> connection.
+        // Order of checks: admin or developer -> the caller's own preview row -> item -> parameters -> re-validation of the SQL -> connection.
         catalog.MapPost("/previews/{id:guid}/items/{code}/run", async (Guid id, string code, PreviewRunRequest? request, ClaimsPrincipal user,
             TenantDbContext db, PlatformDbContext platformDb, HttpContext http, CancellationToken ct) =>
         {
             if (!TenantCustomPageEndpoints.TryContext(user, out var tenant, out var userId, out var role)
-                || !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
+                || !await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct)) return Results.Forbid();
             var bundleJson = await db.TenantCatalogPreviews.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.CreatedByUserId == userId && x.Id == id)
                 .Select(x => x.BundleJson).SingleOrDefaultAsync(ct);
