@@ -5,8 +5,8 @@ const all = ["admin", "developer", "consultant"] as const;
 
 describe("visibleMenu", () => {
   it("hides sections without a screen yet", () => {
-    expect(visibleMenu("consultant").map((i) => i.section)).toEqual(["home", "screens", "rules", "menus", "my-requests"]);
-    expect(visibleMenu("admin").map((i) => i.section)).toEqual(["home", "marketplace", "ai"]);
+    expect(visibleMenu("consultant").map((i) => i.section)).toEqual(["home", "screens", "rules", "menus", "my-requests", "publications"]);
+    expect(visibleMenu("admin").map((i) => i.section)).toEqual(["home", "marketplace", "ai", "publications"]);
   });
 });
 
@@ -25,7 +25,10 @@ describe("resolveShellRoute", () => {
   });
   it("sends a hidden section to the active role's home without switching role", () => {
     expect(resolveShellRoute("#people", "consultant", [...all])).toEqual({ role: "consultant", route: { section: "home" } });
-    expect(resolveShellRoute("#publications", "developer", [...all])).toEqual({ role: "developer", route: { section: "home" } });
+  });
+  it("opens Yayınlar for every role", () => {
+    expect(resolveShellRoute("#publications", "developer", [...all])).toEqual({ role: "developer", route: { section: "publications" } });
+    expect(resolveShellRoute("#publications", "consultant", ["consultant"]).route).toEqual({ section: "publications" });
   });
   it("switches role for a section only another held role has", () => {
     expect(resolveShellRoute("#marketplace", "consultant", [...all]).role).toBe("admin");

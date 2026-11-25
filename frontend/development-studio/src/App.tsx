@@ -48,6 +48,11 @@ const DevelopmentRequestsPage = lazy(() =>
     default: module.DevelopmentRequestsPage,
   })),
 );
+const PublicationsPage = lazy(() =>
+  import("./publications/PublicationsPage").then((module) => ({
+    default: module.PublicationsPage,
+  })),
+);
 const NativePlatformTool = lazy(
   () => import("./platform-tools/NativePlatformTool"),
 );
@@ -2302,6 +2307,19 @@ export default function App() {
                     onDelete={(item) => void deleteRequest(item)}
                   />
                 </div>
+              </Suspense>
+            </>
+          ) : activeSection === "publications" ? (
+            <>
+              {pageAlerts}
+              <Suspense
+                fallback={
+                  <div className="st-loading" role="status">
+                    Yayınlar yükleniyor…
+                  </div>
+                }
+              >
+                <PublicationsPage token={token} includeModules={canReadProjects} />
               </Suspense>
             </>
           ) : activeSection === "ai" ? (
