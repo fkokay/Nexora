@@ -2307,6 +2307,26 @@ public sealed class SalesQuoteCustomFieldValueRevision
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>
+/// One step of a document transition as the user sees it in the document's işlem günlüğü (belge kuralları). Append-only:
+/// never updated or deleted. Source: core | rule | extension; Outcome: done | waiting | blocked | warned | retry.
+/// </summary>
+public sealed class TenantDocumentActivity
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string DocumentType { get; set; } = "";
+    public Guid DocumentId { get; set; }
+    public string Transition { get; set; } = "";
+    public string Step { get; set; } = "";
+    public string Source { get; set; } = "core";
+    public string Outcome { get; set; } = "done";
+    public string? Message { get; set; }
+    public Guid? ActorUserId { get; set; }
+    public Guid? RequestId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 /// <summary>Names and numbers are kept (tenant row rules, standards and the API use the names); Open means "Onaylı" (approved), Fulfilled "Sevk edildi".</summary>
 public enum SalesOrderStatus { Open = 1, Fulfilled = 2, Cancelled = 3, Draft = 4, PendingApproval = 5, Invoiced = 6 }
 
