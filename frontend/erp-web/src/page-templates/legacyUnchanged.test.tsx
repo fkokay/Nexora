@@ -95,6 +95,14 @@ describe('kalıpsız sayfalar değişmeden çizilir', { timeout: 30000 }, () => 
     const create = loadStandard('customer-create');
     const { container } = setup(create.definition, true, 'customer-create', create.title);
     await screen.findByText('Cari kimliği', undefined, T);
+    // ERP işlem kataloğu yerleşene kadar beklenir (yük altında 300 ms yetmez): kataloğa bağlı bütün iletiler çizilmiş,
+    // yükleme göstergesi kalkmış olmalı.
+    await waitFor(() => {
+      for (const text of ['ERP işlemi bulunamadı: cari.gruplar', 'ERP işlemi bulunamadı: cari.anaFirmaSecenekleri', 'ERP işlemi bulunamadı: cari.iller',
+        'ERP işlemi bulunamadı: cari.ozelAlanTanimlari', 'Önizleme işlemi bulunamadı.']) expect(container.textContent).toContain(text);
+      expect(container.textContent).not.toContain('Yükleniyor…');
+      expect((container.querySelector('#page-input-ilce') as HTMLInputElement | null)?.value).toBe('Seçin');
+    }, T);
     await settle();
     expect(markup(container)).toMatchSnapshot();
   });

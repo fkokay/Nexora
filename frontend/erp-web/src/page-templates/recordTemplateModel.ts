@@ -11,6 +11,11 @@ export type RecordLayout<C extends Component = Component> = {
 const slotOf = (component: Component) => (typeof component.props?.slot === "string" ? component.props.slot : "");
 const BLOCK_TYPES: Record<string, string> = { section: "formCard", lines: "dataTable", note: "text" };
 
+/** Kayıt kartının özeti (`summary` yerinde `recordHeader`) ya da sekmesi (`tabs` yerinde `tabs`) var mı; yoksa sayfa eski biçimde çizilir. */
+export function hasRecordSlot(components: Component[]): boolean {
+  return components.some((component) => (slotOf(component) === "summary" && component.type === "recordHeader") || (slotOf(component) === "tabs" && component.type === "tabs"));
+}
+
 /**
  * Bileşenleri `slot`'a göre ayırır, kayıt sırasını korur. Sekmeler `tabs` bileşeninin `tabs` özelliğinden okunur; sekmede
  * listelenip bulunamayan (ya da bölüm/satır/not olmayan) kimlik atlanır, boş sekme kalır.

@@ -3,7 +3,7 @@ import { readPageTemplate, type PageTemplate } from "./page-templates/pageTempla
 import { hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
 import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
 import type { ShellAction } from "./page-templates/PageShell";
-import { layoutRecordTemplate, recordKeyParam } from "./page-templates/recordTemplateModel";
+import { hasRecordSlot, layoutRecordTemplate, recordKeyParam } from "./page-templates/recordTemplateModel";
 import { RecordLines, RecordSection, RecordTemplate } from "./page-templates/RecordTemplate";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
@@ -1070,7 +1070,9 @@ function recordBlockRuntime(layout: ReturnType<typeof layoutRecordTemplate<Compo
       if (component.type === "formCard") {
         const columns = component.props?.columns === 1 || component.props?.columns === 3 ? component.props.columns : 2;
         const query = queryOf(component) ?? pageQuery;
-        const loading = !isNew && !!query && stateOf(query.id)?.loading === true;
+        // İskelet yalnız ilk yüklemede: yeniden çalışmada (Kaydet, yenileme) satırlar korunur, bölüm gizlenmez, sayfa zıplamaz.
+        const state = query ? stateOf(query.id) : undefined;
+        const loading = !isNew && state?.loading === true && state.ran !== true;
         return <RecordSection columns={columns} fieldCount={idList(component.props?.inputs).length} loading={loading}>{draw()}</RecordSection>;
       }
       if (component.type === "dataTable") return <RecordLines title={textValue(component.props?.title)} isNew={isNew} render={draw} />;
@@ -3434,7 +3436,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   const listLayout = isV2 && pageTemplate?.name === "list" && hasListSlot(templateComponents) ? layoutListTemplate(templateComponents) : null;
   // Kayıt kartının bölüm, tablo ve notları sekmeye aittir (Liste'nin tersine): formCard girdileri, pencere, satır eylemi ve
   // özet düğmeleri dışındaki bütün üst düzey bileşenler yerleşime girer; sekmeye ait olanlar sekme listesinden yerleşir.
-  const recordLayout = isV2 && pageTemplate?.name === "record"
+  // Özeti ya da sekmesi olmayan kayıt kartı (sunucu bunu reddeder) eski biçimde çizilir.
+  const recordLayout = isV2 && pageTemplate?.name === "record" && hasRecordSlot(components)
     ? layoutRecordTemplate(components.filter((component) => !ownedInputs.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id)))
     : null;
   const recordParam = recordLayout ? recordKeyParam(components, queryDefinitions) : null;
@@ -3777,7 +3780,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || pageTemplate?.name === "record")) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || (pageTemplate?.name === "record" && hasRecordSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
     <PageBody key={`${page.id}:${page.revision}:${paramKey}`} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }

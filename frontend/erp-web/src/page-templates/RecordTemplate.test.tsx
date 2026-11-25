@@ -1,9 +1,9 @@
-import { cleanup, render as renderPlain, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render as renderPlain, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommandProvider } from '../commands/CommandProvider';
 import { CanvasAnchorContext } from '../designer-canvas/anchorContext';
 import { api } from '../erpApi';
-import { setPageParams } from '../pageNavigation';
+import { OPEN_PAGE_EVENT, setPageParams } from '../pageNavigation';
 import TenantCustomPage from '../TenantCustomPage';
 import { sectionColumns } from './RecordTemplate';
 import { recordDefinition, recordRow } from './recordTemplateFixture';
@@ -104,6 +104,40 @@ describe('kayıt kartı kalıbı', () => {
     resolve({ columns: [], rows: [recordRow], rowCount: 1, truncated: false });
     await waitFor(() => expect(container.querySelector('.record-skeleton')).toBeNull(), T);
     expect((screen.getByLabelText('Unvan') as HTMLInputElement).value).toBe('Akdeniz Gıda A.Ş.');
+  });
+
+  it('re-running the record query keeps the sections and shows no skeleton', async () => {
+    existing();
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await waitFor(() => expect((screen.getByLabelText('Unvan') as HTMLInputElement).value).toBe('Akdeniz Gıda A.Ş.'), T);
+    let resolve!: (value: unknown) => void;
+    recordRun = () => new Promise((done) => { resolve = done; });
+    const runs = () => mockedApi.mock.calls.filter(([endpoint]) => String(endpoint).includes('/queries/kayit/run')).length;
+    const first = runs();
+    // Başka sayfanın kayıttan sonra yenileme isteği bu sayfanın açılış sorgularını yeniden çalıştırır.
+    act(() => { window.dispatchEvent(new CustomEvent(OPEN_PAGE_EVENT, { detail: { page: 'custom-page:p', refresh: true, from: 'custom-page:liste' } })); });
+    await waitFor(() => expect(runs()).toBe(first + 1), T);
+    expect(container.querySelector('.record-skeleton')).toBeNull();
+    expect(container.querySelector('.record-section')!.getAttribute('aria-busy')).toBeNull();
+    expect(screen.getByLabelText('Unvan')).toBeTruthy();
+    resolve({ columns: [], rows: [recordRow], rowCount: 1, truncated: false });
+    await waitFor(() => expect(container.querySelector('.record-skeleton')).toBeNull());
+  });
+
+  it('record page without summary and tabs falls back to the legacy layout', async () => {
+    const legacyLike = [
+      { id: 's1', type: 'formCard', props: { title: 'Kimlik', inputs: ['ad'] } },
+      { id: 'ad', type: 'input', name: 'ad', props: { inputType: 'text', label: 'Unvan' } },
+    ];
+    mockedApi.mockImplementation(async (endpoint: string) => {
+      if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Cari kartı', revision: 1, forms: [], definitionJson: JSON.stringify(recordDefinition(legacyLike)), rights: { view: true, insert: true, update: true, delete: true } } as never;
+      return { columns: [], rows: [], rowCount: 0, truncated: false } as never;
+    });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByLabelText('Unvan', undefined, T);
+    expect(container.querySelector('.record-template-page')).toBeNull();
+    expect(container.querySelector('.tenant-custom-page-content')).toBeTruthy();
+    expect(container.querySelector('.tenant-custom-page-header h1')!.textContent).toBe('Cari kartı');
   });
 
   it('tab anchors are emitted', async () => {
