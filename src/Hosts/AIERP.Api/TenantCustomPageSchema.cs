@@ -33,6 +33,8 @@ internal static partial class TenantCustomPageSchema
       "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts",
       "newInputs", "saveQuery", "deleteQuery", "focusInput", "printEnabled", "exportTable", "moreButtons", "hidden",
       "hiddenCommands", "commandWhen", "barLook",
+      // Alt proje 5a: bileşen panelleri.
+      "textAlign", "dismissible", "compareValue", "progressTotal",
       // Proje 2 Faz A: conditions, tabs, lookup, server paging and input validation.
       "visibleWhen", "disabledWhen", "disabledReason", "tabs", "defaultTab",
       "optionDescriptionColumn", "minChars", "staticOptions", "allowClear",
@@ -150,7 +152,7 @@ internal static partial class TenantCustomPageSchema
     private static readonly Regex FacetCountItem = new(@"^[^=]{1,64}=[^=]{1,128}\z", RegexOptions.CultureInvariant, RegexTimeout);
     /// <summary>v2 properties whose string value may contain <c>{{PATH}}</c> expressions.</summary>
     private static readonly HashSet<string> BindableProps = new(StringComparer.Ordinal)
-    { "text", "title", "description", "label", "value", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
+    { "text", "title", "description", "label", "value", "compareValue", "progressTotal", "placeholder", "defaultValue", "confirmText", "successMessage", "errorMessage", "disabledReason",
       "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "href", "queryText", "titleCount", "subtitle", "promptText", "deleteConfirmText" };
     /// <summary>Button query-action messages have tighter limits than other bindable text.</summary>
     private static readonly Dictionary<string, int> MessageLimits = new(StringComparer.Ordinal) { ["confirmText"] = 300, ["successMessage"] = 200, ["errorMessage"] = 200, ["disabledReason"] = 200,
@@ -766,9 +768,23 @@ internal static partial class TenantCustomPageSchema
             foreach (var key in new[] { "backgroundColor", "textColor" })
                 if (props.TryGetProperty(key, out var color) && (color.ValueKind != JsonValueKind.String || !IsHexColor(color.GetString())))
                 { error = $"'{key}' yalnızca #RRGGBB renk kodu olabilir."; return false; }
-            if (props.TryGetProperty("items", out var items) && (typeText != "list" || items.ValueKind != JsonValueKind.Array
+            if (props.TryGetProperty("items", out var items) && (typeText is not ("list" or "alert" or "card") || items.ValueKind != JsonValueKind.Array
                 || items.GetArrayLength() > 40 || items.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String)))
-            { error = "Liste bileşeni en fazla 40 metin öğesi içerebilir."; return false; }
+            { error = "Liste, bilgi ve bildirim bileşeni en fazla 40 metin öğesi içerebilir."; return false; }
+            if (props.TryGetProperty("textAlign", out var textAlign) && (typeText is not ("heading" or "text" or "label" or "section")
+                || textAlign.ValueKind != JsonValueKind.String || textAlign.GetString() is not ("start" or "center")))
+            { error = "'textAlign' yalnız metin bileşenlerinde start veya center olabilir."; return false; }
+            if (props.TryGetProperty("dismissible", out var dismissible) && (typeText is not ("alert" or "card") || !IsBool(dismissible)))
+            { error = "'dismissible' yalnız bildirim ve bilgi kartında true veya false olabilir."; return false; }
+            if (props.TryGetProperty("compareValue", out var compareValue) && (typeText != "metric"
+                || compareValue.ValueKind != JsonValueKind.String || compareValue.GetString()!.Length > 200))
+            { error = "'compareValue' yalnız göstergede en fazla 200 karakterlik metin olabilir."; return false; }
+            if (typeText == "metric" && props.TryGetProperty("size", out var metricSize)
+                && (metricSize.ValueKind != JsonValueKind.String || metricSize.GetString() is not ("sm" or "lg")))
+            { error = "Göstergede 'size' sm veya lg olmalıdır."; return false; }
+            if (props.TryGetProperty("progressTotal", out var progressTotal) && (typeText != "progress"
+                || progressTotal.ValueKind != JsonValueKind.String || progressTotal.GetString()!.Length > 200))
+            { error = "'progressTotal' yalnız ilerleme göstergesinde en fazla 200 karakterlik metin olabilir."; return false; }
             if (props.TryGetProperty("variant", out var variant) && (typeText is "alert" or "badge" || context.V2 && typeText == "metric")
                 && (variant.ValueKind != JsonValueKind.String || variant.GetString() is not ("info" or "success" or "warning" or "danger")))
             { error = "Bileşen görünüm türü info, success, warning veya danger olmalıdır."; return false; }
