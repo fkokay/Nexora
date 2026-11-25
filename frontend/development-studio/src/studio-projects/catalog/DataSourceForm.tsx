@@ -15,7 +15,8 @@ export type DataSourceFormProps = {
   entry: CatalogEntry | null;
   existingCodes: string[];
   canEdit: boolean;
-  isTenantAdmin: boolean;
+  /** Firma yöneticisi ya da Studio yazılımcısı: önizleme ve sürüm yayını (sunucu da aynı kuralı uygular). */
+  canDevelop: boolean;
   token: string;
   operations: ErpOperation[] | null;
   writeFiles: WriteCatalogFiles;
@@ -87,7 +88,7 @@ export function ParameterTable({ rows, disabled, withTrial, onChange }: {
   );
 }
 
-export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAdmin, token, operations, writeFiles, onSaved, onDirtyChange, fileShas = {} }: DataSourceFormProps) {
+export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop, token, operations, writeFiles, onSaved, onDirtyChange, fileShas = {} }: DataSourceFormProps) {
   const json = entry?.json ?? {};
   const initialSource = readSource(json.source);
   const [label, setLabel] = useState(typeof json.label === "string" ? json.label : "");
@@ -133,7 +134,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
   const invalid = () => validateEntry(code, label, isNew, existingCodes, sourceKind, sql, operation);
 
   async function preview() {
-    if (!isTenantAdmin || sourceKind !== "sql") return;
+    if (!canDevelop || sourceKind !== "sql") return;
     const problem = invalid();
     if (problem) { setError(problem); return; }
     setBusy(true); setError(""); setNotice("");
@@ -207,11 +208,11 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
               <WorkspaceCodeEditor path={`${root}/veri/${code || "yeni"}.sql`} value={sql} readOnly={locked} onChange={setSql} />
             </div>
             <div className="sp-cw-bar">
-              <button type="button" className="ns-btn sp-cw-dev" disabled={!isTenantAdmin || busy} onClick={() => void preview()}>
+              <button type="button" className="ns-btn sp-cw-dev" disabled={!canDevelop || busy} onClick={() => void preview()}>
                 <Play size={14} /> Önizle
               </button>
               <span className="sp-cw-hint">
-                {isTenantAdmin ? `Firma verisiyle okuma oturumunda çalışır · en fazla ${PREVIEW_ROWS} satır` : "Yalnızca firma yöneticisi önizleyebilir."}
+                {canDevelop ? `Firma verisiyle okuma oturumunda çalışır · en fazla ${PREVIEW_ROWS} satır` : "Yalnızca yazılımcı ya da yönetici önizleyebilir."}
               </span>
             </div>
             {result && (

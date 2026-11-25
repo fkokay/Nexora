@@ -33,7 +33,7 @@ const entry: CatalogEntry = {
 const storePreview = vi.mocked(api.storePreview);
 const runPreview = vi.mocked(api.runPreview);
 const props = () => ({
-  root, entry, existingCodes: ["cariler"], canEdit: true, isTenantAdmin: true, token: "t",
+  root, entry, existingCodes: ["cariler"], canEdit: true, canDevelop: true, token: "t",
   operations: [], writeFiles: vi.fn(async () => {}),
 });
 const columnCodes = (host: HTMLElement) =>
@@ -86,10 +86,10 @@ describe("DataSourceForm", () => {
     expect(host.querySelector(".sp-cw-result")?.textContent).toContain("C-1");
   });
 
-  it("non_admin_preview_button_disabled_with_notice", async () => {
-    const host = await render(<DataSourceForm {...props()} isTenantAdmin={false} />);
+  it("non_developer_preview_button_disabled_with_notice", async () => {
+    const host = await render(<DataSourceForm {...props()} canDevelop={false} />);
     expect(button(host, "Önizle")!.disabled).toBe(true);
-    expect(host.textContent).toContain("Yalnızca firma yöneticisi önizleyebilir.");
+    expect(host.textContent).toContain("Yalnızca yazılımcı ya da yönetici önizleyebilir.");
     await click(button(host, "Önizle"));
     expect(storePreview).not.toHaveBeenCalled();
   });
