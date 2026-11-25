@@ -45,6 +45,7 @@ const MAX_DESCRIPTION = 300;
 
 // ---------- genel yardımcılar (listPanelModel ile aynı kurallar) ----------
 
+const RESERVED_NAMES = ["kullanici", "bugun", "sayilar", "onceki", "sayfa", "__proto__", "constructor", "prototype"];
 const blockedOf = (item: object): string | undefined => (item as { blockedReason?: string }).blockedReason;
 const keyColumnOf = (ds: CatalogDataSource) => ds.columns.find((column) => column.key)?.code;
 
@@ -62,8 +63,9 @@ function takenIds(def: ModelDefinition): Set<string> {
   };
   visit(def.components);
   for (const query of def.queries) { taken.add(query.id.toLowerCase()); taken.add(query.name.toLowerCase()); }
-  // Kayıt sorgusunun adı her zaman ayrılmıştır (kaynak seçilmeden önce de).
-  taken.add(RECORD_QUERY_ID);
+  // Kayıt sorgusunun adı her zaman ayrılmıştır (kaynak seçilmeden önce de); kimlikler kolon adından türediği için sunucunun
+  // ayrılmış adları da (TenantCustomPageQueries.ReservedNames, RuntimeReservedNames, ObjectKeyNames) alınamaz.
+  for (const name of [RECORD_QUERY_ID, ...RESERVED_NAMES]) taken.add(name);
   return taken;
 }
 /** Sayfada kullanılmayan ilk ad: base, base2, base3… Kimlik sunucunun bileşen kimliği kuralına uyar. */
@@ -201,7 +203,8 @@ function fieldProps(column: CatalogColumn): Record<string, PropValue> {
   return {
     slot: "field", inputType, label: column.label.trim().slice(0, MAX_TEXT) || column.code, defaultValue: rowBinding(column.code),
     ...(column.type === "text" && column.longText ? { multiline: true } : {}),
-    ...(column.required ? { required: true } : {}),
+    // ERP'de zorunlu onay kutusu işaretlenmeden kaydedilemez; katalogdaki `required` "değer boş olamaz" demektir, kopyalanmaz.
+    ...(column.required && column.type !== "bool" ? { required: true } : {}),
     ...(column.type === "text" && column.maxLength !== null ? { maxLength: column.maxLength } : {}),
     ...(column.type === "guid" && !column.key ? { readOnly: true } : {}),
   };
@@ -314,7 +317,9 @@ export function chooseRecordSource<D extends ModelDefinition>(def: D, ds: Catalo
   const title = ordered.find((column) => column.code !== key && column.type === "text");
   next = setSummary(next, title?.code ?? key, title ? [key] : [], []);
 
-  const matching = (kind: CatalogAction["kind"]) => catalog.actions.filter((action) => action.kind === kind && recordActionUsable(next, action).usable);
+  // Güncelle ve sil bu kaydı anahtarıyla hedeflemeli: anahtar bilgisi olmayan (ör. zenginleşmemiş ERP işlemi) eylem kendiliğinden bağlanmaz.
+  const matching = (kind: CatalogAction["kind"]) => catalog.actions.filter((action) => action.kind === kind && recordActionUsable(next, action).usable
+    && (kind === "insert" || action.parameters.some((item) => item.name === key)));
   const inserts = matching("insert"); const updates = matching("update"); const deletes = matching("delete");
   // Karar 12: yalnız tek eşleşme kendiliğinden bağlanır; *ekle* ya da *güncelle* için birden çok aday varsa Kaydet boş kalır.
   if (inserts.length <= 1 && updates.length <= 1 && inserts.length + updates.length > 0) next = setSaveActions(next, inserts[0] ?? null, updates[0] ?? null);
@@ -467,7 +472,7 @@ export function fieldLocks(def: ModelDefinition, inputId: string, catalog: Activ
   const column = fieldKey(def, inputId);
   if (!column) return { required: false, readOnly: false };
   const catalogColumn = recordSourceOf(def, catalog)?.columns.find((item) => item.code === column);
-  return { required: catalogColumn?.required === true, readOnly: catalogColumn?.key === true || column === recordKey(def) };
+  return { required: catalogColumn?.required === true && catalogColumn.type !== "bool", readOnly: catalogColumn?.key === true || column === recordKey(def) };
 }
 
 /**

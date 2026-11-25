@@ -6,7 +6,7 @@ import {
   actionMissingField, addExtraAction, addField, addLines, addNote, addSection, addTab, chooseRecordSource, deleteAction, extraActions, fieldKey,
   fieldLocks, fieldRemovalBlocked, LINES_SOURCE_NEEDS_KEY, linesSourceUsable, missingRecordColumns, moveBlock, moveField, recordActionUsable,
   recordSourceUsable, recordTabs, RECORD_SOURCE_NEEDS_KEY, removeBlock, removeExtraAction, removeField, removeSection, removeTab, renameTab,
-  saveActions, setDeleteAction, setFieldProps, setLinesProps, setSaveActions, setSectionColumns, setSectionTitle, setSectionVisibleWhen, setSummary,
+  saveActions, setDeleteAction, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle, setSectionVisibleWhen, setSummary,
   usedColumns,
 } from "./recordModel";
 
@@ -125,6 +125,20 @@ describe("chooseRecordSource", () => {
     expect(next.queries.map((query) => query.id)).toEqual(["kayit"]);
     expect(next.queries[0].parameters[0].binding).toBe("{{sayfa.parametre.id}}");
     expect(chooseRecordSource(next, stok, catalog([]))).toBe(next);
+  });
+
+  it("ids avoid reserved names; required checkbox is not copied", () => {
+    const odd = { ...cari, columns: [...cari.columns, col("sayfa", "Sayfa"), col("kayit", "Kayıt"), col("onay", "Onay", { type: "bool", required: true })] };
+    const def = chooseRecordSource(fresh(), odd, catalog([], [odd]));
+    expect(fieldOf(def, "sayfa").id).toBe("sayfa2");
+    expect(fieldOf(def, "kayit").id).toBe("kayit2");
+    expect(fieldOf(def, "onay").props.required).toBeUndefined();
+    expect(fieldLocks(def, fieldOf(def, "onay").id, catalog([], [odd])).required).toBe(false);
+  });
+
+  it("update or delete without the key parameter is not auto-bound", () => {
+    const def = built([{ ...guncelle, parameters: [{ name: "unvan", type: "text" }] }, { ...sil, parameters: [] }]);
+    expect(buttons(def)).toEqual([]);
   });
 
   it("spills more than 12 columns into further sections of the same tab", () => {
@@ -248,6 +262,30 @@ describe("sections and tabs", () => {
     for (let index = 0; index < 7; index++) def = addTab(def).def;
     expect(recordTabs(def)).toHaveLength(8);
     expect(addTab(deepFreeze(def))).toEqual({ def, tabIndex: -1 });
+    // Bölüm en çok 12 alan alır.
+    const wide = { ...cari, columns: [...cari.columns, ...Array.from({ length: 6 }, (_, index) => col(`ek${index}`, `Ek ${index}`))] };
+    const full = deepFreeze(removeField(chooseRecordSource(fresh(), wide, catalog([], [wide])), "ek5"));
+    expect((section(full).props.inputs as string[]).length).toBe(12);
+    expect(addField(full, wide.columns[12], "genel", 0)).toBe(full);
+    const { def: other, sectionId } = addSection(full, 0);
+    const spare = deepFreeze(addField(other, wide.columns[12], sectionId, 0));
+    expect(moveField(spare, "ek5", "genel", 0)).toBe(spare);
+    // Sekme en çok 20 blok alır.
+    let blocks: ModelDefinition = built([]);
+    for (let index = 0; index < 19; index++) blocks = addNote(blocks, 0, 99, `Not ${index}`);
+    blocks = deepFreeze(blocks);
+    expect(recordTabs(blocks)[0].ids).toHaveLength(20);
+    expect(addNote(blocks, 0, 0, "Bir tane daha")).toBe(blocks);
+    expect(addSection(blocks, 0)).toEqual({ def: blocks, sectionId: "" });
+    const { def: twoTabs } = addTab(blocks);
+    expect(moveBlock(deepFreeze(twoTabs), "bolum", 0, 0)).toBe(twoTabs);
+  });
+
+  it("setNoteText writes the note and ignores empty text", () => {
+    const def = deepFreeze(addNote(built([]), 0, 1, "Eski"));
+    expect(byId(setNoteText(def, "aciklama", " Yeni metin "), "aciklama").props.text).toBe("Yeni metin");
+    expect(setNoteText(def, "aciklama", "  ")).toBe(def);
+    expect(setNoteText(def, "genel", "x")).toBe(def);
   });
 });
 
@@ -316,7 +354,7 @@ describe("summary, lines and notes", () => {
     expect(byId(set, "tablo").props).toMatchObject({ title: "Son hareketler", columns: ["k7", "k0"], columnLabels: ["k7=Yedi", "k0=Kolon 0"], pageSize: 25, emptyText: "Hareket yok" });
     const noted = deepFreeze(addNote(set, 0, 0, "Açıklama"));
     expect(recordTabs(noted)[0].ids).toEqual(["aciklama", "genel", "tablo"]);
-    const { def: two } = addTab(noted);
+    const two = deepFreeze(addTab(noted).def);
     const moved = deepFreeze(moveBlock(two, "tablo", 1, 0));
     expect(recordTabs(moved).map((tab) => tab.ids)).toEqual([["aciklama", "genel"], ["tablo", "bolum"]]);
     const removed = removeBlock(moved, "tablo");
