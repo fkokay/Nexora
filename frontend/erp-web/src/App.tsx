@@ -1,6 +1,8 @@
 import { WorkspaceAuthPage } from "./WorkspaceAuthPage";
 import { PlatformAdminShellPage } from "./PlatformAdminShellPage";
 import { EmbeddedStudioWaitingPage } from "./EmbeddedStudioWaitingPage";
+import DesignerCanvasHost from "./designer-canvas/DesignerCanvasHost";
+import { readCanvasParams } from "./designer-canvas/canvasProtocol";
 import { type GlobalSearchResult, type Locale } from "./WorkspaceComponents";
 import { WorkspaceShellPage } from "./WorkspaceShellPage";
 import { ModuleLauncher } from "./ModuleLauncherPage";
@@ -78,6 +80,7 @@ function AppContent() {
   const searchParams = new URLSearchParams(window.location.search);
   const standaloneStudio = searchParams.get("app") === "studio";
   const embeddedStudioTool = searchParams.get("embeddedStudio") === "1";
+  const canvasParams = readCanvasParams(window.location.search);
   const trustedStudioOrigin = (() => {
     const configuredStudioUrl =
       import.meta.env.VITE_STUDIO_URL ||
@@ -896,6 +899,14 @@ function AppContent() {
     );
   if (embeddedStudioTool && (!token || !tenant))
     return <EmbeddedStudioWaitingPage />;
+  if (canvasParams)
+    return (
+      <DesignerCanvasHost
+        token={token}
+        params={canvasParams}
+        studioOrigin={trustedStudioOrigin}
+      />
+    );
   if (!tenant)
     return (
       <WorkspaceAuthPage

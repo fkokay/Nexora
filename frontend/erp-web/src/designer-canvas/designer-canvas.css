@@ -1,0 +1,6 @@
+/* Tasarımcı tuvali: içerik yüksekliğini Studio taşır; iframe içinde kaydırma çubuğu ve arka plan olmaz. */
+html:has(.designer-canvas-root),
+body:has(.designer-canvas-root) {
+  overflow: hidden;
+  background: transparent;
+}
