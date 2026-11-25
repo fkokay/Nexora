@@ -2160,7 +2160,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     [query.name, previewScopeState(preview.entries[query.name])])), [previewQueries, preview.entries]);
   const { states: pageStates, scope, rerun, runWrite, runRead, callOperation, clearResults, resetReads, fetchRead } = usePageQueries({
     queries: isV2 ? pageQueries : [], token, pageCode: page.code, previewId, buildScope: (current) => effective({ ...current, ...previewStates }).scope,
-    operations: erpOperations.operations,
+    operations: erpOperations.operations, operationsError: erpOperations.error,
   });
   const states = useMemo<Record<string, QueryState>>(() => (previewQueries.length > 0 ? { ...pageStates, ...previewStates } : pageStates),
     [pageStates, previewStates, previewQueries]);

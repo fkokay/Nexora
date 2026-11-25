@@ -91,6 +91,7 @@ public sealed class TenantCatalogEndpointsIntegrationTests
         Assert.Equal("Draft", item.GetProperty("status").GetString());
         Assert.False(item.TryGetProperty("bundleJson", out _));
         Assert.Equal(row.BundleSha256, item.GetProperty("bundleSha256").GetString());
+        Assert.Equal("catalog.json", item.GetProperty("sourcePath").GetString());
     }
 
     [Fact]
@@ -163,6 +164,7 @@ public sealed class TenantCatalogEndpointsIntegrationTests
 
         var catalog = await Json(await client.GetAsync("/api/custom-pages/catalog"));
         Assert.Equal(second, catalog.GetProperty("releaseId").GetGuid());
+        Assert.Equal("catalog.json", catalog.GetProperty("sourcePath").GetString());
         Assert.Empty(catalog.GetProperty("actions").EnumerateArray());
         // Activating the already active release is rejected.
         Assert.Equal(HttpStatusCode.Conflict, (await Activate(client, second, second)).StatusCode);
@@ -466,6 +468,7 @@ public sealed class TenantCatalogEndpointsIntegrationTests
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
         var catalog = await Json(await client.GetAsync("/api/custom-pages/catalog"));
         Assert.Equal(JsonValueKind.Null, catalog.GetProperty("releaseId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, catalog.GetProperty("sourcePath").ValueKind);
         Assert.Empty(catalog.GetProperty("dataSources").EnumerateArray());
         Assert.Empty(catalog.GetProperty("actions").EnumerateArray());
     }
@@ -474,6 +477,8 @@ public sealed class TenantCatalogEndpointsIntegrationTests
     [InlineData("GET", "/api/custom-pages/catalog", "/api/custom-pages/catalog", "erp.tenant-customizations.read")]
     [InlineData("GET", "/api/custom-pages/catalog/releases", "/api/custom-pages/catalog/releases", "erp.tenant-customizations.read")]
     [InlineData("POST", "/api/custom-pages/catalog/releases", "/api/custom-pages/catalog/releases", "erp.tenant-customizations.create")]
+    [InlineData("POST", "/api/custom-pages/catalog/previews", "/api/custom-pages/catalog/previews", "erp.tenant-customizations.create")]
+    [InlineData("POST", "/api/custom-pages/catalog/previews/7d7b5b0e-7c1f-4c38-9d55-2a8f1f7b3a10/items/cariler/run", "/api/custom-pages/catalog/previews/{id:guid}/items/{code}/run", "erp.tenant-customizations.execute")]
     [InlineData("POST", "/api/custom-pages/catalog/releases/7d7b5b0e-7c1f-4c38-9d55-2a8f1f7b3a10/activate", "/api/custom-pages/catalog/releases/{id:guid}/activate", "erp.tenant-customizations.execute")]
     public void Catalog_routes_resolve_to_tenant_customizations_permission(string method, string path, string routePattern, string expectedCode)
     {

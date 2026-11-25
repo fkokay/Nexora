@@ -32,11 +32,23 @@ export function personRoleLabel(p: Person): string {
   return p.studioRole === null ? `${label} (varsayılan)` : label;
 }
 
-/** Platform API'nin üye ekleme hata kodları; kod yoksa aday bulunamamıştır. */
+/** Platform API'nin üye ekleme hata kodları (`/api/access-control/members`). */
+const inviteErrors: Record<string, string> = {
+  "license.user_limit": "Lisansınızın kullanıcı sınırına ulaşıldı.",
+  "license.required": "Firmanın etkin bir şirket lisansı yok. Kişi eklemek için önce lisansı etkinleştirin.",
+  "license.expired": "Firmanın şirket lisansının süresi dolmuş. Kişi eklemek için lisansı yenileyin.",
+  "license.invalid": "Firmanın şirket lisansı geçersiz. Kişi eklemek için geçerli bir lisans etkinleştirin.",
+  "membership.exists": "Bu kişi zaten firmada.",
+  "membership.conflict": "Üyelik aynı anda başka biri tarafından değiştirildi. Listeyi yenileyip yeniden deneyin.",
+};
+
+/** Kodun Türkçe karşılığı var mı; yoksa ekran genel hata metnini gösterir. */
+export const isKnownInviteError = (code?: string) => code !== undefined && Object.hasOwn(inviteErrors, code);
+
+/** Üye ekleme hata metni; kod yoksa aday bulunamamıştır. */
 export function inviteErrorMessage(code?: string): string {
-  if (code === "license.user_limit") return "Lisansınızın kullanıcı sınırına ulaşıldı.";
-  if (code === "membership.exists") return "Bu kişi zaten firmada.";
-  return "Bu e-postayla kayıtlı bir Nexora kullanıcısı yok.";
+  return (code !== undefined && Object.hasOwn(inviteErrors, code) ? inviteErrors[code] : undefined)
+    ?? "Bu e-postayla kayıtlı bir Nexora kullanıcısı yok.";
 }
 
 /** `<select>` değerleri metindir; boş metin "Varsayılan" (null) demektir. */

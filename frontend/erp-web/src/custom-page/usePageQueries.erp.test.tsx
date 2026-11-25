@@ -153,10 +153,39 @@ describe('usePageQueries ERP işlemleri', () => {
     expect(thrown?.serverError).toBeUndefined();
   });
 
-  it('write before the catalog loads reports the catalog, not an unknown operation', async () => {
-    const { result } = setup([updateQuery], null);
-    await expect(result.current.runWrite(updateQuery, { name: 'B' })).rejects.toThrow('ERP işlem kataloğu henüz yüklenmedi.');
+  it('write before the catalog loads waits for the catalog and then runs', async () => {
+    // Katalog gelince yazma normal yoluna devam eder: kaynak kayıt seçilmediği için kendi doğrulamasıyla durur.
+    const { result, rerender } = setup([updateQuery], null);
+    const write = result.current.runWrite(updateQuery, { name: 'B' });
+    await act(async () => { await Promise.resolve(); });
     expect(apiMock).not.toHaveBeenCalled();
+    rerender({ operations: catalog });
+    let failure: unknown;
+    await act(async () => { await write.catch((cause) => { failure = cause; }); });
+    expect(String(failure)).toContain('Kaynak kayıt yüklenmedi');
+    expect(String(failure)).not.toContain('kataloğu');
+  });
+
+  it('write waiting for the catalog ends with the catalog error', async () => {
+    const { result, rerender } = renderHook((props: { operations: Map<string, ErpOperation> | null; error: string }) =>
+      usePageQueries({ queries: [updateQuery], token: 't', pageCode: 'sayfa', buildScope, operations: props.operations, operationsError: props.error }),
+    { initialProps: { operations: null as Map<string, ErpOperation> | null, error: '' } });
+    const write = result.current.runWrite(updateQuery, { name: 'B' });
+    rerender({ operations: null, error: 'Katalog sunucusu yanıt vermedi.' });
+    await expect(write).rejects.toThrow('Katalog sunucusu yanıt vermedi.');
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  it('write gives up when the catalog never arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = setup([updateQuery], null);
+      const write = result.current.runWrite(updateQuery, { name: 'B' });
+      const settled = expect(write).rejects.toThrow('ERP işlem kataloğu henüz yüklenmedi.');
+      await vi.advanceTimersByTimeAsync(15_000);
+      await settled;
+      expect(apiMock).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
   });
 
   it('detail read with an unselected source sends nothing and shows no error', async () => {
