@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Save } from "lucide-react";
 import { WorkspaceCodeEditor } from "../../WorkspaceCodeEditor";
 import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
-import type { CatalogEntry, CatalogFile } from "./catalogFiles";
+import type { CatalogEntry } from "./catalogFiles";
 import { ParameterTable } from "./DataSourceForm";
 import {
-  parametersJson, readParameters, readSource, saveEntry, usableOperations, validateEntry,
+  parametersJson, readParameters, readSource, saveEntry, type WriteCatalogFiles, usableOperations, validateEntry,
   type ParameterRow, type SourceKind,
 } from "./catalogFormModel";
 
@@ -16,14 +16,16 @@ export type ActionFormProps = {
   existingCodes: string[];
   canEdit: boolean;
   operations: ErpOperation[] | null;
-  writeFiles: (files: CatalogFile[]) => Promise<void>;
+  writeFiles: WriteCatalogFiles;
+  /** Dosya yolu → sha256; form açıldığında kopyalanır ve kayıtta beklenen sha olarak gönderilir. */
+  fileShas?: Record<string, string>;
   onSaved?: (code: string) => void;
 };
 
 const KINDS = [["insert", "Ekle"], ["update", "Güncelle"], ["delete", "Sil"]] as const;
 const TARGETS: [string, string][] = [["row", "Satır"], ["page", "Sayfa"]];
 
-export function ActionForm({ root, entry, existingCodes, canEdit, operations, writeFiles, onSaved }: ActionFormProps) {
+export function ActionForm({ root, entry, existingCodes, canEdit, operations, writeFiles, onSaved, fileShas = {} }: ActionFormProps) {
   const json = entry?.json ?? {};
   const initialSource = readSource(json.run);
   const initialConfirm = json.confirm && typeof json.confirm === "object" ? (json.confirm as { text?: unknown }).text : undefined;
@@ -39,6 +41,7 @@ export function ActionForm({ root, entry, existingCodes, canEdit, operations, wr
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const seededShas = useRef<Record<string, string>>({ ...fileShas });
   const isNew = entry === null;
   const locked = !canEdit || busy;
   const kindOperations = usableOperations(operations, kind);
@@ -71,7 +74,7 @@ export function ActionForm({ root, entry, existingCodes, canEdit, operations, wr
     if (problem) { setError(problem); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      const outcome = await saveEntry(root, currentEntry(), writeFiles);
+      const outcome = await saveEntry(root, currentEntry(), writeFiles, seededShas.current);
       if (outcome === "cancelled") return;
       if (outcome) { setError(outcome); return; }
       setNotice("Kaydedildi. Yayınlamak için önce değişiklikleri commit edin.");

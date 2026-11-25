@@ -10,6 +10,9 @@ export const TYPE_LABELS: Record<string, string> = {
 /** Sunucunun ad kuralı (TenantCustomPageQueries.NamePattern); kod dosya yoluna da girdiği için yazmadan önce denetlenir. */
 export const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
+/** Dosyaları yazar; yazılanları yeni sha'larıyla döndürebilir. `sha256` beklenen (formun açıldığı andaki) sha'dır. */
+export type WriteCatalogFiles = (files: CatalogFile[]) => Promise<CatalogFile[] | void>;
+
 export type ParameterRow = { name: string; type: string; trial: string };
 export type ColumnRow = { code: string; label: string; type: string; key: boolean; isNew: boolean };
 export type SourceKind = "sql" | "erp";
@@ -69,7 +72,9 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
  * Önce SQL, sonra JSON yazılır; her dosya ayrı bir yazmadır ve ilk hatada durulur.
  * SQL yazılamazsa JSON hiç yazılmaz, katalog yarım kalmaz. Dönen değer hata metnidir (başarıda null).
  */
-export async function saveEntry(root: string, entry: CatalogEntry, writeFiles: (files: CatalogFile[]) => Promise<void>): Promise<string | null | "cancelled"> {
+export async function saveEntry(
+  root: string, entry: CatalogEntry, writeFiles: WriteCatalogFiles, seededShas: Record<string, string>,
+): Promise<string | null | "cancelled"> {
   const files = entryFiles(root, entry);
   const ok = await confirmDialog({
     title: "Yapı taşı dosyalara kaydedilsin mi?",
@@ -79,7 +84,13 @@ export async function saveEntry(root: string, entry: CatalogEntry, writeFiles: (
   });
   if (!ok) return "cancelled";
   for (const file of files) {
-    try { await writeFiles([file]); } catch (error) { return `Kaydedilemedi: ${errorText(error)}`; }
+    try {
+      // Formun açıldığı andaki sha gönderilir; dosya sonradan değiştiyse sunucu kaydı reddeder.
+      const written = await writeFiles([{ ...file, sha256: seededShas[file.path] }]);
+      for (const saved of written ?? []) if (saved.sha256) seededShas[saved.path] = saved.sha256;
+    } catch (error) {
+      return `Kaydedilemedi: ${errorText(error)}`;
+    }
   }
   return null;
 }

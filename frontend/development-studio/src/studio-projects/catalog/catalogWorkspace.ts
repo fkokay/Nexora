@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import type { AppliedCodeSuggestion, WorkspaceFileContent, WorkspaceFileEntry, WorkspaceFileListing, WorkspaceGitStatus } from "../types";
 import { findCatalogRoot, readCatalogEntries, type CatalogFile } from "./catalogFiles";
@@ -20,9 +20,23 @@ export async function listDirectory(read: WorkspaceRead, base: string, path: str
   return entries;
 }
 
-/** Olmayan klasör (ör. henüz veri/ içermeyen yeni modül) boş sayılır. */
-const listOrEmpty = (read: WorkspaceRead, base: string, path: string) => listDirectory(read, base, path).catch(() => [] as WorkspaceFileEntry[]);
 const hasCatalogFolder = (entries: WorkspaceFileEntry[]) => entries.some(e => e.kind === "Directory" && CATALOG_FOLDERS.includes(e.name));
+
+/**
+ * Klasör varsa girdileri, yoksa null. Varlık üst klasörlerin listesinden anlaşılır; okuma hataları (yetki, ağ)
+ * yutulmaz, yukarı iletilir. Böylece okunamayan katalog boş katalog sanılıp yayınlanamaz.
+ */
+export async function listIfExists(read: WorkspaceRead, base: string, path: string): Promise<WorkspaceFileEntry[] | null> {
+  const parts = path.split("/").filter(Boolean);
+  let current = "";
+  for (const part of parts) {
+    const entries = await listDirectory(read, base, current);
+    const next = current ? `${current}/${part}` : part;
+    if (!entries.some(e => e.kind === "Directory" && (e.path === next || e.name === part))) return null;
+    current = next;
+  }
+  return listDirectory(read, base, current);
+}
 
 /**
  * Katalog kökü: "Modül kodu:" varsa `modules/<kod>`; yoksa `veri/` ya da `eylemler/` içeren tek `modules/<x>` klasörü.
@@ -30,15 +44,16 @@ const hasCatalogFolder = (entries: WorkspaceFileEntry[]) => entries.some(e => e.
  */
 export async function detectCatalogRoot(read: WorkspaceRead, base: string, moduleCode: string): Promise<string | null> {
   if (moduleCode) return findCatalogRoot(moduleCode, [], []);
-  const modules = (await listOrEmpty(read, base, "modules")).filter(e => e.kind === "Directory");
+  const modules = ((await listIfExists(read, base, "modules")) ?? []).filter(e => e.kind === "Directory");
   const withCatalog: string[] = [];
-  for (const dir of modules) if (hasCatalogFolder(await listOrEmpty(read, base, dir.path))) withCatalog.push(dir.path);
+  for (const dir of modules) if (hasCatalogFolder(await listDirectory(read, base, dir.path))) withCatalog.push(dir.path);
   return findCatalogRoot(null, modules.map(m => m.path), withCatalog);
 }
 
 /** `veri/` ve `eylemler/` altındaki .json ve .sql dosyaları, içerik ve sha256 ile. */
 export async function loadCatalogFiles(read: WorkspaceRead, base: string, root: string): Promise<CatalogFile[]> {
-  const rootEntries = await listOrEmpty(read, base, root);
+  // Henüz oluşturulmamış modül klasörü (yeni modül) boş katalogdur.
+  const rootEntries = (await listIfExists(read, base, root)) ?? [];
   const files: CatalogFile[] = [];
   for (const folder of rootEntries.filter(e => e.kind === "Directory" && CATALOG_FOLDERS.includes(e.name))) {
     const entries = await listDirectory(read, base, folder.path);
@@ -57,7 +72,10 @@ export function catalogGitState(status: WorkspaceGitStatus | null, root: string)
   return { changedPaths, hasUncommitted: !status || status.truncated || changedPaths.length > 0 };
 }
 
-type CatalogWorkspaceState = { key: string; root: string; files: CatalogFile[]; git: WorkspaceGitStatus | null; written: string[] };
+/** Her okuma yeni bir sürüm numarası alır; görünüm formları buna göre yeniden kurar. */
+let loadCount = 0;
+
+type CatalogWorkspaceState = { key: string; version: number; root: string; files: CatalogFile[]; git: WorkspaceGitStatus | null; written: string[] };
 
 /**
  * Çalışma alanının katalog kökünü ve dosyalarını yükler, yazmaları (apply-code-suggestion) yapar.
@@ -76,7 +94,7 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
     const root = await detectCatalogRoot(read, base, moduleCode);
     if (!root) return null;
     const [files, git] = await Promise.all([loadCatalogFiles(read, base, root), readGit()]);
-    return { key, root, files, git, written: [] };
+    return { key, version: ++loadCount, root, files, git, written: [] };
   }, [key, base, moduleCode, read, readGit]);
 
   useEffect(() => {
@@ -91,44 +109,48 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
   }, [key, load]);
 
   const current = state && state.key === key ? state : null;
-  const filesRef = useRef<CatalogFile[]>([]);
-  filesRef.current = current?.files ?? [];
 
-  /** Tek dosya yazar; dönen sha256 ve içerik durumda tutulur, sonraki kayıt eski sha ile reddedilmez. */
-  const writeFiles = useCallback(async (files: CatalogFile[]) => {
+  /**
+   * Dosyaları sırayla yazar. `sha256`, formun açıldığı andaki dosyanın sha'sıdır (yoksa dosya o an yoktu):
+   * dosya sonradan değiştiyse sunucu eski sha hatası verir, daha yeni içerik ezilmez.
+   * Yazılan dosyalar yeni sha'larıyla döner; form sonraki kaydını onlarla yapar.
+   */
+  const writeFiles = useCallback(async (files: CatalogFile[]): Promise<CatalogFile[]> => {
+    const written: CatalogFile[] = [];
     for (const file of files) {
-      const existing = filesRef.current.find(f => f.path === file.path);
       const applied = await api<AppliedCodeSuggestion>(`${base}/apply-code-suggestion`, token, {
         method: "POST",
         body: JSON.stringify({
           filePath: file.path,
-          expectedSha256: existing?.sha256 ?? "",
+          expectedSha256: file.sha256 ?? "",
           proposedContent: file.content,
           approvalConfirmed: true,
-          createNewFile: !existing,
+          createNewFile: file.sha256 === undefined,
           manualEdit: true,
         }),
       });
       const saved = { path: file.path, content: file.content, sha256: applied.sha256 };
-      filesRef.current = [...filesRef.current.filter(f => f.path !== file.path), saved];
+      written.push(saved);
       setState(s => s && {
         ...s,
         files: [...s.files.filter(f => f.path !== file.path), saved],
         written: s.written.includes(file.path) ? s.written : [...s.written, file.path],
       });
     }
+    return written;
   }, [base, token]);
 
   /**
    * Dosyalar ve Git durumu yeniden okunur: Dosyalar görünümünde ya da başka bir yoldan yapılan değişiklikler
-   * pakete ve sha'lara yansısın. Yayın penceresi açılmadan önce çağrılır; okunamazsa false döner.
+   * pakete ve sha'lara yansısın. Yayın penceresi açılmadan önce çağrılır; okunamazsa ya da kök artık bulunamıyorsa false döner.
    */
   const refresh = useCallback(async () => {
     if (!key) return false;
     try {
-      setState(await load());
+      const next = await load();
+      setState(next);
       setLoadError("");
-      return true;
+      return next !== null;
     } catch (e) {
       setLoadError((e as Error).message);
       return false;
@@ -141,7 +163,8 @@ export function useCatalogWorkspace(token: string, projectId: string | null, req
   const changedPaths = [...new Set([...gitState.changedPaths, ...current.written])];
   return {
     catalog: {
-      root: current.root, files: current.files, entries, errors, changedPaths,
+      root: current.root, files: current.files, entries, errors, changedPaths, version: current.version,
+      fileShas: Object.fromEntries(current.files.flatMap(f => (f.sha256 ? [[f.path, f.sha256]] : []))),
       hasUncommitted: gitState.hasUncommitted || current.written.length > 0,
       headCommitSha: current.git?.headCommitSha ?? null,
     },

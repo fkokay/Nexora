@@ -459,6 +459,9 @@ export function StudioProjects({
     "files",
   );
   const [catalogReleaseOpen, setCatalogReleaseOpen] = useState(false);
+  useEffect(() => {
+    if (!catalog) setCatalogReleaseOpen(false);
+  }, [catalog]);
   const catalogToggle = catalog ? (
     <span className="sp-cw-toggle" role="group" aria-label="Görünüm">
       <button
@@ -4779,6 +4782,8 @@ export function StudioProjects({
             entries={catalog.entries}
             errors={catalog.errors}
             changedPaths={catalog.changedPaths}
+            fileShas={catalog.fileShas}
+            version={catalog.version}
             canEdit={canEditWorkspace}
             isTenantAdmin={tenant.role === "TenantAdmin"}
             token={token}

@@ -16,6 +16,7 @@ const list = (path: string, offset = 0) => `${B}/files?path=${encodeURIComponent
 describe("catalogWorkspace", () => {
   it("detects_single_module_with_catalog_folder_and_reads_paged_files", async () => {
     const read = reader({
+      [list("")]: { path: "", entries: [dir("modules"), file("README.md")], nextOffset: null },
       [list("modules")]: { path: "modules", entries: [dir("modules/a"), dir("modules/b")], nextOffset: null },
       [list("modules/a")]: { path: "modules/a", entries: [file("modules/a/manifest.json")], nextOffset: null },
       [list("modules/b")]: { path: "modules/b", entries: [dir("modules/b/veri")], nextOffset: null },
@@ -31,6 +32,17 @@ describe("catalogWorkspace", () => {
       { path: "modules/b/veri/x.sql", content: "SELECT 1", sha256: "s2" },
     ]);
     expect(await loadCatalogFiles(read, B, "modules/yok")).toEqual([]);
+  });
+
+  it("listing_errors_propagate_and_only_missing_folders_count_as_empty", async () => {
+    const denied: WorkspaceRead = async <T,>(url: string) => {
+      if (url === list("")) return { path: "", entries: [dir("modules")], nextOffset: null } as T;
+      if (url === list("modules")) return { path: "modules", entries: [dir("modules/b")], nextOffset: null } as T;
+      throw new Error("Bu işlem için yetkiniz yok.");
+    };
+    await expect(loadCatalogFiles(denied, B, "modules/b")).rejects.toThrow("Bu işlem için yetkiniz yok.");
+    await expect(detectCatalogRoot(denied, B, "")).rejects.toThrow("Bu işlem için yetkiniz yok.");
+    expect(await loadCatalogFiles(denied, B, "modules/yeni")).toEqual([]);
   });
 
   it("git_state_blocks_on_catalog_changes_truncation_or_missing_status", () => {

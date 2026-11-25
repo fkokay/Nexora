@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Play, Plus, Save, Trash2 } from "lucide-react";
 import { WorkspaceCodeEditor } from "../../WorkspaceCodeEditor";
 import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
-import { buildBundle, toCatalogColumnType, type CatalogEntry, type CatalogFile } from "./catalogFiles";
+import { buildBundle, toCatalogColumnType, type CatalogEntry } from "./catalogFiles";
 import { runPreview, storePreview, type PreviewResult } from "./catalogApi";
 import {
-  TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry,
+  TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, type WriteCatalogFiles,
   trialValues, usableOperations, validateEntry, type ColumnRow, type ParameterRow, type SourceKind,
 } from "./catalogFormModel";
 
@@ -18,7 +18,9 @@ export type DataSourceFormProps = {
   isTenantAdmin: boolean;
   token: string;
   operations: ErpOperation[] | null;
-  writeFiles: (files: CatalogFile[]) => Promise<void>;
+  writeFiles: WriteCatalogFiles;
+  /** Dosya yolu → sha256; form açıldığında kopyalanır ve kayıtta beklenen sha olarak gönderilir. */
+  fileShas?: Record<string, string>;
   onSaved?: (code: string) => void;
 };
 
@@ -83,7 +85,7 @@ export function ParameterTable({ rows, disabled, withTrial, onChange }: {
   );
 }
 
-export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAdmin, token, operations, writeFiles, onSaved }: DataSourceFormProps) {
+export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAdmin, token, operations, writeFiles, onSaved, fileShas = {} }: DataSourceFormProps) {
   const json = entry?.json ?? {};
   const initialSource = readSource(json.source);
   const [label, setLabel] = useState(typeof json.label === "string" ? json.label : "");
@@ -97,6 +99,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const seededShas = useRef<Record<string, string>>({ ...fileShas });
   const isNew = entry === null;
   const locked = !canEdit || busy;
   const readOperations = usableOperations(operations, "read");
@@ -153,7 +156,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, isTenantAd
     if (problem) { setError(problem); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      const outcome = await saveEntry(root, currentEntry(), writeFiles);
+      const outcome = await saveEntry(root, currentEntry(), writeFiles, seededShas.current);
       if (outcome === "cancelled") return;
       if (outcome) { setError(outcome); return; }
       setNotice("Kaydedildi. Yayınlamak için önce değişiklikleri commit edin.");

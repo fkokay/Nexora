@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../WorkspaceCodeEditor", () => ({
@@ -6,13 +7,14 @@ vi.mock("../../WorkspaceCodeEditor", () => ({
     <textarea aria-label="SQL" value={value} onChange={e => onChange?.(e.target.value)} />
   ),
 }));
-vi.mock("../../ui/confirmDialog", () => ({ confirmDialog: vi.fn() }));
+vi.mock("../../ui/confirmDialog", () => ({ confirmDialog: vi.fn(async () => true) }));
 vi.mock("./catalogApi", async () => {
   const actual = await vi.importActual<typeof import("./catalogApi")>("./catalogApi");
   return { ...actual, storePreview: vi.fn(), runPreview: vi.fn() };
 });
 
 import * as api from "./catalogApi";
+import { confirmDialog } from "../../ui/confirmDialog";
 import { DataSourceForm } from "./DataSourceForm";
 import type { CatalogEntry } from "./catalogFiles";
 import { button, click, field, render, type } from "./testUtils";
@@ -90,5 +92,23 @@ describe("DataSourceForm", () => {
     expect(host.textContent).toContain("Yalnızca firma yöneticisi önizleyebilir.");
     await click(button(host, "Önizle"));
     expect(storePreview).not.toHaveBeenCalled();
+  });
+
+  it("save_sends_sha_seeded_at_open_even_after_newer_shas_arrive", async () => {
+    vi.mocked(confirmDialog).mockResolvedValue(true);
+    const writeFiles = vi.fn(async (files: { path: string; content: string; sha256?: string }[]) =>
+      files.map(f => ({ ...f, sha256: `after-${f.path}` })));
+    let setShas: (v: Record<string, string>) => void = () => {};
+    function Host() {
+      const [shas, set] = useState<Record<string, string>>({ [entry.sqlPath!]: "seed-sql", [entry.jsonPath]: "seed-json" });
+      setShas = set;
+      return <DataSourceForm {...props()} writeFiles={writeFiles} fileShas={shas} />;
+    }
+    const host = await render(<Host />);
+    await act(async () => setShas({ [entry.sqlPath!]: "newer-sql", [entry.jsonPath]: "newer-json" }));
+    await click(button(host, "Kaydet"));
+    expect(writeFiles.mock.calls.map(c => c[0][0].sha256)).toEqual(["seed-sql", "seed-json"]);
+    await click(button(host, "Kaydet"));
+    expect(writeFiles.mock.calls.slice(2).map(c => c[0][0].sha256)).toEqual([`after-${entry.sqlPath}`, `after-${entry.jsonPath}`]);
   });
 });

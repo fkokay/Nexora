@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../WorkspaceCodeEditor", () => ({
@@ -99,5 +100,20 @@ describe("CatalogWorkbench", () => {
     expect(writeFiles.mock.calls[0][0][0]).toEqual({ path: `${root}/eylemler/kapat.sql`, content: "UPDATE X SET A = 1" });
     const json = JSON.parse(writeFiles.mock.calls[1][0][0].content);
     expect(json).toEqual({ code: "kapat", label: "Siparişi kapat", kind: "delete", target: "row", run: { sql: "kapat.sql" }, confirm: { text: "Emin misiniz?" } });
+  });
+
+  it("selected_entry_removed_by_reload_closes_form", async () => {
+    let setEntries: (v: typeof entries) => void = () => {};
+    function Host() {
+      const [list, set] = useState(entries);
+      setEntries = set;
+      return <CatalogWorkbench {...props()} entries={list} version={list.length} />;
+    }
+    const host = await render(<Host />);
+    await click([...host.querySelectorAll(".sp-cw-group button")].find(b => b.textContent?.includes("Siparişi kapat")));
+    expect(field<HTMLInputElement>(host, "Kod").value).toBe("kapat");
+    await act(async () => setEntries(entries.filter(e => e.code !== "kapat")));
+    expect(field<HTMLInputElement>(host, "Kod")).toBeUndefined();
+    expect(host.textContent).toContain("Soldan bir yapı taşı seçin");
   });
 });
