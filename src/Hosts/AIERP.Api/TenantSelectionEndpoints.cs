@@ -66,8 +66,8 @@ public static class TenantSelectionEndpoints
                 return Results.Unauthorized();
             }
 
-            if (membership.Role == "TenantUser")
-                await TenantPermissionDefaults.AddMissingTenantUserBaselineAsync(db, session.TenantId, session.UserId, cancellationToken);
+            if (TenantPermissionDefaults.HasRoleBaseline(membership.Role))
+                await TenantPermissionDefaults.AddMissingRoleBaselineAsync(db, session.TenantId, membership.Role, session.UserId, cancellationToken);
 
             var absoluteExpiry = session.CreatedAt.AddDays(30);
             if (absoluteExpiry <= now)
@@ -160,8 +160,8 @@ public static class TenantSelectionEndpoints
                 return Results.Forbid();
             }
 
-            if (membership.Role == "TenantUser")
-                await TenantPermissionDefaults.AddMissingTenantUserBaselineAsync(db, membership.TenantId, userId, cancellationToken);
+            if (TenantPermissionDefaults.HasRoleBaseline(membership.Role))
+                await TenantPermissionDefaults.AddMissingRoleBaselineAsync(db, membership.TenantId, membership.Role, userId, cancellationToken);
 
             var claims = new[]
             {
