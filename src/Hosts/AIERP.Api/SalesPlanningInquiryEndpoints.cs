@@ -116,7 +116,7 @@ public static class SalesPlanningInquiryEndpoints
                         .Select(currency => new CurrencyAmount(currency.Key, currency.Sum(x => x.DiscountAmount))).ToArray() });
             var scopedQuoteIds = applicationRows.Select(x => x.QuoteId).Distinct().ToArray();
             IQueryable<SalesOrder> linkedOrderQuery = db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId != null && scopedQuoteIds.Contains(x.QuoteId.Value)
-                    && x.Status != SalesOrderStatus.Cancelled);
+                    && SalesOrderLifecycle.CommittedStatuses.Contains(x.Status));
             if (Guid.TryParse(user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier), out var orderReaderId)
                 && !string.IsNullOrWhiteSpace(user.FindFirstValue("role")))
             {

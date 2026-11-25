@@ -81,6 +81,17 @@ public sealed class SalesOrderLifecycleTests
         bool hasPostedDelivery, SalesOrderStatus expected) =>
         Assert.Equal(expected, SalesOrderLifecycle.Derive(current, fullyDelivered, allInvoiced, hasPostedDelivery));
 
+    [Fact]
+    public void Page_summary_counts_only_committed_orders()
+    {
+        SalesOrderSummary Row(SalesOrderStatus status, decimal total) => new(Guid.NewGuid(), "SO", null, "Bağımsız", Guid.NewGuid(), "C",
+            new DateOnly(2026, 11, 2), "TRY", status, total, 1, DateTimeOffset.UtcNow, null, null);
+        var page = new SalesOrderPage([Row(SalesOrderStatus.Open, 100m), Row(SalesOrderStatus.Draft, 40m),
+            Row(SalesOrderStatus.PendingApproval, 7m), Row(SalesOrderStatus.Cancelled, 1m), Row(SalesOrderStatus.Invoiced, 10m)], 1, 25, 5);
+
+        Assert.Equal(110m, page.PageGrandTotal);
+    }
+
     [Theory]
     [InlineData(SalesOrderStatus.Draft, "Taslak")]
     [InlineData(SalesOrderStatus.PendingApproval, "Onay bekliyor")]

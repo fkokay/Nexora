@@ -21,6 +21,9 @@ public static class SalesOrderLifecycle
     public static bool CanCancel(SalesOrderStatus status, bool hasDeliveries) =>
         status == SalesOrderStatus.Draft || status == SalesOrderStatus.Open && !hasDeliveries;
 
+    /// <summary>The <see cref="IsCommitted"/> statuses, for queries (<c>CommittedStatuses.Contains(x.Status)</c> translates to SQL).</summary>
+    public static readonly SalesOrderStatus[] CommittedStatuses = [SalesOrderStatus.Open, SalesOrderStatus.Fulfilled, SalesOrderStatus.Invoiced];
+
     /// <summary>Approved, shipped or invoiced: the order is a commitment (planning, backlog, foreign trade links).</summary>
     public static bool IsCommitted(SalesOrderStatus status) =>
         status is SalesOrderStatus.Open or SalesOrderStatus.Fulfilled or SalesOrderStatus.Invoiced;

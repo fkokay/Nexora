@@ -357,8 +357,8 @@ public sealed record SalesOrderLineView(int LineNumber, Guid StockItemId, string
     decimal ExchangeRateToOrderCurrency = 1m);
 public sealed record SalesOrderPage(IReadOnlyList<SalesOrderSummary> Items, int Page, int PageSize, int TotalCount)
 {
-    // "Bu sayfa" summary of the returned items, cancelled orders excluded.
-    private IEnumerable<SalesOrderSummary> Counted => Items.Where(x => x.Status != SalesOrderStatus.Cancelled);
+    // "Bu sayfa" summary of the returned items: only committed orders (drafts, pending approval and cancelled excluded).
+    private IEnumerable<SalesOrderSummary> Counted => Items.Where(x => SalesOrderLifecycle.IsCommitted(x.Status));
     public decimal? PageGrandTotal => SalesPageSummary.Total(Counted, x => x.CurrencyCode, x => x.GrandTotal);
     public string? PageCurrencyCode => SalesPageSummary.Currency(Counted, x => x.CurrencyCode);
     public bool PageMixedCurrencies => SalesPageSummary.Mixed(Counted, x => x.CurrencyCode);
@@ -1768,3 +1768,7 @@ public sealed record SalesRequestBulkDeleteResult(int Deleted, IReadOnlyList<str
 /// <summary>One row of a document's işlem günlüğü (belge kuralları).</summary>
 public sealed record DocumentActivityView(string Transition, string Step, string Source, string Outcome, string? Message,
     Guid? ActorUserId, DateTimeOffset CreatedAt);
+
+/// <summary>Body of the sales order transitions (approve, unapprove, cancel). A repeated <c>RequestId</c> returns the current order.</summary>
+public sealed record SalesOrderTransitionRequest(Guid? RequestId = null, string? Reason = null);
+public sealed record SalesOrderTransitionResult(Guid Id, string Code, SalesOrderStatus Status, IReadOnlyList<string> Warnings);

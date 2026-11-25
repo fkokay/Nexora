@@ -1,3 +1,4 @@
+extern alias Api;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -175,8 +176,13 @@ internal sealed class SalesOrderApiFactory : WebApplicationFactory<ApiEntryPoint
                 options.DefaultChallengeScheme = ChainAuthenticationHandler.SchemeName;
                 options.DefaultForbidScheme = ChainAuthenticationHandler.SchemeName;
             }).AddScheme<AuthenticationSchemeOptions, ChainAuthenticationHandler>(ChainAuthenticationHandler.SchemeName, _ => { });
+            // Keep the API's permission requirement (route → permission catalog → tenant rules) so Deny rules are enforced.
             services.PostConfigure<AuthorizationOptions>(options =>
-                options.DefaultPolicy = new AuthorizationPolicyBuilder(ChainAuthenticationHandler.SchemeName).RequireAuthenticatedUser().Build());
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder(ChainAuthenticationHandler.SchemeName).RequireAuthenticatedUser()
+                    .AddRequirements(new Api::PermissionRequirement()).Build();
+                options.FallbackPolicy = options.DefaultPolicy;
+            });
             foreach (var worker in services.Where(x => x.ServiceType == typeof(IHostedService)
                          && x.ImplementationType?.Name is "IntegrationOperationWorker" or "AuditRetentionWorker" or "TcmbExchangeRateWorker").ToArray())
                 services.Remove(worker);
