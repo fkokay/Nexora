@@ -2979,6 +2979,7 @@ public sealed class TenantMembership
     public Guid TenantId { get; set; }
     public Tenant Tenant { get; set; } = null!;
     public string Role { get; set; } = "TenantUser";
+    public string? StudioRole { get; set; }
 }
 
 public enum TenantPermissionSubjectType { Role = 1, User = 2 }
