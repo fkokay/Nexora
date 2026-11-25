@@ -1176,7 +1176,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Sorgu eklemek, SQL düzenlemek ve önizlemek yalnız tenant yöneticisine açıktır.
   const queryEditable = canEdit && isAdmin;
   // Sistem kipinde erişim paneli yalnız SQL sorgusu varken anlamlıdır (ERP işlemlerinin yetkisini uç noktalar verir).
-  // Katalog başvuruları da sayılır (bilerek): öğe sunucuda SQL çalıştırabilir; sunucunun HasSqlQueries kuralıyla aynıdır.
+  // Katalog başvuruları da sayılır (bilerek): öğe sunucuda SQL çalıştırabilir; sunucunun HasSqlQueries kuralıyla aynıdır. Kaydetme yetkisi ayrı bir kuraldır: katalog başvurusunu sayfa yazma izni olan herkes kaydedebilir, yalnız satır içi SQL TenantAdmin ister.
   const hasSqlQueries = definition.queries.some((query) => !isOperationQuery(query));
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
   const designIds = useMemo(() => new Set([...cardTree.flattenComponents(definition.components).map((component) => component.id), ...definition.queries.map((query) => query.id)]), [definition]);

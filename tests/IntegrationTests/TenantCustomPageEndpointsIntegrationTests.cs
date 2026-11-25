@@ -16,9 +16,9 @@ namespace AIERP.Api.IntegrationTests;
 
 public sealed class TenantCustomPageEndpointsIntegrationTests
 {
-    private static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    internal static readonly Guid TenantA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid TenantB = Guid.Parse("22222222-2222-2222-2222-222222222222");
-    private static readonly Guid UserA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+    internal static readonly Guid UserA = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     [Fact]
     public async Task Custom_page_draft_preview_publish_history_and_replacement_are_tenant_scoped()
@@ -111,7 +111,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         components = new[] { new { id = "heading_1", type = "heading", props = new { title } } }
     };
 
-    private static async Task<WebApplication> StartApplicationAsync()
+    internal static async Task<WebApplication> StartApplicationAsync()
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -150,7 +150,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         return app;
     }
 
-    private static void SetIdentity(HttpClient client, Guid tenant, Guid user, string role)
+    internal static void SetIdentity(HttpClient client, Guid tenant, Guid user, string role)
     {
         client.DefaultRequestHeaders.Remove("X-Test-Tenant");
         client.DefaultRequestHeaders.Remove("X-Test-User");

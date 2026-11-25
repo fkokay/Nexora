@@ -21,7 +21,7 @@ internal static partial class TenantCustomPageSchema
     { "heading", "text", "metric", "card", "section", "divider", "spacer", "button", "dataTable", "form", "code", "alert", "badge", "list", "progress" };
     private static readonly HashSet<string> ComponentTypesV2 = new(ComponentTypes, StringComparer.Ordinal) { "label", "input", "formCard", "contextPanel", "filterChips", "facetPanel", "actionBar", "tabs", "editableGrid", "customFieldsBlock", "dialog", "image", "filterBar", "steps", "recordHeader" };
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "components" };
-    private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries" };
+    private static readonly HashSet<string> RootKeysV2 = new(StringComparer.Ordinal) { "schemaVersion", "components", "queries", "template" };
     private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "id", "type", "props", "children" };
     private static readonly HashSet<string> ComponentKeysV2 = new(ComponentKeys, StringComparer.Ordinal) { "name" };
     private static readonly HashSet<string> SafeProps = new(StringComparer.Ordinal)
@@ -91,7 +91,9 @@ internal static partial class TenantCustomPageSchema
       // (descriptionFormat: number/money; ör. "matrah {{onizleme.meta.taxableTotal}}" → "matrah 2.000,00").
       "emptyDefault", "parts", "deleteConfirmText", "descriptionFormat",
       // Veri listesi araç çubuğunun "Detay paneli" düğmesi: bağlı onay kutusu girişini açıp kapatır (giriş ayrıca çizilmez).
-      "detailToggleInput" };
+      "detailToggleInput",
+      // Sayfa kalıbı (alt proje 3): bileşenin kalıptaki yeri (slot), dar kutuda gizleme ve çizgili satırlar. Kalıpsız sayfada slot yok sayılır.
+      "slot", "hideOnMobile", "striped" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -352,6 +354,11 @@ internal static partial class TenantCustomPageSchema
             if (context.PendingFilterInputs.FirstOrDefault(x => !context.InputIds.Contains(x) && !IsFilterBarTarget(context, x)) is { } missingInput)
             { error = $"Göstergenin süzeceği giriş bileşeni sayfada yok: {missingInput}."; return false; }
             if (!ResolveLayoutReferences(context, out error)) return false;
+            if (context.V2 && root.TryGetProperty("template", out _))
+            {
+                root.TryGetProperty("queries", out var templateQueries);
+                if (PageTemplateRules.ValidateTemplate(root, components, templateQueries) is { } templateError) { error = templateError; return false; }
+            }
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
             return true;
@@ -1819,7 +1826,7 @@ internal static partial class TenantCustomPageSchema
         ["contains"] = ["dialog"], ["presentation"] = ["dialog"], ["saveLabel"] = ["dialog"], ["closeOnSave"] = ["dialog"], ["resetOnOpen"] = ["dialog"], ["backdropClose"] = ["dialog"],
         ["height"] = ["image"], ["fit"] = ["image"],
         ["recordKey"] = ["formCard"], ["trackChanges"] = ["formCard"], ["layout"] = ["formCard"], ["valueLabels"] = ["dataTable"],
-        ["closeInput"] = ["card"],
+        ["closeInput"] = ["card"], ["striped"] = ["dataTable"],
         ["columnLabels"] = ["dataTable"], ["columnUnits"] = ["dataTable"], ["pageTitle"] = ["heading"],
         ["showGridSearch"] = ["dataTable"], ["showColumnFilters"] = ["dataTable"], ["showColumnChooser"] = ["dataTable"], ["showExport"] = ["dataTable"], ["showPivot"] = ["dataTable"],
         ["showCsv"] = ["dataTable"], ["showSelectedExport"] = ["dataTable"],
@@ -1870,8 +1877,14 @@ internal static partial class TenantCustomPageSchema
     {
         error = null;
         foreach (var prop in props.EnumerateObject())
+        {
             if (FazBPropTypes.TryGetValue(prop.Name, out var types) && !types.Contains(typeText, StringComparer.Ordinal))
             { error = $"'{prop.Name}' özelliği bu bileşen türünde kullanılamaz."; return false; }
+            if (prop.Name is "hideOnMobile" or "striped" && prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            { error = $"'{prop.Name}' doğru ya da yanlış olmalıdır."; return false; }
+            if (prop.Name == "slot" && prop.Value.ValueKind != JsonValueKind.String)
+            { error = "'slot' bir metin olmalıdır."; return false; }
+        }
         return typeText switch
         {
             "actionBar" or "dialog" or "button" when !ValidateSequenceProps(props, id, typeText, context, out error) => false,
