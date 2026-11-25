@@ -61,7 +61,7 @@ function layoutClaims(components: RefComponent[], exceptOwnerId: string): Map<st
     if (component.type === "formCard" || component.type === "facetPanel") for (const id of refIds(component)) if (!claims.has(id)) claims.set(id, component.type);
     if (component.type === "dataTable" && typeof component.props?.searchInput === "string") claims.set(component.props.searchInput, "searchInput");
     if (component.type === "dataTable" && typeof component.props?.detailToggleInput === "string") claims.set(component.props.detailToggleInput, "detailToggle");
-    if (component.type === "dataTable") for (const id of idList(component.props?.rowActions, 4)) claims.set(id, "rowAction");
+    if (component.type === "dataTable") for (const id of idList(component.props?.rowActions, 6)) claims.set(id, "rowAction");
     if (component.type === "dataTable" && typeof component.props?.rowOpenAction === "string" && !claims.has(component.props.rowOpenAction)) claims.set(component.props.rowOpenAction, "rowOpen");
     if (component.type === "recordHeader") for (const id of idList(component.props?.buttons, 3)) if (!claims.has(id)) claims.set(id, "headerButton");
   }

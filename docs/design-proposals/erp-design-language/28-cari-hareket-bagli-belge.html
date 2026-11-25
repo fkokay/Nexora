@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cari hareket bağlı belge</title>
+<style>
+:root{--line:#e3e1ee;--mut:#667085;--tx:#1b2430;--pri:#1f5fd1;--pri-soft:#e8f0fd;--ok:#13804b;--ok-bg:#e5f5ec;--off:#55647c;--off-bg:#eef1f7;--dan:#c4321f;--dan-bg:#fdecea;--warn:#9a6700;--warn-bg:#fff6d6}
+*{box-sizing:border-box}body{margin:0;background:#e9ecf1;font-family:"Segoe UI",Inter,system-ui,sans-serif;color:var(--tx);padding:18px;font-size:12.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px;font-size:13.5px;max-width:1100px;line-height:1.5}
+.lbl{font-size:11px;letter-spacing:.08em;color:var(--mut);font-weight:700;margin:28px 0 8px}
+.note{font-size:12.5px;color:#475467;margin:10px 0 0;max-width:1100px;line-height:1.55}.note li{margin:3px 0}
+.erp{max-width:1150px;background:#f6f8fb;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-x:auto}
+.crumb{color:var(--mut);font-size:12px}.ttl{display:flex;align-items:baseline;gap:8px;margin:4px 0 2px}.ttl h2{margin:0;font-size:19px}.ttl small{color:var(--mut)}
+.bar{display:flex;gap:16px;align-items:center;background:#fff;border:1px solid #dfe5ee;border-radius:8px;padding:7px 14px;font-weight:600;color:#344054;margin-top:8px;flex-wrap:wrap}.bar .r{margin-left:auto;border:1px solid #d8e2ec;border-radius:6px;padding:3px 10px}
+.card{background:#fff;border:1px solid #dfe5ee;border-radius:9px;overflow:hidden;margin-top:10px}
+.ch{display:flex;gap:10px;align-items:baseline;padding:9px 12px;border-bottom:1px solid #e6ebf2;flex-wrap:wrap}.ch b{font-size:13.5px}.ch .code{color:var(--mut)}
+table{width:100%;border-collapse:collapse}th{font-size:11px;color:var(--mut);text-align:left;font-weight:700;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e6ebf2;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #eef1f6;white-space:nowrap}.code{font-family:Consolas,monospace}.num{text-align:right}
+tr.new td.nw,th.nw{background:#fffbea}
+.tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600}.t-in{background:var(--pri-soft);color:var(--pri)}.t-off{background:var(--off-bg);color:var(--off)}.t-w{background:var(--warn-bg);color:var(--warn)}
+.lnk{color:var(--pri);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.btn{border:1px solid #c9d8f2;background:#fff;color:var(--pri);border-radius:7px;padding:3px 10px;font-weight:600;display:inline-block;font-size:12px}.btn.dis{color:#98a2b3;border-color:#e3e7ee;background:#f8fafc}
+.tip{display:inline-block;margin-left:6px;background:#1b2430;color:#fff;border-radius:6px;padding:3px 8px;font-size:11px}
+.dev{color:var(--mut)}tr.strike td span.t{text-decoration:line-through;color:#98a2b3}
+.hdr{background:#fff;border:1px solid #dfe5ee;border-radius:9px;padding:10px 14px;display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.hdr h4{margin:0;font-size:14px}.hdr p{margin:2px 0 0;color:var(--mut);font-size:11.5px}
+.steps{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600;color:#475467}.st i{font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;background:var(--ok-bg);color:var(--ok);margin-right:5px}.st.on i{background:var(--pri);color:#fff}.st.on{color:var(--pri)}
+.map{max-width:1150px}.map td{white-space:normal}
+.dec{max-width:1150px;display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.d{background:#fff;border:1px solid #dfe5ee;border-radius:10px;padding:12px 14px}.d b.h{display:block;margin-bottom:4px;font-size:13px}.d p{margin:4px 0;color:#475467;line-height:1.5}
+@media (max-width:820px){.dec{grid-template-columns:1fr}body{padding:16px}}
+</style></head><body>
+<h1>Cari Hesap Hareketleri → bağlı belgeye git (taslak 28)</h1>
+<p class="sub">Ekstre tablosuna <b>Belge</b> sütunu ve satır sonuna <b>Belgeye git ›</b> düğmesi eklenir. Düğme belgeyi <b>kendi ekranında, yeni sekmede</b> açar; ekstre olduğu yerde kalır. Yedi kaynak türü beş ekrana gider: tahsilat bağlı satış faturasının, tedarikçi ödemesi bağlı alış faturasının <i>Tahsilat ve İadeler / Ödemeler</i> sekmesinde açılır. Eski ekran ve sistem sayfası (önizleme) birlikte güncellenir. Sarı zeminli hücreler yenidir; geri kalan her şey bugünkü gibidir.</p>
+
+<div class="lbl">1 · ESKİ EKRAN (BUGÜN KULLANILAN) · BELGE SÜTUNU VE SATIR DÜĞMESİ</div>
+<div class="erp">
+  <div class="crumb">Ana sayfa › Satış &amp; cari › Cari Hesap Hareketleri</div>
+  <div class="ttl"><h2>Cari Hesap Hareketleri</h2><small>6 hareket</small></div>
+  <div class="bar"><span>Dışa aktar</span><span>Diğer ▾</span><span class="r">ABC Ticaret ▾ · Yıl başından · 01.01.2026 – 25.11.2026</span></div>
+  <div class="card">
+    <div class="ch"><b>Hesap hareketleri</b><span class="code">C-0012</span><span>ABC Ticaret Ltd.</span><span class="dev">01.01.2026 – 25.11.2026 · TRY</span></div>
+    <div class="dev" style="padding:7px 12px;border-bottom:1px solid #eef1f6">Devir — açılış bakiyesi · 31.12.2025 itibarıyla <b style="color:#1b2430">12.500,00 B</b></div>
+    <table>
+      <tr><th>Tarih</th><th class="nw">Belge</th><th>Açıklama</th><th>Yön</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th><th class="nw"></th></tr>
+      <tr class="new"><td>04.02.2026</td><td class="nw"><span class="tag t-in">Satış faturası</span> <span class="lnk code">NXR2026000041</span></td><td>Satış faturası NXR2026000041</td><td>Borç</td><td class="num">8.400,00</td><td class="num"></td><td class="num">20.900,00 B</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new"><td>20.02.2026</td><td class="nw"><span class="tag t-in">Tahsilat</span> <span class="lnk code">THS-0007</span></td><td>Tahsilat THS-0007</td><td>Alacak</td><td class="num"></td><td class="num">8.400,00</td><td class="num">12.500,00 B</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new"><td>03.03.2026</td><td class="nw"><span class="tag t-in">Satış iadesi</span> <span class="lnk code">IAD-0002</span></td><td>Satış iadesi IAD-0002</td><td>Alacak</td><td class="num"></td><td class="num">1.200,00</td><td class="num">11.300,00 B</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new strike"><td>15.04.2026</td><td class="nw"><span class="tag t-in">Satış faturası</span> <span class="lnk code">NXR2026000058</span></td><td><span class="t">Satış faturası NXR2026000058</span> <span class="tag t-w">Ters çevrildi</span></td><td>Borç</td><td class="num">3.000,00</td><td class="num"></td><td class="num">14.300,00 B</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new"><td>16.04.2026</td><td class="nw"><span class="tag t-in">Satış faturası</span> <span class="lnk code">NXR2026000058</span></td><td>↳ Ters kayıt: Fatura iptali <span class="tag t-in">Ters kayıt</span></td><td>Alacak</td><td class="num"></td><td class="num">3.000,00</td><td class="num">11.300,00 B</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new"><td>30.06.2026</td><td class="nw dev">—</td><td>Kur farkı düzeltmesi</td><td>Borç</td><td class="num">250,00</td><td class="num"></td><td class="num">11.550,00 B</td><td class="nw"><span class="btn dis">Belgeye git ›</span><span class="tip">Elle girilen hareket; bağlı belge yok</span></td></tr>
+    </table>
+  </div>
+  <ul class="note">
+    <li><b>Belge</b> sütunu: tür etiketi + belge numarası. Numara da tıklanabilir (düğmeyle aynı iş). Görünüm anahtarına <code>source</code> alanı eklenir; kullanıcı sütun seçiciden gizleyebilir.</li>
+    <li><b>Ters kayıt satırı</b> özgün hareketin belgesini gösterir ve oraya gider (belge iptalinden doğan ters kayıtlarda bağlantı yalnız özgün harekette tutuluyor; sunucu oradan alır).</li>
+    <li><b>Elle hareket</b>: Belge "—", düğme pasif, üzerine gelince neden yazar. Elle hareketin ters kaydı da aynı.</li>
+    <li>Satıra çift tıklamak bir şey yapmaz (bugünkü gibi); gezinme yalnız düğme ve numarayla.</li>
+  </ul>
+</div>
+
+<div class="lbl">2 · SİSTEM SAYFASI (ÖNİZLEME) · AYNI SÜTUN, SATIR EYLEMİ</div>
+<div class="erp">
+  <div class="steps"><span class="st"><i>✓</i>Cari seç</span> › <span class="st on"><i>2</i>Ekstre</span></div>
+  <div class="hdr"><div><h4>C-0012</h4><p>ABC Ticaret Ltd. · TRY</p></div></div>
+  <div class="card">
+    <div class="ch"><b>Hesap hareketleri</b></div>
+    <table>
+      <tr><th>Tarih</th><th>Açıklama</th><th class="nw">Belge türü</th><th class="nw">Belge no</th><th>Yön</th><th class="num">Borç</th><th class="num">Alacak</th><th class="num">Bakiye</th><th>Ters kayıt</th><th></th></tr>
+      <tr class="new"><td>04.02.2026</td><td>Satış faturası NXR2026000041</td><td class="nw"><span class="tag t-in">Satış faturası</span></td><td class="nw code">NXR2026000041</td><td>Borç</td><td class="num">8.400,00</td><td class="num"></td><td class="num">20.900,00 B</td><td>—</td><td class="nw"><span class="btn">Belgeye git ›</span></td></tr>
+      <tr class="new"><td>30.06.2026</td><td>Kur farkı düzeltmesi</td><td class="nw dev">—</td><td class="nw dev">—</td><td>Borç</td><td class="num">250,00</td><td class="num"></td><td class="num">11.550,00 B</td><td>—</td><td class="nw"><span class="btn dis">Belgeye git ›</span></td></tr>
+    </table>
+  </div>
+  <ul class="note">
+    <li>Sayfa motoru düğmenin hedef ekranını satıra göre seçemiyor; bu yüzden standartta türe göre beş gizli-koşullu düğme olur, satırda yalnız uygun olanı görünür. Kullanıcı tek bir "Belgeye git ›" görür.</li>
+    <li>Düğmeler eski belge ekranını açar (<code>legacyScreen</code>): belge ekranlarının sistem sayfaları henüz kimlikle kayıt açmıyor.</li>
+    <li>Standart sürüm 2 olur; yeni sütun ve düğmeler firma taslaklarına "Yeni" olarak sunulur.</li>
+  </ul>
+</div>
+
+<div class="lbl">3 · NEREYE GİDER</div>
+<div class="erp map"><div class="card" style="margin:0">
+  <table>
+    <tr><th>Kaynak</th><th>Açılan ekran</th><th>Açılan kayıt</th><th>Hedef ekranda yapılacak</th></tr>
+    <tr><td>Satış faturası</td><td>Satış faturaları</td><td>Fatura</td><td>Hazır (<code>invoiceId</code>)</td></tr>
+    <tr><td>Tahsilat</td><td>Satış faturaları</td><td>Tahsilatın bağlı olduğu fatura, <i>Tahsilat ve İadeler</i> sekmesi</td><td>Sekme seçimi eklenir</td></tr>
+    <tr><td>Satış iadesi</td><td>Satış iadeleri</td><td>İade</td><td><code>returnId</code> okunur</td></tr>
+    <tr><td>Alış faturası</td><td>Alış faturaları</td><td>Fatura</td><td><code>invoiceId</code> okunur</td></tr>
+    <tr><td>Tedarikçi ödemesi</td><td>Alış faturaları</td><td>Ödemenin faturası, ödemeler sekmesi</td><td>aynı + sekme</td></tr>
+    <tr><td>Alış faturası taslağı</td><td>Alış faturası taslakları</td><td>Taslak</td><td><code>draftId</code> okunur</td></tr>
+    <tr><td>Alış iadesi</td><td>Alış iadeleri</td><td>İade</td><td><code>returnId</code> okunur</td></tr>
+  </table>
+</div>
+<ul class="note"><li>Hedef ekran parametreyi bir kez okur, kaydı açar ve parametreyi siler (satış faturasındaki kuralla aynı). Kullanıcının o belgeyi görme yetkisi yoksa hedef ekran bugünkü "bulunamadı / yetkiniz yok" iletisini gösterir; ekstre yetkiyi ayrıca denetlemez.</li></ul>
+</div>
+
+<div class="lbl">4 · KARARLAR</div>
+<div class="dec">
+  <div class="d"><b class="h">Yeni sekmede açılır</b><p>Ekstre ve seçili dönem kaybolmaz; kullanıcı birden çok belgeyi yan yana açabilir.</p></div>
+  <div class="d"><b class="h">Sunucu belge bilgisini verir</b><p>Ekstre satırına belge türü, kimliği, numarası ve açılacak kayıt kimliği eklenir (yalnız ekleme; mevcut alanlar değişmez).</p></div>
+  <div class="d"><b class="h">Kapsam dışı</b><p>Cari kartındaki hareket penceresi (aynı veriyi başka uçtan okuyor) bu işte değişmez; istenirse ayrı iş.</p></div>
+  <div class="d"><b class="h">Belgenin kendisi değişmez</b><p>İptal, ödeme ekleme gibi işlemler belgenin kendi ekranında yapılır; ekstre salt okunur kalır.</p></div>
+</div>
+</body></html>

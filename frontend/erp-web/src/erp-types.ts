@@ -15,7 +15,11 @@ export type FinanceGridColumn = { key: string; label: string; width?: number }
 export type CustomerGroupItem = { id: string; code: string; name: string; isActive: boolean }
 export type CustomerAddressItem = { id: string; kind: 'General' | 'Billing' | 'Delivery'; label: string; addressLine: string; city: string; district: string | null; postalCode: string | null; countryCode: string; isDefault: boolean; isActive: boolean; latitude: number | null; longitude: number | null }
 export type CustomerLedgerItem = { id: string; entryDate: string; direction: 'Debit' | 'Credit'; amount: number; currencyCode: string; description: string; reversalOfId: string | null; isReversal: boolean; hasReversal: boolean }
-export type CustomerStatementLine = CustomerLedgerItem & { balance: number }
+export type CustomerStatementLine = CustomerLedgerItem & {
+  balance: number;
+  /** Source document (reversal: its original's); null for a manual movement. `sourceOpenId` is the record its screen opens. */
+  sourceType?: string | null; sourceId?: string | null; sourceCode?: string | null; sourceOpenId?: string | null;
+}
 export type CustomerStatement = { customerId: string; customerCode: string; customerName: string; currencyCode: string; from: string; to: string; openingBalance: number; debitTotal: number; creditTotal: number; closingBalance: number; items: CustomerStatementLine[] }
 export type CustomerCustomFieldDefinition = { id:string; code:string; label:string; dataType:'Text'|'Decimal'|'Date'|'Boolean'; maxLength:number; version:number; isRequired:boolean; isActive:boolean }
 export type CustomerCustomFieldValue = { definitionId:string; code:string; label:string; dataType:'Text'|'Decimal'|'Date'|'Boolean'; maxLength:number; definitionVersion:number; isRequired:boolean; value:string }

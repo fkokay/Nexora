@@ -82,7 +82,7 @@ describe('Dış Ticaret frame', () => {
     expect(within(cell.closest('tr')!).getByText('Taslak').className).toContain('nx-status-tag is-info');
     expect(screen.queryByRole('button', { name: 'İhracat dosyası' })).toBeNull();
     // The panel no longer carries Düzenle / İptal et.
-    expect(screen.queryByRole('button', { name: /Düzenle/ })).toBeNull();
+    expect(screen.queryAllByRole('button', { name: /Düzenle/ }).filter((button) => !button.closest('[role="toolbar"]'))).toEqual([]);
     // Nothing is current until the user picks a row (list type).
     await waitFor(() => expect(reason('open')).toBe('Önce bir kayıt seçin'));
     fireEvent.click(cell);
