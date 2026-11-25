@@ -188,7 +188,9 @@ public sealed class TenantCatalogDeveloperAccessIntegrationTests
             .UseInMemoryDatabase($"catalog-developer-platform-{suffix}")
             .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         builder.Services.AddAuthentication("report-test").AddScheme<AuthenticationSchemeOptions, ReportTestAuthenticationHandler>("report-test", _ => { });
-        // Allow-all: only the catalog developer gate can deny here.
+        // The production permission pipeline (PermissionRequirement + PermissionAuthorizationHandler) is not wired in this
+        // host, so route-to-permission mapping and tenant Allow/Deny rules are not exercised here; only the catalog
+        // developer gate can deny.
         builder.Services.AddSingleton<IPlatformPermissionAuthorizer, CustomPageQueryRulesIntegrationTests.AllowAllPermissionAuthorizer>();
         builder.Services.AddSingleton<ITenantQueryConnectionFactory>(new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true));
         builder.Services.AddSingleton<CatalogPreviewExecutor>(executor.ExecuteAsync);
