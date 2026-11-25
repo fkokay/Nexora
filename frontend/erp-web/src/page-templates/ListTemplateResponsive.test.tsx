@@ -228,9 +228,10 @@ describe('liste kalıbı tam genişlik', () => {
     const { container } = render(<TenantCustomPage code="p" token="t" />);
     await screen.findByText('K1-1', undefined, T);
     // jsdom yerleşim ve CSS ızgara yerleşimi ölçemez; bu yüzden sınıf sözleşmesi ve CSS kuralı sınanır.
-    // Kök, 12 sütunlu `.tenant-custom-page-content` ızgarasının doğrudan çocuğudur ve tüm sütunları kaplamalıdır.
+    // Kök eski 12 sütunlu `.tenant-custom-page-content` ızgarasının (dar ekranda `> *` span 6 kuralı) dışında çizilir; CSS yine de tam genişlik verir.
     const root = container.querySelector('.list-template') as HTMLElement;
-    expect(root.parentElement?.classList.contains('tenant-custom-page-content')).toBe(true);
+    expect(root.closest('.tenant-custom-page-content')).toBeNull();
+    expect(root.closest('.tenant-custom-page')).not.toBeNull();
     const listBox = container.querySelector('.list-template-list') as HTMLElement;
     expect(listBox).not.toBeNull();
     const css = readFileSync(resolve(__dirname, 'page-templates.css'), 'utf-8');

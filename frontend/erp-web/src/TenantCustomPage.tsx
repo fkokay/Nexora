@@ -3490,7 +3490,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const renderSlot = (component: ComponentDefinition) => renderComponent(
       component.type === "contextPanel" && typeof component.props?.table !== "string" ? { ...component, props: { ...component.props, table: list.id } } : component,
       page.forms ?? [], token, page.code, runtime);
-    return <div className="tenant-custom-page-content" ref={contentRef}>
+    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir: `> *` kuralları (dar ekranda span 6) kalıbı daraltmasın.
+    return <div className="list-template-page" ref={contentRef}>
       <ListTemplate layout={listLayout} render={renderSlot} title={pageTitle || page.name} count={count} actions={shellActions} search={search} detailOpen={detailOpen}
         notices={<>
           {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
