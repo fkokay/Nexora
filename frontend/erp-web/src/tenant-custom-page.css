@@ -66,6 +66,10 @@
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-success { color: var(--nx-ok); background: var(--nx-ok-bg); }
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-error { color: var(--nx-bad); background: var(--nx-bad-bg); }
 #root .app-shell .tenant-custom-page .tenant-page-action-status.is-warning { color: var(--nx-warn); background: var(--nx-warn-bg); }
+/* Görüntüleme kipi şeridi (İşlem Çubuğu Görüntüle ile açılan salt okunur kayıt) */
+.tenant-page-view-mode { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px 4px 10px; border: 1px solid var(--custom-page-line); border-radius: 6px; background: var(--nx-line-soft); color: var(--nx-muted); font-size: 12px; }
+.tenant-page-view-mode > span { flex: 1 1 auto; min-width: 0; }
+.tenant-page-view-mode > .tenant-page-button { flex: none; min-height: 26px; padding: 0 10px; font-size: 12px; }
 .tenant-page-code-frame { display: block; width: 100%; min-height: 140px; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--nx-surface); }
 
 /* Liste tablosu — taslak 01: başlık 11,5px/600, satır çizgisi line-soft, sayılar sağa hizalı */
@@ -150,7 +154,7 @@ html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-sta
 .tenant-page-form-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); background: var(--nx-ok-bg); }
 .tenant-page-input { min-width: 0; }
 .tenant-page-input-error { display: block; margin-top: 3px; color: var(--nx-bad); font-size: 12px; font-weight: 500; }
-.tenant-page-input.is-invalid input:not([type="checkbox"]), .tenant-page-input.is-invalid select { border-color: var(--nx-bad); }
+.tenant-page-input.is-invalid input:not([type="checkbox"]), .tenant-page-input.is-invalid select, .tenant-page-input.is-invalid textarea { border-color: var(--nx-bad); }
 .tenant-page-input.is-invalid input:focus, .tenant-page-input.is-invalid select:focus { border-color: var(--nx-bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-bad) 18%, transparent); }
 .tenant-page-input input:disabled, .tenant-page-input select:disabled { color: var(--nx-muted); background: var(--nx-line-soft); cursor: not-allowed; }
 .tenant-page-disabled-reason { display: block; margin-top: 3px; color: var(--nx-muted); font-size: 12px; }
@@ -263,6 +267,9 @@ html[data-theme='dark'] .tenant-page-status-strip.tone-info :is(.tenant-page-sta
 /* Eski tetikleyicinin (style.css `.searchable-record-trigger`) çerçeve, köşe ve yazı tonu; koyu temada tasarım belirteçleri kalır. */
 html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input:not(:focus) { border-color: #d8e2ec !important; }
 #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input { border-radius: 5px !important; font-weight: 600 !important; }
+/* Kaydette boş bırakılan zorunlu arama kutusu / aranabilir liste: yukarıdaki gri çerçeveyi ezer, metin girişleri gibi kırmızıdır. */
+#root .app-shell .tenant-custom-page .tenant-page-input.is-invalid .tenant-page-lookup-control input,
+html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-input.is-invalid .tenant-page-lookup.is-select .tenant-page-lookup-control input:not(:focus) { border-color: var(--nx-bad) !important; }
 html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-lookup.is-select .tenant-page-lookup-control input { color: #26384c !important; }
 .tenant-page-lookup-chevron { position: absolute; top: 50%; right: 9px; color: var(--nx-text); pointer-events: none; transform: translateY(-50%); }
 .tenant-page-lookup.is-select .tenant-page-lookup-clear { right: 28px; }
@@ -485,3 +492,27 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-grid-preview { margin: 6px 0 0; color: var(--nx-muted); font-size: 12px; }
 .tenant-page-form-card-meta { display: inline-block; margin: 0 0 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--nx-warn); background: var(--nx-warn-bg); }
 .tenant-page-grid .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Izgara (dataTable) araç satırı: ERP liste ekranlarıyla aynı yoğun boyut (düğmeler 28px, metin 12px, simge 14px). */
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar:not(.is-external) { gap: 6px; padding: 6px 8px; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-search { min-height: 30px; height: 30px; font-size: 12px; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar .advanced-grid-action,
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar .advanced-grid-menu > summary { min-height: 28px; height: 28px; padding: 0 8px; gap: 5px; font-size: 12px; line-height: 1; }
+#root .app-shell .tenant-custom-page .tenant-page-data-grid .advanced-grid-toolbar :is(.advanced-grid-action, .advanced-grid-menu > summary) svg { width: 14px; height: 14px; }
+
+/* Çok satırlı metin girişi (multiline): metin kutusu gibi çerçeve; yükseklik kullanıcıyla dikey büyür. */
+.tenant-page-input textarea { box-sizing: border-box; width: 100%; min-height: 72px; padding: 6px 9px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-control);
+  color: var(--nx-text); background: var(--nx-surface); font: 400 12.5px/1.45 var(--nx-font); resize: vertical; }
+.tenant-page-input textarea:focus { outline: 0; border-color: var(--nx-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nx-primary) 18%, transparent); }
+.tenant-page-input textarea:disabled { color: var(--nx-muted); background: var(--nx-line-soft); cursor: not-allowed; }
+
+/* Hazır değerler (presets): girişin altında bitişik düğme grubu; seçili değer birincil renkle dolu. */
+.tenant-page-presets { display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; margin-top: 6px; }
+#root .app-shell .tenant-page-presets > button { height: 30px; min-height: 30px; margin: 0 0 0 -1px; padding: 0 6px; border: 1px solid var(--nx-line); border-radius: 0;
+  background: var(--nx-surface); color: var(--nx-text); font: 500 12.5px var(--nx-font); cursor: pointer; }
+#root .app-shell .tenant-page-presets > button:first-child { margin-left: 0; border-radius: var(--nx-radius-control) 0 0 var(--nx-radius-control); }
+#root .app-shell .tenant-page-presets > button:last-child { border-radius: 0 var(--nx-radius-control) var(--nx-radius-control) 0; }
+#root .app-shell .tenant-page-presets > button:hover:not(:disabled) { background: var(--nx-canvas); }
+#root .app-shell .tenant-page-presets > button[aria-pressed="true"] { position: relative; border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; }
+#root .app-shell .tenant-page-presets > button:focus-visible { position: relative; outline: 2px solid color-mix(in srgb, var(--nx-primary) 40%, transparent); outline-offset: 1px; }
+#root .app-shell .tenant-page-presets > button:disabled { color: var(--nx-muted); cursor: not-allowed; }

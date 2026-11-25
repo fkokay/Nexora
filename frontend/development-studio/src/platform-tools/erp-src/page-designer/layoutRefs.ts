@@ -58,7 +58,7 @@ export function tabOwnedIds(components: LayoutComponent[]): Set<string> {
 }
 
 export const MAX_DIALOG_IDS = 20;
-export const MAX_ROW_ACTIONS = 4;
+export const MAX_ROW_ACTIONS = 6;
 
 /** Pencerelerin (`dialog`) `contains` dizisindeki bileşen kimlikleri: üst düzeyde çizilmez, pencere açıkken içinde çizilir. */
 export function dialogOwnedIds(components: LayoutComponent[]): Set<string> {

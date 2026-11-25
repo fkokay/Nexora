@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Pencil,
-  Trash2,
-  Users,
   X,
 } from "lucide-react";
 import { api, localDateString } from "./erpApi";
@@ -37,6 +34,7 @@ import "./sales/sales-list-v2.css";
 import "./customers/customers-list.css";
 import "./customers/customer-modals.css";
 import { StatusTag } from "./list-page/StatusTag";
+import { CUSTOMER_GROUPS_CHANGED_EVENT } from "./customer-groups/customerGroupsEvents";
 import { PageCommandsSlot } from "./commands/PageCommandsSlot";
 import { useCustomerListScreen } from "./customers/useCustomerListScreen";
 import { CUSTOMER_SEARCH_REQUEST_EVENT, customerTypeLabel, customerTypeTone } from "./customers/customerLabels";
@@ -362,7 +360,6 @@ function CustomersPage({
   }, [search]);
   const [customerCreateTab, setCustomerCreateTab] = useState("basic");
   const [modal, setModal] = useState(false),
-    [groupModal, setGroupModal] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -389,10 +386,6 @@ function CustomersPage({
     [currencyCode, setCurrencyCode] = useState("TRY"),
     [riskLimit, setRiskLimit] = useState(""),
     [paymentTermDays, setPaymentTermDays] = useState("0");
-  const [groupCode, setGroupCode] = useState(""),
-    [groupName, setGroupName] = useState(""),
-    [editingGroup, setEditingGroup] = useState<CustomerGroupItem | null>(null),
-    [groupError, setGroupError] = useState("");
   const [fieldCustomer, setFieldCustomer] = useState<CustomerItem | null>(null),
     [customerFields, setCustomerFields] = useState<
       CustomerCustomFieldDefinition[]
@@ -734,6 +727,12 @@ function CustomersPage({
     void load();
     void loadGroups();
   }, [token, filter, page, typeFilter, statusFilter]);
+  // Groups are defined on the Cari Grupları screen; a kept-alive customer screen reloads its group choices.
+  useEffect(() => {
+    const onChanged = () => void loadGroups();
+    window.addEventListener(CUSTOMER_GROUPS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(CUSTOMER_GROUPS_CHANGED_EVENT, onChanged);
+  }, [token]);
   useEffect(() => {
     let active = true;
     const count = async (options: { type?: string; status?: string } = {}) => {
@@ -954,7 +953,7 @@ function CustomersPage({
   /** Set by the form's "Kaydet ve Yeni" action; read once by the next successful create. */
   const stayAfterSave = useRef(false);
   /**
-   * Set by "Kaydet ve Yeni" on the group, custom field definition and account movement forms;
+   * Set by "Kaydet ve Yeni" on the custom field definition and account movement forms;
    * read once by the next successful save, which then keeps that form open for another record.
    */
   const stayOpenAfterSave = useRef(false);
@@ -1213,61 +1212,6 @@ function CustomersPage({
       await load();
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function createGroup(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setGroupError("");
-    try {
-      const group = await api<CustomerGroupItem>(
-        editingGroup
-          ? `/api/customer-groups/${editingGroup.id}`
-          : "/api/customer-groups/",
-        token,
-        {
-          method: editingGroup ? "PUT" : "POST",
-          body: JSON.stringify({ code: groupCode, name: groupName }),
-        },
-      );
-      setGroups((current) =>
-        editingGroup
-          ? current.map((item) => (item.id === group.id ? group : item))
-          : [...current, group],
-      );
-      setGroupCode("");
-      setGroupName("");
-      setEditingGroup(null);
-      if (!takeStayOpenAfterSave()) setGroupModal(false);
-      setNotice(
-        editingGroup ? "Cari grubu güncellendi." : "Cari grubu oluşturuldu.",
-      );
-    } catch (e) {
-      setGroupError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function deleteGroup(group: CustomerGroupItem) {
-    if (
-      !(await confirmCustomerAction(
-        `“${group.name}” grubu silinsin mi? Gruba bağlı cari kartları varsa silme işlemi engellenir.`,
-        { title: "Cari grubunu sil", confirmLabel: "Grubu sil", danger: true },
-      ))
-    )
-      return;
-    setBusy(true);
-    setGroupError("");
-    try {
-      await api(`/api/customer-groups/${group.id}`, token, {
-        method: "DELETE",
-      });
-      setGroups((current) => current.filter((item) => item.id !== group.id));
-      setNotice("Cari grubu silindi.");
-    } catch (e) {
-      setGroupError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -1956,7 +1900,7 @@ function CustomersPage({
     onCreate: () => onNavigate("customer-create"),
     onOpen: (item) => void openEditCustomer(item),
     onExport: (format) => void exportCustomers(format),
-    onGroups: () => openGroups(),
+    onGroups: () => onNavigate("customer-groups"),
     onImport: () => setImportOpen(true),
     onToggleActive: (item) => void toggleActive(item),
     onSalesAction: (target) => openCustomerSalesAction(target),
@@ -2095,13 +2039,6 @@ function CustomersPage({
     ) : (
       <div className="loading-state">Cari kartı formu yükleniyor…</div>
     );
-  const openGroups = () => {
-    setEditingGroup(null);
-    setGroupCode("");
-    setGroupName("");
-    setGroupError("");
-    setGroupModal(true);
-  };
   return modal ? (
     customerCreatePage
   ) : (
@@ -2670,135 +2607,6 @@ function CustomersPage({
             </section>
           </div>
         )}
-      {groupModal && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setGroupModal(false);
-          }}
-        >
-          <div className="modal group-modal" role="dialog" aria-modal="true" aria-label="Cari grupları">
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">CARİ YÖNETİMİ</p>
-                <h2>Cari grupları</h2>
-                <p className="muted">
-                  Cari kartlarını sınıflandırmak için firma gruplarını yönetin.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Kapat"
-                onClick={() => setGroupModal(false)}
-              >
-                <X size={19} />
-              </button>
-            </div>
-            {groupError && (
-              <div className="alert inline-alert">
-                {groupError}
-                <button onClick={() => setGroupError("")}>
-                  <X size={15} />
-                </button>
-              </div>
-            )}
-            <div className="group-list">
-              {groups.map((g) => (
-                <article className="group-row" key={g.id}>
-                  <span className="nx-code group-code">{g.code}</span>
-                  <div className="group-info">
-                    <span>{g.name}</span>
-                    <StatusTag tone={g.isActive ? "ok" : "off"}>{g.isActive ? "Aktif" : "Pasif"}</StatusTag>
-                  </div>
-                  <div className="group-actions">
-                    <button
-                      className="secondary small-button"
-                      disabled={busy}
-                      aria-label={`${g.name} grubunu düzenle`}
-                      onClick={() => {
-                        setEditingGroup(g);
-                        setGroupCode(g.code);
-                        setGroupName(g.name);
-                        setGroupError("");
-                      }}
-                    >
-                      <Pencil size={13} /> Düzenle
-                    </button>
-                    <button
-                      className="icon-button group-delete"
-                      disabled={busy}
-                      aria-label={`${g.name} grubunu sil`}
-                      title="Grubu sil"
-                      onClick={() => void deleteGroup(g)}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </article>
-              ))}
-              {groups.length === 0 && (
-                <div className="group-empty">
-                  <div className="group-mark">
-                    <Users size={16} />
-                  </div>
-                  <b>Henüz grup tanımı yok</b>
-                  <span>Yeni grup ekleyerek başlayın.</span>
-                </div>
-              )}
-            </div>
-            <RecordFormPage
-              variant="dialog"
-              className="prf-embedded"
-              title={editingGroup ? "Grubu Düzenle" : "Yeni Grup"}
-              mode={editingGroup ? "edit" : "create"}
-              busy={busy}
-              saveLabel={editingGroup ? "Değişiklikleri kaydet" : "Grup ekle"}
-              onSubmit={createGroup}
-              onCancel={() => {
-                if (editingGroup) {
-                  setEditingGroup(null);
-                  setGroupCode("");
-                  setGroupName("");
-                  setGroupError("");
-                } else setGroupModal(false);
-              }}
-              onSaveIntent={setStayOpenAfterSave}
-              onReset={() => {
-                setGroupCode("");
-                setGroupName("");
-                setGroupError("");
-              }}
-              status={<span>Yalnızca bu firmada kullanılır.</span>}
-            >
-              <RecordFormGroup title="Grup Kimliği" bodyClassName="rf-identity prf-identity-code-name">
-                <label>
-                  <span>Grup kodu <RequiredMark /></span>
-                  <input
-                    className="rf-must rf-mono"
-                    value={groupCode}
-                    onChange={(e) => setGroupCode(e.target.value)}
-                    maxLength={40}
-                    required
-                    placeholder="Örn. B2B"
-                  />
-                </label>
-                <label>
-                  <span>Grup adı <RequiredMark /></span>
-                  <input
-                    className="rf-must"
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value)}
-                    maxLength={120}
-                    required
-                    placeholder="Örn. Kurumsal müşteriler"
-                  />
-                </label>
-              </RecordFormGroup>
-            </RecordFormPage>
-          </div>
-        </div>
-      )}
       {salesInvoicesCustomer && (
         <CustomerSalesInvoicesPanel
           token={token}

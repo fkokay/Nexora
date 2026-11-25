@@ -78,6 +78,53 @@ describe("ErpCanvasFrame", () => {
     expect(post).toHaveBeenCalledWith({ type: "NEXORA_STUDIO_AUTH", token: "t", tenant }, ORIGIN);
   });
 
+  describe("oturum mesajını yeniden gönderme", () => {
+    const AUTH = { type: "NEXORA_STUDIO_AUTH", token: "t", tenant };
+    const ready = { nx: "nexora-canvas", v: 1, type: "ready", revision: 0 };
+    const tick = (ms: number) =>
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+
+    it("ready gelene kadar her saniye yeniden gönderir", () => {
+      vi.useFakeTimers();
+      const { post } = setup();
+      tick(3000);
+      expect(post).toHaveBeenCalledTimes(3);
+      expect(post).toHaveBeenCalledWith(AUTH, ORIGIN);
+    });
+
+    it("ready sonrası göndermeyi bırakır", () => {
+      vi.useFakeTimers();
+      const { post, send } = setup();
+      tick(1000);
+      send(ready);
+      post.mockClear();
+      tick(5000);
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("unmount sonrası göndermeyi bırakır", () => {
+      vi.useFakeTimers();
+      const { post } = setup();
+      tick(1000);
+      cleanup();
+      post.mockClear();
+      tick(5000);
+      expect(post).not.toHaveBeenCalled();
+    });
+
+    it("ready gelmezse 10 sn'de yedeğe düşer ve gönderim durur", () => {
+      vi.useFakeTimers();
+      const { post, props } = setup();
+      tick(10_000);
+      expect(props.onUnavailable).toHaveBeenCalledWith(FALLBACK);
+      post.mockClear();
+      tick(5000);
+      expect(post).not.toHaveBeenCalled();
+    });
+  });
+
   it("layout yüksekliği ve seçim", () => {
     const { iframe, layout, container, props } = setup();
     layout(1, 640);

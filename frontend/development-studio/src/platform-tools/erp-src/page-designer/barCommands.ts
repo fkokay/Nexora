@@ -42,12 +42,17 @@ export function barModes(props: Record<string, unknown>): { new: NewMode; open: 
   };
 }
 
-/** Tuval önizlemesi: Yeni ve Aç bağlı mı. */
-export function barBound(props: Record<string, unknown>): { new: boolean; open: boolean } {
+/**
+ * Tuval önizlemesi: Yeni, Aç (ERP'de "Düzenle") ve Görüntüle bağlı mı. Görüntüle ERP'deki gibi yalnız sayfa açan Aç'ta vardır
+ * (aynı sayfayı `mode=view` ile salt okunur açar); `view` null ise çubukta çizilmez.
+ */
+export function barBound(props: Record<string, unknown>): { new: boolean; open: boolean; view: boolean | null } {
   const modes = barModes(props);
+  const open = modes.open === "page" ? text(props.openPageCode) !== "" && text(props.openTable) !== "" : modes.open !== "off";
   return {
     new: modes.new === "page" ? text(props.newPageCode) !== "" : modes.new === "clear" ? list(props.newInputs).length > 0 : modes.new !== "off",
-    open: modes.open === "page" ? text(props.openPageCode) !== "" && text(props.openTable) !== "" : modes.open !== "off",
+    open,
+    view: modes.open === "page" ? open : null,
   };
 }
 

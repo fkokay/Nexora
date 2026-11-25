@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { CopyPlus, Eraser, Save, X } from "lucide-react";
+import { CopyPlus, Eraser, Save, SquarePen, X } from "lucide-react";
 import { useActionBarMounted, useActivePageCommands, usePageCommands } from "../commands/CommandProvider";
 import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import type { MenuCommand } from "../commands/types";
+import { takeRecordView } from "../commands/recordView";
 import { confirmDialog } from "../confirmDialog";
 import { RecordFormContext, type RecordFormContextValue, type SectionsApi } from "./RecordFormSections";
 import {
@@ -123,7 +124,7 @@ export type RecordFormPageProps = {
  * record navigation; the action bar; an optional section navigator (from RecordFormTabs) left of the cards; an
  * optional context panel on the right; and a footer with the form's shortcuts and status.
  * While mounted it registers the action bar's Kaydet (Ctrl+S, primary) and, on a page, puts "Kaydet ve Yeni"
- * (Ctrl+F2) and "Temizle" into the İşlemler menu. Inside a modal (whose backdrop covers the bar), and wherever no
+ * (Ctrl+F2) and "Temizle" onto the action bar next to Kaydet. Inside a modal (whose backdrop covers the bar), and wherever no
  * action bar is mounted (platform admin, launcher), it keeps Kaydet, Kaydet ve Yeni and Temizle as its own buttons.
  * F2 is the bar's Yeni and is handled by the page.
  */
@@ -157,6 +158,8 @@ export function RecordFormPage({
   const id = formId ?? generatedId;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  // Görüntüle (action bar): an edit form opened by it starts read-only; its header Düzenle unlocks it.
+  const [viewOnly, setViewOnly] = useState(() => mode === "edit" && takeRecordView());
   const canSaveAndNew = mode === "create" && !!onSaveIntent;
   const canReset = mode === "create" && !!onReset;
   // A form inside a modal keeps its own buttons: the modal backdrop covers the action bar.
@@ -173,25 +176,29 @@ export function RecordFormPage({
   const showSlot = isPage && !inDialog;
   // Without an action bar (platform admin, launcher, outside the shell) the form keeps its own buttons as well.
   const barMounted = useActionBarMounted();
-  const ownButtons = inDialog || !barMounted || ownSave;
+  const ownButtons = (inDialog || !barMounted || ownSave) && !viewOnly;
   // Bar commands only for a form that saves through the bar.
   const barCommands = commandsActive && !ownSave;
 
   const submit = (stayForNext: boolean) => {
     // Only the form of the topmost dialog (or, without a dialog, the visible page) may save.
-    if (!ownsKeyboard(formRef.current)) return;
+    if (viewOnly || !ownsKeyboard(formRef.current)) return;
     onSaveIntent?.(stayForNext);
     formRef.current?.requestSubmit();
   };
   const busyReason = busy ? "Kaydediliyor…" : undefined;
-  const more: MenuCommand[] = [];
+  const barItems: MenuCommand[] = [];
   if (!ownButtons && canSaveAndNew)
-    more.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
+    barItems.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
   if (!ownButtons && canReset)
-    more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
-  // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
+    barItems.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
+  // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" are bar buttons next to it.
   const markActive = usePageCommands(
-    barCommands ? { save: { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) }, more, ...(inListPane ? { besideList: true } : {}) } : {},
+    // Read-only: Kaydet is hidden (still primary, so the bar stays a form bar) and the page's Kaydet cannot come back.
+    barCommands ? {
+      save: viewOnly ? { primary: true, hidden: true } : { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) },
+      ...(!viewOnly && barItems.length > 0 ? { barItems } : {}), ...(inListPane ? { besideList: true } : {}),
+    } : {},
     "form",
     rootRef,
   );
@@ -200,6 +207,7 @@ export function RecordFormPage({
   // Form-local save keys (Ctrl+F2, and Ctrl+S without a bar). With several forms on screen only the one holding the
   // focus answers; with the focus in none of them, only a form that is alone in the keyboard scope does.
   const isSaveKeyTarget = () => {
+    if (viewOnly) return false;
     if (!ownsKeyboard(formRef.current) || focusIsInOtherForm(rootRef.current)) return false;
     return !!rootRef.current?.contains(document.activeElement) || !otherFormOwnsKeyboard(rootRef.current);
   };
@@ -357,7 +365,7 @@ export function RecordFormPage({
       ].filter((hint): hint is string => !!hint)
     : [];
 
-  const modeBadge = mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT";
+  const modeBadge = viewOnly ? "GÖRÜNTÜLEME" : mode === "edit" ? "DÜZENLEME" : "YENİ KAYIT";
   // Right side of the header: change note, record navigation, the form's own buttons (no bar), Vazgeç.
   const headerSide = (className: string) => (
     <div className={className}>
@@ -426,6 +434,12 @@ export function RecordFormPage({
             </button>
           )}
         </>
+      )}
+      {viewOnly && (
+        <button type="button" className="rf-btn rf-btn--primary" onClick={() => setViewOnly(false)}>
+          <SquarePen size={16} aria-hidden="true" />
+          Düzenle
+        </button>
       )}
       <button type="button" className="rf-btn" onClick={confirmCancel ? cancelAfterConfirm : onCancel}>
         <X size={16} aria-hidden="true" />
@@ -508,7 +522,10 @@ export function RecordFormPage({
           id={id}
           ref={formRef}
           className="rf-form"
-          onSubmit={onSubmit}
+          onSubmit={(event) => {
+            if (viewOnly) { event.preventDefault(); return; }
+            onSubmit(event);
+          }}
           onSubmitCapture={onSubmitCapture}
           onInvalidCapture={onInvalidCapture}
           onInputCapture={markTouched}
@@ -523,7 +540,13 @@ export function RecordFormPage({
             disabled={busy}
             onClick={() => onSaveIntent?.(false)}
           />
-          {children}
+          {viewOnly ? (
+            <fieldset className="rf-view-only" disabled aria-label="Salt okunur kayıt">
+              {children}
+            </fieldset>
+          ) : (
+            children
+          )}
         </form>
         {hasAside && (
           <aside className="rf-aside" aria-label="Bağlam paneli" hidden={!asideOpen}>

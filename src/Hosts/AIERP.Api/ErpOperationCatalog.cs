@@ -153,7 +153,7 @@ internal static partial class ErpOperationCatalog
         ["contactEmail"] = "Yetkili e-postası", ["priceListCode"] = "Fiyat listesi kodu", ["receivableAccountCode"] = "Alıcı muhasebe hesabı",
         ["payableAccountCode"] = "Satıcı muhasebe hesabı", ["bankName"] = "Banka adı", ["bankBranchCode"] = "Şube kodu", ["iban"] = "IBAN",
         ["addressLine"] = "Adres", ["city"] = "İl", ["district"] = "İlçe", ["postalCode"] = "Posta kodu", ["countryCode"] = "Ülke",
-        ["isDefault"] = "Varsayılan", ["latitude"] = "Enlem", ["longitude"] = "Boylam", ["provinceId"] = "İl kimliği",
+        ["isDefault"] = "Varsayılan", ["latitude"] = "Enlem", ["longitude"] = "Boylam", ["provinceId"] = "İl kimliği", ["provinceName"] = "İl adı",
         ["defaultAddressId"] = "Varsayılan adres kimliği", ["defaultAddressLabel"] = "Varsayılan adres etiketi",
         ["defaultAddressLine"] = "Varsayılan adres", ["defaultAddressCity"] = "Varsayılan adres ili",
         ["defaultAddressDistrict"] = "Varsayılan adres ilçesi", ["defaultAddressPostalCode"] = "Varsayılan adres posta kodu",
@@ -601,7 +601,7 @@ internal static partial class ErpOperationCatalog
         yield return Read(CustomerModule, "cari.iller", "İller", "/api/location-definitions/provinces", [],
             List(Columns<CustomerLocationProvinceView>(), null));
         yield return Read(CustomerModule, "cari.ilceler", "İlçeler", "/api/location-definitions/districts",
-            [new ErpOperationParameter("provinceId", "query", "int", true)], List(Columns<CustomerLocationDistrictView>(), null));
+            [Query("provinceId", "int"), Query("provinceName", "text")], List(Columns<CustomerLocationDistrictView>(), null));
         // Addresses are never deleted: Pasife al is the same PUT with isActive (and isDefault) fixed, the rest bound from the row.
         yield return Write(CustomerModule, "cari.adres.ekle", "Cari adresi ekle", "insert", "POST", customerRoute + "/addresses",
             [id, .. BodyParameters<CustomerAddressWriteRequest>(sourceBacked: false, exclude: "isActive")], Record(addressColumns), null,
@@ -621,7 +621,12 @@ internal static partial class ErpOperationCatalog
             .Append(new ErpOperationColumn("creditAmount", Label("creditAmount"), "decimal"))
             .Append(new ErpOperationColumn("balanceAmount", Label("balanceAmount"), "decimal"))
             .Append(new ErpOperationColumn("balanceSide", Label("balanceSide"), "text"))
-            .Append(new ErpOperationColumn("foreignCurrencyCode", Label("foreignCurrencyCode"), "text")).ToArray();
+            .Append(new ErpOperationColumn("foreignCurrencyCode", Label("foreignCurrencyCode"), "text"))
+            // Source document (Belgeye git). Explicit labels: the shared "source*" codes are Finans labels, built after Cari.
+            .Append(new ErpOperationColumn("sourceType", "Belge türü", "text"))
+            .Append(new ErpOperationColumn("sourceId", "Belge kimliği", "guid"))
+            .Append(new ErpOperationColumn("sourceCode", "Belge no", "text"))
+            .Append(new ErpOperationColumn("sourceOpenId", "Açılacak belge", "guid")).ToArray();
         yield return Read(CustomerModule, "cari.ekstre", "Cari hesap ekstresi", customerRoute + "/statement",
             [id, new ErpOperationParameter("from", "query", "date", true), new ErpOperationParameter("to", "query", "date", true)],
             List(statementColumns, "items") with

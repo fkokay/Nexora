@@ -31,7 +31,10 @@ function setup(commands: PageCommands | null) {
   );
 }
 
-const all = (): PageCommands => Object.fromEntries(ACTION_BAR_ORDER.map((id) => [id, { run: vi.fn() }]));
+const all = (): PageCommands => ({
+  ...Object.fromEntries(ACTION_BAR_ORDER.map((id) => [id, { run: vi.fn() }])),
+  more: [{ id: 'x', label: 'X', run: vi.fn() }],
+});
 const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const button = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const isDisabled = (el: HTMLElement) => el.getAttribute('aria-disabled') === 'true';
@@ -48,16 +51,24 @@ describe('ActionBar', () => {
   const layout = () => Array.from(bar().querySelectorAll('.nx-action-bar__commands > *')).map((el) =>
     el.classList.contains('nx-action-bar__sep') ? '|' : el.getAttribute('data-command'));
 
-  it('renders the eight standard buttons in fixed order plus the actions menu', () => {
+  it('renders the standard buttons in fixed order plus the actions menu', () => {
     setup(all());
     expect(commandIds()).toEqual([...ACTION_BAR_ORDER, 'more']);
-    expect(layout()).toEqual(['new', 'open', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(button('view').textContent).toBe('Görüntüle');
   });
 
-  it('hides every command no source registered; only İşlemler stays when the page registered nothing', () => {
+  it('a source label replaces the standard one (Studio pages: Aç reads Düzenle)', () => {
+    setup({ open: { run: vi.fn(), label: 'Düzenle' }, view: { run: vi.fn() } });
+    expect(button('open').textContent).toBe('Düzenle');
+    expect(button('open').getAttribute('aria-label')).toBe('Düzenle');
+    expect(button('view').getAttribute('aria-keyshortcuts')).toBe('Shift+Enter');
+  });
+
+  it('hides every command no source registered; no İşlemler when the page registered nothing', () => {
     setup(null);
     for (const id of ACTION_BAR_ORDER) expect(button(id)).toBeNull();
-    expect(commandIds()).toEqual(['more']);
+    expect(commandIds()).toEqual([]);
     expect(bar().querySelector('.nx-action-bar__sep')).toBeNull();
   });
 
@@ -66,7 +77,7 @@ describe('ActionBar', () => {
     const { save: _save, ...list } = all();
     setup({ ...list, open: { run: open }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
     expect(button('save')).toBeNull();
-    expect(layout()).toEqual(['new', 'open', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
     expect(isDisabled(button('delete'))).toBe(true);
     const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
     document.body.dispatchEvent(event);
@@ -145,7 +156,7 @@ describe('ActionBar', () => {
   });
 
   it('shows the formatted shortcut in a tooltip, not as a badge on the button', () => {
-    setup({ new: { run: () => undefined }, delete: { run: () => undefined } });
+    setup({ new: { run: () => undefined }, delete: { run: () => undefined } , more: [{ id: 'x', label: 'X', run: () => undefined }] });
     expect(bar().querySelector('kbd')).toBeNull();
     expect(button('new').getAttribute('aria-keyshortcuts')).toBe('F2');
     expect(tooltipOf(button('new'))).toBe('Yeni · F2');
@@ -291,7 +302,7 @@ describe('ActionBar compaction (narrow bar)', () => {
   it('compacts to icons only (label and shortcut in the tooltip); İşlemler keeps its label', () => {
     const restore = fakeLayout(700, { full: 900, 'no-keys': 760, icons: 420 });
     try {
-      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
+      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' } , more: [{ id: 'x', label: 'X', run: () => undefined }] });
       expect(bar().getAttribute('data-compact')).toBe('icons');
       expect(button('save').getAttribute('aria-label')).toBe('Kaydet');
       expect(tooltipOf(button('save'))).toBe('Kaydet · Ctrl+S');
@@ -354,7 +365,7 @@ describe('ActionBar compaction (narrow bar)', () => {
     });
 
     it('hints=false drops the shortcut from the tooltips', () => {
-      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' }, look: { hints: false } });
+      setup({ save: { run: () => undefined }, delete: { disabledReason: 'Önce bir kayıt seçin' }, look: { hints: false } , more: [{ id: 'x', label: 'X', run: () => undefined }] });
       expect(tooltipOf(button('save'))).toBe('Kaydet');
       act(() => (document.activeElement as HTMLElement).blur());
       expect(tooltipOf(button('delete'))).toBe('Önce bir kayıt seçin');
@@ -370,7 +381,7 @@ describe('ActionBar compaction (narrow bar)', () => {
       expect(button('save')).toBeNull();
       expect(button('export')).toBeNull();
       expect(button('refresh')).toBeNull();
-      expect(layout()).toEqual(['new', 'open', 'delete', '|', 'filter', '|', 'print']);
+      expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'filter', '|', 'print']);
       const event = new KeyboardEvent('keydown', { key: 'F5', bubbles: true, cancelable: true });
       document.body.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(true);
@@ -400,7 +411,7 @@ describe('ActionBar compaction (narrow bar)', () => {
       rerender(
         <CommandProvider>
           <ActionBar locale="tr" />
-          <KeepAliveViews activeKey="plain" openKeys={['styled', 'plain']}><Page commands={{ refresh: { run: vi.fn() } }} /></KeepAliveViews>
+          <KeepAliveViews activeKey="plain" openKeys={['styled', 'plain']}><Page commands={{ refresh: { run: vi.fn() }, more: [{ id: 'x', label: 'X', run: vi.fn() }] }} /></KeepAliveViews>
         </CommandProvider>,
       );
       // React leaves an empty style attribute behind once the variables are removed.

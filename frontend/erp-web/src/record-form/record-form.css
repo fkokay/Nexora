@@ -538,3 +538,6 @@
 
 /* Default submit button of the form (Enter saves); present for implicit submission, never shown. */
 .record-form .rf-default-submit { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Görüntüle ile açılan salt okunur kayıt: alanlar kilitli; düzen fieldset yokmuş gibi kalır. */
+.rf-view-only { display: contents; margin: 0; padding: 0; border: 0; min-width: 0; }

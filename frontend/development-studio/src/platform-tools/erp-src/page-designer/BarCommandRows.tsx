@@ -8,7 +8,8 @@ import { BAR_COMMAND_IDS, getCommandCondition, isCommandHidden, setCommandCondit
  * "Kaydet ve yeni" İşlemler menüsündedir: koşulu olur, gözü olmaz (`hiddenCommands` almaz).
  */
 export const BAR_COMMAND_ROWS: readonly { id: BarConditionId | "afterSave"; label: string; key?: string }[] = [
-  { id: "new", label: "Yeni", key: "F2" }, { id: "open", label: "Aç", key: "Enter" }, { id: "save", label: "Kaydet", key: "Ctrl+S" },
+  { id: "new", label: "Yeni", key: "F2" }, { id: "open", label: "Düzenle", key: "Enter" }, { id: "view", label: "Görüntüle", key: "Shift+Enter" },
+  { id: "save", label: "Kaydet", key: "Ctrl+S" },
   { id: "saveNew", label: "Kaydet ve yeni", key: "Ctrl+F2" },
   { id: "delete", label: "Sil", key: "Ctrl+Del" }, { id: "refresh", label: "Yenile", key: "F5" }, { id: "filter", label: "Filtre", key: "Ctrl+F" },
   { id: "print", label: "Yazdır", key: "Ctrl+P" }, { id: "export", label: "Excel", key: "Ctrl+E" }, { id: "more", label: "İşlemler", key: "Alt+İ" },

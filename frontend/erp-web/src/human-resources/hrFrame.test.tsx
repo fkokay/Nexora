@@ -105,7 +105,7 @@ describe('İnsan kaynakları lists (list type)', () => {
   it('Personel: single click selects and shows the panel; no Düzenle buttons; Aç opens the edit form', async () => {
     renderScreen(<HumanResourcesPage token="t" role="TenantAdmin" />);
     const cell = await screen.findByText('Ayşe Demir');
-    expect(screen.queryByRole('button', { name: 'Düzenle' })).toBeNull();
+    expect(screen.queryAllByRole('button', { name: 'Düzenle' }).filter((button) => !button.closest('[role="toolbar"]'))).toEqual([]);
     await waitFor(() => expect(reason('open')).toBe('Önce bir kayıt seçin'));
     fireEvent.click(cell);
     const panel = await screen.findByRole('complementary', { name: 'Personel özeti' });
