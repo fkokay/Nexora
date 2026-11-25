@@ -1,7 +1,8 @@
 // Sunucu sayfalı liste (paging: "server") yardımcıları. Sunucu kuralı: tablo adlı olmalı, ERP işlemi sorgusuna bağlı
 // olmalı; işlemin int `query` parametreleri pageParam/pageSizeParam ({{<tablo>.sayfa}} / {{<tablo>.sayfaBoyutu}} ile bağlı).
-import type { ErpOperation } from "./erpOperations";
+import { findOperation, type ErpCatalog, type ErpOperation } from "./erpOperations";
 import type { PageQuery } from "./QueriesPanel";
+import { CATALOG_FAILED, componentOperation, type CatalogRefs } from "./catalogItems";
 
 export const DEFAULT_PAGE_PARAM = "page";
 export const DEFAULT_PAGE_SIZE_PARAM = "pageSize";
@@ -65,10 +66,26 @@ export function tableSearchInputIds(components: PagedComponent[]): Set<string> {
   return ids;
 }
 
-/** Sunucu sayfalı listenin kayıt öncesi sorunu (sunucudaki metinle); yoksa null. */
-export function pagedTableProblem(component: PagedComponent & { id: string }, query: PageQuery | undefined): string | null {
+/**
+ * Sayfalamanın açılamama nedeni (sorgu kaynağına göre); açılabiliyorsa null. ERP işlemine dayanan katalog başvurusu öğenin
+ * işlemiyle denetlenir; katalog hazır değilse açılamaz (saklanan sayfalama ise silinmez, bkz. `componentOperation`).
+ */
+export function pagingSourceProblem(query: PageQuery | undefined, refs: CatalogRefs | undefined, catalog: ErpCatalog): string | null {
+  const source = query ? componentOperation(query, refs) : { kind: "sql" as const };
+  if (source.kind === "sql") return "Liste bir ERP işlemi sorgusuna bağlı olmalıdır.";
+  if (source.kind === "unknown") return refs?.status === "failed" ? CATALOG_FAILED : refs?.status === "ready" ? "Bu yapı taşı katalogda bulunamadı." : "Katalog yükleniyor.";
+  if (catalog.status !== "ready") return "ERP işlem listesi yükleniyor.";
+  if (!supportsServerPaging(findOperation(catalog, source.name))) return "Bu ERP işlemi sayfalamayı desteklemiyor (page / pageSize parametresi yok).";
+  return null;
+}
+
+/**
+ * Sunucu sayfalı listenin kayıt öncesi sorunu (sunucudaki metinle); yoksa null. SQL'e dayanan sorgu reddedilir; katalog
+ * başvurusunun kaynağı bilinmiyorsa (katalog yüklenmedi) kayıt engellenmez, sunucu karar verir.
+ */
+export function pagedTableProblem(component: PagedComponent & { id: string }, query: PageQuery | undefined, refs?: CatalogRefs): string | null {
   if (!isPagedTable(component)) return null;
-  if (!component.name || !query || typeof query.operation !== "string") return `Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: ${component.id}`;
+  if (!component.name || !query || componentOperation(query, refs).kind === "sql") return `Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: ${component.id}`;
   if (query.runOn !== "load") return "Sayfalı listenin sorgusu sayfa açılınca çalışmalı (runOn: load).";
   const params = pagingParams(component.props);
   for (const [name, binding, label] of [[params.page, pageBinding(component.name), "sayfa"], [params.pageSize, pageSizeBinding(component.name), "sayfaBoyutu"]] as const) {

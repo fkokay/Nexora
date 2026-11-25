@@ -75,3 +75,20 @@ export function catalogPickPatch(item: CatalogItem, isAction: boolean, operation
     ? { action: item.code, dataSource: undefined, kind: item.kind as QueryKind, runOn: "manual", runDebounceMs: undefined, parameters }
     : { dataSource: item.code, action: undefined, parameters };
 }
+
+/**
+ * Bileşen kurallarının (sunucu sayfalaması) gördüğü ERP işlemi: sunucudaki `ComponentOperation` kuralının aynası.
+ * Sorgunun kendi işlemi ya da başvurduğu, ERP işlemine dayanan katalog öğesinin işlemi. SQL sorgusu ve SQL'e dayanan
+ * başvuru `sql`dir. Katalog yüklenmemiş/alınamamışsa ya da kod katalogda yoksa `unknown`: saklanan ayar silinmez.
+ */
+export type ComponentOperation = { kind: "operation"; name: string } | { kind: "sql" } | { kind: "unknown" };
+export function componentOperation(query: PageQuery, refs: CatalogRefs | undefined): ComponentOperation {
+  if (typeof query.operation === "string") return { kind: "operation", name: query.operation };
+  const code = catalogCodeOf(query);
+  if (code === undefined) return { kind: "sql" };
+  if (!refs || refs.status !== "ready") return { kind: "unknown" };
+  const item = (typeof query.dataSource === "string" ? refs.dataSources : refs.actions).find((candidate) => candidate.code === code);
+  if (!item) return { kind: "unknown" };
+  if (item.source === "sql") return { kind: "sql" };
+  return item.erpOperation ? { kind: "operation", name: item.erpOperation } : { kind: "unknown" };
+}

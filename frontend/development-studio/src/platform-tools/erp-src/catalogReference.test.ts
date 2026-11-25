@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createElement } from "react";
-import { designerPersistence } from "./CustomPagesPage";
+import { designerInternals, designerPersistence } from "./CustomPagesPage";
+import { pagedTableProblem, pagingSourceProblem } from "./page-designer/paging";
 import QueriesPanel, { QueryDetailFields, catalogReference, querySourceLabel, type PageQuery } from "./page-designer/QueriesPanel";
-import { CATALOG_ADMIN_ONLY, CATALOG_OPERATION_MISSING, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, loadCatalogRefs, sourceModePatch, type CatalogRefs } from "./page-designer/catalogItems";
+import { CATALOG_ADMIN_ONLY, CATALOG_FAILED, CATALOG_OPERATION_MISSING, componentOperation, catalogCodeMissing, catalogItemDisabledReason, catalogItemsFor, catalogPickPatch, loadCatalogRefs, sourceModePatch, type CatalogRefs } from "./page-designer/catalogItems";
 import { applyQueryPatch } from "./page-designer/queryDraft";
 import type { ErpOperation } from "./page-designer/erpOperations";
 
@@ -156,5 +157,63 @@ describe("katalog seçici", () => {
     const loaded = await loadCatalogRefs((async () => ({ dataSources: [{ code: "a", label: "A", source: "sql", parameters: [] }], actions: [], invalidItems: [{ code: "bozuk" }] })) as never);
     expect(JSON.stringify(loaded)).not.toContain("bozuk");
     await expect(loadCatalogRefs((async () => ({})) as never)).rejects.toThrow();
+  });
+});
+
+// Sunucu kuralı (TenantCustomPageSchema.ComponentOperation): ERP işlemine dayanan katalog başvurusu sayfalama kurallarına
+// öğenin işlemiyle girer. SQL'e dayanan başvuru sayfalanamaz; katalog yüklenmemişse saklanan sayfalama silinmez.
+describe("katalog başvurusu sunucu sayfalı listede", () => {
+  const pagedOperation = { ...operation, parameters: [{ name: "page", in: "query", type: "int", required: false }, { name: "pageSize", in: "query", type: "int", required: false }] } as unknown as ErpOperation;
+  const erp = { status: "ready" as const, operations: [pagedOperation] };
+  const pagingRefs: CatalogRefs = { ...refs, status: "ready", dataSources: [...(refs.status === "ready" ? refs.dataSources : []), { code: "sqlKaynak", label: "SQL kaynak", source: "sql", parameters: [] }] };
+  const pagedQuery = (dataSource: string): PageQuery => ({ ...base, dataSource,
+    parameters: [{ name: "page", binding: "{{stoklar.sayfa}}", type: "int" }, { name: "pageSize", binding: "{{stoklar.sayfaBoyutu}}", type: "int" }] });
+  const table = { id: "t1", name: "stoklar", type: "dataTable", props: { query: "q1", paging: "server", pageParam: "page", pageSizeParam: "pageSize", pageSize: 25 } };
+  const definition = (query: PageQuery) => ({ schemaVersion: 2, queries: [query], components: [structuredClone(table)] }) as never;
+  const reconciledProps = (query: PageQuery, catalogRefs?: CatalogRefs) =>
+    (designerInternals.reconcileDefinition(definition(query), { catalog: erp, catalogRefs, queryEditable: true } as never).components[0] as { props: Record<string, unknown> }).props;
+
+  it("operation_backed_reference_keeps_paging_through_reconcile", () => {
+    expect(componentOperation(pagedQuery("stoklar"), pagingRefs)).toEqual({ kind: "operation", name: "stok.listele" });
+    expect(reconciledProps(pagedQuery("stoklar"), pagingRefs)).toMatchObject({ paging: "server", pageSize: 25 });
+  });
+
+  it("sql_backed_reference_is_stripped_and_blocked", () => {
+    expect(componentOperation(pagedQuery("sqlKaynak"), pagingRefs)).toEqual({ kind: "sql" });
+    expect(reconciledProps(pagedQuery("sqlKaynak"), pagingRefs)).not.toHaveProperty("paging");
+    expect(pagingSourceProblem(pagedQuery("sqlKaynak"), pagingRefs, erp)).toBe("Liste bir ERP işlemi sorgusuna bağlı olmalıdır.");
+    expect(pagedTableProblem(table, pagedQuery("sqlKaynak"), pagingRefs)).toBe("Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: t1");
+  });
+
+  it("refs_not_loaded_never_strip_paging_from_reference", () => {
+    for (const catalogRefs of [undefined, { status: "loading" } as CatalogRefs, { status: "failed" } as CatalogRefs]) {
+      expect(componentOperation(pagedQuery("sqlKaynak"), catalogRefs)).toEqual({ kind: "unknown" });
+      expect(reconciledProps(pagedQuery("sqlKaynak"), catalogRefs)).toMatchObject({ paging: "server", pageSize: 25 });
+      expect(pagedTableProblem(table, pagedQuery("sqlKaynak"), catalogRefs)).toBeNull();
+    }
+    // Katalogdan kalkmış kod da bilinmiyor sayılır: sayfalama silinmez, kaydı sunucu karara bağlar.
+    expect(reconciledProps(pagedQuery("silinmis"), pagingRefs)).toMatchObject({ paging: "server" });
+    expect(pagingSourceProblem(pagedQuery("stoklar"), { status: "loading" }, erp)).toBe("Katalog yükleniyor.");
+    expect(pagingSourceProblem(pagedQuery("stoklar"), { status: "failed" }, erp)).toBe(CATALOG_FAILED);
+  });
+
+  it("paging_can_be_enabled_for_operation_backed_reference", () => {
+    expect(pagingSourceProblem(pagedQuery("stoklar"), pagingRefs, erp)).toBeNull();
+    expect(pagedTableProblem(table, pagedQuery("stoklar"), pagingRefs)).toBeNull();
+    // İşlemi sayfalamayı desteklemeyen öğe açılamaz.
+    expect(pagingSourceProblem(pagedQuery("stoklar"), pagingRefs, { status: "ready", operations: [operation] })).toBe("Bu ERP işlemi sayfalamayı desteklemiyor (page / pageSize parametresi yok).");
+  });
+
+  it("renamed_paged_table_rebinds_operation_backed_reference", () => {
+    const query = { ...pagedQuery("stoklar"), parameters: [{ name: "page", binding: "", type: "int" as const }, { name: "pageSize", binding: "", type: "int" as const }] };
+    const next = designerInternals.reconcileDefinition(definition(query), { catalog: erp, catalogRefs: pagingRefs, queryEditable: true } as never);
+    expect(next.queries[0].parameters.map((parameter) => parameter.binding)).toEqual(["{{stoklar.sayfa}}", "{{stoklar.sayfaBoyutu}}"]);
+  });
+
+  it("plain_queries_behave_as_before", () => {
+    expect(componentOperation({ ...base, operation: "stok.listele" }, undefined)).toEqual({ kind: "operation", name: "stok.listele" });
+    expect(componentOperation({ ...base, sql: "SELECT 1 AS A" }, pagingRefs)).toEqual({ kind: "sql" });
+    expect(reconciledProps({ ...base, sql: "SELECT 1 AS A" }, undefined)).not.toHaveProperty("paging");
+    expect(pagingSourceProblem({ ...base, sql: "SELECT 1 AS A" }, undefined, erp)).toBe("Liste bir ERP işlemi sorgusuna bağlı olmalıdır.");
   });
 });
