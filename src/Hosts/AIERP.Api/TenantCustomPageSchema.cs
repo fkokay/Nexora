@@ -203,6 +203,8 @@ internal static partial class TenantCustomPageSchema
     private sealed class Context(int version)
     {
         public bool V2 { get; } = version == 2;
+        /// <summary>The page carries a v2 root <c>template</c> named "list"; its slot:list table may set <c>pageSize</c> without server paging.</summary>
+        public bool ListTemplate { get; init; }
         public ErpOperationLookup Lookup { get; init; } = ErpOperationCatalog.TryGet;
         /// <summary>Operation names the page already used before this save; deprecated ones stay accepted.</summary>
         public IReadOnlySet<string> ExistingOperations { get; init; } = new HashSet<string>();
@@ -344,7 +346,7 @@ internal static partial class TenantCustomPageSchema
                 || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array
                 || components.GetArrayLength() > (version == 2 ? MaxComponentsV2 : MaxComponentsV1))
             { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli (sürüm 2: 120) components dizisi içermelidir."; return false; }
-            var context = new Context(version) { Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
+            var context = new Context(version) { ListTemplate = version == 2 && IsListTemplate(root), Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
             foreach (var pageQuery in queries) { context.QueryById[pageQuery.Id] = pageQuery; context.ExactNames.Add(pageQuery.Name); }
@@ -1614,6 +1616,10 @@ internal static partial class TenantCustomPageSchema
         return true;
     }
 
+    private static bool IsListTemplate(JsonElement root) =>
+        root.TryGetProperty("template", out var template) && template.ValueKind == JsonValueKind.Object
+        && template.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == "list";
+
     private static bool ValidatePagingProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
     {
         error = null;
@@ -1624,8 +1630,14 @@ internal static partial class TenantCustomPageSchema
             { error = "'paging' yalnız veri listesinde \"server\" olabilir."; return false; }
             paged = true;
         }
+        // Kalıplı liste istemci sayfalar: slot:list tablosu sunucu sayfalaması olmadan yalnız 'pageSize' alabilir.
+        if (!paged && context.ListTemplate && typeText == "dataTable" && StringOf(props, "slot") == "list" && props.TryGetProperty("pageSize", out var choice))
+        {
+            if (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100))
+            { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
+        }
         foreach (var key in PagingProps)
-            if (!paged && props.TryGetProperty(key, out _))
+            if (!paged && !(key == "pageSize" && context.ListTemplate && typeText == "dataTable" && StringOf(props, "slot") == "list") && props.TryGetProperty(key, out _))
             { error = $"'{key}' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir."; return false; }
         if (!paged) return true;
         var parameterNames = new string[2];

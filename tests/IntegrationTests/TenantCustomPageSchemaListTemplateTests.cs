@@ -139,6 +139,27 @@ public sealed class TenantCustomPageSchemaListTemplateTests
         Rejected(JsonSerializer.Serialize(new { schemaVersion = 1, template = new { name = "list" }, components = Array.Empty<object>() }), "components");
     }
 
+    [Theory]
+    [InlineData(10)]
+    [InlineData(25)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public void List_slot_table_accepts_page_size_without_server_paging(int pageSize) =>
+        Accepted(Page(Template, [List(extra: new { pageSize })]));
+
+    [Fact]
+    public void List_slot_table_rejects_page_size_outside_choices()
+    {
+        Rejected(Page(Template, [List(extra: new { pageSize = 7 })]), "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı.");
+        Rejected(Page(Template, [List(extra: new { pageSize = "25" })]), "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı.");
+        // Other server paging props stay forbidden without paging: server.
+        Rejected(Page(Template, [List(extra: new { pageSize = 25, pageParam = "p" })]), "'pageParam' yalnız sunucu sayfalı");
+    }
+
+    [Fact]
+    public void Legacy_table_still_requires_server_paging_for_page_size() =>
+        Rejected(Page(null, [List(extra: new { pageSize = 25 })]), "'pageSize' yalnız sunucu sayfalı (paging: server) veri listesinde kullanılabilir.");
+
     [Fact]
     public void System_standard_envelope_with_template_is_accepted()
     {
