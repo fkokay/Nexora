@@ -43,7 +43,7 @@ beforeEach(() => {
 
 const props = {
   token: "t", root, files, hasUncommittedCatalogChanges: false, headCommitSha: "abcdef1234567890",
-  repositoryUrl: "https://git.test/r.git", isTenantAdmin: true, onClose: () => {},
+  repositoryUrl: "https://git.test/r.git", canDevelop: true, onClose: () => {},
 };
 const button = (host: HTMLElement, text: string) =>
   [...host.querySelectorAll("button")].find(b => b.textContent?.includes(text)) as HTMLButtonElement | undefined;
@@ -63,9 +63,9 @@ describe("CatalogReleaseDialog", () => {
     expect(button(host, "Taslak oluştur")?.disabled ?? true).toBe(true);
   });
 
-  it("non_admin_sees_notice_and_disabled_publish", async () => {
-    const host = await render(<CatalogReleaseDialog {...props} isTenantAdmin={false} />);
-    expect(host.textContent).toContain("Yalnızca firma yöneticisi yayınlayabilir.");
+  it("non_developer_sees_notice_and_disabled_publish", async () => {
+    const host = await render(<CatalogReleaseDialog {...props} canDevelop={false} />);
+    expect(host.textContent).toContain("Yalnızca yazılımcı ya da yönetici yayınlayabilir.");
     expect(button(host, "Taslak oluştur")!.disabled).toBe(true);
     expect(createRelease).not.toHaveBeenCalled();
   });

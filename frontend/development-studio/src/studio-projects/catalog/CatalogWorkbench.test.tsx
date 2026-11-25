@@ -31,7 +31,7 @@ const { entries, errors } = readCatalogEntries(root, files);
 
 const writeFiles = vi.fn<(files: CatalogFile[]) => Promise<void>>();
 const props = () => ({
-  root, entries, errors, canEdit: true, isTenantAdmin: true, token: "t",
+  root, entries, errors, canEdit: true, canDevelop: true, token: "t",
   changedPaths: [`${root}/veri/cariler.sql`], writeFiles, onPublish: vi.fn(),
 });
 

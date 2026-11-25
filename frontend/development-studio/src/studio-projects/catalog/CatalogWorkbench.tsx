@@ -13,7 +13,8 @@ export type CatalogWorkbenchProps = {
   entries: CatalogEntry[];
   errors: string[];
   canEdit: boolean;
-  isTenantAdmin: boolean;
+  /** Firma yöneticisi ya da Studio yazılımcısı: önizleme ve sürüm yayını (sunucu da aynı kuralı uygular). */
+  canDevelop: boolean;
   token: string;
   writeFiles: WriteCatalogFiles;
   onPublish: () => void;
@@ -31,7 +32,7 @@ type Selection = { kind: CatalogKind; code: string | null } | null;
 
 const labelOf = (entry: CatalogEntry) => (typeof entry.json.label === "string" && entry.json.label) || entry.code;
 
-export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin, token, writeFiles, onPublish, changedPaths = [], fileShas = {}, version = 0, onDirtyChange }: CatalogWorkbenchProps) {
+export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, token, writeFiles, onPublish, changedPaths = [], fileShas = {}, version = 0, onDirtyChange }: CatalogWorkbenchProps) {
   const [selection, setSelection] = useState<Selection>(() => (entries[0] ? { kind: entries[0].kind, code: entries[0].code } : null));
   const [operations, setOperations] = useState<ErpOperation[] | null>([]);
   const [formKey, setFormKey] = useState(0);
@@ -125,7 +126,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, isTenantAdmin
           )}
           {!selection && <p className="sp-cw-hint">Soldan bir yapı taşı seçin ya da "+ Yeni" ile ekleyin.</p>}
           {selection?.kind === "dataSource" && (
-            <DataSourceForm key={formId} {...formProps} entry={selected} isTenantAdmin={isTenantAdmin} token={token} />
+            <DataSourceForm key={formId} {...formProps} entry={selected} canDevelop={canDevelop} token={token} />
           )}
           {selection?.kind === "action" && <ActionForm key={formId} {...formProps} entry={selected} />}
         </div>

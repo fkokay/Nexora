@@ -15,7 +15,8 @@ export type CatalogReleaseDialogProps = {
   hasUncommittedCatalogChanges: boolean;
   headCommitSha: string | null;
   repositoryUrl: string | null;
-  isTenantAdmin: boolean;
+  /** Firma yöneticisi ya da Studio yazılımcısı: önizleme ve sürüm yayını (sunucu da aynı kuralı uygular). */
+  canDevelop: boolean;
   onClose: () => void;
 };
 
@@ -35,9 +36,9 @@ function nextVersion(releases: CatalogRelease[]): string {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : "İşlem tamamlanamadı.");
 
 export function CatalogReleaseDialog({
-  token, root, files, hasUncommittedCatalogChanges, headCommitSha, repositoryUrl, isTenantAdmin, onClose,
+  token, root, files, hasUncommittedCatalogChanges, headCommitSha, repositoryUrl, canDevelop, onClose,
 }: CatalogReleaseDialogProps) {
-  const blocked = hasUncommittedCatalogChanges || !isTenantAdmin;
+  const blocked = hasUncommittedCatalogChanges || !canDevelop;
   const [releases, setReleases] = useState<CatalogRelease[]>([]);
   const [active, setActive] = useState<ActiveCatalog | null>(null);
   const [version, setVersion] = useState("1.0.0");
@@ -129,8 +130,8 @@ export function CatalogReleaseDialog({
           <X size={17} />
         </button>
       </header>
-      {!isTenantAdmin && <div className="alert">Yalnızca firma yöneticisi yayınlayabilir.</div>}
-      {isTenantAdmin && hasUncommittedCatalogChanges && <div className="alert">Önce değişiklikleri commit edin.</div>}
+      {!canDevelop && <div className="alert">Yalnızca yazılımcı ya da yönetici yayınlayabilir.</div>}
+      {canDevelop && hasUncommittedCatalogChanges && <div className="alert">Önce değişiklikleri commit edin.</div>}
       {error && <div className="alert">{error}</div>}
       {readErrors.length > 0 && (
         <div className="alert"><ul>{readErrors.map(item => <li key={item}>{item}</li>)}</ul></div>
@@ -152,7 +153,7 @@ export function CatalogReleaseDialog({
           />
         </label>
         <footer className="sp-dialog-foot">
-          <small><ShieldCheck size={14} aria-hidden="true" /> Yalnız firma yöneticisi yayınlayabilir</small>
+          <small><ShieldCheck size={14} aria-hidden="true" /> Yalnız yazılımcı ya da yönetici yayınlayabilir</small>
           <button type="button" className="ns-btn" disabled={busy} onClick={onClose}>Vazgeç</button>
           {draftId ? (
             <button type="button" className="ns-btn ns-btn-primary" disabled={busy} onClick={() => void activate(draftId, version)}>

@@ -83,7 +83,7 @@ import {
   type StudioMenuRole,
   type StudioSection,
 } from "./shell/studioNav";
-import { useStudioAccess } from "./shell/useStudioAccess";
+import { canDevelopCatalog, useStudioAccess } from "./shell/useStudioAccess";
 
 type Tenant = { id: string; name: string; slug: string; role: string };
 type DevelopmentProject = {
@@ -1733,6 +1733,7 @@ export default function App() {
                     projects={projects}
                     setProjects={setProjects}
                     refreshProjects={refreshProjects}
+                    canDevelop={canDevelopCatalog(access, tenant.role)}
                     projectRequestCount={
                       requests.filter(
                         (request) =>
