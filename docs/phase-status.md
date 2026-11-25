@@ -5,7 +5,7 @@ Pages now carry a template (kalıp) and the first one, List, is usable end to en
 
 Verified (2026-11-25): a browser pass with a MOCK backend (Studio dev + ERP dev), covering the items above and the ERP rendering at 1280 (table), 768 (narrow, 4 columns) and 375 (cards). Fixed during that pass: the canvas auth handshake race; the template collapsing inside the legacy grid below 900px; "Kartı aç" for PascalCase key columns; a duplicate search box. The auth handshake fix (Studio `ErpCanvasFrame`) also applies to subproject 1 (PR #168).
 
-<!-- test sayıları controller tarafından eklenecek -->
+Test results (2026-11-25, branch head 25b50d3c): erp-web `npm test` 2108/2108 and `npm run build` passed; development-studio `npm test` 643 vitest + 13 node tests and `npm run build` passed; `dotnet test AIERP.slnx` unit tests 1181/1181, integration tests 1775 passed, 60 skipped (SQL Server acceptance), 20 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled; up to 22 concurrent dotnet processes from other sessions). The 15 affected classes re-run alone: 378/386 passed, the remaining 8 timed out again under load; those 8 tests re-run on their own passed 12/12.
 
 Not verified: a real backend and login; Docker Compose; the publish flow end to end; Studio-vs-ERP pixel comparison at three widths against a real tenant; system standards with a template.
 
