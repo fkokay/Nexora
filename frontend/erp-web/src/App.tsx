@@ -1,6 +1,8 @@
 import { WorkspaceAuthPage } from "./WorkspaceAuthPage";
 import { PlatformAdminShellPage } from "./PlatformAdminShellPage";
 import { EmbeddedStudioWaitingPage } from "./EmbeddedStudioWaitingPage";
+import DesignerCanvasHost from "./designer-canvas/DesignerCanvasHost";
+import { readCanvasParams } from "./designer-canvas/canvasProtocol";
 import { type GlobalSearchResult, type Locale } from "./WorkspaceComponents";
 import { WorkspaceShellPage } from "./WorkspaceShellPage";
 import { ModuleLauncher } from "./ModuleLauncherPage";
@@ -78,6 +80,7 @@ function AppContent() {
   const searchParams = new URLSearchParams(window.location.search);
   const standaloneStudio = searchParams.get("app") === "studio";
   const embeddedStudioTool = searchParams.get("embeddedStudio") === "1";
+  const canvasParams = readCanvasParams(window.location.search);
   const trustedStudioOrigin = (() => {
     const configuredStudioUrl =
       import.meta.env.VITE_STUDIO_URL ||
@@ -171,6 +174,9 @@ function AppContent() {
       return null;
     }
   });
+  // Tasarımcı tuvali yalnız bu belgede Studio'dan geçerli NEXORA_STUDIO_AUTH geldikten sonra çizilir; localStorage'daki
+  // (başka firmaya ait olabilecek) belirteçle sayfa yüklenmez.
+  const [studioAuthReceived, setStudioAuthReceived] = useState(false);
   // System page runtime map: fetched once per tenant selection; page keys stay unchanged.
   const systemPages = useSystemPageMap(token, tenant?.id ?? "");
   useEffect(() => {
@@ -211,6 +217,7 @@ function AppContent() {
         slug: nextTenant.slug,
         role: nextTenant.role,
       });
+      setStudioAuthReceived(true);
     };
     window.addEventListener("message", receiveStudioSession);
     return () => window.removeEventListener("message", receiveStudioSession);
@@ -901,6 +908,16 @@ function AppContent() {
     );
   if (embeddedStudioTool && (!token || !tenant))
     return <EmbeddedStudioWaitingPage />;
+  if (canvasParams && embeddedStudioTool && !studioAuthReceived)
+    return <EmbeddedStudioWaitingPage />;
+  if (canvasParams && embeddedStudioTool)
+    return (
+      <DesignerCanvasHost
+        token={token}
+        params={canvasParams}
+        studioOrigin={trustedStudioOrigin}
+      />
+    );
   if (!tenant)
     return (
       <WorkspaceAuthPage

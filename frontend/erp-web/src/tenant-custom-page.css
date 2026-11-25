@@ -22,7 +22,8 @@
 .tenant-page-block p { margin: 6px 0; color: var(--nx-text); white-space: pre-wrap; line-height: 1.55; }
 /* Bölüm/kart başlığı ve açıklaması ayrı satırlarda, aralarında boşlukla (taslak 18); yardım metni en az 12px. */
 .tenant-page-block:is(.tenant-page-section, .tenant-page-card) > h3 { display: block; margin: 0 0 3px; }
-.tenant-page-block:is(.tenant-page-section, .tenant-page-card) > h3 + p { display: block; margin: 0 0 12px; color: var(--nx-muted); }
+.tenant-page-block:is(.tenant-page-section, .tenant-page-card) > h3 + p,
+.tenant-page-block:is(.tenant-page-section, .tenant-page-card) > h3 + template[data-cp-anchor] + p { display: block; margin: 0 0 12px; color: var(--nx-muted); }
 .tenant-page-block:is(.tenant-page-section, .tenant-page-card) > p { font-size: 12.5px; }
 .tenant-page-heading { align-self: end; margin: 0; padding: 0 0 6px; font-size: 19px; font-weight: 650; line-height: 1.25; }
 .tenant-page-text { margin: 0; color: var(--nx-text); font-size: 12.5px; line-height: 1.6; }
@@ -444,8 +445,10 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-dialog-body .tenant-page-section { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 0; }
 .tenant-page-dialog-body .tenant-page-section > * { flex: 1 1 100%; min-width: 0; margin: 0; }
 .tenant-page-dialog-body .tenant-page-section > .tenant-page-action { justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--nx-line-soft); }
-.tenant-page-dialog-body .tenant-page-section > .tenant-page-text:has(+ .tenant-page-action) { flex: 1 1 60%; align-self: stretch; display: flex; align-items: center; padding: 12px 12px 0 0; border-top: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 12px; }
-.tenant-page-dialog-body .tenant-page-section > .tenant-page-text + .tenant-page-action { flex: 0 0 auto; }
+.tenant-page-dialog-body .tenant-page-section > .tenant-page-text:has(+ .tenant-page-action),
+.tenant-page-dialog-body .tenant-page-section > .tenant-page-text:has(+ template[data-cp-anchor] + .tenant-page-action) { flex: 1 1 60%; align-self: stretch; display: flex; align-items: center; padding: 12px 12px 0 0; border-top: 1px solid var(--nx-line-soft); color: var(--nx-muted); font-size: 12px; }
+.tenant-page-dialog-body .tenant-page-section > .tenant-page-text + .tenant-page-action,
+.tenant-page-dialog-body .tenant-page-section > .tenant-page-text + template[data-cp-anchor] + .tenant-page-action { flex: 0 0 auto; }
 /* Pencere listesinin boş durumu: tablo gövdesinde ortalanmış ileti (ızgara çerçevesiyle hizalanmayan iç kesik çizgili kutu
    üçüncü bir çerçeve gibi görünüyordu); `emptyText` iki satırsa (\n) ilk satır başlıktır. */
 #root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty { padding: 28px 16px; border: 0; border-radius: 0; color: var(--nx-muted); text-align: center; white-space: pre-line; }

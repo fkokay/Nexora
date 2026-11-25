@@ -1,4 +1,4 @@
-import { createElement, useCallback, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -58,6 +58,8 @@ import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type Sequence
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
 import { OPEN_PAGE_EVENT, publishRecordsDeleted, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
 import { deletedRecordIds } from "./custom-page/deletedRecords";
+import { CanvasAnchorContext } from "./designer-canvas/anchorContext";
+import { ANCHOR_ATTRIBUTE } from "./designer-canvas/canvasProtocol";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
 import "./custom-page/detail-panel.css";
@@ -1000,7 +1002,19 @@ function renderPageButton(component: ComponentDefinition, props: Record<string, 
 /** `rowOpenAction` düğmesinin çalışabileceği eylemler (satıra çift tıklama / Enter). */
 const ROW_OPEN_ACTIONS = new Set<ButtonAction["type"]>(["setInput", "navigate", "openDialog", "query"]);
 
+/** Tuval modunda bileşenin önüne görünmez bir işaretçi koyar (`<template>` yerleşime girmez); normal modda çocuğu olduğu gibi döner. */
+function Anchored({ id, children }: { id: string; children: ReactNode }): ReactNode {
+  const canvas = useContext(CanvasAnchorContext);
+  if (!canvas || children === null || children === undefined) return children;
+  return <>{createElement("template", { [ANCHOR_ATTRIBUTE]: id })}{children}</>;
+}
+
 function renderComponent(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
+  const body = renderComponentBody(component, forms, token, pageCode, runtime);
+  return body === null || body === undefined ? body : <Anchored key={component.id} id={component.id}>{body}</Anchored>;
+}
+
+function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm[], token: string, pageCode: string, runtime?: PageRuntime): ReactNode {
   // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};

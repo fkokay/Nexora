@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Nexora Studio – yeni yapı (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--side:#1f1b33}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .app{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 38px)}
+  .nav{background:var(--side);color:#d9d5ee;display:flex;flex-direction:column;padding:14px 10px}
+  .brand{font-weight:700;color:#fff;font-size:15px;padding:4px 8px 12px}
+  .firm{background:#2b2645;border-radius:10px;padding:8px 10px;margin-bottom:12px;font-size:12px}
+  .firm b{color:#fff;display:block;font-size:13px}
+  .role{display:flex;background:#2b2645;border-radius:9px;padding:3px;margin-bottom:14px}
+  .role button{flex:1;border:0;background:none;color:#b9b4d6;padding:5px 0;border-radius:7px;cursor:pointer;font:inherit;font-size:11.5px}
+  .role button.on{background:#fff;color:var(--side);font-weight:600}
+  .ni{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px}
+  .ni:hover{background:#2b2645} .ni.on{background:var(--accent);color:#fff;font-weight:600}
+  .ni i{font-style:normal;width:18px;text-align:center}
+  .ni .bd{margin-left:auto;background:#ef4444;color:#fff;border-radius:99px;font-size:10.5px;padding:0 6px}
+  .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#8a85a8;padding:12px 10px 4px}
+  .nav .sp{flex:1}
+  .user{font-size:12px;padding:8px 10px;border-top:1px solid #322c50}
+  .main{overflow:auto}
+  .head{display:flex;align-items:center;gap:12px;padding:18px 26px 10px}
+  .head h1{margin:0;font-size:22px}
+  .head .s{color:var(--muted)}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 13px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .body{padding:6px 26px 26px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+  .card h3{margin:0 0 6px;font-size:14px}
+  .card .big{font-size:24px;font-weight:700}
+  .muted{color:var(--muted)}
+  .list{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .row:hover{background:#faf9fd}
+  .ic{width:32px;height:32px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none;font-weight:700}
+  .row .t{font-weight:600} .row .m{color:var(--muted);font-size:12px}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600;white-space:nowrap}
+  .p-draft{background:var(--warn-soft);color:var(--warn)} .p-live{background:var(--ok-soft);color:var(--ok)} .p-dev{background:var(--dev-soft);color:var(--dev)} .p-gray{background:#f0eff5;color:var(--muted)}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tab{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--muted)}
+  .tab.on{background:var(--accent-soft);border-color:#d6ccfb;color:var(--accent);font-weight:600}
+  .search{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;color:#a5a2b5;min-width:240px}
+  .two{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}
+  h2{font-size:14px;margin:18px 0 8px}
+  .step{display:flex;gap:10px;align-items:flex-start;padding:8px 0}
+  .step b.n{width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:11px;flex:none}
+  .frame{width:100%;height:calc(100vh - 140px);border:1px solid var(--line);border-radius:12px;background:#fff}
+  .map{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .old{background:#fff;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;line-height:1.6}
+  .old s{color:#a3a0b5}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:8px 14px;align-items:center}
+  .tg{width:34px;height:20px;border-radius:99px;background:var(--accent);position:relative;display:inline-block}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:16px}
+</style>
+</head>
+<body>
+<div class="note"><b>Studio'nun yeni yapısı:</b> Soldaki <b>Danışman / Yazılımcı / Yönetici</b> düğmesiyle rol değiştir. Her rol yalnızca kendi işine yarayan menüleri görür. Menüleri gez: “Ekranlar”, “Kurallar” ve “Modül” önceki taslaklara bağlı. “Neyin nereye gittiği” sayfası eski araçların yeni yerini gösteriyor.</div>
+<div class="app">
+  <nav class="nav">
+    <div class="brand">◆ Nexora Studio</div>
+    <div class="firm"><span class="muted" style="color:#8a85a8">Firma</span><b>Akdeniz Gıda A.Ş. ▾</b></div>
+    <div class="role" id="role"><button class="on" data-r="danisman">Danışman</button><button data-r="yazilimci">Yazılımcı</button><button data-r="yonetici">Yönetici</button></div>
+    <div id="menu"></div>
+    <div class="sp"></div>
+    <div class="ni" data-p="harita"><i>⇄</i>Neyin nereye gittiği</div>
+    <div class="user">Ayşe Yılmaz · <span id="rname">Danışman</span></div>
+  </nav>
+  <main class="main" id="main"></main>
+</div>
+<script>
+const MENUS={
+ danisman:[["ana","⌂","Ana sayfa"],["ekranlar","▤","Ekranlar"],["kurallar","⚑","Kurallar"],["menuler","☰","Menüler"],["talepler","✉","Taleplerim",1],["yayinlar","⬆","Yayınlar"]],
+ yazilimci:[["ana","⌂","Ana sayfa"],["talepler","✉","Gelen talepler",2],["modul","⟨/⟩","Firma modülü"],["ekranlar","▤","Ekranlar"],["kurallar","⚑","Kurallar"],["yayinlar","⬆","Yayınlar"]],
+ yonetici:[["ana","⌂","Ana sayfa"],["kisiler","☺","Kişiler ve roller"],["pazar","▦","Modül pazaryeri"],["baglantilar","⛓","Bağlantılar"],["yz","✦","Yapay zekâ"],["yayinlar","⬆","Yayınlar"]]};
+let role="danisman",page="ana";
+const H=(t,s,btn="")=>`<div class="head"><div><h1>${t}</h1>${s?`<div class="s">${s}</div>`:""}</div><span class="sp"></span>${btn}</div>`;
+const P={
+ ana:()=>role==="danisman"?H("Merhaba Ayşe","Akdeniz Gıda · danışman",`<button class="btn primary" data-p="ekranlar">+ Yeni ekran</button>`)+`<div class="body">
+   <div class="cards"><div class="card"><h3>Taslakta bekleyen</h3><div class="big">3</div><div class="muted">ekran ve kural yayınlanmadı</div></div><div class="card"><h3>Açık taleplerim</h3><div class="big">1</div><div class="muted">yazılımcıda · Talep #214</div></div><div class="card"><h3>Yeni yapı taşları</h3><div class="big">2</div><div class="muted">Son ödeme tarihi kolonu, Lojistik bildirimi</div></div></div>
+   <div class="two"><div><h2>Son çalıştıklarım</h2><div class="list">${[["Cari Hesaplar","Liste","p-draft","Taslak"],["Cari kartı","Kayıt kartı","p-live","Yayında"],["Satış siparişi kuralları","Kurallar","p-draft","Taslak"]].map(r=>`<div class="row"><span class="ic">▤</span><div><div class="t">${r[0]}</div><div class="m">${r[1]}</div></div><span class="sp"></span><span class="pill ${r[2]}">${r[3]}</span></div>`).join("")}</div></div>
+   <div><h2>Kısayollar</h2><div class="list"><div class="row" data-p="ekranlar"><span class="ic">+</span><div class="t">Yeni ekran oluştur</div></div><div class="row" data-p="kurallar"><span class="ic">⚑</span><div class="t">Belgeye kural ekle</div></div><div class="row" data-p="talepler"><span class="ic">✉</span><div class="t">Yazılımcıdan bir şey iste</div></div></div></div></div></div>`
+  :role==="yazilimci"?H("Merhaba Mehmet","Akdeniz Gıda · yazılımcı",`<button class="btn primary" data-p="modul">Modülü aç</button>`)+`<div class="body"><div class="cards"><div class="card"><h3>Gelen talepler</h3><div class="big">2</div><div class="muted">1 yeni · 1 deneme ortamında</div></div><div class="card"><h3>Modül sürümü</h3><div class="big">1.3.2</div><div class="muted">canlıda · 1.4.0 hazırlanıyor</div></div><div class="card"><h3>Uzantı hataları (24 saat)</h3><div class="big" style="color:var(--warn)">1</div><div class="muted">Lojistik bildirimi · yeniden denendi, başarılı</div></div></div>
+   <h2>Talepler</h2>${talepList()}</div>`
+  :H("Yönetim","Akdeniz Gıda")+`<div class="body"><div class="cards"><div class="card"><h3>Studio kullanıcıları</h3><div class="big">4</div><div class="muted">2 danışman · 2 yazılımcı</div></div><div class="card"><h3>Kurulu modüller</h3><div class="big">7</div><div class="muted">1 güncelleme var</div></div><div class="card"><h3>Bu ay yayın</h3><div class="big">12</div><div class="muted">ekran, kural ve modül sürümü</div></div></div></div>`,
+ ekranlar:()=>H("Ekranlar","Firmanın bütün ekranları: sistem ekranları ve özel ekranlar tek listede",`<button class="btn primary">+ Yeni ekran</button>`)+`<div class="body">
+   <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span class="search">🔍 Ekran ara…</span><div class="tabs" style="margin:0"><span class="tab on">Tümü</span><span class="tab">Liste</span><span class="tab">Kayıt kartı</span><span class="tab">Belge</span><span class="tab">Rapor</span><span class="tab">Serbest</span></div></div>
+   <div class="list">${[["Cari Hesaplar","Cari","Liste","Firma tasarımı","p-draft","Taslak"],["Cari kartı","Cari","Kayıt kartı","Standart","p-live","Yayında"],["Satış siparişi","Satış","Belge","Firma tasarımı","p-live","Yayında"],["Bölgelere göre satış","Satış","Rapor","Özel ekran","p-live","Yayında"],["Müşteri geri bildirim formu","CRM","Kayıt kartı","Özel ekran (eski Özel formlar)","p-live","Yayında"],["Planlama tahtası","Üretim","Serbest · yazılımcı sayfası","Özel ekran","p-gray","Taslak yok"]].map(r=>`<div class="row" data-p="tasarimci"><span class="ic">▤</span><div><div class="t">${r[0]}</div><div class="m">${r[1]} · ${r[2]} · ${r[3]}</div></div><span class="sp"></span><span class="pill ${r[4]}">${r[5]}</span></div>`).join("")}</div>
+   <div class="muted" style="margin-top:10px">Bir satıra tıklayınca tasarımcı açılır. Eski “Özel formlar”, “Sayfa tasarımcısı”, “Hazır ekran görünümleri”, “Rapor oluşturucu” ve LowCode ekranları bu tek listede birleşti.</div></div>`,
+ tasarimci:()=>H("Cari Hesaplar","Liste kalıbı · tasarımcı",`<button class="btn" data-p="ekranlar">← Ekranlar</button>`)+`<div class="body"><iframe class="frame" src="01-liste-paneli.html"></iframe></div>`,
+ kurallar:()=>H("Kurallar","Belge türüne göre: durumlar, kontroller, alt görevler")+`<div class="body"><iframe class="frame" src="05-belge-kurallari.html"></iframe></div>`,
+ modul:()=>H("Firma modülü","Akdeniz Gıda · github.com/ornek-partner/akdeniz-gida")+`<div class="body"><iframe class="frame" src="06-yazilimci-ekrani.html"></iframe></div>`,
+ menuler:()=>H("Menüler","ERP'deki gezinme menüsü: ekranları sürükleyip gruplayın",`<button class="btn primary">Yayınla</button>`)+`<div class="body"><div class="two"><div class="list">${[["Satış",["Satış siparişleri","Satış faturaları","Bölgelere göre satış"]],["Cari",["Cari Hesaplar","Cari kartı"]],["Firmaya özel",["Müşteri geri bildirim formu","Planlama tahtası"]]].map(([g,i])=>`<div class="row" style="background:#faf9fd"><b>${g}</b><span class="sp"></span><span class="muted">⋮⋮</span></div>${i.map(x=>`<div class="row" style="padding-left:34px">${x}<span class="sp"></span><span class="muted">⋮⋮</span></div>`).join("")}`).join("")}</div>
+   <div class="card"><h3>Seçili: Planlama tahtası</h3><div class="kv" style="margin-top:8px"><span class="muted">Menüdeki ad</span><span>Planlama tahtası</span><span class="muted">Kimler görsün?</span><span>Üretim planlama rolü</span><span class="muted">Simge</span><span>▦</span></div></div></div></div>`,
+ talepler:()=>H(role==="danisman"?"Taleplerim":"Gelen talepler","Danışman ile yazılımcı arasındaki istekler",role==="danisman"?`<button class="btn primary">+ Yazılımcıdan iste</button>`:"")+`<div class="body">${talepList()}</div>`,
+ yayinlar:()=>H("Yayınlar","Taslaktan canlıya giden her şey ve geri alma")+`<div class="body"><div class="tabs"><span class="tab on">Bekleyen</span><span class="tab">Geçmiş</span></div><div class="list">${[["Cari Hesaplar","Ekran","Ayşe Y.","p-draft","Taslak","Yayınla"],["Satış siparişi kuralları","Kural · 1 yeni kural","Ayşe Y.","p-draft","Taslak","Yayınla"],["Firma modülü 1.4.0","Modül sürümü · 2 değişiklik","Mehmet K.","p-dev","İncelemede","İncele"]].map(r=>`<div class="row"><span class="ic">⬆</span><div><div class="t">${r[0]}</div><div class="m">${r[1]} · ${r[2]}</div></div><span class="sp"></span><span class="pill ${r[3]}">${r[4]}</span><button class="btn">${r[5]}</button></div>`).join("")}</div><div class="muted" style="margin-top:10px">Geçmiş sekmesinde her yayın için “Önceki sürüme dön” düğmesi var.</div></div>`,
+ kisiler:()=>H("Kişiler ve roller","Studio'ya kim girebilir, ne yapabilir",`<button class="btn primary">+ Kişi davet et</button>`)+`<div class="body"><div class="list">${[["Ayşe Yılmaz","Danışman","ozgur danışmanlık"],["Can Demir","Danışman","ozgur danışmanlık"],["Mehmet Kaya","Yazılımcı","ornek-partner"],["Elif Arslan","Yazılımcı · kod inceleyici","ornek-partner"]].map(r=>`<div class="row"><span class="ic">☺</span><div><div class="t">${r[0]}</div><div class="m">${r[2]}</div></div><span class="sp"></span><span class="pill ${r[1].startsWith("Yaz")?"p-dev":"p-gray"}">${r[1]}</span></div>`).join("")}</div>
+   <div class="card" style="margin-top:12px"><h3>Roller</h3><div class="muted" style="line-height:1.7"><b style="color:var(--text)">Danışman:</b> ekran, kural ve menü tasarlar, yayınlar. Kod göremez.<br><b style="color:var(--text)">Yazılımcı:</b> firma modülünü düzenler, sürüm hazırlar. Danışmanın yapabildiklerini de yapabilir.<br><b style="color:var(--text)">Yönetici:</b> kişileri, bağlantıları ve modülleri yönetir.</div></div></div>`,
+ pazar:()=>H("Modül pazaryeri","Nexora ve iş ortaklarının hazır modülleri")+`<div class="body"><div class="cards">${[["e-Fatura entegrasyonu","Nexora","Kurulu"],["Kargo takip","ornek-partner","Kur"],["Bayi portalı","ornek-partner","Kur"],["Üretim planlama tahtası","Nexora","Güncelle"]].map(r=>`<div class="card"><div class="ic" style="margin-bottom:8px">▦</div><h3>${r[0]}</h3><div class="muted">${r[1]}</div><button class="btn${r[2]==="Kur"?" primary":""}" style="margin-top:10px">${r[2]}</button></div>`).join("")}</div></div>`,
+ baglantilar:()=>H("Bağlantılar","Dış sistemler ve Git")+`<div class="body"><div class="list">${[["GitHub","ornek-partner/akdeniz-gida","p-live","Bağlı"],["Akdeniz Lojistik API","Uzantılar kullanıyor · test adresi tanımlı","p-live","Onaylı"],["e-Fatura (GİB entegratörü)","Modül çekirdeği","p-live","Bağlı"]].map(r=>`<div class="row"><span class="ic">⛓</span><div><div class="t">${r[0]}</div><div class="m">${r[1]}</div></div><span class="sp"></span><span class="pill ${r[2]}">${r[3]}</span></div>`).join("")}</div><div class="muted" style="margin-top:10px">Yazılımcı uzantıları yalnızca burada yönetici onayı almış bağlantıları kullanabilir.</div></div>`,
+ yz:()=>H("Yapay zekâ","Kurumun yapay zekâ sağlayıcısı ve Studio'daki kullanımı")+`<div class="body"><div class="card"><div class="kv"><span class="muted">Sağlayıcı</span><span>Anthropic · Claude</span><span class="muted">Danışmana öneri</span><span><span class="tg"></span> “Bu ekran için kalıp öner”, “kural cümlesi öner”</span><span class="muted">Yazılımcıya öneri</span><span><span class="tg"></span> Talepten taslak kod ve SQL hazırla</span></div></div></div>`,
+ harita:()=>H("Neyin nereye gittiği","Bugünkü Studio araçları yeni yapıda nerede?")+`<div class="body"><div class="map">${[["Sayfa tasarımcısı","Ekranlar"],["Özel formlar","Ekranlar (Kayıt kartı kalıbı)"],["Hazır ekran görünümleri","Ekranlar (sistem ekranları aynı listede)"],["LowCodeDesigner, UIDesigner","Ekranlar"],["Rapor oluşturucu","Ekranlar (Rapor kalıbı)"],["İş akışları","Kurallar (onay iste, durum geçişleri)"],["İş kuralları","Kurallar (cümle kuralları)"],["Özel menüler","Menüler"],["Veri modelleri","Firma modülü (yazılımcı) · kayıt türü yapı taşı"],["Kod çalışma alanları","Firma modülü"],["Veritabanı mühendisi, kaynak eşlemeleri","Firma modülü → Araçlar"],["Geliştirme talepleri","Taleplerim / Gelen talepler"],["Analitik","Ana sayfa kartları"],["Modül pazaryeri","Modül pazaryeri (yönetici)"],["Yapay zekâ tanımlaması","Yapay zekâ (yönetici)"],["“Platform uyarlama” ve akış kartları","Kaldırıldı: menü artık doğrudan işi gösteriyor"]].map(([a,b])=>`<div class="old"><s>${a}</s><br>→ <b>${b}</b></div>`).join("")}</div></div>`,
+};
+function talepList(){return `<div class="list">${[["#214 Son ödeme tarihi kolonu + lojistik bildirimi","Ayşe Y. → Mehmet K.","p-dev","Deneme ortamında"],["#215 Bayi bazında satış raporu","Can D. → (atanmadı)","p-draft","Yeni"],["#209 Kredi limiti uyarısı","Ayşe Y. → Mehmet K.","p-live","Yayında · 1.3.2"]].map(r=>`<div class="row"><span class="ic">✉</span><div><div class="t">${r[0]}</div><div class="m">${r[1]}</div></div><span class="sp"></span><span class="pill ${r[2]}">${r[3]}</span></div>`).join("")}</div>`;}
+function render(){
+  const items=MENUS[role]; if(!items.some(i=>i[0]===page)&&!["tasarimci","harita"].includes(page))page="ana";
+  document.getElementById("menu").innerHTML=items.map(([k,i,n,b])=>`<div class="ni${k===page||(page==="tasarimci"&&k==="ekranlar")?" on":""}" data-p="${k}"><i>${i}</i>${n}${b?`<span class="bd">${b}</span>`:""}</div>`).join("");
+  document.querySelector('.nav > .ni[data-p="harita"]').classList.toggle("on",page==="harita");
+  document.getElementById("rname").textContent={danisman:"Danışman",yazilimci:"Yazılımcı",yonetici:"Yönetici"}[role];
+  document.querySelector(".user").firstChild.textContent={danisman:"Ayşe Yılmaz · ",yazilimci:"Mehmet Kaya · ",yonetici:"Fatma Öz · "}[role];
+  document.getElementById("main").innerHTML=P[page]();
+}
+document.addEventListener("click",e=>{const r=e.target.closest("[data-r]");if(r){document.querySelectorAll("#role button").forEach(b=>b.classList.remove("on"));r.classList.add("on");role=r.dataset.r;page="ana";render();return;}
+  const p=e.target.closest("[data-p]");if(p){page=p.dataset.p;render();}});
+render();
+</script>
+</body>
+</html>

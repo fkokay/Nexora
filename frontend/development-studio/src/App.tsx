@@ -2398,6 +2398,7 @@ export default function App() {
                           token={token}
                           role={tenant.role}
                           platformOrigin={platformOrigin}
+                          tenant={tenant}
                         />
                       </Suspense>
                     </div>
