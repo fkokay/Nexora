@@ -27,9 +27,13 @@ function setProp<D extends ModelDefinition>(def: D, id: string, key: string, val
   return { ...def, components: def.components.map((c) => (c.id === id ? { ...c, props: { ...c.props, [key]: value } } : c)) };
 }
 
-/** Adres kutusuna yazılanı olduğu gibi saklar (sorun panelde görünür); yalnız http/https dışı şemalar (javascript: …) hiç saklanmaz. */
+/**
+ * Adres kutusuna yazılanı olduğu gibi saklar (sorun panelde görünür). İzin listesi: denetim karakterleri ve boşluklar atılarak bakılır;
+ * hiç ":" yoksa (hâlâ yazılıyor) ya da `http:`/`https:` ile başlıyorsa saklanır, öteki şemalar (javascript: …) saklanmaz.
+ */
 export function setImageAddress<D extends ModelDefinition>(def: D, id: string, url: string): D {
-  if (/^\s*[a-z][a-z0-9+.-]*:/i.test(url) && !/^\s*https?:/i.test(url)) return def;
+  const probe = url.replace(/[\u0000-\u001f\u007f\s]/g, "");
+  if (probe.includes(":") && !/^https?:/i.test(probe)) return def;
   return setProp(def, id, "value", url);
 }
 

@@ -32,12 +32,18 @@ describe("ButtonsPanel", () => {
   });
   it("renders in mockup order with reasons, dev note and primary only for actions", () => {
     const html = renderToString(<ButtonsPanel definition={withSil} component={buttons(withSil)[0]} listId="liste" catalog={catalog} onChange={() => {}}/>);
-    const at = ["Hangi eylemler?", "Ekstre al", "Yazılımcının hazırladığı", "onay sorusu ve yetki ondan gelir", "Ana buton", "Nerede?", BUTTONS_WHERE_NOTE].map((t) => html.indexOf(t));
+    const at = ["Hangi eylemler?", "Ekstre al", "Eylemleri yazılımcı hazırlar", "Ana buton", "Nerede?", BUTTONS_WHERE_NOTE].map((t) => html.indexOf(t));
     at.forEach((n, i) => expect(n, String(i)).toBeGreaterThanOrEqual(0));
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(html).toContain("Bu eylemin yok bilgisi listede yok.");
     expect(html).not.toContain(`<option value="${buttons(withSil)[1].id}"`);
     for (const word of ["{{", "queryId", "dataTable"]) expect(html).not.toContain(word);
+  });
+  it("renders the developer note exactly once without a doubled prefix, and the where mockup line", () => {
+    const html = renderToString(<ButtonsPanel definition={withSil} component={buttons(withSil)[0]} listId="liste" catalog={catalog} onChange={() => {}}/>);
+    expect(html).toContain('<div class="cpanel-dev">Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir</div>');
+    expect(html).not.toContain("Yazılımcının hazırladığı ·");
+    expect(html).toContain("Bu panel, sayfanın üstündeki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.");
   });
   it("hides Ana buton for rowActions", () => {
     const row = addListAction(bound, "liste", catalog.actions[0], "row");

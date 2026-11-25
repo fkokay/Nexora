@@ -34,6 +34,30 @@ describe("indicatorSourceUsable", () => {
   });
 });
 
+describe("chooseIndicatorSource legacy values", () => {
+  const badge = (props: Record<string, string>): ModelComponent => ({ id: "g1", type: "badge", name: "g1", props: { slot: "above", ...props } });
+  const progress = (props: Record<string, string>): ModelComponent => ({ id: "g1", type: "progress", name: "g1", props: { slot: "above", ...props } });
+  it("chooseIndicatorSource keeps plain legacy badge text", () => {
+    const next = chooseIndicatorSource(defWith(badge({ text: "Açık" })), "g1", ozet);
+    expect(comp(next).props.text).toBe("Açık");
+    const prog = chooseIndicatorSource(defWith(progress({ value: "42" })), "g1", ozet);
+    expect(comp(prog).props.value).toBe("42");
+  });
+  it("writes the default binding when value is empty or a binding", () => {
+    expect(String(comp(chooseIndicatorSource(defWith(badge({ text: "" })), "g1", ozet)).props.text)).toMatch(/^\{\{/);
+    expect(String(comp(chooseIndicatorSource(defWith(badge({})), "g1", ozet)).props.text)).toMatch(/^\{\{/);
+  });
+  it("returns def unchanged for a non-metric source without columns", () => {
+    const d = defWith(badge({ text: "" }));
+    expect(chooseIndicatorSource(d, "g1", { ...ozet, columns: [] })).toBe(d);
+  });
+  it("removes a plain legacy value of a metric when the count query is written", () => {
+    const next = chooseIndicatorSource(defWith(metric({ value: "17" })), "g1", ozet);
+    expect(comp(next).props.value).toBeUndefined();
+    expect(comp(next).props.query).toBe("kaynak");
+  });
+});
+
 describe("chooseIndicatorSource", () => {
   it("adds one load query and reuses it for a second indicator", () => {
     const first = chooseIndicatorSource(defWith(metric(), { ...metric(), id: "g2", name: "g2" }), "g1", ozet);

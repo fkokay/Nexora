@@ -1,6 +1,6 @@
 import type { CatalogAction } from "../catalogClient";
 import type { ActiveCatalog } from "../catalogClient";
-import { ComponentPanel, ProvidedByDeveloper } from "./ComponentPanel";
+import { ComponentPanel } from "./ComponentPanel";
 import { BUTTONS_WHERE_NOTE, isDeleteButton, placeOf, setPrimaryButton, slotButtons, toggleButtonAction, actionChipState, type ButtonSlot } from "./buttonsPanelModel";
 import { listDataSourceCode, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 
@@ -30,7 +30,7 @@ export function ButtonsPanel({ component, definition, listId, catalog, disabled,
           onClick={() => onChange(toggleButtonAction(definition, listId, action, listColumns, place))}>
           {action.label}{!usable.usable && !on && <small> · {usable.reason}</small>}</button>;
       })}</div>}
-    <ProvidedByDeveloper>Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir</ProvidedByDeveloper>
+    <div className="cpanel-dev">Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir</div>
   </>;
   const basics = slot === "actions"
     ? <label className="cpanel-row">Ana buton (vurgulu)<select aria-label="Ana buton" disabled={disabled || choices.length === 0} value={primary}
@@ -40,6 +40,7 @@ export function ButtonsPanel({ component, definition, listId, catalog, disabled,
     : null;
   const where = <>
     <div className="cpanel-q">Nerede?</div>
+    <p className="cpanel-note">Bu panel, sayfanın üstündeki bir düğmeye tıklayınca açılır ve o sıradaki bütün düğmeleri gösterir.</p>
     <p className="cpanel-note">{BUTTONS_WHERE_NOTE}</p>
   </>;
   return <ComponentPanel name="Butonlar" nameReadOnly nameLabel="Grup adı" onRename={() => {}} whatTitle="Hangi eylemler?" what={what}

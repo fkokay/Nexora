@@ -102,6 +102,8 @@ export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: str
   if (!c) return def;
   const before = sourceQueryOf(def, c);
   if (before?.dataSource === ds.code) return def;
+  const first = (c.type === "progress" ? ds.columns.find((column) => column.type === "number" || column.type === "money") : undefined) ?? ds.columns[0];
+  if (c.type !== "metric" && !first) return def;
   let queries = def.queries;
   let query = queries.find((item) => isCatalogRead(item) && item.dataSource === ds.code && item.parameters.length === 0 && item.runOn === "load");
   if (!query) {
@@ -110,10 +112,13 @@ export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: str
     queries = [...queries, query];
   }
   const target = query;
-  const first = (c.type === "progress" ? ds.columns.find((column) => column.type === "number" || column.type === "money") : undefined) ?? ds.columns[0];
-  const props = without(c.props, "query", "format", "compareValue", "progressTotal", ...(parse(c.props[valueKey(c.type)]) ? [valueKey(c.type)] : []));
+  const key = valueKey(c.type);
+  const current = c.props[key];
+  // Eski düz değer (ör. rozet metni) korunur; varsayılan bağlama yalnız boş ya da zaten bağlama olan değerin yerine yazılır.
+  const writable = current === undefined || current === "" || parse(current) !== null;
+  const props = without(c.props, "query", "format", "compareValue", "progressTotal", ...(c.type === "metric" || parse(current) ? [key] : []));
   if (c.type === "metric") props.query = target.id;
-  else if (first) props[valueKey(c.type)] = binding(target.name, first.code);
+  else if (first && writable) props[key] = binding(target.name, first.code);
   return pruneOrphan(mapComponent({ ...def, queries }, id, (item) => ({ ...item, props })) as D, before);
 }
 

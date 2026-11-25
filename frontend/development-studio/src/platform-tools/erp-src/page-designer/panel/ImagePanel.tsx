@@ -20,7 +20,7 @@ export type ImagePanelProps = {
 
 export function ImagePanel({ component, definition, tokens, disabled, onChange, onRename, visibility }: ImagePanelProps) {
   const image = imageOf(component);
-  const problem = image.from === "address" ? imageAddressProblem(image.address) : null;
+  const problem = image.from === "address" ? (image.address.includes("{{") ? null : imageAddressProblem(image.address)) : null;
   const columnBinding = tokens.find((token) => token.binding.endsWith(`.seciliSatir.${image.column}`))?.binding ?? "";
   const choose = (value: "address" | "record") => {
     if (value === image.from) return;

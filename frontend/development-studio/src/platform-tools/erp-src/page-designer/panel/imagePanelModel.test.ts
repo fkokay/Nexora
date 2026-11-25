@@ -19,6 +19,10 @@ describe("imagePanelModel", () => {
     expect(imageIn(setImageAddress(def, "g1", "https://ornek.com/a.png")).props.value).toBe("https://ornek.com/a.png");
     expect(imageIn(setImageAddress(def, "g1", "ornek")).props.value).toBe("ornek");
   });
+  it("setImageAddress uses an allowlist (control chars and partial prefixes)", () => {
+    for (const bad of ["java\tscript:alert(1)", "\u0001javascript:x", "data:x", "vbscript:x", "ja\nvascript:x"]) expect(setImageAddress(def, "g1", bad), bad).toBe(def);
+    for (const ok of ["https://a.b/c.png", "h", "www", "http:", "https:", "htt"]) expect(imageIn(setImageAddress(def, "g1", ok)).props.value, ok).toBe(ok);
+  });
   it("setImageFromRecord writes selected row binding", () => {
     const next = setImageFromRecord(def, "g1", "liste.seciliSatir.Logo");
     expect(imageIn(next).props.value).toBe("{{liste.seciliSatir.Logo}}");
