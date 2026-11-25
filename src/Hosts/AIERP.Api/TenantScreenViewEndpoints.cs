@@ -57,7 +57,7 @@ internal static class TenantScreenViewEndpoints
     ];
     private static readonly ScreenViewField[] CustomerLedgerEntryFields =
     [
-        new("entryDate", "Tarih", true), new("description", "Açıklama", true), new("direction", "Yön", true),
+        new("entryDate", "Tarih", true), new("source", "Belge", true), new("description", "Açıklama", true), new("direction", "Yön", true),
         new("debit", "Borç", true), new("credit", "Alacak", true), new("balance", "Bakiye", true),
         new("currencyCode", "Döviz", false)
     ];

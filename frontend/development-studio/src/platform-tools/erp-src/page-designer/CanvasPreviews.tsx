@@ -365,10 +365,11 @@ export function TabsCanvas({ tabs, active, canEdit, resizable, selectedId, dragg
   </section>;
 }
 
-type ActionBarBound ={ new: boolean; open?: boolean; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
+/** `view`: Görüntüle bağlı mı; null/undefined ise (Aç sayfa açmıyor) ERP'deki gibi çubukta yoktur. */
+type ActionBarBound ={ new: boolean; open?: boolean; view?: boolean | null; save: boolean; remove: boolean; filter: boolean; print: boolean; excel: boolean };
 
 // Yalnız simge kipinde (`content=icon`) düğmede metin yerine çizilen işaretler.
-const BAR_GLYPHS: Record<string, string> = { new: "+", open: "↗", save: "✓", delete: "✕", refresh: "↻", filter: "▽", print: "⎙", export: "⇩", more: "⋯" };
+const BAR_GLYPHS: Record<string, string> = { new: "+", open: "✎", view: "◉", save: "✓", delete: "✕", refresh: "↻", filter: "▽", print: "⎙", export: "⇩", more: "⋯" };
 // Önizlemenin `look` öznitelikleri: varsayılana eşit değer hiç yazılmaz, böylece varsayılan çubuk bugünkü gibi çizilir.
 const BAR_LOOK_ATTRS = ["align", "density", "size", "style", "content", "separators", "border", "radius"] as const;
 const BAR_LOOK_DEFAULT: Record<string, string> = { align: "start", density: "normal", size: "md", style: "outline", content: "both", separators: "true", border: "bottom", radius: "soft" };
@@ -386,7 +387,8 @@ export function ActionBarPreview({ bound, moreCount, style, title, count, hidden
   const hideUnbound = lookOf("unbound", "dim") === "hide";
   const hints = lookOf("hints", "true") !== "false";
   const content = lookOf("content", "both");
-  const shown = (id: string, on: boolean) => !hidden?.includes(id) && (on || !hideUnbound);
+  // Görüntüle, Aç'ın (Düzenle) kardeşidir: Aç gizliyse o da gizlidir; Aç sayfa açmıyorsa hiç yoktur.
+  const shown = (id: string, on: boolean) => !hidden?.includes(id) && !(id === "view" && (hidden?.includes("open") || bound.view == null)) && (on || !hideUnbound);
   // Birincil düğme: bağlıysa Kaydet, değilse bağlıysa Yeni, yoksa hiçbiri; soluk ya da gizli düğme asla birincil çizilmez.
   const primary = bound.save && shown("save", true) ? "save" : bound.new && shown("new", true) ? "new" : "";
   const face = (id: string, label: string) => content === "icon" ? <span aria-label={label}>{BAR_GLYPHS[id]}</span>
@@ -395,13 +397,14 @@ export function ActionBarPreview({ bound, moreCount, style, title, count, hidden
     // ERP'deki gibi kısayol düğmede rozet değil, üstüne gelince ipucudur: "Kaydet · Ctrl+S" / "Bu sayfada bağlanmadı · Ctrl+S".
     <span key={id} className={`pd-bar-btn${on && primary === id ? " is-primary" : ""}${on ? "" : " is-off"}`} title={`${on ? label : "Bu sayfada bağlanmadı"}${hints ? ` · ${key}` : ""}`} data-shortcut={key}>{face(id, label)}</span>;
   const groups: [string, string, string, boolean][][] = [
-    [["new", "Yeni", "F2", bound.new], ["open", "Aç", "Enter", bound.open === true], ["save", "Kaydet", "Ctrl+S", bound.save], ["delete", "Sil", "Ctrl+Del", bound.remove]],
+    [["new", "Yeni", "F2", bound.new], ["open", "Düzenle", "Enter", bound.open === true], ["view", "Görüntüle", "Shift+Enter", bound.view === true],
+      ["save", "Kaydet", "Ctrl+S", bound.save], ["delete", "Sil", "Ctrl+Del", bound.remove]],
     [["refresh", "Yenile", "F5", true], ["filter", "Filtre", "Ctrl+F", bound.filter]],
     [["print", "Yazdır", "Ctrl+P", bound.print], ["export", "Excel", "Ctrl+E", bound.excel]],
   ];
   const visible = groups.map((group) => group.filter(([id, , , on]) => shown(id, on))).filter((group) => group.length > 0);
   const showMore = shown("more", moreCount > 0);
-  const active = [bound.new && shown("new", true) && "Yeni", bound.save && shown("save", true) && "Kaydet", bound.remove && shown("delete", true) && "Sil", shown("refresh", true) && "Yenile",
+  const active = [bound.new && shown("new", true) && "Yeni", bound.open && shown("open", true) && "Düzenle", bound.view && shown("view", true) && "Görüntüle", bound.save && shown("save", true) && "Kaydet", bound.remove && shown("delete", true) && "Sil", shown("refresh", true) && "Yenile",
     bound.filter && shown("filter", true) && "Filtre", bound.print && shown("print", true) && "Yazdır", bound.excel && shown("export", true) && "Excel", moreCount > 0 && showMore && "İşlemler"].filter(Boolean).join(", ");
   const attrs: Record<string, string> = {};
   for (const key of BAR_LOOK_ATTRS) if (look?.[key] && look[key] !== BAR_LOOK_DEFAULT[key]) attrs[`data-${key}`] = look[key];

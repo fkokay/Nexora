@@ -1082,10 +1082,18 @@ customerLocationDefinitions.MapGet("/", async (TenantDbContext db) =>
 customerLocationDefinitions.MapGet("/provinces", async (TenantDbContext db) =>
     Results.Ok(await db.CustomerLocationProvinces.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name)
         .Select(x => new CustomerLocationProvinceView(x.Id, x.Name, x.IsActive)).ToListAsync()));
-customerLocationDefinitions.MapGet("/districts", async (int provinceId, TenantDbContext db) =>
-    Results.Ok(await db.CustomerLocationDistricts.AsNoTracking()
-        .Where(x => x.IsActive && x.ProvinceId == provinceId && x.Province.IsActive).OrderBy(x => x.Name)
-        .Select(x => new CustomerLocationDistrictView(x.Id, x.ProvinceId, x.Name, x.IsActive)).ToListAsync()));
+// By province id or by province name (customers store the il as its name); both given must agree. Neither: an empty list.
+// The name is trimmed and compared in the database collation (case-insensitive on SQL Server), as the unique name index.
+customerLocationDefinitions.MapGet("/districts", async (int? provinceId, string? provinceName, TenantDbContext db) =>
+{
+    var name = provinceName?.Trim();
+    if (provinceId is null && string.IsNullOrEmpty(name)) return Results.Ok(Array.Empty<CustomerLocationDistrictView>());
+    var query = db.CustomerLocationDistricts.AsNoTracking().Where(x => x.IsActive && x.Province.IsActive);
+    if (provinceId is { } id) query = query.Where(x => x.ProvinceId == id);
+    if (!string.IsNullOrEmpty(name)) query = query.Where(x => x.Province.Name == name);
+    return Results.Ok(await query.OrderBy(x => x.Name)
+        .Select(x => new CustomerLocationDistrictView(x.Id, x.ProvinceId, x.Name, x.IsActive)).ToArrayAsync());
+});
 customerLocationDefinitions.MapGet("/admin", async (ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
@@ -1746,16 +1754,21 @@ customers.MapGet("/{id:guid}/statement", async (Guid id, DateOnly from, DateOnly
     var entries = await ledger.Where(x => x.EntryDate >= from && x.EntryDate <= to)
         .OrderBy(x => x.EntryDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id)
         .Select(x => new { x.Id, x.EntryDate, x.Direction, x.Amount, x.CurrencyCode, x.Description, x.ReversalOfId,
-            HasReversal = db.CustomerLedgerEntries.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id) })
+            HasReversal = db.CustomerLedgerEntries.Any(y => y.TenantId == x.TenantId && y.ReversalOfId == x.Id),
+            Keys = new CustomerStatementSources.Keys(x.SalesInvoiceId, x.CustomerCollectionId, x.SalesReturnId, x.PurchaseInvoiceId,
+                x.PurchaseInvoiceDraftId, x.SupplierPaymentId, x.SupplierReturnId) })
         .ToListAsync();
+    var sources = await CustomerStatementSources.ResolveAsync(db, tenantId, entries.Select(x => (x.Id, x.ReversalOfId, x.Keys)).ToList());
     var runningBalance = openingBalance;
     var items = entries.Select(x =>
     {
         runningBalance += x.Direction == CustomerLedgerDirection.Debit ? x.Amount : -x.Amount;
+        var source = sources.GetValueOrDefault(x.Id);
         return new CustomerStatementLine(x.Id, x.EntryDate, x.Direction, x.Amount, x.CurrencyCode, x.Description,
             x.ReversalOfId, x.HasReversal, runningBalance)
         {
-            ForeignCurrencyCode = string.Equals(x.CurrencyCode, customer.CurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : x.CurrencyCode
+            ForeignCurrencyCode = string.Equals(x.CurrencyCode, customer.CurrencyCode, StringComparison.OrdinalIgnoreCase) ? null : x.CurrencyCode,
+            SourceType = source?.Type, SourceId = source?.Id, SourceCode = source?.Code, SourceOpenId = source?.OpenId
         };
     }).ToList();
     var debitTotal = entries.Where(x => x.Direction == CustomerLedgerDirection.Debit).Sum(x => x.Amount);

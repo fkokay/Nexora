@@ -28,7 +28,7 @@ export function rowActionOwners(components: RowActionComponent[], tableId: strin
 }
 
 /**
- * Veri listesinin "Satır eylemleri" bölümü: satır başına çizilecek düğmeler (en çok 4; sorgu, kayıt dizisi ya da
+ * Veri listesinin "Satır eylemleri" bölümü: satır başına çizilecek düğmeler (en çok 6; sorgu, kayıt dizisi ya da
  * pencere açan, başka sahibi olmayan düğmeler), boş liste metni ve en fazla satır. `onPatch` undefined değeri siler.
  */
 export function RowActionsFields({ table, components, labelOf = defaultLabel, serverPaged, disabled, parts = ["actions", "empty", "limit"], onPatch, onAddButton }: {

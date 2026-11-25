@@ -1,7 +1,7 @@
 crm-opportunities=1
 crm-opportunity-create=1
 customer-create=1
-customer-ledger=1
+customer-ledger=2
 customers=2
 finance-account-create=1
 finance-accounts=1

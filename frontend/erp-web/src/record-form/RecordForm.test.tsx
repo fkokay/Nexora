@@ -12,8 +12,39 @@ import SearchableRecordPicker from '../SearchableRecordPicker';
 import { RecordFieldChange, RecordFormGroup, RecordFormPage, RecordFormTabs } from './RecordForm';
 import type { RecordFormPageProps, RecordFormTab } from './RecordForm';
 import { commandReason } from '../action-bar/commandReason';
+import { armRecordView, clearRecordView } from '../commands/recordView';
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); clearRecordView(); });
+
+describe('RecordFormPage view mode (Görüntüle)', () => {
+  it('an edit form opened by Görüntüle is read-only without Kaydet until its Düzenle is pressed', () => {
+    armRecordView();
+    const submit = vi.fn();
+    inView(
+      <RecordFormPage title="Cari kart" mode="edit" busy={false} saveLabel="x" onSubmit={(event) => { event.preventDefault(); submit(); }} onCancel={() => {}}>
+        <label>Ünvan<input defaultValue="FATİH" /></label>
+      </RecordFormPage>,
+    );
+    expect(screen.getByLabelText('Ünvan').matches(':disabled')).toBe(true);
+    expect(screen.getByText('GÖRÜNTÜLEME')).toBeTruthy();
+    expect(document.querySelector('[data-command="save"]')).toBeNull();
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    expect(submit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Düzenle' }));
+    expect(screen.getByLabelText('Ünvan').matches(':disabled')).toBe(false);
+    expect(document.querySelector('[data-command="save"]')).toBeTruthy();
+  });
+
+  it('a form not opened by Görüntüle (or a new record) stays editable', () => {
+    armRecordView();
+    inView(
+      <RecordFormPage title="Yeni" mode="create" busy={false} saveLabel="x" onSubmit={() => {}} onCancel={() => {}}>
+        <label>Kod<input /></label>
+      </RecordFormPage>,
+    );
+    expect(screen.getByLabelText('Kod').matches(':disabled')).toBe(false);
+  });
+});
 
 function inView(children: ReactNode) {
   return render(
@@ -84,8 +115,7 @@ describe('RecordFormPage in a dialog', () => {
     expect(onSaveIntent).toHaveBeenLastCalledWith(false);
     expect(onSubmit).toHaveBeenCalledTimes(1);
     // In a modal the bar's menu does not repeat them.
-    fireEvent.click(document.querySelector('[data-nx-action-bar] [data-command="more"]')!);
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve Yeni/ })).toBeNull();
+    expect(document.querySelector('[data-nx-action-bar] [data-command="more"]')).toBeNull();
   });
 
   it('on a page the form header keeps only Vazgeç', () => {

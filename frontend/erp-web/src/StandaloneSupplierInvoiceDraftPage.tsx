@@ -18,6 +18,7 @@ import type {
 import { InvoiceDraftForm } from "./supplier-invoice-draft/components/InvoiceDraftForm";
 import { InvoiceDraftList } from "./supplier-invoice-draft/components/InvoiceDraftList";
 import { confirmDialog } from "./confirmDialog";
+import { dropPageParam, usePageParams } from "./pageNavigation";
 import { PageCommandsSlot, confirmStartNew } from "./commands/PageCommandsSlot";
 import { problemDetail } from "./erpApi";
 
@@ -319,6 +320,46 @@ export default function StandaloneSupplierInvoiceDraftPage({
     }));
   }
 
+  // Karar 4: Cari Hesap Hareketleri opens a draft with the page param `draftId` (read once, then removed). A posted draft
+  // cannot be edited: its row is focused in the list with a note instead of the edit error.
+  const paramDraftId = usePageParams("sales-purchase-invoice-drafts").draftId ?? "";
+  useEffect(() => {
+    if (!paramDraftId) return;
+    dropPageParam("sales-purchase-invoice-drafts", "draftId");
+    void openFromParam(paramDraftId);
+  }, [paramDraftId]);
+  async function openFromParam(id: string) {
+    // The tab stays alive: an open form with changes asks first, like Yeni.
+    if (formOpen && !(await confirmStartNew(formIsDirty()))) return;
+    setError("");
+    try {
+      const saved = await request<DraftDetail>(`/api/purchasing/standalone-invoices/${id}`, token);
+      if (saved.status === "Draft") {
+        await beginEdit(id);
+        return;
+      }
+      if (formOpen) cancelEdit();
+      setCurrentId(id);
+      setNotice(`${saved.invoiceNumber} taslağı muhasebeleştirildi; düzenlenemez.`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  /** Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too. */
+  function formIsDirty() {
+    const blank = blankDraft();
+    const blankLineValues = blank.lines[0];
+    return Boolean(
+      editing ||
+        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
+          (field) => draft[field] !== blank[field],
+        ) ||
+        draft.lines.length !== blank.lines.length ||
+        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
+    );
+  }
+
   async function beginEdit(id: string) {
     setBusy(true);
     setError("");
@@ -509,17 +550,7 @@ export default function StandaloneSupplierInvoiceDraftPage({
   }
 
   if (formOpen) {
-    // Any field the form edits differs from a blank draft (F2 asks before starting afresh); an open saved draft too.
-    const blank = blankDraft();
-    const blankLineValues = blank.lines[0];
-    const dirty = Boolean(
-      editing ||
-        (["supplierId", "invoiceNumber", "invoiceDate", "dueDate", "currencyCode", "notes", "subtotal", "discountTotal", "taxTotal", "grandTotal"] as const).some(
-          (field) => draft[field] !== blank[field],
-        ) ||
-        draft.lines.length !== blank.lines.length ||
-        draft.lines.some((line) => (Object.keys(blankLineValues) as Array<keyof DraftLineInput>).some((field) => line[field] !== blankLineValues[field])),
-    );
+    const dirty = formIsDirty();
     return (
       <>
         <PageCommandsSlot

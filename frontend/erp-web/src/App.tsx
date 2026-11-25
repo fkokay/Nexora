@@ -326,6 +326,11 @@ function AppContent() {
         description: "Cari",
       },
       {
+        page: "customer-groups",
+        label: locale === "en" ? "Customer groups" : "Cari Grupları",
+        description: "Cari",
+      },
+      {
         page: "sales-invoice-create",
         parentPage: "sales-invoices",
         label:
