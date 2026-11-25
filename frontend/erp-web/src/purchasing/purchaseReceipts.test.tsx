@@ -115,6 +115,8 @@ const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command=
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
 const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function menuItems() {
+  // No İşlemler button when the page has no menu items.
+  if (!command('more')) return [];
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
   fireEvent.click(command('more'));

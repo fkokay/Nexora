@@ -94,6 +94,8 @@ const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
 function openMenu() {
+  // No İşlemler button when the page has no menu items.
+  if (!command('more')) return [];
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
   fireEvent.click(command('more'));

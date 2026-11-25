@@ -18,7 +18,6 @@
     "component:acDugmesi": {"since": 1, "label": "Satırı aç (fırsat kartı)", "requires": ["component:liste"]},
     "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "component:ozetBolumu", "component:musteriPaneli", "component:musteriYok", "component:asamaAkisi", "component:kayipNotu", "component:notMetni", "component:notYok"]},
     "component:ozetBolumu": {"since": 1, "label": "Detay: Özet", "requires": ["component:liste"]},
-    "component:bosSecim": {"since": 1, "label": "Detay paneli: seçim yok notu", "requires": ["component:detayPaneli", "component:liste"]},
     "component:musteriPaneli": {"since": 1, "label": "Detay: Müşteri", "requires": ["component:liste"]},
     "component:musteriYok": {"since": 1, "label": "Detay: Müşteri bağlanmadı notu", "requires": ["component:liste"]},
     "component:asamaAkisi": {"since": 1, "label": "Detay: Aşama akışı", "requires": ["component:liste"]},
@@ -86,7 +85,7 @@
 
       { "id": "liste", "type": "dataTable", "name": "liste",
         "props": { "title": "CRM fırsatları", "query": "firsatlar", "paging": "server", "pageSize": 50, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true",
+                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
                    "detailToggleInput": "detayPaneli",
                    "columns": ["code", "name", "customerName", "stage", "estimatedValue", "probabilityPercent", "expectedCloseDate", "nextActivityAt"],
                    "columnLabels": ["code=Fırsat kodu", "name=Fırsat", "customerName=Müşteri", "stage=Aşama", "estimatedValue=Tahmini değer",
@@ -154,9 +153,6 @@
             "props": { "title": "Sonraki takip", "value": "Planlanmadı", "width": 6, "icon": "calendar-clock",
                        "visibleWhen": "liste.seciliSatir.nextActivityAt == null" } }
         ] },
-      { "id": "bosSecim", "type": "text", "name": "bosSecim",
-        "props": { "text": "Özetini görmek için listeden bir fırsat seçin.", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id == null" } },
       { "id": "musteriPaneli", "type": "contextPanel", "name": "musteriPaneli",
         "props": { "table": "liste", "width": 12, "fields": ["customerName=Müşteri"],
                    "visibleWhen": "liste.seciliSatir.customerId != null" } },
