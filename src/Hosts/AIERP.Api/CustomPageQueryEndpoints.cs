@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using AIERP.Api;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -206,7 +207,7 @@ internal static class CustomPageQueryEndpoints
             // Rights first (keyed by the stored code), so a user without View cannot probe query ids.
             var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
             if (!rights.View) return Results.Json(new { error = "Bu sayfayı görüntüleme yetkiniz yok." }, statusCode: StatusCodes.Status403Forbidden);
-            return await RunAsync(page.Code, page.DefinitionJson, queryId, request, tenant, userId, rights, isPreview: false, platformDb, http, ct);
+            return await RunAsync(page.Code, page.DefinitionJson, queryId, request, tenant, userId, rights, isPreview: false, db, platformDb, http, ct);
         }).RequireRateLimiting(RateLimitPolicy);
 
         pages.MapPost("/{id:guid}/preview/queries/{queryId}/run", async (Guid id, string queryId, CustomPageQueryRunRequest? request,
@@ -217,13 +218,14 @@ internal static class CustomPageQueryEndpoints
                 .Select(x => new { x.Code, x.DefinitionJson }).SingleOrDefaultAsync(ct);
             if (draft is null) return Results.NotFound();
             // Preview is limited to verified TenantAdmins, who hold every right on every page.
-            return await RunAsync(draft.Code, draft.DefinitionJson, queryId, request, tenant, userId, CustomPageRights.All, isPreview: true, platformDb, http, ct);
+            return await RunAsync(draft.Code, draft.DefinitionJson, queryId, request, tenant, userId, CustomPageRights.All, isPreview: true, db, platformDb, http, ct);
         }).RequireRateLimiting(PreviewRateLimitPolicy);
     }
 
     internal const string ForbiddenWriteError = "Bu sayfada bu işlemi yapma yetkiniz yok.";
     internal const string OperationQueryRunError = "ERP işlemi sayfa üzerinden doğrudan çalıştırılır.";
     internal const string PreviewWriteConfirmationError = "Önizlemede yazan sorgu yalnız açık onayla çalışır.";
+    internal const string CatalogItemChangedError = "Yapı taşı değişti; sayfayı yeniden yükleyin.";
 
     /// <summary>Kind-to-right mapping: read → View, insert → Insert, update → Update, delete → Delete.</summary>
     internal static bool Allows(CustomPageRights rights, string kind) => kind switch
@@ -236,17 +238,33 @@ internal static class CustomPageQueryEndpoints
     };
 
     /// <summary>
-    /// Order of checks: query lookup → right for the query kind → parameters → (preview) write confirmation →
-    /// re-validation of the stored SQL → connection. Nothing touches the tenant database before the last step.
+    /// Order of checks: query lookup → right for the query kind → (catalog reference) the active catalog item → parameters →
+    /// (preview) write confirmation → re-validation of the SQL → connection. Nothing touches the tenant query connection
+    /// before the last step. A catalog reference always runs the catalog item's SQL, never SQL stored on the page.
     /// </summary>
     private static async Task<IResult> RunAsync(string pageCode, string definitionJson, string queryId, CustomPageQueryRunRequest? request,
-        Guid tenant, Guid userId, CustomPageRights rights, bool isPreview, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
+        Guid tenant, Guid userId, CustomPageRights rights, bool isPreview, TenantDbContext db, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
     {
         var query = TenantCustomPageQueries.ReadQueries(definitionJson).FirstOrDefault(x => string.Equals(x.Id, queryId, StringComparison.Ordinal));
         if (query is null || query.Kind is not ("read" or "insert" or "update" or "delete")) return Results.NotFound(new { error = "Sorgu bu sayfada bulunamadı." });
         if (!Allows(rights, query.Kind)) return Results.Json(new { error = ForbiddenWriteError }, statusCode: StatusCodes.Status403Forbidden);
         // ERP operation queries are called by the page runtime against their own endpoint with the user's token.
         if (query.Operation is not null) return Results.BadRequest(new { error = OperationQueryRunError });
+        var sql = query.Sql;
+        string? catalogReference = null;
+        if ((query.DataSource ?? query.Action) is { } code)
+        {
+            var catalog = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+            // An item kept only for SQL that today's validator rejects still resolves here, so it reaches the
+            // re-validation below and is answered with InvalidStoredSqlError before any connection is opened.
+            var item = catalog?.Bundle.FindForRun(code);
+            if (item is null) return Results.NotFound(new { error = TenantCustomPageQueries.CatalogMissingPrefix + code });
+            if (item.ErpOperation is not null) return Results.BadRequest(new { error = OperationQueryRunError });
+            if (!TenantCatalogStore.Fits(item, query.DataSource is not null ? "dataSource" : "action", query))
+                return Results.Conflict(new { error = CatalogItemChangedError });
+            sql = item.Sql!;
+            catalogReference = $"{code}@{catalog!.Version}";
+        }
         // Session variables are bound from the verified claims, never from the request.
         var values = CustomPageQueryParameters.WithSessionValues(query.Parameters, request?.Parameters, CustomPageSession.From(http.User));
         var (parameters, error) = CustomPageQueryParameters.Build(query.Parameters, values);
@@ -254,25 +272,27 @@ internal static class CustomPageQueryEndpoints
         if (query.Kind != "read")
         {
             if (isPreview && request?.ConfirmWrite != true) return Results.BadRequest(new { error = PreviewWriteConfirmationError });
-            return await RunWriteAsync(pageCode, query, parameters, values, tenant, userId, isPreview, platformDb, http, ct);
+            return await RunWriteAsync(pageCode, query, sql, catalogReference, parameters, values, tenant, userId, isPreview, platformDb, http, ct);
         }
         var auditAction = isPreview ? "custom-page.query.preview" : "custom-page.query.run";
         // Stored definitions were validated on save, but the read-only rules may have tightened since; never run SQL
         // that today's validator would reject.
-        if (!ReportEndpoints.TryValidateReadOnlySql(query.Sql, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
+        if (!ReportEndpoints.TryValidateReadOnlySql(sql, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
         // The connection factory is resolved only after every authorization and validation check has passed.
         var factory = http.RequestServices.GetRequiredService<ITenantQueryConnectionFactory>();
         CustomSqlResult result;
         try
         {
-            result = await CustomSqlReportRunner.ExecuteSingleAsync(query.Sql, parameters, tenant, factory, ct);
+            result = await CustomSqlReportRunner.ExecuteSingleAsync(sql, parameters, tenant, factory, ct);
         }
         catch (Exception exception) when (CustomSqlReportRunner.MapError(exception) is not null)
         {
             return CustomSqlReportRunner.MapError(exception)!;
         }
         // Parameter values may hold personal data and are not audited; only their names are.
-        var resource = $"{pageCode}:{query.Name}:rows={result.Rows.Count}:params={string.Join(',', query.Parameters.Select(x => x.Name))}";
+        // The catalog reference comes before the parameter names, so the length cap cannot cut it off.
+        var catalogPart = catalogReference is null ? "" : $":catalog={catalogReference}";
+        var resource = $"{pageCode}:{query.Name}{catalogPart}:rows={result.Rows.Count}:params={string.Join(',', query.Parameters.Select(x => x.Name))}";
         if (resource.Length > MaxAuditResourceLength) resource = resource[..MaxAuditResourceLength];
         platformDb.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = userId, Action = auditAction, Resource = resource });
         await platformDb.SaveChangesAsync(ct);
@@ -286,12 +306,14 @@ internal static class CustomPageQueryEndpoints
     /// Runs a write query through the write login. Audit fails closed: the attempt row (Succeeded = false) is stored in
     /// TenantCustomPageWriteAudits before the tenant connection is opened, and no write runs when that insert fails.
     /// The row is completed with the outcome afterwards; a failure there is logged and never changes the response.
+    /// <paramref name="sql"/> is the page's SQL or, for a catalog action, the catalog item's (<paramref name="catalogReference"/>
+    /// = <c>&lt;code&gt;@&lt;release version&gt;</c>, stored on the audit row).
     /// </summary>
-    private static async Task<IResult> RunWriteAsync(string pageCode, PageQuery query, IReadOnlyList<SqlParameter> parameters,
+    private static async Task<IResult> RunWriteAsync(string pageCode, PageQuery query, string sql, string? catalogReference, IReadOnlyList<SqlParameter> parameters,
         IReadOnlyDictionary<string, JsonElement> values, Guid tenant, Guid userId, bool isPreview, PlatformDbContext platformDb, HttpContext http, CancellationToken ct)
     {
         // The write rules may have tightened since the page was saved; never run SQL today's validator would reject.
-        if (!ReportEndpoints.TryValidateWriteSql(query.Sql, query.Kind, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
+        if (!ReportEndpoints.TryValidateWriteSql(sql, query.Kind, out _)) return Results.BadRequest(new { error = InvalidStoredSqlError });
         using var lease = http.RequestServices.GetRequiredService<CustomPageWriteRateLimiter>().Acquire(userId);
         if (!lease.IsAcquired) return Results.Json(new { error = WriteRateLimitError }, statusCode: StatusCodes.Status429TooManyRequests);
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(CustomPageQueryEndpoints).FullName!);
@@ -299,7 +321,8 @@ internal static class CustomPageQueryEndpoints
         var audit = new TenantCustomPageWriteAudit
         {
             TenantId = tenant, UserId = userId, PageCode = pageCode, QueryName = query.Name, Kind = query.Kind,
-            ParametersJson = ParametersJson(values), IsPreview = isPreview, Succeeded = false, OccurredAt = DateTimeOffset.UtcNow
+            ParametersJson = ParametersJson(values), IsPreview = isPreview, Succeeded = false, OccurredAt = DateTimeOffset.UtcNow,
+            CatalogReference = catalogReference is null ? null : AuditResourceSanitizer.Sanitize(catalogReference)
         };
         platformDb.TenantCustomPageWriteAudits.Add(audit);
         try
@@ -318,7 +341,7 @@ internal static class CustomPageQueryEndpoints
         int affectedRows;
         try
         {
-            affectedRows = await CustomSqlReportRunner.ExecuteWriteAsync(query.Sql, parameters, tenant, factory, ct);
+            affectedRows = await CustomSqlReportRunner.ExecuteWriteAsync(sql, parameters, tenant, factory, ct);
         }
         catch (Exception exception)
         {

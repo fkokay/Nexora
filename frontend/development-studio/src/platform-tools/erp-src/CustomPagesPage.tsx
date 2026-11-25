@@ -15,7 +15,7 @@ import { formatCell, parseColumnFormats } from "./page-designer/cellFormat";
 import { ActionBarPreview, AlertPreview, BadgePreview, ContextPanelPreview, CustomFieldsPreview, DialogPreview, EditableGridPreview, FacetGroupPreview, FacetPanelPreview, FilterChipsPreview, FormCardPreview, GridPreview, ImagePreview, LookupPreview, MetricPreview, TabsCanvas, TabsPreview, toneOf, type FacetPreviewGroup, FilterBarPreview, RecordHeaderPreview, StepsPreview } from "./page-designer/CanvasPreviews";
 import { IconSelect, ToneMapEditor, ToneSelect, sanitizeSafeValue } from "./page-designer/DesignLanguageFields";
 import BindingInput, { type BindingSuggestion } from "./page-designer/BindingInput";
-import QueriesPanel, { MAX_QUERIES, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
+import QueriesPanel, { MAX_QUERIES, catalogReference, NAME_PATTERN, isOperationQuery, isWriteKind, nameProblem, queryKindLabels, querySourceLabel, syncParameters, type PageQuery, type QueryParameterType, type QueryPreview } from "./page-designer/QueriesPanel";
 import { ERP_WRITE_PREVIEW_BLOCKED, buildReadRequest, collectionParameterFor, collectionRoot, findOperation, loadErpOperations, mapReadResult, unboundRequiredParameter, wireParameters, type ErpCatalog, type ErpOperation } from "./page-designer/erpOperations";
 import type { SqlSchemaTable } from "./page-designer/SqlQueryEditor";
 import { bindingPath, coerceParameter, interpolate, pageDateScope, resolvePath, sampleText, type PageScope } from "./page-designer/pageBindings";
@@ -860,6 +860,8 @@ const wireDefinition = (definition: PageDefinition, catalog: ErpCatalog): PageDe
   ...definition,
   queries: definition.queries.map((query) => {
     const { sql, operation, ...rest } = query;
+    // Katalog başvurulu sorgu (dataSource/action): kod olduğu gibi kalır; sql ya da operation eklenmez.
+    if (catalogReference(query) !== undefined) return rest;
     if (!isOperationQuery(query)) return { ...rest, sql: sql ?? "" };
     const op = findOperation(catalog, operation);
     return { ...rest, operation, parameters: op ? wireParameters(op, rest.parameters) : rest.parameters };
@@ -1174,6 +1176,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Sorgu eklemek, SQL düzenlemek ve önizlemek yalnız tenant yöneticisine açıktır.
   const queryEditable = canEdit && isAdmin;
   // Sistem kipinde erişim paneli yalnız SQL sorgusu varken anlamlıdır (ERP işlemlerinin yetkisini uç noktalar verir).
+  // Katalog başvuruları da sayılır (bilerek): öğe sunucuda SQL çalıştırabilir; sunucunun HasSqlQueries kuralıyla aynıdır.
   const hasSqlQueries = definition.queries.some((query) => !isOperationQuery(query));
   const dirty = (creating || !!current) && snapshotOf(name, description, definition) !== savedSnapshot;
   const designIds = useMemo(() => new Set([...cardTree.flattenComponents(definition.components).map((component) => component.id), ...definition.queries.map((query) => query.id)]), [definition]);
@@ -3643,7 +3646,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onLayerDragEnd={() => live.current.clearDrag()}
         onLayerDragOver={(index, edge) => { const target = dragStore.get().dropTarget; if (target?.index !== index || target.edge !== edge) dragStore.set({ dropTarget: { index, edge } }); }}
         onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={moveComponent} componentCount={definition.components.length}
-        queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${isOperationQuery(query) ? "ERP işlemi" : "SQL"}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
+        queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${querySourceLabel(query)}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
         onAddQuery={() => { addQuery(); setQueryEditorOpen(true); }} onOpenQuery={(id) => { setSelectedQueryId(id); setQueryEditorOpen(true); }}/>}</DragSelect>

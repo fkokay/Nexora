@@ -249,6 +249,7 @@ app.MapCustomFormEndpoints();
 app.MapTenantCustomDataEndpoints();
 app.MapTenantScreenViewEndpoints();
 app.MapTenantCustomPageEndpoints();
+app.MapTenantCatalogEndpoints();
 app.MapSystemPageEndpoints();
 app.MapCustomPageAccessEndpoints();
 app.MapCustomPageQueryEndpoints();

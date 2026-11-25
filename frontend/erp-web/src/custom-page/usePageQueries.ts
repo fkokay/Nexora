@@ -10,6 +10,8 @@ export type PageQueryDefinition = {
   parameters: { name: string; binding: string; type: string }[];
   /** SQL yerine çağrılacak ERP işlemi (`modul.nesne.eylem`); yol ve yöntem yalnız sunucu kataloğundan gelir. */
   operation?: string;
+  /** Sunucu katalog başvurusunu çözemedi (ör. "Katalogda bulunamadı: kod"); sorgu çalıştırılmaz, durum bu iletiyle hata olur. */
+  catalogError?: string;
   /**
    * Önizleme sorgusu (`runOn: ["<bileşen>", …]`): sayfa sorgusu olarak çalışmaz; izlenen bileşenler ya da parametreleri değişince
    * gecikmeli (`debounceMs`) önizleme olarak çalışır (bkz. previewQueries.ts). `runOn` "manual" sayılır.
@@ -53,7 +55,8 @@ export function readPageQueries(definition: unknown): PageQueryDefinition[] {
       .map((p) => ({ name: p.name as string, binding: p.binding as string, type: p.type as string })) : [];
     const preview = readPreviewTrigger(item);
     result.push({ id: item.id, name: item.name, runOn: kind !== "read" || item.runOn === "manual" || preview ? "manual" : "load", kind, parameters,
-      ...(typeof item.operation === "string" ? { operation: item.operation } : {}), ...(preview ? { preview } : {}) });
+      ...(typeof item.operation === "string" ? { operation: item.operation } : {}),
+      ...(typeof item.catalogError === "string" && item.catalogError ? { catalogError: item.catalogError } : {}), ...(preview ? { preview } : {}) });
   }
   return result;
 }
@@ -239,6 +242,12 @@ export function usePageQueries(options: {
   };
 
   const execute = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState | undefined> => {
+    if (query.catalogError) {
+      sequences.current.set(query.name, (sequences.current.get(query.name) ?? 0) + 1);
+      const failed: QueryState = { ...emptyState(false), error: query.catalogError, ran: true };
+      setStates((current) => ({ ...current, [query.name]: failed }));
+      return failed;
+    }
     if (query.operation !== undefined) return executeOperation(query, values);
     const sequence = (sequences.current.get(query.name) ?? 0) + 1;
     sequences.current.set(query.name, sequence);
@@ -291,6 +300,7 @@ export function usePageQueries(options: {
     try { return await api<unknown>(request.url, token, operationInit(request)); } catch (cause) { throw operationFailure(cause); }
   };
   const runWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, confirmWrite = false, cleared?: ReadonlySet<string>): Promise<WriteResult> => {
+    if (query.catalogError) throw new Error(query.catalogError);
     if (query.operation !== undefined) return runOperationWrite(query, values, cleared);
     const result = await api<Partial<WriteResult>>(endpointFor(query), token, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -315,6 +325,7 @@ export function usePageQueries(options: {
   };
 
   const fetchRead = async (query: PageQueryDefinition, values: Record<string, unknown>): Promise<QueryState> => {
+    if (query.catalogError) return { ...emptyState(false), error: query.catalogError, ran: true };
     try {
       if (query.operation !== undefined) {
         const op = operationOf(query);

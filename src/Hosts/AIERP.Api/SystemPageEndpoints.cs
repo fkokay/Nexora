@@ -92,7 +92,7 @@ internal static class SystemPageEndpoints
                 if (!rights.View) return TenantCustomPageEndpoints.ViewForbidden();
                 var forms = await TenantCustomPageEndpoints.LoadEmbeddedFormsAsync(db, tenant, page.DefinitionJson, ct);
                 return Results.Ok(new SystemPagePublished(page.Id, page.Code, page.Name, page.Description, page.Revision,
-                    TenantCustomPageQueries.WithoutQuerySql(page.DefinitionJson), forms, RuntimeRights(rights, page.DefinitionJson),
+                    await TenantCustomPageEndpoints.RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), forms, RuntimeRights(rights, page.DefinitionJson),
                     standard.ScreenKey, "override", page.StandardVersion));
             }
             if (!EnabledStandards(configuration).Contains(standard.ScreenKey)) return NotFound();

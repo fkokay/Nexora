@@ -3201,6 +3201,8 @@ public sealed class TenantCustomPageWriteAudit
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     /// <summary>How long the write took, in milliseconds; null until the attempt has finished.</summary>
     public int? DurationMs { get; set; }
+    /// <summary>The catalog item the write ran, as <c>&lt;code&gt;@&lt;release version&gt;</c>; null for page SQL.</summary>
+    public string? CatalogReference { get; set; }
 }
 
 /// <summary>A tenant-owned logical table. Its user-defined schema is declarative metadata, never executable SQL.</summary>
@@ -3407,6 +3409,30 @@ public sealed class TenantCustomizationPackageSnapshot
     public string Sha256 { get; set; } = "";
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>An immutable, versioned building-block catalog bundle of a tenant. Only Status/activation fields change; rows are never deleted.</summary>
+public sealed class TenantCatalogRelease
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    /// <summary>SemVer, at most 32 characters.</summary>
+    public string Version { get; set; } = "";
+    /// <summary>Draft | Active | Superseded.</summary>
+    public string Status { get; set; } = "Draft";
+    /// <summary>The validated bundle; never edited after creation.</summary>
+    public string BundleJson { get; set; } = "";
+    /// <summary>Lowercase hex SHA-256 of <see cref="BundleJson"/> (64 characters).</summary>
+    public string BundleSha256 { get; set; } = "";
+    /// <summary>Provenance record only; never fetched or trusted.</summary>
+    public string? SourceRepository { get; set; }
+    public string? SourceCommit { get; set; }
+    public string? SourcePath { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? ActivatedByUserId { get; set; }
+    public DateTimeOffset? ActivatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
 }
 
 public sealed class TenantCustomMenuEntry
