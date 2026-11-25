@@ -18,9 +18,11 @@ export type TextPanelProps = {
   onChange: (next: ModelDefinition) => void; onRename: (name: string) => void;
   /** "Ne zaman görünsün?" alanı (`VisibilityField` düğümü). */
   visibility?: ReactNode;
+  /** Ad bölümünün altındaki "Yeri" seçimi (ek alanlarda). */
+  place?: ReactNode;
 };
 
-export function TextPanel({ component, definition, tokens, disabled, onChange, onRename, visibility }: TextPanelProps) {
+export function TextPanel({ component, definition, tokens, disabled, onChange, onRename, visibility, place }: TextPanelProps) {
   const style = textStyleOf(component);
   const stored = String(component.props[textKeyOf(component)] ?? "");
   const parts = hasTextParts(component);
@@ -41,7 +43,7 @@ export function TextPanel({ component, definition, tokens, disabled, onChange, o
       onClick={() => onChange(setTextAlign(definition, component.id, value))}>{label}</button>)}</div></div>;
   const appearance = <AppearanceSection extra={extra} visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} onRename={onRename} whatTitle="Stil" what={what} basicsTitle="Metin" basics={basics}
+  return <ComponentPanel name={component.name ?? ""} onRename={onRename} place={place} whatTitle="Stil" what={what} basicsTitle="Metin" basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={TEXT_KNOWN}/>
   </ComponentPanel>;

@@ -16,9 +16,11 @@ export type ImagePanelProps = {
   /** Listenin veri kaynağının kolonları (`fieldTokens`); "Kayıttaki resim" bunlardan seçer. */
   tokens: FieldToken[]; disabled?: boolean;
   onChange: (next: ModelDefinition) => void; onRename: (name: string) => void; visibility?: ReactNode;
+  /** Ad bölümünün altındaki "Yeri" seçimi (ek alanlarda). */
+  place?: ReactNode;
 };
 
-export function ImagePanel({ component, definition, tokens, disabled, onChange, onRename, visibility }: ImagePanelProps) {
+export function ImagePanel({ component, definition, tokens, disabled, onChange, onRename, visibility, place }: ImagePanelProps) {
   const image = imageOf(component);
   const problem = image.from === "address" ? (image.address.includes("{{") ? null : imageAddressProblem(image.address)) : null;
   const columnBinding = tokens.find((token) => token.binding.endsWith(`.seciliSatir.${image.column}`))?.binding ?? "";
@@ -52,7 +54,7 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
   </>;
   const appearance = <AppearanceSection visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} onRename={onRename} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
+  return <ComponentPanel name={component.name ?? ""} onRename={onRename} place={place} whatTitle="Görsel nereden?" what={what} basicsTitle="Boyut" basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={IMAGE_KNOWN}/>
   </ComponentPanel>;

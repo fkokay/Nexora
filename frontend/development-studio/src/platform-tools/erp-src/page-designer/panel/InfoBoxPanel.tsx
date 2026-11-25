@@ -16,9 +16,11 @@ export type InfoBoxPanelProps = {
   /** Metindeki `{Alan}` ifadeleri için; verilmezse alan tanınmaz. */
   tokens?: FieldToken[];
   onChange: (next: ModelDefinition) => void; onRename: (name: string) => void; visibility?: ReactNode;
+  /** Ad bölümünün altındaki "Yeri" seçimi (ek alanlarda). */
+  place?: ReactNode;
 };
 
-export function InfoBoxPanel({ component, definition, disabled, tokens = [], onChange, onRename, visibility }: InfoBoxPanelProps) {
+export function InfoBoxPanel({ component, definition, disabled, tokens = [], onChange, onRename, visibility, place }: InfoBoxPanelProps) {
   const box = infoBoxOf(component);
   const isList = component.type === "list";
   const shown = toConsultantText(box.text, tokens);
@@ -43,7 +45,7 @@ export function InfoBoxPanel({ component, definition, disabled, tokens = [], onC
   </>;
   const appearance = <AppearanceSection extra={extra} visibility={visibility} disabled={disabled} hideOnMobile={component.props.hideOnMobile === true}
     onHideOnMobile={(hide) => onChange(setHideOnMobile(definition, component.id, hide))}/>;
-  return <ComponentPanel name={component.name ?? ""} onRename={onRename} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
+  return <ComponentPanel name={component.name ?? ""} onRename={onRename} place={place} whatTitle="Tür" what={what} basicsTitle={null} basics={basics}
     actions={<p className="cpanel-note">Bu bileşenin eylemi yok.</p>} appearance={appearance}>
     <LegacySettings props={component.props} known={INFO_KNOWN}/>
   </ComponentPanel>;

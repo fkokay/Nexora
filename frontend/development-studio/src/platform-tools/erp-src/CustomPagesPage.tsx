@@ -55,7 +55,8 @@ import { CanvasGrid, type CanvasBlock } from "./page-designer/CanvasGrid";
 import ErpCanvasFrame, { type CanvasTenant } from "./page-designer/ErpCanvasFrame";
 import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
-import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector } from "./page-designer/panel/TemplateInspector";
+import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector, usesTemplateInspector } from "./page-designer/panel/TemplateInspector";
+import { fieldTokens } from "./page-designer/panel/consultantText";
 import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
 import { ensureTemplateSlots, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
@@ -4371,12 +4372,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           </BindingSampleContext.Provider>
         </div>;
         // Kalıplı sayfa: liste için Liste paneli, öteki üst düzey bileşenler için tek tip panel içinde bugünkü ayarlar.
-        const topLevel = definition.components.some((component) => component.id === selected.id);
-        if (!pageTemplate || !topLevel) return legacyInspector;
+        // Danışman panelleri (alt proje 5a) Metin, Bilgi kutusu, Gösterge, Görsel ve eylem düğmeleri için açılır.
+        const modelDefinition = definition as unknown as ModelDefinition;
+        if (!usesTemplateInspector(modelDefinition, selected.id)) return legacyInspector;
         return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit}
+          tokens={fieldTokens(modelDefinition, activeCatalog.catalog)}
+          onRename={(value) => setComponentName(selected.id, value.trim())}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
-          list={{ definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
+          list={{ definition: modelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
             operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, operationsStatus: erpCatalog.status, isTenantAdmin: isAdmin,
             recordCount: typeof selected.props.query === "string" ? queryPreviews[selected.props.query]?.rowCount ?? null : null,
             onChange: (next) => commit(() => next as unknown as PageDefinition),
