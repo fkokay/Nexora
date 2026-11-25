@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kayıt kartı – tasarımcı ve ERP (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--warn:#b45309;--dan:#b42318}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:6px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line)}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+  .top h1{font-size:16px;margin:0}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;background:#fdf0d5;color:#8a5a00}
+  .pill.k{background:var(--accent-soft);color:var(--accent)}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.dan{color:var(--dan)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .wrap{display:grid;grid-template-columns:230px 1fr 310px;height:calc(100vh - 150px)}
+  .left{background:#fff;border-right:1px solid var(--line);overflow:auto;padding:14px}
+  .left h4,.insp h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .src{font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px;margin-bottom:10px;line-height:1.45}
+  .fld{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:grab;background:#fff}
+  .fld .ty{margin-left:auto;font-size:10.5px;color:var(--muted)}
+  .fld.used{opacity:.45}
+  .fld.used:after{content:"✓";color:var(--accent)}
+  .blk{padding:7px 8px;border:1px dashed #cfc9e6;border-radius:8px;margin-bottom:6px;cursor:grab;color:var(--accent)}
+  .ask{margin-top:16px;color:var(--muted);font-size:12px;line-height:1.5}
+  .ask a{color:var(--accent)}
+  .canvas{overflow:auto;padding:24px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px}
+  .frame-note{max-width:860px;margin:0 auto 8px;color:var(--muted);font-size:11.5px}
+  /* ---- ERP kayıt kartı (tuvalde ve ERP görünümünde aynı) ---- */
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:860px;margin:0 auto;padding:16px 20px;container-type:inline-size;transition:max-width .25s}
+  body.tablet .wrap .card{max-width:640px} body.mobile .wrap .card{max-width:375px;padding:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:10px}
+  .rh{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .av{width:42px;height:42px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+  .rh .t{font-size:18px;font-weight:700} .rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}
+  .kv span{display:block;color:var(--muted);font-size:11.5px} .kv b{font-size:15px}
+  @container (max-width:480px){.kv{margin-left:54px;gap:14px}}
+  .bar{display:flex;gap:6px;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:10px}
+  .bar .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap}
+  .bar .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .bar .b.dan{color:var(--dan)}
+  .bar .more{display:none}
+  @container (max-width:480px){.bar .opt2{display:none}.bar .more{display:inline-block}}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+  .tab{padding:8px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+  .tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .tab.add{color:#b0abc8}
+  .sec{border:1px solid transparent;border-radius:10px;padding:10px;margin-bottom:8px;position:relative;container-type:inline-size}
+  .design .sec:hover{border-color:#d9d3f3}
+  .sec.selected{border-color:var(--accent)!important}
+  .sech{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .sech b{font-size:13px}
+  .colpick{margin-left:auto;opacity:0;transition:.1s} .design .sec:hover .colpick,.sec.selected .colpick{opacity:1}
+  .colpick button{padding:2px 8px;font-size:11px}
+  .grid{display:grid;gap:10px 14px;min-height:40px;border-radius:8px}
+  .grid.c1{grid-template-columns:1fr}.grid.c2{grid-template-columns:repeat(2,1fr)}.grid.c3{grid-template-columns:repeat(3,1fr)}
+  @container (max-width:720px){.grid.c3{grid-template-columns:repeat(2,1fr)}}
+  @container (max-width:480px){.grid.c2,.grid.c3{grid-template-columns:1fr}}
+  .grid.drop{background:var(--accent-soft);outline:2px dashed var(--accent)}
+  .f{border:1px solid transparent;border-radius:8px;padding:4px;position:relative;min-width:0}
+  .design .f{cursor:grab} .design .f:hover{border-color:var(--line)} .f.selected{border-color:var(--accent)!important;background:#faf8ff}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f label .rq{color:#c2410c}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:7px 9px;background:#fff;color:var(--text);min-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .f .in.ro{background:#f6f5fa;color:var(--muted)}
+  .f .in.ta{min-height:58px;white-space:normal}
+  .f .help{font-size:11px;color:var(--muted);margin-top:3px}
+  .f.wide{grid-column:1/-1}
+  .f .rm{position:absolute;top:2px;right:4px;display:none;cursor:pointer;color:var(--muted)}
+  .design .f:hover .rm{display:block}
+  .ph{grid-column:1/-1;color:#b0abc8;text-align:center;padding:12px;border:1px dashed var(--line);border-radius:8px}
+  .lines{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .lines table{width:100%;border-collapse:collapse;min-width:420px} .lines th,.lines td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+  .lines th{background:#faf9fd;color:var(--muted)} .lines .n{text-align:right}
+  .txtblk{grid-column:1/-1;color:var(--muted);font-style:italic;padding:4px}
+  .addsec{display:block;width:100%;border:1px dashed #cfc9e6;color:var(--accent);background:none;border-radius:10px;padding:10px;cursor:pointer;font:inherit}
+  .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);margin-top:12px;padding-top:8px;flex-wrap:wrap;gap:6px}
+  /* ---- panel ---- */
+  .insp{background:#fff;border-left:1px solid var(--line);overflow:auto;padding:14px 16px}
+  .part{border-top:1px solid var(--line);padding:10px 0}
+  .part:first-of-type{border-top:0}
+  .q{font-weight:600;margin:8px 0 6px}
+  input.txt,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;gap:8px}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .tg.lock{opacity:.55;cursor:not-allowed}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:4px;line-height:1.5}
+  details{border-top:1px solid var(--line);padding:10px 0}
+  summary{font-weight:600;cursor:pointer}
+  .chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px;background:#fff}
+  /* ---- ERP üç genişlik ---- */
+  .erp{padding:20px;overflow:auto;height:calc(100vh - 150px)}
+  .erp-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+  .widths{display:flex;gap:18px;align-items:flex-start}
+  .w{flex:none}
+  .w .lbl{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .w .card{margin:0}
+  .w1 .card{width:860px}.w2 .card{width:620px}.w3 .card{width:360px}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="note"><b>Kayıt kartı taslağı (alt proje 4):</b> İskelet sabittir: konum satırı → kayıt özeti → işlem çubuğu (<i>Kaydet</i> en solda, <i>Sil</i> en sağda) → sekmeler → alt bilgi. Danışman yalnız <b>Sekme → Bölüm → Alan</b> kurar. Soldaki alanları bölümlere sürükle, bölümün üstüne gelip 1 / 2 / 3 kolon seç, bir alana ya da bölüme tıklayıp sağdan ayarla. Boş yere tıklayınca sayfanın ayarları açılır. <b>ERP'de üç genişlik</b> sekmesinde aynı kartın kendi genişliğine göre nasıl dizildiğini görebilirsin. Önceki / Sonraki bu projede yok, sonra gelecek.</div>
+<div class="views seg" id="views" style="display:flex;border:0;border-radius:0">
+  <button class="on" data-view="studio">Studio tasarımcı</button><button data-view="erp">ERP'de üç genişlik</button>
+</div>
+
+<div id="studio">
+<div class="top">
+  <button class="btn">←</button><h1>Cari kartı</h1><span class="pill k">Kayıt kartı · 1. basamak</span><span class="pill">Taslak · otomatik kaydedildi</span>
+  <span class="sp"></span>
+  <div class="seg" id="dev"><button class="on" data-v="desktop">Masaüstü</button><button data-v="tablet">Tablet</button><button data-v="mobile">Mobil</button></div>
+  <button class="btn primary">Yayınla</button>
+</div>
+<div class="wrap">
+  <div class="left">
+    <h4>Alanlar</h4>
+    <div class="src">Yazılımcının hazırladığı · <b>Cari kartı</b> veri kaynağı. Kullanılan alanlar işaretli.</div>
+    <div id="fields"></div>
+    <h4 style="margin-top:16px">Ekle</h4>
+    <div class="blk" draggable="true" data-blk="lines">▦ Satır tablosu</div>
+    <div class="blk" draggable="true" data-blk="note">✎ Açıklama metni</div>
+    <div class="ask">Aradığın alan yok mu?<br><a href="#">Yazılımcıdan iste →</a></div>
+  </div>
+  <div class="canvas" id="canvas">
+    <div class="frame-note">Tuval gerçek ERP sayfasıdır; seçim çerçeveleri ve bırakma alanları üstte çizilir.</div>
+    <div class="card design" id="dcard"></div>
+  </div>
+  <div class="insp" id="insp"></div>
+</div>
+</div>
+
+<div id="erp" class="hide">
+  <div class="erp">
+    <div class="erp-bar"><b>Aynı kart, üç genişlikte</b><div class="seg" id="mode"><button class="on" data-m="edit">Var olan kayıt</button><button data-m="new">Yeni kayıt</button></div>
+      <span class="opt">Bölüm kuralı: 3 kolon dar alanda 2 olur, telefonda hepsi 1 olur. Uzun metin ve satır tablosu her zaman tam genişliktir.</span></div>
+    <div class="widths">
+      <div class="w w1"><div class="lbl">Masaüstü (1280)</div><div class="card" data-erp></div></div>
+      <div class="w w2"><div class="lbl">Tablet (768)</div><div class="card" data-erp></div></div>
+      <div class="w w3"><div class="lbl">Telefon (375)</div><div class="card" data-erp></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FIELDS={kod:["Cari kodu","Metin","C-1001",{key:1}],unvan:["Unvan","Metin","Akdeniz Gıda A.Ş.",{req:1}],tur:["Cari türü","Metin","Müşteri",{}],vergiDaire:["Vergi dairesi","Metin","Antalya Kurumlar",{}],vergiNo:["Vergi no","Metin","1234567890",{max:11}],tel:["Telefon","Metin","0242 111 22 33",{}],eposta:["E-posta","Metin","muhasebe@akdenizgida.com",{}],adres:["Adres","Uzun metin","Liman Mah. 12. Sk. No:4 Konyaaltı / Antalya",{long:1,max:500}],sehir:["Şehir","Metin","Antalya",{}],vade:["Vade (gün)","Tam sayı","30",{}],limit:["Kredi limiti","Ondalık","250.000,00",{}],temsilci:["Satış temsilcisi","Metin","Ayşe Yılmaz",{}],not:["Notlar","Uzun metin","Cuma günleri teslimat yok.",{long:1}]};
+const state={tab:0,device:"desktop",sel:null,mode:"edit",tabs:[
+ {n:"Genel",secs:[{n:"Kimlik",cols:3,f:["kod","unvan","tur","vergiDaire","vergiNo"]},{n:"İletişim",cols:2,f:["tel","eposta","sehir","adres"]}]},
+ {n:"Ticari",secs:[{n:"Koşullar",cols:3,f:["vade","limit","temsilci","not"]}]},
+ {n:"Hareketler",secs:[{n:"Son hareketler",cols:1,f:["#lines"]}]}],
+ req:new Set(["unvan"]),ro:new Set(["kod"]),help:{vergiNo:"10 ya da 11 hane"},labels:{}};
+const lbl=k=>state.labels[k]||FIELDS[k][0];
+const used=()=>new Set(state.tabs.flatMap(t=>t.secs.flatMap(s=>s.f)));
+const isSel=(si,fi)=>state.sel&&state.sel.si===si&&state.sel.fi===fi;
+
+function fieldHtml(k,si,fi,design,isNew){
+  const sel=design&&isSel(si,fi)?" selected":"",dd=design?` data-si="${si}" data-fi="${fi}" draggable="true"`:"",rm=design?'<span class="rm" data-rm>✕</span>':"";
+  if(k==="#lines")return `<div class="f wide lines${sel}"${dd}>${isNew?'<div style="padding:12px;color:var(--muted)">Kayıt kaydedilince hareketler burada görünür.</div>':'<table><tr><th>Tarih</th><th>Belge</th><th>Açıklama</th><th class="n">Tutar</th></tr><tr><td>22.11</td><td>FT-2291</td><td>Satış faturası</td><td class="n">12.400,00</td></tr><tr><td>18.11</td><td>TH-0412</td><td>Tahsilat</td><td class="n">-8.000,00</td></tr></table>'}</div>`;
+  if(k.startsWith("#note"))return `<div class="f wide${sel}"${dd}>${rm}<div class="txtblk">Kredi limiti değişiklikleri finans onayına gider.</div></div>`;
+  const [,,v,m]=FIELDS[k],req=state.req.has(k)||m.req,ro=state.ro.has(k)||m.key;
+  const val=isNew?(m.key?"(otomatik)":""):v;
+  return `<div class="f${m.long?" wide":""}${sel}"${dd}>${rm}<label>${lbl(k)}${req?' <span class="rq">*</span>':""}</label><div class="in${ro?" ro":""}${m.long?" ta":""}" title="${val}">${val}</div>${state.help[k]?`<div class="help">${state.help[k]}</div>`:""}</div>`;
+}
+function cardHtml(design,isNew){
+  const T=state.tabs[design?state.tab:0];
+  const head=`<div class="crumb">Ana sayfa › Cari › ${isNew?"Yeni cari":"C-1001"}</div>
+   <div class="rh"><div class="av">${isNew?"+":"AG"}</div><div><div class="t">${isNew?"Yeni cari":"Akdeniz Gıda A.Ş."}</div><div class="s">${isNew?"Kaydedilmedi":"C-1001 · Antalya · Müşteri"}</div></div>${isNew?"":'<div class="kv"><div><span>Bakiye</span><b>48.250 ₺</b></div><div><span>Vade</span><b>30 gün</b></div></div>'}</div>
+   <div class="bar"><span class="b pri">Kaydet</span><span class="b opt2">Ekstre al</span><span class="b more">⋯</span><span class="sp"></span>${isNew?"":'<span class="b dan opt2">Sil</span>'}</div>`;
+  const tabs=`<div class="tabs">${state.tabs.map((t,i)=>`<div class="tab${i===(design?state.tab:0)?" on":""}"${design?` data-tab="${i}"`:""}>${t.n}</div>`).join("")}${design?'<div class="tab add" id="addtab">+ Sekme</div>':""}</div>`;
+  const secs=T.secs.map((s,si)=>`<div class="sec${design&&state.sel&&state.sel.sec===si?" selected":""}" data-sec="${si}">
+    <div class="sech"><b>${s.n}</b>${design?`<span class="colpick seg">${[1,2,3].map(c=>`<button class="${s.cols===c?"on":""}" data-cols="${c}" data-s="${si}">${c}</button>`).join("")}</span>`:""}</div>
+    <div class="grid c${s.cols}"${design?` data-drop="${si}"`:""}>${s.f.length?s.f.map((k,fi)=>fieldHtml(k,si,fi,design,isNew)).join(""):'<div class="ph">Alanları buraya sürükleyin</div>'}</div></div>`).join("");
+  return head+tabs+secs+(design?'<button class="addsec" id="addsec">+ Bölüm ekle</button>':"")+`<div class="foot"><span>${isNew?"Yeni kayıt":"Son değişiklik: 24.11.2026 · Ayşe Yılmaz"}</span><span>Ctrl+S kaydet</span></div>`;
+}
+function render(){
+  document.getElementById("dcard").innerHTML=cardHtml(true,false);
+  const u=used();
+  document.getElementById("fields").innerHTML=Object.entries(FIELDS).map(([k,[n,t]])=>`<div class="fld${u.has(k)?" used":""}" draggable="true" data-new="${k}">${lbl(k)}<span class="ty">${t}</span></div>`).join("");
+  document.querySelectorAll("[data-erp]").forEach(c=>c.innerHTML=cardHtml(false,state.mode==="new"));
+  renderInsp();
+}
+const tg=(on,attr,lock)=>`<span class="tg${on?" on":""}${lock?" lock":""}"${attr&&!lock?` ${attr}`:""}></span>`;
+function renderInsp(){
+  const el=document.getElementById("insp"),s=state.sel,T=state.tabs[state.tab];
+  if(!s){el.innerHTML=`<h4>Sayfa · Kayıt kartı</h4>
+   <div class="part"><div class="q">Ad</div><input class="txt" value="Cari kartı"></div>
+   <div class="part"><div class="q">Hangi kayıt gösterilsin?</div><select><option>Cari kartı</option><option>Stok kartı</option></select>
+     <div class="src" style="margin-top:6px">Yazılımcının hazırladığı · kayıt <b>cari kodu</b> ile okunur. Listede “Kartı aç” bu kartı bu bilgiyle açar.</div></div>
+   <div class="part"><div class="q">Kaydet düğmesi</div>
+     <div class="row">Yeni kayıtta <select style="width:58%"><option>Cari ekle</option><option>—</option></select></div>
+     <div class="row">Var olan kayıtta <select style="width:58%"><option>Cari güncelle</option><option>—</option></select></div>
+     <div class="row">Sil düğmesi <select style="width:58%"><option>Cari sil</option><option>Gösterme</option></select></div>
+     <div class="opt">Eylemin her bilgisi aynı adlı alandan alınır. Bilgisi kartta olmayan eylem seçilemez: <i>“Bu eylemin vergi no bilgisi kartta yok.”</i></div></div>
+   <div class="part"><div class="q">Öne çıkan değerler</div>
+     <div class="row">Başlık <select style="width:58%"><option>Unvan</option></select></div>
+     <div class="row">Alt satır <span><span class="chip">Cari kodu</span><span class="chip">Şehir</span><span class="chip">Cari türü</span></span></div>
+     <div class="row">Değerler <span><span class="chip">Bakiye</span><span class="chip">Vade</span></span></div>
+     <div class="opt">En çok 3 değer.</div></div>
+   <div class="part"><div class="q">Ek eylemler</div><span class="chip">Ekstre al ✕</span> <span class="chip" style="color:var(--accent)">+ Eylem</span>
+     <div class="opt">İşlem çubuğunda Kaydet ile Sil arasında durur. Bu eylemleri yazılımcı hazırlar.</div></div>
+   <details><summary>Görünüm</summary><div class="row">Kartın üstüne / altına ek alan <span class="chip" style="color:var(--accent)">+ Ekle</span></div><div class="opt">Ek alan eklenince sayfa 2. basamağa geçer.</div></details>`;return;}
+  if(s.sec!==undefined){const sec=T.secs[s.sec];
+    el.innerHTML=`<h4>Bölüm</h4><div class="part"><div class="q">Başlık</div><input class="txt" id="secname" value="${sec.n}"></div>
+     <div class="part"><div class="q">Kolon sayısı</div><div class="seg">${[1,2,3].map(c=>`<button class="${sec.cols===c?"on":""}" data-cols="${c}" data-s="${s.sec}">${c} kolon</button>`).join("")}</div>
+     <div class="opt">Dar alanda en çok 2, telefonda 1 kolon olur. Uzun metin ve satır tablosu her zaman tam genişliktir.</div></div>
+     <details><summary>Görünüm</summary><div class="q">Ne zaman görünsün?</div><select><option>Her zaman</option><option>Cari türü = Tedarikçi ise</option><option>Koşul ekle…</option></select></details>
+     <div class="part"><button class="btn dan" id="delsec">Bölümü kaldır</button> <span class="opt">Alanlar sol listeye döner.</span></div>`;
+    document.getElementById("secname").oninput=e=>{sec.n=e.target.value;document.querySelector(`#dcard .sec[data-sec="${s.sec}"] .sech b`).textContent=sec.n;};return;}
+  const k=T.secs[s.si].f[s.fi];
+  if(k==="#lines"){el.innerHTML=`<h4>Satır tablosu</h4><div class="part"><div class="q">Ad</div><input class="txt" value="Son hareketler"></div>
+    <div class="part"><div class="q">Ne listelensin?</div><select><option>Cari hareketleri</option><option>Açık siparişler</option></select>
+    <div class="src" style="margin-top:6px">Yazılımcının hazırladığı · bu carinin <b>cari kodu</b> ile süzülür.</div></div>
+    <div class="part"><div class="q">Kolonlar</div><span class="chip">Tarih</span><span class="chip">Belge</span><span class="chip">Açıklama</span><span class="chip">Tutar</span><div class="opt">İşaretle, sürükleyip sırala, başlığını değiştir (Liste ile aynı).</div></div>
+    <div class="part"><div class="row">Sayfa başına <select style="width:40%"><option>10</option><option>25</option></select></div></div>
+    <details><summary>Görünüm</summary><div class="q">Liste boşken</div><input class="txt" value="Henüz hareket yok."></details>`;return;}
+  if(k.startsWith("#note")){el.innerHTML=`<h4>Açıklama metni</h4><div class="part"><div class="q">Metin</div><textarea rows="4">Kredi limiti değişiklikleri finans onayına gider.</textarea></div>`;return;}
+  const [,t,,m]=FIELDS[k],reqLock=!!m.req||!!m.key,roLock=!!m.key;
+  const dev=[t,m.key?"anahtar":"",m.req?"zorunlu":"",m.max?`en çok ${m.max} karakter`:""].filter(Boolean).join(" · ");
+  el.innerHTML=`<h4>Alan</h4>
+   <div class="part"><div class="q">Etiket</div><input class="txt" id="lbl" value="${lbl(k)}"></div>
+   <div class="part"><div class="row">Zorunlu ${tg(state.req.has(k)||reqLock,'data-flag="req"',reqLock)}</div>
+   <div class="row">Değiştirilemez ${tg(state.ro.has(k)||roLock,'data-flag="ro"',roLock)}</div>
+   ${reqLock||roLock?'<div class="opt">Kilitli olanları yazılımcı belirledi; danışman yalnız kuralı sıkılaştırabilir.</div>':""}
+   <div class="q">Yardım metni</div><input class="txt" id="help" placeholder="Kullanıcıya küçük bir ipucu" value="${state.help[k]||""}"></div>
+   <div class="src">Yazılımcının hazırladığı · ${dev}</div>
+   <details><summary>Görünüm</summary><div class="q">Ne zaman görünsün?</div><select><option>Her zaman</option><option>Cari türü = Müşteri ise</option><option>Koşul ekle…</option></select></details>
+   <div class="part"><button class="btn" data-rmsel>Karttan çıkar</button></div>`;
+  document.getElementById("lbl").oninput=e=>{state.labels[k]=e.target.value;render();document.getElementById("lbl").focus();};
+  document.getElementById("help").onchange=e=>{state.help[k]=e.target.value;render();};
+}
+let drag=null;
+document.addEventListener("dragstart",e=>{const n=e.target.closest("[data-new]"),b=e.target.closest("[data-blk]"),f=e.target.closest("#dcard .f");
+  if(n)drag={k:n.dataset.new};else if(b)drag={k:b.dataset.blk==="lines"?"#lines":"#note"+Date.now()};else if(f)drag={si:+f.dataset.si,fi:+f.dataset.fi};
+  e.dataTransfer.setData("text/plain","x");});
+document.addEventListener("dragover",e=>{const g=e.target.closest("[data-drop]");document.querySelectorAll(".grid.drop").forEach(x=>x!==g&&x.classList.remove("drop"));if(g){e.preventDefault();g.classList.add("drop");}});
+document.addEventListener("drop",e=>{const g=e.target.closest("[data-drop]");if(!g||!drag)return;e.preventDefault();
+  const T=state.tabs[state.tab],to=+g.dataset.drop,tgt=e.target.closest(".f");let idx=T.secs[to].f.length;
+  if(tgt&&+tgt.dataset.si===to)idx=+tgt.dataset.fi;
+  let k=drag.k;
+  if(drag.si!==undefined){k=T.secs[drag.si].f[drag.fi];T.secs[drag.si].f.splice(drag.fi,1);if(drag.si===to&&drag.fi<idx)idx--;}
+  else if(used().has(k)&&!k.startsWith("#note"))return;
+  T.secs[to].f.splice(idx,0,k);state.sel={si:to,fi:idx};drag=null;render();});
+document.addEventListener("dragend",()=>{drag=null;document.querySelectorAll(".drop").forEach(x=>x.classList.remove("drop"));});
+document.addEventListener("click",e=>{
+  const T=state.tabs[state.tab];
+  const v=e.target.closest("#views button");if(v){document.querySelectorAll("#views button").forEach(x=>x.classList.toggle("on",x===v));document.getElementById("studio").classList.toggle("hide",v.dataset.view!=="studio");document.getElementById("erp").classList.toggle("hide",v.dataset.view!=="erp");return;}
+  const m=e.target.closest("#mode button");if(m){document.querySelectorAll("#mode button").forEach(x=>x.classList.toggle("on",x===m));state.mode=m.dataset.m;render();return;}
+  const d=e.target.closest("#dev button");if(d){document.querySelectorAll("#dev button").forEach(x=>x.classList.toggle("on",x===d));state.device=d.dataset.v;document.body.className=state.device==="desktop"?"":state.device;return;}
+  if(!e.target.closest("#studio"))return;
+  if(e.target.dataset.cols){T.secs[+e.target.dataset.s].cols=+e.target.dataset.cols;render();return;}
+  if(e.target.dataset.flag){const s=state.sel,k=T.secs[s.si].f[s.fi],set=e.target.dataset.flag==="req"?state.req:state.ro;set.has(k)?set.delete(k):set.add(k);render();return;}
+  if(e.target.closest(".tg")&&!e.target.closest(".lock")){e.target.closest(".tg").classList.toggle("on");return;}
+  if(e.target.dataset.rm!==undefined){const f=e.target.closest(".f");T.secs[+f.dataset.si].f.splice(+f.dataset.fi,1);state.sel=null;render();return;}
+  if(e.target.dataset.rmsel!==undefined){const s=state.sel;T.secs[s.si].f.splice(s.fi,1);state.sel=null;render();return;}
+  if(e.target.id==="delsec"){T.secs.splice(state.sel.sec,1);state.sel=null;render();return;}
+  if(e.target.dataset.tab){state.tab=+e.target.dataset.tab;state.sel=null;render();return;}
+  if(e.target.id==="addtab"){state.tabs.push({n:"Yeni sekme",secs:[{n:"Yeni bölüm",cols:2,f:[]}]});state.tab=state.tabs.length-1;state.sel=null;render();return;}
+  if(e.target.id==="addsec"){T.secs.push({n:"Yeni bölüm",cols:2,f:[]});state.sel={sec:T.secs.length-1};render();return;}
+  const f=e.target.closest("#dcard .f");if(f){state.sel={si:+f.dataset.si,fi:+f.dataset.fi};render();return;}
+  const sh=e.target.closest("#dcard .sech");if(sh){state.sel={sec:+sh.parentNode.dataset.sec};render();return;}
+  if(e.target.closest("#canvas")&&!e.target.closest(".insp")){state.sel=null;render();}
+});
+render();
+</script>
+</body>
+</html>
