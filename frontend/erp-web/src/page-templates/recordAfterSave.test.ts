@@ -12,7 +12,7 @@ const CARD = 'custom-page:kart';
 beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
 afterEach(() => {
   cleanup();
-  for (const page of [LIST, CARD, 'reports']) { setPageParams(page, {}); forgetOpener(page); }
+  for (const page of [LIST, CARD, 'reports', ...Array.from({ length: 12 }, (_, index) => `custom-page:diger${index}`)]) { setPageParams(page, {}); forgetOpener(page); }
 });
 
 describe('afterRecordSave', () => {
@@ -102,6 +102,29 @@ describe('açan sekme', () => {
     expect(result.current.page).toBe(LIST);
     expect(result.current.pendingCloseTab).toBeNull();
     expect(pageParamsOf(CARD)).toEqual({});
+    expect(openerOf(CARD)).toBeUndefined();
+  });
+
+  it('a tab that leaves through replace forgets its opener', () => {
+    const { result } = workspace();
+    act(() => { result.current.setPage(LIST); });
+    act(() => { openWorkspacePage({ page: CARD, params: {}, replace: true, from: LIST }); });
+    expect(openerOf(CARD)).toBe(LIST);
+    // Kart başka bir sayfayla yer değiştirdi; sonra menüden doğrudan açılırsa açanı yoktur.
+    act(() => { openWorkspacePage({ page: 'reports', params: {}, replace: true, from: CARD }); });
+    expect(result.current.moduleTabs.map((tab) => tab.id)).toEqual(['reports']);
+    expect(openerOf(CARD)).toBeUndefined();
+    expect(openerOf('reports')).toBe(CARD);
+    act(() => { result.current.setPage(CARD); });
+    expect(openerOf(CARD)).toBeUndefined();
+  });
+
+  it('an open refused by the tab limit does not record the opener', () => {
+    const { result } = workspace();
+    const others = Array.from({ length: 12 }, (_, index) => `custom-page:diger${index}`);
+    for (const page of others) act(() => { result.current.setPage(page); });
+    act(() => { openWorkspacePage({ page: CARD, params: {}, replace: false, from: others[0] }); });
+    expect(result.current.moduleTabs.map((tab) => tab.id)).toEqual(others);
     expect(openerOf(CARD)).toBeUndefined();
   });
 

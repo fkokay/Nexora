@@ -34,10 +34,11 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   const latestTabs = useRef({ moduleTabs, page })
   latestTabs.current = { moduleTabs, page }
 
-  const setPage = useCallback((nextPage: string, labelOverride?: string) => {
+  /** Opens (or switches to) a tab; false when the tab limit refused it. */
+  const setPage = useCallback((nextPage: string, labelOverride?: string): boolean => {
     if (nextPage === 'launcher' || nextPage === 'dashboard') {
       setActivePage('launcher')
-      return
+      return true
     }
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
@@ -54,13 +55,14 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     const openTabs = latestTabs.current.moduleTabs
     if (!pendingCustomerAction && !openTabs.some(tab => tab.id === nextPage) && openTabs.length >= 12) {
       setNotice(tabLimitNotice(locale))
-      return
+      return false
     }
     clearTabLimitNotice()
     setActivePage(nextPage)
     setModuleTabs(current => current.some(tab => tab.id === nextPage)
       ? current.map(tab => tab.id === nextPage ? { ...tab, label: knownLabel || tab.label } : tab)
       : [...current, { id: nextPage, label }])
+    return true
   }, [pageResults, moduleTabs, locale, onSelectModule, clearTabLimitNotice])
 
   /**
@@ -77,14 +79,23 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       if (request.notice) setNotice(request.notice)
       const canReplace = request.replace && !!from && from !== request.page && request.page !== 'launcher' && request.page !== 'dashboard'
         && moduleTabs.some(tab => tab.id === from) && !moduleTabs.some(tab => tab.id === request.page) && !dirtyTabs.has(from)
-      if (!canReplace) { setPage(request.page); return }
+      if (!canReplace) {
+        // A refused open (tab limit) did not open the tab: the opener openWorkspacePage recorded for it is dropped.
+        if (!setPage(request.page) && !request.keepParams) { forgetOpener(request.page); openers.current.delete(request.page) }
+        return
+      }
       const result = pageResults.find(item => item.page === request.page)
       if (result?.selection) onSelectModule(result.selection)
       const label = result?.label || standalonePageTitle(request.page, locale) || request.page.replace(/[-_]/g, ' ')
       clearTabLimitNotice()
       setActivePage(request.page)
       setModuleTabs(current => current.map(tab => tab.id === from ? { id: request.page, label } : tab))
-      if (from) openers.current.delete(request.page)
+      if (from) {
+        openers.current.delete(request.page)
+        // The replaced tab is gone: opened again later (menu, rail) it was opened directly, not by its old opener.
+        openers.current.delete(from)
+        forgetOpener(from)
+      }
     }
     window.addEventListener(OPEN_PAGE_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen)
