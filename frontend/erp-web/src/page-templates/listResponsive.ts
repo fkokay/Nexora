@@ -10,6 +10,8 @@ export const ShellSearchContext = createContext<boolean>(false);
 
 /** Kalıplı listede kullanıcı satır sayısını seçemez; tasarımcının `pageSize` değerleri. */
 export const CLIENT_PAGE_SIZES = [10, 25, 50, 100];
+/** Tasarımcı varsayılanı (25) kaydetmez; değer yoksa liste yine 25'erli sayfalanır. */
+export const DEFAULT_CLIENT_PAGE_SIZE = 25;
 
 const NARROW_BELOW = 720;
 const CARDS_BELOW = 480;

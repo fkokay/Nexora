@@ -44,7 +44,7 @@ import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
 import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
-import { CLIENT_PAGE_SIZES } from "./page-templates/listResponsive";
+import { CLIENT_PAGE_SIZES, DEFAULT_CLIENT_PAGE_SIZE } from "./page-templates/listResponsive";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
   type GridAction, type GridColumn, type GridDraft, type GridMode, type GridState } from "./custom-page/gridState";
@@ -1255,7 +1255,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
           valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
-          clientPageSize={!pager && typeof props.pageSize === "number" && CLIENT_PAGE_SIZES.includes(props.pageSize) ? props.pageSize : undefined}
+          clientPageSize={pager ? undefined : typeof props.pageSize === "number" && CLIENT_PAGE_SIZES.includes(props.pageSize) ? props.pageSize : DEFAULT_CLIENT_PAGE_SIZE}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }
       return <TenantReportWidget key={component.id} kind="dataTable" source={props.source} columns={columns} title={title || "Kayıtlar"} description={description} style={style} token={token} rowActionsEnabled={props.rowActionsEnabled === true} rowActionWorkflowId={textValue(props.rowActionWorkflowId) || undefined} rowActionLabel={textValue(props.rowActionLabel, "İşlemi başlat")} pageCode={pageCode} componentId={component.id} columnFormats={props.columnFormats} toneMap={props.toneMap} density={props.density} />;
@@ -3345,7 +3345,12 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   useEffect(() => { onTitleRef.current?.(pageTitle, recordTitle); }, [pageTitle, recordTitle]);
   useEffect(() => () => onTitleRef.current?.(null, false), []);
 
-  const listLayout = isV2 && pageTemplate?.name === "list" && hasListSlot(components) ? layoutListTemplate(components) : null;
+  // Kalıp yerleri yalnız üst düzeyde çizilen bileşenlerle kurulur: sekmenin, pencerenin, satır işlemlerinin ve kayıt özetinin
+  // sahiplendiği bileşenler (eski gövdedeki gibi) yalnız sahiplerinin içinde çizilir.
+  const templateComponents = isV2 && pageTemplate?.name === "list"
+    ? components.filter((component) => !tabOwned.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id))
+    : [];
+  const listLayout = isV2 && pageTemplate?.name === "list" && hasListSlot(templateComponents) ? layoutListTemplate(templateComponents) : null;
   const runtime: PageRuntime | undefined = isV2 ? {
     shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,

@@ -222,6 +222,77 @@ describe('liste kalıbı kutu genişliği', () => {
   });
 });
 
+describe('liste kalıbı son inceleme düzeltmeleri', () => {
+  const checked = (container: HTMLElement) => container.querySelectorAll('tbody input[type=checkbox]:checked');
+
+  it('yenileme aynı satır sayısıyla gelince onay kutusu işaretleri kalkar', async () => {
+    listColumns = ['Ad'];
+    listRows = [{ Ad: 'Eski 1' }, { Ad: 'Eski 2' }, { Ad: 'Eski 3' }];
+    page({ columns: listColumns, bulkDeleteQuery: 'q_sil' }, [{ id: 'yenile', type: 'button', props: { slot: 'actions', text: 'Yenile', actionType: 'query', queryId: 'q_list' } }]);
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Eski 1', undefined, T);
+    fireEvent.click(within(container.querySelectorAll('tbody tr')[1] as HTMLElement).getByRole('checkbox'));
+    expect(checked(container)).toHaveLength(1);
+    // Sunucu aynı sayıda başka kayıt döndürür: r1 artık başka bir kayıttır.
+    listRows = [{ Ad: 'Yeni 1' }, { Ad: 'Yeni 2' }, { Ad: 'Yeni 3' }];
+    fireEvent.click(within(container.querySelector('.page-shell-bar') as HTMLElement).getByRole('button', { name: 'Yenile' }));
+    await screen.findByText('Yeni 2', undefined, T);
+    expect(checked(container)).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Seçilenleri sil' })).toBeNull();
+  });
+
+  it('pageSize yazılmamışsa liste 25 satırlık sayfalarla çizilir (tablo ve kart kipi)', async () => {
+    listColumns = ['Ad'];
+    listRows = Array.from({ length: 30 }, (_, index) => ({ Ad: `Kayıt ${String(index + 1).padStart(2, '0')}` }));
+    page({ columns: listColumns });
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Kayıt 01', undefined, T);
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(25);
+    expect(screen.queryByText('Kayıt 26')).toBeNull();
+    const footer = container.querySelector('.advanced-grid-footer') as HTMLElement;
+    expect(footer.textContent).toContain('1–25');
+    expect(footer.textContent).toContain('30');
+    resizeTo(400);
+    await waitFor(() => expect(container.querySelectorAll('.list-card')).toHaveLength(25));
+    expect(screen.queryByText('Kayıt 26')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sonraki' })).toBeTruthy();
+  });
+
+  it('pencerenin üyesi kalıp yerinde ikinci kez çizilmez; yalnız pencere açılınca pencerede görünür', async () => {
+    listColumns = ['Ad'];
+    listRows = [{ Ad: 'Ayşe Ltd' }];
+    page({ columns: listColumns }, [
+      { id: 'ac', type: 'button', props: { slot: 'actions', text: 'Pencereyi aç', actionType: 'openDialog', dialogId: 'd1' } },
+      { id: 'd1', type: 'dialog', props: { slot: 'below', title: 'Ayrıntı', contains: ['h1'] } },
+      { id: 'h1', type: 'heading', props: { slot: 'below', text: 'Pencere içeriği' } },
+    ]);
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Ayşe Ltd', undefined, T);
+    expect(screen.queryByText('Pencere içeriği')).toBeNull();
+    fireEvent.click(within(container.querySelector('.page-shell-bar') as HTMLElement).getByRole('button', { name: 'Pencereyi aç' }));
+    const dialog = await screen.findByRole('dialog', undefined, T);
+    expect(within(dialog).getByText('Pencere içeriği')).toBeTruthy();
+    expect(screen.getAllByText('Pencere içeriği')).toHaveLength(1);
+  });
+
+  it('kalıp 720 px altındayken detay paneli listenin altına iner (is-stacked)', async () => {
+    listColumns = ['Ad'];
+    listRows = [{ Ad: 'Ayşe Ltd' }];
+    page({ columns: listColumns }, [{ id: 'd1', type: 'contextPanel', props: { slot: 'detail', title: 'Ayrıntı', fields: ['Ad=Ad'] } }]);
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Ayşe Ltd', undefined, T);
+    const main = () => container.querySelector('.list-template-main') as HTMLElement;
+    expect(main().classList.contains('is-stacked')).toBe(false);
+    resizeTo(700);
+    await waitFor(() => expect(main().classList.contains('is-stacked')).toBe(true));
+    resizeTo(900);
+    await waitFor(() => expect(main().classList.contains('is-stacked')).toBe(false));
+    const css = readFileSync(resolve(__dirname, 'page-templates.css'), 'utf-8');
+    expect(css).toMatch(/\.list-template-main\.is-stacked \{[^}]*flex-direction:\s*column/);
+    expect(css).toMatch(/\.list-template-main\.is-stacked > \.list-template-list, \.list-template-main\.is-stacked > \.list-template-detail \{[^}]*flex: 0 0 auto;[^}]*width: 100%/);
+  });
+});
+
 describe('liste kalıbı tam genişlik', () => {
   it('kök ve liste kutusu tam genişlik sözleşmesini taşır', async () => {
     page({});
@@ -236,7 +307,8 @@ describe('liste kalıbı tam genişlik', () => {
     expect(listBox).not.toBeNull();
     const css = readFileSync(resolve(__dirname, 'page-templates.css'), 'utf-8');
     const rule = (selector: string) => css.split("\n").find((line) => line.trimEnd().startsWith(`${selector} {`)) ?? '';
-    expect(rule('.list-template')).toMatch(/grid-column:\s*1 \/ -1/);
+    // Kök artık eski ızgaranın dışında: eski `grid-column` kuralı kalmadı.
+    expect(rule('.list-template')).not.toMatch(/grid-column/);
     expect(rule('.list-template')).toMatch(/width:\s*100%/);
     expect(rule('.list-template')).toMatch(/min-width:\s*0/);
     expect(rule('.list-template-main')).toMatch(/width:\s*100%/);

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import AdvancedDataGrid, { type GridExportActions, type GridToolbarToggle } from "../AdvancedDataGrid";
 import type { BulkAction } from "../list-page/BulkActionBar";
@@ -122,6 +122,15 @@ export function DataTableGrid({ gridId, state, columns, title, description, styl
   // Tıklama satırı kendisi seçer/bırakır; ızgaranın aynı tıklamadaki güncel satır isteği yok sayılır (çift seçim olmaz).
   const clickRef = useRef(false);
   const exportRef = useRef<GridExportActions | null>(null);
+  // İşaretler satırın sırasıyla (`r<sıra>`) tutulur: satır kümesi değişince (yenileme, kabuk araması, satır işleminden sonra
+  // yeniden yükleme) aynı sıra başka bir kaydı gösterebilir. Bayat işaret toplu silmeye ulaşmasın diye işaretler kalkar;
+  // layout etkisi, eski işaret bir kare bile boyanmasın.
+  const rowsRef = useRef(state.rows);
+  useLayoutEffect(() => {
+    if (rowsRef.current === state.rows) return;
+    rowsRef.current = state.rows;
+    exportRef.current?.clearSelection?.();
+  }, [state.rows]);
   const bulkList: BulkAction[] = [];
   if (tools.selectedExport) bulkList.push({ id: "export-selected", label: SELECTED_EXPORT_LABEL, run: () => void exportRef.current?.exportExcel() });
   if (bulkDelete) {

@@ -22,7 +22,8 @@ export function ShellSearch({ inputId, placeholder, hint, value, onSearch }: {
 /**
  * Liste kalıbı: ortak kabuk içinde `above` → göstergeler → süzgeçler → [liste | detay paneli] → `below`. Bileşenleri
  * çizen `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir); burada yalnız yerleşim kurulur.
- * Detay paneli satır seçilince sağda açılır; tuvalde seçilebilsin diye orada her zaman görünür.
+ * Detay paneli satır seçilince sağda açılır; tuvalde seçilebilsin diye orada her zaman görünür. Kalıbın kendi genişliği
+ * 720 px'in altındaysa (liste kutusu değil, panelle birlikte ölçülen `.list-template-main`) panel listenin altına iner.
  */
 export function ListTemplate<C extends Component>({ layout, render, title, count, actions, search, detailOpen, notices }: {
   layout: ListLayout<C>; render: (component: C) => ReactNode; title: string; count: number | null;
@@ -31,6 +32,8 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
   const canvas = useContext(CanvasAnchorContext);
   const listRef = useRef<HTMLDivElement>(null);
   const mode = useListMode(listRef);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const stacked = useListMode(mainRef) !== "full";
   const showDetail = !!layout.detail && (detailOpen || canvas);
   const striped = layout.list.props?.striped === true;
   // `hideOnMobile`: kart kipinde (dar kutu) bileşen çizilmez.
@@ -46,7 +49,7 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
       {above.length > 0 && <div className="list-template-above">{above.map(render)}</div>}
       {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}
       {filters && <div className="list-template-filters">{render(filters)}</div>}
-      <div className={`list-template-main${showDetail && detail ? " has-detail" : ""}`}>
+      <div ref={mainRef} className={`list-template-main${showDetail && detail ? " has-detail" : ""}${stacked ? " is-stacked" : ""}`}>
         <div ref={listRef} data-list-mode={mode} className={`list-template-list${striped ? " is-striped" : ""}`}><ShellSearchContext.Provider value={search != null}><ListModeContext.Provider value={mode}>{render(layout.list)}</ListModeContext.Provider></ShellSearchContext.Provider></div>
         {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
