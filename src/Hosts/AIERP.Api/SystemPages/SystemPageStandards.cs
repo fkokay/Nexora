@@ -15,6 +15,9 @@ internal sealed record SystemPageStandard(string ScreenKey, string Title, string
 {
     /// <summary>Screen keys routed to this standard (e.g. <c>customer-edit</c> → <c>customer-create</c> with <c>customerId</c>).</summary>
     public IReadOnlyList<SystemPageAlias> Aliases { get; init; } = [];
+
+    /// <summary>Required updates applied once to older firm copies (<see cref="SystemPageUpdates"/>).</summary>
+    public IReadOnlyList<SystemPageUpdate> Updates { get; init; } = [];
 }
 
 /// <summary>DI singleton the endpoints read; defaults to <see cref="SystemPageStandards.All"/>. Integration tests replace it
@@ -43,7 +46,7 @@ internal static class SystemPageStandards
     private const string SyntheticIdPrefix = "nexora-system-page:";
     private static readonly Regex ScreenKeyPattern = new("^[a-z0-9-]{1,39}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     private static readonly HashSet<string> EnvelopeKeys = new(StringComparer.Ordinal)
-    { "screenKey", "title", "description", "module", "version", "stage", "items", "screenViews", "aliases", "definition" };
+    { "screenKey", "title", "description", "module", "version", "stage", "items", "screenViews", "aliases", "updates", "definition" };
     private static readonly HashSet<string> AliasKeys = new(StringComparer.Ordinal) { "key", "param" };
     private static readonly Regex AliasParamPattern = new("^[a-z][a-zA-Z0-9]{0,31}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     private static readonly HashSet<string> ItemKeys = new(StringComparer.Ordinal) { "since", "label", "requires" };
@@ -238,8 +241,9 @@ internal static class SystemPageStandards
 
             var screenViews = ParseScreenViews(file, root, shape, errors);
             var aliases = ParseAliases(file, root, screenKey, definitionJson, errors);
+            var updates = SystemPageUpdates.Parse(file, root, version, items.Values, JsonNode.Parse(definitionJson)!, errors);
             var standard = new SystemPageStandard(screenKey, title ?? "", description, module ?? "", version, stage ?? "",
-                items.Values.ToArray(), screenViews, definitionJson) { Aliases = aliases };
+                items.Values.ToArray(), screenViews, definitionJson) { Aliases = aliases, Updates = updates };
 
             if (errors.Count == 0)
             {
