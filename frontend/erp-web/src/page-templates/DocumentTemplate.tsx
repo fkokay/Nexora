@@ -1,4 +1,4 @@
-import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
 import { ANCHOR_ATTRIBUTE } from "../designer-canvas/canvasProtocol";
 import { confirmDialog, promptDialog } from "../confirmDialog";
@@ -50,6 +50,9 @@ function rowsOf(document: SalesOrderDocument | null): GridState {
       unitPrice: String(line.enteredUnitPrice ?? line.unitPrice), currencyCode: line.enteredCurrencyCode ?? document!.order.currencyCode,
       discountPercent: String(line.discountPercent), vatPercent: String(line.vatPercent), isVatIncluded: !!line.isVatIncluded,
       deliveredQuantity: `${line.deliveredQuantity} / ${line.quantity}`,
+      // Dövizli satırın kayıtlı kuru (hücre olarak çizilmez); stok ya da döviz değişince silinir.
+      ...((line.enteredCurrencyCode ?? document!.order.currencyCode) !== document!.order.currencyCode && line.exchangeRateToOrderCurrency
+        ? { exchangeRate: String(line.exchangeRateToOrderCurrency) } : {}),
     },
     labels: { stockItemId: `${line.stockCode} · ${line.stockName}` },
   }));
@@ -67,6 +70,7 @@ function lineRequest(draft: GridDraft): PreviewLineRequest | null {
     unitCode: draft.cells.unitCode ? String(draft.cells.unitCode) : undefined,
     currencyCode: draft.cells.currencyCode ? String(draft.cells.currencyCode) : undefined,
     isVatIncluded: draft.cells.isVatIncluded === true,
+    ...(num(draft.cells.exchangeRate) > 0 ? { exchangeRateToQuoteCurrency: num(draft.cells.exchangeRate) } : {}),
   };
 }
 
@@ -98,6 +102,12 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const [model, setModel] = useState<DocumentModel | null>(null);
   const [doc, setDoc] = useState<SalesOrderDocument | null>(null);
   const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([]);
+  // Özel alan tanımları okunamadıysa kayıt engellenir: sunucu gönderilmeyen değerleri siler.
+  const [definitionsFailed, setDefinitionsFailed] = useState(false);
+  // Satır anahtarı → son istenen stok: geç gelen doldurma yanıtı yeni seçimin üstüne yazmaz.
+  const fillFor = useRef<Record<string, string>>({});
+  // Kaydedilmiş belge açılınca tutarlar kayıttan gelir; kullanıcı bir şey değiştirince sunucu yeniden hesaplar.
+  const [dirty, setDirty] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [header, setHeader] = useState<Header>(() => headerOf(null));
@@ -114,9 +124,13 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     setLoading(true); setLoadError("");
     const documentLoad = sample ? loadSampleDocument(documentCode, previewState!, token)
       : orderId ? loadSalesOrderDocument(orderId, token) : Promise.resolve(null);
-    Promise.all([loadDocumentModel(documentCode, token), documentLoad, sample ? Promise.resolve([]) : loadCustomFieldDefinitions(token).catch(() => [])])
+    let failedDefinitions = false;
+    const definitionsLoad = sample ? Promise.resolve([] as CustomFieldDefinition[])
+      : loadCustomFieldDefinitions(token).catch(() => { failedDefinitions = true; return [] as CustomFieldDefinition[]; });
+    Promise.all([loadDocumentModel(documentCode, token), documentLoad, definitionsLoad])
       .then(([loadedModel, loadedDoc, loadedDefinitions]) => {
         if (!alive) return;
+        setDefinitionsFailed(failedDefinitions); setDirty(false); fillFor.current = {};
         setModel(loadedModel); setDoc(loadedDoc); setDefinitions(loadedDefinitions.filter((d) => d.isActive !== false));
         setHeader(headerOf(loadedDoc)); setGrid(rowsOf(loadedDoc)); setAvailable({});
       })
@@ -138,22 +152,24 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     ? { customerId: header.customerId, orderDate: header.orderDate, currencyCode: header.currencyCode || undefined,
       lines: lines.filter((x): x is PreviewLineRequest => !!x) }
     : null;
-  // Kaydedilmiş belge açılınca tutarlar kayıttan gelir; kullanıcı bir şey değiştirince sunucu yeniden hesaplar.
-  const [dirty, setDirty] = useState(false);
   const calculation = useDocumentCalculation(calculationInput, token, editable && dirty && !sample);
   const preview: OrderPreview | null = dirty ? calculation.result : null;
+  // Değişiklik yoksa tutarlar kayıttan, değişiklik varsa yalnız sunucu hesabından gelir (hesap gelene kadar "—").
   const lineAmounts = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
-    if (preview) for (const line of preview.lines) if (line.rowKey) map[line.rowKey] = line as unknown as Record<string, number>;
-    else for (const [i, line] of (doc?.order.lines ?? []).entries()) map[`satir-${i + 1}`] = line as unknown as Record<string, number>;
+    if (dirty) {
+      for (const line of preview?.lines ?? []) if (line.rowKey) map[line.rowKey] = line as unknown as Record<string, number>;
+    } else {
+      for (const line of doc?.order.lines ?? []) map[`satir-${line.lineNumber}`] = line as unknown as Record<string, number>;
+    }
     return map;
-  }, [preview, doc]);
+  }, [dirty, preview, doc]);
 
   const currency = preview?.currencyCode ?? doc?.amounts.currencyCode ?? (header.currencyCode || "TRY");
   const totals = preview
     ? { subtotal: preview.subtotal, discountTotal: preview.discountTotal, taxTotal: preview.taxTotal, grandTotal: preview.grandTotal,
       vat: preview.taxes.filter((t) => t.code === "VAT").sort((a, b) => a.rate - b.rate).map((t) => ({ rate: t.rate, taxableAmount: t.taxableAmount, amount: t.amount })) }
-    : doc?.amounts ?? null;
+    : dirty ? null : doc?.amounts ?? null;
 
   const edit = (key: string, code: string, value: string | boolean, label?: string) => { setDirty(true); dispatch({ type: "edit", key, code, value, label }); };
 
@@ -168,16 +184,21 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   /** Stok seçilince modelin "dolanlar" listesi sunucudan doldurulur (birim, fiyat, KDV, iskonto, döviz, kullanılabilir). */
   const pickStock = (draft: GridDraft, value: string, label: string) => {
     edit(draft.key, "stockItemId", value, label);
+    dispatch({ type: "edit", key: draft.key, code: "exchangeRate", value: "" });
+    fillFor.current[draft.key] = value;
     if (!value || !model) return;
     const fills = model.fills.stockItemId ?? [];
     fillLine(documentCode, "stockItemId", value, token).then(({ values }) => {
+      if (fillFor.current[draft.key] !== value) return;
       for (const code of fills) {
         if (!(code in values) || values[code] == null) continue;
         if (code === "availableQuantity") setAvailable((a) => ({ ...a, [draft.key]: String(values[code]) }));
         else dispatch({ type: "edit", key: draft.key, code, value: String(values[code]) });
       }
       if (!draft.cells.quantity) dispatch({ type: "edit", key: draft.key, code: "quantity", value: "1" });
-    }).catch((failure: unknown) => setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Stok bilgisi alınamadı." }));
+    }).catch((failure: unknown) => {
+      if (fillFor.current[draft.key] === value) setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Stok bilgisi alınamadı." });
+    });
   };
 
   const columns = model ? visibleColumns(model, layout.columns, status) : [];
@@ -190,7 +211,11 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     return {
       ...picker, selected: value ? { value, label: draft.labels?.[column.code] ?? value } : null,
       onSearch: (text) => operation && search(id, operation, text),
-      onChange: (next, _row, label) => (column.code === "stockItemId" ? pickStock(draft, next, label) : edit(draft.key, column.code, next, label)),
+      onChange: (next, _row, label) => {
+        if (column.code === "stockItemId") { pickStock(draft, next, label); return; }
+        edit(draft.key, column.code, next, label);
+        if (column.code === "currencyCode") dispatch({ type: "edit", key: draft.key, code: "exchangeRate", value: "" });
+      },
     };
   };
   const calcText = (column: GridColumn, draft: GridDraft) => {
@@ -205,12 +230,15 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     const sent = lines.filter((x): x is PreviewLineRequest => !!x);
     if (!header.customerId) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
     if (sent.length === 0) { setMessage({ tone: "error", text: "Sipariş 1–200 stok satırı içermelidir." }); return; }
+    if (definitionsFailed) { setMessage({ tone: "error", text: "Özel alanlar okunamadı; değerleri silinmesin diye kaydedilmedi. Sayfayı yenileyip yeniden deneyin." }); return; }
     setBusy(true); setMessage(null);
     try {
       const saved = await saveOrder(doc?.order.id ?? null, {
         code: header.code, customerId: header.customerId, orderDate: header.orderDate, requestedDeliveryDate: header.requestedDeliveryDate || null,
         currencyCode: header.currencyCode || currency, salespersonEmployeeId: header.salespersonEmployeeId || null,
-        customFields: Object.fromEntries(definitions.map((d) => [d.code, header.customFields[d.code] || null])),
+        // Tanımı pasif olsa da kayıtlı değer korunur: sunucu gönderilmeyen değeri siler.
+        customFields: Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.order.customFields ?? []).map((f) => f.code)])]
+          .map((code) => [code, header.customFields[code] || null])),
         lines: sent.map(({ rowKey: _rowKey, ...line }) => line),
       }, token);
       setDirty(false);

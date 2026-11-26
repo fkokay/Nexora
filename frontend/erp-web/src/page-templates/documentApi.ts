@@ -16,7 +16,7 @@ export type OrderLine = {
   lineNumber: number; stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number; unitPrice: number;
   discountPercent: number; vatPercent: number; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
   deliveredQuantity: number; enteredCurrencyCode?: string | null; enteredUnitPrice?: number | null; enteredUnitCode?: string | null;
-  isVatIncluded?: boolean;
+  isVatIncluded?: boolean; exchangeRateToOrderCurrency?: number;
 };
 export type CustomFieldValue = { code: string; label: string; dataType: string; maxLength: number; isRequired: boolean; value: string };
 export type OrderView = {
@@ -39,6 +39,8 @@ export type OrderPreview = {
 export type PreviewLineRequest = {
   rowKey: string; stockItemId: string; quantity: number; unitPrice: number; discountPercent: number; vatPercent: number;
   unitCode?: string; currencyCode?: string; isVatIncluded?: boolean;
+  /** Dövizli satırın kayıtlı kuru: kayıt ve hesap bugünkü kuru yeniden aramasın diye geri gönderilir. */
+  exchangeRateToQuoteCurrency?: number;
 };
 export type OrderWrite = {
   code: string; customerId: string; orderDate: string; requestedDeliveryDate: string | null; currencyCode: string;

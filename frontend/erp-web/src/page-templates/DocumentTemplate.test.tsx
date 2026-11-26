@@ -56,6 +56,7 @@ const model = {
 const ORDER = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const STOCK = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const CUSTOMER = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const STOCK2 = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
 
 const line = (n: number, code: string, quantity: number, price: number, vat: number, total: number, delivered = 0) => ({
   lineNumber: n, stockItemId: `0000000${n}-0000-0000-0000-000000000000`, stockCode: code, stockName: `${code} adı`, unitCode: "ADET",
@@ -80,6 +81,10 @@ let calls: Call[];
 let current: ReturnType<typeof document>;
 /** Hesap yanıtları: sırayla çözülen sözler (sıradan çıkan yanıt testi için elle çözülür). */
 let previewReplies: ((body: { lines: { rowKey: string; quantity: number }[] }) => Promise<unknown>) | null;
+/** Özel alan tanımları ucu hata verirse true. */
+let definitionsFail: boolean;
+/** Stok doldurma yanıtları (stok kimliği → elle çözülen söz); yoksa hemen yanıtlanır. */
+let fillReplies: Map<string, Promise<unknown>> | null;
 
 const previewOf = (body: { lines: { rowKey: string; quantity: number }[] }, perUnit = 100) => {
   const lines = body.lines.map((l) => ({ rowKey: l.rowKey, lineSubtotal: l.quantity * perUnit, discountAmount: 0, taxAmount: l.quantity * perUnit * 0.2, lineTotal: l.quantity * perUnit * 1.2 }));
@@ -92,6 +97,8 @@ beforeEach(() => {
   calls = [];
   current = document("Draft", ["onayla", "iptal"]);
   previewReplies = null;
+  definitionsFail = false;
+  fillReplies = null;
   mockedApi.mockImplementation(async (url: string, _token?: string, init?: RequestInit) => {
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
@@ -102,11 +109,12 @@ beforeEach(() => {
     if (url === "/api/document-models/satis.siparis") return model;
     if (url === `/api/sales/orders/${ORDER}/document`) return current;
     if (url.startsWith("/api/document-models/satis.siparis/sample")) return document(new URL(url, "http://x").searchParams.get("state") ?? "Draft", []);
-    if (url === "/api/sales/orders/custom-fields") return [];
+    if (url === "/api/sales/orders/custom-fields") { if (definitionsFail) throw Object.assign(new Error("tanımlar okunamadı"), { status: 500 }); return []; }
     if (url === "/api/sales/orders/preview") return previewReplies ? previewReplies(body) : previewOf(body);
+    if (url === "/api/document-models/satis.siparis/fill" && fillReplies?.has(body.value)) return fillReplies.get(body.value);
     if (url === "/api/document-models/satis.siparis/fill")
       return { values: { unitCode: "KG", unitPrice: 92.4, vatPercent: 10, discountPercent: 5, currencyCode: "TRY", availableQuantity: 310 } };
-    if (url.startsWith("/api/stock/items")) return { items: [{ id: STOCK, code: "UN-07", name: "Tam buğday unu" }] };
+    if (url.startsWith("/api/stock/items")) return { items: [{ id: STOCK, code: "UN-07", name: "Tam buğday unu" }, { id: STOCK2, code: "SKR-02", name: "Toz şeker" }] };
     if (url.startsWith("/api/customers")) return { items: [{ id: CUSTOMER, code: "C-1", name: "Akdeniz Gıda", currencyCode: "TRY" }] };
     if (url === `/api/sales/orders/${ORDER}/approve`) { current = document("Open", ["onayiGeriAl", "iptal"]); return {}; }
     if (url === `/api/sales/orders/${ORDER}/cancel`) { current = document("Cancelled", []); return {}; }
@@ -233,5 +241,71 @@ describe("Belge kalıbı sayfada", () => {
     expect((screen.getByLabelText("Miktar (satır 2)") as HTMLInputElement).value).toBe("1");
     const definition = JSON.stringify(belgeComponents);
     for (const setting of ["fillQuery", "fillColumns", "lookupFills", "formulas", "editableGrid", "calc:"]) expect(definition).not.toContain(setting);
+  });
+});
+
+describe("Belge kalıbı son inceleme düzeltmeleri", () => {
+  it("kaydedilmiş belgede satır tutarları kayıttan görünür", async () => {
+    current = document("Open", ["onayiGeriAl", "iptal"]);
+    show();
+    await screen.findByText("SO-7", undefined, T);
+    expect(within(grid()).getByText("240,00 ₺")).toBeTruthy();
+    expect(within(grid()).getByText("110,00 ₺")).toBeTruthy();
+  });
+
+  it("dövizli satırın kur bilgisi hesap ve kayıtta korunur", async () => {
+    const foreign = document("Draft", ["onayla", "iptal"]);
+    Object.assign(foreign.order.lines[0], { enteredCurrencyCode: "USD", exchangeRateToOrderCurrency: 35 });
+    current = foreign;
+    show();
+    await screen.findByText("SO-7", undefined, T);
+    fireEvent.change(screen.getByLabelText("Miktar (satır 2)"), { target: { value: "3" } });
+    await waitFor(() => expect(calls.some((c) => c.url === "/api/sales/orders/preview")).toBe(true), T);
+    const sent = calls.find((c) => c.url === "/api/sales/orders/preview")!.body as { lines: Record<string, unknown>[] };
+    expect(sent.lines[0]).toMatchObject({ currencyCode: "USD", exchangeRateToQuoteCurrency: 35 });
+    expect(sent.lines[1].exchangeRateToQuoteCurrency).toBeUndefined();
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true), T);
+    expect((calls.find((c) => c.method === "PUT")!.body as { lines: Record<string, unknown>[] }).lines[0]).toMatchObject({ exchangeRateToQuoteCurrency: 35 });
+  });
+
+  it("özel alan tanımları okunamazsa kayıt engellenir; değerler silinmez", async () => {
+    definitionsFail = true;
+    show();
+    await screen.findByText("SO-7", undefined, T);
+    fireEvent.click(screen.getByRole("button", { name: "Kaydet" }));
+    await screen.findByText(/Özel alanlar okunamadı/, undefined, T);
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+  });
+
+  it("geç gelen stok doldurma yanıtı yeni seçimin üstüne yazılmaz", async () => {
+    let releaseFirst: (v: unknown) => void = () => {};
+    fillReplies = new Map<string, Promise<unknown>>([
+      [STOCK, new Promise((resolve) => { releaseFirst = resolve; })],
+      [STOCK2, Promise.resolve({ values: { unitCode: "KOLİ", unitPrice: 55, vatPercent: 1, discountPercent: 0, currencyCode: "TRY", availableQuantity: 9 } })],
+    ]);
+    show({ orderId: null });
+    await screen.findByText("Yeni sipariş", undefined, T);
+    fireEvent.click(screen.getByRole("button", { name: /Satır ekle/ }));
+    const pick = async (name: RegExp) => {
+      const stock = screen.getByLabelText("Stok (satır 1)");
+      fireEvent.focus(stock);
+      fireEvent.change(stock, { target: { value: "x" } });
+      fireEvent.click(await screen.findByRole("option", { name }, T));
+    };
+    await pick(/UN-07/);
+    await pick(/SKR-02/);
+    await waitFor(() => expect((screen.getByLabelText("Birim fiyat (satır 1)") as HTMLInputElement).value).toBe("55"), T);
+    releaseFirst({ values: { unitCode: "KG", unitPrice: 92.4, vatPercent: 10, discountPercent: 5, currencyCode: "TRY", availableQuantity: 310 } });
+    await new Promise((r) => setTimeout(r, 50));
+    expect((screen.getByLabelText("Birim fiyat (satır 1)") as HTMLInputElement).value).toBe("55");
+  });
+
+  it("değişiklikten sonra hesap gelene kadar eski kayıtlı toplam gösterilmez", async () => {
+    previewReplies = () => new Promise(() => {});
+    show();
+    await screen.findByText("SO-7", undefined, T);
+    fireEvent.change(screen.getByLabelText("Miktar (satır 1)"), { target: { value: "5" } });
+    await waitFor(() => expect(screen.getByTestId("belge-genel-toplam").textContent).toBe("—"), T);
   });
 });
