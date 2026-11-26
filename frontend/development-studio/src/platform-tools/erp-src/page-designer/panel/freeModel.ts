@@ -105,6 +105,11 @@ const withProps = (component: ModelComponent, patch: Record<string, PropValue | 
 };
 const patchComponent = <D extends ModelDefinition>(def: D, id: string, patch: Record<string, PropValue | undefined>): D =>
   ({ ...def, components: def.components.map((component) => component.id === id ? withProps(component, patch) : component) });
+/** `index` konumuna ekler; dizin yoksa, tam sayı değilse ya da taşkınsa sona. */
+const insertAt = <T,>(list: T[], value: T, index?: number): T[] => {
+  const at = index !== undefined && Number.isInteger(index) && index >= 0 && index < list.length ? index : list.length;
+  return [...list.slice(0, at), value, ...list.slice(at)];
+};
 const swap = <T,>(list: T[], index: number, other: number): T[] => {
   const next = [...list];
   [next[index], next[other]] = [next[other], next[index]];
@@ -285,15 +290,51 @@ export function moveBlockToTab<D extends ModelDefinition>(def: D, blockId: strin
     ...tab, blockIds: index === tabIndex ? [...tab.blockIds, blockId] : tab.blockIds.filter((id) => id !== blockId) })));
 }
 
+/**
+ * Bölümü tuvalde bırakılan yere taşır: `index` taşımadan önceki listede "bunun önüne" konumudur. Sekmesiz sayfada `tabIndex`
+ * null ve liste bölüm sırasıdır; sekmeli sayfada `tabIndex` hedef sekmedir (başka sekmeye de olabilir). Boş kalan sekme kalkar,
+ * tek sekme kalırsa sekme bileşeni de (setFreeTabs). Sekme dizini sayfaya uymuyorsa ya da yer değişmiyorsa tanım aynen döner.
+ */
+export function moveBlockTo<D extends ModelDefinition>(def: D, blockId: string, tabIndex: number | null, index: number): D {
+  if (!findBlock(def, blockId)) return def;
+  const tabs = freeTabs(def);
+  const place = (list: string[]) => {
+    const own = list.indexOf(blockId);
+    const placed = insertAt(list.filter((id) => id !== blockId), blockId, own >= 0 && own < index ? index - 1 : index);
+    return own >= 0 && placed.every((id, position) => id === list[position]) ? null : placed;
+  };
+  if (!tabs) {
+    if (tabIndex !== null) return def;
+    const order = place(freeBlocks(def).map((block) => block.id));
+    return order ? reorderBlocks(def, order) : def;
+  }
+  if (tabIndex === null || !tabs[tabIndex]) return def;
+  const order = place(tabs[tabIndex].blockIds);
+  if (!order) return def;
+  return setFreeTabs(def, tabs.map((tab, position) => position === tabIndex ? { ...tab, blockIds: order } : { ...tab, blockIds: tab.blockIds.filter((id) => id !== blockId) }));
+}
+
 // ---------- bileşenler ----------
+
+/**
+ * Tam satır üyeler (ERP `freeTemplateModel.freeFullRow` ile aynı kural; Studio erp-web'i içe aktaramaz): Liste, Görsel ve
+ * maddeli Bilgi kutusu / kart / madde listesi.
+ */
+export function freeFullRow(component: ModelComponent): boolean {
+  if (component.type === "dataTable" || component.type === "image") return true;
+  if (component.type !== "alert" && component.type !== "card" && component.type !== "list") return false;
+  const items = component.props.items;
+  return Array.isArray(items) && items.some((item) => typeof item === "string" && item.trim() !== "");
+}
 
 const ITEM_BASE: Record<CreatableKind | "table", string> = { text: "metin", infoBox: "bilgi", indicator: "gosterge", image: "gorsel", table: "liste" };
 
 /**
  * Karar 5: bileşen seçili bölüme (`blockId`), yoksa seçili bileşenin (`nearItemId`) bölümüne, o da yoksa son bölüme, sona
- * eklenir. Bölüm doluysa (12) neden döner. `"table"` boş bir `dataTable` (kaynağını paneli seçer).
+ * eklenir; `index` verilirse (tuvalde bırakma) bölümün o sırasına. Bölüm doluysa (12) neden döner. `"table"` boş bir
+ * `dataTable` (kaynağını paneli seçer).
  */
-export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table", target: { blockId?: string; nearItemId?: string }):
+export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table", target: { blockId?: string; nearItemId?: string }, index?: number):
   { def: D; itemId: string } | { reason: string } {
   const blockId = (target.blockId && findBlock(def, target.blockId) ? target.blockId : null)
     ?? (target.nearItemId ? blockOf(def, target.nearItemId) : null)
@@ -304,7 +345,7 @@ export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind |
   const id = freeId(def, ITEM_BASE[kind]);
   const created = kind === "table" ? { id, type: "dataTable", props: {} } : createConsultantComponent(kind, id);
   const item: ModelComponent = { ...created, props: { ...created.props, slot: "item" } };
-  const next = patchComponent(def, block.id, { members: [...membersOf(block), id] });
+  const next = patchComponent(def, block.id, { members: insertAt(membersOf(block), id, index) });
   return { def: { ...next, components: [...next.components, item] }, itemId: id };
 }
 
@@ -320,16 +361,24 @@ export function moveItem<D extends ModelDefinition>(def: D, itemId: string, dire
   return patchComponent(def, block.id, { members: swap(ids, index, other) });
 }
 
-/** Bileşeni başka bölümün sonuna taşır; bütün bölümlerden çıkarıldığı için tam bir bölümde kalır. Hedef doluysa neden döner. */
-export function moveItemToBlock<D extends ModelDefinition>(def: D, itemId: string, blockId: string): { def: D } | { reason: string } {
+/**
+ * Bileşeni başka bölümün sonuna (ya da `index` verilirse, taşımadan önceki `members` sırasında o konumun önüne) taşır; bütün
+ * bölümlerden çıkarıldığı için tam bir bölümde kalır. Hedef doluysa (bileşen zaten onda değilse) neden döner. Yeri değişmeyen
+ * taşıma tanımı aynen döner.
+ */
+export function moveItemToBlock<D extends ModelDefinition>(def: D, itemId: string, blockId: string, index?: number): { def: D } | { reason: string } {
   const target = findBlock(def, blockId);
   if (!target || !findItem(def, itemId)) return { def };
   const current = membersOf(target);
-  if (current.includes(itemId) && def.components.filter(isFreeBlock).every((block) => block === target || !membersOf(block).includes(itemId))) return { def };
+  const soleOwner = current.includes(itemId) && def.components.filter(isFreeBlock).every((block) => block === target || !membersOf(block).includes(itemId));
+  if (soleOwner && index === undefined) return { def };
   const without = current.filter((id) => id !== itemId);
   if (without.length >= MAX_BLOCK_MEMBERS) return { reason: FREE_BLOCK_FULL };
+  const own = current.indexOf(itemId);
+  const placed = insertAt(without, itemId, index === undefined ? undefined : own >= 0 && own < index ? index - 1 : index);
+  if (soleOwner && placed.every((id, position) => id === current[position])) return { def };
   return { def: { ...def, components: def.components.map((component) => {
-    if (component === target) return withProps(component, { members: [...without, itemId] });
+    if (component === target) return withProps(component, { members: placed });
     return isFreeBlock(component) && membersOf(component).includes(itemId)
       ? withProps(component, { members: membersOf(component).filter((id) => id !== itemId) }) : component;
   }) } };

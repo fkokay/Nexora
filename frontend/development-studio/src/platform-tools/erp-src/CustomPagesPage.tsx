@@ -64,6 +64,7 @@ import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/Rec
 import { ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { FreeSelection } from "./page-designer/panel/FreePanel";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
+import { FreeCanvasOverlay } from "./page-designer/freeCanvasOverlay";
 import { shownRecordTab } from "./page-designer/recordCanvasHit";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
@@ -1829,6 +1830,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const item = findPaletteItem(type, consultantTemplateNow());
       if (item) addComponent(item, targetIndex);
     } else if (Number.isInteger(from) && from >= 0 && from < definition.components.length) {
+      // Serbest gövdede sıra bölümün `members`'ı ve bölüm sırasıdır: bileşen dizisini yeniden dizmek bir şey taşımaz.
+      if (readPageTemplate(definitionRef.current.template)?.name === "free") return;
       commit((state) => {
         const movedId = state.components[from]?.id;
         const base = detach && movedId ? cardTree.withCardTabs(state.components, (flat) => removeFromTabs(flat, movedId)) ?? state.components : state.components;
@@ -2302,6 +2305,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     [next[index], next[target]] = [next[target], next[index]];
     return { ...state, components: next };
   });
+  // Serbest gövdede Katmanlar'ın ↑ / ↓'ı Alt+↑ / ↓ gibi bölüm ya da `members` sırasını değiştirir; bileşen dizisi dizilmez.
+  const stepFree = (id: string | undefined, delta: number) => {
+    const freeDef = definitionRef.current as unknown as ModelDefinition;
+    const target = id ? freeDef.components.find((component) => component.id === id) : undefined;
+    if (!canEdit || !target || (delta !== 1 && delta !== -1)) return;
+    const next = freeModel.isFreeBlock(target) ? freeModel.moveBlock(freeDef, target.id, delta)
+      : freeModel.isFreeItem(target) ? freeModel.moveItem(freeDef, target.id, delta) : freeDef;
+    if (next !== freeDef) commit(() => next as unknown as PageDefinition);
+  };
   const detachFromTab = (id: string) => commit((state) => {
     const components = cardTree.withCardTabs(state.components, (flat) => removeFromTabs(flat, id)) ?? state.components;
     return components === state.components ? state : { ...state, components };
@@ -3936,7 +3948,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: id }); }}
         onLayerDragEnd={() => live.current.clearDrag()}
         onLayerDragOver={(index, edge) => { const target = dragStore.get().dropTarget; if (target?.index !== index || target.edge !== edge) dragStore.set({ dropTarget: { index, edge } }); }}
-        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={moveComponent} componentCount={definition.components.length}
+        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={(index, delta) => isFreePage ? stepFree(definition.components[index]?.id, delta) : moveComponent(index, delta)} componentCount={definition.components.length}
         queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${querySourceLabel(query)}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
@@ -3957,9 +3969,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {!focusOwner && !erpCanvas && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
-          {/* Kayıt kartında sürükle-bırak tuvalin kaplamasındadır (RecordCanvasOverlay); genel bırakma yolu kullanılmaz. */}
+          {/* Kayıt kartında ve serbest gövdede sürükle-bırak tuvalin kaplamasındadır (RecordCanvasOverlay, FreeCanvasOverlay);
+              genel bırakma yolu (bileşen dizisini yeniden dizer) kullanılmaz. */}
           {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
-            {...(isRecordPage ? {} : { onDragOver: canvasHandlers.onDragOver, onDragLeave: canvasHandlers.onDragLeave, onDrop: canvasHandlers.onDrop })}>
+            {...(isRecordPage || isFreePage ? {} : { onDragOver: canvasHandlers.onDragOver, onDragLeave: canvasHandlers.onDragLeave, onDrop: canvasHandlers.onDrop })}>
             {canvasError && <div className="pd-erp-canvas-hint" role="status">ERP sayfası yüklenemedi; sonraki kayıtta yeniden denenir. Neden: {canvasError}</div>}
             {canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
@@ -3979,7 +3992,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   onShowTab={(index) => { setRecordTab(index); leaveHiddenRecordTab(index); if (tabsId) showTab(tabsId, index); }}
                   onDropColumn={(code, sectionId, index) => addRecordColumn(code, { sectionId, index })}
                   onDropBlock={(kind, tabIndex, index) => addRecordBlock(kind, { tabIndex, index })}/>;
-              } : undefined}/>
+              } : isFreePage ? ({ blocks }) => <FreeCanvasOverlay blocks={blocks} def={definition as unknown as ModelDefinition} disabled={!canEdit}
+                paletteKey={() => dragStore.get().dragging}
+                onChange={(next) => { setError(""); commit(() => next as unknown as PageDefinition); }}
+                onSelect={setSelectedComponentId}
+                onRefuse={(reason) => { live.current.clearDrag(); setError(reason); }}/> : undefined}/>
           </div>
             : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) ?? freeSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>

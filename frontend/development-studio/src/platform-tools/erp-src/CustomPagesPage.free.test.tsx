@@ -108,6 +108,38 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(tabs[1].blockIds[0]).toBe("b2");
   });
 
+  it("dropping from the palette on the canvas puts the component at the pointer in that block; generic reorder is off", async () => {
+    const { host, frame } = await open();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent("message", { origin: ORIGIN, source: frame.contentWindow, data: { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: "ready", revision: 0 } }));
+      window.dispatchEvent(new MessageEvent("message", { origin: ORIGIN, source: frame.contentWindow, data: {
+        nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: "layout", revision: 1, height: 400,
+        blocks: [{ id: "t", x: 0, y: 0, width: 600, height: 300 }, { id: "t#tab0", x: 0, y: 0, width: 80, height: 30 }, { id: "t#tab1", x: 80, y: 0, width: 80, height: 30 },
+          { id: "b2", x: 0, y: 40, width: 600, height: 200 }, { id: "m1", x: 10, y: 80, width: 280, height: 60 }] } }));
+    });
+    const overlay = host.querySelector(".fco");
+    expect(overlay).not.toBeNull();
+    const drag = (type: string, target: Element, x: number, y: number, data: Record<string, string>) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.assign(event, { clientX: x, clientY: y, dataTransfer: { types: Object.keys(data), getData: (name: string) => data[name] ?? "", setData: () => {}, dropEffect: "none", effectAllowed: "all" } });
+      return act(async () => void target.dispatchEvent(event));
+    };
+    // Katmanlar'dan gelen genel sıralama tuvalde yok sayılır.
+    await drag("drop", host.querySelector(".pd-erp-canvas-host")!, 20, 90, { "application/x-nexora-index": "0" });
+    const palette = button(host, ".pd-palette-item", "Gösterge")!;
+    await drag("dragstart", palette, 0, 0, {});
+    await drag("dragover", overlay!, 20, 90, { "application/x-nexora-component": "consultant:indicator" });
+    await drag("drop", overlay!, 20, 90, { "application/x-nexora-component": "consultant:indicator" });
+    await key({ key: "s", ctrlKey: true });
+    await flush();
+    const def = saved.at(-1)!;
+    expect(def.components.map((component) => component.id).slice(0, 4)).toEqual(["t", "bolum", "b2", "m1"]);
+    const members = def.components.find((component) => component.id === "b2")!.props.members as string[];
+    expect(members).toHaveLength(2);
+    expect(members[1]).toBe("m1");
+    expect(def.components.find((component) => component.id === members[0])!.type).toBe("metric");
+  });
+
   it("Katmanlar shows consultant names and no grid width on a free page", async () => {
     const { host } = await open();
     const layers = host.querySelector(".pd-layer-tree");
