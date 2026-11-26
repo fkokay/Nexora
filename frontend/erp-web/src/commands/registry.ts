@@ -91,13 +91,9 @@ export function createCommandRegistry(): CommandRegistry {
   const viewCache = new Map<string, PageCommands | undefined>();
   const menuClaims = new Map<string, { toggle: () => void }[]>();
 
-  function invalidate() {
+  function changed() {
     cacheValid = false;
     viewCache.clear();
-  }
-
-  function changed() {
-    invalidate();
     for (const listener of [...listeners]) listener();
   }
 
@@ -276,8 +272,9 @@ export function createCommandRegistry(): CommandRegistry {
     },
 
     handleKeyDown(event, env) {
-      // Which record form holds the focus is read at dispatch time.
-      invalidate();
+      // Which record form holds the focus is read at dispatch time. Only the active view can hold the focus, so the
+      // background views keep their getView snapshots.
+      cacheValid = false;
       if (env.modalOpen) {
         for (const command of globals) {
           if (command.allowInModal && matchesShortcut(event, parseShortcut(command.shortcut))) {
