@@ -407,6 +407,13 @@ describe('Satış Teklifleri list', () => {
 });
 
 describe('Satış Siparişleri list', () => {
+  it('Sipariş tutarı counts committed orders only, like the system page (drafts and pending approvals excluded)', async () => {
+    overrides.set('/api/sales/orders/', () => page([order('o1', 'Open'), order('o2', 'Fulfilled'), order('o3', 'Draft'), order('o4', 'PendingApproval'), order('o5', 'Invoiced'), order('o6', 'Cancelled')]));
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    expect(cards()[0]).toBe('Sipariş tutarı 750,00 TRY bu sayfa · iptaller hariç');
+  });
+
   it('cards, tags and the panel with the order chain; the row menu stays (Düzenle has no bar command)', async () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await settle();
