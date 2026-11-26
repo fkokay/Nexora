@@ -35,7 +35,7 @@ describe("resolveShellRoute", () => {
 describe("resolveShellRoute degraded", () => {
   it("opens only the limited menu, whatever roles were held", () => {
     expect(resolveShellRoute("#screens/reports", "admin", [...all], true)).toEqual({ role: "consultant", route: { section: "screens", tab: "reports" }, tab: "reports" });
-    expect(resolveShellRoute("#rules", "consultant", [], true).tab).toBe("workflows");
+    expect(resolveShellRoute("#rules", "consultant", [], true).tab).toBe("document-rules");
     expect(resolveShellRoute("#company-module/code", "developer", [...all], true)).toEqual({ role: "consultant", route: { section: "home" } });
     expect(resolveShellRoute("#publications", "consultant", [], true).route).toEqual({ section: "home" });
   });
