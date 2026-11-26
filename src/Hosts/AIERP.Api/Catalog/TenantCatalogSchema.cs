@@ -11,6 +11,16 @@ internal sealed record CatalogColumn(string Code, string Label, string Type, boo
 internal sealed record CatalogItem(string Code, string Label, string ItemKind, string QueryKind, string? Sql, string? ErpOperation,
     IReadOnlyList<CatalogParameter> Parameters, IReadOnlyList<CatalogColumn> Columns, string? Opens, string? Target, string? ConfirmText);
 
+/// <summary>A setting a developer component declares; <see cref="Options"/> is set only for <c>choice</c>.</summary>
+internal sealed record CatalogComponentSetting(string Name, string Label, string Type, IReadOnlyList<string> Options, JsonElement? Default);
+
+/// <summary>
+/// A developer component (yazılımcı bileşeni): code that a page's <c>code</c> component references by <see cref="Code"/>;
+/// its CSS and JavaScript are resolved into the page when it is read, never copied into it.
+/// </summary>
+internal sealed record CatalogComponent(string Code, string Label, string? Description, string Css, string JavaScript, int Height,
+    IReadOnlyList<CatalogComponentSetting> Settings);
+
 /// <summary>
 /// A parsed catalog bundle. <see cref="Items"/> are the items valid under today's rules (the only ones pages may reference,
 /// listings show and the save gate trusts). A leniently read stored bundle may also carry items that no longer validate:
@@ -21,8 +31,12 @@ internal sealed record CatalogBundle(IReadOnlyList<CatalogItem> Items)
 {
     public IReadOnlyList<CatalogItem> RejectedSqlItems { get; init; } = [];
     public IReadOnlyList<string> InvalidCodes { get; init; } = [];
+    /// <summary>Developer components (yazılımcı bileşenleri) valid under today's rules; pages reference them by code.</summary>
+    public IReadOnlyList<CatalogComponent> Components { get; init; } = [];
 
     public CatalogItem? Find(string code) => Items.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
+
+    public CatalogComponent? FindComponent(string code) => Components.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.Ordinal));
 
     /// <summary><see cref="Find"/>, falling back to an item kept only for its rejected SQL (run endpoint only: it re-validates the SQL).</summary>
     public CatalogItem? FindForRun(string code) =>
@@ -30,8 +44,8 @@ internal sealed record CatalogBundle(IReadOnlyList<CatalogItem> Items)
 }
 
 /// <summary>
-/// Parses and validates a tenant catalog bundle (schemaVersion 1): named declarative data sources (read) and actions
-/// (insert/update/delete) that custom pages reference by code. Unknown keys are rejected; nothing is executed here.
+/// Parses and validates a tenant catalog bundle (schemaVersion 1): named declarative data sources (read), actions and developer components
+/// (insert/update/delete actions; components carry CSS/JavaScript) that custom pages reference by code. Unknown keys are rejected; nothing is executed here.
 /// </summary>
 internal static class TenantCatalogSchema
 {
@@ -41,7 +55,20 @@ internal static class TenantCatalogSchema
     internal const int MaxColumns = 64;
     internal const int MaxParameters = 20;
 
-    private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "dataSources", "actions" };
+    internal const int MaxComponents = 100;
+    internal const int MaxComponentSettings = 10;
+    internal const int MaxComponentCss = 4000;
+    internal const int MaxComponentJavaScript = 20000;
+    internal const int DefaultComponentHeight = 240;
+    internal const string ComponentCodeError = "Katalog bileşeni kodu harf ile başlamalı; harf ve rakamlardan oluşmalı.";
+    internal const string ComponentScriptError = "Katalog bileşeninin kodu ve JavaScript'i olmalı.";
+    internal const string ComponentSettingsLimitError = "Katalog bileşeni en fazla 10 ayar tanımlayabilir.";
+    internal static readonly Regex ComponentCodePattern = new(@"^[a-z][a-zA-Z0-9]{0,39}\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+    internal static readonly Regex SettingNamePattern = new(@"^[a-z][a-zA-Z0-9]{0,31}\z", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+    internal static readonly HashSet<string> SettingTypes = new(StringComparer.Ordinal) { "text", "number", "bool", "choice" };
+    private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal) { "schemaVersion", "dataSources", "actions", "components" };
+    private static readonly HashSet<string> ComponentKeys = new(StringComparer.Ordinal) { "code", "label", "description", "css", "javascript", "height", "settings" };
+    private static readonly HashSet<string> SettingKeys = new(StringComparer.Ordinal) { "name", "label", "type", "options", "default" };
     private static readonly HashSet<string> DataSourceKeys = new(StringComparer.Ordinal) { "code", "label", "source", "parameters", "columns", "opens" };
     private static readonly HashSet<string> ActionKeys = new(StringComparer.Ordinal) { "code", "label", "target", "kind", "run", "parameters", "columns", "opens", "confirm" };
     private static readonly HashSet<string> SqlOrOperationKeys = new(StringComparer.Ordinal) { "sql", "erpOperation" };
@@ -92,7 +119,9 @@ internal static class TenantCatalogSchema
             var codes = new HashSet<string>(StringComparer.Ordinal);
             if (!ReadList(root, "dataSources", "dataSource", MaxDataSources, lookup, codes, items, lenient ? invalid : null, out error)) return false;
             if (!ReadList(root, "actions", "action", MaxActions, lookup, codes, items, lenient ? invalid : null, out error)) return false;
-            bundle = new CatalogBundle(items) { RejectedSqlItems = invalid.RejectedSql, InvalidCodes = invalid.Codes };
+            var components = new List<CatalogComponent>();
+            if (!ReadComponents(root, codes, components, lenient ? invalid : null, out error)) return false;
+            bundle = new CatalogBundle(items) { RejectedSqlItems = invalid.RejectedSql, InvalidCodes = invalid.Codes, Components = components };
             return true;
         }
         catch (JsonException)
@@ -227,6 +256,137 @@ internal static class TenantCatalogSchema
         error = null;
         return true;
     }
+
+    /// <summary>
+    /// Reads the <c>components</c> list. Codes share <paramref name="codes"/> with data sources and actions. In lenient mode an
+    /// invalid component is set aside (its code in <see cref="Invalid.Codes"/>) instead of failing the bundle.
+    /// </summary>
+    private static bool ReadComponents(JsonElement root, HashSet<string> codes, List<CatalogComponent> components, Invalid? lenient, out string? error)
+    {
+        error = null;
+        if (!root.TryGetProperty("components", out var list)) return true;
+        if (list.ValueKind != JsonValueKind.Array) return Fail(out error, "components: dizi olmalıdır.");
+        if (list.GetArrayLength() > MaxComponents) return Fail(out error, $"components: en fazla {MaxComponents} öğe olabilir.");
+        var index = 0;
+        foreach (var element in list.EnumerateArray())
+        {
+            var place = $"components[{index++}]";
+            if (ReadComponent(element, place, codes, out var component, out error))
+            {
+                components.Add(component!);
+                continue;
+            }
+            if (lenient is null) return false;
+            lenient.Codes.Add((element.ValueKind == JsonValueKind.Object ? Text(element, "code") : null) ?? place);
+            lenient.Problems.Add(error!);
+            error = null;
+        }
+        return true;
+    }
+
+    private static bool ReadComponent(JsonElement element, string place, HashSet<string> codes, out CatalogComponent? component, out string? error)
+    {
+        component = null;
+        if (element.ValueKind != JsonValueKind.Object) return Fail(out error, $"{place}: nesne olmalıdır.");
+        var code = Text(element, "code");
+        var javaScript = Text(element, "javascript");
+        if (code is null || string.IsNullOrWhiteSpace(javaScript)) return Fail(out error, $"{place}: {ComponentScriptError}");
+        if (!ComponentCodePattern.IsMatch(code)) return Fail(out error, $"{place}: {ComponentCodeError}");
+        place += $" ({code})";
+        if (!TenantCustomPageSchema.OnlyKeys(element, ComponentKeys)) return Fail(out error, $"{place}: bilinmeyen ya da izin verilmeyen anahtar var.");
+        if (!codes.Add(code)) return Fail(out error, $"{place}: kod başka bir öğede de kullanılmış.");
+        var label = Text(element, "label");
+        if (string.IsNullOrWhiteSpace(label) || label.Length > 80) return Fail(out error, $"{place}: etiket 1-80 karakter olmalıdır.");
+
+        string? description = null;
+        if (element.TryGetProperty("description", out var descriptionElement) && descriptionElement.ValueKind != JsonValueKind.Null)
+        {
+            description = descriptionElement.ValueKind == JsonValueKind.String ? descriptionElement.GetString() : null;
+            if (description is null || description.Length > 200) return Fail(out error, $"{place}: açıklama en fazla 200 karakterlik metin olmalıdır.");
+        }
+
+        string? css = "";
+        if (element.TryGetProperty("css", out var cssElement))
+        {
+            css = cssElement.ValueKind == JsonValueKind.String ? cssElement.GetString() : null;
+            if (css is null || css.Length > MaxComponentCss || TenantCustomPageSchema.HasExternalCss(css))
+                return Fail(out error, $"{place}: css en fazla {MaxComponentCss} karakter olmalı ve harici kaynak (@import, url(), expression()) içermemelidir.");
+        }
+        if (javaScript.Length > MaxComponentJavaScript) return Fail(out error, $"{place}: javascript en fazla {MaxComponentJavaScript} karakter olabilir.");
+
+        var height = DefaultComponentHeight;
+        if (element.TryGetProperty("height", out var heightElement)
+            && (heightElement.ValueKind != JsonValueKind.Number || !heightElement.TryGetInt32(out height) || height is < 80 or > 1200))
+            return Fail(out error, $"{place}: height 80 ile 1200 arasında tam sayı olmalıdır.");
+
+        var settings = new List<CatalogComponentSetting>();
+        if (element.TryGetProperty("settings", out var settingList))
+        {
+            if (settingList.ValueKind != JsonValueKind.Array) return Fail(out error, $"{place}: ayarlar dizi olmalıdır.");
+            if (settingList.GetArrayLength() > MaxComponentSettings) return Fail(out error, $"{place}: {ComponentSettingsLimitError}");
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var setting in settingList.EnumerateArray())
+            {
+                if (!ReadSetting(setting, out var parsed, out var problem) || !names.Add(parsed!.Name))
+                    return Fail(out error, $"{place}: ayar geçersiz ya da yinelenmiş. {problem}".TrimEnd());
+                settings.Add(parsed);
+            }
+        }
+
+        component = new CatalogComponent(code, label, description, css, javaScript, height, settings);
+        error = null;
+        return true;
+    }
+
+    private static bool ReadSetting(JsonElement setting, out CatalogComponentSetting? parsed, out string? problem)
+    {
+        parsed = null;
+        problem = null;
+        if (setting.ValueKind != JsonValueKind.Object || !TenantCustomPageSchema.OnlyKeys(setting, SettingKeys)) return false;
+        var name = Text(setting, "name");
+        var label = Text(setting, "label");
+        var type = Text(setting, "type");
+        if (name is null || !SettingNamePattern.IsMatch(name)) return Fail(out problem, "Ayar adı küçük harfle başlamalı, en fazla 32 harf/rakam olmalıdır.");
+        if (string.IsNullOrWhiteSpace(label) || label.Length > 60) return Fail(out problem, $"'{name}' ayarının etiketi 1-60 karakter olmalıdır.");
+        if (type is null || !SettingTypes.Contains(type)) return Fail(out problem, $"'{name}' ayarının türü text, number, bool ya da choice olmalıdır.");
+
+        var options = new List<string>();
+        var hasOptions = setting.TryGetProperty("options", out var optionList);
+        if (type == "choice")
+        {
+            if (!hasOptions || optionList.ValueKind != JsonValueKind.Array || optionList.GetArrayLength() is < 1 or > 20)
+                return Fail(out problem, $"'{name}' seçim ayarı 1-20 seçenek içermelidir.");
+            foreach (var option in optionList.EnumerateArray())
+            {
+                var text = option.ValueKind == JsonValueKind.String ? option.GetString() : null;
+                if (string.IsNullOrWhiteSpace(text) || text.Length > 80 || options.Contains(text, StringComparer.Ordinal))
+                    return Fail(out problem, $"'{name}' ayarının seçenekleri 1-80 karakterlik, birbirinden farklı metinler olmalıdır.");
+                options.Add(text);
+            }
+        }
+        else if (hasOptions) return Fail(out problem, $"'{name}' ayarında seçenek yalnız choice türünde kullanılabilir.");
+
+        JsonElement? defaultValue = null;
+        if (setting.TryGetProperty("default", out var defaultElement))
+        {
+            if (!SettingValueFits(type, options, defaultElement)) return Fail(out problem, $"'{name}' ayarının varsayılanı türüne uygun değil.");
+            defaultValue = defaultElement.Clone();
+        }
+        parsed = new CatalogComponentSetting(name, label, type, options, defaultValue);
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="value"/> fits a setting of <paramref name="type"/> (choice: one of <paramref name="options"/>).</summary>
+    internal static bool SettingValueFits(string type, IReadOnlyList<string> options, JsonElement value) => type switch
+    {
+        "text" => value.ValueKind == JsonValueKind.String && value.GetString()!.Length <= MaxSettingTextLength,
+        "number" => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && double.IsFinite(number),
+        "bool" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+        "choice" => value.ValueKind == JsonValueKind.String && options.Contains(value.GetString()!, StringComparer.Ordinal),
+        _ => false,
+    };
+
+    internal const int MaxSettingTextLength = 2000;
 
     private static bool ReadParameters(JsonElement element, string place, List<CatalogParameter> parameters, out string? error)
     {

@@ -461,6 +461,54 @@ public sealed class TenantCatalogEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task Catalog_listing_includes_components_without_code()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var bundle = """
+            { "schemaVersion": 1,
+              "dataSources": [ { "code": "cariler", "label": "Cari hesaplar", "source": { "sql": "SELECT Code FROM CustomerAccounts" } } ],
+              "components": [
+                { "code": "satisGrafigi", "label": "Satış grafiği", "description": "Aylık satış", "height": 320,
+                  "css": ".gizliStil { color: red; }", "javascript": "gizliKod();",
+                  "settings": [ { "name": "baslik", "label": "Başlık", "type": "text", "default": "Satışlar" },
+                                { "name": "tur", "label": "Tür", "type": "choice", "options": [ "cizgi", "sutun" ] } ] },
+                { "code": "bos", "label": "Boş", "javascript": "gizliKod();" } ] }
+            """;
+        var id = await CreateOk(client, "1.0.0", bundle);
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, id, null)).StatusCode);
+
+        foreach (var (user, role) in new[] { (Admin, "TenantAdmin"), (Ayse, "TenantUser") })
+        {
+            CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, user, role);
+            var text = await (await client.GetAsync("/api/custom-pages/catalog")).Content.ReadAsStringAsync();
+            Assert.DoesNotContain("gizliStil", text);
+            Assert.DoesNotContain("gizliKod", text);
+            var catalog = JsonDocument.Parse(text).RootElement;
+            Assert.Single(catalog.GetProperty("dataSources").EnumerateArray());
+            var components = catalog.GetProperty("components");
+            Assert.Equal(2, components.GetArrayLength());
+            var first = components[0];
+            Assert.Equal(["code", "label", "description", "height", "settings"], first.EnumerateObject().Select(x => x.Name));
+            Assert.Equal("satisGrafigi", first.GetProperty("code").GetString());
+            Assert.Equal("Satış grafiği", first.GetProperty("label").GetString());
+            Assert.Equal("Aylık satış", first.GetProperty("description").GetString());
+            Assert.Equal(320, first.GetProperty("height").GetInt32());
+            var settings = first.GetProperty("settings");
+            Assert.Equal(["name", "label", "type", "options", "default"], settings[0].EnumerateObject().Select(x => x.Name));
+            Assert.Equal("Satışlar", settings[0].GetProperty("default").GetString());
+            Assert.Empty(settings[0].GetProperty("options").EnumerateArray());
+            Assert.Equal(["cizgi", "sutun"], settings[1].GetProperty("options").EnumerateArray().Select(x => x.GetString()!));
+            Assert.Equal(JsonValueKind.Null, settings[1].GetProperty("default").ValueKind);
+            var second = components[1];
+            Assert.Equal(JsonValueKind.Null, second.GetProperty("description").ValueKind);
+            Assert.Equal(240, second.GetProperty("height").GetInt32());
+            Assert.Empty(second.GetProperty("settings").EnumerateArray());
+        }
+    }
+
+    [Fact]
     public async Task Catalog_without_active_release_is_empty()
     {
         await using var app = await StartApplicationAsync();
@@ -471,6 +519,7 @@ public sealed class TenantCatalogEndpointsIntegrationTests
         Assert.Equal(JsonValueKind.Null, catalog.GetProperty("sourcePath").ValueKind);
         Assert.Empty(catalog.GetProperty("dataSources").EnumerateArray());
         Assert.Empty(catalog.GetProperty("actions").EnumerateArray());
+        Assert.Empty(catalog.GetProperty("components").EnumerateArray());
     }
 
     [Theory]

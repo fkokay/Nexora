@@ -15,8 +15,16 @@ const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tab
 export const BELGE_TEMPLATE_SLOTS = new Set(["fields", "lines", "summary", "actions", "above", "below"]);
 const BELGE_SLOT_TYPES: Record<string, string> = { fields: "documentFields", lines: "documentLines", summary: "documentSummary", actions: "button" };
 export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item"]);
-/** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules). */
+/** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules); `code` yalnız katalog bileşeniyle (`isFreeItemType`). */
 export const FREE_ITEM_TYPES = new Set(["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"]);
+/** Serbest gövde öğesi olabilir mi: `FREE_ITEM_TYPES` ya da katalog bileşenine başvuran `code` (satır içi kodlu `code` olamaz; sunucu da reddeder). */
+export function isFreeItemType(component: ModelComponent): boolean {
+  if (component.type === "code") {
+    const ref = (component.props as Record<string, unknown>).catalogComponent;
+    return typeof ref === "string" && ref !== "";
+  }
+  return FREE_ITEM_TYPES.has(component.type);
+}
 const FREE_SLOT_TYPES: Record<string, string> = { actions: "button", tabs: "tabs", block: "section" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
 
@@ -65,7 +73,7 @@ function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? FREE_ITEM_TYPES.has(next.type) : FREE_SLOT_TYPES[slot] === next.type);
+    const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" ? "actions" : "item" } };
     if (next !== component) changed = true;
     return next;

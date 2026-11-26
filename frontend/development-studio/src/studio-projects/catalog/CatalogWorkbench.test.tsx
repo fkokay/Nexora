@@ -26,13 +26,16 @@ const files: CatalogFile[] = [
   { path: `${root}/veri/cariler.sql`, content: "SELECT 1 AS Kod" },
   { path: `${root}/eylemler/kapat.json`, content: JSON.stringify({ code: "kapat", label: "Siparişi kapat", kind: "update", target: "row", run: { sql: "kapat.sql" } }) },
   { path: `${root}/eylemler/kapat.sql`, content: "UPDATE X SET A = 1" },
+  { path: `${root}/bilesenler/harita/bilesen.json`, content: JSON.stringify({ code: "harita", label: "Satış haritası", settings: [] }) },
+  { path: `${root}/bilesenler/harita/stil.css`, content: ".kutu{}" },
+  { path: `${root}/bilesenler/harita/kod.js`, content: "ciz()" },
 ];
 const { entries, errors } = readCatalogEntries(root, files);
 
 const writeFiles = vi.fn<(files: CatalogFile[]) => Promise<void>>();
 const props = () => ({
   root, entries, errors, canEdit: true, canDevelop: true, token: "t",
-  changedPaths: [`${root}/veri/cariler.sql`], writeFiles, onPublish: vi.fn(),
+  changedPaths: [`${root}/veri/cariler.sql`, `${root}/bilesenler/harita/kod.js`], writeFiles, onPublish: vi.fn(),
 });
 
 beforeEach(() => {
@@ -53,11 +56,17 @@ describe("CatalogWorkbench", () => {
   it("tree_groups_entries_and_shows_files", async () => {
     const host = await render(<CatalogWorkbench {...props()} />);
     const groups = [...host.querySelectorAll(".sp-cw-group")];
-    expect(groups.map(g => g.querySelector("h4")?.textContent)).toEqual(["Veri kaynakları+ Yeni", "Eylemler+ Yeni", "Dosyalar"]);
+    expect(groups.map(g => g.querySelector("h4")?.textContent)).toEqual(["Veri kaynakları+ Yeni", "Eylemler+ Yeni", "Bileşenler+ Yeni", "Dosyalar"]);
     expect(groups[0].textContent).toContain("Cari hesaplar");
     expect(groups[1].textContent).toContain("Siparişi kapat");
-    expect(groups[2].textContent).toContain("veri/cariler.json");
-    expect(groups[2].textContent).toContain("eylemler/kapat.sql");
+    expect(groups[2].textContent).toContain("Satış haritası");
+    expect(groups[3].textContent).toContain("veri/cariler.json");
+    expect(groups[3].textContent).toContain("eylemler/kapat.sql");
+    expect(groups[3].textContent).toContain("bilesenler/harita/bilesen.json");
+    expect(groups[3].textContent).toContain("bilesenler/harita/stil.css");
+    expect(groups[3].textContent).toContain("bilesenler/harita/kod.js");
+    const harita = [...groups[2].querySelectorAll("button")].find(b => b.textContent?.includes("Satış haritası"))!;
+    expect(harita.querySelector(".sp-cw-changed")).not.toBeNull();
     const cariler = [...groups[0].querySelectorAll("button")].find(b => b.textContent?.includes("Cari hesaplar"))!;
     expect(cariler.querySelector(".sp-cw-changed")).not.toBeNull();
     const kapat = [...groups[1].querySelectorAll("button")].find(b => b.textContent?.includes("Siparişi kapat"))!;
@@ -101,6 +110,16 @@ describe("CatalogWorkbench", () => {
     expect(writeFiles.mock.calls[0][0][0]).toEqual({ path: `${root}/eylemler/kapat.sql`, content: "UPDATE X SET A = 1" });
     const json = JSON.parse(writeFiles.mock.calls[1][0][0].content);
     expect(json).toEqual({ code: "kapat", label: "Siparişi kapat", kind: "delete", target: "row", run: { sql: "kapat.sql" }, confirm: { text: "Emin misiniz?" } });
+  });
+
+  it("component_group_opens_component_form_and_new_component", async () => {
+    const host = await render(<CatalogWorkbench {...props()} />);
+    await click([...host.querySelectorAll(".sp-cw-group button")].find(b => b.textContent?.includes("Satış haritası")));
+    expect(field<HTMLInputElement>(host, "Kod").value).toBe("harita");
+    expect(host.textContent).toContain("Danışmanın dolduracağı ayarlar");
+    await click(host.querySelector('[aria-label="Yeni bileşen"]')!);
+    expect(host.querySelector("h3")?.textContent).toBe("Yeni bileşen");
+    expect(field<HTMLInputElement>(host, "Kod").disabled).toBe(false);
   });
 
   it("selected_entry_removed_by_reload_closes_form", async () => {

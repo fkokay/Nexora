@@ -45,11 +45,35 @@ describe("catalogWorkspace", () => {
     expect(await loadCatalogFiles(denied, B, "modules/yeni")).toEqual([]);
   });
 
+  it("reads_component_folders_and_detects_module_with_only_components", async () => {
+    const content = (path: string, text: string) =>
+      ({ [`${B}/file-content?path=${encodeURIComponent(path)}`]: { path, content: text, sizeBytes: text.length, sha256: `sha-${path}` } });
+    const read = reader({
+      [list("")]: { path: "", entries: [dir("modules")], nextOffset: null },
+      [list("modules")]: { path: "modules", entries: [dir("modules/c")], nextOffset: null },
+      [list("modules/c")]: { path: "modules/c", entries: [dir("modules/c/bilesenler")], nextOffset: null },
+      [list("modules/c/bilesenler")]: { path: "modules/c/bilesenler", entries: [dir("modules/c/bilesenler/harita"), file("modules/c/bilesenler/BENIOKU.md")], nextOffset: null },
+      [list("modules/c/bilesenler/harita")]: { path: "modules/c/bilesenler/harita", entries: [
+        file("modules/c/bilesenler/harita/bilesen.json"), file("modules/c/bilesenler/harita/stil.css"),
+        file("modules/c/bilesenler/harita/kod.js"), file("modules/c/bilesenler/harita/not.txt"),
+      ], nextOffset: null },
+      ...content("modules/c/bilesenler/harita/bilesen.json", "{}"),
+      ...content("modules/c/bilesenler/harita/stil.css", ".a{}"),
+      ...content("modules/c/bilesenler/harita/kod.js", "ciz()"),
+    });
+    expect(await detectCatalogRoot(read, B, "")).toBe("modules/c");
+    expect((await loadCatalogFiles(read, B, "modules/c")).map(f => f.path)).toEqual([
+      "modules/c/bilesenler/harita/bilesen.json", "modules/c/bilesenler/harita/stil.css", "modules/c/bilesenler/harita/kod.js",
+    ]);
+  });
+
   it("git_state_blocks_on_catalog_changes_truncation_or_missing_status", () => {
     const status = (paths: string[], truncated = false) =>
       ({ branchName: "b", headCommitSha: "h", totalChangedFiles: paths.length, truncated, files: paths.map(path => ({ path, status: "M" })) });
     expect(catalogGitState(status(["modules/b/src/lib.rs"]), "modules/b")).toEqual({ changedPaths: [], hasUncommitted: false });
     expect(catalogGitState(status(["modules/b/veri/x.sql"]), "modules/b")).toEqual({ changedPaths: ["modules/b/veri/x.sql"], hasUncommitted: true });
+    expect(catalogGitState(status(["modules/b/bilesenler/harita/kod.js"]), "modules/b"))
+      .toEqual({ changedPaths: ["modules/b/bilesenler/harita/kod.js"], hasUncommitted: true });
     expect(catalogGitState(status([], true), "modules/b").hasUncommitted).toBe(true);
     expect(catalogGitState(null, "modules/b").hasUncommitted).toBe(true);
   });

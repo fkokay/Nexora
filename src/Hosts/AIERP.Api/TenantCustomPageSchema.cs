@@ -47,6 +47,8 @@ internal static partial class TenantCustomPageSchema
       "recordKey", "trackChanges",
       // Proje 4: the actionBar's record dialog (Yeni / Aç).
       "formDialog",
+      // Yazılımcı bileşeni: a code component that references a catalog component and its setting values (no css/javascript).
+      "catalogComponent", "componentSettings",
       // Proje 4: conditional required input (e.g. only while an existing record is edited).
       "requiredWhen",
       // Proje 4: compact one-row formCard (e.g. the filter row above a list), conditional width and per-value cell labels.
@@ -724,8 +726,11 @@ internal static partial class TenantCustomPageSchema
             { error = $"Bileşen en fazla {MaxPropsV2} özellik içerebilir."; return false; }
             if (props.ValueKind != JsonValueKind.Object || props.EnumerateObject().Count() > MaxPropsV1 && !context.V2 || !OnlyKeys(props, context.V2 ? SafePropsV2 : SafeProps))
             { error = "Bileşen özellikleri izin verilen statik alanlarla sınırlıdır."; return false; }
+            if ((props.TryGetProperty("catalogComponent", out _) || props.TryGetProperty("componentSettings", out _))
+                && !ValidateCatalogComponentProps(props, typeText, out error)) return false;
             foreach (var prop in props.EnumerateObject())
             {
+                if (prop.Name is "catalogComponent" or "componentSettings") continue;
                 if (prop.Name is "params" or "openParams")
                 {
                     if (!context.V2 || !ValidatePageParams(prop.Value, typeText, prop.Name, out error)) { error ??= $"'{prop.Name}' geçersiz."; return false; }
@@ -2881,7 +2886,44 @@ internal static partial class TenantCustomPageSchema
     private static bool ContainsExecutableText(string text) => text.Contains("<", StringComparison.Ordinal) || text.Contains(">", StringComparison.Ordinal)
         || text.Contains("javascript:", StringComparison.OrdinalIgnoreCase) || text.Contains("data:", StringComparison.OrdinalIgnoreCase)
         || text.Contains("{{", StringComparison.Ordinal) || text.Contains("}}", StringComparison.Ordinal);
-    private static bool HasExternalCss(string css) => css.Contains("@import", StringComparison.OrdinalIgnoreCase)
+    internal const string CatalogComponentCodeError = "Katalogdan seçilen bileşende kod (css, javascript) yazılmaz.";
+    internal const int MaxComponentSettingValues = 10;
+
+    /// <summary>
+    /// Format rules for a catalog component reference (v2 <c>code</c> component only): <c>catalogComponent</c> is a catalog
+    /// component code, <c>componentSettings</c> an object of at most 10 setting names to text / number / bool values, and the
+    /// component carries no inline <c>css</c> / <c>javascript</c>. Whether the component exists in the active catalog and the
+    /// settings fit it is checked on save only (TenantCustomPageEndpoints), so that publish and catalog activation never
+    /// fail because a component was removed (the runtime then shows "Bu bileşen katalogda yok.").
+    /// </summary>
+    private static bool ValidateCatalogComponentProps(JsonElement props, string typeText, out string? error)
+    {
+        error = null;
+        if (typeText != "code") { error = "Katalog bileşeni yalnız kod bileşeninde seçilebilir."; return false; }
+        if (!props.TryGetProperty("catalogComponent", out var code))
+        { error = "'componentSettings' yalnız katalogdan seçilen bileşenle kullanılabilir."; return false; }
+        if (code.ValueKind != JsonValueKind.String || !TenantCatalogSchema.ComponentCodePattern.IsMatch(code.GetString()!))
+        { error = TenantCatalogSchema.ComponentCodeError; return false; }
+        if (props.TryGetProperty("css", out _) || props.TryGetProperty("javascript", out _)) { error = CatalogComponentCodeError; return false; }
+        if (!props.TryGetProperty("componentSettings", out var settings)) return true;
+        if (settings.ValueKind != JsonValueKind.Object || settings.EnumerateObject().Count() > MaxComponentSettingValues)
+        { error = $"'componentSettings' en fazla {MaxComponentSettingValues} ayarlık ad-değer nesnesi olmalıdır."; return false; }
+        foreach (var setting in settings.EnumerateObject())
+        {
+            if (!TenantCatalogSchema.SettingNamePattern.IsMatch(setting.Name)) { error = $"Bileşen ayarı '{setting.Name}' bileşende tanımlı değil."; return false; }
+            var fits = setting.Value.ValueKind switch
+            {
+                JsonValueKind.String => setting.Value.GetString()!.Length <= TenantCatalogSchema.MaxSettingTextLength,
+                JsonValueKind.Number => setting.Value.TryGetDouble(out var number) && double.IsFinite(number),
+                JsonValueKind.True or JsonValueKind.False => true,
+                _ => false,
+            };
+            if (!fits) { error = $"Bileşen ayarı '{setting.Name}' için değer türü uygun değil."; return false; }
+        }
+        return true;
+    }
+
+    internal static bool HasExternalCss(string css) => css.Contains("@import", StringComparison.OrdinalIgnoreCase)
         || css.Contains("url(", StringComparison.OrdinalIgnoreCase) || css.Contains("expression(", StringComparison.OrdinalIgnoreCase);
     private static bool IsHexColor(string? value) => value is { Length: 7 } && value[0] == '#' && value[1..].All(Uri.IsHexDigit);
     internal static bool OnlyKeys(JsonElement element, HashSet<string> allowed) => element.EnumerateObject().All(p => allowed.Contains(p.Name));

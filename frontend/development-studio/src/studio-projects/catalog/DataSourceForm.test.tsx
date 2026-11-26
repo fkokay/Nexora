@@ -16,11 +16,11 @@ vi.mock("./catalogApi", async () => {
 import * as api from "./catalogApi";
 import { confirmDialog } from "../../ui/confirmDialog";
 import { DataSourceForm } from "./DataSourceForm";
-import type { CatalogEntry } from "./catalogFiles";
+import type { SqlCatalogEntry } from "./catalogFiles";
 import { button, click, field, render, type } from "./testUtils";
 
 const root = "modules/satis";
-const entry: CatalogEntry = {
+const entry: SqlCatalogEntry = {
   kind: "dataSource", code: "cariler", jsonPath: `${root}/veri/cariler.json`, sqlPath: `${root}/veri/cariler.sql`,
   sql: "SELECT Kod, Bakiye, SonOdeme FROM Cariler WHERE Sehir = @sehir",
   json: {
@@ -112,7 +112,7 @@ describe("DataSourceForm", () => {
     expect(writeFiles.mock.calls.slice(2).map(c => c[0][0].sha256)).toEqual([`after-${entry.sqlPath}`, `after-${entry.jsonPath}`]);
   });
   describe("column flags", () => {
-    const withColumns = (columns: unknown[]): CatalogEntry => ({ ...entry, json: { ...entry.json, columns } });
+    const withColumns = (columns: unknown[]): SqlCatalogEntry => ({ ...entry, json: { ...entry.json, columns } });
     const savedColumns = (writeFiles: ReturnType<typeof vi.fn>) => {
       const json = writeFiles.mock.calls.map(c => c[0][0]).find(f => f.path.endsWith(".json"))!;
       return JSON.parse(json.content).columns as Record<string, unknown>[];

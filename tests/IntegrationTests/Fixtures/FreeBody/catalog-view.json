@@ -50,5 +50,39 @@
       "parameters": [],
       "confirm": "Rapor yenilensin mi?"
     }
+  ],
+  "components": [
+    {
+      "code": "satisHaritasi",
+      "label": "Satış haritası",
+      "description": "Bölgelere göre satış",
+      "height": 320,
+      "settings": [
+        {
+          "name": "baslik",
+          "label": "Başlık",
+          "type": "text",
+          "options": [],
+          "default": "Bölgeler"
+        },
+        {
+          "name": "adet",
+          "label": "Bölge sayısı",
+          "type": "number",
+          "options": [],
+          "default": null
+        },
+        {
+          "name": "donem",
+          "label": "Dönem",
+          "type": "choice",
+          "options": [
+            "Bu ay",
+            "Bu yıl"
+          ],
+          "default": "Bu ay"
+        }
+      ]
+    }
   ]
 }

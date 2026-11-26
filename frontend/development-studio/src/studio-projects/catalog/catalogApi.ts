@@ -6,7 +6,7 @@ export type CatalogRelease = {
   sourceRepository: string | null; sourceCommit: string | null; sourcePath?: string | null
   createdAt: string; activatedAt: string | null
 }
-export type ActiveCatalog = { releaseId: string | null; version: string | null; sourcePath?: string | null; dataSources: unknown[]; actions: unknown[]; invalidItems?: unknown[] }
+export type ActiveCatalog = { releaseId: string | null; version: string | null; sourcePath?: string | null; dataSources: unknown[]; actions: unknown[]; invalidItems?: unknown[]; components?: { code: string }[] }
 export type PreviewResult = {
   columns: { code: string; label: string; dataType: string }[]
   rows: unknown[][] | Record<string, unknown>[]
