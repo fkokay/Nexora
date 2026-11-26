@@ -16,7 +16,12 @@ internal static class DocumentModelEndpoints
     {
         var models = app.MapGroup("/api/document-models").WithTags("Belge modelleri").RequireAuthorization();
         models.MapGet("/{code}", (string code) =>
-            code == SalesOrderDocumentModel.Code ? Results.Ok(SalesOrderDocumentModel.Model) : Results.NotFound());
+            DocumentModelRegistry.Find(code) is { } model ? Results.Ok(model) : Results.NotFound());
+        models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) =>
+            string.IsNullOrEmpty(state) ? Results.Ok(SalesOrderDocumentModel.Sample(SalesOrderStatus.Draft))
+            : Enum.TryParse<SalesOrderStatus>(state, ignoreCase: false, out var parsed) && Enum.IsDefined(parsed) && !int.TryParse(state, out _)
+                ? Results.Ok(SalesOrderDocumentModel.Sample(parsed))
+                : Results.ValidationProblem(new Dictionary<string, string[]> { ["state"] = ["Bilinmeyen belge durumu."] }));
         // One literal route per model (the ERP operation catalog matches routes literally); satis.siparis is the only model so far.
         models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", async (DocumentFillRequest request, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
         {

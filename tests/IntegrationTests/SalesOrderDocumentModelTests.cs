@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Net;
 using System.Net.Http.Json;
 using AIERP.Platform.Domain;
@@ -187,5 +188,76 @@ public sealed class SalesOrderDocumentModelTests
         using var response = await client.GetAsync($"/api/sales/orders/{orderId}/document");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Model_carries_fills_readonly_and_visible_from()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed);
+
+        var model = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync("/api/document-models/satis.siparis"));
+
+        Assert.Equal(["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"],
+            model.GetProperty("fills").GetProperty("stockItemId").EnumerateArray().Select(x => x.GetString()).ToArray());
+        var fields = model.GetProperty("fields").EnumerateArray().ToDictionary(x => x.GetProperty("code").GetString()!, x => x.GetProperty("readOnly").GetBoolean());
+        Assert.True(fields["code"]);
+        Assert.False(fields["customerId"]);
+        var columns = model.GetProperty("lineColumns").EnumerateArray().ToDictionary(x => x.GetProperty("code").GetString()!);
+        Assert.Equal("Open", columns["deliveredQuantity"].GetProperty("visibleFrom").GetString());
+        Assert.Equal(JsonValueKind.Null, columns["quantity"].GetProperty("visibleFrom").ValueKind);
+        Assert.Equal("satis.siparis.olustur", model.GetProperty("createOperation").GetString());
+        Assert.Equal("satis.siparis.guncelle", model.GetProperty("updateOperation").GetString());
+    }
+
+    [Theory]
+    [InlineData("Draft", new[] { "onayla", "iptal" })]
+    [InlineData("Open", new[] { "onayiGeriAl", "iptal" })]
+    [InlineData("Fulfilled", new string[0])]
+    public async Task Sample_document_has_requested_state_without_touching_the_database(string state, string[] transitions)
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed);
+
+        using var response = await client.GetAsync($"/api/document-models/satis.siparis/sample?state={state}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var document = await SalesOrderApiFactory.ReadJsonAsync(response);
+        Assert.Equal(state, document.GetProperty("order").GetProperty("status").GetString());
+        Assert.True(document.GetProperty("order").GetProperty("lines").GetArrayLength() >= 2);
+        Assert.Equal(transitions, document.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()).ToArray());
+        var amounts = document.GetProperty("amounts");
+        Assert.Equal(2, amounts.GetProperty("vat").GetArrayLength());
+        Assert.Equal(amounts.GetProperty("grandTotal").GetDecimal(),
+            amounts.GetProperty("subtotal").GetDecimal() - amounts.GetProperty("discountTotal").GetDecimal() + amounts.GetProperty("taxTotal").GetDecimal());
+        await factory.WithTenantDbAsync(async db => Assert.Equal(0, await db.SalesOrders.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Sample_without_state_is_a_draft_and_unknown_state_is_bad_request()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed);
+
+        var draft = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync("/api/document-models/satis.siparis/sample"));
+        using var unknown = await client.GetAsync("/api/document-models/satis.siparis/sample?state=Kayip");
+
+        Assert.Equal("Draft", draft.GetProperty("order").GetProperty("status").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task Sample_needs_sales_order_read()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed, "TenantUser");
+
+        using var response = await client.GetAsync("/api/document-models/satis.siparis/sample");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

@@ -6,11 +6,15 @@ namespace AIERP.Api.DocumentModels;
 /// </summary>
 public sealed record DocumentModelView(string Code, string Label, IReadOnlyList<DocumentFieldView> Fields,
     IReadOnlyList<DocumentLineColumnView> LineColumns, IReadOnlyList<DocumentStateView> States, IReadOnlyList<DocumentTransitionView> Transitions,
-    string LoadOperation, string CalculateOperation, string FillOperation);
+    string LoadOperation, string CalculateOperation, string FillOperation,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Fills, string CreateOperation, string UpdateOperation);
 
-public sealed record DocumentFieldView(string Code, string Label, string Type, bool Required, string? OptionsOperation);
+/// <summary>A header field. <see cref="ReadOnly"/> fields (the document number) are shown but never entered.</summary>
+public sealed record DocumentFieldView(string Code, string Label, string Type, bool Required, string? OptionsOperation, bool ReadOnly = false);
 
-public sealed record DocumentLineColumnView(string Code, string Label, string Type, bool Required, bool Calculated, string? OptionsOperation);
+/// <summary>A line column. <see cref="VisibleFrom"/> names the first state it is shown in (e.g. the delivered quantity from Onaylı on).</summary>
+public sealed record DocumentLineColumnView(string Code, string Label, string Type, bool Required, bool Calculated, string? OptionsOperation,
+    string? VisibleFrom = null);
 
 public sealed record DocumentStateView(string Code, string Label, bool Terminal);
 
