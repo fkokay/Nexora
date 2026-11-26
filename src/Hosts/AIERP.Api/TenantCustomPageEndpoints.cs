@@ -230,7 +230,7 @@ internal static class TenantCustomPageEndpoints
                 if (!await platformDb.TenantCustomPageAccesses.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.PageCode == draft.Code, ct))
                     return Results.Conflict(new
                     {
-                        error = TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson) && !TenantCustomPageQueries.HasCatalogReferences(draft.DefinitionJson)
+                        error = TenantCustomPageQueries.HasSqlQueries(draft.DefinitionJson) && !TenantCustomPageQueries.HasCatalogQueryReferences(draft.DefinitionJson)
                             ? "Bu sayfa SQL sorgusu içeriyor; yayımlamadan önce erişimi açıkça seçin."
                             : "Bu sayfa sorgu veya ERP işlemi içeriyor; yayımlamadan önce erişim kuralı seçin."
                     });
@@ -314,6 +314,9 @@ internal static class TenantCustomPageEndpoints
         json = definition.GetRawText();
         // Size limits depend on the schema version (v1: 64 KiB, v2: 128 KiB) and are enforced by the schema.
         if (!TenantCustomPageSchema.Validate(json, out error, existingOperations, ErpOperationCatalog.TryGet, catalog)) { json = null; return false; }
+        // Catalog components are checked against the active catalog on save only (publish and activation do not re-check),
+        // so a component removed by a later release leaves the page publishable and the runtime shows it as missing.
+        if (TenantCustomPageQueries.CatalogComponentError(json, catalog) is { } componentError) { error = componentError; json = null; return false; }
         return true;
     }
     /// <summary>
@@ -402,7 +405,9 @@ internal static class TenantCustomPageEndpoints
     /// (it can reach page data and operations) may only be written by a verified TenantAdmin (role claim and current
     /// membership). Catalog references (<c>dataSource</c> and <c>action</c>, whatever the item runs) carry only a code and
     /// need no such gate: the catalog version is activated by a TenantAdmin and its SQL is re-validated on every run, so
-    /// any user with page write permission may save them. Pages that only bind read ERP operations need no gate either:
+    /// any user with page write permission may save them. The same holds for a catalog component (<c>catalogComponent</c>): the
+    /// page carries only its code and setting values, never CSS/JavaScript (the schema rejects both alongside it), and the
+    /// code comes from the activated catalog when the page is read. Pages that only bind read ERP operations need no gate either:
     /// reads run against their own endpoints with the user's own token. The Platform database is read only when a
     /// definition needs the check.
     /// </summary>
