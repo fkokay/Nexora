@@ -19,6 +19,7 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "inventory-stock-create": "inventory-stock",
   "sales-quote-create": "sales-quotes",
   "sales-order-create": "sales-orders",
+  "sales-order-document": "sales-orders",
   "sales-invoice-create": "sales-invoices",
   "sales-delivery-create": "sales-deliveries",
   "sales-purchase-order-create": "sales-purchasing",
@@ -78,7 +79,7 @@ export const moduleMenus: ModuleMenu[] = [
   {
     railId: "sales",
     title: ["Satış", "Sales"],
-    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-invoice-create", "sales-delivery-create"],
+    pages: [...salesNavigationPages, "sales-quote-create", "sales-order-create", "sales-order-document", "sales-invoice-create", "sales-delivery-create"],
   },
   {
     railId: "purchasing",
