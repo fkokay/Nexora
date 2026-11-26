@@ -5,6 +5,8 @@ import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
 import type { ShellAction } from "./page-templates/PageShell";
 import { hasRecordSlot, layoutRecordTemplate, recordKeyParam } from "./page-templates/recordTemplateModel";
 import { RecordLines, RecordSection, RecordTemplate } from "./page-templates/RecordTemplate";
+import { hasFreeSlot, layoutFreeTemplate } from "./page-templates/freeTemplateModel";
+import { FreeSection, FreeTemplate } from "./page-templates/FreeTemplate";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -122,6 +124,11 @@ type PageRuntime = {
   record?: { isNew: boolean; blockIds: ReadonlySet<string>; block: (component: ComponentDefinition, draw: () => ReactNode) => ReactNode;
     /** Yeni kayıt kipinde özetin başlığı ("Yeni <sayfa adı>"). */
     newTitle: string };
+  /**
+   * Serbest gövde (yalnız `template: free`): bölümler (`slot: block` olan `section`) ve onların çizimi; üyeler `renderMember`
+   * ile (tuval işaretleriyle) bölümün ızgarasında çizilir. Sekme düğmeleri tuval işareti taşır.
+   */
+  free?: { blockIds: ReadonlySet<string>; block: (component: ComponentDefinition, title: string, renderMember: (member: ComponentDefinition) => ReactNode) => ReactNode };
   /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
   select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   queryById: Record<string, PageQueryDefinition>;
@@ -1277,7 +1284,8 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
-    case "card": case "section": if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
+    case "card": case "section": if (component.type === "section" && runtime?.free?.blockIds.has(component.id)) return runtime.free.block(component, title, (member) => renderComponent(member, forms, token, pageCode, runtime));
+      if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
       runtime={runtime} render={(child) => renderComponent(child, forms, token, pageCode, runtime)} closeInput={textValue(props.closeInput).trim()} />;
       {
         const boxItems = component.type === "card" ? boxItemList(props.items) : [];
@@ -1338,7 +1346,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       };
       return <PageTabs key={component.id} id={component.id} tabs={tabs} defaultTab={requestedTab ?? defaultTab}
         requestedTab={requestedTab === null ? null : { tab: requestedTab, key: JSON.stringify(resolvePath(runtime.scope, "sayfa.parametre") ?? null) }} renderOwned={renderOwned}
-        errorCounts={errorCounts} jumpTo={jumpTo} style={style} tabAnchor={record ? (index) => <AnchorMark id={`${component.id}#tab${index}`} /> : undefined} />;
+        errorCounts={errorCounts} jumpTo={jumpTo} style={style} tabAnchor={record || runtime.free ? (index) => <AnchorMark id={`${component.id}#tab${index}`} /> : undefined} />;
     }
     case "dataTable": {
       const columns = Array.isArray(props.columns) ? props.columns.filter((column): column is string => typeof column === "string").slice(0, 20) : [];
@@ -3517,11 +3525,21 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     ? layoutRecordTemplate(components.filter((component) => !ownedInputs.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id)))
     : null;
   const recordParam = recordLayout ? recordKeyParam(components, queryDefinitions) : null;
+  // Serbest gövde: bölümler sırayla (ya da sekmelerinde), üyeler bölümün `members`'ından; bölümü olmayan sayfa eski biçimde çizilir.
+  const freeLayout = isV2 && pageTemplate?.name === "free" && hasFreeSlot(components)
+    ? layoutFreeTemplate(components.filter((component) => !ownedInputs.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id)))
+    : null;
+  const freeMembers = freeLayout ? new Map(freeLayout.blocks.map((entry) => [entry.block.id, entry.members])) : null;
+  const freeBlocks: PageRuntime["free"] = freeMembers ? {
+    blockIds: new Set(freeMembers.keys()),
+    block: (component, title, renderMember) => <FreeSection block={component} title={title} members={freeMembers.get(component.id) ?? []} render={renderMember} />,
+  } : undefined;
   const isNewRecord = !recordParam || (pageParams[recordParam] ?? "").trim() === "";
   const recordBlocks = recordLayout ? recordBlockRuntime(recordLayout, isNewRecord, queryDefinitions, (id) => states[queryNames[id]], page.name) : undefined;
   const runtime: PageRuntime | undefined = isV2 ? {
     shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
     record: recordBlocks,
+    free: freeBlocks,
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,
     validationErrors, validateFor, errorJump,
     skipsValidation: (inputId) => !!inputById[inputId] && skipsValidation(inputById[inputId]),
@@ -3731,6 +3749,19 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
         </>} />
     </div>;
   }
+  if (freeLayout && runtime) {
+    const shellActions = shellActionsFor(freeLayout.actions, runtime);
+    const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
+    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir (Liste ve Kayıt kartı gibi).
+    return <div className="free-template-page" ref={contentRef}>
+      <FreeTemplate layout={freeLayout} render={renderSlot} title={pageTitle || page.name} crumbs={[]} actions={shellActions}
+        notices={<>
+          {viewModeStrip}
+          {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
+          {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
+        </>} />
+    </div>;
+  }
   if (listLayout && runtime) {
     const list = listLayout.list;
     const listQuery = typeof list.props?.query === "string" ? runtime.queryNames[list.props.query] : undefined;
@@ -3918,7 +3949,7 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
-    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || (pageTemplate?.name === "record" && hasRecordSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
+    {!(isV2 && (hasActionBar(components) || (pageTemplate?.name === "list" && hasListSlot(components)) || (pageTemplate?.name === "record" && hasRecordSlot(components)) || (pageTemplate?.name === "free" && hasFreeSlot(components)))) && <header className="tenant-custom-page-header"><span className="tenant-custom-page-icon"><LayoutTemplate size={20} /></span><div><h1>{titleOverride || page.name}</h1>{page.description && <p>{page.description}</p>}</div>{legacyLink}</header>}
     <PageBody key={`${page.id}:${page.revision}:${paramKey}:${restart.count}`} initialStatus={restart.status} onRestart={onRestart} page={page} components={components} queryDefinitions={queryDefinitions} isV2={isV2} pageTemplate={pageTemplate} token={token} previewId={previewId} tabKey={tabKey} pageParams={pageParams} legacyLink={legacyLink} onTitle={onPageTitle} />
   </main>;
 }
