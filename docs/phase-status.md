@@ -1,4 +1,22 @@
 # Master Prompt Phase Status
+### 2026-11-26 Consultant component panels, part one (subproject 5a)
+
+On template pages the designer now offers the consultant's 11 components instead of the 30 component types, and five of them have the single-column panel from approved mockup 03: Metin, Bilgi kutusu, Gösterge, Görsel and Butonlar. Liste keeps its subproject 3 panel; Form, Satır tablosu, Kayıt özeti, Bölümler and Yazılımcı bileşeni show in the palette as disabled with the reason. Pages without a template keep the old palette and inspector.
+
+- **Metin:** style (Başlık / Alt başlık / Paragraf / Küçük etiket) switches between `heading`, `section`, `text` and `label` while keeping the component's id, name, slot and references. The consultant writes `{Cari kodu}`; it is stored as a binding to the list's selected row. Unknown bindings show as `{?}` and survive an unchanged save.
+- **Bilgi kutusu:** Bilgi / Uyarı / Başarılı (`alert`) or Sade (`card`); bullet list (`items`, blank lines dropped); "Kullanıcı kapatabilsin" (`dismissible`, session-only in ERP). Alerts with a strip icon stay on the old panel.
+- **Gösterge:** Sayı / İlerleme / Durum over a parameterless catalog data source. "Kayıt sayısı" counts rows (query + `countWhen`), a column shows its value with its type's format; compare column (`compareValue`, ERP shows ▲/▼ %), target column for progress (`progressTotal`), size (`size` sm/lg) and place (Göstergeler / Listenin üstü / altı).
+- **Görsel:** address (http/https only, allowlist) or the selected row's image column; height 96/160/280; description as alt text. File upload is deferred.
+- **Butonlar:** clicking a toolbar or row button opens the group: which catalog actions, which one is primary.
+- Component names are read-only in the new panels; switching type removes settings the server only allows on the old type.
+
+Server: six new v2 props validated (`textAlign`, `items` on alert/card, `dismissible`, `compareValue`, metric `size`, `progressTotal`). ERP renders them; components without them render exactly as before (`legacyUnchanged` snapshots unchanged). No migration.
+
+Test results (2026-11-26, branch `claude/bilesen-panelleri-5a`): erp-web `npm test` 2134/2134 and `npm run build` passed on the integrated branch; after the final fix erp-web `legacyUnchanged` + `custom-page` 739/739 and build passed; development-studio `npm test` 800 vitest + 13 node tests and `npm run build` passed; `dotnet test AIERP.slnx` unit tests 1183/1183, integration tests 1786 passed, 64 skipped (SQL Server acceptance), 55 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled) in 17 classes this branch does not touch; those 17 classes re-run alone passed 376/381, and the remaining 5 tests re-run on their own passed 5/5. Schema tests (`TenantCustomPageSchema*`) 107/107.
+
+Not verified: a browser pass against Studio + ERP (the mock backend of subproject 3 was not available in this session); a real backend and login; Docker Compose; the publish flow end to end.
+
+Deploy order: platform-api and erp-web first, then development-studio.
 ### 2026-11-25 Page templates and List (subproject 3)
 
 Pages now carry a template (kalıp) and the first one, List, is usable end to end. The new-page dialog has a kalıp step; the Ekranlar screen has a "Liste · N. basamak" column and a kalıp filter; the canvas renders the real ERP page; the List panel (mockup-01 order) lets a Danışman pick a catalog data source (autosave, read query with the `q` binding, filterBar, first 6 columns), bind a row action to `{{liste.seciliSatir.Kod}}`, use bulk delete and "Kartı aç" (page button parameter `kod`). Sources and actions that cannot be used show the reason in the panel. Catalog references (data source or action) now need only page write permission; inline SQL, write ERP operations and code scripts still need a verified TenantAdmin (see the dated update in the 2a entry).

@@ -346,7 +346,10 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    Eski araçlar menüden ancak yerlerini alan ekranlar hazır olunca kalkar (§11). 1. projeden bağımsızdır, onunla paralel yürüyebilir.
 3. **Sayfa kalıpları (§6.1) + yeni panel kabuğu + Liste (§6.3).**
 4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).**
-5. **Kalan bileşenlerin birleştirilmesi (§6.2).**
+5. **Kalan bileşenlerin birleştirilmesi (§6.2).** Kullanıcı 2026-11-26'da üç plana böldü:
+   - **5a** (plan `2026-11-26-bilesen-panelleri-5a.md`, taslak 03 onaylı): Metin, Bilgi kutusu, Gösterge, Görsel ve Butonlar panelleri; kalıplı sayfada 11 bileşenli palet. Gösterge değeri mevcut katalog veri kaynaklarından gelir; Görsel'de dosya yükleme ertelendi.
+   - **İkinci plan** (alt proje 4 birleşince, kendi taslağıyla): Form, Satır tablosu, Kayıt özeti, Bölümler ve serbest gövde (3. basamak).
+   - **Ayrı katalog planı:** Yazılımcı bileşeni (katalogda bileşen türü).
 5b. **Toplu kalıp geçişi** (kullanıcının kararı: bütün canlı sayfalar tek seferde taşınır). 3., 4. ve 5. projelerden sonra yapılır:
    - **Dönüştürücü:** her sayfayı (firma sayfaları ve sistem standartları) bir kalıba ve basamağa eşler. Eşlenemeyen sayfa 3. basamağa (serbest gövde) düşer, hiçbir sayfa açıkta kalmaz.
    - **Kuru çalıştırma raporu:** sayfa başına seçilen kalıp, düşen ya da "eski ayarlar" kutusuna giden ayarlar ve üç genişlikte önce/sonra ekran görüntüleri. Rapor geçişten önce Nexora ekibi tarafından gözden geçirilir.
