@@ -102,7 +102,7 @@ describe("sayfa kataloğu kalıbı", () => {
   });
 
   it("catalog filter has Kayıt kartı", () => {
-    expect(templateFilterOptions.map((option) => option.label)).toEqual(["Tümü", "Liste", "Kayıt kartı", "Kalıpsız"]);
+    expect(templateFilterOptions.map((option) => option.label)).toEqual(["Tümü", "Liste", "Kayıt kartı", "Serbest", "Kalıpsız"]);
     const records: CustomPageCatalogItem[] = [{ id: "r1", code: "cari-karti", name: "Cari kartı", isPublished: false, revision: 1, template: "record", templateLevel: 2 }];
     const all = buildCatalogRows(screens, [...withTemplate, ...records], system);
     const query = { search: "", status: "all" as const, module: "all" };
@@ -110,5 +110,17 @@ describe("sayfa kataloğu kalıbı", () => {
     expect(filterCatalogRows(all, { ...query, template: "list" }).map((row) => row.name)).not.toContain("Cari kartı");
     expect(filterCatalogRows(all, { ...query, template: "none" }).map((row) => row.name)).not.toContain("Cari kartı");
     expect(rowTemplateText(all.find((row) => row.name === "Cari kartı")!)).toBe("Kayıt kartı · 2. basamak");
+  });
+
+  it("catalog row shows Serbest · 3. basamak", () => {
+    const free: CustomPageCatalogItem[] = [{ id: "f1", code: "pano", name: "Satış panosu", isPublished: false, revision: 1, template: "free", templateLevel: 3 }];
+    const all = buildCatalogRows(screens, [...withTemplate, ...free], system);
+    const query = { search: "", status: "all" as const, module: "all" };
+    expect(rowTemplateText(all.find((row) => row.name === "Satış panosu")!)).toBe("Serbest · 3. basamak");
+    // Basamak sunucudan gelmese de serbest gövde her zaman 3. basamaktır.
+    expect(rowTemplateText({ ...all.find((row) => row.name === "Satış panosu")!, templateLevel: null })).toBe("Serbest · 3. basamak");
+    expect(filterCatalogRows(all, { ...query, template: "free" }).map((row) => row.name)).toEqual(["Satış panosu"]);
+    expect(filterCatalogRows(all, { ...query, template: "none" }).map((row) => row.name)).not.toContain("Satış panosu");
+    expect(filterCatalogRows(all, { ...query, template: "list" }).map((row) => row.name)).not.toContain("Satış panosu");
   });
 });

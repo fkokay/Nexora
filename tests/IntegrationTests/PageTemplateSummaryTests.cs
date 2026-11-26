@@ -39,6 +39,13 @@ public sealed class PageTemplateSummaryTests
     }
 
     [Fact]
+    public void Summary_reports_free_as_level_3()
+    {
+        var json = """{"schemaVersion":2,"template":{"name":"free"},"queries":[],"components":[{"id":"b1","type":"section","props":{"slot":"block"}},{"id":"x","type":"text","props":{"slot":"above"}}]}""";
+        Assert.Equal(("free", 3), PageTemplateSummary.Read(json));
+    }
+
+    [Fact]
     public void Legacy_definition_has_no_template()
         => Assert.Equal((null, null), PageTemplateSummary.Read("""{"schemaVersion":2,"queries":[],"components":[]}"""));
 

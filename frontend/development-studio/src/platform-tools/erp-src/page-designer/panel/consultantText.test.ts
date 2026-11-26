@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
-import { newListTemplateDefinition } from "../pageTemplates";
+import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
+import { chooseRecordSource } from "./recordModel";
 import { fieldTokens, fromConsultantText, toConsultantText, type FieldToken } from "./consultantText";
 import { chooseDataSource, type ModelDefinition } from "./listPanelModel";
 
@@ -52,5 +53,29 @@ describe("consultant text", () => {
     const stored = "{{a.x}} {{b.y}}";
     expect(fromConsultantText("sadece {?}", tokens, stored)).toBe("sadece {{a.x}}");
     expect(fromConsultantText("{?} {?} {?}", tokens, "{{a.x}}")).toBe("{{a.x}} {?} {?}");
+  });
+});
+
+describe("fieldTokens on record and free pages (5c Karar 9)", () => {
+  const kart: CatalogDataSource = { ...cariler, code: "cariKart", parameters: [{ name: "kod", type: "text" }],
+    columns: [col("id", "Kimlik"), col("kod", "Cari kodu", true), col("unvan", "Unvan")] };
+  const recordCatalog: ActiveCatalog = { version: "1", dataSources: [kart], actions: [] };
+  const record = chooseRecordSource(newRecordTemplateDefinition() as unknown as ModelDefinition, kart, recordCatalog);
+
+  it("fieldTokens on record page binds to kayit.rows[0]", () => {
+    expect(fieldTokens(record, recordCatalog)).toEqual([
+      { label: "Kimlik", binding: "kayit.rows[0].id" },
+      { label: "Cari kodu", binding: "kayit.rows[0].kod" },
+      { label: "Unvan", binding: "kayit.rows[0].unvan" },
+    ]);
+    const stored = "Cari {{kayit.rows[0].kod}}";
+    const shown = toConsultantText(stored, fieldTokens(record, recordCatalog));
+    expect(shown).toEqual({ text: "Cari {Cari kodu}", unknown: false });
+    expect(fromConsultantText(shown.text, fieldTokens(record, recordCatalog), stored)).toBe(stored);
+  });
+  it("is empty on a record page without a source, without a catalog and on free pages", () => {
+    expect(fieldTokens(newRecordTemplateDefinition() as unknown as ModelDefinition, recordCatalog)).toEqual([]);
+    expect(fieldTokens(record, null)).toEqual([]);
+    expect(fieldTokens(newFreeTemplateDefinition() as unknown as ModelDefinition, recordCatalog)).toEqual([]);
   });
 });

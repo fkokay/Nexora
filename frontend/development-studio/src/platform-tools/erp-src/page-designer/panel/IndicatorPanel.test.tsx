@@ -1,7 +1,7 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
-import { newListTemplateDefinition } from "../pageTemplates";
+import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { chooseIndicatorSource, setIndicatorCompare, setIndicatorKind, setIndicatorValue } from "./indicatorPanelModel";
 import { IndicatorPanel } from "./IndicatorPanel";
@@ -72,5 +72,17 @@ describe("IndicatorPanel final review fixes 4 and 7", () => {
     const def = start();
     const nameless = { ...def, components: def.components.map((c) => c.id === "g1" ? { ...c, name: undefined } : c) };
     expect(renderToString(<IndicatorPanel {...props(nameless)}/>)).toContain('placeholder="Gösterge"');
+  });
+
+  it("progress and status notes speak of the card on a record page", () => {
+    const base = newRecordTemplateDefinition() as unknown as ModelDefinition;
+    for (const type of ["progress", "badge"]) {
+      const c: ModelComponent = { id: "g1", type, props: { slot: "above" } };
+      const html = renderToString(<IndicatorPanel {...props({ ...base, components: [...base.components, c] })}/>);
+      expect(html).toContain("göstergeler sırasına konamaz; kartın üstünde ya da altında durur.");
+      expect(html).not.toContain("listenin üstünde");
+    }
+    const list = renderToString(<IndicatorPanel {...props(setIndicatorKind(start(), "g1", "progress"))}/>);
+    expect(list).toContain("İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.");
   });
 });

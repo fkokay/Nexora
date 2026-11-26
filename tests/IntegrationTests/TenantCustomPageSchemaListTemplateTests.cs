@@ -54,13 +54,13 @@ public sealed class TenantCustomPageSchemaListTemplateTests
 
     [Fact]
     public void Unknown_template_name_is_rejected() =>
-        Rejected(Page(new { name = "card" }, [List()]), "Kalıp yalnız \"list\", \"record\" ya da \"belge\" olabilir.");
+        Rejected(Page(new { name = "card" }, [List()]), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
 
     [Fact]
     public void Extra_template_key_is_rejected()
     {
-        Rejected(Page(new { name = "list", level = 2 }, [List()]), "Kalıp yalnız \"list\", \"record\" ya da \"belge\" olabilir.");
-        Rejected(Page("list", [List()]), "Kalıp yalnız \"list\", \"record\" ya da \"belge\" olabilir.");
+        Rejected(Page(new { name = "list", level = 2 }, [List()]), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
+        Rejected(Page("list", [List()]), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
     }
 
     [Fact]

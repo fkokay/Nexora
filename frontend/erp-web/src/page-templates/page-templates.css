@@ -94,6 +94,28 @@
 .record-template-page .record-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card, 10px); }
 .record-template-page .record-skeleton-row { height: 46px; border-radius: 6px; background: linear-gradient(90deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 10%), rgb(0 0 0 / 5%)); background-size: 200% 100%; animation: list-skeleton-pulse 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .record-template-page .record-skeleton-row { animation: none; } }
+/* Serbest gövde (taslak 09): sekme çubuğu ve alt alta bölümler. Kurallar yalnız `.free-template-page` altında geçer. */
+.free-template-page .free-template-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.free-template-page .tenant-page-tabs { border: 0; background: transparent; }
+.free-template-page .tenant-page-tablist { overflow-x: auto; }
+.free-template-page .tenant-page-tabpanel > * { grid-column: 1 / -1 !important; }
+/* Bölüm: kendi kutusu `container-type: inline-size`; kolon sayısı > 720 px seçilen, ≤ 720 px en çok 2, ≤ 480 px 1.
+   JS (`sectionColumns`) aynı eşikle `data-cols` yazar; ölçülmeden önce container query geçerlidir. */
+.free-template-page .free-section { position: relative; min-width: 0; container-type: inline-size; padding: 10px; border-radius: var(--nx-radius-card, 10px); }
+.free-template-page .free-section h3 { margin: 0 0 8px; font-size: 14px; }
+.free-template-page .free-section-grid { display: grid; gap: 12px 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.free-template-page .free-section-grid.is-cols-1 { grid-template-columns: minmax(0, 1fr); }
+.free-template-page .free-section-grid.is-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.free-template-page .free-section[data-cols="2"] .free-section-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.free-template-page .free-section[data-cols="1"] .free-section-grid { grid-template-columns: minmax(0, 1fr); }
+@container (max-width: 720px) { .free-template-page .free-section .free-section-grid.is-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 480px) { .free-template-page .free-section .free-section-grid:is(.is-cols-2, .is-cols-3) { grid-template-columns: minmax(0, 1fr); } }
+/* Üye hücresi: bileşenin kendi `grid-column`'u ızgaraya karışmaz. Liste, Görsel ve maddeli kutular tam satır; Liste kendi kutusunda yatay kayar. */
+.free-template-page .free-cell { min-width: 0; }
+.free-template-page .free-cell > * { margin: 0; }
+.free-template-page .free-cell.is-full { grid-column: 1 / -1; min-width: 0; overflow-x: auto; }
+/* Üyesiz bölüm yalnız tuvalde görünür. */
+.free-template-page .free-section-placeholder { grid-column: 1 / -1; margin: 0; padding: 14px; text-align: center; color: var(--nx-muted); border: 1px dashed var(--nx-line); border-radius: 8px; }
 
 /* ---- Belge kalıbı (belge kuralları PR 2, taslak 08) ---- */
 .belge-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }

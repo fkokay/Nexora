@@ -68,3 +68,11 @@ describe("name placeholder (final review fix 7)", () => {
     expect(renderToString(<InfoBoxPanel component={alert} definition={def(alert)} {...common}/>)).toContain('placeholder="Bilgi kutusu"');
   });
 });
+
+describe("TextPanel record options (5c)", () => {
+  it("image and text panels hide record options without tokens", () => {
+    const html = renderToString(<TextPanel component={heading} definition={def(heading)} tokens={[]} {...common}/>);
+    expect(html).not.toContain("Metin içine alan koymak için");
+    expect(renderToString(<TextPanel component={heading} definition={def(heading)} tokens={tokens} {...common}/>)).toContain("Metin içine alan koymak için");
+  });
+});

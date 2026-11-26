@@ -23,3 +23,34 @@ describe("ImagePanel final review fixes 4 and 7", () => {
     expect(render({ id: "i1", type: "image", props: { value: "" } })).toContain('placeholder="Görsel"');
   });
 });
+
+describe("ImagePanel record options (5c)", () => {
+  const empty = (c: ModelComponent) => renderToString(<ImagePanel component={c} definition={def(c)} tokens={[]} onChange={() => {}} onRename={() => {}}/>);
+  it("image and text panels hide record options without tokens", () => {
+    const html = empty({ id: "i1", type: "image", props: { value: "" } });
+    expect(html).toContain("Adres");
+    expect(html).not.toContain("Kayıttaki resim");
+    expect(render({ id: "i1", type: "image", props: { value: "" } })).toContain("Kayıttaki resim");
+  });
+  it("reads a record-page binding as a record image and keeps the option when already bound", () => {
+    const recordTokens = [{ label: "Logo", binding: "kayit.rows[0].logo" }];
+    const c: ModelComponent = { id: "i1", type: "image", props: { value: "{{kayit.rows[0].logo}}" } };
+    const html = renderToString(<ImagePanel component={c} definition={def(c)} tokens={recordTokens} onChange={() => {}} onRename={() => {}}/>);
+    expect(html).toContain("Hangi alan?");
+    expect(html).toMatch(/<option value="kayit\.rows\[0\]\.logo" selected/);
+    expect(empty(c)).toContain("Kayıttaki resim");
+  });
+});
+
+describe("ImagePanel column binding (5c final review)", () => {
+  it("selects the token whose binding matches exactly, even with a dotted column code", () => {
+    const dotted = [{ label: "Adres logo", binding: "liste.seciliSatir.adres.logo" }, { label: "Logo", binding: "liste.seciliSatir.logo" }];
+    const c: ModelComponent = { id: "i1", type: "image", props: { value: "{{liste.seciliSatir.logo}}" } };
+    const html = renderToString(<ImagePanel component={c} definition={def(c)} tokens={dotted} onChange={() => {}} onRename={() => {}}/>);
+    expect(html).toMatch(/<option value="liste\.seciliSatir\.logo" selected/);
+    expect(html).not.toMatch(/<option value="liste\.seciliSatir\.adres\.logo" selected/);
+    const d: ModelComponent = { id: "i1", type: "image", props: { value: "{{liste.seciliSatir.adres.logo}}" } };
+    const second = renderToString(<ImagePanel component={d} definition={def(d)} tokens={dotted} onChange={() => {}} onRename={() => {}}/>);
+    expect(second).toMatch(/<option value="liste\.seciliSatir\.adres\.logo" selected/);
+  });
+});

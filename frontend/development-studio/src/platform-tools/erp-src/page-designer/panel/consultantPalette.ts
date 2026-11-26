@@ -30,16 +30,36 @@ export const consultantKindFromKey = (key: string): ConsultantKind | null => {
 };
 
 const NEXT_VERSION = "Bu bileşen sonraki sürümde gelir.";
-const UNAVAILABLE: Partial<Record<ConsultantKind, string>> = {
+const DEVELOPER_LATER = "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil.";
+/** Liste kalıbı (5a). Kayıt kartı da bunu kullanır; yalnız kartın kendi parçaları başka gerekçe gösterir. */
+const LIST_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = {
   list: "Bu kalıpta tek liste vardır.",
   form: NEXT_VERSION, lineTable: NEXT_VERSION, recordSummary: NEXT_VERSION, sections: NEXT_VERSION,
   buttons: "Düğmeleri Liste panelindeki Eylemler bölümünden ekleyin.",
-  developer: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil.",
+  developer: DEVELOPER_LATER,
 };
+const RECORD_OWN_FIELDS = "Kartın kendi alanlarını sol listeden ekleyin.";
+const RECORD_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = { ...LIST_UNAVAILABLE, form: RECORD_OWN_FIELDS, recordSummary: RECORD_OWN_FIELDS, lineTable: RECORD_OWN_FIELDS };
+/** Serbest gövde (5c Karar 10): Metin, Bilgi kutusu, Gösterge, Liste, Bölümler ve Görsel kullanılabilir. */
+const RECORD_ONLY = "Bu bileşen Kayıt kartı kalıbında kullanılır.";
+const FREE_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = {
+  form: RECORD_ONLY, recordSummary: RECORD_ONLY,
+  lineTable: "Düzenlenebilir satırlar Belge kalıbıyla gelecek.",
+  buttons: "Düğmeleri sayfa panelindeki Eylemler bölümünden ekleyin.",
+  developer: DEVELOPER_LATER,
+};
+export type ConsultantTemplate = "list" | "record" | "free";
+const UNAVAILABLE: Record<ConsultantTemplate, Partial<Record<ConsultantKind, string>>> = { list: LIST_UNAVAILABLE, record: RECORD_UNAVAILABLE, free: FREE_UNAVAILABLE };
 
-export function consultantAvailability(kind: ConsultantKind): { available: true } | { available: false; reason: string } {
-  const reason = UNAVAILABLE[kind];
+export function consultantAvailability(kind: ConsultantKind, template: ConsultantTemplate): { available: true } | { available: false; reason: string } {
+  const reason = UNAVAILABLE[template][kind];
   return reason ? { available: false, reason } : { available: true };
+}
+
+/** Paletteki öğenin açıklaması; serbest gövdede "Bölümler" yeni bölüm ekler (taslak 09). */
+export function consultantDescription(kind: ConsultantKind, template: ConsultantTemplate): string {
+  if (template === "free" && kind === "sections") return "Yeni bölüm ekler";
+  return CONSULTANT_PALETTE.find((item) => item.kind === kind)?.description ?? "";
 }
 
 export type CreatableKind = "text" | "infoBox" | "indicator" | "image";

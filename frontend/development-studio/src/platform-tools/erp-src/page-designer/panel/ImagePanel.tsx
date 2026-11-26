@@ -25,14 +25,18 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
   // Seçili satır dışındaki bir bağlama (ör. sorgu sonucu) adres kutusunda ham `{{…}}` olarak gösterilmez; "Adres" ile temizlenebilir.
   const bound = image.from === "address" && image.address.includes("{{");
   const problem = image.from === "address" && !bound ? imageAddressProblem(image.address) : null;
-  const columnBinding = tokens.find((token) => token.binding.endsWith(`.seciliSatir.${image.column}`))?.binding ?? "";
+  // Kayıtlı bağlamanın kendisiyle tam eşleşme: noktalı kolon kodunda başka bir kolonun sonu seçilmez.
+  const stored = image.from === "record" ? String(component.props.value ?? "").trim().replace(/^\{\{\s*|\s*\}\}$/g, "") : "";
+  const columnBinding = tokens.find((token) => token.binding === stored)?.binding ?? "";
   const choose = (value: "address" | "record") => {
     if (value === image.from && !bound) return;
     if (value === "address") return onChange(setImageAddress(definition, component.id, ""));
     if (tokens[0]) onChange(setImageFromRecord(definition, component.id, tokens[0].binding));
   };
+  // Kayıt yokken (serbest gövde, listesiz sayfa) "Kayıttaki resim" önerilmez; zaten kayıttan bağlıysa görünür kalır.
+  const sources = SOURCES.filter(([, value]) => value === "address" || tokens.length > 0 || image.from === "record");
   const what = <>
-    <div className="cpanel-seg" role="group" aria-label="Görsel nereden?">{SOURCES.map(([label, value]) =>
+    <div className="cpanel-seg" role="group" aria-label="Görsel nereden?">{sources.map(([label, value]) =>
       <button type="button" key={value} className={image.from === value ? "on" : ""} aria-pressed={image.from === value} disabled={disabled}
         onClick={() => choose(value)}>{label}</button>)}</div>
     {bound ? <p className="cpanel-note">Kayıttan gelen görsel</p>

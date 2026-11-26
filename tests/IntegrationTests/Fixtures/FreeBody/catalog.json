@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "dataSources": [
+    {
+      "code": "cariListe", "label": "Cari listesi",
+      "source": { "sql": "SELECT kod, unvan, sehir FROM Cari" },
+      "columns": [
+        { "code": "kod", "label": "Cari kodu", "type": "text", "key": true },
+        { "code": "unvan", "label": "Ünvan", "type": "text" },
+        { "code": "sehir", "label": "Şehir", "type": "text" }
+      ],
+      "opens": "cari-karti"
+    }
+  ],
+  "actions": [
+    {
+      "code": "raporYenile", "label": "Raporu yenile", "target": "page", "kind": "update",
+      "run": { "sql": "UPDATE Rapor SET yenilendi = 1 WHERE yenilendi = 0" },
+      "confirm": { "text": "Rapor yenilensin mi?" }
+    }
+  ]
+}
