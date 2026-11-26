@@ -23,7 +23,12 @@ export async function loadCatalog(token: string): Promise<ActiveCatalog | null> 
   const response = await authenticatedFetch("/api/custom-pages/catalog", token);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Katalog okunamadı (${response.status}).`);
-  const body = (await response.json()) as Raw | null;
+  return parseCatalog((await response.json()) as unknown);
+}
+
+/** `GET /api/custom-pages/catalog` gövdesi; sürüm yoksa null. Tanınmayan değerler güvenli varsayılana düşer. */
+export function parseCatalog(raw: unknown): ActiveCatalog | null {
+  const body = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Raw) : null;
   const version = body ? str(body.version) : null;
   if (!body || !version) return null;
   return {
