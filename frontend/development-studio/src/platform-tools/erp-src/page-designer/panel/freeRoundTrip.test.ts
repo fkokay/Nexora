@@ -5,7 +5,7 @@ import { freeSourceProblem, LIST_SOURCE_HINT, NEW_FREE_BLOCK_ID, newFreeTemplate
 import { createConsultantComponent } from "./consultantPalette";
 import { chooseComponent, setComponentSetting } from "./developerComponentModel";
 import {
-  addBlock, addItem, addPageAction, addTab, isFreeBlock, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
+  addBlock, addItem, addPageAction, addPageButton, addTab, isFreeBlock, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
   moveItemToBlock, removeBlock, removeItem, removePageAction, removeTab, renameTab, setBlockColumns, setBlockTitle,
 } from "./freeModel";
 import { chooseTableSource, setTableEmptyText, setTablePageSize } from "./freeTableModel";
@@ -224,6 +224,11 @@ describe("free designer delete and duplicate", () => {
       expect(result.def.components.some((c) => c.props.slot === "actions")).toBe(false);
       expect(result.def.queries).toHaveLength(0);
     }
+    // Ekran açan düğme Delete ile yalnız kendisi kalkar; sorgular değişmez.
+    const paged = addPageButton(def, "rapor", "Rapor");
+    const pageRemoval = freeRemoval(paged, "ekranDugmesi");
+    expect(pageRemoval.kind).toBe("removed");
+    if (pageRemoval.kind === "removed") expect(pageRemoval.def).toEqual(def);
     const tabbed = ok(addTab(def)).def;
     expect(freeRemoval(tabbed, tabbed.components.find((c) => c.type === "tabs")!.id).kind).toBe("none");
   });

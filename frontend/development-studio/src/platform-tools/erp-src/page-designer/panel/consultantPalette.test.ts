@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantDescription, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
+import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantDescription, consultantKindOf, consultantLayerLabel, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
 import { designerInternals } from "../../CustomPagesPage";
 import type { ActiveCatalog, CatalogComponent } from "../catalogClient";
 
@@ -32,6 +32,25 @@ describe("consultantPalette", () => {
     expect(createConsultantComponent("indicator", "c")).toEqual({ id: "c", type: "metric", props: { title: "Gösterge" } });
     expect(createConsultantComponent("image", "d")).toEqual({ id: "d", type: "image", props: { title: "", value: "", height: 160 } });
     expect(createConsultantComponent("text", "a").props).not.toHaveProperty("slot");
+  });
+
+  it("consultantLayerLabel gives consultant names for template parts, free blocks and items", () => {
+    expect(consultantLayerLabel(comp("section", { slot: "block" }))).toBe("Bölüm");
+    expect(consultantLayerLabel(comp("formCard", { slot: "section" }))).toBe("Bölüm");
+    expect(consultantLayerLabel(comp("tabs", { slot: "tabs" }))).toBe("Sekmeler");
+    expect(consultantLayerLabel(comp("recordHeader", { slot: "summary" }))).toBe("Kayıt özeti");
+    expect(consultantLayerLabel(comp("input", { slot: "field" }))).toBe("Alan");
+    expect(consultantLayerLabel(comp("dataTable", { slot: "item" }))).toBe("Liste");
+    expect(consultantLayerLabel(comp("dataTable", { slot: "list" }))).toBe("Liste");
+    expect(consultantLayerLabel(comp("button", { slot: "actions" }))).toBe("Düğme");
+    expect(consultantLayerLabel(comp("metric", { slot: "item" }))).toBe("Gösterge");
+    expect(consultantLayerLabel(comp("alert", { slot: "item" }))).toBe("Bilgi kutusu");
+    expect(consultantLayerLabel(comp("heading", { slot: "item" }))).toBe("Metin");
+    // Serbest gövdenin metin bileşeni de `section` tipinde olabilir: bölüm yalnız `slot: block`.
+    expect(consultantLayerLabel(comp("section", { slot: "item" }))).toBe("Metin");
+    expect(consultantLayerLabel(comp("image", { slot: "item" }))).toBe("Görsel");
+    // Danışman karşılığı olmayan tip: çağıran kendi adını kullanır.
+    expect(consultantLayerLabel(comp("contextPanel", { slot: "detail" }))).toBeNull();
   });
 
   it("consultantKindOf maps every current type per spec table", () => {

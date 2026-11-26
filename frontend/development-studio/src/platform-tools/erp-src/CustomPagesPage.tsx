@@ -57,13 +57,14 @@ import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
 import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector, usesTemplateInspector } from "./page-designer/panel/TemplateInspector";
 import { fieldTokens } from "./page-designer/panel/consultantText";
-import { stringList, withOperationParameters, type ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { stringList, withOperationParameters, type ModelComponent, type ModelDefinition } from "./page-designer/panel/listPanelModel";
 import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
 import { ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { FreeSelection } from "./page-designer/panel/FreePanel";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
+import { FreeCanvasOverlay } from "./page-designer/freeCanvasOverlay";
 import { shownRecordTab } from "./page-designer/recordCanvasHit";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
@@ -73,7 +74,7 @@ import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import * as freeModel from "./page-designer/panel/freeModel";
-import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
+import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantLayerLabel, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
 import { pruneComponentSettings } from "./page-designer/panel/developerComponentModel";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
@@ -1848,6 +1849,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       const item = findPaletteItem(type, consultantTemplateNow(), activeCatalog.catalog);
       if (item) addComponent(item, targetIndex);
     } else if (Number.isInteger(from) && from >= 0 && from < definition.components.length) {
+      // Serbest gövdede sıra bölümün `members`'ı ve bölüm sırasıdır: bileşen dizisini yeniden dizmek bir şey taşımaz.
+      if (readPageTemplate(definitionRef.current.template)?.name === "free") return;
       commit((state) => {
         const movedId = state.components[from]?.id;
         const base = detach && movedId ? cardTree.withCardTabs(state.components, (flat) => removeFromTabs(flat, movedId)) ?? state.components : state.components;
@@ -2321,6 +2324,24 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     [next[index], next[target]] = [next[target], next[index]];
     return { ...state, components: next };
   });
+  // Serbest gövdede Katmanlar'ın ↑ / ↓'ı Alt+↑ / ↓ gibi bölüm ya da `members` sırasını değiştirir; bileşen dizisi dizilmez.
+  // Sekme bileşeni ve sayfa düğmelerinde bir şey yapmaz (tanım aynen döner); ↑ / ↓ o zaman kapalıdır.
+  const freeStep = (freeDef: ModelDefinition, id: string | undefined, delta: number): ModelDefinition => {
+    const target = id ? freeDef.components.find((component) => component.id === id) : undefined;
+    if (!target || (delta !== 1 && delta !== -1)) return freeDef;
+    return freeModel.isFreeBlock(target) ? freeModel.moveBlock(freeDef, target.id, delta)
+      : freeModel.isFreeItem(target) ? freeModel.moveItem(freeDef, target.id, delta) : freeDef;
+  };
+  const canStepFree = (id: string, delta: -1 | 1) => {
+    const freeDef = definition as unknown as ModelDefinition;
+    return freeStep(freeDef, id, delta) !== freeDef;
+  };
+  const stepFree = (id: string | undefined, delta: number) => {
+    const freeDef = definitionRef.current as unknown as ModelDefinition;
+    if (!canEdit) return;
+    const next = freeStep(freeDef, id, delta);
+    if (next !== freeDef) commit(() => next as unknown as PageDefinition);
+  };
   const detachFromTab = (id: string) => commit((state) => {
     const components = cardTree.withCardTabs(state.components, (flat) => removeFromTabs(flat, id)) ?? state.components;
     return components === state.components ? state : { ...state, components };
@@ -3306,7 +3327,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
   // Katmanlar: üst düzey bileşenler (sırası kök sırasıdır), arkalarından kartların çocukları; kart açılır bir daldır
   // (kart › çocuklar › sekmeler › üyeler). Kartın içindeki bir bileşene tıklamak kart tasarım ekranını açar.
-  const layerOf = (component: PageComponent) => ({ id: component.id, name: component.name, label: summaryOf(component), typeLabel: titleFor(component.type), span: spanOf(component), icon: iconFor(component.type),
+  // Kalıplı sayfada (liste, kayıt, serbest) danışman adı görünür ve ızgara genişliği gösterilmez; kalıpsız sayfa değişmez.
+  const layerOf = (component: PageComponent) => ({ id: component.id, name: component.name, label: summaryOf(component),
+    typeLabel: (pageTemplate ? consultantLayerLabel(component as unknown as ModelComponent) : null) ?? titleFor(component.type),
+    span: pageTemplate ? undefined : spanOf(component), icon: iconFor(component.type),
     children: component.type === "tabs" ? parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids }))
       : component.type === "dialog" ? [{ label: component.props.presentation === "drawer" ? "çekmece" : "pencere", ids: idList(component.props.contains, MAX_DIALOG_IDS) }]
         : component.type === "formCard" || component.type === "facetPanel" ? [{ ids: refTree.refIds(component) }]
@@ -3965,7 +3989,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: id }); }}
         onLayerDragEnd={() => live.current.clearDrag()}
         onLayerDragOver={(index, edge) => { const target = dragStore.get().dropTarget; if (target?.index !== index || target.edge !== edge) dragStore.set({ dropTarget: { index, edge } }); }}
-        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={moveComponent} componentCount={definition.components.length}
+        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={(index, delta) => isFreePage ? stepFree(definition.components[index]?.id, delta) : moveComponent(index, delta)}
+        layerReorderable={!isFreePage} canLayerMove={isFreePage ? (_index, id, delta) => canStepFree(id, delta) : undefined} componentCount={definition.components.length}
         queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${querySourceLabel(query)}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}
@@ -3986,9 +4011,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {!focusOwner && !erpCanvas && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
-          {/* Kayıt kartında sürükle-bırak tuvalin kaplamasındadır (RecordCanvasOverlay); genel bırakma yolu kullanılmaz. */}
+          {/* Kayıt kartında ve serbest gövdede sürükle-bırak tuvalin kaplamasındadır (RecordCanvasOverlay, FreeCanvasOverlay);
+              genel bırakma yolu (bileşen dizisini yeniden dizer) kullanılmaz. */}
           {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
-            {...(isRecordPage ? {} : { onDragOver: canvasHandlers.onDragOver, onDragLeave: canvasHandlers.onDragLeave, onDrop: canvasHandlers.onDrop })}>
+            {...(isRecordPage || isFreePage ? {} : { onDragOver: canvasHandlers.onDragOver, onDragLeave: canvasHandlers.onDragLeave, onDrop: canvasHandlers.onDrop })}>
             {canvasError && <div className="pd-erp-canvas-hint" role="status">ERP sayfası yüklenemedi; sonraki kayıtta yeniden denenir. Neden: {canvasError}</div>}
             {canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
@@ -4008,7 +4034,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   onShowTab={(index) => { setRecordTab(index); leaveHiddenRecordTab(index); if (tabsId) showTab(tabsId, index); }}
                   onDropColumn={(code, sectionId, index) => addRecordColumn(code, { sectionId, index })}
                   onDropBlock={(kind, tabIndex, index) => addRecordBlock(kind, { tabIndex, index })}/>;
-              } : undefined}/>
+              } : isFreePage ? ({ blocks }) => <FreeCanvasOverlay blocks={blocks} def={definition as unknown as ModelDefinition} disabled={!canEdit}
+                paletteKey={() => dragStore.get().dragging}
+                onChange={(next) => { setError(""); commit(() => next as unknown as PageDefinition); }}
+                onSelect={setSelectedComponentId}
+                onRefuse={(reason) => { live.current.clearDrag(); setError(reason); }}/> : undefined}/>
           </div>
             : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) ?? freeSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>

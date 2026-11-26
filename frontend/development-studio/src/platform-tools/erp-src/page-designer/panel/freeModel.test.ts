@@ -6,6 +6,7 @@ import {
   FREE_LAST_BLOCK, FREE_TABS_FULL, freeBlocks, freeSelectionTab, freeTabs, shownFreeTab, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
   moveItemToBlock, PAGE_ACTION_BULK, PAGE_ACTION_NEEDS_INPUT, PAGE_ACTION_ROW, pageActionCodes, pageActionUsable, removeBlock, removeItem,
   removePageAction, removeTab, renameTab, setBlockColumns, setBlockTitle,
+  addPageButton, FREE_PAGE_CODE_INVALID, moveTab, pageButtonCodeProblem, pageButtons, removePageButton,
 } from "./freeModel";
 import type { ModelDefinition } from "./listPanelModel";
 import { ensureTemplateSlots } from "./templateGuards";
@@ -358,6 +359,63 @@ describe("serbest gövde modeli", () => {
     expect(pageActionCodes(many)).toHaveLength(8);
   });
 
+  it("addPageButton adds a screen-opening button; the first button stays the main one; the 8-button limit counts it", () => {
+    const withAction = addPageAction(fresh(), action("yenile"));
+    const paged = addPageButton(withAction, " satis-raporu ", "  Satış raporu ");
+    expect(pageButtons(paged)).toEqual([{ id: "ekranDugmesi", text: "Satış raporu", pageCode: "satis-raporu" }]);
+    expect(paged.components.at(-1)).toEqual({ id: "ekranDugmesi", type: "button",
+      props: { slot: "actions", text: "Satış raporu", actionType: "page", pageCode: "satis-raporu" } });
+    // İlk düğme ana düğmedir: sıra eklendiği gibi kalır.
+    expect(paged.components.filter((c) => c.props.slot === "actions").map((c) => c.props.actionType)).toEqual(["query", "page"]);
+    expect(addPageButton(withAction, "", "Rapor")).toBe(withAction);
+    expect(addPageButton(withAction, "rapor", "  ")).toBe(withAction);
+    expect(ensureTemplateSlots(paged)).toBe(paged);
+    const second = addPageButton(paged, "stok", "Stok");
+    expect(pageButtons(second).map((b) => b.id)).toEqual(["ekranDugmesi", "ekranDugmesi2"]);
+    // Silme türündeki eylem sonradan eklense de en sağda kalır.
+    const sil = addPageAction(second, action("temizle", { kind: "delete" }));
+    expect(sil.components.filter((c) => c.props.slot === "actions").at(-1)!.id).toBe("temizleDugmesi");
+    let many = fresh();
+    for (let index = 0; index < MAX_PAGE_ACTIONS; index++) many = addPageButton(many, `ekran${index}`, `Ekran ${index}`);
+    expect(pageButtons(many)).toHaveLength(MAX_PAGE_ACTIONS);
+    expect(addPageButton(many, "fazla", "Fazla")).toBe(many);
+    expect(addPageAction(many, action("yenile"))).toBe(many);
+  });
+
+  it("a screen code must be one the server accepts (custom page code or @screen key)", () => {
+    for (const code of ["satis-raporu", "Rapor_2", "@satis-siparisleri", "a".repeat(40)]) expect(pageButtonCodeProblem(code), code).toBeNull();
+    for (const code of ["Satış raporu", "rapor/1", "a".repeat(41), "@Satis", "@", "@a_b"]) expect(pageButtonCodeProblem(code), code).toBe(FREE_PAGE_CODE_INVALID);
+    expect(pageButtonCodeProblem("  ")).toBeNull();
+    expect(FREE_PAGE_CODE_INVALID).toBe("Ekran kodu harf, rakam, - ve _ içerebilir (en çok 40); sistem ekranları için @ ile başlayan küçük harfli anahtar yazın.");
+    const def = fresh();
+    expect(addPageButton(def, "Satış raporu", "Rapor")).toBe(def);
+    expect(pageButtons(addPageButton(def, " @stok-kartlari ", "Stok"))[0].pageCode).toBe("@stok-kartlari");
+  });
+
+  it("removePageButton removes only screen-opening buttons", () => {
+    const def = addPageButton(addPageAction(fresh(), action("yenile")), "rapor", "Rapor");
+    const removed = removePageButton(def, "ekranDugmesi");
+    expect(pageButtons(removed)).toEqual([]);
+    expect(pageActionCodes(removed)).toEqual(["yenile"]);
+    expect(removed.queries).toEqual(def.queries);
+    expect(removePageButton(def, "yenileDugmesi")).toBe(def);
+    expect(removePageButton(def, "yok")).toBe(def);
+  });
+
+  it("moveTab swaps a tab with its neighbour and keeps the blocks; at the ends nothing changes", () => {
+    const first = ok(addTab(fresh(), "Satış"));
+    const second = ok(addTab(first.def, "Stok"));
+    const def = second.def;
+    expect(freeTabs(def)!.map((tab) => tab.label)).toEqual(["Genel", "Satış", "Stok"]);
+    const moved = moveTab(def, 2, -1);
+    expect(freeTabs(moved)).toEqual([freeTabs(def)![0], freeTabs(def)![2], freeTabs(def)![1]]);
+    assertShape(moved);
+    expect(moveTab(def, 0, -1)).toBe(def);
+    expect(moveTab(def, 2, 1)).toBe(def);
+    expect(moveTab(def, 5, 1)).toBe(def);
+    expect(moveTab(fresh(), 0, 1)).toEqual(fresh());
+  });
+
   it("functions never mutate input", () => {
     const base = ok(addTab(ok(addItem(ok(addBlock(fresh())).def, "text", {})).def));
     const withAction = addPageAction(base.def, action("yenile"));
@@ -369,6 +427,7 @@ describe("serbest gövde modeli", () => {
       () => moveBlock(def, "bolum", 1), () => addTab(def), () => renameTab(def, 0, "A"), () => removeTab(def, 0), () => moveBlockToTab(def, "bolum", 1),
       () => addItem(def, "image", { blockId: "bolum" }), () => moveItem(def, itemId, 1), () => moveItemToBlock(def, itemId, base.blockId),
       () => removeItem(def, itemId), () => addPageAction(def, action("baska")), () => removePageAction(def, "yenile"), () => ensureTemplateSlots(def),
+      () => addPageButton(def, "rapor", "Rapor"), () => removePageButton(def, "yenileDugmesi"), () => moveTab(def, 0, 1),
     ];
     for (const call of calls) call();
     expect(JSON.stringify(def)).toBe(snapshot);

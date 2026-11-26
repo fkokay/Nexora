@@ -21,6 +21,8 @@ export const FREE_BLOCK_NOT_EMPTY = "Önce bu bölümdeki bileşenleri kaldırı
 export const FREE_LAST_BLOCK = "Serbest gövdede en az bir bölüm olmalı.";
 export const FREE_BLOCKS_FULL = "Serbest gövdede en fazla 20 bölüm olabilir.";
 export const FREE_TABS_FULL = "Serbest gövdede en fazla 8 sekme olabilir.";
+export const FREE_ACTIONS_FULL = "İşlem çubuğunda en fazla 8 düğme olabilir.";
+export const FREE_PAGE_CODE_INVALID = "Ekran kodu harf, rakam, - ve _ içerebilir (en çok 40); sistem ekranları için @ ile başlayan küçük harfli anahtar yazın.";
 export const PAGE_ACTION_ROW = "Bu eylem bir satıra ait; serbest gövdede kullanılamaz.";
 export const PAGE_ACTION_BULK = "Toplu eylemler serbest gövdede kullanılamaz.";
 export const PAGE_ACTION_NEEDS_INPUT = "Bu eylem ek bilgi istiyor; serbest gövdede kullanılamaz.";
@@ -103,6 +105,11 @@ const withProps = (component: ModelComponent, patch: Record<string, PropValue | 
 };
 const patchComponent = <D extends ModelDefinition>(def: D, id: string, patch: Record<string, PropValue | undefined>): D =>
   ({ ...def, components: def.components.map((component) => component.id === id ? withProps(component, patch) : component) });
+/** `index` konumuna ekler; dizin yoksa, tam sayı değilse ya da taşkınsa sona. */
+const insertAt = <T,>(list: T[], value: T, index?: number): T[] => {
+  const at = index !== undefined && Number.isInteger(index) && index >= 0 && index < list.length ? index : list.length;
+  return [...list.slice(0, at), value, ...list.slice(at)];
+};
 const swap = <T,>(list: T[], index: number, other: number): T[] => {
   const next = [...list];
   [next[index], next[other]] = [next[other], next[index]];
@@ -267,6 +274,14 @@ export function removeTab<D extends ModelDefinition>(def: D, tabIndex: number): 
   return setFreeTabs(def, next);
 }
 
+/** Sekmeyi bir sola / sağa taşır (bölümleri onunla gider). Uçta ya da sekmesiz sayfada tanım değişmez. */
+export function moveTab<D extends ModelDefinition>(def: D, tabIndex: number, direction: -1 | 1): D {
+  const tabs = freeTabs(def);
+  const other = tabIndex + direction;
+  if (!tabs?.[tabIndex] || other < 0 || other >= tabs.length) return def;
+  return setFreeTabs(def, swap(tabs, tabIndex, other));
+}
+
 /** Bölümü başka sekmenin sonuna taşır; boş kalan sekme kalkar, tek sekme kalırsa sekme bileşeni de. */
 export function moveBlockToTab<D extends ModelDefinition>(def: D, blockId: string, tabIndex: number): D {
   const tabs = freeTabs(def);
@@ -275,21 +290,59 @@ export function moveBlockToTab<D extends ModelDefinition>(def: D, blockId: strin
     ...tab, blockIds: index === tabIndex ? [...tab.blockIds, blockId] : tab.blockIds.filter((id) => id !== blockId) })));
 }
 
+/**
+ * Bölümü tuvalde bırakılan yere taşır: `index` taşımadan önceki listede "bunun önüne" konumudur. Sekmesiz sayfada `tabIndex`
+ * null ve liste bölüm sırasıdır; sekmeli sayfada `tabIndex` hedef sekmedir (başka sekmeye de olabilir). Boş kalan sekme kalkar,
+ * tek sekme kalırsa sekme bileşeni de (setFreeTabs). Sekme dizini sayfaya uymuyorsa ya da yer değişmiyorsa tanım aynen döner.
+ */
+export function moveBlockTo<D extends ModelDefinition>(def: D, blockId: string, tabIndex: number | null, index: number): D {
+  if (!findBlock(def, blockId)) return def;
+  const tabs = freeTabs(def);
+  const place = (list: string[]) => {
+    const own = list.indexOf(blockId);
+    const placed = insertAt(list.filter((id) => id !== blockId), blockId, own >= 0 && own < index ? index - 1 : index);
+    return own >= 0 && placed.every((id, position) => id === list[position]) ? null : placed;
+  };
+  if (!tabs) {
+    if (tabIndex !== null) return def;
+    const order = place(freeBlocks(def).map((block) => block.id));
+    return order ? reorderBlocks(def, order) : def;
+  }
+  if (tabIndex === null || !tabs[tabIndex]) return def;
+  const order = place(tabs[tabIndex].blockIds);
+  if (!order) return def;
+  return setFreeTabs(def, tabs.map((tab, position) => position === tabIndex ? { ...tab, blockIds: order } : { ...tab, blockIds: tab.blockIds.filter((id) => id !== blockId) }));
+}
+
 // ---------- bileşenler ----------
+
+/**
+ * Tam satır üyeler (ERP `freeTemplateModel.freeFullRow` ile aynı kural; Studio erp-web'i içe aktaramaz): Liste, Görsel,
+ * yazılımcı bileşeni ve maddeli Bilgi kutusu / kart / madde listesi.
+ */
+export function freeFullRow(component: ModelComponent): boolean {
+  if (component.type === "dataTable" || component.type === "image" || component.type === "code") return true;
+  if (component.type !== "alert" && component.type !== "card" && component.type !== "list") return false;
+  const items = component.props.items;
+  return Array.isArray(items) && items.some((item) => typeof item === "string" && item.trim() !== "");
+}
 
 const ITEM_BASE: Record<CreatableKind | "table" | "developer", string> = { text: "metin", infoBox: "bilgi", indicator: "gosterge", image: "gorsel", table: "liste", developer: "bilesen" };
 
 /**
  * Karar 5: bileşen seçili bölüme (`blockId`), yoksa seçili bileşenin (`nearItemId`) bölümüne, o da yoksa son bölüme, sona
- * eklenir. Bölüm doluysa (12) neden döner. `"table"` boş bir `dataTable` (kaynağını paneli seçer). `"developer"` verilen katalog
- * bileşenine başvuran `code` bileşenidir (kod ve ayar yazılmaz).
+ * eklenir; `index` verilirse (tuvalde bırakma) bölümün o sırasına. Bölüm doluysa (12) neden döner. `"table"` boş bir
+ * `dataTable` (kaynağını paneli seçer). `"developer"` verilen katalog bileşenine başvuran `code` bileşenidir (kod ve ayar yazılmaz).
  */
-export function addItem<D extends ModelDefinition>(def: D, kind: "developer", target: { blockId?: string; nearItemId?: string }, component: CatalogComponent):
+export function addItem<D extends ModelDefinition>(def: D, kind: "developer", target: { blockId?: string; nearItemId?: string }, component: CatalogComponent, index?: number):
   { def: D; itemId: string } | { reason: string };
-export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table", target: { blockId?: string; nearItemId?: string }):
+export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table", target: { blockId?: string; nearItemId?: string }, index?: number):
   { def: D; itemId: string } | { reason: string };
-export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table" | "developer", target: { blockId?: string; nearItemId?: string }, component?: CatalogComponent):
+export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table" | "developer", target: { blockId?: string; nearItemId?: string },
+  componentOrIndex?: CatalogComponent | number, developerIndex?: number):
   { def: D; itemId: string } | { reason: string } {
+  const component = typeof componentOrIndex === "object" ? componentOrIndex : undefined;
+  const index = typeof componentOrIndex === "number" ? componentOrIndex : developerIndex;
   const blockId = (target.blockId && findBlock(def, target.blockId) ? target.blockId : null)
     ?? (target.nearItemId ? blockOf(def, target.nearItemId) : null)
     ?? freeBlocks(def).at(-1)?.id ?? null;
@@ -300,7 +353,7 @@ export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind |
   const created = kind === "table" ? { id, type: "dataTable", props: {} }
     : kind === "developer" ? createConsultantComponent("developer", id, component!) : createConsultantComponent(kind, id);
   const item: ModelComponent = { ...created, props: { ...created.props, slot: "item" } };
-  const next = patchComponent(def, block.id, { members: [...membersOf(block), id] });
+  const next = patchComponent(def, block.id, { members: insertAt(membersOf(block), id, index) });
   return { def: { ...next, components: [...next.components, item] }, itemId: id };
 }
 
@@ -316,16 +369,24 @@ export function moveItem<D extends ModelDefinition>(def: D, itemId: string, dire
   return patchComponent(def, block.id, { members: swap(ids, index, other) });
 }
 
-/** Bileşeni başka bölümün sonuna taşır; bütün bölümlerden çıkarıldığı için tam bir bölümde kalır. Hedef doluysa neden döner. */
-export function moveItemToBlock<D extends ModelDefinition>(def: D, itemId: string, blockId: string): { def: D } | { reason: string } {
+/**
+ * Bileşeni başka bölümün sonuna (ya da `index` verilirse, taşımadan önceki `members` sırasında o konumun önüne) taşır; bütün
+ * bölümlerden çıkarıldığı için tam bir bölümde kalır. Hedef doluysa (bileşen zaten onda değilse) neden döner. Yeri değişmeyen
+ * taşıma tanımı aynen döner.
+ */
+export function moveItemToBlock<D extends ModelDefinition>(def: D, itemId: string, blockId: string, index?: number): { def: D } | { reason: string } {
   const target = findBlock(def, blockId);
   if (!target || !findItem(def, itemId)) return { def };
   const current = membersOf(target);
-  if (current.includes(itemId) && def.components.filter(isFreeBlock).every((block) => block === target || !membersOf(block).includes(itemId))) return { def };
+  const soleOwner = current.includes(itemId) && def.components.filter(isFreeBlock).every((block) => block === target || !membersOf(block).includes(itemId));
+  if (soleOwner && index === undefined) return { def };
   const without = current.filter((id) => id !== itemId);
   if (without.length >= MAX_BLOCK_MEMBERS) return { reason: FREE_BLOCK_FULL };
+  const own = current.indexOf(itemId);
+  const placed = insertAt(without, itemId, index === undefined ? undefined : own >= 0 && own < index ? index - 1 : index);
+  if (soleOwner && placed.every((id, position) => id === current[position])) return { def };
   return { def: { ...def, components: def.components.map((component) => {
-    if (component === target) return withProps(component, { members: [...without, itemId] });
+    if (component === target) return withProps(component, { members: placed });
     return isFreeBlock(component) && membersOf(component).includes(itemId)
       ? withProps(component, { members: membersOf(component).filter((id) => id !== itemId) }) : component;
   }) } };
@@ -429,4 +490,47 @@ export function removePageAction<D extends ModelDefinition>(def: D, code: string
   const removed = def.components.filter((component) => isActionButton(component) && actionQueryOf(def, component)?.action === code);
   if (removed.length === 0) return def;
   return dropOrphanQueries({ ...def, components: def.components.filter((component) => !removed.includes(component)) }, removed);
+}
+
+// ---------- ekran açan düğmeler ----------
+
+const isPageButton = (component: ModelComponent) => isActionButton(component) && component.props.actionType === "page";
+
+// Sunucunun kabul ettiği kodlar (TenantCustomPageSchema.KnownPageCode): özel sayfa kodu ya da `@ekran-anahtarı`.
+const CUSTOM_PAGE_CODE = /^[A-Za-z0-9_-]{1,40}$/;
+const SCREEN_CODE = /^@[a-z0-9-]{1,39}$/;
+/** Açılacak ekranın kodu sunucunun kabul edeceği biçimde değilse neden; boş ya da geçerliyse null. */
+export function pageButtonCodeProblem(pageCode: string): string | null {
+  const code = pageCode.trim();
+  return !code || CUSTOM_PAGE_CODE.test(code) || SCREEN_CODE.test(code) ? null : FREE_PAGE_CODE_INVALID;
+}
+
+/**
+ * Başka bir ekranı açan düğmeyi (`actionType: "page"`) işlem çubuğuna ekler; ilk düğme ana düğmedir, sıra eklendiği gibi kalır
+ * (silme türündeki eylemler yine en sağda). Kod ya da metin boşsa, kod geçersizse ya da 8 düğme doluysa tanım değişmez.
+ */
+export function addPageButton<D extends ModelDefinition>(def: D, pageCode: string, label: string): D {
+  const code = pageCode.trim();
+  const text = label.trim().slice(0, MAX_TITLE).trim();
+  if (!code || !text || pageButtonCodeProblem(code) || pageActionsFull(def)) return def;
+  const button: ModelComponent = { id: freeId(def, "ekranDugmesi"), type: "button", props: { slot: "actions", text, actionType: "page", pageCode: code } };
+  return orderActions({ ...def, components: [...def.components, button] });
+}
+
+/** Ekran açan düğmeyi kaldırır; başka türdeki düğmede tanım değişmez. */
+export function removePageButton<D extends ModelDefinition>(def: D, buttonId: string): D {
+  const button = def.components.find((component) => component.id === buttonId && isPageButton(component));
+  return button ? { ...def, components: def.components.filter((component) => component !== button) } : def;
+}
+
+/** İşlem çubuğu dolu mu (8 düğme: katalog eylemleri ve ekran açan düğmeler birlikte). */
+export const pageActionsFull = (def: ModelDefinition) => def.components.filter(isActionButton).length >= MAX_PAGE_ACTIONS;
+
+/** İşlem çubuğundaki ekran açan düğmeler, sırayla. */
+export function pageButtons(def: ModelDefinition): { id: string; text: string; pageCode: string }[] {
+  return def.components.filter(isPageButton).map((component) => ({
+    id: component.id,
+    text: typeof component.props.text === "string" ? component.props.text : "",
+    pageCode: typeof component.props.pageCode === "string" ? component.props.pageCode : "",
+  }));
 }

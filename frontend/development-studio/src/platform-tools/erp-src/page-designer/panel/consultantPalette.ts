@@ -106,3 +106,23 @@ export function consultantKindOf(component: ModelComponent): ConsultantKind | nu
   if (component.type === "alert" && typeof component.props.icon === "string" && component.props.icon.trim() !== "") return null;
   return kind;
 }
+
+const PART_LABELS: Record<string, string> = {
+  "section/block": "Bölüm", "formCard/section": "Bölüm", "tabs/tabs": "Sekmeler", "recordHeader/summary": "Kayıt özeti", "input/field": "Alan",
+};
+const paletteLabel = (kind: ConsultantKind) => CONSULTANT_PALETTE.find((item) => item.kind === kind)!.label;
+
+/**
+ * Kalıplı sayfanın (liste, kayıt, serbest) Katmanlar listesinde danışmanın gördüğü tür adı: kalıp parçaları (Bölüm, Sekmeler,
+ * Kayıt özeti, Alan), Liste, Düğme ve bileşenlerin danışman adı (`consultantKindOf`). Karşılığı olmayan tipte null (çağıran
+ * bileşenin kendi adını kullanır).
+ */
+export function consultantLayerLabel(component: ModelComponent): string | null {
+  const slot = typeof component.props.slot === "string" ? component.props.slot : "";
+  const part = PART_LABELS[`${component.type}/${slot}`];
+  if (part) return part;
+  if (component.type === "dataTable") return paletteLabel("list");
+  if (component.type === "button") return "Düğme";
+  const kind = consultantKindOf(component);
+  return kind ? paletteLabel(kind) : null;
+}
