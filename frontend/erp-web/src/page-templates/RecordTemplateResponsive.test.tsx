@@ -67,6 +67,30 @@ describe('kayıt kartı kutu genişliği', () => {
     expect(container.querySelector('.record-lines')).toBeTruthy();
   });
 
+  it('summary values move under the title in a narrow summary box', async () => {
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Akdeniz Gıda A.Ş.', { selector: 'b' }, T);
+    const summary = container.querySelector('.record-template-summary')!;
+    const resizeSummary = (width: number) => act(() => {
+      for (const { callback, element } of observers) {
+        if (element === summary) callback([{ contentRect: { width }, target: element } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+      }
+    });
+    expect(summary.hasAttribute('data-narrow')).toBe(false);
+    resizeSummary(900);
+    await waitFor(() => expect(summary.hasAttribute('data-narrow')).toBe(false));
+    resizeSummary(480);
+    await waitFor(() => expect(summary.hasAttribute('data-narrow')).toBe(true));
+    resizeSummary(481);
+    await waitFor(() => expect(summary.hasAttribute('data-narrow')).toBe(false));
+    // Değerler özetin içinde kalır; CSS dar kutuda onları başlığın altına alır (tam satır, başlıkla aynı hiza).
+    expect(summary.querySelector('.tenant-page-record-header-fields')!.textContent).toContain('Bakiye');
+    const css = readFileSync(resolve(process.cwd(), 'src/page-templates/page-templates.css'), 'utf8');
+    expect(css).toMatch(/\.record-template-summary\s*\{[^}]*container:\s*record-summary\s*\/\s*inline-size/);
+    expect(css).toMatch(/\.record-template-summary\[data-narrow\] \.tenant-page-record-header-fields\s*\{[^}]*flex:\s*1 0 100%/);
+    expect(css).toMatch(/@container record-summary \(max-width:\s*480px\)/);
+  });
+
   it('record rules live only under .record-template-page and use container queries', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/page-templates/page-templates.css'), 'utf8');
     expect(css).toMatch(/\.record-section\s*\{[^}]*container-type:\s*inline-size/);

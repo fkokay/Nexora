@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import { ListFooter } from "../list-page/ListFooter";
 import { ListPageHeader } from "../list-page/ListPageHeader";
 import "./page-templates.css";
@@ -55,11 +56,27 @@ function ActionButton({ action }: { action: ShellAction }) {
 }
 
 /**
- * Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. `head`: başlık ile işlem çubuğu arasında
- * çizilen içerik (Kayıt kartının ek alanı ve kayıt özeti).
+ * Kayıt kartının başlık yeri (taslak 08: konum satırından hemen sonra özet): başlık yalnız ekran okuyucuya görünür. Çalışma
+ * alanının işlem çubuğu yuvası yine bu sayfada kaydedilir ki çubuk ve çalışma alanının ikinci konum satırı sayfanın üstüne
+ * düşmesin; yuva öğesinin kendisi CSS ile gizlidir (`.page-shell.is-record .nx-action-bar-slot`). Gizleyen `hidden` niteliği ya
+ * da gizli bir ata olamaz: `ActionBarSlot` onları görmez sayar ve çubuğu çalışma alanının yerine geri koyar.
  */
-export function PageShell({ title, crumbs, count, actions, search, head, footer, children }: {
+function RecordTitle({ title }: { title: string }) {
+  const { slotRef } = useSlotBreadcrumb();
+  return <>
+    <h1 className="page-shell-sr-title">{title}</h1>
+    <ActionBarSlot slotRef={slotRef} />
+  </>;
+}
+
+/**
+ * Kalıplı sayfaların ortak kabuğu: başlık ve konum satırı, işlem çubuğu, alt bilgi. `head`: başlık ile işlem çubuğu arasında
+ * çizilen içerik (Kayıt kartının ek alanı ve kayıt özeti). `variant: "record"`: görünen başlık satırı, çalışma alanının konum
+ * satırı ve işlem çubuğu çizilmez; başlık özettedir.
+ */
+export function PageShell({ title, crumbs, count, actions, search, head, footer, children, variant = "list" }: {
   title: string; crumbs: string[]; count?: number | null; actions: ShellAction[]; search?: ReactNode; head?: ReactNode; footer?: ReactNode; children?: ReactNode;
+  variant?: "list" | "record";
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -88,9 +105,9 @@ export function PageShell({ title, crumbs, count, actions, search, head, footer,
     return () => { document.removeEventListener("mousedown", onPointer); document.removeEventListener("keydown", onKey); };
   }, [menuOpen]);
 
-  return <div className="page-shell list-v2">
+  return <div className={`page-shell list-v2${variant === "record" ? " is-record" : ""}`}>
     {crumbs.length > 0 && <nav className="page-shell-crumbs" aria-label="Konum">{crumbs.map((crumb, index) => <span key={`${index}:${crumb}`}>{crumb}</span>)}</nav>}
-    <ListPageHeader title={title} count={count} />
+    {variant === "record" ? <RecordTitle title={title} /> : <ListPageHeader title={title} count={count} />}
     {head}
     <div className="page-shell-bar" ref={barRef} role="toolbar" aria-label="İşlemler">
       <div className="page-shell-bar-left">{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>

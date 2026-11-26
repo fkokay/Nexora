@@ -44,7 +44,11 @@
 .record-template-page { width: 100%; min-width: 0; }
 .record-template-page .record-template { width: 100%; min-width: 0; }
 .record-template-page .record-template-above, .record-template-page .record-template-below { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.record-template-page .record-template-summary { min-width: 0; }
+.record-template-page .record-template-summary { min-width: 0; container: record-summary / inline-size; }
+/* Kabuğun kayıt kipi: başlık yalnız ekran okuyucuya; çalışma alanının işlem çubuğu yuvası bu sayfada kayıtlı ama görünmez
+   (taslak 08'de konum satırından sonra doğrudan özet gelir). Yuvanın kendisi gizlenir, atası değil (PageShell RecordTitle). */
+.page-shell-sr-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.page-shell.is-record .nx-action-bar-slot { display: none !important; }
 .record-template-page .page-shell-bar { padding: 8px 0; border-top: 1px solid var(--nx-line); border-bottom: 1px solid var(--nx-line); }
 /* Özet: baş harfli kare, başlık ve alt satır solda, en çok 3 değer sağda; uzun metin tek satırda kısaltılır (tamamı `title`'da). */
 .record-template-page .tenant-page-record-header { flex-wrap: nowrap; padding: 4px 0; border: 0; background: transparent; }
@@ -55,6 +59,19 @@
 .record-template-page .tenant-page-record-header-fields { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; margin-left: auto; gap: 18px; }
 .record-template-page .tenant-page-record-header-fields div { min-width: 0; }
 .record-template-page .tenant-page-record-header-fields dd { font-size: 15px; }
+/* Dar özet (≤ 480 px, taslak 08 telefon): değerler başlığın altına, başlıkla aynı hizaya iner. */
+.record-template-page .record-template-summary[data-narrow] .tenant-page-record-header { flex-wrap: wrap; }
+.record-template-page .record-template-summary[data-narrow] .tenant-page-record-header-fields { flex: 1 0 100%; margin-left: 56px; }
+@container record-summary (max-width: 480px) {
+  .record-template-page .tenant-page-record-header { flex-wrap: wrap; }
+  .record-template-page .tenant-page-record-header-fields { flex: 1 0 100%; margin-left: 56px; }
+}
+/* Değiştirilemeyen alan (anahtar, `disabledWhen` / `readOnly`): soluk zemin. Özel sayfanın genel `:disabled` kuralını
+   tenant-custom-page.css'teki `.app-shell .tenant-custom-page …` (!important) kuralı eziyor; burada daha özgül seçiciyle geri gelir. */
+.app-shell .tenant-custom-page .record-template-page :is(.tenant-page-input, .tenant-page-form-field) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select, textarea):disabled,
+.record-template-page .tenant-page-input :is(input:not([type="checkbox"]), select, textarea):disabled {
+  background-color: var(--nx-line-soft) !important; color: var(--nx-muted) !important; cursor: not-allowed;
+}
 /* Sekme paneli: her blok tam satır (eski panelin dar ekran `span 6 / span 4` kuralı burada geçmez). */
 .record-template-page .tenant-page-tabs { border: 0; background: transparent; }
 .record-template-page .tenant-page-tablist { overflow-x: auto; }

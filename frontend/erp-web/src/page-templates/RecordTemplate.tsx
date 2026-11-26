@@ -61,6 +61,16 @@ export function RecordLines({ title, isNew, render }: { title: string; isNew: bo
   </div>;
 }
 
+/** Özetin dar kutu eşiği: ≤ 480 px'te değerler başlığın altına iner (taslak 08, telefon). CSS'teki `@container` kuralıyla aynı. */
+export const SUMMARY_NARROW = 480;
+
+/** Kayıt özeti kutusu: kendi genişliğini ölçer, dar kutuda `data-narrow` taşır (CSS `@container record-summary` ile birlikte). */
+function RecordSummary({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const width = useBoxWidth(ref);
+  return <div ref={ref} className="record-template-summary" data-narrow={width !== null && width <= SUMMARY_NARROW ? "" : undefined}>{children}</div>;
+}
+
 /**
  * Kayıt kartı kalıbı: ortak kabuk içinde başlık ve konum satırı → `above` → özet → işlem çubuğu → sekmeler → `below` →
  * alt bilgi. Bileşenleri çizen `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir); bölüm, satır tablosu ve
@@ -73,10 +83,10 @@ export function RecordTemplate<C extends Component>({ layout, render, title, cru
   const shown = isNew ? actions.filter((action) => action.kind !== "danger") : actions;
   const head = <>
     {layout.above.length > 0 && <div className="record-template-above">{layout.above.map(render)}</div>}
-    {layout.summary && <div className="record-template-summary">{render(layout.summary)}</div>}
+    {layout.summary && <RecordSummary>{render(layout.summary)}</RecordSummary>}
   </>;
   return <div className="record-template" data-level={recordTemplateLevel(layout)} data-record-mode={isNew ? "new" : "existing"}>
-    <PageShell title={title} crumbs={crumbs} actions={shown} head={head} footer={isNew ? "Yeni kayıt" : undefined}>
+    <PageShell variant="record" title={title} crumbs={crumbs} actions={shown} head={head} footer={isNew ? "Yeni kayıt" : undefined}>
       {notices}
       {layout.tabs && <div className="record-template-tabs">{render(layout.tabs)}</div>}
       {layout.below.length > 0 && <div className="record-template-below">{layout.below.map(render)}</div>}

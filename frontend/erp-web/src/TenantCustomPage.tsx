@@ -33,7 +33,7 @@ import type { BridgeHost } from "./custom-page/codeBridge";
 import { CodeFrame } from "./custom-page/CodeFrame";
 import { createPageEvents, type PageEvents } from "./custom-page/pageEvents";
 import { mapOperationResult, missingRequiredValue, type ErpOperation } from "./custom-page/erpOperations";
-import { CREATED_REOPEN, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
+import { CREATED_REOPEN, RECORD_UNSAVED_SUBTITLE, SOURCE_FAILED, SOURCE_LOADING } from "./custom-page/recordMessages";
 import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, SAVE_AND_NEW_COMMAND_ID, VIEW_MODE_PARAM, VIEW_MODE_REASON, VIEW_MODE_VALUE, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
@@ -117,7 +117,9 @@ type PageRuntime = {
    * Kayıt kartı kalıbı (yalnız `template: record`): yeni kayıt kipi, sekmede çizilen bloklar (bölüm / satır tablosu / not) ve
    * onların sarıcısı (`draw` bileşenin kendi çizimi). Sekme düğmeleri tuval işareti taşır.
    */
-  record?: { isNew: boolean; blockIds: ReadonlySet<string>; block: (component: ComponentDefinition, draw: () => ReactNode) => ReactNode };
+  record?: { isNew: boolean; blockIds: ReadonlySet<string>; block: (component: ComponentDefinition, draw: () => ReactNode) => ReactNode;
+    /** Yeni kayıt kipinde özetin başlığı ("Yeni <sayfa adı>"). */
+    newTitle: string };
   /** `user`: kullanıcının satır tıklaması (satır işlemi dahil); veri yenilemesinin seçimi temizlemesi değil. */
   select: (tableName: string, row: Record<string, unknown> | null, options?: { user?: boolean }) => void;
   queryById: Record<string, PageQueryDefinition>;
@@ -898,10 +900,12 @@ const INLINE_TOGGLE_ICONS: Record<string, LucideIcon> = { panel: PanelRight, arc
  * yer tutuculu metin girişi büyüteçli arama kutusu (`list-v2-search`), arama kutusu (lookup) açılır liste, onay kutusu çip
  * (`list-v2-chip`; `description` sayaç olur) ya da `icon` verilmişse düz anahtar düğmesi (eski "Detay paneli" düğmesi).
  */
-export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup, inline = false }: {
+export function PageInput({ component, props, raw, onChange, optionsState, style, error, disabled = false, onBlur, lookup, inline = false, lockedReason }: {
   component: ComponentDefinition; props: Record<string, unknown>; raw: InputRaw; onChange: (value: InputRaw) => void;
   optionsState?: QueryState; style: CSSProperties; error?: string; disabled?: boolean; onBlur?: () => void; lookup?: LookupBinding;
   inline?: boolean;
+  /** Kayıt kartı: kilitli alanın nedeni; sarmalayıcı ve denetim `title`'ında (ipucu) gösterilir. Verilmezse çizim değişmez. */
+  lockedReason?: string;
 }) {
   const inputType = textValue(props.inputType, "text");
   const label = textValue(props.label);
@@ -922,7 +926,8 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   const invalid = !!error;
   // Erişilebilir ad sarmalayan etiketten de gelir; `aria-label` onu etiket ağacını izlemeyen araçlar (ve tarih girişinin
   // parçalı denetimi) için de açık kılar.
-  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, "aria-label": label || undefined, onBlur };
+  const locked = disabled && lockedReason ? lockedReason : undefined;
+  const common = { id: inputId, required: rules.required || undefined, "aria-invalid": invalid || undefined, "aria-label": label || undefined, onBlur, title: locked };
   const limit = (value: number | string | undefined) =>
     value === undefined ? undefined : inputType === "number" ? (typeof value === "number" ? value : undefined) : inputType === "date" ? (typeof value === "string" ? value : undefined) : undefined;
   let control;
@@ -981,7 +986,7 @@ export function PageInput({ component, props, raw, onChange, optionsState, style
   }
   // Hazır değerler (`presets`: "değer=Etiket", ör. olasılık %10…%90): girişin altında bitişik düğmeler; seçili olan basılı görünür.
   const presets = !inline && (inputType === "text" || inputType === "number") ? parsePresets(props.presets) : [];
-  return <div className={`tenant-page-input tenant-page-input-${inputType}${props.multiline === true ? " tenant-page-input-multiline" : ""}${requiredClass}${invalid ? " is-invalid" : ""}`} style={style}>
+  return <div className={`tenant-page-input tenant-page-input-${inputType}${props.multiline === true ? " tenant-page-input-multiline" : ""}${requiredClass}${invalid ? " is-invalid" : ""}${locked ? " is-locked" : ""}`} style={style} title={locked}>
     {field}
     {presets.length > 0 && <div className="tenant-page-presets" role="group" aria-label={label ? `${label}: hazır değerler` : "Hazır değerler"}>
       {presets.map((preset) => <button key={preset.value} type="button" disabled={disabled} aria-pressed={String(raw ?? "") === preset.value}
@@ -1016,7 +1021,8 @@ function parsePresets(value: unknown): { value: string; label: string }[] {
 const withConditionalRequired = (props: Record<string, unknown>, raw: Record<string, unknown> | undefined, scope: PageScope) =>
   props.required !== true && conditionHolds(raw?.requiredWhen, scope, false) ? { ...props, required: true } : props;
 
-function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime, inline = false) {
+function renderPageInput(component: ComponentDefinition, boundProps: Record<string, unknown>, style: CSSProperties, runtime?: PageRuntime, inline = false,
+  lockedReason?: string) {
   // `hidden`: giriş hiç çizilmez, değeri (varsayılan ve sayfa parametresi bağlaması dahil) kapsamda kalır.
   if (!componentVisible(component, runtime) || component.props?.hidden === true) return null;
   const props = runtime ? withConditionalRequired(boundProps, component.props, runtime.scope) : boundProps;
@@ -1026,7 +1032,17 @@ function renderPageInput(component: ComponentDefinition, boundProps: Record<stri
     raw={runtime?.inputValues[component.id] ?? ""} onChange={(next) => { if (!(component.props?.readOnly === true)) runtime?.changeInput(component.id, next); }}
     error={error} disabled={componentDisabled(component, runtime)} onBlur={runtime ? () => runtime.blurInput(component.id) : undefined}
     optionsState={runtime ? runtime.inputOptions(component) : undefined}
-    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} />;
+    lookup={runtime && textValue(props.inputType, "text") === "lookup" ? runtime.lookupFor(component, props) : undefined} inline={inline} lockedReason={lockedReason} />;
+}
+
+/**
+ * Kayıt kartında kilitli alanın ipucu: `disabledWhen` tutuyorsa ya da alan `readOnly` ise alanın `disabledReason`'ı
+ * (ör. "Kayıt kodu değiştirilemez."), yalnız görüntüleme kipi kilitliyorsa onun nedeni; kilitli değilse ya da neden yoksa boş.
+ */
+function lockedReason(component: ComponentDefinition, boundProps: Record<string, unknown>, runtime: PageRuntime): string | undefined {
+  if (!componentDisabled(component, runtime)) return undefined;
+  const own = conditionHolds(component.props?.disabledWhen, runtime.scope, false) || component.props?.readOnly === true;
+  return (own ? textValue(boundProps.disabledReason).trim() : runtime.readOnly ? VIEW_MODE_REASON : "") || undefined;
 }
 
 /** Sayfa düğmesi (üst düzeyde ya da kayıt özetinin sağında): eylemli düğme, iş akışı ya da pasif düğme. */
@@ -1073,7 +1089,7 @@ const RECORD_KEY_ROOT = /^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\./;
  * X sorgu adı ya da kimliği) bulunur; `recordKey`'i olmayan bölüm ilk bölümün sorgusunu izler.
  */
 function recordBlockRuntime(layout: ReturnType<typeof layoutRecordTemplate<ComponentDefinition>>, isNew: boolean, queries: PageQueryDefinition[],
-  stateOf: (queryId: string) => QueryState | undefined): NonNullable<PageRuntime["record"]> {
+  stateOf: (queryId: string) => QueryState | undefined, pageName: string): NonNullable<PageRuntime["record"]> {
   const blocks = layout.tabList.flatMap((tab) => tab.blocks);
   const sections = blocks.filter((block) => block.type === "formCard");
   const queryOf = (section: ComponentDefinition | undefined) => {
@@ -1083,6 +1099,7 @@ function recordBlockRuntime(layout: ReturnType<typeof layoutRecordTemplate<Compo
   const pageQuery = queryOf(sections.find((section) => RECORD_KEY_ROOT.test(textValue(section.props?.recordKey))));
   return {
     isNew,
+    newTitle: `Yeni ${pageName.trim()}`.trim(),
     blockIds: new Set(blocks.map((block) => block.id)),
     block: (component, draw) => {
       if (component.type === "formCard") {
@@ -1130,7 +1147,14 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       // Kayıt kartında çok satırlı girdi tam satırdır.
       const wideCells = runtime?.record ? owned.map((input) => input.props?.multiline === true && textValue(input.props?.inputType, "text") === "text") : undefined;
       return <FormCard key={component.id} title={title} columns={columns} style={style} meta={changes > 0 ? `${changes} değişiklik` : undefined} inline={inline} wideCells={wideCells}>
-        {owned.map((input) => renderPageInput(input, bindProps(input.props ?? {}, runtime!.scope), {}, runtime, inline))}
+        {owned.map((input) => {
+          const bound = bindProps(input.props ?? {}, runtime!.scope);
+          if (!runtime?.record) return renderPageInput(input, bound, {}, runtime, inline);
+          // Kayıt kartı: kilitli alanın nedeni ipucunda; tuvalde her alanın kendi işaretçisi (Studio alanı seçer, taşır).
+          // Çizilmeyen (gizli) alan sarılmaz: FormCard boş hücre çizmesin.
+          const body = renderPageInput(input, bound, {}, runtime, inline, lockedReason(input, bound, runtime));
+          return body === null ? null : <Anchored key={input.id} id={input.id}>{body}</Anchored>;
+        })}
       </FormCard>;
     }
     case "filterChips": {
@@ -1257,9 +1281,12 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       const buttons = idList(raw.buttons, 3).map((id) => runtime.buttonById[id])
         .filter((button): button is ComponentDefinition => !!button && componentVisible(button, runtime))
         .map((button) => renderPageButton(button, bindProps(button.props ?? {}, runtime.scope), {}, token, pageCode, runtime));
+      // Kayıt kartının yeni kayıt kipi: "Yeni <sayfa adı>", "Kaydedilmedi", değer yok (taslak 08).
+      const fresh = runtime.record?.isNew === true;
       return <RecordHeader key={component.id} icon={textValue(raw.icon) || undefined} style={style} record={runtime.record ? { isNew: runtime.record.isNew } : undefined}
-        title={templateText(textValue(raw.title), runtime.scope)} subtitle={templateText(textValue(raw.subtitle), runtime.scope)}
-        fields={recordHeaderFields(raw, runtime.scope)} buttons={buttons.length > 0 ? buttons : undefined} />;
+        title={fresh ? runtime.record!.newTitle : templateText(textValue(raw.title), runtime.scope)}
+        subtitle={fresh ? RECORD_UNSAVED_SUBTITLE : templateText(textValue(raw.subtitle), runtime.scope)}
+        fields={fresh ? [] : recordHeaderFields(raw, runtime.scope)} buttons={buttons.length > 0 ? buttons : undefined} />;
     }
     case "tabs": {
       if (!runtime) return null;
@@ -3464,7 +3491,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     : null;
   const recordParam = recordLayout ? recordKeyParam(components, queryDefinitions) : null;
   const isNewRecord = !recordParam || (pageParams[recordParam] ?? "").trim() === "";
-  const recordBlocks = recordLayout ? recordBlockRuntime(recordLayout, isNewRecord, queryDefinitions, (id) => states[queryNames[id]]) : undefined;
+  const recordBlocks = recordLayout ? recordBlockRuntime(recordLayout, isNewRecord, queryDefinitions, (id) => states[queryNames[id]], page.name) : undefined;
   const runtime: PageRuntime | undefined = isV2 ? {
     shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
     record: recordBlocks,
