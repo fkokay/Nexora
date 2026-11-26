@@ -5,7 +5,7 @@
 // - sekmeler (isteğe bağlı) tek `tabs` bileşeninin `"Etiket=bölüm1,bölüm2"` öğeleri; varsa her bölüm tam bir sekmede, boş sekme
 //   yok, tek sekme kalırsa sekme bileşeni kaldırılır (Karar 2, 4);
 // - sayfa eylemleri `slot: "actions"` sorgu düğmeleri; parametresiz eylem sorgusu çalıştırır (Karar 8).
-import type { CatalogAction } from "../catalogClient";
+import type { CatalogAction, CatalogComponent } from "../catalogClient";
 import { MAX_TABS, MAX_TAB_LABEL, parseTabs, tabsValue } from "../layoutRefs";
 import type { PageQuery } from "../QueriesPanel";
 import { createConsultantComponent, type CreatableKind } from "./consultantPalette";
@@ -277,13 +277,18 @@ export function moveBlockToTab<D extends ModelDefinition>(def: D, blockId: strin
 
 // ---------- bileşenler ----------
 
-const ITEM_BASE: Record<CreatableKind | "table", string> = { text: "metin", infoBox: "bilgi", indicator: "gosterge", image: "gorsel", table: "liste" };
+const ITEM_BASE: Record<CreatableKind | "table" | "developer", string> = { text: "metin", infoBox: "bilgi", indicator: "gosterge", image: "gorsel", table: "liste", developer: "bilesen" };
 
 /**
  * Karar 5: bileşen seçili bölüme (`blockId`), yoksa seçili bileşenin (`nearItemId`) bölümüne, o da yoksa son bölüme, sona
- * eklenir. Bölüm doluysa (12) neden döner. `"table"` boş bir `dataTable` (kaynağını paneli seçer).
+ * eklenir. Bölüm doluysa (12) neden döner. `"table"` boş bir `dataTable` (kaynağını paneli seçer). `"developer"` verilen katalog
+ * bileşenine başvuran `code` bileşenidir (kod ve ayar yazılmaz).
  */
+export function addItem<D extends ModelDefinition>(def: D, kind: "developer", target: { blockId?: string; nearItemId?: string }, component: CatalogComponent):
+  { def: D; itemId: string } | { reason: string };
 export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table", target: { blockId?: string; nearItemId?: string }):
+  { def: D; itemId: string } | { reason: string };
+export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind | "table" | "developer", target: { blockId?: string; nearItemId?: string }, component?: CatalogComponent):
   { def: D; itemId: string } | { reason: string } {
   const blockId = (target.blockId && findBlock(def, target.blockId) ? target.blockId : null)
     ?? (target.nearItemId ? blockOf(def, target.nearItemId) : null)
@@ -292,7 +297,8 @@ export function addItem<D extends ModelDefinition>(def: D, kind: CreatableKind |
   if (!block) return { reason: FREE_LAST_BLOCK };
   if (membersOf(block).length >= MAX_BLOCK_MEMBERS) return { reason: FREE_BLOCK_FULL };
   const id = freeId(def, ITEM_BASE[kind]);
-  const created = kind === "table" ? { id, type: "dataTable", props: {} } : createConsultantComponent(kind, id);
+  const created = kind === "table" ? { id, type: "dataTable", props: {} }
+    : kind === "developer" ? createConsultantComponent("developer", id, component!) : createConsultantComponent(kind, id);
   const item: ModelComponent = { ...created, props: { ...created.props, slot: "item" } };
   const next = patchComponent(def, block.id, { members: [...membersOf(block), id] });
   return { def: { ...next, components: [...next.components, item] }, itemId: id };

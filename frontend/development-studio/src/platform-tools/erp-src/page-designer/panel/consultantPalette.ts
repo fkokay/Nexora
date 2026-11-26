@@ -90,8 +90,13 @@ const KIND_BY_TYPE: Record<string, ConsultantKind> = {
   image: "image", button: "buttons",
 };
 
-/** Bileşenin danışman türü; yeni panelde açılmayanlar (sayfa başlığı, içi dolu bileşen, detay paneli kartı, öteki tipler) null. */
+/** Bileşenin danışman türü; yeni panelde açılmayanlar (sayfa başlığı, içi dolu bileşen, detay paneli kartı, satır içi kod, öteki tipler) null. */
 export function consultantKindOf(component: ModelComponent): ConsultantKind | null {
+  // Katalog bileşenine başvuran `code` yazılımcı bileşenidir; satır içi kodlu `code` eski panelde kalır (Review Focus 5).
+  if (component.type === "code") {
+    const ref = (component.props as Record<string, unknown>).catalogComponent;
+    return typeof ref === "string" && ref !== "" ? "developer" : null;
+  }
   const kind = KIND_BY_TYPE[component.type];
   if (!kind) return null;
   if (component.type === "heading" && component.props.pageTitle === true) return null;

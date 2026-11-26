@@ -122,3 +122,16 @@ describe("developer component in palette (Karar 5)", () => {
     for (const key of ["css", "javascript", "slot", "componentSettings"]) expect(created.props).not.toHaveProperty(key);
   });
 });
+
+describe("consultantKindOf for code components (Task 7)", () => {
+  it("code with catalogComponent is developer; inline code stays on the old panel", () => {
+    expect(consultantKindOf(comp("code", { catalogComponent: "satisHaritasi" }))).toBe("developer");
+    expect(consultantKindOf(comp("code", { css: "", javascript: "x()" }))).toBeNull();
+    expect(consultantKindOf(comp("code", { catalogComponent: "" }))).toBeNull();
+  });
+
+  it("managedKeys hide catalogComponent and componentSettings from the raw field list", () => {
+    expect(designerInternals.managedKeys.has("catalogComponent")).toBe(true);
+    expect(designerInternals.managedKeys.has("componentSettings")).toBe(true);
+  });
+});

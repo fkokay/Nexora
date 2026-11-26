@@ -3,9 +3,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CANVAS_PROTOCOL, CANVAS_VERSION } from "./page-designer/erpCanvasProtocol";
-import { LIST_SOURCE_HINT } from "./page-designer/pageTemplates";
-import { freeTabs } from "./page-designer/panel/freeModel";
-import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
+import type { CatalogDataSource } from "./page-designer/catalogClient";
+import { LIST_SOURCE_HINT, NEW_LIST_ID, newListTemplateDefinition } from "./page-designer/pageTemplates";
+import { DEVELOPER_NONE } from "./page-designer/panel/consultantPalette";
+import { freeTabs, isFreeBlock } from "./page-designer/panel/freeModel";
+import { chooseDataSource, type ModelDefinition } from "./page-designer/panel/listPanelModel";
 
 // Serbest gövde ERP tuvalinde (5c son inceleme): seçili bölümün sekmesi gösterilir, kaynaksız Liste'de ipucu çıkar,
 // seçimsiz "Bölümler" tuvalde görünen sekmeye ekler.
@@ -19,13 +21,19 @@ const start: ModelDefinition = {
   components: [
     { id: "t", type: "tabs", props: { slot: "tabs", tabs: ["Genel=bolum", "Diğer=b2"] } },
     { id: "bolum", type: "section", props: { slot: "block", title: "Bölüm 1", columns: 2, members: [] } },
-    { id: "b2", type: "section", props: { slot: "block", title: "Bölüm 2", columns: 2, members: ["m1"] } },
+    { id: "b2", type: "section", props: { slot: "block", title: "Bölüm 2", columns: 2, members: ["m1", "y0"] } },
     { id: "m1", type: "text", props: { slot: "item", text: "Merhaba" } },
+    { id: "y0", type: "code", props: { slot: "item", catalogComponent: "satisHaritasi", componentSettings: { baslik: "Eski" } } },
   ],
 } as unknown as ModelDefinition;
 
 const page = { id: "p1", code: "pano", name: "Pano", description: null, revision: 1, isPublished: false, updatedAt: "2026-11-26T00:00:00Z" };
 const saved: ModelDefinition[] = [];
+const harita = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240,
+  settings: [{ name: "baslik", label: "Başlık", type: "text", options: [], default: null }] };
+const catalogState = vi.hoisted(() => ({ components: [] as unknown[], dataSources: [] as unknown[], definition: null as unknown }));
+const cariler = { code: "cariler", label: "Cariler", source: "sql", erpOperation: null, parameters: [], opens: null,
+  columns: [{ code: "kod", label: "Kod", type: "text", key: true, longText: false, required: false, maxLength: null }] };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 vi.mock("./authApi", () => ({
   authenticatedFetch: async (url: string, _token: string, init?: RequestInit) => {
@@ -35,8 +43,8 @@ vi.mock("./authApi", () => ({
       saved.push(body.definition);
       return json({ ...page, revision: 1 + saved.length, definitionJson: JSON.stringify(body.definition) });
     }
-    if (url === "/api/custom-pages/p1") return json({ ...page, definitionJson: JSON.stringify(start) });
-    if (url === "/api/custom-pages/catalog") return json({ version: "1", dataSources: [], actions: [] });
+    if (url === "/api/custom-pages/p1") return json({ ...page, definitionJson: JSON.stringify(catalogState.definition ?? start) });
+    if (url === "/api/custom-pages/catalog") return json({ version: "1", dataSources: catalogState.dataSources, actions: [], components: catalogState.components });
     if (url === "/api/low-code/capabilities") return json({ customPages: { canRead: true, canCreate: true, canUpdate: true, canPublish: true, canDelete: true } });
     return json([], 404);
   },
@@ -44,7 +52,7 @@ vi.mock("./authApi", () => ({
 vi.mock("@monaco-editor/react", () => ({ default: () => null }));
 
 let mounted: { root: Root; host: HTMLElement }[] = [];
-afterEach(() => { mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = []; saved.length = 0; vi.restoreAllMocks(); });
+afterEach(() => { mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = []; saved.length = 0; catalogState.components = []; catalogState.definition = null; catalogState.dataSources = []; vi.restoreAllMocks(); });
 const flush = async () => { for (let index = 0; index < 20; index++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 const key = async (init: KeyboardEventInit) => { await act(async () => { document.body.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init })); }); };
 
@@ -106,5 +114,44 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(tabs[0].blockIds).toEqual(["bolum"]);
     expect(tabs[1].blockIds).toHaveLength(2);
     expect(tabs[1].blockIds[0]).toBe("b2");
+  });
+
+  it("Yazılımcı bileşeni is pale without catalog components", async () => {
+    const { host } = await open();
+    const item = button(host, ".pd-palette-item", "Yazılımcı bileşeni")!;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe(DEVELOPER_NONE);
+  });
+
+  it("Yazılımcı bileşeni adds a catalog code item to a block and saving keeps componentSettings", async () => {
+    catalogState.components = [harita];
+    const { host } = await open();
+    const item = button(host, ".pd-palette-item", "Yazılımcı bileşeni")!;
+    expect(item.disabled).toBe(false);
+    await act(async () => item.click());
+    await key({ key: "s", ctrlKey: true });
+    await flush();
+    const def = saved.at(-1)!;
+    expect(def).toBeTruthy();
+    const added = def.components.filter((c) => c.type === "code" && c.id !== "y0");
+    expect(added).toHaveLength(1);
+    expect(added[0].props).toEqual({ slot: "item", catalogComponent: "satisHaritasi" });
+    expect(def.components.filter(isFreeBlock).filter((block) => (block.props.members as string[]).includes(added[0].id))).toHaveLength(1);
+    expect(def.components.find((c) => c.id === "y0")!.props).toEqual({ slot: "item", catalogComponent: "satisHaritasi", componentSettings: { baslik: "Eski" } });
+  });
+
+  it("Yazılımcı bileşeni on a list page goes below the list as a catalog code component", async () => {
+    catalogState.components = [harita];
+    catalogState.dataSources = [cariler];
+    catalogState.definition = chooseDataSource(newListTemplateDefinition() as unknown as ModelDefinition, NEW_LIST_ID, cariler as unknown as CatalogDataSource);
+    const { host } = await open();
+    await act(async () => button(host, ".pd-palette-item", "Yazılımcı bileşeni")!.click());
+    await key({ key: "s", ctrlKey: true });
+    await flush();
+    const def = saved.at(-1)!;
+    expect(def).toBeTruthy();
+    const added = def.components.filter((c) => c.type === "code");
+    expect(added).toHaveLength(1);
+    expect(added[0].props).toEqual({ slot: "below", catalogComponent: "satisHaritasi" });
   });
 });

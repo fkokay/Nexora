@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { CatalogAction, CatalogDataSource } from "../catalogClient";
+import type { CatalogAction, CatalogComponent, CatalogDataSource } from "../catalogClient";
 import { parseTabs } from "../layoutRefs";
 import { freeSourceProblem, LIST_SOURCE_HINT, NEW_FREE_BLOCK_ID, newFreeTemplateDefinition } from "../pageTemplates";
 import { createConsultantComponent } from "./consultantPalette";
+import { chooseComponent, setComponentSetting } from "./developerComponentModel";
 import {
   addBlock, addItem, addPageAction, addTab, isFreeBlock, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
   moveItemToBlock, removeBlock, removeItem, removePageAction, removeTab, renameTab, setBlockColumns, setBlockTitle,
@@ -22,6 +23,11 @@ const siparisler: CatalogDataSource = { code: "siparisler", label: "Son sipariş
 const action = (code: string, label: string, kind = "update"): CatalogAction =>
   ({ code, label, kind, target: "page", source: "sql", erpOperation: null, parameters: [], confirmText: null }) as unknown as CatalogAction;
 const yenile = action("yenile", "Raporu yenile");
+const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240, settings: [
+  { name: "baslik", label: "Başlık", type: "text", options: [], default: null },
+  { name: "donem", label: "Dönem", type: "choice", options: ["Bu ay", "Bu yıl"], default: "Bu ay" },
+] };
+const takvim: CatalogComponent = { code: "teslimatTakvimi", label: "Teslimat takvimi", description: null, height: 300, settings: [] };
 const temizle = action("temizle", "Eskileri sil", "delete");
 
 const ok = <T extends object>(result: T | { reason: string }): T => { if ("reason" in result) throw new Error(result.reason); return result; };
@@ -81,6 +87,11 @@ const steps: Step[] = [
   ["add image", (d) => { const r = ok(addItem(d, "image", { blockId: ids.b2 })); ids.img = r.itemId; return r.def; }],
   ["add table", (d) => { const r = ok(addItem(d, "table", { blockId: ids.b2 })); ids.table = r.itemId; return r.def; }],
   ["table source", (d) => chooseTableSource(d, ids.table, siparisler)],
+  ["add developer", (d) => { const r = ok(addItem(d, "developer", { blockId: NEW_FREE_BLOCK_ID }, harita)); ids.dev = r.itemId; return r.def; }],
+  ["developer setting", (d) => setComponentSetting(d, ids.dev, harita, "baslik", "Bölgeler")],
+  ["developer other component", (d) => chooseComponent(d, ids.dev, takvim)],
+  ["developer back", (d) => chooseComponent(d, ids.dev, harita)],
+  ["developer choice", (d) => setComponentSetting(d, ids.dev, harita, "donem", "Bu yıl")],
   ["table page size", (d) => setTablePageSize(d, ids.table, 50)],
   ["table empty text", (d) => setTableEmptyText(d, ids.table, "Sipariş yok")],
   ["text style", (d) => setTextStyle(d, ids.text, "subheading")],
@@ -146,6 +157,10 @@ describe("Free template output through the designer", { timeout: 30_000 }, () =>
     }
     expect(def.components.some((c) => c.type === "tabs")).toBe(false);
     expect(designerInternals.managedKeys.has("members")).toBe(true);
+    const developer = def.components.find((c) => c.id === ids.dev)!;
+    expect(developer).toMatchObject({ type: "code", props: { slot: "item", catalogComponent: "satisHaritasi", componentSettings: { donem: "Bu yıl" } } });
+    for (const key of ["css", "javascript", "height"]) expect(developer.props, key).not.toHaveProperty(key);
+    expect(def.components.filter(isFreeBlock).filter((block) => (block.props.members as string[]).includes(ids.dev))).toHaveLength(1);
   });
 
   it("round trip: 5a panel setters on a free item never write an above, below or indicators slot", () => {
