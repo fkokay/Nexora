@@ -386,6 +386,7 @@ describe("serbest gövde modeli", () => {
     for (const code of ["satis-raporu", "Rapor_2", "@satis-siparisleri", "a".repeat(40)]) expect(pageButtonCodeProblem(code), code).toBeNull();
     for (const code of ["Satış raporu", "rapor/1", "a".repeat(41), "@Satis", "@", "@a_b"]) expect(pageButtonCodeProblem(code), code).toBe(FREE_PAGE_CODE_INVALID);
     expect(pageButtonCodeProblem("  ")).toBeNull();
+    expect(FREE_PAGE_CODE_INVALID).toBe("Ekran kodu harf, rakam, - ve _ içerebilir (en çok 40); sistem ekranları için @ ile başlayan küçük harfli anahtar yazın.");
     const def = fresh();
     expect(addPageButton(def, "Satış raporu", "Rapor")).toBe(def);
     expect(pageButtons(addPageButton(def, " @stok-kartlari ", "Stok"))[0].pageCode).toBe("@stok-kartlari");

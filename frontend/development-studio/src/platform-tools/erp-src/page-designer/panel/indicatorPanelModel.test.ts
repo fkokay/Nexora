@@ -185,11 +185,20 @@ describe("count mode (final review fix 1)", () => {
   });
   it("catalog column types int and decimal are numeric and show as numbers", () => {
     const satis: CatalogDataSource = { ...ozet, code: "satis", columns: [col("ad", "Ad"), col("ciro", "Ciro", "decimal"), col("adet", "Adet", "int")] };
-    const def = chooseIndicatorSource(defWith(metric()), "g1", satis);
+    const def = setIndicatorValue(chooseIndicatorSource(defWith(metric()), "g1", satis), "g1", "ciro", "decimal");
     expect(comp(def).props).toMatchObject({ value: "{{kaynak.rows[0].ciro}}", format: "number" });
     expect(comp(def).props.query).toBeUndefined();
     expect(comp(setIndicatorValue(def, "g1", "adet", "int")).props.format).toBe("number");
     expect(comp(setIndicatorValue(def, "g1", "ad", "text")).props.format).toBe("text");
+  });
+  it("a number on a catalog source (int/decimal columns) still defaults to Kayıt sayısı; progress takes the first numeric column", () => {
+    // Kimlik ya da yıl gibi bir tamsayı kolonu kendiliğinden değer olmasın: Sayı'nın varsayılanı önceki gibi kayıt sayısıdır.
+    const satis: CatalogDataSource = { ...ozet, code: "satis", columns: [col("yil", "Yıl", "int"), col("ciro", "Ciro", "decimal"), col("ad", "Ad")] };
+    const counted = chooseIndicatorSource(defWith(metric()), "g1", satis);
+    expect(indicatorOf(counted, "g1").column).toBe("count");
+    expect(comp(counted).props.value).toBeUndefined();
+    const progress = chooseIndicatorSource(setIndicatorKind(defWith(metric()), "g1", "progress"), "g1", satis);
+    expect(comp(progress).props.value).toBe("{{kaynak.rows[0].yil}}");
   });
   it("count without a count column leaves the definition unchanged", () => {
     const def = chooseIndicatorSource(defWith(metric()), "g1", ozet);

@@ -102,10 +102,10 @@ function PagePanel(props: FreePanelProps) {
     <section className="cpanel-sec" data-part="tabs"><h4>Sekmeler</h4>
       {tabs ? tabs.map((tab, index) => <div className="cpanel-row" key={index}>
         <DraftInput head label="Sekme adı" value={tab.label} maxLength={40} disabled={disabled} onCommit={(value) => change(renameTab(def, index, value))}/>
-        <button type="button" className="cpanel-btn" disabled={disabled || index === 0} title="Sekmeyi yukarı taşı"
-          onClick={() => change(moveTab(def, index, -1))}>↑</button>
-        <button type="button" className="cpanel-btn" disabled={disabled || index === tabs.length - 1} title="Sekmeyi aşağı taşı"
-          onClick={() => change(moveTab(def, index, 1))}>↓</button>
+        <button type="button" className="cpanel-btn" disabled={disabled || index === 0} title="Sekmeyi sola taşı"
+          onClick={() => change(moveTab(def, index, -1))}>←</button>
+        <button type="button" className="cpanel-btn" disabled={disabled || index === tabs.length - 1} title="Sekmeyi sağa taşı"
+          onClick={() => change(moveTab(def, index, 1))}>→</button>
         <button type="button" className="cpanel-btn" disabled={disabled} title="Sekmeyi sil; bölümleri önceki sekmeye geçer"
           onClick={() => change(removeTab(def, index))}>Sil</button>
       </div>) : <p className="cpanel-note">Bu sayfada sekme yok; bölümler alt alta durur.</p>}

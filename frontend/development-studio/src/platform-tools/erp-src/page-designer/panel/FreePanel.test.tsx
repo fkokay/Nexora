@@ -177,15 +177,17 @@ describe("serbest gövde paneli", () => {
     expect(renderPanel(fresh(), { kind: "page" }, null)).toContain("Açılacak ekranın kodu");
   });
 
-  it("tab rows have up and down buttons; the ends are disabled", () => {
+  it("tab rows have left and right buttons; the ends are disabled", () => {
     const def = ok(addTab(ok(addTab(fresh(), "Satış")).def, "Stok")).def;
     const host = document.createElement("div");
     const root = createRoot(host);
     act(() => root.render(<FreePanel def={def} selection={{ kind: "page" }} catalog={catalog} onChange={() => {}} onSelect={() => {}}/>));
-    const ups = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi yukarı taşı"]')];
-    const downs = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi aşağı taşı"]')];
+    const ups = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi sola taşı"]')];
+    const downs = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi sağa taşı"]')];
     expect(ups.map((b) => b.disabled)).toEqual([true, false, false]);
     expect(downs.map((b) => b.disabled)).toEqual([false, false, true]);
+    expect(ups.map((b) => b.textContent)).toEqual(["←", "←", "←"]);
+    expect(downs.map((b) => b.textContent)).toEqual(["→", "→", "→"]);
     act(() => root.unmount());
   });
 });
@@ -251,11 +253,11 @@ describe("serbest gövde paneli · etkileşim", () => {
     view.unmount();
   });
 
-  it("moves a tab down", () => {
+  it("moves a tab right", () => {
     const def = ok(addTab(fresh(), "Satış")).def;
     const changes: ModelDefinition[] = [];
     const view = mount(def, (next) => changes.push(next));
-    click(view.host.querySelector('button[title="Sekmeyi aşağı taşı"]')!);
+    click(view.host.querySelector('button[title="Sekmeyi sağa taşı"]')!);
     expect(freeTabs(changes[0])!.map((tab) => tab.label)).toEqual(["Satış", "Genel"]);
     view.unmount();
   });

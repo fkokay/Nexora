@@ -127,8 +127,8 @@ export function setIndicatorKind<D extends ModelDefinition>(def: D, id: string, 
 }
 
 /**
- * Kaynağı seçer: aynı kaynağa bağlı parametresiz bir okuma sorgusu varsa onu kullanır, yoksa ekler. Sayıda ilk sayı/tutar kolonu,
- * yoksa "Kayıt sayısı"; ilerleme ve durumda kaynağın ilk uygun kolonu varsayılan olur. Eski `source` kaldırılır; artık kullanılmayan
+ * Kaynağı seçer: aynı kaynağa bağlı parametresiz bir okuma sorgusu varsa onu kullanır, yoksa ekler. Sayıda ilk `number`/`money` kolonu
+ * (katalog `int`/`decimal` değil), yoksa "Kayıt sayısı"; ilerleme ve durumda kaynağın ilk uygun kolonu varsayılan olur. Eski `source` kaldırılır; artık kullanılmayan
  * eski gösterge sorgusu silinir.
  */
 export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: string, ds: CatalogDataSource): D {
@@ -136,7 +136,9 @@ export function chooseIndicatorSource<D extends ModelDefinition>(def: D, id: str
   if (!c) return def;
   const before = sourceQueryOf(def, c);
   if (before?.dataSource === ds.code) return def;
-  const numeric = ds.columns.find((column) => isNumeric(column.type));
+  // Sayının varsayılanı önceki gibi: yalnız elle yazılmış `number` / `money` kolonu, yoksa "Kayıt sayısı". Katalog `int` / `decimal`
+  // kolonu (kimlik, yıl…) Sayı'da kendiliğinden seçilmez; ilerleme ilk sayı kolonunu alır.
+  const numeric = ds.columns.find((column) => c.type === "metric" ? column.type === "number" || column.type === "money" : isNumeric(column.type));
   const counter = c.type === "metric" && !numeric ? countColumnOf(ds) : null;
   const first = (c.type === "metric" || c.type === "progress" ? numeric : undefined) ?? ds.columns[0];
   if (!first) return def;
