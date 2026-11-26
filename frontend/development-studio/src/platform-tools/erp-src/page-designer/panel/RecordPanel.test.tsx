@@ -76,6 +76,14 @@ describe("RecordPanel", () => {
     act(() => three.click());
     expect(onChange).toHaveBeenCalledWith(setSectionColumns(built, "genel", 3));
   });
+  it("section panel explains a blocked removal with section wording", () => {
+    const bound = setSaveActions(built, ekle, guncelle);
+    const host = mount(bound, { kind: "section", id: "genel" }, () => {});
+    const button = [...host.querySelectorAll("button")].find((item) => item.textContent === "Bölümü kaldır")!;
+    expect(button.disabled).toBe(true);
+    expect(host.textContent).toContain('Bu bölümdeki "');
+    expect(host.textContent).toContain("alanı Kaydet için gerekli; önce Kaydet'ten eylemi kaldırın.");
+  });
   it("locked required toggle is disabled with note", () => {
     const host = mount(built, { kind: "field", id: fieldId(built, "unvan") }, () => {});
     const required = host.querySelector<HTMLInputElement>('input[aria-label="Zorunlu"]')!;

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "../catalogClient";
 import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
-import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField } from "./recordModel";
+import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField, sectionRemovalBlocked } from "./recordModel";
 import { ensureTemplateSlots, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
@@ -71,6 +71,11 @@ describe("record card guards for the designer's generic delete and duplicate", (
     const result = recordRemoval(def, field("unvan"));
     expect(result).toEqual({ kind: "blocked", reason: fieldRemovalBlocked(def, field("unvan")) });
     expect((result as { reason: string }).reason).toContain("Kaydet");
+  });
+  it("Delete on a section bound to Kaydet is refused with section wording", () => {
+    const result = recordRemoval(def, "genel");
+    expect(result).toEqual({ kind: "blocked", reason: sectionRemovalBlocked(def, "genel") });
+    expect((result as { reason: string }).reason).toMatch(/^Bu bölümdeki ".+" alanı Kaydet için gerekli/);
   });
   it("Delete on a free field and on a note uses the record model", () => {
     expect(recordRemoval(def, field("vade"))).toEqual({ kind: "removed", def: removeField(def, field("vade")) });

@@ -57,7 +57,7 @@ import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
 import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector } from "./page-designer/panel/TemplateInspector";
 import { stringList, withOperationParameters, type ModelDefinition } from "./page-designer/panel/listPanelModel";
-import { addField, addLines, addNote, linesSourceUsable, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
+import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
 import { ensureTemplateSlots, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
@@ -3734,6 +3734,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const shown = shownRecordTab(blocks, recordDef);
     return shown >= 0 ? shown : Math.max(0, Math.min(recordTab, recordTabs(recordDef).length - 1));
   };
+  // Görünen sekme değişince başka sekmedeki bir parça seçili kalmaz (sağ panel sayfaya döner).
+  const leaveHiddenRecordTab = (tab: number) => {
+    if (tab < 0) return;
+    setSelectedComponentId((id) => {
+      if (!id) return id;
+      const at = recordPartTab(recordDef, id);
+      return at >= 0 && at !== tab ? null : id;
+    });
+  };
   const addRecordColumn = (code: string, target?: { sectionId: string; index: number }) => {
     const column = recordCatalog?.dataSources.find((item) => item.code === recordQuery(recordDef)?.dataSource)?.columns.find((item) => item.code === code);
     if (!column) return;
@@ -3852,7 +3861,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
               revision={current.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
               selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
-              onBlocks={(blocks) => { erpBlocks.current = blocks; }}
+              onBlocks={(blocks) => { erpBlocks.current = blocks; if (isRecordPage) leaveHiddenRecordTab(shownRecordTab(blocks, recordDef)); }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
               overlay={isRecordPage ? ({ blocks, showTab }) => {
@@ -3862,7 +3871,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   selection={recordSelectionOf(recordDef, selectedComponentId)}
                   onChange={(next) => commit(() => next as unknown as PageDefinition)}
                   onSelect={(selection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id)}
-                  onShowTab={(index) => { setRecordTab(index); if (tabsId) showTab(tabsId, index); }}
+                  onShowTab={(index) => { setRecordTab(index); leaveHiddenRecordTab(index); if (tabsId) showTab(tabsId, index); }}
                   onDropColumn={(code, sectionId, index) => addRecordColumn(code, { sectionId, index })}
                   onDropBlock={(kind, tabIndex, index) => addRecordBlock(kind, { tabIndex, index })}/>;
               } : undefined}/>

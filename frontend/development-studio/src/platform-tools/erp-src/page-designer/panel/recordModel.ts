@@ -315,7 +315,7 @@ export function chooseRecordSource<D extends ModelDefinition>(def: D, ds: Catalo
   next = withTabs(next, [{ label: GENERAL_TAB, ids: sectionIds }]);
 
   const title = ordered.find((column) => column.code !== key && column.type === "text");
-  next = setSummary(next, title?.code ?? key, title ? [key] : [], []);
+  next = setSummary(next, title?.code ?? key, title ? [key] : [], [], ds.columns);
 
   // Güncelle ve sil bu kaydı anahtarıyla hedeflemeli: anahtar bilgisi olmayan (ör. zenginleşmemiş ERP işlemi) eylem kendiliğinden bağlanmaz.
   const matching = (kind: CatalogAction["kind"]) => catalog.actions.filter((action) => action.kind === kind && recordActionUsable(next, action).usable
@@ -400,13 +400,11 @@ export function addSection<D extends ModelDefinition>(def: D, tabIndex: number):
   return { def: withTabs(next, tabs.map((item, index) => index === tabIndex ? { ...item, ids: [...item.ids, sectionId] } : item)), sectionId };
 }
 
-const sectionBlocked = (def: ModelDefinition, section: ModelComponent) =>
-  stringList(section.props.inputs).some((id) => fieldRemovalBlocked(def, id) !== null);
 
 /** Bölümü alanlarıyla siler; kolonları sol listede yeniden kullanılabilir olur. Bir alanı eyleme bağlıysa tanım değişmez. */
 export function removeSection<D extends ModelDefinition>(def: D, sectionId: string): D {
   const section = findSection(def, sectionId);
-  if (!section || sectionBlocked(def, section)) return def;
+  if (!section || sectionRemovalBlocked(def, sectionId)) return def;
   return removeComponents(def, new Set([sectionId, ...stringList(section.props.inputs).filter((id) => findField(def, id))]));
 }
 
@@ -458,7 +456,7 @@ export function removeTab<D extends ModelDefinition>(def: D, tabIndex: number): 
   const tab = tabs[tabIndex];
   if (!tab || tabs.length <= 1) return def;
   const blocks = tab.ids.map((id) => def.components.find((component) => component.id === id && isBlock(component))).filter((block): block is ModelComponent => !!block);
-  if (blocks.some((block) => isSection(block) && sectionBlocked(def, block))) return def;
+  if (blocks.some((block) => isSection(block) && sectionRemovalBlocked(def, block.id) !== null)) return def;
   const ids = new Set<string>(tab.ids);
   for (const block of blocks) if (isSection(block)) for (const id of stringList(block.props.inputs)) if (findField(def, id)) ids.add(id);
   const next = withTabs(def, tabs.filter((_, index) => index !== tabIndex));
@@ -603,18 +601,54 @@ export function removeExtraAction<D extends ModelDefinition>(def: D, code: strin
 // ---------- özet ----------
 
 /** Kayıt özeti: başlık bir kolon, alt satır en çok 3 kolon (` · ` ile), en çok 3 değer (etiketler tekil). Boş başlık kaldırılır. */
-export function setSummary<D extends ModelDefinition>(def: D, title: string, subtitle: string[], values: { column: string; label: string }[]): D {
+export function setSummary<D extends ModelDefinition>(def: D, title: string, subtitle: string[], values: { column: string; label: string }[],
+  columns: CatalogColumn[] = []): D {
   const summary = def.components.find((component) => component.type === "recordHeader" && slotOf(component) === "summary");
   if (!summary) return def;
+  // Sayı ve tarih kolonlarının değeri ERP'de biçimlenir (sunucu: Etiket=number|money|date|datetime|text). Kolon tipi bilinmiyorsa eski biçim korunur.
+  const previous = new Map(stringList(summary.props.fieldFormats).map((item) => { const at = item.lastIndexOf("="); return [item.slice(0, at), item.slice(at + 1)] as const; }));
   const labels = new Set<string>();
+  const formats: string[] = [];
   const fields = values.flatMap((value) => {
     const label = safeLabel(value.label, value.column);
     if (!value.column || labels.has(label) || labels.size >= MAX_SUMMARY_VALUES) return [];
     labels.add(label);
+    const column = columns.find((item) => item.code === value.column);
+    const format = column ? summaryFormat(column.type) : previous.get(label);
+    if (format) formats.push(`${label}=${format}`);
     return [`${label}=${rowBinding(value.column)}`];
   });
   const sub = subtitle.filter((column) => column).slice(0, MAX_SUMMARY_SUBTITLE).map(rowBinding).join(" · ");
-  return patchComponent(def, summary.id, { title: title ? rowBinding(title) : undefined, subtitle: sub || undefined, fields: fields.length > 0 ? fields : undefined });
+  return patchComponent(def, summary.id, { title: title ? rowBinding(title) : undefined, subtitle: sub || undefined, fields: fields.length > 0 ? fields : undefined,
+    fieldFormats: formats.length > 0 ? formats : undefined });
+}
+
+/** Özet değerinin ERP biçimi: sayı kolonları `number` (para birimi eklenmez), tarih `date`; öteki ham yazılır. */
+function summaryFormat(type: string): string | null {
+  return type === "int" || type === "decimal" ? "number" : type === "date" ? "date" : type === "datetime" ? "datetime" : null;
+}
+
+/** Bir kartın parçasının (bölüm, alan, satır tablosu, not) yer aldığı sekme; kartın parçası değilse ya da hiçbir sekmede değilse -1. */
+export function recordPartTab(def: ModelDefinition, id: string): number {
+  const owner = sectionOf(def, id)?.id ?? id;
+  return recordTabs(def).findIndex((tab) => tab.ids.includes(owner));
+}
+
+/** Bölüm kaldırılamıyorsa nedeni (alanlarından biri bir eyleme bağlıysa, o alanın etiketiyle); yoksa null. */
+export function sectionRemovalBlocked(def: ModelDefinition, sectionId: string): string | null {
+  const section = findSection(def, sectionId);
+  if (!section) return null;
+  for (const input of stringList(section.props.inputs)) {
+    if (fieldRemovalBlocked(def, input) === null) continue;
+    const field = findField(def, input);
+    const label = (typeof field?.props.label === "string" && field.props.label.trim()) || input;
+    const binding = valueBinding(input);
+    const button = def.components.find((item) => item.type === "button"
+      && buttonQueryIds(item).some((id) => queryById(def, id)?.parameters.some((parameter) => parameter.binding.trim() === binding)));
+    const name = button ? buttonName(button) : SAVE_LABEL;
+    return `Bu bölümdeki "${label}" alanı ${name} için gerekli; önce ${name}'${ablative(name)} eylemi kaldırın.`;
+  }
+  return null;
 }
 
 // ---------- satır tablosu ve not ----------

@@ -3,7 +3,7 @@
 // gelen bileşenler de böylece kaydı bozmaz. Değişiklik yoksa aynı nesne döner.
 import { readPageTemplate } from "../pageTemplates";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { fieldRemovalBlocked, removeBlock, removeField, removeSection } from "./recordModel";
+import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
 export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
@@ -81,8 +81,7 @@ export function recordRemoval<D extends ModelDefinition>(def: D, id: string): Re
     return reason ? { kind: "blocked", reason } : { kind: "removed", def: removeField(def, id) };
   }
   if (selection.kind === "section") {
-    const section = def.components.find((item) => item.id === id)!;
-    const reason = ids(section.props.inputs).map((input) => fieldRemovalBlocked(def, input)).find((item) => item !== null) ?? null;
+    const reason = sectionRemovalBlocked(def, id);
     return reason ? { kind: "blocked", reason } : { kind: "removed", def: removeSection(def, id) };
   }
   return { kind: "removed", def: removeBlock(def, id) };

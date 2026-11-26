@@ -7,7 +7,7 @@ import {
   addExtraAction, addLines, chooseRecordSource, deleteAction, extraActions, fieldKey, fieldLocks, fieldRemovalBlocked, linesSourceUsable,
   missingRecordColumns, recordActionUsable, recordKey, recordQuery, recordSourceUsable, recordTabs, removeBlock, removeExtraAction, removeField,
   removeSection, saveActions, setDeleteAction, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle,
-  setSummary, MAX_SUMMARY_SUBTITLE, MAX_SUMMARY_VALUES,
+  sectionRemovalBlocked, setSummary, MAX_SUMMARY_SUBTITLE, MAX_SUMMARY_VALUES,
 } from "./recordModel";
 import { recordSelectionOf, type RecordSelection } from "./templateGuards";
 import "./component-panel.css";
@@ -172,7 +172,7 @@ function PagePanel(props: RecordPanelProps) {
   const summary = summaryState(def);
   const columns = source?.columns ?? [];
   const columnLabel = (column: string) => columns.find((item) => item.code === column)?.label || column;
-  const writeSummary = (title: string, subtitle: string[], values: { column: string; label: string }[]) => change(setSummary(def, title, subtitle, values));
+  const writeSummary = (title: string, subtitle: string[], values: { column: string; label: string }[]) => change(setSummary(def, title, subtitle, values, columns));
   const toggleSubtitle = (column: string) => writeSummary(summary.title ?? "", summary.subtitle.includes(column)
     ? summary.subtitle.filter((item) => item !== column) : [...summary.subtitle, column], summary.values);
   const toggleValue = (column: string) => writeSummary(summary.title ?? "", summary.subtitle, summary.values.some((item) => item.column === column)
@@ -250,7 +250,7 @@ function SectionPanel(props: PartProps) {
   const section = def.components.find((component) => component.id === id);
   if (!section) return null;
   const columns = section.props.columns === 1 || section.props.columns === 3 ? section.props.columns : 2;
-  const blocked = stringList(section.props.inputs).map((input) => fieldRemovalBlocked(def, input)).find((reason) => reason !== null) ?? null;
+  const blocked = sectionRemovalBlocked(def, id);
   return <Shell kind="Bölüm">
     <section className="cpanel-sec" data-part="name">
       <DraftText label="Başlık" value={text(section.props.title)} disabled={disabled} onCommit={(value) => change(setSectionTitle(def, id, value))}/>

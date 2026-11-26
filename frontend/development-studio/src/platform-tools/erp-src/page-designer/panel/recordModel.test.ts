@@ -4,7 +4,7 @@ import { newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import {
   actionMissingField, addExtraAction, addField, addLines, addNote, addSection, addTab, chooseRecordSource, deleteAction, extraActions, fieldKey,
-  fieldLocks, fieldRemovalBlocked, LINES_SOURCE_NEEDS_KEY, linesSourceUsable, missingRecordColumns, moveBlock, moveField, recordActionUsable,
+  fieldLocks, fieldRemovalBlocked, recordPartTab, sectionRemovalBlocked, LINES_SOURCE_NEEDS_KEY, linesSourceUsable, missingRecordColumns, moveBlock, moveField, recordActionUsable,
   recordSourceUsable, recordTabs, RECORD_SOURCE_NEEDS_KEY, removeBlock, removeExtraAction, removeField, removeSection, removeTab, renameTab,
   saveActions, setDeleteAction, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle, setSectionVisibleWhen, setSummary,
   usedColumns,
@@ -192,6 +192,23 @@ describe("fields", () => {
     expect(fieldRemovalBlocked(deleting, "vade")).toBe("Bu alan Sil için gerekli; önce Sil'den eylemi kaldırın.");
   });
 
+  it("sectionRemovalBlocked names the section's field and the action", () => {
+    const def = built();
+    expect(sectionRemovalBlocked(def, "genel")).toBe("Bu bölümdeki \"Cari kodu\" alanı Kaydet için gerekli; önce Kaydet'ten eylemi kaldırın.");
+    const deleting = deepFreeze(setDeleteAction(built([]), { ...sil, parameters: [{ name: "kod", type: "text" }, { name: "vade", type: "int" }] }));
+    expect(sectionRemovalBlocked(deleting, "genel")).toContain("alanı Sil için gerekli; önce Sil'den eylemi kaldırın.");
+    const free = { ...def, components: def.components.filter((c) => c.props.slot !== "actions"), queries: def.queries.filter((q) => q.kind === "read") };
+    expect(sectionRemovalBlocked(free, "genel")).toBeNull();
+    expect(removeSection(def, "genel")).toBe(def);
+  });
+
+  it("recordPartTab finds the tab of a section or field", () => {
+    const def = built();
+    expect(recordPartTab(def, "genel")).toBe(0);
+    expect(recordPartTab(def, "unvan")).toBe(0);
+    expect(recordPartTab(def, "yok")).toBe(-1);
+  });
+
   it("update and delete bind the key to the record row, insert to the key field", () => {
     const def = built();
     const query = (id: string) => def.queries.find((item) => item.id === id)!;
@@ -336,6 +353,16 @@ describe("summary, lines and notes", () => {
     expect(byId(def, "ozet").props).toEqual({ slot: "summary", title: "{{kayit.rows[0].unvan}}",
       subtitle: "{{kayit.rows[0].kod}} · {{kayit.rows[0].vade}} · {{kayit.rows[0].acilis}}",
       fields: ["Vade={{kayit.rows[0].vade}}", "Açılış={{kayit.rows[0].acilis}}", "Ref={{kayit.rows[0].ref}}"] });
+  });
+
+  it("setSummary writes schema-valid fieldFormats from column types", () => {
+    const columns = [col("bakiye", "Bakiye", { type: "decimal" }), col("vade", "Vade", { type: "int" }), col("acilis", "Açılış", { type: "date" }), col("unvan", "Unvan")];
+    const def = setSummary(built([]), "unvan", [], columns.slice(0, 4).map((c) => ({ column: c.code, label: c.label })).slice(0, 3), columns);
+    expect(byId(def, "ozet").props.fieldFormats).toEqual(["Bakiye=number", "Vade=number", "Açılış=date"]);
+    const text = setSummary(def, "unvan", [], [{ column: "unvan", label: "Unvan" }], columns);
+    expect(byId(text, "ozet").props.fieldFormats).toBeUndefined();
+    const kept = setSummary(def, "unvan", [], [{ column: "bakiye", label: "Bakiye" }]);
+    expect(byId(kept, "ozet").props.fieldFormats).toEqual(["Bakiye=number"]);
   });
 
   it("addLines binds parameter to the page parameter and sets pageSize 10", () => {
