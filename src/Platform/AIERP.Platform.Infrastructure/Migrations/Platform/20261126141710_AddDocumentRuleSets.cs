@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace AIERP.Platform.Infrastructure.Migrations.Platform
 {
     /// <inheritdoc />
@@ -42,6 +44,25 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
                         onDelete: ReferentialAction.Restrict);
                 });
 
+            migrationBuilder.InsertData(
+                table: "PermissionDefinitions",
+                columns: new[] { "Code", "Action", "Description", "ResourceType" },
+                values: new object[,]
+                {
+                    { "erp.document-rules.create", "create", "create · Consultant rules on document transitions (belge kuralları)", "erp.document-rules" },
+                    { "erp.document-rules.delete", "delete", "delete · Consultant rules on document transitions (belge kuralları)", "erp.document-rules" },
+                    { "erp.document-rules.execute", "execute", "execute · Consultant rules on document transitions (belge kuralları)", "erp.document-rules" },
+                    { "erp.document-rules.read", "read", "read · Consultant rules on document transitions (belge kuralları)", "erp.document-rules" },
+                    { "erp.document-rules.update", "update", "update · Consultant rules on document transitions (belge kuralları)", "erp.document-rules" }
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_TenantPermissionRules_UnconditionalRoleRule",
+                table: "TenantPermissionRules",
+                columns: new[] { "TenantId", "SubjectType", "SubjectRole", "PermissionCode", "Effect", "IsActive" },
+                unique: true,
+                filter: "[SubjectUserId] IS NULL AND [AttributeName] IS NULL");
+
             migrationBuilder.CreateIndex(
                 name: "IX_TenantDocumentRuleSets_TenantId_Document_Transition_Status",
                 table: "TenantDocumentRuleSets",
@@ -61,6 +82,35 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
         {
             migrationBuilder.DropTable(
                 name: "TenantDocumentRuleSets");
+
+            migrationBuilder.DropIndex(
+                name: "UX_TenantPermissionRules_UnconditionalRoleRule",
+                table: "TenantPermissionRules");
+
+            migrationBuilder.DeleteData(
+                table: "PermissionDefinitions",
+                keyColumn: "Code",
+                keyValue: "erp.document-rules.create");
+
+            migrationBuilder.DeleteData(
+                table: "PermissionDefinitions",
+                keyColumn: "Code",
+                keyValue: "erp.document-rules.delete");
+
+            migrationBuilder.DeleteData(
+                table: "PermissionDefinitions",
+                keyColumn: "Code",
+                keyValue: "erp.document-rules.execute");
+
+            migrationBuilder.DeleteData(
+                table: "PermissionDefinitions",
+                keyColumn: "Code",
+                keyValue: "erp.document-rules.read");
+
+            migrationBuilder.DeleteData(
+                table: "PermissionDefinitions",
+                keyColumn: "Code",
+                keyValue: "erp.document-rules.update");
         }
     }
 }

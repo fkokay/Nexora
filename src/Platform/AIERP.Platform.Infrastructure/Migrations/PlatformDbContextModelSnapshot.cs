@@ -11842,6 +11842,41 @@ namespace AIERP.Platform.Infrastructure.Migrations
                         },
                         new
                         {
+                            Code = "erp.document-rules.read",
+                            Action = "read",
+                            Description = "read · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.create",
+                            Action = "create",
+                            Description = "create · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.update",
+                            Action = "update",
+                            Description = "update · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.delete",
+                            Action = "delete",
+                            Description = "delete · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.execute",
+                            Action = "execute",
+                            Description = "execute · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
                             Code = "erp.reports.read",
                             Action = "read",
                             Description = "read · Tenant report definitions and execution",

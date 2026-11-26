@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AIERP.Platform.Infrastructure.Migrations.Platform
 {
     [DbContext(typeof(PlatformDbContext))]
-    [Migration("20261126134733_AddDocumentRuleSets")]
+    [Migration("20261126141710_AddDocumentRuleSets")]
     partial class AddDocumentRuleSets
     {
         /// <inheritdoc />
@@ -11842,6 +11842,41 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
                             Action = "execute",
                             Description = "execute · Tenant business rule definitions and evaluation history",
                             ResourceType = "erp.business-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.read",
+                            Action = "read",
+                            Description = "read · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.create",
+                            Action = "create",
+                            Description = "create · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.update",
+                            Action = "update",
+                            Description = "update · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.delete",
+                            Action = "delete",
+                            Description = "delete · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
+                        },
+                        new
+                        {
+                            Code = "erp.document-rules.execute",
+                            Action = "execute",
+                            Description = "execute · Consultant rules on document transitions (belge kuralları)",
+                            ResourceType = "erp.document-rules"
                         },
                         new
                         {

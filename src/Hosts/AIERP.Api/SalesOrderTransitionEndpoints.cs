@@ -98,6 +98,19 @@ internal static class SalesOrderTransitionEndpoints
     /// order currency, active salesperson, active stock cards, 1–200 lines, required custom fields) and the customer's risk limit. Short
     /// stock is a warning, not a block. Amounts were normalized at the order date with that date's rates, so they are not re-derived.
     /// </summary>
+    /// <summary>Dene: the approve checks' failure as text (null when they pass); stock shortages land in <paramref name="warnings"/>.</summary>
+    internal static async Task<string?> ApproveCheckErrorAsync(TenantDbContext db, Guid tenantId, SalesOrder order, List<string> warnings, CancellationToken ct)
+    {
+        if (await ApproveChecksAsync(db, tenantId, order, warnings, ct) is not { } failed) return null;
+        var value = (failed as IValueHttpResult)?.Value;
+        return value switch
+        {
+            HttpValidationProblemDetails problem => string.Join(" ", problem.Errors.SelectMany(x => x.Value)),
+            null => "Modülün kontrolleri geçmedi.",
+            _ => System.Text.Json.JsonSerializer.SerializeToElement(value).TryGetProperty("error", out var error) ? error.GetString() : "Modülün kontrolleri geçmedi."
+        };
+    }
+
     private static async Task<IResult?> ApproveChecksAsync(TenantDbContext db, Guid tenantId, SalesOrder order, List<string> warnings, CancellationToken ct)
     {
         var lines = await db.SalesOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == order.Id).ToListAsync(ct);
