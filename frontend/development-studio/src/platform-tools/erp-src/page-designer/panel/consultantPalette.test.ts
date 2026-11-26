@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
+import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantDescription, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
 import { designerInternals } from "../../CustomPagesPage";
 
 const comp = (type: string, props: Record<string, string | number | boolean | string[]> = {}, extra: Record<string, unknown> = {}) => ({ id: "x", type, props, ...extra });
@@ -17,12 +17,12 @@ describe("consultantPalette", () => {
     expect(CONSULTANT_PALETTE.filter((item) => isCreatableKind(item.kind)).map((item) => item.kind)).toEqual(["text", "infoBox", "indicator", "image"]);
   });
 
-  it("only text infoBox indicator image are available", () => {
-    for (const kind of ["text", "infoBox", "indicator", "image"] as ConsultantKind[]) expect(consultantAvailability(kind)).toEqual({ available: true });
-    expect(consultantAvailability("list")).toEqual({ available: false, reason: "Bu kalıpta tek liste vardır." });
-    for (const kind of ["form", "lineTable", "recordSummary", "sections"] as ConsultantKind[]) expect(consultantAvailability(kind)).toEqual({ available: false, reason: "Bu bileşen sonraki sürümde gelir." });
-    expect(consultantAvailability("buttons")).toEqual({ available: false, reason: "Düğmeleri Liste panelindeki Eylemler bölümünden ekleyin." });
-    expect(consultantAvailability("developer")).toEqual({ available: false, reason: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil." });
+  it("list palette is unchanged from 5a", () => {
+    for (const kind of ["text", "infoBox", "indicator", "image"] as ConsultantKind[]) expect(consultantAvailability(kind, "list")).toEqual({ available: true });
+    expect(consultantAvailability("list", "list")).toEqual({ available: false, reason: "Bu kalıpta tek liste vardır." });
+    for (const kind of ["form", "lineTable", "recordSummary", "sections"] as ConsultantKind[]) expect(consultantAvailability(kind, "list")).toEqual({ available: false, reason: "Bu bileşen sonraki sürümde gelir." });
+    expect(consultantAvailability("buttons", "list")).toEqual({ available: false, reason: "Düğmeleri Liste panelindeki Eylemler bölümünden ekleyin." });
+    expect(consultantAvailability("developer", "list")).toEqual({ available: false, reason: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil." });
   });
 
   it("createConsultantComponent returns expected type and props", () => {
@@ -60,6 +60,31 @@ describe("consultantPalette", () => {
     for (const type of ["divider", "spacer", "heading", "text", "label", "card", "section", "metric", "progress", "list", "image", "button", "alert", "badge", "dataTable"]) expect(types).toContain(type);
     expect(designerInternals.palette).toHaveLength(30);
     expect(designerInternals.paletteGroups).toEqual(["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"]);
+  });
+});
+
+describe("consultantAvailability per template (5c Karar 10)", () => {
+  it("free palette enables text infoBox indicator list sections image", () => {
+    for (const kind of ["text", "infoBox", "indicator", "list", "sections", "image"] as ConsultantKind[]) expect(consultantAvailability(kind, "free")).toEqual({ available: true });
+  });
+
+  it("free palette disables form and recordSummary with record reason, lineTable with document reason, buttons with page-actions reason", () => {
+    for (const kind of ["form", "recordSummary"] as ConsultantKind[]) expect(consultantAvailability(kind, "free")).toEqual({ available: false, reason: "Bu bileşen Kayıt kartı kalıbında kullanılır." });
+    expect(consultantAvailability("lineTable", "free")).toEqual({ available: false, reason: "Düzenlenebilir satırlar Belge kalıbıyla gelecek." });
+    expect(consultantAvailability("buttons", "free")).toEqual({ available: false, reason: "Düğmeleri sayfa panelindeki Eylemler bölümünden ekleyin." });
+    expect(consultantAvailability("developer", "free")).toEqual({ available: false, reason: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil." });
+  });
+
+  it("record palette reasons for form recordSummary lineTable", () => {
+    for (const kind of ["form", "recordSummary", "lineTable"] as ConsultantKind[]) expect(consultantAvailability(kind, "record")).toEqual({ available: false, reason: "Kartın kendi alanlarını sol listeden ekleyin." });
+    // Geri kalanı 5a'daki gibi.
+    for (const kind of ["text", "infoBox", "indicator", "image", "list", "sections", "buttons", "developer"] as ConsultantKind[]) expect(consultantAvailability(kind, "record")).toEqual(consultantAvailability(kind, "list"));
+  });
+
+  it("free palette describes Bölümler as adding a block", () => {
+    expect(consultantDescription("sections", "free")).toBe("Yeni bölüm ekler");
+    expect(consultantDescription("sections", "list")).toBe("Sekmeler ya da adımlar");
+    expect(consultantDescription("text", "free")).toBe("Başlık, açıklama, etiket");
   });
 });
 

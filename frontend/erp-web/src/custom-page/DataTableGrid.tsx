@@ -25,6 +25,8 @@ export type GridTools = { search: boolean; filters: boolean; columns: boolean; e
   /** Seçim varken yüzen çubuktaki "Excel (seçilenler)" (eski listeler gibi; `export` kapalıyken de çalışır). */
   selectedExport: boolean };
 export const ALL_GRID_TOOLS: GridTools = { search: true, filters: true, columns: true, export: true, pivot: true, csv: true, selectedExport: true };
+/** Araçsız ızgara: serbest gövdenin salt okunur Listesi (5c Karar 7: arama, süzgeç, kolon seçici, pivot ve dışa aktarım yok). */
+export const NO_GRID_TOOLS: GridTools = { search: false, filters: false, columns: false, export: false, pivot: false, csv: false, selectedExport: false };
 /**
  * dataTable props → araçlar: `showGridSearch`, `showColumnFilters`, `showColumnChooser`, `showExport`, `showPivot`,
  * `showCsv`, `showSelectedExport`.

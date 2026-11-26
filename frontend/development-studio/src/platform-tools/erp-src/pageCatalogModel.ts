@@ -88,13 +88,13 @@ export function buildCatalogRows(screens: PageCatalogItem[], customPages: Custom
   return [...custom, ...builtIn, ...unmatched];
 }
 
-export type TemplateFilter = "all" | "list" | "record" | "none";
+export type TemplateFilter = "all" | "list" | "record" | "free" | "none";
 export const templateFilterOptions: { value: TemplateFilter; label: string }[] = [
-  { value: "all", label: "Tümü" }, { value: "list", label: "Liste" }, { value: "record", label: "Kayıt kartı" }, { value: "none", label: "Kalıpsız" },
+  { value: "all", label: "Tümü" }, { value: "list", label: "Liste" }, { value: "record", label: "Kayıt kartı" }, { value: "free", label: "Serbest" }, { value: "none", label: "Kalıpsız" },
 ];
 /** Satırın kalıp metni: yerleşik görünüm ayarı satırında kalıp kavramı yoktur. */
 export const rowTemplateText = (row: CatalogRow): string | null => row.kind === "builtIn" ? null : templateCatalogText(row.template, row.templateLevel);
-const templateMatches = (row: CatalogRow, template: TemplateFilter) => template === "all" || (template === "list" || template === "record" ? row.template === template : row.kind !== "builtIn" && row.template == null);
+const templateMatches = (row: CatalogRow, template: TemplateFilter) => template === "all" || (template === "list" || template === "record" || template === "free" ? row.template === template : row.kind !== "builtIn" && row.template == null);
 
 export type CatalogQuery = { search: string; status: StatusFilter; module: string; template?: TemplateFilter };
 

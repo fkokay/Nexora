@@ -1,3 +1,4 @@
+import { readPageTemplate } from "../pageTemplates";
 import type { ReactNode } from "react";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
 import type { ErpOperation } from "../erpOperations";
@@ -16,11 +17,12 @@ export const INDICATOR_DELETED_COLUMN = "Silinmiş alan";
 export const INDICATOR_DEV_NOTE = "Yazılımcının hazırladığı değer · birimi ondan gelir";
 const KINDS: [IndicatorKind, string][] = [["number", "Sayı"], ["progress", "İlerleme"], ["status", "Durum"]];
 const PLACES: [IndicatorPlace, string][] = [["indicators", "Göstergeler"], ["above", "Listenin üstü"], ["below", "Listenin altı"]];
+const RECORD_PLACES: Partial<Record<IndicatorPlace, string>> = { above: "Kartın üstü", below: "Kartın altı" };
 const SIZES: [IndicatorSize, string][] = [["sm", "Küçük"], ["lg", "Büyük"]];
-const NO_INDICATORS_NOTE: Record<string, string> = {
-  progress: "İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.",
-  badge: "Durum göstergeler sırasına konamaz; listenin üstünde ya da altında durur.",
-};
+const NO_INDICATORS_KIND: Record<string, string> = { progress: "İlerleme", badge: "Durum" };
+/** İlerleme ve durumun neden göstergeler sırasında olmadığı; Kayıt kartında yerleri kartın üstü ve altıdır. */
+const noIndicatorsNote = (type: string, record: boolean) => NO_INDICATORS_KIND[type]
+  ? `${NO_INDICATORS_KIND[type]} göstergeler sırasına konamaz; ${record ? "kartın" : "listenin"} üstünde ya da altında durur.` : null;
 const COMMON = ["title", "slot", "visibleWhen", "hideOnMobile"];
 /** Panelin yazdığı özellikler (türe göre) ve ortak olanlar; ötekiler "Eski ayarlar" altında salt okunur görünür. */
 /** `countWhen` yalnız Studio'nun yazdığı "Kayıt sayısı" koşuluysa panelindir; başka bir koşul "Eski ayarlar"da görünür. */
@@ -35,9 +37,11 @@ export type IndicatorPanelProps = {
   disabled?: boolean; onChange: (next: ModelDefinition) => void; onRename: (name: string) => void;
   /** "Ne zaman görünsün?" alanı (`VisibilityField` düğümü). */
   visibility?: ReactNode;
+  /** Ad bölümünün altındaki satırı değiştirir (serbest gövdede bölüm seçimi); verilmezse "Yeri" seçimi. */
+  place?: ReactNode;
 };
 
-export function IndicatorPanel({ component, definition, catalog, catalogStatus, operationOf, operationsStatus, disabled, onChange, onRename, visibility }: IndicatorPanelProps) {
+export function IndicatorPanel({ component, definition, catalog, catalogStatus, operationOf, operationsStatus, disabled, onChange, onRename, visibility, place: placeOverride }: IndicatorPanelProps) {
   const state = indicatorOf(definition, component.id);
   const sources = (catalog?.dataSources ?? []).map((item) => withOperationParameters(item, operationOf(item.erpOperation), false, operationsStatus));
   const source = sources.find((item) => item.code === state.source);
@@ -106,11 +110,12 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
       </select></label>}
   </>;
   // "Yeri" Ad bölümünün altında (Metin, Bilgi kutusu ve Görsel ile aynı); seçenekler `indicatorPlaces`'ten gelir.
-  const place = <div className="cpanel-row cpanel-template-place">Yeri
-    <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, label]) =>
+  const record = readPageTemplate(definition.template)?.name === "record";
+  const place = placeOverride ?? <div className="cpanel-row cpanel-template-place">Yeri
+    <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, listLabel]) =>
       <button type="button" key={value} className={component.props.slot === value ? "on" : ""} aria-pressed={component.props.slot === value} disabled={disabled}
-        onClick={() => change(setIndicatorPlace(definition, id, value))}>{label}</button>)}</div>
-    {NO_INDICATORS_NOTE[component.type] && <p className="cpanel-note">{NO_INDICATORS_NOTE[component.type]}</p>}
+        onClick={() => change(setIndicatorPlace(definition, id, value))}>{(record && RECORD_PLACES[value]) || listLabel}</button>)}</div>
+    {noIndicatorsNote(component.type, record) && <p className="cpanel-note">{noIndicatorsNote(component.type, record)}</p>}
   </div>;
 
   const extra = state.kind === "number"

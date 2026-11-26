@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
-import { newListTemplateDefinition } from "../pageTemplates";
+import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import { missingCatalogCodes, withOperationParameters, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import {
   INDICATOR_SOURCE_NEEDS_INPUT, chooseIndicatorSource, indicatorOf, indicatorPlaces, indicatorSourceUsable, setIndicatorCompare, setIndicatorKind,
@@ -247,5 +247,17 @@ describe("type switches drop keys the server rejects (final review fix 2)", () =
     setIndicatorKind(def, "g1", "status");
     chooseIndicatorSource(def, "g1", ozet);
     expect(JSON.stringify(def)).toBe(snapshot);
+  });
+});
+
+describe("indicatorPlaces by template (5c Karar 9)", () => {
+  it("indicatorPlaces on record page are above and below only; on free page empty", () => {
+    const record = { ...(newRecordTemplateDefinition() as unknown as ModelDefinition), components: [metric()] } as ModelDefinition;
+    expect(indicatorPlaces(record, comp(record))).toEqual(["above", "below"]);
+    expect(indicatorPlaces(record, { ...comp(record), type: "progress" })).toEqual(["above", "below"]);
+    expect(comp(setIndicatorPlace(record, "g1", "indicators")).props.slot).toBe(metric().props.slot);
+    expect(comp(setIndicatorPlace(record, "g1", "below")).props.slot).toBe("below");
+    const free = { ...record, template: { name: "free" as const } } as ModelDefinition;
+    expect(indicatorPlaces(free, comp(free))).toEqual([]);
   });
 });
