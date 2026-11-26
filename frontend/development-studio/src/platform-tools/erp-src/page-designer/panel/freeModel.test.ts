@@ -263,6 +263,29 @@ describe("serbest gövde modeli", () => {
     expect(removed.queries.map((q) => q.id)).toEqual(["ortak"]);
   });
 
+  it("removeItem keeps queries that are only word matches, not references", () => {
+    const x = ok(addItem(fresh(), "text", {}));
+    const query = (id: string) => ({ id, name: id, kind: "read" as const, dataSource: id, runOn: "load" as const, parameters: [] });
+    // Bileşenin kimliği bir sorgu kimliğiyle aynı ve metni başka bir sorgunun adını bağlamasız anıyor: ikisi de başvuru değil.
+    const def: ModelDefinition = { ...x.def, queries: [query(x.itemId), query("ortak")] as ModelDefinition["queries"],
+      components: x.def.components.map((c) => c.id === x.itemId ? { ...c, props: { ...c.props, text: "ortak toplam" } } : c) };
+    expect(removeItem(def, x.itemId).queries.map((q) => q.id)).toEqual([x.itemId, "ortak"]);
+    // Bağlamayla başvurulan ve başka yerde kullanılmayan sorgu silinir; başka bir sorgunun parametresi bağlıyorsa kalır.
+    const bound: ModelDefinition = { ...def, components: def.components.map((c) => c.id === x.itemId ? { ...c, props: { ...c.props, text: "{{ ortak.rows[0].toplam }}" } } : c) };
+    expect(removeItem(bound, x.itemId).queries.map((q) => q.id)).toEqual([x.itemId]);
+    const chained: ModelDefinition = { ...bound, queries: [...bound.queries, { ...query("detay"), parameters: [{ name: "p", type: "text", binding: "{{ortak.rows[0].kod}}" }] }] as ModelDefinition["queries"] };
+    expect(removeItem(chained, x.itemId).queries.map((q) => q.id)).toEqual([x.itemId, "ortak", "detay"]);
+  });
+
+  it("addTab on a tabs component with no valid tab seeds Genel with the existing blocks", () => {
+    const two = ok(addBlock(fresh()));
+    const broken: ModelDefinition = { ...two.def, components: [{ id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: [] } }, ...two.def.components] };
+    const result = ok(addTab(broken));
+    expect(result.tabIndex).toBe(1);
+    expect(freeTabs(result.def)).toEqual([{ label: "Genel", blockIds: ["bolum", two.blockId] }, { label: "Yeni sekme", blockIds: [result.blockId] }]);
+    assertShape(result.def);
+  });
+
   it("pageActionUsable rejects row, bulk and parameterised actions", () => {
     expect(pageActionUsable(action("yenile"))).toEqual({ usable: true });
     expect(pageActionUsable(action("satir", { target: "row" }))).toEqual({ usable: false, reason: PAGE_ACTION_ROW });

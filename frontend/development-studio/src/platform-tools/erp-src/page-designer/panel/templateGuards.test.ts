@@ -99,6 +99,49 @@ describe("free template guards", () => {
     expect(ensureTemplateSlots(fixed)).toBe(fixed);
   });
 
+  it("removes a tabs component that carries no valid tab instead of crashing", () => {
+    for (const tabs of [[], ["geçersiz"], ["=a"]]) {
+      const def = free([blockC("a", []), { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs } }]);
+      const fixed = ensureTemplateSlots(def);
+      expect(fixed.components.map((c) => c.id)).toEqual(["a"]);
+      expect(ensureTemplateSlots(fixed)).toBe(fixed);
+    }
+  });
+
+  it("caps block members at twelve and moves the overflow to a block with room", () => {
+    const thirteen = Array.from({ length: 13 }, (_, index) => `m${index}`);
+    const def = free([blockC("a", [...thirteen]), blockC("b", []), ...thirteen.map((id) => ({ id, type: "text", props: { slot: "item" } }))]);
+    const fixed = ensureTemplateSlots(def);
+    expect(membersOf(fixed, "a")).toEqual(thirteen.slice(0, 12));
+    expect(membersOf(fixed, "b")).toEqual(["m12"]);
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+
+  it("titles overflow blocks with a unique Bölüm N and stops opening blocks at twenty", () => {
+    const full = Array.from({ length: 12 }, (_, index) => `f${index}`);
+    const titled = { ...blockC("a", [...full]), props: { ...blockC("a", [...full]).props, title: "Bölüm 2" } };
+    const fixed = ensureTemplateSlots(free([titled, ...full.map((id) => ({ id, type: "text", props: { slot: "item" } })),
+      { id: "y", type: "text", props: {} }, { id: "z", type: "text", props: {} }]));
+    const opened = fixed.components.filter((c) => c.type === "section" && c.id !== "a");
+    expect(opened.map((c) => c.props.title)).toEqual(["Bölüm 3"]);
+    expect(opened[0].props.members).toEqual(["y", "z"]);
+
+    const blocks = Array.from({ length: 20 }, (_, b) => blockC(`b${b}`, Array.from({ length: 12 }, (_, i) => `i${b}_${i}`)));
+    const items = blocks.flatMap((b) => (b.props.members as string[]).map((id) => ({ id, type: "text", props: { slot: "item" } })));
+    const capped = ensureTemplateSlots(free([...blocks, ...items, { id: "fazla", type: "text", props: {} }]));
+    expect(capped.components.filter((c) => c.type === "section" && c.props.slot === "block")).toHaveLength(20);
+    expect(membersOf(capped, "b19")).toHaveLength(13);
+    expect((membersOf(capped, "b19") as string[]).at(-1)).toBe("fazla");
+  });
+
+  it("opens an empty block when none is left", () => {
+    const empty = ensureTemplateSlots(free([]));
+    expect(empty.components).toEqual([{ id: "bolum", type: "section", props: { slot: "block", title: "Bölüm 1", columns: 2, members: [] } }]);
+    expect(ensureTemplateSlots(empty)).toBe(empty);
+    const onlyItem = ensureTemplateSlots(free([{ id: "x", type: "text", props: { slot: "item" } }]));
+    expect(onlyItem.components.find((c) => c.type === "section")!.props.members).toEqual(["x"]);
+  });
+
   it("puts a block that is in no tab into the last tab and drops unknown tab entries", () => {
     const def = free([blockC("a", []), blockC("b", []), blockC("c", []), { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: ["Genel=a,yok", "İkinci=b"] } }]);
     const fixed = ensureTemplateSlots(def);

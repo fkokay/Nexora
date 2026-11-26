@@ -125,7 +125,8 @@ function nextBlockTitle(def: ModelDefinition): string {
   while (titles.has(`${DEFAULT_BLOCK_TITLE} ${index}`)) index++;
   return `${DEFAULT_BLOCK_TITLE} ${index}`;
 }
-function newBlock(def: ModelDefinition): ModelComponent {
+/** Yeni boş bölüm (eklenmemiş): benzersiz kimlik, benzersiz "Bölüm N" başlığı, 2 kolon. Güvenlik ağı da bunu kullanır. */
+export function newFreeBlock(def: ModelDefinition): ModelComponent {
   return { id: freeId(def, "bolum"), type: "section", props: { slot: "block", title: nextBlockTitle(def), columns: 2, members: [] } };
 }
 /** Bileşeni son bölüm bileşeninin (ya da verilen bölümün) arkasına koyar. */
@@ -146,7 +147,7 @@ function insertBlock<D extends ModelDefinition>(def: D, block: ModelComponent, a
 export function addBlock<D extends ModelDefinition>(def: D, afterBlockId?: string): { def: D; blockId: string } | { reason: string } {
   if (def.components.filter(isFreeBlock).length >= MAX_FREE_BLOCKS) return { reason: FREE_BLOCKS_FULL };
   const after = afterBlockId && findBlock(def, afterBlockId) ? afterBlockId : undefined;
-  const block = newBlock(def);
+  const block = newFreeBlock(def);
   let next = insertBlock(def, block, after);
   const tabs = freeTabs(next);
   if (tabs) {
@@ -209,7 +210,9 @@ export function moveBlock<D extends ModelDefinition>(def: D, blockId: string, di
  * sekmesine girer. Etiket verilmezse "Yeni sekme" (gerekirse "Yeni sekme 2"…). 8 sekmede ya da 20 bölümde neden döner.
  */
 export function addTab<D extends ModelDefinition>(def: D, label?: string): { def: D; tabIndex: number; blockId: string } | { reason: string } {
-  const tabs = freeTabs(def) ?? [{ label: GENERAL_TAB, blockIds: freeBlocks(def).map((block) => block.id) }];
+  // Sekme bileşeni yoksa ya da hiç geçerli sekme taşımıyorsa bütün bölümler "Genel"e girer.
+  const existing = freeTabs(def);
+  const tabs = existing?.length ? existing : [{ label: GENERAL_TAB, blockIds: freeBlocks(def).map((block) => block.id) }];
   if (tabs.length >= MAX_FREE_TABS) return { reason: FREE_TABS_FULL };
   if (def.components.filter(isFreeBlock).length >= MAX_FREE_BLOCKS) return { reason: FREE_BLOCKS_FULL };
   let clean = tabLabel(label ?? "");
@@ -218,7 +221,7 @@ export function addTab<D extends ModelDefinition>(def: D, label?: string): { def
     clean = NEW_TAB_LABEL;
     for (let index = 2; labels.has(clean); index++) clean = `${NEW_TAB_LABEL} ${index}`;
   }
-  const block = newBlock(def);
+  const block = newFreeBlock(def);
   const next = insertBlock(def, block);
   return { def: setFreeTabs(next, [...tabs, { label: clean, blockIds: [block.id] }]), tabIndex: tabs.length, blockId: block.id };
 }
@@ -299,17 +302,33 @@ export function moveItemToBlock<D extends ModelDefinition>(def: D, itemId: strin
   }) } };
 }
 
-/** Sorgu başka hiçbir yerden (bileşen, öteki sorgu) anılmıyor mu; ad ya da kimlik sözcük olarak aranır (şüphede "anılıyor"). */
-function queryMentioned(text: string, query: PageQuery): boolean {
-  return [query.id, query.name].some((token) =>
-    new RegExp(`(^|[^A-Za-z0-9_])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z0-9_]|$)`).test(text));
+// Sorguya gerçek başvurular: kimliğini taşıyan özellikler ve `{{<sorgu adı|kimliği>.…}}` bağlamaları. Sözcük eşleşmesi kullanılmaz;
+// bileşen kimliği bir sorgu kimliğiyle aynı olsa da başvuru sayılmaz.
+const QUERY_ID_PROPS = ["query", "queryId", "bulkDeleteQuery", "trendQuery"];
+const QUERY_LIST_PROPS = ["refreshQueries", "saveSequence"];
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function bindsQuery(value: unknown, query: PageQuery): boolean {
+  if (typeof value === "string") {
+    if (!value.includes("{{")) return false;
+    return [query.id, query.name].some((token) => new RegExp(`\\{\\{\\s*${escapeRegExp(token)}\\.`).test(value));
+  }
+  if (Array.isArray(value)) return value.some((item) => bindsQuery(item, query));
+  if (value && typeof value === "object") return Object.values(value).some((item) => bindsQuery(item, query));
+  return false;
 }
-/** Silinen bileşenlerin andığı ve artık hiçbir yerde anılmayan sorguları kaldırır. */
+function componentUsesQuery(component: ModelComponent, query: PageQuery): boolean {
+  if (QUERY_ID_PROPS.some((key) => component.props[key] === query.id)) return true;
+  if (QUERY_LIST_PROPS.some((key) => stringList(component.props[key]).includes(query.id))) return true;
+  if (bindsQuery(component.props, query)) return true;
+  return Array.isArray(component.children) && (component.children as ModelComponent[])
+    .some((child) => !!child && typeof child === "object" && !!child.props && componentUsesQuery(child, query));
+}
+/** Silinen bileşenlerin başvurduğu ve artık hiçbir bileşenin ya da öteki sorgunun (parametre bağlaması) başvurmadığı sorguları kaldırır. */
 function dropOrphanQueries<D extends ModelDefinition>(def: D, removed: ModelComponent[]): D {
-  const removedText = JSON.stringify(removed);
   const queries = def.queries.filter((query) => {
-    if (!queryMentioned(removedText, query)) return true;
-    return queryMentioned(JSON.stringify([def.components, def.queries.filter((item) => item.id !== query.id)]), query);
+    if (!removed.some((component) => componentUsesQuery(component, query))) return true;
+    return def.components.some((component) => componentUsesQuery(component, query))
+      || def.queries.some((other) => other.id !== query.id && bindsQuery(other.parameters, query));
   });
   return queries.length === def.queries.length ? def : { ...def, queries };
 }

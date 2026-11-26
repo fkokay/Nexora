@@ -2,8 +2,8 @@
 // ağacın hiçbir yerinde `width` / `widthWhen` kalmaz. Eski ayar yollarından (satır düğmesi, kopyalama, standart öğeler…)
 // gelen bileşenler de böylece kaydı bozmaz. Değişiklik yoksa aynı nesne döner.
 import { readPageTemplate } from "../pageTemplates";
-import { DEFAULT_BLOCK_TITLE, freeBlocks, freeTabs, isFreeBlock, MAX_BLOCK_MEMBERS, setFreeTabs } from "./freeModel";
-import { freeId, type ModelComponent, type ModelDefinition } from "./listPanelModel";
+import { freeBlocks, freeTabs, isFreeBlock, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, setFreeTabs } from "./freeModel";
+import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
@@ -66,15 +66,19 @@ function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
     return next;
   });
   const slotted = changed ? { ...def, components } : def;
+  // Boş olmayan `children` onarılmaz (sunucu reddeder); yalnız `width` / `widthWhen` atılır.
   return freeMembership(slotted);
 }
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index]);
 
 /**
- * Serbest gövdenin üyelik kuralları (sunucu: her bileşen tam bir bölümde, sekme varsa her bölüm tam bir sekmede):
- * bölümün `members`'ından olmayan bileşenler ve ikinci kez geçen kimlikler atılır; bölümsüz bileşen yeri olan son bölüme (hepsi
- * doluysa yeni bir bölüme) girer; sekmede olmayan bölüm son sekmeye girer, bilinmeyen kimlikler ve boş sekmeler atılır.
+ * Serbest gövdenin üyelik kuralları (sunucu: her bileşen tam bir bölümde, sekme varsa her bölüm tam bir sekmede, en az bir
+ * bölüm): bölümün `members`'ından olmayan bileşenler, ikinci kez geçen kimlikler ve 12'yi aşanlar çıkarılır; bölümsüz bileşen
+ * yeri olan son bölüme (hepsi doluysa, 20 bölüm sınırına kadar yeni bir bölüme; sınırda son bölüme) girer; hiç bölüm yoksa boş
+ * bir bölüm açılır. Sekmede olmayan bölüm son sekmeye girer, bilinmeyen kimlikler ve boş sekmeler atılır, tek sekme ya da hiç
+ * sekme kalmazsa sekme bileşeni kalkar.
+ * Boş olmayan `children` burada onarılmaz: sunucu onu kendi metniyle reddeder (iç içe bileşen serbest gövdede kullanılmaz).
  */
 function freeMembership<D extends ModelDefinition>(def: D): D {
   const items = new Set(def.components.filter((component) => component.props.slot === "item").map((component) => component.id));
@@ -83,24 +87,27 @@ function freeMembership<D extends ModelDefinition>(def: D): D {
   const members = new Map<string, string[]>();
   for (const id of order) {
     const block = def.components.find((component) => component.id === id)!;
-    const kept = ids(block.props.members).filter((member) => items.has(member) && !seen.has(member));
+    const kept = ids(block.props.members).filter((member) => items.has(member) && !seen.has(member)).slice(0, MAX_BLOCK_MEMBERS);
     kept.forEach((member) => seen.add(member));
     members.set(id, kept);
   }
+  // Yeni bölümler çalışma tanımına eklenerek kurulur: kimlik ve "Bölüm N" başlığı öncekilerle çakışmaz.
   const extraBlocks: ModelComponent[] = [];
+  const openBlock = () => {
+    const block = newFreeBlock({ ...def, components: [...def.components, ...extraBlocks] });
+    extraBlocks.push(block);
+    order.push(block.id);
+    members.set(block.id, []);
+    return block.id;
+  };
   for (const item of items) {
     if (seen.has(item)) continue;
     let target = [...order].reverse().find((id) => members.get(id)!.length < MAX_BLOCK_MEMBERS);
-    if (!target) {
-      const id = freeId(def, "bolum", new Set(extraBlocks.map((block) => block.id.toLowerCase())));
-      extraBlocks.push({ id, type: "section", props: { slot: "block", title: `${DEFAULT_BLOCK_TITLE} ${order.length + 1}`, columns: 2, members: [] } });
-      order.push(id);
-      members.set(id, []);
-      target = id;
-    }
+    if (!target) target = order.length < MAX_FREE_BLOCKS ? openBlock() : order.at(-1)!;
     members.get(target)!.push(item);
     seen.add(item);
   }
+  if (order.length === 0) openBlock();
   let next: D = def;
   const patched = def.components.map((component) => {
     const list = isFreeBlock(component) ? members.get(component.id) : undefined;
@@ -110,6 +117,8 @@ function freeMembership<D extends ModelDefinition>(def: D): D {
     ...extraBlocks.map((block) => ({ ...block, props: { ...block.props, members: members.get(block.id)! } }))] };
   const tabs = freeTabs(next);
   if (!tabs) return next;
+  // Sekme bileşeni hiç geçerli sekme taşımıyorsa kaldırılır; bölümler sekmesiz çizilir.
+  if (tabs.length === 0) return setFreeTabs(next, []);
   // Yeni (taşma) bölümleri `order`'da; sekmeler onları da son sekmeye alır.
   const blockIds = new Set(order);
   const placed = new Set<string>();
