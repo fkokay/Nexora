@@ -2,7 +2,7 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ErpCanvasFrame from "./ErpCanvasFrame";
+import ErpCanvasFrame, { OVERLAY_BOTTOM_SPACE } from "./ErpCanvasFrame";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -242,6 +242,13 @@ describe("ErpCanvasFrame", () => {
       post.mockClear();
       send(ready);
       expect(post).toHaveBeenCalledWith(message, ORIGIN);
+    });
+
+    it("kaplamalı tuvalde altta yer açılır (\"+ Bölüm ekle\" kırpılmaz); kaplamasız ve Dene'de açılmaz", () => {
+      const withOverlay = setup({ overlay: () => null });
+      expect((withOverlay.container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe(`${OVERLAY_BOTTOM_SPACE}px`);
+      expect((setup().container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe("");
+      expect((setup({ interactive: true, overlay: () => null }).container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe("");
     });
 
     it("sekme kutusu seçilmez; Dene kipinde kaplama çizilmez", () => {

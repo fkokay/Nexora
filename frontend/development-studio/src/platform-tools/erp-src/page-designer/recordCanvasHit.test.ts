@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CanvasBlock } from "./erpCanvasProtocol";
 import type { ModelComponent, ModelDefinition } from "./panel/listPanelModel";
-import { recordDropAt, recordDropMarker } from "./recordCanvasHit";
+import { recordDropAt, recordDropMarker, shownRecordTab } from "./recordCanvasHit";
 
 const field = (id: string): ModelComponent => ({ id, type: "input", name: id, props: { slot: "field", label: id } });
 const section = (id: string, inputs: string[]): ModelComponent => ({ id, type: "formCard", name: id, props: { slot: "section", title: id, columns: 3, inputs } });
@@ -72,5 +72,13 @@ describe("recordDropMarker", () => {
     expect(recordDropMarker(blocks, def, { kind: "field", sectionId: "s1", index: 2 })).toEqual({ x: 308, y: 140, width: 3, height: 40 });
     expect(recordDropMarker([box("s3", 10, 100, 880, 80)], def, { kind: "field", sectionId: "s3", index: 0 })).toEqual({ x: 18, y: 108, width: 3, height: 64 });
     expect(recordDropMarker(blocks, def, null)).toBeNull();
+  });
+});
+
+describe("shownRecordTab", () => {
+  it("kutusu olan sekmeyi bulur (Dene'de ERP içinde değişen sekme dahil)", () => {
+    expect(shownRecordTab(blocks, def)).toBe(0);
+    expect(shownRecordTab([box("t#tab0", 0, 0, 10, 10), box("s3", 10, 100, 880, 80)], def)).toBe(1);
+    expect(shownRecordTab([box("t#tab0", 0, 0, 10, 10)], def)).toBe(-1);
   });
 });

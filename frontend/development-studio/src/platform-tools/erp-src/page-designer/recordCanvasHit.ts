@@ -20,6 +20,15 @@ export function tabSections(def: ModelDefinition, activeTab: number): ModelCompo
   return ids.map((id) => def.components.find((component) => component.id === id && isSection(component))).filter((item): item is ModelComponent => !!item);
 }
 
+/**
+ * ERP'nin şu an gösterdiği sekme: blokları kutu taşıyan ilk sekme (yalnız etkin sekmenin blokları çizilir). "Dene"de ERP içinde
+ * sekme değişince de doğru kalır. Hiçbir sekmenin kutusu yoksa -1.
+ */
+export function shownRecordTab(blocks: CanvasBlock[], def: ModelDefinition): number {
+  const ids = new Set(blocks.map((block) => block.id));
+  return recordTabs(def).findIndex((tab) => tab.ids.some((id) => ids.has(id)));
+}
+
 /** Bölümün görünen alan kutuları okuma sırasıyla (üstten alta, soldan sağa) ve her birinin `inputs` sırası. */
 function visibleFields(section: ModelComponent, byId: Map<string, CanvasBlock>) {
   const inputs = stringList(section.props.inputs);

@@ -62,6 +62,7 @@ import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
 import { ensureTemplateSlots, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
+import { shownRecordTab } from "./page-designer/recordCanvasHit";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
@@ -1217,8 +1218,6 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önerilen öğelerin hepsi eklendiyse sonraki kayıt tabanı güncel standart sürüme çeker.
   const allNewItemsAdded = !!newItems && newItems.items.length > 0 && pendingNewItems.length === 0 && newItems.standardVersion > newItems.baseVersion;
   const selected = selectedComponentId ? cardTree.findComponent(definition.components, selectedComponentId) : null;
-  // Kayıt kartında sol listeden sürüklenen kolon ya da blok (tuvaldeki bırakma bunu okur).
-  const recordDrag = useRef<{ kind: "column"; code: string } | { kind: "block"; block: RecordBlockKind } | null>(null);
   // Sayfa kalıbı (alt proje 3): kalıplı sayfada özellikler paneli Liste paneli / tek tip bileşen panelidir.
   const pageTemplate = readPageTemplate(definition.template);
   // Tanımdan türetilir: geri alma, silme ya da başka sayfa açılınca kart ortadan kalkarsa sayfa görünümüne dönülür.
@@ -3726,9 +3725,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   const selectedTab = () => {
     const owner = recordSections.find((section) => stringList(section.props.inputs).includes(selectedComponentId ?? ""))?.id ?? selectedComponentId ?? "";
-    return Math.max(0, recordTabs(recordDef).findIndex((tab) => tab.ids.includes(owner)));
+    const own = recordTabs(recordDef).findIndex((tab) => tab.ids.includes(owner));
+    return own >= 0 ? own : canvasRecordTab(erpBlocks.current);
   };
   // Tuvale bırakılınca hedef verilir (bölüm ve sıra); tıklayınca seçime göre bulunur.
+  // Tuvalde görünen sekme: ERP'nin kutularından (Dene'de ERP içinde değişmiş olabilir), kutu yoksa Studio'nun istediği.
+  const canvasRecordTab = (blocks: ErpCanvasBlock[]) => {
+    const shown = shownRecordTab(blocks, recordDef);
+    return shown >= 0 ? shown : Math.max(0, Math.min(recordTab, recordTabs(recordDef).length - 1));
+  };
   const addRecordColumn = (code: string, target?: { sectionId: string; index: number }) => {
     const column = recordCatalog?.dataSources.find((item) => item.code === recordQuery(recordDef)?.dataSource)?.columns.find((item) => item.code === code);
     if (!column) return;
@@ -3796,7 +3801,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       <DockPanel side="left" pinned={docks.pinned.left} onTogglePin={() => docks.toggle("left")} rail={[{ label: "Bileşenler", icon: Shapes }, { label: "Katmanlar", icon: Layers }, { label: "Sorgular", icon: Database }]}>
       {/* Katmanlar'daki bırakma hedefi yalnız sol paneli yeniden çizer (tuvalde sürüklerken hiç değişmez). */}
       {isRecordPage && !focusOwner ? <RecordFieldList def={recordDef} catalog={recordCatalog} catalogStatus={activeCatalog.status} disabled={!canEdit}
-        onDragStartColumn={(code) => { recordDrag.current = { kind: "column", code }; }} onDragStartBlock={(block) => { recordDrag.current = { kind: "block", block }; }}
+        onDragStartColumn={() => {}} onDragStartBlock={() => {}}
         onAddColumn={addRecordColumn} onAddBlock={addRecordBlock} onAskDeveloper={askDeveloper}/>
       : <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
@@ -3851,8 +3856,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
               overlay={isRecordPage ? ({ blocks, showTab }) => {
-                const tabCount = recordTabs(recordDef).length;
-                const activeTab = Math.max(0, Math.min(recordTab, tabCount - 1));
+                const activeTab = canvasRecordTab(blocks);
                 const tabsId = recordDef.components.find((component) => component.type === "tabs" && component.props.slot === "tabs")?.id;
                 return <RecordCanvasOverlay blocks={blocks} def={recordDef} activeTab={activeTab} disabled={!canEdit}
                   selection={recordSelectionOf(recordDef, selectedComponentId)}

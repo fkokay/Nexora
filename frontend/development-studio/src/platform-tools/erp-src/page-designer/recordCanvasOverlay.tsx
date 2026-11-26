@@ -135,7 +135,7 @@ export function RecordCanvasOverlay(props: RecordCanvasOverlayProps) {
       const b = byId.get(id)!;
       const current = def.components.find((component) => component.id === id)?.props.columns ?? 2;
       controls.push(<span key={`cols-${id}`} className="rco-cols" role="group" aria-label="Kolon sayısı"
-        style={{ ...auto, left: b.x + b.width - 96, top: b.y + 6, display: "flex", gap: 2 }}>
+        style={{ ...auto, left: Math.max(b.x, b.x + b.width - 96), top: b.y + 6, display: "flex", gap: 2 }}>
         {([1, 2, 3] as const).map((count) => <button key={count} type="button" aria-label={`${count} kolon`} aria-pressed={current === count}
           style={{ ...chip, position: "static", width: 28, height: 22, padding: 0, background: current === count ? ACCENT : "#fff", color: current === count ? "#fff" : ACCENT }}
           onClick={(event) => { stop(event); const next = setSectionColumns(def, id, count); if (next !== def) props.onChange(next); }}>{count}</button>)}

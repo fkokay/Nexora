@@ -79,6 +79,12 @@ describe("RecordCanvasOverlay", () => {
     expect(outerClick).not.toHaveBeenCalled();
   });
 
+  it("dar bölümde kolon düğmeleri bölümün solundan taşmaz", () => {
+    const narrow = blocks.map((item) => item.id === genel ? { ...item, width: 60 } : item);
+    const { host } = setup({ blocks: narrow, selection: { kind: "section", id: genel } });
+    expect((host.querySelector(".rco-cols") as HTMLElement).style.left).toBe("10px");
+  });
+
   it("seçili bölümde kolon düğmeleri üstüne gelmeden de görünür", () => {
     const { host } = setup({ selection: { kind: "section", id: genel } });
     expect(button(host, "1 kolon")).not.toBeNull();

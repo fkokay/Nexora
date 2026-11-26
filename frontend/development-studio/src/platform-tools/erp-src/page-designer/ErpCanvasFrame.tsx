@@ -32,6 +32,8 @@ const AUTH_RESEND_MS = 1_000;
 const FALLBACK_MESSAGE = "ERP önizlemesine bağlanılamadı, yerleşik önizleme gösteriliyor.";
 const DEVICE_WIDTH = { desktop: "100%", tablet: "768px", mobile: "375px" } as const;
 const INITIAL_HEIGHT = 600;
+/** Kaplamalı tuvalde ERP sayfasının altındaki boşluk (px). */
+export const OVERLAY_BOTTOM_SPACE = 44;
 
 export default function ErpCanvasFrame(props: Props) {
   const { platformOrigin, token, tenant, target, revision, device, selectedId, interactive } = props;
@@ -132,7 +134,8 @@ export default function ErpCanvasFrame(props: Props) {
   );
 
   return (
-    <div className="pd-erp-canvas" style={{ width: DEVICE_WIDTH[device] }} data-device={device}>
+    // Kaplama ERP sayfasının altına da denetim koyar ("+ Bölüm ekle"); kırpılmasın diye altta yer açılır.
+    <div className="pd-erp-canvas" style={{ width: DEVICE_WIDTH[device], paddingBottom: props.overlay && !interactive ? OVERLAY_BOTTOM_SPACE : undefined }} data-device={device}>
       <iframe
         ref={iframeRef}
         className="pd-erp-canvas-frame"
