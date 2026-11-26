@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasFrameUrl, parseCanvasMessage, reloadMessage } from "./erpCanvasProtocol";
+import { canvasFrameUrl, parseCanvasMessage, reloadMessage, showTabMessage } from "./erpCanvasProtocol";
 
 const base = { nx: "nexora-canvas", v: 1 };
 
@@ -13,6 +13,22 @@ describe("ERP tuval protokolü", () => {
 
   it("reload mesajı üretir", () => {
     expect(reloadMessage(3)).toEqual({ ...base, type: "reload", revision: 3 });
+  });
+
+  it("erpCanvasProtocol showTab round trip", () => {
+    // erp-web/src/designer-canvas/canvasProtocol.ts parseStudioCanvasMessage ile aynı biçim.
+    expect(showTabMessage("sekmeler", 2)).toEqual({ ...base, type: "showTab", tabsId: "sekmeler", index: 2 });
+    expect(() => showTabMessage("a#tab1", 0)).toThrow();
+    expect(() => showTabMessage("t", 100)).toThrow();
+    expect(() => showTabMessage("t", 1.5)).toThrow();
+  });
+
+  it("Kayıt kartının sekme kutularını (\"<tabsId>#tab<i>\") kabul eder", () => {
+    const layout = { ...base, type: "layout", revision: 1, height: 500, blocks: [{ id: "t#tab1", x: 0, y: 0, width: 10, height: 10 }] };
+    expect(parseCanvasMessage(layout)).toEqual(layout);
+    for (const id of ["t#tab", "t#tab100", "#tab1", "t#tab1#tab2", "t#x1"]) {
+      expect(parseCanvasMessage({ ...layout, blocks: [{ id, x: 0, y: 0, width: 1, height: 1 }] })).toBeNull();
+    }
   });
 
   it("geçerli ready, layout ve error mesajlarını kabul eder", () => {

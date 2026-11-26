@@ -32,3 +32,14 @@ describe("loadCatalog", () => {
     await expect(loadCatalog("t")).rejects.toThrow();
   });
 });
+
+describe("loadCatalog column flags", () => {
+  it("loadCatalog maps longText required maxLength with defaults", async () => {
+    respond(200, { version: "1", dataSources: [{ code: "c", label: "C", source: "sql", columns: [
+      { code: "not", label: "Not", type: "text", key: false, longText: true, required: true, maxLength: 500 },
+      { code: "ad", label: "Ad", type: "text", key: false }] }], actions: [] });
+    const columns = (await loadCatalog("t"))!.dataSources[0].columns;
+    expect(columns[0]).toMatchObject({ longText: true, required: true, maxLength: 500 });
+    expect(columns[1]).toMatchObject({ longText: false, required: false, maxLength: null });
+  });
+});

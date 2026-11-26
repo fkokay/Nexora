@@ -96,7 +96,9 @@ internal static partial class TenantCustomPageSchema
       "slot", "hideOnMobile", "striped",
       // Çok satırlı metin girişi (multiline), girişin altındaki hazır değer düğmeleri (presets: "değer=Etiket"), aranabilir
       // açılır listede listede olmayan değeri kabul etme (allowCustom) ve açılış sekmesini sayfa parametresinden seçme (tabParam).
-      "multiline", "presets", "allowCustom", "tabParam" };
+      "multiline", "presets", "allowCustom", "tabParam",
+      // Kayıt kartı (alt proje 4): düzenlenemez giriş (her v2 sayfada, yalnız input).
+      "readOnly" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -206,8 +208,12 @@ internal static partial class TenantCustomPageSchema
     private sealed class Context(int version)
     {
         public bool V2 { get; } = version == 2;
-        /// <summary>The page carries a v2 root <c>template</c> named "list"; its slot:list table may set <c>pageSize</c> without server paging.</summary>
-        public bool ListTemplate { get; init; }
+        /// <summary>
+        /// The v2 root <c>template</c> name ("list" or "record"; extra keys are rejected later by PageTemplateRules), else null. The list template's
+        /// slot:list table and the record template's slot:lines tables may set <c>pageSize</c> without server paging; a record
+        /// template's slot:section formCard may have empty <c>inputs</c>.
+        /// </summary>
+        public string? Template { get; init; }
         public ErpOperationLookup Lookup { get; init; } = ErpOperationCatalog.TryGet;
         /// <summary>Operation names the page already used before this save; deprecated ones stay accepted.</summary>
         public IReadOnlySet<string> ExistingOperations { get; init; } = new HashSet<string>();
@@ -357,7 +363,7 @@ internal static partial class TenantCustomPageSchema
                 || !root.TryGetProperty("components", out var components) || components.ValueKind != JsonValueKind.Array
                 || components.GetArrayLength() > (version == 2 ? MaxComponentsV2 : MaxComponentsV1))
             { error = "Tanım schemaVersion 1 veya 2 ve en fazla 80 bileşenli (sürüm 2: 120) components dizisi içermelidir."; return false; }
-            var context = new Context(version) { ListTemplate = version == 2 && IsListTemplate(root), Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
+            var context = new Context(version) { Template = version == 2 ? PageTemplateRules.DeclaredName(root) : null, Lookup = lookup, ExistingOperations = existingOperations ?? new HashSet<string>(), Catalog = catalog };
             var queries = new List<PageQuery>();
             if (context.V2 && root.TryGetProperty("queries", out var queryArray) && !ValidateQueries(queryArray, context, queries, out error)) return false;
             foreach (var pageQuery in queries) { context.QueryById[pageQuery.Id] = pageQuery; context.ExactNames.Add(pageQuery.Name); }
@@ -938,8 +944,11 @@ internal static partial class TenantCustomPageSchema
         List<string>? inputIds = null;
         if (typeText is "formCard" or "filterChips" or "facetPanel")
         {
+            // Kayıt kartında bölüm (üst düzey slot:section formCard) boş kalabilir: son alanı taşınan bölüm silinmez, yer tutucu gösterir.
+            var minInputs = context.Template == "record" && typeText == "formCard" && context.TopLevelIds.Contains(id)
+                && StringOf(props, "slot") == "section" ? 0 : 1;
             if (!props.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Array
-                || inputs.GetArrayLength() is < 1 or > MaxLayoutInputs
+                || inputs.GetArrayLength() < minInputs || inputs.GetArrayLength() > MaxLayoutInputs
                 || inputs.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString())))
             { error = $"'inputs' 1–{MaxLayoutInputs} adet giriş bileşeni kimliği içeren bir dizi olmalıdır."; return false; }
             inputIds = inputs.EnumerateArray().Select(x => x.GetString()!).ToList();
@@ -1637,10 +1646,6 @@ internal static partial class TenantCustomPageSchema
         return true;
     }
 
-    private static bool IsListTemplate(JsonElement root) =>
-        root.TryGetProperty("template", out var template) && template.ValueKind == JsonValueKind.Object
-        && template.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == "list";
-
     private static bool ValidatePagingProps(JsonElement props, string id, string? name, string typeText, Context context, out string? error)
     {
         error = null;
@@ -1651,8 +1656,11 @@ internal static partial class TenantCustomPageSchema
             { error = "'paging' yalnız veri listesinde \"server\" olabilir."; return false; }
             paged = true;
         }
-        // Kalıplı liste istemci sayfalar: yalnız üst düzey slot:list tablosu sunucu sayfalaması olmadan 'pageSize' alabilir.
-        var templateListTable = !paged && context.ListTemplate && typeText == "dataTable" && context.TopLevelIds.Contains(id) && StringOf(props, "slot") == "list";
+        // Kalıplı sayfa istemci sayfalar: yalnız üst düzey liste kalıbı slot:list ve kayıt kartı slot:lines tablosu sunucu
+        // sayfalaması olmadan 'pageSize' alabilir.
+        var templateSlot = StringOf(props, "slot");
+        var templateListTable = !paged && typeText == "dataTable" && context.TopLevelIds.Contains(id)
+            && (context.Template == "list" && templateSlot == "list" || context.Template == "record" && templateSlot == "lines");
         if (templateListTable && props.TryGetProperty("pageSize", out var choice)
             && (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100)))
         { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
@@ -1877,7 +1885,7 @@ internal static partial class TenantCustomPageSchema
         ["openParam"] = ["dataTable"], ["legacyScreen"] = ["button"], ["bulkDeleteQuery"] = ["dataTable"], ["detailToggleInput"] = ["dataTable"],
         ["fillQuery"] = ["editableGrid"], ["fillColumns"] = ["editableGrid"], ["skipWhenZero"] = ["editableGrid"],
         ["lookupFills"] = ["editableGrid"], ["formulas"] = ["editableGrid"], ["rowNumberColumn"] = ["editableGrid"],
-        ["lockColumnsWhen"] = ["editableGrid"]
+        ["lockColumnsWhen"] = ["editableGrid"], ["readOnly"] = ["input"]
     };
     private const int MaxColumnMaps = 20;
     private static readonly Regex ColumnLabelItem = new(@"^[^=]{1,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1918,7 +1926,7 @@ internal static partial class TenantCustomPageSchema
         {
             if (FazBPropTypes.TryGetValue(prop.Name, out var types) && !types.Contains(typeText, StringComparer.Ordinal))
             { error = $"'{prop.Name}' özelliği bu bileşen türünde kullanılamaz."; return false; }
-            if (prop.Name is "hideOnMobile" or "striped" && prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            if (prop.Name is "hideOnMobile" or "striped" or "readOnly" && prop.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             { error = $"'{prop.Name}' doğru ya da yanlış olmalıdır."; return false; }
             if (prop.Name == "slot" && prop.Value.ValueKind != JsonValueKind.String)
             { error = "'slot' bir metin olmalıdır."; return false; }

@@ -2,7 +2,7 @@
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import ErpCanvasFrame from "./ErpCanvasFrame";
+import ErpCanvasFrame, { OVERLAY_BOTTOM_SPACE } from "./ErpCanvasFrame";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -223,5 +223,50 @@ describe("ErpCanvasFrame", () => {
     const { layout, container } = setup({ selectedId: "a" });
     layout(1, 640);
     expect(container.querySelector(".pd-erp-canvas-selected")).not.toBeNull();
+  });
+  describe("Kayıt kartı kaplaması", () => {
+    const ready = { nx: "nexora-canvas", v: 1, type: "ready", revision: 0 };
+    const tabLayout = { nx: "nexora-canvas", v: 1, type: "layout", revision: 1, height: 400,
+      blocks: [{ id: "a", x: 0, y: 0, width: 300, height: 80 }, { id: "t#tab1", x: 10, y: 10, width: 40, height: 20 }] };
+
+    it("kaplama blokları alır; showTab ERP'ye gider ve ready sonrası yinelenir", () => {
+      let api: { blocks: unknown[]; showTab: (tabsId: string, index: number) => void } | null = null;
+      const overlay = vi.fn((frame) => { api = frame; return <i className="kaplama"/>; });
+      const { container, send, post } = setup({ overlay });
+      send(tabLayout);
+      expect(container.querySelector(".kaplama")).not.toBeNull();
+      expect(api!.blocks).toHaveLength(2);
+      act(() => api!.showTab("t", 1));
+      const message = { nx: "nexora-canvas", v: 1, type: "showTab", tabsId: "t", index: 1 };
+      expect(post).toHaveBeenCalledWith(message, ORIGIN);
+      post.mockClear();
+      send(ready);
+      expect(post).toHaveBeenCalledWith(message, ORIGIN);
+    });
+
+    it("ERP yeniden yerleşince (pencere daraldı) kaplama son kutularla çizilir", () => {
+      const seen: { id: string; x: number; y: number }[][] = [];
+      const { send } = setup({ overlay: (frame: { blocks: { id: string; x: number; y: number }[] }) => { seen.push(frame.blocks.map(({ id, x, y }) => ({ id, x, y }))); return null; } });
+      send(tabLayout);
+      send({ ...tabLayout, revision: 1, blocks: [{ id: "a", x: 0, y: 40, width: 200, height: 120 }, { id: "t#tab1", x: 10, y: 60, width: 40, height: 20 }] });
+      expect(seen.at(-1)).toEqual([{ id: "a", x: 0, y: 40 }, { id: "t#tab1", x: 10, y: 60 }]);
+    });
+
+    it("kaplamalı tuvalde altta yer açılır (\"+ Bölüm ekle\" kırpılmaz); kaplamasız ve Dene'de açılmaz", () => {
+      const withOverlay = setup({ overlay: () => null });
+      expect((withOverlay.container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe(`${OVERLAY_BOTTOM_SPACE}px`);
+      expect((setup().container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe("");
+      expect((setup({ interactive: true, overlay: () => null }).container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe("");
+    });
+
+    it("sekme kutusu seçilmez; Dene kipinde kaplama çizilmez", () => {
+      const { container, send, props } = setup({ overlay: () => <i className="kaplama"/> });
+      send(tabLayout);
+      fireEvent.click(container.querySelector(".pd-erp-canvas-overlay")!, { clientX: 20, clientY: 15 });
+      expect(props.onSelect).toHaveBeenCalledWith("a");
+      const tried = setup({ interactive: true, overlay: () => <i className="kaplama"/> });
+      tried.send(tabLayout);
+      expect(tried.container.querySelector(".kaplama")).toBeNull();
+    });
   });
 });
