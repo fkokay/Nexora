@@ -94,3 +94,38 @@
 .record-template-page .record-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card, 10px); }
 .record-template-page .record-skeleton-row { height: 46px; border-radius: 6px; background: linear-gradient(90deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 10%), rgb(0 0 0 / 5%)); background-size: 200% 100%; animation: list-skeleton-pulse 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .record-template-page .record-skeleton-row { animation: none; } }
+
+/* ---- Belge kalıbı (belge kuralları PR 2, taslak 08) ---- */
+.belge-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.belge-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.belge-title h2 { margin: 0; font-size: 20px; }
+.belge-badge { font-size: 12px; padding: 3px 10px; border-radius: 99px; font-weight: 600; background: var(--surface-muted, #eceaf3); color: var(--text-muted, #4b4866); }
+.belge-badge.is-Open { background: #efeafe; color: #5b3fd6; }
+.belge-badge.is-Fulfilled, .belge-badge.is-Invoiced { background: #fdf3e2; color: #b45309; }
+.belge-badge.is-Cancelled { background: #fdecea; color: #b42318; }
+.belge-chain { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.belge-chain li { font-size: 11.5px; padding: 4px 10px; border-radius: 6px; background: var(--surface-muted, #f1f0f6); color: var(--text-muted, #6b6880); }
+.belge-chain li.is-done { background: #e3def9; color: #5b3fd6; }
+.belge-chain li.is-current { background: #5b3fd6; color: #fff; font-weight: 600; }
+.belge-extra-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.belge-message { padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; }
+.belge-message.is-error { background: #fdecea; color: #b42318; }
+.belge-message.is-info { background: #e6f6f3; color: #134e48; }
+.belge-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; margin-bottom: 14px; }
+.belge-field label { display: block; font-size: 12px; color: var(--text-muted, #6b6880); margin-bottom: 3px; }
+.belge-field input { width: 100%; box-sizing: border-box; }
+.belge-bottom { display: grid; grid-template-columns: 1fr minmax(240px, 300px); gap: 16px; margin-top: 14px; }
+@media (max-width: 760px) { .belge-bottom { grid-template-columns: 1fr; } }
+.belge-activity, .belge-totals { border: 1px solid var(--border, #e6e4ee); border-radius: 10px; padding: 10px 12px; }
+.belge-activity h3, .belge-totals h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted, #6b6880); }
+.belge-activity ul { list-style: none; margin: 0; padding: 0; }
+.belge-activity li { font-size: 12px; padding: 4px 0; border-bottom: 1px dashed var(--border, #e6e4ee); display: flex; flex-wrap: wrap; gap: 4px; }
+.belge-activity time { color: var(--text-muted, #6b6880); margin-left: auto; }
+.belge-note { color: var(--text-muted, #6b6880); font-size: 12px; margin: 0 0 6px; }
+.belge-totals dl { margin: 0; }
+.belge-totals dl > div { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.belge-totals dd { margin: 0; }
+.belge-totals .is-vat { color: var(--text-muted, #6b6880); font-size: 12px; }
+.belge-totals .is-grand { border-top: 1px solid var(--border, #e6e4ee); margin-top: 4px; padding-top: 7px; font-weight: 700; font-size: 15px; }
+.belge-template-page.is-dense td { padding-top: 3px; padding-bottom: 3px; }
+.belge-template-page.is-comfy td { padding-top: 11px; padding-bottom: 11px; }
