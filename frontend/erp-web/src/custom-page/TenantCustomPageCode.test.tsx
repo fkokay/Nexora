@@ -212,3 +212,92 @@ describe('TenantCustomPage kod köprüsü', () => {
     expect(api.mock.calls.some(([endpoint]) => String(endpoint).includes('/queries/qw/'))).toBe(false);
   });
 });
+
+describe('TenantCustomPage katalog bileşeni', () => {
+  const catalogPage = (components: unknown[]) => ({ schemaVersion: 2, components: [{ id: 'h', type: 'heading', props: { text: 'Sayfa başlığı' } }, ...components], queries: [] });
+  async function openCatalog(components: unknown[]) {
+    api.mockImplementation(async (endpoint: string) => {
+      if (endpoint.endsWith('/published')) return { id: 'p', code: 'p', name: 'Sayfa', revision: 1, forms: [], rights: { view: true }, definitionJson: JSON.stringify(catalogPage(components)) };
+      if (endpoint === '/api/custom-pages/erp-operations') return { operations: [] };
+      throw new Error(`beklenmeyen ${endpoint}`);
+    });
+    const view = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Sayfa başlığı');
+    const frames = Array.from(view.container.querySelectorAll('iframe'));
+    const asker = (iframe: HTMLIFrameElement) => {
+      const frameWindow = iframe.contentWindow!;
+      const k = /key="([0-9a-f]{32})"/.exec(iframe.getAttribute('srcdoc') ?? '')![1];
+      const posted = vi.fn();
+      vi.spyOn(frameWindow, 'postMessage').mockImplementation(((message: unknown) => { posted(message); }) as typeof frameWindow.postMessage);
+      let id = 0;
+      return async (path: string) => {
+        id += 1;
+        const mine = id;
+        const event = new MessageEvent('message', { data: { nx: 1, id: mine, type: 'get', path, k } });
+        Object.defineProperty(event, 'source', { value: frameWindow });
+        act(() => { window.dispatchEvent(event); });
+        let found: Record<string, unknown> | undefined;
+        await waitFor(() => {
+          found = posted.mock.calls.map(([m]) => m as Record<string, unknown>).find((m) => m.replyTo === mine);
+          expect(found).toBeDefined();
+        });
+        return found!.result;
+      };
+    };
+    return { ...view, frames, asker };
+  }
+  const catalog = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, type: 'code', props: { catalogComponent: 'kart', css: 'p{}', javascript: '1', height: 300, componentSettings: {}, componentDefaults: {}, ...extra },
+  });
+
+  it('katalog bileşeninin çerçevesi ayarları köprüden alır ve yükseklik başlangıç değeridir', async () => {
+    const { frames, asker } = await openCatalog([catalog('c1', { componentSettings: { baslik: 'Merhaba', adet: 3, acik: false } })]);
+    expect(frames).toHaveLength(1);
+    expect(frames[0].style.height).toBe('300px');
+    const get = asker(frames[0]);
+    expect(await get('ayarlar.baslik')).toBe('Merhaba');
+    expect(await get('ayarlar.adet')).toBe(3);
+    expect(await get('ayarlar.acik')).toBe(false);
+  });
+
+  it('eksik ayar varsayılana, o da yoksa null döner', async () => {
+    const { frames, asker } = await openCatalog([catalog('c1', { componentSettings: { baslik: 'X' }, componentDefaults: { baslik: 'V', renk: 'mavi' } })]);
+    const get = asker(frames[0]);
+    expect(await get('ayarlar.baslik')).toBe('X');
+    expect(await get('ayarlar.renk')).toBe('mavi');
+    expect(await get('ayarlar.yok')).toBeNull();
+    expect(await get('ayarlar.constructor')).toBeNull();
+  });
+
+  it('katalog bileşenindeki ayarlar dışındaki yollar sayfa kapsamına gider', async () => {
+    const { frames, asker } = await openCatalog([catalog('c1')]);
+    expect(await asker(frames[0])('kullanici')).toBeDefined();
+  });
+
+  it('katalogMissing "Bu bileşen katalogda yok." gösterir, çerçeve çizilmez, sayfanın geri kalanı çizilir', async () => {
+    const { frames } = await openCatalog([{ id: 'c1', type: 'code', props: { catalogComponent: 'eski', componentSettings: { a: 'b' }, catalogMissing: true } }]);
+    expect(screen.getByText('Bu bileşen katalogda yok.')).toBeTruthy();
+    expect(screen.getByText('Sayfa başlığı')).toBeTruthy();
+    expect(frames).toHaveLength(0);
+  });
+
+  it('aynı sayfadaki iki katalog bileşeni kendi ayarlarını alır', async () => {
+    const { frames, asker } = await openCatalog([
+      catalog('c1', { componentSettings: { baslik: 'Bir' } }),
+      catalog('c2', { componentSettings: { baslik: 'İki' }, componentDefaults: { renk: 'kırmızı' } }),
+    ]);
+    expect(frames).toHaveLength(2);
+    const first = asker(frames[0]);
+    const second = asker(frames[1]);
+    expect(await first('ayarlar.baslik')).toBe('Bir');
+    expect(await second('ayarlar.baslik')).toBe('İki');
+    expect(await first('ayarlar.renk')).toBeNull();
+    expect(await second('ayarlar.renk')).toBe('kırmızı');
+  });
+
+  it('satır içi kod bileşeni değişmez: ayarlar yolu sayfa kapsamından çözülür, yükseklik verilmez', async () => {
+    const { frames, asker } = await openCatalog([{ id: 'c1', type: 'code', props: { javascript: '1', css: '', componentSettings: { baslik: 'x' }, height: 500 } }]);
+    expect(frames[0].style.height).toBe('');
+    expect(await asker(frames[0])('ayarlar.baslik')).toBeNull();
+  });
+});
