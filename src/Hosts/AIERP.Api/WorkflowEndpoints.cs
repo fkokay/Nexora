@@ -259,7 +259,9 @@ internal static class WorkflowEndpoints
                     return Results.Conflict(new { error = "Bağlı satın alma siparişi artık inceleme beklemiyor." });
             }
             SalesOrder? salesOrder = null;
-            if (instance.SubjectType == SalesOrderApprovalWorkflow.SubjectType && instance.SubjectId is not null)
+            // Only the rule-started system workflow moves the order; a legacy hand-started "SalesOrder" instance never does.
+            if (instance.SubjectType == SalesOrderApprovalWorkflow.SubjectType && instance.DefinitionCode == SalesOrderApprovalWorkflow.DefinitionCode
+                && instance.SubjectId is not null)
             {
                 salesOrder = db.Database.IsRelational()
                     ? await db.SalesOrders.FromSqlInterpolated(
@@ -267,6 +269,10 @@ internal static class WorkflowEndpoints
                     : await db.SalesOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
                 if (salesOrder is null || salesOrder.Status != SalesOrderStatus.PendingApproval)
                     return Results.Conflict(new { error = "Bağlı satış siparişi artık onay beklemiyor." });
+                // The order may have waited: the final approval re-runs Onayla's core checks (active customer, lines, risk limit…).
+                if (transition.IsComplete && transition.Status == "Approved"
+                    && await SalesOrderTransitionEndpoints.ApproveCheckErrorAsync(db, tenantId, salesOrder, [], ct) is { } failed)
+                    return Results.Conflict(new { error = failed });
             }
             var action = new TenantWorkflowAction
             {

@@ -12,7 +12,7 @@ import DocumentRulesPage from "./DocumentRulesPage";
 const fields = [{ code: "grandTotal", label: "Genel toplam", kind: "number" }, { code: "customerGroup", label: "Cari grubu", kind: "text" },
   { code: "maxLineDiscount", label: "En yüksek satır iskontosu", kind: "number" }];
 const operators = { number: ["GreaterThan", "Equals"], text: ["Equals", "Contains"], date: ["Before"] };
-const people = [{ id: "m", displayName: "Mehmet Demir", email: "m@x", role: "TenantUser" }];
+const people = [{ id: "m", displayName: "Mehmet Demir" }];
 const rule = { code: "kural1", order: 1, enabled: true, always: false, field: "grandTotal", op: "GreaterThan", value: "100000", action: "approval", approverUserIds: ["m"], message: null };
 const view = (draftRules: unknown[] | null, publishedRules: unknown[] | null = null) => ({
   fields, operators,
@@ -66,7 +66,7 @@ const setValue = async (element: HTMLInputElement | HTMLSelectElement, value: st
 describe("Kurallar ekranı (taslak 10)", () => {
   it("yayındaki kuralı cümle olarak gösterir; taslak yokken Yayınla kapalıdır", async () => {
     const el = await mount();
-    expect(el.querySelector(".dr-rules")?.textContent).toContain("Eğer Genel toplam > 100.000 ₺ ise");
+    expect(el.querySelector(".dr-rules")?.textContent).toContain("Eğer Genel toplam > 100.000 ise");
     expect(el.querySelector(".dr-rules")?.textContent).toContain("Onay iste: Mehmet Demir");
     expect(button(el, "Yayınla").disabled).toBe(true);
   });
@@ -83,7 +83,8 @@ describe("Kurallar ekranı (taslak 10)", () => {
     expect((draft?.body as { rules: { value: string; approverUserIds: string[] }[] }).rules.map((r) => [r.value, r.approverUserIds])).toEqual([["100000", ["m"]], ["50000", ["m"]]]);
     expect(button(el, "Yayınla").disabled).toBe(false);
     await click(button(el, "Yayınla"));
-    expect(calls.some((c) => c.url.endsWith("/publish") && c.method === "POST")).toBe(true);
+    expect(calls.find((c) => c.url.endsWith("/publish") && c.method === "POST")?.body).toEqual({ expectedUpdatedAt: "2026-11-26T10:00:00Z" });
+    expect(draft?.body).toMatchObject({ expectedUpdatedAt: null, expectDraft: false });
   });
 
   it("Dene sonucu gösterir", async () => {

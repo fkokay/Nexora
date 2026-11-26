@@ -14,11 +14,15 @@ internal static class SalesOrderRuleFacts
         var salesperson = order.SalespersonEmployeeId is { } employeeId
             ? await db.EmployeeRecords.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == employeeId).Select(x => x.FullName).SingleOrDefaultAsync(ct)
             : null;
+        // Amounts compare in the tenant's base currency (latest manual rate on or before the order date); a missing rate leaves
+        // them empty, so a comparison rule does not match (only "boş" does) instead of comparing unconverted foreign amounts.
+        var rate = await PurchaseReceiptCosting.RateToBaseAsync(db, tenantId, order.CurrencyCode, order.OrderDate, ct);
+        decimal? Base(decimal amount) => rate is { } r ? decimal.Round(amount * r, 2, MidpointRounding.AwayFromZero) : null;
         return new Dictionary<string, object?>
         {
-            ["grandTotal"] = order.GrandTotal,
-            ["subtotal"] = order.Subtotal,
-            ["discountTotal"] = order.DiscountTotal,
+            ["grandTotal"] = Base(order.GrandTotal),
+            ["subtotal"] = Base(order.Subtotal),
+            ["discountTotal"] = Base(order.DiscountTotal),
             ["lineCount"] = (decimal)order.Lines.Count,
             ["maxLineDiscount"] = order.Lines.Count == 0 ? 0m : order.Lines.Max(x => x.DiscountPercent),
             ["customer"] = customer?.Name,

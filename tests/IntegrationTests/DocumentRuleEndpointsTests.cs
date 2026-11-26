@@ -165,4 +165,33 @@ public sealed class DocumentRuleEndpointsTests
     private static Task<(int Activities, int Audits, int Workflows, int Sets)> CountsAsync(SalesOrderApiFactory factory) =>
         factory.WithTenantDbAsync(async db => (await db.TenantDocumentActivities.CountAsync(), await db.AuditEvents.CountAsync(),
             await db.TenantWorkflowInstances.CountAsync(), await db.TenantDocumentRuleSets.CountAsync()));
+
+    [Fact]
+    public async Task Unexpected_draft_and_stale_publish_conflict()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed);
+        using (var first = await client.PutAsJsonAsync(Route + "/draft", new { rules = Array.Empty<object>(), expectDraft = false }))
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        // Someone else's view had no draft: saving must not overwrite the draft created meanwhile.
+        using var overwrite = await client.PutAsJsonAsync(Route + "/draft", new { rules = Array.Empty<object>(), expectDraft = false });
+        Assert.Equal(HttpStatusCode.Conflict, overwrite.StatusCode);
+        // Publishing what one has not seen is refused too.
+        using var stale = await client.PostAsJsonAsync(Route + "/publish", new { expectedUpdatedAt = DateTimeOffset.UnixEpoch });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+    }
+
+    [Fact]
+    public async Task People_returns_only_ids_and_names()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        using var client = factory.Client(seed);
+
+        var first = (await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync("/api/document-rules/people")))[0];
+
+        Assert.Equal(["displayName", "id"], first.EnumerateObject().Select(x => x.Name).Order().ToArray());
+    }
 }

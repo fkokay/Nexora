@@ -12,8 +12,15 @@ public sealed record DocumentRuleHistoryRow(int Version, string Status, int Rule
 public sealed record DocumentRulesView(string Document, string Transition, IReadOnlyList<DocumentRuleField> Fields,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Operators, DocumentRuleSetView? Published, DocumentRuleSetView? Draft,
     IReadOnlyList<DocumentRuleHistoryRow> History);
-public sealed record DocumentRuleDraftRequest(JsonElement Rules, DateTimeOffset? ExpectedUpdatedAt = null);
-public sealed record DocumentRulePerson(Guid Id, string DisplayName, string Email, string Role);
+/// <summary>
+/// <c>ExpectDraft</c>: what the writer's view showed — false: no draft (a draft created meanwhile is not overwritten), true: the draft
+/// last changed at <c>ExpectedUpdatedAt</c>. Null skips the check (API clients that own the set).
+/// </summary>
+public sealed record DocumentRuleDraftRequest(JsonElement Rules, DateTimeOffset? ExpectedUpdatedAt = null, bool? ExpectDraft = null);
+/// <summary>Publishes only the draft the publisher saw (<c>ExpectedUpdatedAt</c>), when given.</summary>
+public sealed record DocumentRulePublishRequest(DateTimeOffset? ExpectedUpdatedAt = null);
+/// <summary>A tenant member a rule may name: only the id and the display name (the people list is open to rule readers).</summary>
+public sealed record DocumentRulePerson(Guid Id, string DisplayName);
 /// <summary>Dene: an existing order, or sample facts (field code → value as text); <c>ActorUserId</c> is who presses Onayla.</summary>
 public sealed record DocumentRuleTryRequest(Guid? OrderId = null, Dictionary<string, string?>? Facts = null, Guid? ActorUserId = null);
 public sealed record DocumentRuleTryStep(string Step, string Source, string Outcome, string? Message);
@@ -57,6 +64,8 @@ internal static class DocumentRuleEndpoints
             var sets = Sets(db, tenantId);
             var draft = await sets.SingleOrDefaultAsync(x => x.Status == "Draft", ct);
             var now = DateTimeOffset.UtcNow;
+            if (request.ExpectDraft is { } expectDraft && expectDraft != (draft is not null))
+                return Results.Conflict(new { error = "Kurallar başka biri tarafından değiştirildi ya da yayınlandı. Sayfayı yenileyip yeniden deneyin." });
             if (draft is null)
             {
                 var version = (await sets.MaxAsync(x => (int?)x.Version, ct) ?? 0) + 1;
@@ -75,7 +84,8 @@ internal static class DocumentRuleEndpoints
             catch (DbUpdateException) { return Results.Conflict(new { error = "Taslak aynı anda oluşturuldu. Sayfayı yenileyip yeniden deneyin." }); }
             return Results.Ok(await ViewAsync(db, tenantId, ct));
         });
-        rules.MapPost("/" + Document + "/" + Transition + "/publish", async (ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
+        rules.MapPost("/" + Document + "/" + Transition + "/publish", async (DocumentRulePublishRequest? request, ClaimsPrincipal principal, TenantDbContext db,
+            CancellationToken ct) =>
         {
             if (!TryTenant(principal, out var tenantId, out var userId)) return Results.Forbid();
             await using var transaction = db.Database.IsRelational()
@@ -83,6 +93,8 @@ internal static class DocumentRuleEndpoints
             var sets = Sets(db, tenantId);
             var draft = await sets.SingleOrDefaultAsync(x => x.Status == "Draft", ct);
             if (draft is null) return Results.Conflict(new { error = "Yayınlanacak taslak yok." });
+            if (request?.ExpectedUpdatedAt is { } seen && seen != draft.UpdatedAt)
+                return Results.Conflict(new { error = "Taslak siz baktıktan sonra değişti. Sayfayı yenileyip yeniden yayınlayın." });
             foreach (var published in await sets.Where(x => x.Status == "Published").ToListAsync(ct)) published.Status = "Archived";
             // The archived row must be written before the draft takes the one Published slot of the filtered unique index.
             await db.SaveChangesAsync(ct);
@@ -170,8 +182,8 @@ internal static class DocumentRuleEndpoints
     {
         var memberships = platform.TenantMemberships.AsNoTracking().Where(x => x.TenantId == tenantId);
         if (only is not null) memberships = memberships.Where(x => only.Contains(x.UserId));
-        return await memberships.Join(platform.Users.AsNoTracking(), m => m.UserId, u => u.Id, (m, u) => new { u.Id, u.DisplayName, u.Email, m.Role })
-            .OrderBy(x => x.DisplayName).Select(x => new DocumentRulePerson(x.Id, x.DisplayName, x.Email, x.Role)).ToListAsync(ct);
+        return await memberships.Join(platform.Users.AsNoTracking(), m => m.UserId, u => u.Id, (m, u) => new { u.Id, u.DisplayName })
+            .OrderBy(x => x.DisplayName).Select(x => new DocumentRulePerson(x.Id, x.DisplayName)).ToListAsync(ct);
     }
 
     private static async Task<DocumentRulesView> ViewAsync(TenantDbContext db, Guid tenantId, CancellationToken ct)

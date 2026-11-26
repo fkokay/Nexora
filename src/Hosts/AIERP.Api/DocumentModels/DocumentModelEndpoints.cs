@@ -65,6 +65,7 @@ internal static class DocumentModelEndpoints
         Guid tenantId, Guid orderId, CancellationToken ct)
     {
         var instance = await db.TenantWorkflowInstances.AsNoTracking().Where(x => x.TenantId == tenantId && x.SubjectType == AIERP.Api.DocumentRules.SalesOrderApprovalWorkflow.SubjectType
+            && x.DefinitionCode == AIERP.Api.DocumentRules.SalesOrderApprovalWorkflow.DefinitionCode
             && x.SubjectId == orderId && x.Status == "Pending").OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
         if (instance is null) return null;
         var steps = System.Text.Json.JsonSerializer.Deserialize<List<TenantWorkflowStep>>(instance.StepsJsonSnapshot,

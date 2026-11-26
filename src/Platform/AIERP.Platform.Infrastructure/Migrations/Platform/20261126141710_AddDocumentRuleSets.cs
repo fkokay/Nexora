@@ -57,13 +57,6 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
                 });
 
             migrationBuilder.CreateIndex(
-                name: "UX_TenantPermissionRules_UnconditionalRoleRule",
-                table: "TenantPermissionRules",
-                columns: new[] { "TenantId", "SubjectType", "SubjectRole", "PermissionCode", "Effect", "IsActive" },
-                unique: true,
-                filter: "[SubjectUserId] IS NULL AND [AttributeName] IS NULL");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_TenantDocumentRuleSets_TenantId_Document_Transition_Status",
                 table: "TenantDocumentRuleSets",
                 columns: new[] { "TenantId", "Document", "Transition", "Status" },
@@ -82,10 +75,6 @@ namespace AIERP.Platform.Infrastructure.Migrations.Platform
         {
             migrationBuilder.DropTable(
                 name: "TenantDocumentRuleSets");
-
-            migrationBuilder.DropIndex(
-                name: "UX_TenantPermissionRules_UnconditionalRoleRule",
-                table: "TenantPermissionRules");
 
             migrationBuilder.DeleteData(
                 table: "PermissionDefinitions",

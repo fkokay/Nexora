@@ -68,7 +68,7 @@ export default function DocumentRulesPage({ token }: { token: string }) {
   };
   const publish = async () => {
     setBusy(true); setError("");
-    try { setView(await publishRules(token)); }
+    try { setView(await publishRules(token, view?.draft?.updatedAt ?? null)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : "Yayınlanamadı."); }
     finally { setBusy(false); }
   };
@@ -122,6 +122,7 @@ export default function DocumentRulesPage({ token }: { token: string }) {
             <div className="dr-sec"><h3>“Onayla” denince — önce modülün kontrolleri</h3><p className="dr-sub">Biri engellerse sipariş onaylanmaz, kullanıcı nedenini görür.</p>
               {ONAYLA_CORE.map(([icon, title, note]) => <Step key={title} icon={icon} title={title} note={note} who="Modül" kind="core"/>)}</div>
             <div className="dr-sec"><h3>Sonra — senin kuralların</h3>
+              <p className="dr-sub">Tutarlar firmanın ana para birimine, sipariş tarihindeki kurla çevrilerek karşılaştırılır; kur yoksa tutar kuralı tutmaz.</p>
               <p className="dr-sub">Birden çok kural tutarsa önce <b>Engelle</b>, sonra <b>Onay iste</b>, sonra <b>Uyar</b> değerlendirilir. Birden çok onay kuralı tutarsa onaylar kural sırasıyla tek akışta birleşir.</p>
               {rules.length === 0 && !editing && <p className="dr-empty">Kural yok: siparişi kaydeden kendisi onaylar.</p>}
               <ul className="dr-rules" aria-label="Kurallar">{rules.map((rule, index) => {

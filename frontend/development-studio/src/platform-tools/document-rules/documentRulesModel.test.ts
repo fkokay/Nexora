@@ -4,12 +4,12 @@ import { addRule, emptyRule, moveRule, removeRule, ruleProblem, sentence, toggle
 const fields: RuleField[] = [{ code: "grandTotal", label: "Genel toplam", kind: "number" }, { code: "customerGroup", label: "Cari grubu", kind: "text" },
   { code: "maxLineDiscount", label: "En yüksek satır iskontosu", kind: "number" }, { code: "deliveryDate", label: "Teslim tarihi", kind: "date" }];
 const operators = { number: ["GreaterThan", "Equals", "IsEmpty"], text: ["Equals", "Contains"], date: ["Before"] };
-const people = [{ id: "m", displayName: "Mehmet Demir", email: "", role: "TenantUser" }, { id: "a", displayName: "Ayşe Kaya", email: "", role: "TenantUser" }];
+const people = [{ id: "m", displayName: "Mehmet Demir" }, { id: "a", displayName: "Ayşe Kaya" }];
 const approval = (value = "100000", ids = ["m", "a"]): DocumentRule => ({ ...emptyRule(fields), value, approverUserIds: ids });
 
 describe("Kurallar modeli", () => {
   it("cümle: koşul, işleç, biçimli değer ve eylem", () => {
-    expect(sentence(approval(), fields, people)).toEqual({ condition: "Eğer Genel toplam > 100.000 ₺ ise", action: "Onay iste: Mehmet Demir veya Ayşe Kaya" });
+    expect(sentence(approval(), fields, people)).toEqual({ condition: "Eğer Genel toplam > 100.000 ise", action: "Onay iste: Mehmet Demir veya Ayşe Kaya" });
     expect(sentence({ ...emptyRule(fields), field: "maxLineDiscount", value: "15", action: "warn", message: "Yüksek" }, fields, people))
       .toEqual({ condition: "Eğer En yüksek satır iskontosu > %15 ise", action: "Uyar ama devam et: “Yüksek”" });
     expect(sentence({ ...emptyRule(fields), always: true, action: "block", message: "Hayır" }, fields, people).condition).toBe("Her zaman");

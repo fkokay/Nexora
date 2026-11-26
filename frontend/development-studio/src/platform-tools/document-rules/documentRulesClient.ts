@@ -29,9 +29,11 @@ async function call<T>(url: string, token: string, init?: RequestInit): Promise<
 }
 
 export const loadRules = (token: string) => call<RulesView>(ROUTE, token);
+/** `expectedUpdatedAt`: the draft this view showed (null: no draft); a draft changed or created meanwhile is not overwritten. */
 export const saveDraft = (token: string, rules: DocumentRule[], expectedUpdatedAt: string | null) =>
-  call<RulesView>(`${ROUTE}/draft`, token, { method: "PUT", body: JSON.stringify({ rules, expectedUpdatedAt }) });
-export const publishRules = (token: string) => call<RulesView>(`${ROUTE}/publish`, token, { method: "POST", body: "{}" });
+  call<RulesView>(`${ROUTE}/draft`, token, { method: "PUT", body: JSON.stringify({ rules, expectedUpdatedAt, expectDraft: expectedUpdatedAt !== null }) });
+export const publishRules = (token: string, expectedUpdatedAt: string | null) =>
+  call<RulesView>(`${ROUTE}/publish`, token, { method: "POST", body: JSON.stringify({ expectedUpdatedAt }) });
 export const tryRules = (token: string, body: { orderId?: string; facts?: Record<string, string>; actorUserId?: string }) =>
   call<TryResult>(`${ROUTE}/try`, token, { method: "POST", body: JSON.stringify(body) });
 export const loadPeople = (token: string) => call<RulePerson[]>("/api/document-rules/people", token);

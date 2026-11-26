@@ -53,4 +53,36 @@ public sealed class SalesOrderRuleFactsTests
 
     private static readonly string[] DocumentRuleSchemaFieldCodes =
         AIERP.Platform.Application.DocumentRuleSchema.FieldsOf(AIERP.Platform.Application.DocumentRuleSchema.SalesOrderApprove).Select(x => x.Code).Order().ToArray();
+
+    [Fact]
+    public async Task Amounts_are_in_base_currency_and_a_missing_rate_leaves_them_empty()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        var orderId = await factory.SeedOrderAsync(seed, SalesOrderStatus.Draft, quantity: 4m);
+
+        async Task<IReadOnlyDictionary<string, object?>> FactsAsync() => await factory.WithTenantDbAsync(async db =>
+        {
+            var order = await db.SalesOrders.Include(x => x.Lines).SingleAsync(x => x.Id == orderId);
+            return await SalesOrderRuleFacts.BuildAsync(db, seed.TenantId, order, CancellationToken.None);
+        });
+        await factory.WithTenantDbAsync(async db =>
+        {
+            (await db.SalesOrders.SingleAsync(x => x.Id == orderId)).CurrencyCode = "USD";
+            await db.SaveChangesAsync();
+        });
+
+        var missing = await FactsAsync();
+        Assert.Null(missing["grandTotal"]);
+        Assert.Equal("USD", missing["currency"]);
+
+        await factory.WithTenantDbAsync(async db =>
+        {
+            db.TenantExchangeRates.Add(new TenantExchangeRate { TenantId = seed.TenantId, CurrencyCode = "USD", RateDate = new DateOnly(2026, 11, 1), Rate = 35m });
+            await db.SaveChangesAsync();
+        });
+        var converted = await FactsAsync();
+        Assert.Equal(48m * 35m, converted["grandTotal"]);
+        Assert.Equal(40m * 35m, converted["subtotal"]);
+    }
 }

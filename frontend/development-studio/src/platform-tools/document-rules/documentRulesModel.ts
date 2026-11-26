@@ -6,7 +6,7 @@ export type DocumentRule = {
   action: RuleAction; approverUserIds: string[]; message?: string | null;
 };
 export type RuleField = { code: string; label: string; kind: "number" | "text" | "date" };
-export type RulePerson = { id: string; displayName: string; email: string; role: string };
+export type RulePerson = { id: string; displayName: string };
 
 export const OP_LABELS: Record<string, string> = {
   Equals: "=", NotEquals: "≠", GreaterThan: ">", GreaterThanOrEqual: "≥", LessThan: "<", LessThanOrEqual: "≤", Contains: "içerir",
@@ -80,7 +80,7 @@ export function moveRule(rules: DocumentRule[], code: string, by: -1 | 1): Docum
 const formatValue = (rule: DocumentRule, field?: RuleField) => {
   const value = rule.value ?? "";
   if (field?.kind === "number" && rule.field !== "lineCount" && rule.field !== "maxLineDiscount" && /^-?\d+(\.\d+)?$/.test(value))
-    return `${Number(value).toLocaleString("tr-TR")} ₺`;
+    return Number(value).toLocaleString("tr-TR");
   if (rule.field === "maxLineDiscount") return `%${value}`;
   if (field?.kind === "date" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value.split("-").reverse().join(".");
   return value;

@@ -255,4 +255,48 @@ public sealed class SalesOrderRuleApprovalTests
         Assert.False(forSaver.GetProperty("approval").GetProperty("canDecide").GetBoolean());
         Assert.Equal(["iptal"], forSaver.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()));
     }
+
+    [Fact]
+    public async Task Legacy_sales_order_workflow_does_not_decide_the_order()
+    {
+        await using var w = await WorldAsync();
+        await DocumentRuleEndpointsTests.PublishAsync(w.Admin, Rule("onay", "approval", people: [w.Mehmet]));
+        await ApproveAsync(w.As(w.Seed.UserId, "TenantUser"), w.OrderId);
+        var legacyId = await w.Factory.WithTenantDbAsync(async db =>
+        {
+            var legacy = new TenantWorkflowInstance
+            {
+                TenantId = w.Seed.TenantId, DefinitionId = Guid.NewGuid(), DefinitionCode = "eski-akis", DefinitionName = "Eski", DefinitionVersion = 1,
+                StepsJsonSnapshot = "[{\"name\":\"Adım\",\"approverRole\":\"TenantUser\"}]", SubjectType = "SalesOrder", SubjectTitle = "Elle",
+                SubjectId = w.OrderId, ContextJson = "{}", StartedByUserId = w.Seed.AdminUserId
+            };
+            db.TenantWorkflowInstances.Add(legacy);
+            await db.SaveChangesAsync();
+            return legacy.Id;
+        });
+
+        await DecideAsync(w.As(w.Ayse, "TenantUser"), legacyId, "Approved");
+
+        Assert.Equal(SalesOrderStatus.PendingApproval, await StatusAsync(w));
+    }
+
+    [Fact]
+    public async Task Final_approval_reruns_the_core_checks()
+    {
+        await using var w = await WorldAsync();
+        await DocumentRuleEndpointsTests.PublishAsync(w.Admin, Rule("onay", "approval", people: [w.Mehmet]));
+        await ApproveAsync(w.As(w.Seed.UserId, "TenantUser"), w.OrderId);
+        var instance = (await InstanceAsync(w))!;
+        await w.Factory.WithTenantDbAsync(async db =>
+        {
+            (await db.CustomerAccounts.SingleAsync(x => x.Id == w.Seed.CustomerId)).IsActive = false;
+            await db.SaveChangesAsync();
+        });
+
+        using var decided = await DecideAsync(w.As(w.Mehmet, "TenantUser"), instance.Id, "Approved");
+
+        Assert.True(decided.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.BadRequest, decided.StatusCode.ToString());
+        Assert.Equal(SalesOrderStatus.PendingApproval, await StatusAsync(w));
+        Assert.Equal("Pending", (await InstanceAsync(w))!.Status);
+    }
 }
