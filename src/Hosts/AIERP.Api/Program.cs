@@ -216,10 +216,11 @@ if (args.Contains("--legacy-tenant-data-purge-preview", StringComparer.Ordinal) 
 }
 if (PageTemplateMigrationOptions.IsRequested(args))
 {
-    // Template migration report (read-only); validated before any database is opened, prints every target database.
+    // Template migration report (read-only), run and rollback. Options are validated before any database is opened (run and
+    // rollback need --tenants and --confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP); every target database is printed first.
     var migrationOptions = PageTemplateMigrationOptions.Parse(args);
     var migrationRunner = PageTemplateMigrationRunner.CreateDefault(new PageTemplateMigrationSqlDatabases(app.Services, tenantConnectionString), Console.Out);
-    await migrationRunner.ReportAsync(migrationOptions, CancellationToken.None);
+    await migrationRunner.ExecuteAsync(migrationOptions, CancellationToken.None);
     return;
 }
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
