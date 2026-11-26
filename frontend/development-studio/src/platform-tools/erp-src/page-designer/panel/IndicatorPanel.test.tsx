@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
@@ -84,5 +87,38 @@ describe("IndicatorPanel final review fixes 4 and 7", () => {
     }
     const list = renderToString(<IndicatorPanel {...props(setIndicatorKind(start(), "g1", "progress"))}/>);
     expect(list).toContain("İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.");
+  });
+});
+
+describe("IndicatorPanel title follows only the choice", () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const mount = (def: ModelDefinition, onChange: (next: ModelDefinition) => void) => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(<IndicatorPanel {...props(def)} onChange={onChange}/>));
+    return { host, unmount: () => { act(() => root.unmount()); host.remove(); } };
+  };
+  const titleOf = (def: ModelDefinition) => def.components.find((c) => c.id === "g1")!.props.title;
+
+  it("choosing a source takes its value label; changing the size keeps the title", () => {
+    const changes: ModelDefinition[] = [];
+    const fresh = mount(start(), (next) => changes.push(next));
+    const radio = [...fresh.host.querySelectorAll("label")].find((label) => label.textContent?.includes("Cari bakiye özeti"))!.querySelector("input")!;
+    act(() => radio.click());
+    expect(titleOf(changes.at(-1)!)).toBe("Toplam alacak");
+    fresh.unmount();
+
+    // Kaynağı seçilmiş, başlığı hâlâ "Gösterge" olan gösterge: boyut değişince adı değişmez.
+    const sourced = chooseIndicatorSource(start(), "g1", ozet);
+    expect(titleOf(sourced)).toBe("Gösterge");
+    const sized: ModelDefinition[] = [];
+    const view = mount(sourced, (next) => sized.push(next));
+    const big = [...view.host.querySelectorAll("button")].find((button) => button.textContent === "Büyük")!;
+    act(() => big.click());
+    expect(sized).toHaveLength(1);
+    expect(sized[0].components.find((c) => c.id === "g1")!.props.size).toBe("lg");
+    expect(titleOf(sized[0])).toBe("Gösterge");
+    view.unmount();
   });
 });
