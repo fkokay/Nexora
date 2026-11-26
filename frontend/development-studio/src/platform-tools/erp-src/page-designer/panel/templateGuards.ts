@@ -2,12 +2,17 @@
 // ağacın hiçbir yerinde `width` / `widthWhen` kalmaz. Eski ayar yollarından (satır düğmesi, kopyalama, standart öğeler…)
 // gelen bileşenler de böylece kaydı bozmaz. Değişiklik yoksa aynı nesne döner.
 import { readPageTemplate } from "../pageTemplates";
-import type { ModelComponent, ModelDefinition } from "./listPanelModel";
+import { DEFAULT_BLOCK_TITLE, freeBlocks, freeTabs, isFreeBlock, MAX_BLOCK_MEMBERS, setFreeTabs } from "./freeModel";
+import { freeId, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
 export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
 const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
+export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item"]);
+/** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules). */
+export const FREE_ITEM_TYPES = new Set(["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"]);
+const FREE_SLOT_TYPES: Record<string, string> = { actions: "button", tabs: "tabs", block: "section" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
@@ -26,10 +31,14 @@ function stripWidth(component: ModelComponent): ModelComponent {
   return next;
 }
 
-/** Yeri olmayan ya da türüne uymayan bileşene yer verir: satır düğmesi `rowActions`, öteki her şey listenin altı (`below`). */
+/**
+ * Yeri olmayan ya da türüne uymayan bileşene yer verir: satır düğmesi `rowActions`, öteki her şey listenin altı (`below`).
+ * Serbest gövdede düğme işlem çubuğuna (`actions`), öteki her şey `item` olarak bir bölüme girer (`freeMembership`).
+ */
 export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   const template = readPageTemplate(def.template);
   if (!template) return def;
+  if (template.name === "free") return ensureFreeSlots(def);
   const slots = template.name === "record" ? RECORD_TEMPLATE_SLOTS : TEMPLATE_SLOTS;
   const slotTypes = template.name === "record" ? RECORD_SLOT_TYPES : SLOT_TYPES;
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
@@ -44,6 +53,75 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
     return next;
   });
   return changed ? { ...def, components } : def;
+}
+
+function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
+  let changed = false;
+  const components = def.components.map((component) => {
+    let next = stripWidth(component);
+    const slot = typeof next.props.slot === "string" ? next.props.slot : "";
+    const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? FREE_ITEM_TYPES.has(next.type) : FREE_SLOT_TYPES[slot] === next.type);
+    if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" ? "actions" : "item" } };
+    if (next !== component) changed = true;
+    return next;
+  });
+  const slotted = changed ? { ...def, components } : def;
+  return freeMembership(slotted);
+}
+
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index]);
+
+/**
+ * Serbest gövdenin üyelik kuralları (sunucu: her bileşen tam bir bölümde, sekme varsa her bölüm tam bir sekmede):
+ * bölümün `members`'ından olmayan bileşenler ve ikinci kez geçen kimlikler atılır; bölümsüz bileşen yeri olan son bölüme (hepsi
+ * doluysa yeni bir bölüme) girer; sekmede olmayan bölüm son sekmeye girer, bilinmeyen kimlikler ve boş sekmeler atılır.
+ */
+function freeMembership<D extends ModelDefinition>(def: D): D {
+  const items = new Set(def.components.filter((component) => component.props.slot === "item").map((component) => component.id));
+  const seen = new Set<string>();
+  const order = freeBlocks(def).map((block) => block.id);
+  const members = new Map<string, string[]>();
+  for (const id of order) {
+    const block = def.components.find((component) => component.id === id)!;
+    const kept = ids(block.props.members).filter((member) => items.has(member) && !seen.has(member));
+    kept.forEach((member) => seen.add(member));
+    members.set(id, kept);
+  }
+  const extraBlocks: ModelComponent[] = [];
+  for (const item of items) {
+    if (seen.has(item)) continue;
+    let target = [...order].reverse().find((id) => members.get(id)!.length < MAX_BLOCK_MEMBERS);
+    if (!target) {
+      const id = freeId(def, "bolum", new Set(extraBlocks.map((block) => block.id.toLowerCase())));
+      extraBlocks.push({ id, type: "section", props: { slot: "block", title: `${DEFAULT_BLOCK_TITLE} ${order.length + 1}`, columns: 2, members: [] } });
+      order.push(id);
+      members.set(id, []);
+      target = id;
+    }
+    members.get(target)!.push(item);
+    seen.add(item);
+  }
+  let next: D = def;
+  const patched = def.components.map((component) => {
+    const list = isFreeBlock(component) ? members.get(component.id) : undefined;
+    return list && !sameList(ids(component.props.members), list) ? { ...component, props: { ...component.props, members: list } } : component;
+  });
+  if (patched.some((component, index) => component !== def.components[index]) || extraBlocks.length > 0) next = { ...def, components: [...patched,
+    ...extraBlocks.map((block) => ({ ...block, props: { ...block.props, members: members.get(block.id)! } }))] };
+  const tabs = freeTabs(next);
+  if (!tabs) return next;
+  // Yeni (taşma) bölümleri `order`'da; sekmeler onları da son sekmeye alır.
+  const blockIds = new Set(order);
+  const placed = new Set<string>();
+  const cleaned = tabs.map((tab) => ({ ...tab, blockIds: tab.blockIds.filter((id) => blockIds.has(id) && !placed.has(id) && (placed.add(id), true)) }));
+  const loose = order.filter((id) => !placed.has(id));
+  const lastWithBlocks = cleaned.map((tab) => tab.blockIds.length > 0).lastIndexOf(true);
+  if (loose.length > 0) {
+    const at = lastWithBlocks >= 0 ? lastWithBlocks : cleaned.length - 1;
+    cleaned[at] = { ...cleaned[at], blockIds: [...cleaned[at].blockIds, ...loose] };
+  }
+  const unchanged = cleaned.length === tabs.length && cleaned.every((tab, index) => tab.blockIds.length > 0 && sameList(tab.blockIds, tabs[index].blockIds));
+  return unchanged && cleaned.length > 1 ? next : setFreeTabs(next, cleaned);
 }
 
 export type RecordSelection = { kind: "page" } | { kind: "section"; id: string } | { kind: "field"; id: string } | { kind: "lines"; id: string } | { kind: "note"; id: string };

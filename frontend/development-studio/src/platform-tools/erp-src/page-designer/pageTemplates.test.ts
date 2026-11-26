@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RECORD_SOURCE_HINT, LIST_SOURCE_HINT, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, templateCatalogText, templateLabel, templateLevel } from "./pageTemplates";
+import { RECORD_SOURCE_HINT, LIST_SOURCE_HINT, LEGACY_TEMPLATE_CHOICE, newFreeTemplateDefinition, readPageTemplate, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, templateCatalogText, templateLabel, templateLevel } from "./pageTemplates";
 import { chooseDataSource, type ModelDefinition } from "./panel/listPanelModel";
 import NewPageDialog from "./NewPageDialog";
 import { designerPersistence } from "../CustomPagesPage";
@@ -27,6 +27,20 @@ describe("sayfa kalıpları", () => {
   it("newListTemplateDefinition shape", () => {
     expect(newListTemplateDefinition()).toEqual({ schemaVersion: 2, template: { name: "list" }, queries: [], components: [{ id: "liste", type: "dataTable", props: { slot: "list" } }] });
     expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "free"]);
+  });
+
+  it("templateLevel of free is 3; label is Serbest; choices include legacy last", () => {
+    const free = newFreeTemplateDefinition();
+    expect(readPageTemplate({ name: "free" })).toEqual({ name: "free" });
+    expect(templateLevel(free)).toBe(3);
+    expect(templateLevel({ ...free, components: [...free.components, { id: "x", type: "text", props: { slot: "below" } }] })).toBe(3);
+    expect(templateLabel(free)).toBe("Serbest");
+    expect(PAGE_TEMPLATE_CHOICES.find((c) => c.id === "free")).toEqual({ id: "free", label: "Serbest", description: "Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin." });
+    // Karar 1: pencere `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir (NewPageDialog Görev 5'te).
+    const shown = [...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE];
+    expect(shown.map((c) => c.id)).toEqual(["list", "record", "free", "legacy"]);
+    expect(LEGACY_TEMPLATE_CHOICE).toEqual({ id: "legacy", label: "Eski tasarımcı (kalıpsız)", description: "Sistem ekranlarına benzeyen gelişmiş sayfalar için." });
+    expect(designerPersistence.normalizeDefinition(free).template).toEqual({ name: "free" });
   });
 
   it("templateLevel 2 with below component", () => {

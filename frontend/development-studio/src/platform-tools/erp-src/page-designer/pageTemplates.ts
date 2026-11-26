@@ -1,13 +1,20 @@
 import type { ActiveCatalog } from "./catalogClient";
 // Sayfa kalıbı (pageTemplate): sayfanın kökündeki `template: { name: "list" }`. Bileşen ön ayarlarıyla (CustomPagesPage `templates`) karıştırılmamalıdır.
-export type PageTemplate = { name: "list" } | { name: "record" };
+export type PageTemplate = { name: "list" } | { name: "record" } | { name: "free" };
 export type PageTemplateChoice = { id: "list" | "record" | "free"; label: string; description: string };
+/** Karar 1: kalıpsız (eski tasarımcı) sayfayı kuran seçim, pencerede en sonda. */
+export type LegacyTemplateChoice = { id: "legacy"; label: string; description: string };
 
 export const PAGE_TEMPLATE_CHOICES: PageTemplateChoice[] = [
   { id: "list", label: "Liste", description: "Kayıtları aramak, süzmek ve seçmek için." },
   { id: "record", label: "Kayıt kartı", description: "Tek bir kaydı görmek ve düzenlemek için." },
-  { id: "free", label: "Serbest (bugünkü tasarımcı)", description: "Kalıpsız sayfa." },
+  { id: "free", label: "Serbest", description: "Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin." },
 ];
+/**
+ * Karar 1'in son seçimi. NewPageDialog bugün `PAGE_TEMPLATE_CHOICES`'in kimliklerini yalnız list / record / free diye
+ * okuduğu için ayrı durur; pencereyi değiştiren görev (Görev 5) `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir.
+ */
+export const LEGACY_TEMPLATE_CHOICE: LegacyTemplateChoice = { id: "legacy", label: "Eski tasarımcı (kalıpsız)", description: "Sistem ekranlarına benzeyen gelişmiş sayfalar için." };
 
 type TemplatedDefinition = { schemaVersion: 2; template?: PageTemplate; queries: unknown[]; components: unknown[] };
 type DefinitionLike = { template?: unknown; components?: unknown };
@@ -16,7 +23,7 @@ type DefinitionLike = { template?: unknown; components?: unknown };
 export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const name = (raw as { name?: unknown }).name;
-  return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : undefined;
+  return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : undefined;
 }
 
 export function newListTemplateDefinition(): TemplatedDefinition {
@@ -27,6 +34,14 @@ export function newRecordTemplateDefinition(): TemplatedDefinition {
   return { schemaVersion: 2, template: { name: "record" }, queries: [], components: [
     { id: "ozet", type: "recordHeader", props: { slot: "summary" } }, { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: [] } }] };
 }
+
+/** Yeni serbest sayfa (Karar 2): sekmesiz tek bölüm, "Bölüm 1", 2 kolon, üyesiz. */
+export function newFreeTemplateDefinition(): TemplatedDefinition {
+  return { schemaVersion: 2, template: { name: "free" }, queries: [], components: [
+    { id: NEW_FREE_BLOCK_ID, type: "section", props: { slot: "block", title: "Bölüm 1", columns: 2, members: [] } }] };
+}
+/** Yeni serbest sayfanın bölümü (`newFreeTemplateDefinition`). */
+export const NEW_FREE_BLOCK_ID = "bolum";
 
 export const RECORD_SOURCE_HINT = "Önce hangi kaydın gösterileceğini seçin.";
 
@@ -64,9 +79,11 @@ export function listSourceProblem(definition: DefinitionLike & { queries?: unkno
   return queryId && queries.some((query) => query?.id === queryId && query.kind === "read") ? null : LIST_SOURCE_HINT;
 }
 
-/** Basamak saklanmaz, hesaplanır: `above`/`below` yerinde bileşen varsa 2, yoksa 1; kalıpsız sayfada null. */
-export function templateLevel(definition: DefinitionLike): 1 | 2 | null {
-  if (!readPageTemplate(definition.template)) return null;
+/** Basamak saklanmaz, hesaplanır: serbest gövde her zaman 3; `above`/`below` yerinde bileşen varsa 2, yoksa 1; kalıpsız sayfada null. */
+export function templateLevel(definition: DefinitionLike): 1 | 2 | 3 | null {
+  const template = readPageTemplate(definition.template);
+  if (!template) return null;
+  if (template.name === "free") return 3;
   const components = Array.isArray(definition.components) ? definition.components : [];
   const extra = components.some((component) => {
     const slot = (component as { props?: { slot?: unknown } } | null)?.props?.slot;
@@ -75,9 +92,9 @@ export function templateLevel(definition: DefinitionLike): 1 | 2 | null {
   return extra ? 2 : 1;
 }
 
-export function templateLabel(definition: DefinitionLike): "Liste" | "Kayıt kartı" | "Kalıpsız" {
+export function templateLabel(definition: DefinitionLike): "Liste" | "Kayıt kartı" | "Serbest" | "Kalıpsız" {
   const name = readPageTemplate(definition.template)?.name;
-  return name === "list" ? "Liste" : name === "record" ? "Kayıt kartı" : "Kalıpsız";
+  return name === "list" ? "Liste" : name === "record" ? "Kayıt kartı" : name === "free" ? "Serbest" : "Kalıpsız";
 }
 
 /** Ekranlar listesindeki metin: "Liste · 1. basamak" ya da "Kalıpsız". */

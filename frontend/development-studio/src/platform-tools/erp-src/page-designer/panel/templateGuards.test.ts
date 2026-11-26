@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "../catalogClient";
-import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
+import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField, sectionRemovalBlocked } from "./recordModel";
-import { ensureTemplateSlots, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
+import { ensureTemplateSlots, FREE_TEMPLATE_SLOTS, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
   const base = newListTemplateDefinition() as unknown as ModelDefinition;
@@ -51,6 +51,61 @@ describe("template guards (I2, M4)", () => {
     expect(slot("yanlis2")).toBe("below");
     expect(slot("yeni")).toBe("below");
     expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+});
+
+describe("free template guards", () => {
+  const free = (components: ModelDefinition["components"]): ModelDefinition => ({ ...(newFreeTemplateDefinition() as unknown as ModelDefinition), components });
+  const blockC = (id: string, members: string[]) => ({ id, type: "section", props: { slot: "block", title: id, columns: 2, members } });
+  const membersOf = (def: ModelDefinition, id: string) => def.components.find((c) => c.id === id)!.props.members;
+
+  it("FREE_TEMPLATE_SLOTS", () => {
+    expect([...FREE_TEMPLATE_SLOTS].sort()).toEqual(["actions", "block", "item", "tabs"]);
+  });
+
+  it("puts a component without a place into the last block as an item", () => {
+    const def = free([blockC("a", ["m"]), blockC("b", []), { id: "m", type: "metric", props: { slot: "item" } },
+      { id: "yeni", type: "text", props: { width: 4 } }, { id: "alt", type: "section", props: { title: "Alt başlık" } },
+      { id: "dugme", type: "button", props: { text: "Yenile" } }, { id: "kayip", type: "badge", props: { slot: "item" } }]);
+    const fixed = ensureTemplateSlots(def);
+    const slot = (id: string) => fixed.components.find((c) => c.id === id)!.props.slot;
+    expect(["yeni", "alt", "kayip"].map(slot)).toEqual(["item", "item", "item"]);
+    expect(slot("dugme")).toBe("actions");
+    expect(fixed.components.find((c) => c.id === "yeni")!.props).toEqual({ slot: "item" });
+    expect(membersOf(fixed, "a")).toEqual(["m"]);
+    expect(membersOf(fixed, "b")).toEqual(["yeni", "alt", "kayip"]);
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+
+  it("skips a full last block, drops dangling members and duplicate membership", () => {
+    const full = Array.from({ length: 12 }, (_, index) => `f${index}`);
+    const def = free([blockC("a", ["x", "silinmis"]), blockC("b", [...full]), ...full.map((id) => ({ id, type: "text", props: { slot: "item" } })),
+      { id: "x", type: "text", props: { slot: "item" } }, { id: "y", type: "text", props: {} }]);
+    const twice = { ...def, components: def.components.map((c) => c.id === "b" ? { ...c, props: { ...c.props, members: [...full.slice(0, 11), "x"] } } : c) };
+    const fixed = ensureTemplateSlots(def);
+    expect(membersOf(fixed, "a")).toEqual(["x", "y"]);
+    expect(membersOf(fixed, "b")).toEqual(full);
+    const fixedTwice = ensureTemplateSlots(twice);
+    // x önce a'da olduğu için b'den çıkar; b'de açılan yere bölümsüz f11 girer, y yine a'ya düşer.
+    expect(membersOf(fixedTwice, "a")).toEqual(["x", "y"]);
+    expect(membersOf(fixedTwice, "b")).toEqual(full);
+  });
+
+  it("opens a new block when every block is full", () => {
+    const full = Array.from({ length: 12 }, (_, index) => `f${index}`);
+    const def = free([blockC("bolum", [...full]), ...full.map((id) => ({ id, type: "text", props: { slot: "item" } })), { id: "y", type: "image", props: {} }]);
+    const fixed = ensureTemplateSlots(def);
+    expect(fixed.components.at(-1)).toEqual({ id: "bolum2", type: "section", props: { slot: "block", title: "Bölüm 2", columns: 2, members: ["y"] } });
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+
+  it("puts a block that is in no tab into the last tab and drops unknown tab entries", () => {
+    const def = free([blockC("a", []), blockC("b", []), blockC("c", []), { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: ["Genel=a,yok", "İkinci=b"] } }]);
+    const fixed = ensureTemplateSlots(def);
+    expect(fixed.components.find((c) => c.id === "sekmeler")!.props.tabs).toEqual(["Genel=a", "İkinci=b,c"]);
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+    const single = free([blockC("a", []), { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: ["Genel=a", "Boş=yok"] } }]);
+    expect(ensureTemplateSlots(single).components.map((c) => c.id)).toEqual(["a"]);
   });
 });
 
