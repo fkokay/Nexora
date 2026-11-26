@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { PageShell, type ShellAction } from "./PageShell";
+import { PageShell, type ShellAction, type ShellCommandsProps } from "./PageShell";
 import type { Component } from "./listTemplateModel";
 import { recordTemplateLevel, type RecordLayout } from "./recordTemplateModel";
 
@@ -76,9 +76,11 @@ function RecordSummary({ children }: { children: ReactNode }) {
  * alt bilgi. Bileşenleri çizen `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir); bölüm, satır tablosu ve
  * notlar sekme bileşeninin içinde çizilir. Yeni kayıt kipinde silme düğmesi gösterilmez.
  */
-export function RecordTemplate<C extends Component>({ layout, render, title, crumbs, actions, isNew, notices }: {
+export function RecordTemplate<C extends Component>({ layout, render, title, crumbs, actions, isNew, notices, commands }: {
   layout: RecordLayout<C>; render: (component: C) => ReactNode; title: string; crumbs: string[];
   actions: ShellAction[]; isNew: boolean; notices?: ReactNode;
+  /** Sayfanın komut çubuğu varken kabuğun "⋯" menüsü (bkz. `ShellCommandsProps`). */
+  commands?: ShellCommandsProps;
 }) {
   const shown = isNew ? actions.filter((action) => action.kind !== "danger") : actions;
   const head = <>
@@ -86,7 +88,7 @@ export function RecordTemplate<C extends Component>({ layout, render, title, cru
     {layout.summary && <RecordSummary>{render(layout.summary)}</RecordSummary>}
   </>;
   return <div className="record-template" data-level={recordTemplateLevel(layout)} data-record-mode={isNew ? "new" : "existing"}>
-    <PageShell variant="record" title={title} crumbs={crumbs} actions={shown} head={head} footer={isNew ? "Yeni kayıt" : undefined}>
+    <PageShell variant="record" title={title} crumbs={crumbs} actions={shown} head={head} footer={isNew ? "Yeni kayıt" : undefined} {...commands}>
       {notices}
       {layout.tabs && <div className="record-template-tabs">{render(layout.tabs)}</div>}
       {layout.below.length > 0 && <div className="record-template-below">{layout.below.map(render)}</div>}

@@ -2,9 +2,10 @@ import { createElement, useCallback, useContext, type ComponentProps, type CSSPr
 import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
 import { DocumentTemplate } from "./page-templates/DocumentTemplate";
 import { BELGE_PARTS, layoutDocumentTemplate } from "./page-templates/documentTemplateModel";
-import { hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
+import { commandsBarOf, hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
 import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
-import type { ShellAction } from "./page-templates/PageShell";
+import type { ShellAction, ShellCommandsProps } from "./page-templates/PageShell";
+import { shellCommandActions, templateBarProps } from "./page-templates/templateCommands";
 import { hasRecordSlot, layoutRecordTemplate, recordKeyParam } from "./page-templates/recordTemplateModel";
 import { RecordLines, RecordSection, RecordTemplate } from "./page-templates/RecordTemplate";
 import { hasFreeSlot, layoutFreeTemplate } from "./page-templates/freeTemplateModel";
@@ -43,7 +44,8 @@ import { CREATED_REOPEN, RECORD_UNSAVED_SUBTITLE, SOURCE_FAILED, SOURCE_LOADING 
 import { useErpOperations } from "./custom-page/useErpOperations";
 import { actionBarOf, barCommandHidden, barCommandPlan, buildPageCommands, commandWhenOf, exportRows, movedButtonIds, parseBarLook, SAVE_AND_NEW_COMMAND_ID, VIEW_MODE_PARAM, VIEW_MODE_REASON, VIEW_MODE_VALUE, type BarCommandId, type BarPageNavigation } from "./custom-page/pageActions";
 import { openDialogs, useWindowKeyDown } from "./record-form/recordFormKeys";
-import { usePageCommands } from "./commands/CommandProvider";
+import { usePageCommands, useViewPageCommands } from "./commands/CommandProvider";
+import type { StandardCommandId } from "./commands/types";
 import { startPageWorkflow } from "./custom-page/workflowStart";
 import { downloadCsv, downloadXlsx } from "./general-ledger/ledgerReportUtils";
 import { confirmDialog, promptDialog } from "./confirmDialog";
@@ -1635,11 +1637,19 @@ const CATALOG_WAIT_MS = 10_000;
  * Sayfadaki `actionBar` bileşeninin komutlarını kabuğun İşlem Çubuğu'na kaydeder (yalnız actionBar varken bağlanır;
  * kalkınca kayıt da kalkar). Tüm yazma yolları tek uçuş kilidini paylaşır.
  */
-function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onStatus, onBusy, busy, rootRef }: {
+function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onStatus, onBusy, busy, rootRef, shell = false, afterSaveFallback, afterDeleteFallback, hide = [] }: {
   barProps: Record<string, unknown>; runtime: PageRuntime; page: PublishedPage; token: string; flat: ComponentDefinition[];
   loadIds: string[]; onStatus: (status: ActionStatus | null) => void; onBusy: (busy: boolean) => void; busy: boolean;
   /** Sayfa içeriği: gizli (arka plandaki) sekmede ya da açık pencere varken Ctrl+F2 çalışmaz. */
   rootRef?: { current: HTMLElement | null };
+  /** Kalıplı sayfa: komutları ortak çubuk değil sayfanın kabuğu çizer (`PageCommands.shell`). */
+  shell?: boolean;
+  /** Kayıttan sonrası seçilmemişken (`afterSave` kapalı) başarılı Kaydet'ten sonra çalışır (Kayıt kartının kuralı). */
+  afterSaveFallback?: () => void;
+  /** Başarılı Sil'den sonra çalışır (Kayıt kartı: açan sekmeye dönüş). */
+  afterDeleteFallback?: () => void;
+  /** Kayıt defterinde gizlenen komutlar (Kayıt kartı: yeni kayıtta Sil); çizilmez, kısayolu bir şey yapmaz. */
+  hide?: StandardCommandId[];
 }) {
   const inFlight = runtime.writeLock;
   const mounted = useRef(true);
@@ -1683,7 +1693,7 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     latest.current.clearRecordInputs();
     if (!actionAllowed({ type: "navigate", rights: ["view"] }, latest.current.rights)) return;
     navigateBar(afterSavePlan.page!, afterSavePlan.refresh ? { refreshTarget: true } : undefined);
-  } : undefined;
+  } : afterSavePlan.mode === "off" && afterSaveFallback ? () => { if (mounted.current) afterSaveFallback(); } : undefined;
 
   const writeThroughBar = async (query: PageQueryDefinition, confirm: Parameters<typeof runWriteAction>[0]["confirm"], successText: string, errorPrefix: string, extraRefresh: string[] = [], onSuccess?: () => void, options?: WriteOptions) => {
     onStatus(null);
@@ -1826,7 +1836,8 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
         const query = latest.current.queryById[queryId];
         if (!query) return;
         if (kind === "save") void writeThroughBar(query, { enabled: false }, "İşlem tamamlandı.", "", [], afterSave);
-        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "", [], undefined, { recordDelete: true });
+        else void writeThroughBar(query, { enabled: true, title: barDeleteConfirmTitle(barProps.deleteConfirmText, latest.current.scope), confirmLabel: "Sil", tone: "danger" }, "İşlem tamamlandı.", "", [],
+          afterDeleteFallback ? () => { if (mounted.current) afterDeleteFallback(); } : undefined, { recordDelete: true });
       },
       saveSequence: () => {
         onStatus(null);
@@ -1871,6 +1882,9 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
       },
     };
   }
+  // Kayıt defterinden gizlenen komutlar (`hiddenCommands` gibi yalın `{ hidden: true }`); kalıp kabuğu bu görünümü çizer.
+  for (const id of hide) commands[id] = { hidden: true };
+  if (shell) commands.shell = true;
   // Kayıt penceresi açıkken F2 aynı Yeni komutunu (onay dahil) çalıştırır. Gizli komutun (`hiddenCommands` / `commandWhen`)
   // `run`'ı yoktur: gizli Aç'ta satıra çift tıklama / Enter, gizli Yeni'de pencere içi F2 bir şey yapmaz.
   runtime.newCommand.current = commands.new?.run && !commands.new.disabledReason ? commands.new.run : null;
@@ -1886,6 +1900,19 @@ function PageActionCommands({ barProps, runtime, page, token, flat, loadIds, onS
     void saveAndNewRun?.run?.();
   });
   return null;
+}
+
+/**
+ * Komut çubuklu kalıplı sayfanın kabuğu: kayıt defterinin bu görünüm için birleştirdiği komutları (sayfanın ve açık formların)
+ * okur, sayfa düğmeleriyle sabit sıraya dizer ve kalıba "⋯" menüsüyle verir. Yalnız komut çubuğu varken çizilir; çubuksuz kalıplı
+ * sayfa kabuğa menü vermez ve Alt+İ'yi üstlenmez.
+ */
+function TemplateShellCommands({ barId, pageButtons, keepPagePrimary, children }: {
+  barId: string; pageButtons: ShellAction[]; keepPagePrimary?: boolean;
+  children: (actions: ShellAction[], commands: ShellCommandsProps) => ReactNode;
+}) {
+  const { actions, menu, moreMenuHidden } = shellCommandActions(useViewPageCommands(), pageButtons, { keepPagePrimary });
+  return <>{children(actions, { menu, moreMenuHidden, barAnchor: <AnchorMark id={barId} /> })}</>;
 }
 
 /** Sayfa içeriği: v2 tanımlarda sorguları çalıştırır, girişleri ve ızgara seçimini tutar, bağlama kapsamını kurar. v1'de bağlama yoktur. */
@@ -3714,21 +3741,26 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
    * kayıttan ve silmeden sonra açan sekmeye dönülür (parametreleri korunur, açılış sorguları yenilenir), açan yoksa form
    * temizlenir ya da sekme kapanır. Önizlemede ve sekmesiz çizimde hiçbir şey yapılmaz.
    */
-  const recordDoneFor = (button: ComponentDefinition, kind: ShellAction["kind"], runtime: PageRuntime): (() => void) | undefined => {
+  const backToOpener = (tab: string, opener: string, notice?: string) => {
+    requestClosePage(tab);
+    openWorkspacePage({ page: opener, params: {}, replace: false, from: tab, refresh: true, keepParams: true, ...(notice ? { notice } : {}) });
+  };
+  /** Kayıt kartında başarılı Sil'den sonrası (silme düğmesinden ya da komut çubuğunun Sil'inden). */
+  const recordDeleteDone = (): (() => void) | undefined => {
     if (!tabKey || isPreview) return undefined;
-    const action = runtime.buttonAction(button);
-    const backTo = (opener: string, notice?: string) => {
-      requestClosePage(tabKey);
-      openWorkspacePage({ page: opener, params: {}, replace: false, from: tabKey, refresh: true, keepParams: true, ...(notice ? { notice } : {}) });
+    return () => {
+      const next = afterRecordDelete(openerOf(tabKey));
+      if (next.kind === "backToOpener") backToOpener(tabKey, next.opener, RECORD_DELETED_NOTICE);
+      else requestClosePage(tabKey);
     };
-    if (kind === "danger" && action?.type === "query" && action.query?.kind === "delete") {
-      return () => {
-        const next = afterRecordDelete(openerOf(tabKey));
-        if (next.kind === "backToOpener") backTo(next.opener, RECORD_DELETED_NOTICE);
-        else requestClosePage(tabKey);
-      };
-    }
-    if (kind !== "primary" || action?.type !== "sequence") return undefined;
+  };
+  /**
+   * Kayıt kartında başarılı Kaydet'ten sonrası (kayıt dizisi düğmesinden ya da komut çubuğunun Kaydet'inden). Yazılan anahtar
+   * bu çizimdeki değerdir: komutun çalıştığı (tıklama ya da kısayol) andaki çizimin kapanışı kullanılır, kayıttan sonraki yeniden
+   * yükleme onu değiştirmez.
+   */
+  const recordSaveDone = (runtime: PageRuntime): (() => void) | undefined => {
+    if (!tabKey || isPreview) return undefined;
     const keyInput = recordKeyInput(components, inputById);
     const raw = keyInput && keyInput.props?.readOnly !== true ? runtime.inputValues[keyInput.id] : undefined;
     const typedKey = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() || null : null;
@@ -3736,10 +3768,16 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     return () => {
       const next: AfterSave = afterRecordSave({ isNew: isNewRecord, keyParam: recordParam, typedKey, opener: openerOf(tabKey) });
       if (next.kind === "reopen") { onRestart?.(saved); setPageParams(tabKey, { ...pageParams, [next.param]: next.value }); }
-      else if (next.kind === "backToOpener") backTo(next.opener, RECORD_SAVED_NOTICE);
+      else if (next.kind === "backToOpener") backToOpener(tabKey, next.opener, RECORD_SAVED_NOTICE);
       else if (next.kind === "clear") onRestart?.(saved);
       // reload: kayıt dizisi açılış sorgularını zaten yeniden çalıştırdı.
     };
+  };
+  const recordDoneFor = (button: ComponentDefinition, kind: ShellAction["kind"], runtime: PageRuntime): (() => void) | undefined => {
+    const action = runtime.buttonAction(button);
+    if (kind === "danger" && action?.type === "query" && action.query?.kind === "delete") return recordDeleteDone();
+    if (kind !== "primary" || action?.type !== "sequence") return undefined;
+    return recordSaveDone(runtime);
   };
   /**
    * Kayıt kartında kayıt dizisi düğmesinin (Kaydet) hakları yalnız şu an `sequenceWhen`'i tutan adımlarındandır: güncelleme
@@ -3757,34 +3795,59 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
       blockedReason: isNewRecord && !active.some((query) => query.kind === "insert") ? RECORD_NO_INSERT_REASON : null,
     };
   };
+  /**
+   * Kalıplı sayfanın komut çubuğu (`commands` yerinde üst düzey actionBar). Varsa eski çubuğun komutları aynen kaydedilir
+   * (`shell`: kabuk çizer, ortak çubuk çizmez); yoksa sayfa bugünkü gibi çizilir ve komut kaydetmez (Karar 5).
+   */
+  const templateBar = listLayout || recordLayout || freeLayout ? commandsBarOf(components) : null;
+  const templateCommands = (runtime: PageRuntime, extra: { afterSaveFallback?: () => void; afterDeleteFallback?: () => void; hide?: StandardCommandId[] } = {}) =>
+    templateBar && <PageActionCommands barProps={templateBarProps(templateBar.props ?? {})} runtime={runtime} page={page} token={token} flat={flat}
+      loadIds={loadIds} onStatus={setActionStatus} onBusy={setActionBusy} busy={actionBusy} rootRef={contentRef} shell {...extra} />;
+  /** Komut çubuğunun çalıştırdığı düğmeler (moreButtons, newButton, openButton, afterSaveButton) kabukta ayrıca çizilmez. */
+  const withoutBarButtons = (buttons: ComponentDefinition[], runtime: PageRuntime) => buttons.filter((button) => !runtime.movedButtons.has(button.id));
+  // Başlıkta kayıt sayısı: komut çubuğunda `titleCount` varsa o (eski çubuğun kuralıyla: aktarım tablosu gizliyken yok), yoksa kalıbın sayısı.
+  const templateTitleCount = templateBar && textValue(templateBar.props?.titleCount).trim() !== "" ? titleCount : undefined;
   if (recordLayout && runtime) {
-    // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate).
-    const shellActions = shellActionsFor(recordLayout.actions, runtime, (button) => runtime.buttonAction(button)?.type === "sequence",
+    // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate). Komut çubuğunun çalıştırdığı
+    // düğmeler Kaydet/Sil sayılmaz ve çizilmez (sunucunun IkiKaydet/IkiSil kuralı gibi).
+    const pageButtons = shellActionsFor(withoutBarButtons(recordLayout.actions, runtime), runtime, (button) => runtime.buttonAction(button)?.type === "sequence",
       (button, kind) => recordDoneFor(button, kind, runtime), (button, action) => recordSequenceGate(button, action, runtime));
+    // Kaydet çubukta değil kayıt dizisi düğmesindeyse o düğme ana düğme kalır.
+    const recordSaveButton = pageButtons.some((action) => action.kind === "primary" && !!buttonById[action.id] && runtime.buttonAction(buttonById[action.id])?.type === "sequence");
     const summaryTitle = recordLayout.summary ? templateText(textValue(recordLayout.summary.props?.title), scope) : "";
     const crumbs = [page.name, isNewRecord ? "Yeni kayıt" : summaryTitle].filter((crumb) => crumb.trim() !== "");
     const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
     // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir (Liste gibi).
-    return <div className="record-template-page" ref={contentRef}>
-      <RecordTemplate layout={recordLayout} render={renderSlot} title={pageTitle || page.name} crumbs={crumbs} actions={shellActions} isNew={isNewRecord}
+    const record = (shellActions: ShellAction[], commands?: ShellCommandsProps) =>
+      <RecordTemplate layout={recordLayout} render={renderSlot} title={pageTitle || page.name} crumbs={crumbs} actions={shellActions} isNew={isNewRecord} commands={commands}
         notices={<>
           {viewModeStrip}
           {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
           {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-        </>} />
+        </>} />;
+    return <div className="record-template-page" ref={contentRef}>
+      {templateBar ? <>
+        {templateCommands(runtime, { afterSaveFallback: recordSaveDone(runtime), afterDeleteFallback: recordDeleteDone(), hide: isNewRecord ? ["delete"] : [] })}
+        <TemplateShellCommands barId={templateBar.id} pageButtons={pageButtons} keepPagePrimary={recordSaveButton}>{record}</TemplateShellCommands>
+      </> : record(pageButtons)}
     </div>;
   }
   if (freeLayout && runtime) {
-    const shellActions = shellActionsFor(freeLayout.actions, runtime);
+    const pageButtons = shellActionsFor(withoutBarButtons(freeLayout.actions, runtime), runtime);
     const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
-    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir (Liste ve Kayıt kartı gibi).
-    return <div className="free-template-page" ref={contentRef}>
-      <FreeTemplate layout={freeLayout} render={renderSlot} title={pageTitle || page.name} crumbs={[]} actions={shellActions}
+    const free = (shellActions: ShellAction[], commands?: ShellCommandsProps) =>
+      <FreeTemplate layout={freeLayout} render={renderSlot} title={pageTitle || page.name} crumbs={[]} actions={shellActions} commands={commands} count={templateTitleCount}
         notices={<>
           {viewModeStrip}
           {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
           {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-        </>} />
+        </>} />;
+    // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir (Liste ve Kayıt kartı gibi).
+    return <div className="free-template-page" ref={contentRef}>
+      {templateBar ? <>
+        {templateCommands(runtime)}
+        <TemplateShellCommands barId={templateBar.id} pageButtons={pageButtons}>{free}</TemplateShellCommands>
+      </> : free(pageButtons)}
     </div>;
   }
   if (listLayout && runtime) {
@@ -3793,7 +3856,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const listState = listQuery ? runtime.states[listQuery] : undefined;
     // Kayıt sayısı tablonun (süzülmüş) satır sayısıdır; yüklenirken, hatada ya da hiç çalışmamışken gösterilmez.
     const count = listState && !listState.loading && !listState.error && !neverRan(listState) ? runtime.visibleRows(list, listState).rowCount : null;
-    const shellActions = shellActionsFor(listLayout.actions, runtime);
+    const pageButtons = shellActionsFor(withoutBarButtons(listLayout.actions, runtime), runtime);
     const filterBar = listLayout.filters;
     const searchView = filterBar ? runtime.filterBarFor(filterBar) : null;
     const search = filterBar && searchView?.search ? <>
@@ -3807,12 +3870,18 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
       component.type === "contextPanel" && typeof component.props?.table !== "string" ? { ...component, props: { ...component.props, table: list.id } } : component,
       page.forms ?? [], token, page.code, runtime);
     // Kalıp eski 12 sütunlu `.tenant-custom-page-content` ızgarasının dışında çizilir: `> *` kuralları (dar ekranda span 6) kalıbı daraltmasın.
-    return <div className="list-template-page" ref={contentRef}>
-      <ListTemplate layout={listLayout} render={renderSlot} title={pageTitle || page.name} count={count} actions={shellActions} search={search} detailOpen={detailOpen}
+    const listView = (shellActions: ShellAction[], commands?: ShellCommandsProps) =>
+      <ListTemplate layout={listLayout} render={renderSlot} title={pageTitle || page.name} count={templateTitleCount !== undefined ? templateTitleCount : count}
+        actions={shellActions} search={search} detailOpen={detailOpen} commands={commands}
         notices={<>
           {actionStatus && <div className={`tenant-page-action-status is-${actionStatus.tone}`} role={actionStatus.tone === "error" ? "alert" : "status"}>{actionStatus.text}</div>}
           {usesOperations && erpOperations.error && <QueryError message={`ERP işlem kataloğu yüklenemedi: ${erpOperations.error}`} />}
-        </>} />
+        </>} />;
+    return <div className="list-template-page" ref={contentRef}>
+      {templateBar ? <>
+        {templateCommands(runtime)}
+        <TemplateShellCommands barId={templateBar.id} pageButtons={pageButtons}>{listView}</TemplateShellCommands>
+      </> : listView(pageButtons)}
     </div>;
   }
   return <div className="tenant-custom-page-content" ref={contentRef}>

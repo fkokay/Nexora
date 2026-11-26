@@ -157,6 +157,37 @@ describe("page templates", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("the ⋯ menu keeps the legacy İşlemler keys: arrows move, Escape closes and returns focus to ⋯", () => {
+    stubWidth(100);
+    render(<CommandProvider>
+      <ActionBar locale="tr" />
+      <KeepAliveViews activeKey="v" openKeys={["v"]}><ShellView menu={[...menuItems(), { id: "pasif", label: "Pasife al", disabledReason: "Yetkiniz yok", run: () => {} }]} /></KeepAliveViews>
+    </CommandProvider>);
+    fireEvent.keyDown(document.body, { key: "İ", altKey: true });
+    const items = screen.getAllByRole("menuitem").filter((item) => !(item as HTMLButtonElement).disabled);
+    expect(document.activeElement).toBe(items[0]);
+    const menu = screen.getByRole("menu");
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    // The disabled item is skipped; ArrowDown wraps to the first one.
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    fireEvent.keyDown(menu, { key: "Home" });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Diğer işlemler" }));
+  });
+
+  it("a command button keeps its command id in data-command", () => {
+    render(<PageShell title="T" crumbs={[]} menu={[]} actions={[{ id: "cmd:save", command: "save", label: "Kaydet", kind: "primary", shortcut: "Ctrl+S", run: () => {} }]}>x</PageShell>);
+    expect(screen.getByRole("button", { name: "Kaydet" }).getAttribute("data-command")).toBe("save");
+  });
+
   it("the ⋯ menu shows Diğer alone when everything fits", () => {
     render(<PageShell title="T" crumbs={[]} actions={commandActions()} menu={menuItems()}>x</PageShell>);
     expect(screen.getByRole("button", { name: "Yeni" })).toBeTruthy();

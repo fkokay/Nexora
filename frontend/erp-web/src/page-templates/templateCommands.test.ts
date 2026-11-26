@@ -44,11 +44,11 @@ describe("template commands", () => {
       refresh: on(), filter: unbound, print: { hidden: true }, export: unbound, delete: unbound,
     }, []);
     expect(actions.map((a) => a.label)).toEqual(["Yeni", "Düzenle", "Yenile"]);
-    const edit = actions.find((a) => a.id === "open")!;
+    const edit = actions.find((a) => a.command === "open")!;
     expect(edit.disabled).toBe(true);
     expect(edit.disabledReason).toBe("Önce bir kayıt seçin");
     expect(edit.shortcut).toBe("Enter");
-    const refresh = actions.find((a) => a.id === "refresh")!;
+    const refresh = actions.find((a) => a.command === "refresh")!;
     refresh.run();
     expect(refresh.disabled).toBeFalsy();
   });
@@ -92,6 +92,33 @@ describe("template commands", () => {
     expect(shellCommandActions(undefined, buttons)).toEqual({ actions: buttons, menu: [], moreMenuHidden: false });
     // Not a shell view: the shared ActionBar draws these commands, so the shell does not draw them again.
     expect(shellCommandActions({ refresh: on(), more: [{ id: "x", label: "X", run: vi.fn() }] }, buttons)).toEqual({ actions: buttons, menu: [], moreMenuHidden: false });
+  });
+
+  it("draws undo and the other bar items after Excel, before the page buttons (legacy bar parity)", () => {
+    const { actions } = shellCommandActions({
+      shell: true, new: { ...on(), primary: true }, export: on(), delete: on(), undo: { disabledReason: "Geri alınacak değişiklik yok" },
+      barItems: [
+        { id: "record-form-reset", label: "Temizle", run: vi.fn() },
+        { id: SAVE_AND_NEW_COMMAND_ID, label: "Kaydet ve yeni", shortcut: "Ctrl+F2", run: vi.fn() },
+        { id: "unbound-item", label: "Bağlı değil", disabledReason: UNBOUND_REASON },
+      ],
+    }, [page("rapor", "Rapor")]);
+    expect(actions.map((a) => a.label)).toEqual(["Yeni", "Kaydet ve yeni", "Excel", "Temizle", "Değişiklikleri geri al", "Rapor", "Sil"]);
+    const undo = actions.find((a) => a.command === "undo")!;
+    expect(undo).toMatchObject({ kind: "normal", shortcut: "Ctrl+Z", disabled: true, disabledReason: "Geri alınacak değişiklik yok" });
+    // Like the legacy bar, a bar item without a shortcut is not a shortcut button.
+    expect(actions.find((a) => a.label === "Temizle")!.shortcut).toBeUndefined();
+  });
+
+  it("command ids are namespaced so a page button with the same id does not collide", () => {
+    const { actions } = shellCommandActions({ shell: true, new: { ...on(), primary: true }, delete: on(),
+      barItems: [{ id: SAVE_AND_NEW_COMMAND_ID, label: "Kaydet ve yeni", shortcut: "Ctrl+F2", run: vi.fn() }] },
+    [page("new", "Yeni teklif"), page("delete", "Toplu sil", "danger"), page(SAVE_AND_NEW_COMMAND_ID, "Başka")]);
+    const ids = actions.map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(actions.filter((a) => a.command).map((a) => [a.id, a.command])).toEqual([
+      ["cmd:new", "new"], [`cmd:${SAVE_AND_NEW_COMMAND_ID}`, SAVE_AND_NEW_COMMAND_ID], ["cmd:delete", "delete"],
+    ]);
   });
 
   it("templateBarProps turns print on and keeps every other key", () => {

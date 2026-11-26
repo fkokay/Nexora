@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import { tooltipText, useActionTooltip } from "../action-bar/ActionTooltip";
 import { useOptionalCommandRegistry, ViewKeyContext } from "../commands/CommandProvider";
@@ -11,7 +11,10 @@ import "./page-templates.css";
 export type ShellMenuItem = { id: string; label: string; shortcut?: string; disabledReason?: string; run: () => void };
 
 export type ShellAction = {
+  /** Kabuktaki kimlik (React anahtarı, genişlik bölüşümü); komut düğmelerinde ad alanlıdır (`cmd:save`). */
   id: string;
+  /** Komut düğmesinin komut kimliği (`save`, `save-and-new`): `data-command` budur; sayfa düğmesinde yoktur. */
+  command?: string;
   label: string;
   kind: "primary" | "normal" | "danger";
   disabled?: boolean;
@@ -26,6 +29,12 @@ export type ShellAction = {
   /** Düğmenin hemen önüne konan görünmez işaret (Studio tuvalinde seçim için); menüde çizilmez. */
   anchor?: ReactNode;
 };
+
+/**
+ * Komutlu kabuğun ek ayarları (kalıplı sayfanın `commands` çubuğu varken): tek "⋯" menüsünün `Diğer` kısmı ve çubuğun tuval
+ * işareti. Çubuğu olmayan kalıplı sayfa bunu vermez; kabuk o zaman Alt+İ'yi üstlenmez (Karar 5).
+ */
+export type ShellCommandsProps = { menu: ShellMenuItem[]; moreMenuHidden: boolean; barAnchor?: ReactNode };
 
 /** Ana düğme en solda, `normal`'lar aralarında, `danger` en sağda. */
 export function orderShellActions(actions: ShellAction[]): { left: ShellAction[]; right: ShellAction[] } {
@@ -73,7 +82,7 @@ function ActionButton({ action }: { action: ShellAction }) {
 /** Kısayollu (komut) düğme: ipucu ortak çubuktaki gibidir; pasifken `aria-disabled` (fare ve odak ipucunu yine gösterir). */
 function CommandButton({ action, shortcut }: { action: ShellAction; shortcut: string }) {
   const tip = useActionTooltip<HTMLButtonElement>(tooltipText(action.label, formatShortcut(shortcut, "tr"), action.disabled ? action.disabledReason : undefined));
-  return <>{action.anchor}<button ref={tip.anchorRef} type="button" className={actionClass(action)} data-command={action.id}
+  return <>{action.anchor}<button ref={tip.anchorRef} type="button" className={actionClass(action)} data-command={action.command ?? action.id}
     aria-keyshortcuts={shortcut} aria-disabled={action.disabled ? "true" : undefined} aria-describedby={tip.describedBy} {...tip.handlers}
     onClick={(event) => { if (!action.disabled) action.run(event.currentTarget); }}>{action.label}</button>{tip.tooltip}</>;
 }
@@ -112,9 +121,11 @@ function RecordTitle({ title }: { title: string }) {
  * başlığıyla bu öğeleri gösterir; `moreMenuHidden` `Diğer` kısmını kaldırır, taşanlar kalır. `menu` verilmişken ve "⋯"
  * çiziliyken kabuk kendi görünümünün Alt+İ'sini üstlenir (`claimMoreMenu`); arka plandaki görünümün kabuğu yanıt vermez.
  */
-export function PageShell({ title, crumbs, count, actions, search, head, footer, children, variant = "list", menu, moreMenuHidden = false }: {
+export function PageShell({ title, crumbs, count, actions, search, head, footer, children, variant = "list", menu, moreMenuHidden = false, barAnchor }: {
   title: string; crumbs: string[]; count?: number | null; actions: ShellAction[]; search?: ReactNode; head?: ReactNode; footer?: ReactNode; children?: ReactNode;
   variant?: "list" | "record"; menu?: ShellMenuItem[]; moreMenuHidden?: boolean;
+  /** Çubuğun başına konan görünmez işaret (Studio tuvali: sayfanın komut çubuğu bileşeni). */
+  barAnchor?: ReactNode;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
@@ -151,27 +162,46 @@ export function PageShell({ title, crumbs, count, actions, search, head, footer,
   }, []);
   useEffect(() => (claimed ? registry!.claimMoreMenu(viewKey, toggleFromKey) : undefined), [claimed, registry, viewKey, toggleFromKey]);
   const closeAndRun = (run: () => void) => { setMenuOpen(false); moreButtonRef.current?.focus(); run(); };
-  // Menü dışına tıklama ya da Escape menüyü kapatır.
+  // Menü dışına tıklama ya da Escape menüyü kapatır; odak menüdeyse Escape onu "⋯" düğmesine geri verir (eski İşlemler gibi).
   useEffect(() => {
     if (!menuOpen) return;
     const onPointer = (event: MouseEvent) => { if (moreRef.current && !moreRef.current.contains(event.target as Node)) setMenuOpen(false); };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const focused = !!menuRef.current?.contains(document.activeElement);
+      setMenuOpen(false);
+      if (focused) { event.preventDefault(); moreButtonRef.current?.focus(); }
+    };
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onPointer); document.removeEventListener("keydown", onKey); };
   }, [menuOpen]);
+
+  // Eski İşlemler menüsünün tuşları: oklar öğeler arasında (sonda başa döner), Home/End uçlara gider, Tab menüyü kapatır.
+  // Pasif öğe odak almaz, atlanır.
+  const onMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const entries = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
+    const index = entries.indexOf(document.activeElement as HTMLElement);
+    const focusAt = (next: number) => { event.preventDefault(); entries[(next + entries.length) % entries.length]?.focus(); };
+    if (event.key === "Tab") setMenuOpen(false);
+    else if (!entries.length) return;
+    else if (event.key === "ArrowDown") focusAt(index + 1);
+    else if (event.key === "ArrowUp") focusAt(index < 0 ? entries.length - 1 : index - 1);
+    else if (event.key === "Home") focusAt(0);
+    else if (event.key === "End") focusAt(entries.length - 1);
+  };
 
   return <div className={`page-shell list-v2${variant === "record" ? " is-record" : ""}`}>
     {crumbs.length > 0 && <nav className="page-shell-crumbs" aria-label="Konum">{crumbs.map((crumb, index) => <span key={`${index}:${crumb}`}>{crumb}</span>)}</nav>}
     {variant === "record" ? <RecordTitle title={title} /> : <ListPageHeader title={title} count={count} />}
     {head}
     <div className="page-shell-bar" ref={barRef} role="toolbar" aria-label="İşlemler">
-      <div className="page-shell-bar-left">{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
+      <div className="page-shell-bar-left">{barAnchor}{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
       {search != null && <div className="page-shell-bar-search">{search}</div>}
       <div className="page-shell-bar-right">
         {hasMore && <div className="page-shell-more" ref={moreRef}>
           <MoreButton buttonRef={moreButtonRef} open={menuOpen} claimed={claimed} onToggle={() => setMenuOpen((open) => !open)} />
-          {menuOpen && <div className="page-shell-menu" role="menu" ref={menuRef}>
+          {menuOpen && <div className="page-shell-menu" role="menu" ref={menuRef} onKeyDown={onMenuKeyDown}>
             {overflow.map((action) => <button key={action.id} type="button" role="menuitem" className={`page-shell-menu-item page-shell-menu-item--${action.kind}`}
               disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} aria-keyshortcuts={action.shortcut}
               onClick={() => closeAndRun(() => action.run(moreButtonRef.current ?? undefined))}>
