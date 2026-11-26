@@ -15,7 +15,7 @@ internal static class PageTemplateSummary
             if (root.ValueKind != JsonValueKind.Object
                 || !root.TryGetProperty("template", out var template) || template.ValueKind != JsonValueKind.Object
                 || !template.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String
-                || name.GetString() is not ("list" or "record")) return (null, null);
+                || name.GetString() is not ("list" or "record" or "belge")) return (null, null);
             var level = 1;
             if (root.TryGetProperty("components", out var components) && components.ValueKind == JsonValueKind.Array)
                 foreach (var component in components.EnumerateArray())
