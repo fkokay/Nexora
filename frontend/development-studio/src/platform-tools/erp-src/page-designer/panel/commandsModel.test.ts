@@ -260,6 +260,58 @@ describe("commands model", () => {
     expect(setFocusInput(list, null)).toBe(list);
   });
 
+  it("Kaydet ve yeni opens only with a Kaydet and a Yeni command", () => {
+    const studio = studioRecord();
+    expect(toggleCommand(studio, "saveNew")).toBe(studio);
+    const withNew = setNewCommand(studio, { action: "clear", inputs: ["unvan"] });
+    const on = toggleCommand(withNew, "saveNew");
+    expect(commandShown(on, "saveNew")).toBe(true);
+    // Kaydet'in son adımı kalkınca Kaydet ve yeni de kalkar.
+    const [first, second] = saveSteps(on).steps;
+    const noSave = removeSaveStep(removeSaveStep(on, first.queryId), second.queryId);
+    expect(saveSteps(noSave).owner).toBeNull();
+    expect(barOf(noSave).props.saveAndNew).toBeUndefined();
+    const list = listPage();
+    expect(toggleCommand(list, "saveNew")).toBe(list);
+  });
+
+  it("addSaveStep without a Kaydet builds the Kaydet button", () => {
+    const studio = studioRecord();
+    const [a, b] = saveSteps(studio).steps;
+    const empty = removeSaveStep(removeSaveStep(studio, a.queryId), b.queryId);
+    const added = addSaveStep(empty, ekle);
+    const button = added.components.find((component) => component.type === "button" && component.props.actionType === "sequence")!;
+    expect(Object.keys(button.props).sort()).toEqual(["actionType", "saveSequence", "sequenceWhen", "slot", "text"]);
+    expect(button.props.sequenceWhen).toEqual([`${button.props.saveSequence}=kayit.rows[0].id == null`]);
+    expect(saveActions(added)).toEqual({ insert: "cariEkle", update: null });
+    // Kartın sırası: Kaydet ilk eylem düğmesidir.
+    expect(added.components.filter((component) => component.type === "button")[0]).toBe(button);
+  });
+
+  it("setDeleteCommand on a list binds the selected row; free pages only clear", () => {
+    const base = listPage();
+    const list = deepFreeze<ModelDefinition>({ ...base, components: base.components.map((component) => component.type === "dataTable"
+      ? { ...component, props: { ...component.props, columns: ["id", "unvan"] } } : component) });
+    const set = setDeleteCommand(list, sil);
+    expect(deleteCommand(set)).toEqual({ owner: "bar", actionCode: "cariSil", confirmText: "" });
+    const query = set.queries.find((item) => item.id === barOf(set).props.deleteQuery)!;
+    expect(query).toMatchObject({ kind: "delete", action: "cariSil", parameters: [{ name: "id", type: "text", binding: "{{liste.seciliSatir.id}}" }] });
+    expect(setDeleteCommand(list, { ...sil, target: "bulk" })).toBe(list);
+    expect(setDeleteCommand(list, action("x", "delete", ["vergiNo"]))).toBe(list);
+    const cleared = setDeleteCommand(set, null);
+    expect(barOf(cleared).props.deleteQuery).toBeUndefined();
+    expect(cleared.queries).toEqual(list.queries);
+    expect(setDeleteCommand(list, null)).toBe(list);
+
+    const freeBase = newFreeTemplateDefinition() as unknown as ModelDefinition;
+    const free = deepFreeze<ModelDefinition>({ ...freeBase, queries: [raw("silSql", "delete")],
+      components: [...freeBase.components, { id: "komutlar", type: "actionBar", props: { slot: "commands", deleteQuery: "silSql" } }] });
+    expect(setDeleteCommand(free, sil)).toBe(free);
+    const freeCleared = setDeleteCommand(free, null);
+    expect(barOf(freeCleared).props).toEqual({ slot: "commands" });
+    expect(freeCleared.queries).toEqual([]);
+  });
+
   it("titleCount uses the list query total", () => {
     const list = listPage();
     expect(titleCountOn(list)).toBe(false);

@@ -10,7 +10,7 @@ import { getCommandCondition, isCommandHidden, setCommandCondition, setCommandHi
 import { readPageTemplate } from "../pageTemplates";
 import type { PageQuery } from "../QueriesPanel";
 import { fromConsultantText, type FieldToken } from "./consultantText";
-import { freeId, stringList, type ModelComponent, type ModelDefinition } from "./listPanelModel";
+import { actionUsable, freeId, stringList, tableName, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import { actionQuery, applyKeyMode, recordActionUsable, recordKey, recordQuery, setDeleteAction } from "./recordModel";
 
 type PropValue = string | number | boolean | string[];
@@ -78,10 +78,19 @@ export function commandShown(def: ModelDefinition, id: TemplateCommandId): boole
   return id === "saveNew" ? props.saveAndNew === true : !isCommandHidden(props.hiddenCommands, id);
 }
 
-/** Gözü çevirir. Gizlenen komutun ayarları (sorgu, hedef, onay metni…) korunur; göz açılınca geri gelir. */
+/** Kaydet ve yeni açılabilir mi: sayfada bir Kaydet (çubukta ya da kartın düğmesinde) ve çubukta bir Yeni komutu var. */
+function saveNewPossible(def: ModelDefinition): boolean {
+  const mode = barModes(barProps(def)).new;
+  return saveOwner(def) !== null && (mode === "clear" || mode === "page" || mode === "dialog" || mode === "button");
+}
+
+/**
+ * Gözü çevirir. Gizlenen komutun ayarları (sorgu, hedef, onay metni…) korunur; göz açılınca geri gelir. Kaydet ve yeni,
+ * Kaydet ya da Yeni komutu yokken açılmaz (sunucunun `saveAndNew` kuralı); tanım değişmez.
+ */
 export function toggleCommand<D extends ModelDefinition>(def: D, id: TemplateCommandId): D {
   const shown = commandShown(def, id);
-  if (id === "saveNew") return patchBar(def, { saveAndNew: shown ? undefined : true });
+  if (id === "saveNew") return shown ? patchExistingBar(def, { saveAndNew: undefined }) : saveNewPossible(def) ? patchBar(def, { saveAndNew: true }) : def;
   return patchBar(def, { hiddenCommands: setCommandHidden(barProps(def).hiddenCommands, id as BarCommandId, shown) });
 }
 
@@ -189,6 +198,9 @@ function sequencePatch(steps: string[], when: Record<string, string>, stopOnErro
     saveQuery: undefined, saveSequence: steps, sequenceWhen: conditions.length > 0 ? conditions : undefined, stopOnError: stopOnError ? undefined : false,
   };
 }
+/** Yamanın yalnız değer taşıyan anahtarları (yeni bileşende `undefined` anahtar kalmasın). */
+const defined = (patch: Record<string, PropValue | undefined>): Record<string, PropValue> =>
+  Object.fromEntries(Object.entries(patch).filter((entry): entry is [string, PropValue] => entry[1] !== undefined));
 function writeSequence<D extends ModelDefinition>(def: D, owner: NonNullable<SaveOwner>, steps: string[], when: Record<string, string>, stopOnError: boolean): D {
   const patch = sequencePatch(steps, when, stopOnError);
   if (owner.owner === "bar") return patchBarCommands(def, owner.component.id, patch);
@@ -215,7 +227,7 @@ export function addSaveStep<D extends ModelDefinition>(def: D, action: CatalogAc
   if (owner) next = writeSequence(next, owner, [...current, query.id], when, stop);
   else {
     const id = freeId(next, "kaydet");
-    const button: ModelComponent = { id, type: "button", name: id, props: { slot: "actions", text: "Kaydet", actionType: "sequence", ...sequencePatch([query.id], when, true) } as Record<string, PropValue> };
+    const button: ModelComponent = { id, type: "button", name: id, props: { slot: "actions", text: "Kaydet", actionType: "sequence", ...defined(sequencePatch([query.id], when, true)) } };
     // Kaydet ilk düğmedir (kartın sırası: Kaydet, ek eylemler, Sil).
     const first = next.components.findIndex((component) => component.type === "button" && slotOf(component) === "actions");
     const components = [...next.components];
@@ -230,7 +242,9 @@ export function removeSaveStep<D extends ModelDefinition>(def: D, queryId: strin
   const owner = saveOwner(def);
   if (!owner || !owner.steps.includes(queryId) || !isCatalogStep(queryById(def, queryId))) return def;
   const steps = owner.steps.filter((id) => id !== queryId);
-  const next = writeSequence(def, owner, steps, parseWhen(owner.component.props.sequenceWhen), owner.component.props.stopOnError !== false);
+  let next = writeSequence(def, owner, steps, parseWhen(owner.component.props.sequenceWhen), owner.component.props.stopOnError !== false);
+  // Kaydet kalmayınca Kaydet ve yeni de kalkar (sunucunun `saveAndNew` kuralı).
+  if (!saveOwner(next) && barProps(next).saveAndNew === true) next = patchExistingBar(next, { saveAndNew: undefined });
   return applyKeyMode(dropQueryIfUnused(next, queryId));
 }
 
@@ -260,20 +274,38 @@ export function deleteCommand(def: ModelDefinition): { owner: StepOwner | null; 
 }
 
 /**
- * Silme eylemi. Çubuk sahibinde `deleteQuery` yeni katalog sorgusunu gösterir (eski sorgu başka yerde kullanılmıyorsa kalkar);
- * öteki durumda kartın Sil düğmesi `setDeleteAction` ile kurulur. null Sil'i kaldırır. Kayıt kartı olmayan sayfada, türü yanlış
- * ya da kartta kullanılamayan eylemde tanım değişmez.
+ * Silme eylemi. Kayıt kartında: çubuk sahibinde `deleteQuery` yeni katalog sorgusunu gösterir, öteki durumda kartın Sil düğmesi
+ * `setDeleteAction` ile kurulur. Listede: çubuğun `deleteQuery`'si, parametreleri seçili satırın aynı adlı kolonlarına bağlı
+ * (yalnız satır eylemi; her parametre listede kolon olmalı). Eski sorgu başka yerde kullanılmıyorsa kalkar. null Sil'i kaldırır
+ * (her kalıpta). Serbest gövdede eylem seçilemez (seçili satır yok); türü yanlış ya da kullanılamayan eylemde tanım değişmez.
  */
 export function setDeleteCommand<D extends ModelDefinition>(def: D, action: CatalogAction | null): D {
-  if (!isRecordPage(def) || !recordKey(def)) return def;
-  if (action && (action.kind !== "delete" || !recordActionUsable(def, action).usable)) return def;
+  const template = readPageTemplate(def.template)?.name;
   const bar = commandsBar(def);
-  if (!bar || !text(bar.props.deleteQuery)) return setDeleteAction(def, action);
-  const old = text(bar.props.deleteQuery);
-  if (!action) return dropQueryIfUnused(patchBarCommands(def, bar.id, { deleteQuery: undefined, deleteConfirmText: undefined }), old);
-  const query = actionQuery(def, action);
-  const next = patchBarCommands({ ...def, queries: [...def.queries, query] }, bar.id, { deleteQuery: query.id });
-  return dropQueryIfUnused(next, old);
+  const old = bar ? text(bar.props.deleteQuery) : "";
+  if (!action) {
+    if (bar && old) return dropQueryIfUnused(patchBarCommands(def, bar.id, { deleteQuery: undefined, deleteConfirmText: undefined }), old);
+    return template === "record" && recordKey(def) ? setDeleteAction(def, null) : def;
+  }
+  if (action.kind !== "delete") return def;
+  let query: PageQuery;
+  let next: D = def;
+  if (template === "record") {
+    if (!recordKey(def) || !recordActionUsable(def, action).usable) return def;
+    if (!old) return setDeleteAction(def, action);
+    query = actionQuery(def, action);
+  } else if (template === "list") {
+    const table = def.components.find((component) => component.type === "dataTable" && slotOf(component) === "list");
+    if (!table || action.target !== "row" || !actionUsable(action, stringList(table.props.columns)).usable) return def;
+    const id = freeId(def, action.code);
+    const name = tableName(table);
+    query = { id, name: id, kind: "delete", action: action.code, runOn: "manual", parameters: action.parameters.map((parameter) => ({
+      name: parameter.name, type: parameter.type as PageQuery["parameters"][number]["type"], binding: `{{${name}.seciliSatir.${parameter.name}}}` })) };
+    // Bağlama tablonun adını okur; adsız tabloya kimliği ad olarak yazılır (`addListAction` gibi).
+    if (table.name !== name) next = { ...next, components: next.components.map((component) => component.id === table.id ? { ...component, name } : component) };
+  } else return def;
+  next = patchBar({ ...next, queries: [...next.queries, query] }, { deleteQuery: query.id });
+  return dropQueryIfUnused(next, old || null);
 }
 
 /**
