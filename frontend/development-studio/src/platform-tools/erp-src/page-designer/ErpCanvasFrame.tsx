@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { pickBlock } from "./canvasHitTest";
-import { canvasFrameUrl, parseCanvasMessage, reloadMessage, showTabMessage, tabBoxOf, type CanvasBlock } from "./erpCanvasProtocol";
+import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showTabMessage, tabBoxOf, type CanvasBlock } from "./erpCanvasProtocol";
 
 export type CanvasTenant = { id: string; name: string; slug: string; role: string };
 
@@ -25,6 +25,8 @@ type Props = {
    * isteği yollar ve istek, ERP belgesi yeniden açıldığında (ready) yinelenir.
    */
   overlay?: (frame: { blocks: CanvasBlock[]; showTab: (tabsId: string, index: number) => void }) => ReactNode;
+  /** Belge kalıbı: tuvalin örnek belgesinin durumu ("Önizlenen durum"); değişince ve ERP belgesi yeniden açılınca gönderilir. */
+  previewState?: string | null;
 };
 
 const READY_TIMEOUT_MS = 10_000;
@@ -88,6 +90,9 @@ export default function ErpCanvasFrame(props: Props) {
         stopAuth();
         // Taze ERP belgesi ilk sekmeden başlar: Studio'nun gösterdiği sekmeler yeniden istenir.
         for (const [tabsId, index] of shownTabs.current) iframeRef.current?.contentWindow?.postMessage(showTabMessage(tabsId, index), platformOrigin);
+        // Belge kalıbı: taze ERP belgesi Taslak'tan başlar; seçili önizleme durumu yeniden istenir.
+        const state = handlers.current.previewState;
+        if (state) iframeRef.current?.contentWindow?.postMessage(previewStateMessage(state), platformOrigin);
       } else if (msg.type === "layout") {
         if (msg.revision < lastRevision.current) return;
         lastRevision.current = msg.revision;
@@ -113,6 +118,11 @@ export default function ErpCanvasFrame(props: Props) {
       window.removeEventListener("message", onMessage);
     };
   }, [platformOrigin, target.previewId, target.systemScreenKey]);
+
+  const previewState = props.previewState ?? null;
+  useEffect(() => {
+    if (previewState) iframeRef.current?.contentWindow?.postMessage(previewStateMessage(previewState), platformOrigin);
+  }, [previewState, platformOrigin]);
 
   const sentRevision = useRef(revision);
   useEffect(() => {

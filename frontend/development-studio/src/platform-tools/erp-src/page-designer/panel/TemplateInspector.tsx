@@ -3,12 +3,15 @@ import { ComponentPanel } from "./ComponentPanel";
 import { ListPanel, type ListPanelProps } from "./ListPanel";
 import type { ModelComponent } from "./listPanelModel";
 import { RecordPanel, recordSelectionOf, type RecordPanelProps } from "./RecordPanel";
+import { BelgePanel, type BelgePanelProps } from "./BelgePanel";
 
 export const SLOT_LABELS: Record<string, string> = {
   indicators: "Göstergeler", filters: "Süzgeç alanı", list: "Liste", actions: "Listenin üstündeki eylemler",
   rowActions: "Satır eylemleri", detail: "Yan panel", above: "Listenin üstü", below: "Listenin altı",
 };
 const RECORD_SLOT_LABELS: Record<string, string> = { above: "Kartın üstü", below: "Kartın altı" };
+const BELGE_SLOT_LABELS: Record<string, string> = { above: "Belgenin üstü", below: "Belgenin altı" };
+const BELGE_FOCUS: Record<string, BelgePanelProps["focus"]> = { documentFields: "fields", documentLines: "lines", documentSummary: "summary" };
 export const TEMPLATE_CANVAS_FALLBACK = "Bu ekran ERP önizlemesi açılınca görünür.";
 
 /**
@@ -16,17 +19,24 @@ export const TEMPLATE_CANVAS_FALLBACK = "Bu ekran ERP önizlemesi açılınca g�
  * alanları (yeni panelleri 5. alt projede gelir). Ek alanlarda (`above` / `below`) Ad bölümünün altında "Yeri" seçimi vardır.
  * Kayıt kartında (`record` verilirse) kartın parçaları ve sayfa (`component` yokken) `RecordPanel`'de açılır; ek alanlar bugünkü yoldadır.
  */
-export function TemplateInspector({ component, legacy, list, record, disabled, onLeave, onPlace }: {
+export function TemplateInspector({ component, legacy, list, record, belge, disabled, onLeave, onPlace }: {
   component: ModelComponent | null; legacy: ReactNode; list: Omit<ListPanelProps, "listId"> | null; disabled?: boolean;
   record?: Omit<RecordPanelProps, "selection"> | null;
+  /** Belge sayfası: sayfa ve belge parçaları (alanlar, satırlar, toplamlar) Belge panelinde açılır; ek alanlar bugünkü yoldadır. */
+  belge?: Omit<BelgePanelProps, "focus"> | null;
   onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
 }) {
   if (record) {
     const selection = recordSelectionOf(record.def, component?.id ?? null);
     if (selection) return <RecordPanel {...record} selection={selection} disabled={disabled || record.disabled}/>;
   }
+  if (belge) {
+    const slot = typeof component?.props.slot === "string" ? component.props.slot : "";
+    if (!component || BELGE_FOCUS[component.type] || (slot === "actions" && component.type === "button"))
+      return <BelgePanel {...belge} focus={component ? BELGE_FOCUS[component.type] ?? null : null} disabled={disabled || belge.disabled}/>;
+  }
   if (!component) return null;
-  const labels = record ? { ...SLOT_LABELS, ...RECORD_SLOT_LABELS } : SLOT_LABELS;
+  const labels = record ? { ...SLOT_LABELS, ...RECORD_SLOT_LABELS } : belge ? { ...SLOT_LABELS, ...BELGE_SLOT_LABELS } : SLOT_LABELS;
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";
   if (slot === "list" && component.type === "dataTable" && list) return <ListPanel {...list} listId={component.id} disabled={disabled} onLeave={onLeave}/>;
   const extra = slot === "above" || slot === "below";

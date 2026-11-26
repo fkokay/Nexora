@@ -26,7 +26,7 @@ describe("sayfa kalıpları", () => {
 
   it("newListTemplateDefinition shape", () => {
     expect(newListTemplateDefinition()).toEqual({ schemaVersion: 2, template: { name: "list" }, queries: [], components: [{ id: "liste", type: "dataTable", props: { slot: "list" } }] });
-    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "free"]);
+    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "belge", "free"]);
   });
 
   it("templateLevel 2 with below component", () => {

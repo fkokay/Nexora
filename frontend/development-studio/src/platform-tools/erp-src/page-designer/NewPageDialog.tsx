@@ -5,7 +5,7 @@ import { PAGE_TEMPLATE_CHOICES } from "./pageTemplates";
 import "./left-panel.css";
 
 export type TemplateChoice = { id: string; label: string; description: string };
-export type NewPageResult = { name: string; code: string; templateId: string; pageTemplate?: "list" | "record" | "free" };
+export type NewPageResult = { name: string; code: string; templateId: string; pageTemplate?: "list" | "record" | "belge" | "free" };
 
 type Props = {
   /** "create": Yeni özel sayfa (ad, kod, şablon); "template": boş sayfaya yalnız şablon seçimi. */
@@ -30,10 +30,10 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
   const [codeEdited, setCodeEdited] = useState(false);
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "blank");
   // Yeni sayfada ilk adım kalıp seçimidir (Liste / Serbest); "template" kipinde yalnız bileşen ön ayarı seçilir.
-  const [pageTemplate, setPageTemplate] = useState<"list" | "record" | "free" | null>(create ? null : "free");
+  const [pageTemplate, setPageTemplate] = useState<"list" | "record" | "belge" | "free" | null>(create ? null : "free");
   const choosing = pageTemplate === null;
   const [prefilled, setPrefilled] = useState(false);
-  const choose = (id: "list" | "record" | "free") => {
+  const choose = (id: "list" | "record" | "belge" | "free") => {
     setPageTemplate(id);
     // Öneri yalnız kod kutusu boşken yazılır; başka kalıba dönülürse (kullanıcı değiştirmediyse) geri alınır.
     if (id === "record" && suggestedRecordCode && !codeEdited && !code) { setCode(suggestedRecordCode); setPrefilled(true); }

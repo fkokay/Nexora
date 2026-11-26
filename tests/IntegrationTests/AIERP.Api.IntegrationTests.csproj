@@ -29,6 +29,7 @@
     <None Include="ErpOperationCatalog.names.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="SystemPageStandards.versions.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\RecordCard\*.json" Link="RecordCardFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\Belge\*.json" Link="BelgeFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\conditions.vectors.json" Link="PageConditionVectors.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\gridColumns.vectors.json" Link="GridColumnVectors.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\gridFormula.vectors.json" Link="GridFormulaVectors.json" CopyToOutputDirectory="PreserveNewest" />

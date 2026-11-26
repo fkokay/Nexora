@@ -1,11 +1,12 @@
 import type { ActiveCatalog } from "./catalogClient";
 // Sayfa kalıbı (pageTemplate): sayfanın kökündeki `template: { name: "list" }`. Bileşen ön ayarlarıyla (CustomPagesPage `templates`) karıştırılmamalıdır.
-export type PageTemplate = { name: "list" } | { name: "record" };
-export type PageTemplateChoice = { id: "list" | "record" | "free"; label: string; description: string };
+export type PageTemplate = { name: "list" } | { name: "record" } | { name: "belge"; document: string };
+export type PageTemplateChoice = { id: "list" | "record" | "belge" | "free"; label: string; description: string };
 
 export const PAGE_TEMPLATE_CHOICES: PageTemplateChoice[] = [
   { id: "list", label: "Liste", description: "Kayıtları aramak, süzmek ve seçmek için." },
   { id: "record", label: "Kayıt kartı", description: "Tek bir kaydı görmek ve düzenlemek için." },
+  { id: "belge", label: "Belge", description: "Satış siparişi gibi satırlı belgeler; hesap ve durumlar modülden gelir." },
   { id: "free", label: "Serbest (bugünkü tasarımcı)", description: "Kalıpsız sayfa." },
 ];
 
@@ -16,7 +17,25 @@ type DefinitionLike = { template?: unknown; components?: unknown };
 export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const name = (raw as { name?: unknown }).name;
+  if (name === "belge") {
+    const document = (raw as { document?: unknown }).document;
+    return typeof document === "string" && document ? { name: "belge", document } : undefined;
+  }
   return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : undefined;
+}
+
+/** Şimdilik tek belge modeli: satış siparişi. */
+export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }] as const;
+
+/**
+ * Yeni belge sayfası: modelin zorunlu alan ve kolonları ile taslak 08'in varsayılan seçimi. Sunucu kodları modele göre denetler.
+ */
+export function newBelgeTemplateDefinition(document = "satis.siparis"): TemplatedDefinition {
+  return { schemaVersion: 2, template: { name: "belge", document }, queries: [], components: [
+    { id: "baslik", type: "documentFields", props: { slot: "fields", fields: ["code", "customerId", "orderDate", "requestedDeliveryDate"], labels: {} } },
+    { id: "satirlar", type: "documentLines", props: { slot: "lines", labels: {}, density: "normal",
+      columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] } },
+    { id: "toplamlar", type: "documentSummary", props: { slot: "summary", vatBreakdown: true, activity: true } }] };
 }
 
 export function newListTemplateDefinition(): TemplatedDefinition {
@@ -75,13 +94,13 @@ export function templateLevel(definition: DefinitionLike): 1 | 2 | null {
   return extra ? 2 : 1;
 }
 
-export function templateLabel(definition: DefinitionLike): "Liste" | "Kayıt kartı" | "Kalıpsız" {
+export function templateLabel(definition: DefinitionLike): "Liste" | "Kayıt kartı" | "Belge" | "Kalıpsız" {
   const name = readPageTemplate(definition.template)?.name;
-  return name === "list" ? "Liste" : name === "record" ? "Kayıt kartı" : "Kalıpsız";
+  return name === "list" ? "Liste" : name === "record" ? "Kayıt kartı" : name === "belge" ? "Belge" : "Kalıpsız";
 }
 
 /** Ekranlar listesindeki metin: "Liste · 1. basamak" ya da "Kalıpsız". */
 export function templateCatalogText(template: string | null | undefined, level: number | null | undefined): string {
-  const label = template === "list" ? "Liste" : template === "record" ? "Kayıt kartı" : null;
+  const label = template === "list" ? "Liste" : template === "record" ? "Kayıt kartı" : template === "belge" ? "Belge" : null;
   return label ? `${label} · ${level === 2 ? 2 : 1}. basamak` : "Kalıpsız";
 }

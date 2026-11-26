@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "template": {
+    "name": "belge",
+    "document": "satis.siparis"
+  },
+  "queries": [],
+  "components": [
+    {
+      "id": "baslik",
+      "type": "documentFields",
+      "props": {
+        "slot": "fields",
+        "fields": [
+          "code",
+          "customerId",
+          "orderDate",
+          "salespersonEmployeeId"
+        ],
+        "labels": {
+          "customerId": "Cari"
+        }
+      }
+    },
+    {
+      "id": "satirlar",
+      "type": "documentLines",
+      "props": {
+        "slot": "lines",
+        "labels": {
+          "lineTotal": "Satır tutarı"
+        },
+        "density": "dense",
+        "columns": [
+          "stockItemId",
+          "quantity",
+          "lineTotal",
+          "unitCode",
+          "unitPrice",
+          "discountPercent",
+          "vatPercent",
+          "deliveredQuantity"
+        ]
+      }
+    },
+    {
+      "id": "toplamlar",
+      "type": "documentSummary",
+      "props": {
+        "slot": "summary",
+        "vatBreakdown": false,
+        "activity": true
+      }
+    }
+  ]
+}
