@@ -4823,6 +4823,7 @@ export function StudioProjects({
           headCommitSha={catalog.headCommitSha}
           repositoryUrl={workspaceProject?.repositoryUrl ?? null}
           canDevelop={canDevelop}
+          isTenantAdmin={tenant.role === "TenantAdmin"}
           onClose={() => setCatalogReleaseOpen(false)}
         />
       )}

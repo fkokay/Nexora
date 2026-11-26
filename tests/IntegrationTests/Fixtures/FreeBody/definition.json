@@ -58,7 +58,8 @@
         "title": "Bölüm 2",
         "columns": 2,
         "members": [
-          "liste"
+          "liste",
+          "bilesen"
         ]
       }
     },
@@ -119,6 +120,18 @@
           "sehir=Şehir"
         ],
         "emptyText": "Cari yok."
+      }
+    },
+    {
+      "id": "bilesen",
+      "type": "code",
+      "props": {
+        "catalogComponent": "satisHaritasi",
+        "slot": "item",
+        "componentSettings": {
+          "baslik": "Akdeniz",
+          "adet": 4
+        }
       }
     },
     {

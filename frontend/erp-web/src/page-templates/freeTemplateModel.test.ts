@@ -61,5 +61,7 @@ describe('freeTemplateModel', () => {
     expect(freeFullRow(c('x', 'alert', 'item', { text: 'tek' }))).toBe(false);
     expect(freeFullRow(c('x', 'metric', 'item'))).toBe(false);
     expect(freeFullRow(c('x', 'text', 'item'))).toBe(false);
+    // Yazılımcı bileşeni (katalog `code`) kendi yüksekliğiyle tam satır çizilir.
+    expect(freeFullRow(c('x', 'code', 'item', { catalogComponent: 'harita' }))).toBe(true);
   });
 });

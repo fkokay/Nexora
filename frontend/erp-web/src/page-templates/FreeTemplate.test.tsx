@@ -159,6 +159,18 @@ describe('serbest gövde kalıbı', () => {
     expect(screen.getByText('Not metni')).toBeTruthy();
   });
 
+  it('free page draws a catalog code item in its section as a full row', async () => {
+    publish(freeDefinition([...freeComponents.map((c) => c.id === 'blk2' ? { ...c, props: { ...c.props, members: ['m_bilesen'] } } : c),
+      { id: 'm_bilesen', type: 'code', props: { slot: 'item', catalogComponent: 'harita', css: 'p{}', javascript: '1', height: 260, componentSettings: {} } }]));
+    const { container } = render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Merhaba serbest gövde', undefined, T);
+    const sections = [...container.querySelectorAll('.free-section')];
+    const frame = sections[1].querySelector('iframe') as HTMLIFrameElement;
+    expect(frame).toBeTruthy();
+    expect(frame.style.height).toBe('260px');
+    expect(frame.closest('.free-cell')!.className).toContain('is-full');
+  });
+
   it('list and record pages render as before', async () => {
     publish(recordDefinition());
     setPageParams('custom-page:p', { kod: 'C-1001' });

@@ -25,6 +25,8 @@ const start = removeField(built, fieldOf(built, "vade")!.id);
 
 const page = { id: "p1", code: "cari-kart", name: "Cari kartı", description: null, revision: 1, isPublished: false, updatedAt: "2026-11-25T00:00:00Z" };
 const saved: unknown[] = [];
+const catalogComponents = vi.hoisted(() => ({ list: [] as unknown[], definition: null as unknown }));
+const harita = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240, settings: [] };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 vi.mock("./authApi", () => ({
   authenticatedFetch: async (url: string, _token: string, init?: RequestInit) => {
@@ -34,8 +36,8 @@ vi.mock("./authApi", () => ({
       saved.push(body.definition);
       return json({ ...page, revision: 2, definitionJson: JSON.stringify(body.definition) });
     }
-    if (url === "/api/custom-pages/p1") return json({ ...page, definitionJson: JSON.stringify(start) });
-    if (url === "/api/custom-pages/catalog") return json({ version: "1", dataSources: catalog.dataSources, actions: catalog.actions.map((action) => ({ ...action, confirm: null })) });
+    if (url === "/api/custom-pages/p1") return json({ ...page, definitionJson: JSON.stringify(catalogComponents.definition ?? start) });
+    if (url === "/api/custom-pages/catalog") return json({ version: "1", dataSources: catalog.dataSources, actions: catalog.actions.map((action) => ({ ...action, confirm: null })), components: catalogComponents.list });
     if (url === "/api/low-code/capabilities") return json({ customPages: { canRead: true, canCreate: true, canUpdate: true, canPublish: true, canDelete: true } });
     return json([], 404);
   },
@@ -43,7 +45,7 @@ vi.mock("./authApi", () => ({
 vi.mock("@monaco-editor/react", () => ({ default: () => null }));
 
 let mounted: { root: Root; host: HTMLElement }[] = [];
-afterEach(() => { mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = []; saved.length = 0; });
+afterEach(() => { mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = []; saved.length = 0; catalogComponents.list = []; catalogComponents.definition = null; });
 const flush = async () => { for (let index = 0; index < 20; index++) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
 const key = async (init: KeyboardEventInit) => { await act(async () => { document.body.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init })); }); };
 const count = (host: HTMLElement) => Number(/(\d+) bileşen/.exec(host.querySelector(".pd-canvas-meta")?.textContent ?? "")?.[1]);
@@ -81,4 +83,35 @@ describe("CustomPagesPage on a record card", () => {
     for (const section of def.components.filter((component) => component.props.slot === "section"))
       for (const id of section.props.inputs as string[]) expect(ids.has(id), id).toBe(true);
   }, 30_000);
+
+  it("extra area add list offers Yazılımcı bileşeni only when the catalog has components", async () => {
+    const extraOptions = (host: HTMLElement) => [...host.querySelectorAll<HTMLSelectElement>('select[aria-label="Ek alan ekle"] option')].map((option) => option.textContent);
+    const plain = await open();
+    expect(extraOptions(plain)).not.toContain("Yazılımcı bileşeni");
+    mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = [];
+
+    catalogComponents.list = [harita];
+    const host = await open();
+    expect(extraOptions(host)).toContain("Yazılımcı bileşeni");
+    const select = host.querySelector<HTMLSelectElement>('select[aria-label="Ek alan ekle"]')!;
+    const value = [...select.options].find((option) => option.textContent === "Yazılımcı bileşeni")!.value;
+    await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
+    const def = await saveNow();
+    const added = def.components.filter((component) => component.type === "code");
+    expect(added).toHaveLength(1);
+    expect(added[0].props).toEqual({ slot: "below", catalogComponent: "satisHaritasi" });
+  });
+
+  it("legacy canvas draws a catalog code as a placeholder named after the component", async () => {
+    catalogComponents.definition = { schemaVersion: 2, queries: [], components: [{ id: "y1", type: "code", props: { catalogComponent: "satisHaritasi" } }] };
+    catalogComponents.list = [harita];
+    const host = await open();
+    expect(host.querySelector(".custom-page-code-placeholder")?.textContent).toContain("Satış haritası");
+    expect(host.querySelector(".custom-page-code-preview")).toBeNull();
+    mounted.forEach(({ root, host: other }) => { act(() => root.unmount()); other.remove(); }); mounted = [];
+
+    catalogComponents.list = [];
+    const missing = await open();
+    expect(missing.querySelector(".custom-page-code-placeholder")?.textContent).toContain("Bu bileşen katalogda yok.");
+  });
 });

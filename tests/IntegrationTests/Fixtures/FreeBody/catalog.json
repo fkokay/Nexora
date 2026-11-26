@@ -18,5 +18,16 @@
       "run": { "sql": "UPDATE Rapor SET yenilendi = 1 WHERE yenilendi = 0" },
       "confirm": { "text": "Rapor yenilensin mi?" }
     }
+  ],
+  "components": [
+    {
+      "code": "satisHaritasi", "label": "Satış haritası", "description": "Bölgelere göre satış", "height": 320,
+      "css": ".harita { color: #123456; }", "javascript": "bridge.ready();",
+      "settings": [
+        { "name": "baslik", "label": "Başlık", "type": "text", "default": "Bölgeler" },
+        { "name": "adet", "label": "Bölge sayısı", "type": "number" },
+        { "name": "donem", "label": "Dönem", "type": "choice", "options": [ "Bu ay", "Bu yıl" ], "default": "Bu ay" }
+      ]
+    }
   ]
 }

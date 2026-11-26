@@ -118,6 +118,22 @@ public sealed class TenantCustomPageSchemaFreeTemplateTests
     }
 
     [Fact]
+    public void Free_page_with_catalog_component_item_is_valid()
+    {
+        var component = new { id = "k1", type = "code", name = "k1", props = new { slot = "item", catalogComponent = "satisGrafigi", componentSettings = new { baslik = "Aylık" } } };
+        Accepted(Page(Template, [Block("b1", ["k1"]), component]));
+    }
+
+    [Fact]
+    public void Free_page_with_inline_code_item_is_rejected()
+    {
+        var inline = new { id = "k1", type = "code", name = "k1", props = new { slot = "item", css = ".a { color: red; }", javascript = "bridge.ready();" } };
+        Rejected(Page(Template, [Block("b1", ["k1"]), inline]), "Serbest gövdede yalnız katalogdan seçilen yazılımcı bileşeni kullanılabilir.");
+        var empty = new { id = "k1", type = "code", name = "k1", props = new { slot = "item" } };
+        Rejected(Page(Template, [Block("b1", ["k1"]), empty]), "Serbest gövdede yalnız katalogdan seçilen yazılımcı bileşeni kullanılabilir.");
+    }
+
+    [Fact]
     public void Free_wrong_type_in_other_slots_is_rejected()
     {
         var heading = new { id = "h1", type = "heading", name = "h1", props = new { slot = "actions", text = "x" } };
