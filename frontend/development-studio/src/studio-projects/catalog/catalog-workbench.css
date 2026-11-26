@@ -199,3 +199,4 @@
   .sp-cw-wrap { grid-template-columns: 1fr; }
   .sp-cw-tree { border-right: 0; border-bottom: 1px solid var(--ns-line); max-height: 40vh; }
 }
+.sp-cw-columns .sp-cw-maxlen { width: 5.5rem; }
