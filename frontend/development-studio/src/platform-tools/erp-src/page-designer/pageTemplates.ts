@@ -10,10 +10,7 @@ export const PAGE_TEMPLATE_CHOICES: PageTemplateChoice[] = [
   { id: "record", label: "Kayıt kartı", description: "Tek bir kaydı görmek ve düzenlemek için." },
   { id: "free", label: "Serbest", description: "Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin." },
 ];
-/**
- * Karar 1'in son seçimi. NewPageDialog bugün `PAGE_TEMPLATE_CHOICES`'in kimliklerini yalnız list / record / free diye
- * okuduğu için ayrı durur; pencereyi değiştiren görev (Görev 5) `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir.
- */
+/** Karar 1'in son seçimi: NewPageDialog `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir, bu en sonda ve kesik çizgili. */
 export const LEGACY_TEMPLATE_CHOICE: LegacyTemplateChoice = { id: "legacy", label: "Eski tasarımcı (kalıpsız)", description: "Sistem ekranlarına benzeyen gelişmiş sayfalar için." };
 
 type TemplatedDefinition = { schemaVersion: 2; template?: PageTemplate; queries: unknown[]; components: unknown[] };
@@ -42,6 +39,11 @@ export function newFreeTemplateDefinition(): TemplatedDefinition {
 }
 /** Yeni serbest sayfanın bölümü (`newFreeTemplateDefinition`). */
 export const NEW_FREE_BLOCK_ID = "bolum";
+
+/** Yeni sayfa penceresindeki seçimin kuracağı tanım; "Eski tasarımcı" için null (bugünkü kalıpsız sayfa, bileşen ön ayarıyla). */
+export function newPageDefinitionFor(choice: PageTemplateChoice["id"] | LegacyTemplateChoice["id"]): TemplatedDefinition | null {
+  return choice === "list" ? newListTemplateDefinition() : choice === "record" ? newRecordTemplateDefinition() : choice === "free" ? newFreeTemplateDefinition() : null;
+}
 
 export const RECORD_SOURCE_HINT = "Önce hangi kaydın gösterileceğini seçin.";
 
@@ -97,8 +99,9 @@ export function templateLabel(definition: DefinitionLike): "Liste" | "Kayıt kar
   return name === "list" ? "Liste" : name === "record" ? "Kayıt kartı" : name === "free" ? "Serbest" : "Kalıpsız";
 }
 
-/** Ekranlar listesindeki metin: "Liste · 1. basamak" ya da "Kalıpsız". */
+/** Ekranlar listesindeki metin: "Liste · 1. basamak", "Serbest · 3. basamak" (her zaman 3) ya da "Kalıpsız". */
 export function templateCatalogText(template: string | null | undefined, level: number | null | undefined): string {
+  if (template === "free") return "Serbest · 3. basamak";
   const label = template === "list" ? "Liste" : template === "record" ? "Kayıt kartı" : null;
   return label ? `${label} · ${level === 2 ? 2 : 1}. basamak` : "Kalıpsız";
 }

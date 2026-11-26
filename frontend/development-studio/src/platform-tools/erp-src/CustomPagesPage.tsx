@@ -43,7 +43,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { NEW_FREE_BLOCK_ID, NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -71,7 +71,8 @@ import { runSingleFlight, type FlightSlot } from "./page-designer/singleFlight";
 import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
-import { CONSULTANT_PALETTE, consultantAvailability, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind } from "./page-designer/panel/consultantPalette";
+import * as freeModel from "./page-designer/panel/freeModel";
+import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
@@ -154,19 +155,21 @@ const TEMPLATE_FORBIDDEN_TYPES = new Set<ComponentType>(["actionBar", "spacer", 
 const RECORD_PART_TYPES = new Set<ComponentType>(["recordHeader", "tabs", "formCard", "input", "dataTable", "button"]);
 const paletteGroups = ["Tasarım dili", "Metin ve düzen", "Veri", "Eylem ve form", "Bildirim ve gelişmiş"];
 /** Palet anahtarından öğe: danışman anahtarı (`consultant:<tür>`) hazırsa oluşturacağı bileşenin tipiyle, değilse eski palette aranır. */
-function findPaletteItem(key: string): PaletteItem | undefined {
+function findPaletteItem(key: string, template: ConsultantTemplate): PaletteItem | undefined {
   const kind = consultantKindFromKey(key);
   if (!kind) return palette.find((entry) => entry.type === key);
-  if (!consultantAvailability(kind).available) return undefined;
+  if (!consultantAvailability(kind, template).available) return undefined;
   const entry = CONSULTANT_PALETTE.find((item) => item.kind === kind)!;
+  // Serbest gövdede Liste ve Bölümler de eklenir; ekleme `freeModel` üzerinden yapılır (addComponent yönlendirir).
+  if (template === "free" && (kind === "list" || kind === "sections")) return { type: kind === "list" ? "dataTable" : "section", label: entry.label, group: "Bileşenler", icon: entry.icon, sample: {}, consultant: kind };
   if (!isCreatableKind(kind)) return undefined;
   const created = createConsultantComponent(kind, "-");
   return { type: created.type as ComponentType, label: entry.label, group: "Bileşenler", icon: entry.icon, sample: created.props, consultant: kind, slot: kind === "indicator" ? "indicators" : undefined };
 }
 /** Kalıplı sayfanın sol paneli: 11 danışman öğesi, gruplanmaz; hazır olmayanlar soluk ve gerekçeli. */
-const consultantPaletteEntries = () => CONSULTANT_PALETTE.map((item) => {
-  const availability = consultantAvailability(item.kind);
-  return { type: consultantPaletteKey(item.kind), label: item.label, group: "Bileşenler", icon: item.icon, disabled: !availability.available, title: availability.available ? item.description : availability.reason };
+const consultantPaletteEntries = (template: ConsultantTemplate) => CONSULTANT_PALETTE.map((item) => {
+  const availability = consultantAvailability(item.kind, template);
+  return { type: consultantPaletteKey(item.kind), label: item.label, group: "Bileşenler", icon: item.icon, disabled: !availability.available, title: availability.available ? consultantDescription(item.kind, template) : availability.reason };
 });
 const blockedPreviewNotice = "Tarayıcı yeni pencereyi engelledi; önizleme hazır.";
 const contentFields: Record<ComponentType, FieldSpec[]> = {
@@ -1537,6 +1540,15 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // "Yeni özel sayfa" penceresi: ad, kod ve şablon birlikte seçilir; taslak kaydedilene kadar yalnız tasarımcıdadır.
   const createFromDialog = (result: NewPageResult) => {
+    if (result.pageTemplate === "free") {
+      const freeDefinition = newPageDefinitionFor("free") as unknown as PageDefinition;
+      setName(result.name); setCode(result.code);
+      commit((value) => ({ ...value, template: freeDefinition.template, components: freeDefinition.components }));
+      // Paletten eklenen bileşen seçili bölüme girer (Karar 5): ilk bölüm seçili başlar.
+      setNewPageDialog(null); setSelectedComponentId(NEW_FREE_BLOCK_ID); setRightMode("inspector"); setError("");
+      setNotice("Serbest kalıpla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Soldan bileşen ekleyerek bölümleri doldurun.");
+      return;
+    }
     if (result.pageTemplate === "list") {
       const listDefinition = newListTemplateDefinition() as unknown as PageDefinition;
       setName(result.name); setCode(result.code);
@@ -1709,6 +1721,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (card && !cardTree.canBeCardChild(item.type)) return;
     if (item.type === "actionBar" && actionBarOf(definitionRef.current.components)) return; // sayfada en çok bir İşlem Çubuğu
     const template = readPageTemplate(definitionRef.current.template);
+    // Serbest gövdede bileşen yalnız bir bölümün üyesi olarak eklenir (freeModel); genel yerleştirme kullanılmaz.
+    if (template?.name === "free") { if (item.consultant) addFreeConsultant(item.consultant); return; }
     const templated = !!template;
     if (templated && TEMPLATE_FORBIDDEN_TYPES.has(item.type)) return;
     const id = newId(item.type);
@@ -1751,6 +1765,24 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     setSelectedComponentId(id);
     if (tab) setActiveTabs((value) => ({ ...value, [tab.tabsId]: tab.tabIndex }));
   };
+  // Serbest gövde (Karar 5): bileşen seçili bölüme, yoksa seçili bileşenin bölümüne, o da yoksa son bölüme eklenir;
+  // "Bölümler" seçili bölümün arkasına yeni bölüm açar. Dolu bölümde ekleme yapılmaz, nedeni gösterilir.
+  const consultantTemplateNow = (): ConsultantTemplate => readPageTemplate(definitionRef.current.template)?.name ?? "list";
+  const addFreeConsultant = (kind: ConsultantKind) => {
+    if (!canEdit || !consultantAvailability(kind, "free").available) return;
+    const current = definitionRef.current as unknown as ModelDefinition;
+    const selected = selectedComponentId ?? undefined;
+    const result = kind === "sections"
+      ? (() => { const added = freeModel.addBlock(current, selected ? (current.components.some((c) => c.id === selected && freeModel.isFreeBlock(c)) ? selected : freeModel.blockOf(current, selected) ?? undefined) : undefined); return "reason" in added ? added : { def: added.def, id: added.blockId }; })()
+      : kind === "list" || isCreatableKind(kind)
+        ? (() => { const added = freeModel.addItem(current, kind === "list" ? "table" : kind, { blockId: selected, nearItemId: selected }); return "reason" in added ? added : { def: added.def, id: added.itemId }; })()
+        : null;
+    if (!result) return;
+    if ("reason" in result) { setError(result.reason); return; }
+    setError("");
+    commit(() => result.def as unknown as PageDefinition);
+    setSelectedComponentId(result.id);
+  };
   // Palet'ten eklenen düzen bileşenleri sunucunun kabul etmediği boş liste yerine sayfanın uygun girişleri/tablosuyla başlar.
   const fillLayoutDefaults = (type: ComponentType, props: PageComponent["props"], state: PageDefinition) => {
     // Sekmedeki girişler de sahipli sayılır: yeni form kartı onları sekmeden çekip almaz.
@@ -1786,7 +1818,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = findPaletteItem(type);
+      const item = findPaletteItem(type, consultantTemplateNow());
       if (item) addComponent(item, targetIndex);
     } else if (Number.isInteger(from) && from >= 0 && from < definition.components.length) {
       commit((state) => {
@@ -1811,7 +1843,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const childId = event.dataTransfer.getData(CARD_CHILD_MIME);
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = findPaletteItem(type);
+      const item = findPaletteItem(type, consultantTemplateNow());
       if (item) addComponent(item, undefined, { tabsId, tabIndex, position });
       return;
     }
@@ -1942,7 +1974,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const rawFrom = event.dataTransfer.getData("application/x-nexora-index");
     const from = rawFrom === "" ? Number.NaN : Number(rawFrom);
     if (type) {
-      const item = findPaletteItem(type);
+      const item = findPaletteItem(type, consultantTemplateNow());
       if (item) { if (isCard) addComponent(item, undefined, undefined, { cardId: owner.id, at: target }); else addComponent(item, undefined, undefined, undefined, { ownerId: owner.id, at: target }); }
       return;
     }
@@ -3835,11 +3867,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onAddColumn={addRecordColumn} onAddBlock={addRecordBlock} onAskDeveloper={askDeveloper}/>
       : <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={pageTemplate ? ["Bileşenler"] : paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
-        palette={pageTemplate ? consultantPaletteEntries() : palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        palette={pageTemplate ? consultantPaletteEntries(pageTemplate.name) : palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => {
-          const item = findPaletteItem(type);
+          const item = findPaletteItem(type, consultantTemplateNow());
           if (!item) return;
           if (!focusOwner) { addComponent(item, insertIndex()); return; }
           // İç tasarım ekranında: seçili üyenin arkasına, yoksa sahibin sonuna.
