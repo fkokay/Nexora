@@ -22,6 +22,16 @@ dotnet test --filter "FullyQualifiedName~SalesQuoteTests.Some_test_name"
 
 Tests are xUnit. Most integration tests host `AIERP.Api` in-process (`WebApplicationFactory<ApiEntryPointMarker>` / `TestServer`) with the EF InMemory provider, so no SQL Server is needed. `*SqlAcceptanceTests` use `[SqlServerAcceptanceFact]` and are **skipped** unless `AIERP_REPORT_TEST_SQL_CONNECTION_STRING` points at a disposable SQL Server; they create isolated Platform/Tenant/Studio databases with separation enabled. `ArchitectureBoundaryTests` enforces layer dependencies (see below), so a forbidden project reference fails the test run.
 
+**Run `dotnet test` one at a time on a shared machine.** Several sessions or agents running integration tests at once overload the machine and the tests fail with request timeouts (HTTP 499 / TaskCanceled). Before any `dotnet test`, take the shared lock and release it afterwards, also on failure:
+
+```bash
+LOCK="${TEMP:-/tmp}/nexora-dotnet-test.lock"
+until mkdir "$LOCK" 2>/dev/null; do sleep 20; done
+dotnet test ...; rc=$?; rmdir "$LOCK"; exit $rc
+```
+
+Keep at most one wait loop per run. Frontend `vitest`/`npm run build` may run in parallel. Don't pass `--artifacts-path` outside the repo: some fixture tests find the repository root from the test's `bin` folder.
+
 CI (`.github/workflows/ci.yml`) runs `dotnet test AIERP.slnx --configuration Release -m:1` and `npm ci && npm run build` for both frontends; CodeQL runs separately.
 
 EF Core migrations (tool pinned in `dotnet-tools.json`; run `dotnet tool restore` first). Design-time factories live in Infrastructure, so it is both project and startup project. Three contexts, separate migration folders:
