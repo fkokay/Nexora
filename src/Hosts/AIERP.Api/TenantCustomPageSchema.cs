@@ -695,6 +695,20 @@ internal static partial class TenantCustomPageSchema
         var idText = id.GetString()!; var typeText = type.GetString()!;
         if (idText.Length is < 1 or > 64 || !idText.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_') || !context.Ids.Add(idText))
         { error = "Bileşen kimlikleri benzersiz, kısa ve yalnızca harf/rakam/-/_ içermelidir."; return false; }
+        if (context.Template == "belge" && typeText == "editableGrid")
+        { error = "Belge sayfasında 'editableGrid' kullanılamaz; satırlar ve hesap modelden gelir."; return false; }
+        if (context.V2 && PageTemplateRules.BelgeParts.ContainsKey(typeText))
+        {
+            // Belge parçaları yalnız belge sayfasının üst düzeyinde durur; seçtikleri kodları PageTemplateRules.ValidateBelge denetler.
+            if (context.Template != "belge" || depth != 0 || component.TryGetProperty("children", out _) || component.TryGetProperty("name", out _))
+            { error = $"'{typeText}' yalnız belge kalıbında, üst düzeyde kullanılabilir."; return false; }
+            context.ComponentTypesById[idText] = typeText;
+            context.TopLevelIds.Add(idText);
+            if (!component.TryGetProperty("props", out var partProps) || partProps.ValueKind != JsonValueKind.Object)
+            { error = $"'{typeText}' bileşeninin özellikleri olmalı."; return false; }
+            error = PageTemplateRules.ValidateBelgePartProps(typeText, partProps);
+            return error is null;
+        }
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
         context.ComponentTypesById[idText] = typeText;
         if (depth == 0) context.TopLevelIds.Add(idText);

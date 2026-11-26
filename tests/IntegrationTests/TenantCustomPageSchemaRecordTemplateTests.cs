@@ -67,8 +67,8 @@ public sealed class TenantCustomPageSchemaRecordTemplateTests
     [Fact]
     public void Unknown_template_name_is_rejected()
     {
-        Rejected(Page(new { name = "card" }, Minimal()), "Kalıp yalnız \"list\", \"record\" ya da \"free\" olabilir.");
-        Rejected(Page(new { name = "record", level = 1 }, Minimal()), "Kalıp yalnız \"list\", \"record\" ya da \"free\" olabilir.");
+        Rejected(Page(new { name = "card" }, Minimal()), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
+        Rejected(Page(new { name = "record", level = 1 }, Minimal()), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
     }
 
     [Fact]

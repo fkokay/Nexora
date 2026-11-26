@@ -235,7 +235,7 @@ public sealed class TenantCustomPageSchemaFreeTemplateTests
     [Fact]
     public void Unknown_template_message_names_three_templates()
     {
-        const string message = "Kalıp yalnız \"list\", \"record\" ya da \"free\" olabilir.";
+        const string message = "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.";
         object plain = new { id = "b1", type = "section", name = "b1", props = new { slot = "block", title = "Bölüm" } };
         Rejected(Page(new { name = "card" }, [plain]), message);
         Rejected(Page(new { name = "free", level = 3 }, [plain]), message);

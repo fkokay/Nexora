@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Belge paneli – danışman görünümü (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e7f6ec;--warn:#b45309;--warn-soft:#fdf3e2}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+  .top h1{font-size:16px;margin:0}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;background:#fdf0d5;color:#8a5a00}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .wrap{display:grid;grid-template-columns:56px 1fr 340px;height:calc(100vh - 92px)}
+  .rail{background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:10px;gap:6px}
+  .rail div{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;color:var(--muted);font-size:10px;text-align:center;line-height:1.1}
+  .rail div.on{background:var(--accent-soft);color:var(--accent)}
+  .canvas{overflow:auto;padding:24px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px}
+  .stateBar{max-width:960px;margin:0 auto 10px;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+  .page{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:960px;margin:0 auto;padding:20px;transition:max-width .25s}
+  body.tablet .page,body.tablet .stateBar{max-width:680px} body.mobile .page,body.mobile .stateBar{max-width:370px} body.mobile .page{padding:14px}
+  .crumb{color:var(--muted);font-size:12px}
+  .dh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 10px}
+  .dh h2{margin:0;font-size:20px}
+  .badge{font-size:12px;padding:3px 10px;border-radius:99px;font-weight:600}
+  .b-Draft{background:#eceaf3;color:#4b4866} .b-Open{background:var(--accent-soft);color:var(--accent)} .b-Fulfilled{background:var(--warn-soft);color:var(--warn)}
+  .chain{display:flex;gap:0;margin-bottom:14px;flex-wrap:wrap}
+  .chain span{font-size:11.5px;padding:4px 12px 4px 16px;background:#f1f0f6;color:var(--muted);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%,8px 50%)}
+  .chain span:first-child{padding-left:10px;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,0 100%)}
+  .chain span.done{background:#e3def9;color:var(--accent)} .chain span.cur{background:var(--accent);color:#fff;font-weight:600}
+  .acts{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+  .tb{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap}
+  .tb.main{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  .tb.danger{color:#b42318;margin-left:auto}
+  .tb.cat{border-style:dashed}
+  .box{position:relative;border:2px solid transparent;border-radius:10px;padding:10px;margin:-10px -10px 6px}
+  .box.sel{border-color:var(--accent)}
+  .box .tag{display:none;position:absolute;top:-1px;left:-1px;background:var(--accent);color:#fff;font-size:11px;padding:2px 8px;border-bottom-right-radius:8px;z-index:2}
+  .box.sel .tag{display:block}
+  .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;padding-top:8px}
+  body.tablet .fields{grid-template-columns:repeat(2,1fr)} body.mobile .fields{grid-template-columns:1fr}
+  .f label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px;background:#fff}
+  .f .in.ro{background:#faf9fd;color:#4b4866}
+  .gridwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-weight:600;color:var(--muted);font-size:11.5px;background:#faf9fd}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.calc{background:#f7fbfa;color:#24524c}
+  td .cell{border:1px solid var(--line);border-radius:5px;padding:3px 6px;background:#fff;display:inline-block;min-width:44px}
+  body.ro td .cell{border-color:transparent;background:none;padding:3px 0}
+  .addrow{padding:7px 9px;color:var(--accent);font-weight:600}
+  body.ro .addrow{display:none}
+  .fill{background:#fffbe6!important;transition:background 1.2s}
+  body.dense td{padding:4px 9px} body.comfy td{padding:11px 9px}
+  .bottom{display:grid;grid-template-columns:1fr 280px;gap:16px;margin-top:14px}
+  body.mobile .bottom,body.tablet .bottom{grid-template-columns:1fr}
+  .log{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .log h5,.tot h5{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .log div{font-size:12px;padding:4px 0;border-bottom:1px dashed var(--line)} .log div:last-child{border:0}
+  .log b{font-weight:600} .log span{color:var(--muted)}
+  .tot{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .tot .r{display:flex;justify-content:space-between;padding:3px 0;font-variant-numeric:tabular-nums}
+  .tot .r.g{border-top:1px solid var(--line);margin-top:4px;padding-top:7px;font-weight:700;font-size:15px}
+  .tot .vat{color:var(--muted);font-size:12px}
+  .hidden{display:none!important}
+  .insp{background:#fff;border-left:1px solid var(--line);overflow:auto}
+  .ih{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .ih input{border:0;font:600 15px inherit;font-family:inherit;width:100%;outline:none}
+  .ico{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .sec h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;cursor:pointer}
+  .sec.focus{background:#fbfaff}
+  .q{font-weight:600;margin-bottom:6px}
+  .fixed{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#faf9fd;display:flex;justify-content:space-between}
+  .fixed span{color:var(--muted);font-size:11.5px}
+  .src{margin-top:6px;font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px}
+  .col{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px}
+  .col:hover{background:#f6f5fa}
+  .col .h{color:#b8b5c8;cursor:grab;letter-spacing:-2px}
+  .col .n{flex:1}
+  .col .n input{border:1px solid var(--accent);border-radius:5px;padding:2px 5px;font:inherit;width:100%}
+  .col .pen{opacity:0;color:var(--muted);cursor:pointer}
+  .col:hover .pen{opacity:1}
+  .t{font-size:10px;margin-left:6px;padding:1px 5px;border-radius:4px;white-space:nowrap}
+  .t.calc{color:var(--dev);background:var(--dev-soft)} .t.req{color:#8a5a00;background:#fdf0d5} .t.late{color:var(--muted);background:#f1f0f6}
+  .col input[type=checkbox]:disabled{opacity:.5}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .chip.lock{cursor:default;background:#f1f0f6;border-color:#f1f0f6;color:#4b4866}
+  details summary{cursor:pointer;font-weight:600;list-style:none}
+  details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:6px;line-height:1.45}
+  .auto{margin-top:10px;border:1px solid #cfe7e2;background:var(--dev-soft);border-radius:8px;padding:8px 10px;font-size:12px;color:#134e48;line-height:1.45}
+  .auto b{display:block;margin-bottom:2px}
+  .ask{margin:14px 16px 20px;border:1px dashed #b9d9d3;background:var(--dev-soft);border-radius:10px;padding:10px 12px;color:#134e48}
+  .ask b{display:block;margin-bottom:2px}
+  .ask a{color:var(--dev);font-weight:600;cursor:pointer}
+</style>
+</head>
+<body class="">
+<div class="note"><b>Taslak 9 – Belge paneli:</b> Sağdaki panelde başlık alanlarını ve satır kolonlarını işaretle, sürükle, ✎ ile adını değiştir; tuval hemen değişir. Tuvalin üstündeki <b>Önizlenen durum</b> düğmeleriyle belgenin Taslak, Onaylı ve Sevk edildi hâllerini gör. Satırdaki stok hücresine tıkla: birim, fiyat, KDV ve iskonto kendiliğinden dolar. Panelde formül, sorgu ya da komut ayarı yok.</div>
+
+<div class="top">
+  <button class="btn">←</button>
+  <h1>Satış siparişi</h1><span class="pill">Taslak</span>
+  <span class="sp"></span>
+  <div class="seg" id="dev"><button class="on" data-v="desktop">Masaüstü</button><button data-v="tablet">Tablet</button><button data-v="mobile">Mobil</button></div>
+  <button class="btn">Önizle</button>
+  <button class="btn primary">Yayınla</button>
+</div>
+
+<div class="wrap">
+  <div class="rail">
+    <div>＋<br>Ekle</div>
+    <div class="on">☰<br>Sayfa</div>
+  </div>
+
+  <div class="canvas">
+    <div class="stateBar">Önizlenen durum:
+      <div class="seg" id="st"><button class="on" data-s="Draft">Taslak</button><button data-s="Open">Onaylı</button><button data-s="Fulfilled">Sevk edildi</button></div>
+      <span>· yalnız tuvalde, kayıt değişmez</span>
+    </div>
+    <div class="page">
+      <div class="crumb">Satış › Siparişler</div>
+      <div class="dh"><h2>SO-2026-0148</h2><span class="badge" id="badge"></span></div>
+      <div class="chain" id="chain"></div>
+
+      <div class="box" data-sec="acts"><span class="tag">Eylemler</span><div class="acts" id="acts"></div></div>
+
+      <div class="box" data-sec="head"><span class="tag">Başlık alanları</span><div class="fields" id="fields"></div></div>
+
+      <div class="box" data-sec="lines"><span class="tag">Satırlar</span>
+        <div class="gridwrap"><table id="grid"><thead><tr></tr></thead><tbody></tbody></table><div class="addrow">+ Satır ekle</div></div>
+      </div>
+
+      <div class="bottom" id="bottom">
+        <div class="log" id="log"><h5>İşlem günlüğü</h5><div id="logrows"></div></div>
+        <div class="tot"><h5>Toplamlar</h5>
+          <div class="r"><span>Ara toplam</span><span>14.250,00 ₺</span></div>
+          <div class="r"><span>İskonto</span><span>−712,50 ₺</span></div>
+          <div id="vatrows"><div class="r vat"><span>KDV %20 (matrah 11.400,00)</span><span>2.280,00 ₺</span></div><div class="r vat"><span>KDV %10 (matrah 2.137,50)</span><span>213,75 ₺</span></div></div>
+          <div class="r vat hidden" id="vatsum"><span>KDV</span><span>2.493,75 ₺</span></div>
+          <div class="r g"><span>Genel toplam</span><span>16.031,25 ₺</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insp">
+    <div class="ih"><span class="ico">▤</span><input value="Satış siparişi"></div>
+
+    <div class="sec">
+      <div class="q">Hangi belge?</div>
+      <div class="fixed"><b>Satış siparişi</b><span>kalıp seçilirken belirlendi</span></div>
+      <div class="src">Satış modülünün belge modeli · 6 durum, 3 geçiş · tutarlar sunucuda hesaplanır</div>
+    </div>
+
+    <div class="sec" data-sec="head">
+      <h4>Başlık alanları</h4>
+      <div id="hcols"></div>
+    </div>
+
+    <div class="sec" data-sec="lines">
+      <h4>Satır kolonları</h4>
+      <div id="lcols"></div>
+      <div class="auto"><b>Kendiliğinden olanlar</b>Stok seçilince birim, liste fiyatı, KDV, iskonto, döviz ve kullanılabilir miktar dolar. Satır tutarı, KDV dökümü ve toplamlar sunucuda hesaplanır. Satırlar yalnız Taslak'ta düzenlenir.</div>
+    </div>
+
+    <div class="sec" data-sec="acts">
+      <h4>Eylemler</h4>
+      <div class="q">Durumdan gelenler</div>
+      <div class="chips"><span class="chip lock">Onayla</span><span class="chip lock">Onayı geri al</span><span class="chip lock">İptal et</span></div>
+      <div class="opt">Belgenin durumuna göre kendiliğinden görünür. Kimin onaylayacağı Kurallar ekranında belirlenir.</div>
+      <div class="q" style="margin-top:12px">Ek eylemler</div>
+      <div class="chips" id="extra">
+        <span class="chip on" data-x="Yazdır">Yazdır</span>
+        <span class="chip" data-x="Kopyala">Kopyala</span>
+        <span class="chip" data-x="Mail gönder">Mail gönder</span>
+        <span class="chip" data-x="Sevk oluştur">Sevk oluştur</span>
+      </div>
+      <div class="src" style="margin-top:10px">Ek eylemleri yazılımcı katalogda hazırlar, sen sadece hangilerinin görüneceğini seçersin.</div>
+    </div>
+
+    <div class="sec">
+      <details>
+        <summary>Görünüm</summary>
+        <div class="row" style="margin-top:8px">Satır yüksekliği
+          <div class="seg" id="dens"><button data-d="dense">Sıkı</button><button class="on" data-d="">Normal</button><button data-d="comfy">Rahat</button></div>
+        </div>
+        <div class="row">KDV'yi orana göre dök <span class="tg on" data-t="vat"></span></div>
+        <div class="row">İşlem günlüğü <span class="tg on" data-t="log"></span></div>
+      </details>
+    </div>
+
+    <div class="ask">
+      <b>Aradığın alan ya da kolon yok mu?</b>
+      Örneğin “Ödeme vadesi” alanı gibi. <a>Yazılımcıdan iste →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const HEAD=[
+ {k:"code",n:"Sipariş no",on:true,ro:true,v:"SO-2026-0148"},
+ {k:"customerId",n:"Müşteri",on:true,req:true,v:"Akdeniz Gıda A.Ş. ▾"},
+ {k:"orderDate",n:"Sipariş tarihi",on:true,req:true,v:"26.11.2026"},
+ {k:"requestedDeliveryDate",n:"İstenen teslim tarihi",on:true,v:"05.12.2026"},
+ {k:"salespersonEmployeeId",n:"Plasiyer",on:false,v:"Selin Arslan ▾"}];
+const LINE=[
+ {k:"stockItemId",n:"Stok",on:true,req:true},
+ {k:"quantity",n:"Miktar",on:true,req:true,num:true},
+ {k:"unitCode",n:"Birim",on:true},
+ {k:"unitPrice",n:"Birim fiyat",on:true,req:true,num:true},
+ {k:"currencyCode",n:"Döviz",on:false},
+ {k:"discountPercent",n:"İsk. %",on:true,num:true},
+ {k:"vatPercent",n:"KDV %",on:true,num:true},
+ {k:"isVatIncluded",n:"KDV dâhil",on:false},
+ {k:"availableQuantity",n:"Kullanılabilir",on:true,num:true,calc:true},
+ {k:"lineSubtotal",n:"Ara toplam",on:false,num:true,calc:true},
+ {k:"discountAmount",n:"İskonto",on:false,num:true,calc:true},
+ {k:"taxAmount",n:"KDV",on:false,num:true,calc:true},
+ {k:"lineTotal",n:"Tutar",on:true,num:true,calc:true},
+ {k:"deliveredQuantity",n:"Sevk",on:true,num:true,calc:true,late:true}];
+let ROWS=[
+ {stockItemId:"ZYT-01 Sızma zeytinyağı 5 L",quantity:"40",unitCode:"KOLİ",unitPrice:"250,00",currencyCode:"TRY",discountPercent:"5",vatPercent:"20",isVatIncluded:"☐",availableQuantity:"118",lineSubtotal:"10.000,00",discountAmount:"500,00",taxAmount:"1.900,00",lineTotal:"11.400,00",deliveredQuantity:"40 / 40"},
+ {stockItemId:"BAL-03 Çiçek balı 850 g",quantity:"25",unitCode:"ADET",unitPrice:"170,00",currencyCode:"TRY",discountPercent:"5",vatPercent:"10",isVatIncluded:"☐",availableQuantity:"64",lineSubtotal:"4.250,00",discountAmount:"212,50",taxAmount:"403,75",lineTotal:"4.441,25",deliveredQuantity:"10 / 25"},
+ {stockItemId:"",quantity:"",unitCode:"",unitPrice:"",currencyCode:"",discountPercent:"",vatPercent:"",isVatIncluded:"",availableQuantity:"",lineSubtotal:"",discountAmount:"",taxAmount:"",lineTotal:"",deliveredQuantity:""}];
+const FILL={unitCode:"KG",unitPrice:"92,40",currencyCode:"TRY",discountPercent:"5",vatPercent:"10",isVatIncluded:"☐",availableQuantity:"310",lineSubtotal:"92,40",discountAmount:"4,62",taxAmount:"8,78",lineTotal:"96,56"};
+const ST={Draft:{l:"Taslak",i:0,acts:[["Onayla","main"]],cancel:true},Open:{l:"Onaylı",i:2,acts:[["Onayı geri al",""]],cancel:true},Fulfilled:{l:"Sevk edildi",i:3,acts:[],cancel:false}};
+const CHAIN=["Taslak","Onay bekliyor","Onaylı","Sevk edildi","Faturalandı"];
+const LOG={Draft:[["Taslak kaydedildi","Fatih · 26.11 09:12"]],
+ Open:[["Taslak kaydedildi","Fatih · 26.11 09:12"],["Onaylandı","Fatih · 26.11 09:40"]],
+ Fulfilled:[["Taslak kaydedildi","Fatih · 26.11 09:12"],["Onaylandı","Fatih · 26.11 09:40"],["Sevk edildi: IRS-0311","Depo · 27.11 14:05"]]};
+let state="Draft",device="desktop",extra=new Set(["Yazdır"]),editing=null;
+function lab(c){return c.n}
+function render(){
+  const s=ST[state];
+  document.body.classList.toggle("ro",state!=="Draft");
+  const b=document.getElementById("badge");b.textContent=s.l;b.className="badge b-"+state;
+  document.getElementById("chain").innerHTML=CHAIN.map((c,i)=>`<span class="${i<s.i?"done":i===s.i?"cur":""}">${c}</span>`).join("");
+  document.getElementById("acts").innerHTML=s.acts.map(a=>`<span class="tb ${a[1]}">${a[0]}</span>`).join("")+
+    [...extra].map(x=>`<span class="tb cat">${x}</span>`).join("")+(s.cancel?`<span class="tb danger">İptal et</span>`:"");
+  document.getElementById("fields").innerHTML=HEAD.filter(c=>c.on).map(c=>`<div class="f"><label>${lab(c)}${c.req&&state==="Draft"?" *":""}</label><div class="in ${c.ro||state!=="Draft"&&c.k!=="requestedDeliveryDate"?"ro":""}">${c.v}</div></div>`).join("");
+  let cols=LINE.filter(c=>c.on&&!(c.late&&state==="Draft"));
+  if(device==="mobile")cols=cols.filter(c=>["stockItemId","quantity","lineTotal","deliveredQuantity"].includes(c.k));
+  document.querySelector("#grid thead tr").innerHTML=cols.map(c=>`<th class="${c.num?"num":""}">${lab(c)}</th>`).join("");
+  const rows=state==="Draft"?ROWS:ROWS.slice(0,2);
+  document.querySelector("#grid tbody").innerHTML=rows.map((r,ri)=>"<tr>"+cols.map(c=>{
+    const v=c.k==="deliveredQuantity"&&state==="Open"?r[c.k].replace(/^\d+/,"0"):r[c.k];
+    const inner=c.calc?v:`<span class="cell" data-r="${ri}" data-k="${c.k}">${v||(c.k==="stockItemId"&&state==="Draft"?"<span style='color:#a5a2b5'>Stok seç…</span>":"&nbsp;")}</span>`;
+    return `<td class="${c.num?"num":""}${c.calc?" calc":""}" data-k="${c.k}" data-r="${ri}">${inner}</td>`}).join("")+"</tr>").join("");
+  document.getElementById("logrows").innerHTML=LOG[state].map(l=>`<div><b>${l[0]}</b><br><span>${l[1]}</span></div>`).join("");
+  const item=(c,i,list)=>{
+    const tags=(c.req?`<span class="t req">zorunlu</span>`:"")+(c.calc?`<span class="t calc">hesaplanan</span>`:"")+(c.late?`<span class="t late">onaydan sonra</span>`:"")+(c.ro?`<span class="t late">salt okunur</span>`:"");
+    const name=editing===list+i?`<input value="${c.n}" data-edit="${list}" data-i="${i}">`:c.n+tags;
+    return `<label class="col"><span class="h" draggable="true" data-list="${list}" data-i="${i}">⋮⋮</span><input type="checkbox" data-list="${list}" data-i="${i}" ${c.on?"checked":""} ${c.req?"disabled title='Zorunlu alan gizlenemez'":""}><span class="n">${name}</span><span class="pen" data-pen="${list}" data-i="${i}" title="Başlığı değiştir">✎</span></label>`};
+  document.getElementById("hcols").innerHTML=HEAD.map((c,i)=>item(c,i,"h")).join("");
+  document.getElementById("lcols").innerHTML=LINE.map((c,i)=>item(c,i,"l")).join("");
+  const ed=document.querySelector("[data-edit]");if(ed){ed.focus();ed.select();}
+}
+const L=x=>x==="h"?HEAD:LINE;
+document.addEventListener("change",e=>{const t=e.target;if(t.type==="checkbox"&&t.dataset.list){L(t.dataset.list)[t.dataset.i].on=t.checked;render();}});
+document.addEventListener("click",e=>{
+  const p=e.target.closest("[data-pen]");if(p){e.preventDefault();editing=p.dataset.pen+p.dataset.i;render();return;}
+  const cell=e.target.closest("td[data-k=stockItemId]");
+  if(cell&&state==="Draft"){const r=+cell.dataset.r;if(!ROWS[r].stockItemId){ROWS[r]={...ROWS[r],...FILL,stockItemId:"UN-07 Tam buğday unu",quantity:"1",deliveredQuantity:"0 / 1"};render();
+    document.querySelectorAll(`#grid td[data-r="${r}"]`).forEach(td=>{if(td.dataset.k!=="stockItemId"&&td.dataset.k!=="quantity")td.classList.add("fill")});
+    setTimeout(()=>document.querySelectorAll(".fill").forEach(x=>x.classList.remove("fill")),900);}}
+  const box=e.target.closest(".box[data-sec],.sec[data-sec]");
+  document.querySelectorAll(".box").forEach(x=>x.classList.toggle("sel",!!box&&x.dataset.sec===box.dataset.sec));
+  document.querySelectorAll(".sec[data-sec]").forEach(x=>x.classList.toggle("focus",!!box&&x.dataset.sec===box.dataset.sec));
+  if(box&&box.classList.contains("box"))document.querySelector(`.sec[data-sec=${box.dataset.sec}]`).scrollIntoView({block:"nearest",behavior:"smooth"});
+});
+document.addEventListener("keydown",e=>{const t=e.target;if(t.dataset&&t.dataset.edit&&(e.key==="Enter"||e.key==="Escape")){if(e.key==="Enter"&&t.value.trim())L(t.dataset.edit)[t.dataset.i].n=t.value.trim();editing=null;render();}});
+document.addEventListener("focusout",e=>{const t=e.target;if(t.dataset&&t.dataset.edit){if(t.value.trim())L(t.dataset.edit)[t.dataset.i].n=t.value.trim();editing=null;setTimeout(render)}});
+let drag=null;
+document.addEventListener("dragstart",e=>{const h=e.target.closest(".h");if(h)drag={l:h.dataset.list,i:+h.dataset.i};});
+document.addEventListener("dragover",e=>{if(drag&&e.target.closest(".col"))e.preventDefault();});
+document.addEventListener("drop",e=>{const c=e.target.closest(".col");if(!drag||!c)return;const h=c.querySelector(".h");if(h.dataset.list!==drag.l)return;
+  const a=L(drag.l),[m]=a.splice(drag.i,1);a.splice(+h.dataset.i,0,m);drag=null;render();});
+document.querySelectorAll("#st button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#st button").forEach(x=>x.classList.remove("on"));b.classList.add("on");state=b.dataset.s;render();});
+document.querySelectorAll("#dev button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#dev button").forEach(x=>x.classList.remove("on"));b.classList.add("on");device=b.dataset.v;document.body.classList.remove("tablet","mobile");if(device!=="desktop")document.body.classList.add(device);render();});
+document.querySelectorAll("#dens button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#dens button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.body.classList.remove("dense","comfy");if(b.dataset.d)document.body.classList.add(b.dataset.d);});
+document.querySelectorAll("#extra .chip").forEach(c=>c.onclick=()=>{c.classList.toggle("on");c.classList.contains("on")?extra.add(c.dataset.x):extra.delete(c.dataset.x);render();});
+document.querySelectorAll(".tg").forEach(t=>t.onclick=()=>{t.classList.toggle("on");const on=t.classList.contains("on");
+  if(t.dataset.t==="vat"){document.getElementById("vatrows").classList.toggle("hidden",!on);document.getElementById("vatsum").classList.toggle("hidden",on);}
+  if(t.dataset.t==="log")document.getElementById("log").classList.toggle("hidden",!on);});
+render();
+</script>
+</body>
+</html>
