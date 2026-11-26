@@ -236,6 +236,14 @@ describe("CommandsSection", () => {
     expect(commandsBar(last())!.props.titleCount).toBeUndefined();
     openRow(host, "Kaydet");
     expect(rowOf(host, "Kaydet").textContent).toContain("Liste sayfası kaydetmez; Kaydet çubukta yoktur.");
+    // Odak alanı temizlenebilir.
+    openRow(host, "Filtre");
+    setValue(rowOf(host, "Filtre").querySelector<HTMLSelectElement>('select[aria-label="Odaklanacak alan"]')!, "");
+    expect(commandsBar(last())!.props.focusInput).toBeUndefined();
+    // Ekran seçilmeden Düzenle'nin "Nerede"si yazılmaz.
+    const empty = mount({ ...listPage, components: listPage.components.map((component) => component.id === "komutlar" ? { ...component, props: { slot: "commands" } } : component) }, "list");
+    openRow(empty.host, "Düzenle · Görüntüle");
+    expect(button(rowOf(empty.host, "Düzenle · Görüntüle"), "Yeni sekmede").disabled).toBe(true);
   });
 
   it("no technical terms in the section", () => {

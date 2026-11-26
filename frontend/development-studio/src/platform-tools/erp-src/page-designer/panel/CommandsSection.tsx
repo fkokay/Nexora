@@ -44,6 +44,9 @@ const RAW_ACTION = "Standarttan gelen eylem";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const inputsOf = (def: ModelDefinition) => def.components.filter((component) => component.type === "input");
+/** Filtre'nin odaklanabileceği alanlar: girişler ve aramalı süzgeç alanı. */
+const focusTargets = (def: ModelDefinition) => def.components.filter((component) => component.type === "input" || (component.type === "filterBar" && component.props.search === true));
+const focusLabel = (component: ModelComponent) => component.type === "filterBar" ? "Süzgeç alanı araması" : inputLabel(component);
 const tablesOf = (def: ModelDefinition) => def.components.filter((component) => component.type === "dataTable");
 const inputLabel = (component: ModelComponent) => text(component.props.label) || component.name || "Adsız alan";
 const tableLabel = (component: ModelComponent) => text(component.props.title) || component.name || "Adsız liste";
@@ -102,7 +105,7 @@ export function CommandsSection(props: CommandsSectionProps) {
   const actionLabel = (code: string | null) => code ? actions.find((action) => action.code === code)?.label ?? CATALOG_MISSING : RAW_ACTION;
   const pageLabel = (code: string) => { const page = pages.find((item) => item.code === code); return page ? page.name || page.code : code; };
   const pageOptions: Option[] = pages.map((page) => ({ value: page.code, label: page.name || page.code }));
-  const inputOptions: Option[] = inputsOf(def).map((component) => ({ value: component.id, label: inputLabel(component) }));
+  const inputOptions: Option[] = focusTargets(def).map((component) => ({ value: component.id, label: focusLabel(component) }));
   const tableOptions: Option[] = tablesOf(def).map((component) => ({ value: component.id, label: tableLabel(component) }));
   const pageNames = props.pageNames ?? [...def.queries.map((query) => query.name), ...def.components.map((component) => component.name ?? "")].filter(Boolean);
   const bar = commandsBar(def);
@@ -135,8 +138,8 @@ export function CommandsSection(props: CommandsSectionProps) {
       }
       case "refresh": return "Sayfayı yeniler";
       case "filter": {
-        const input = inputsOf(def).find((component) => component.id === text(barProps.focusInput));
-        return input ? `${inputLabel(input)} alanına odaklanır` : "Odak alanı seçilmedi";
+        const input = focusTargets(def).find((component) => component.id === text(barProps.focusInput));
+        return input ? `${focusLabel(input)} alanına odaklanır` : "Odak alanı seçilmedi";
       }
       case "print": return "Sayfayı yazdırır";
       case "export": {
@@ -204,11 +207,11 @@ export function CommandsSection(props: CommandsSectionProps) {
         return <>
           <Pick label="Hangi ekran" value={command.pageCode} options={pageOptions} disabled={disabled}
             onPick={(value) => change(setOpenCommand(def, { pageCode: value, table }))}/>
-          <div className="cpanel-row">Nerede<Segment label="Nerede" value={command.target} options={TARGETS} disabled={disabled}
+          <div className="cpanel-row">Nerede<Segment label="Nerede" value={command.target} options={TARGETS} disabled={disabled || !command.pageCode}
             onPick={(value) => change(setOpenCommand(def, { target: value, table }))}/></div>
           <Note>Görüntüle aynı ekranı salt okunur açar; Düzenle gizlenince o da gizlenir.</Note>
           <Advanced>
-            <Pick label="Hangi liste" value={command.table} options={tableOptions} disabled={disabled} onPick={(value) => change(setOpenCommand(def, { table: value }))}/>
+            <Pick label="Hangi liste" value={command.table} options={tableOptions} disabled={disabled || !command.pageCode} onPick={(value) => change(setOpenCommand(def, { table: value }))}/>
             <div className="cpanel-q">Gönderilen bilgi</div>
             <div className="cpanel-chips">{command.params.length === 0 ? <span className="cpanel-note">—</span> : command.params.map((item) => {
               const at = item.indexOf("=");
@@ -231,9 +234,9 @@ export function CommandsSection(props: CommandsSectionProps) {
         const writeAfter = (patch: Partial<typeof afterPage>) => change(setAfterSave(def, "page", { ...afterPage, ...patch }));
         return <>
           <div className="cpanel-q">Kaydetme sırası</div>
-          {catalogSteps.length > 0 && <ol className="cpanel-steps">{catalogSteps.map((step) => {
+          {catalogSteps.length > 0 && <ol className="cpanel-steps">{catalogSteps.map((step, index) => {
             const label = actionLabel(step.label);
-            return <li key={step.queryId} className="cpanel-row"><span>{label}</span><small className="cpanel-note">{whenLabel(step.when)}</small>
+            return <li key={step.queryId} className="cpanel-row"><span><b>{`${index + 1}.`}</b> {label}</span><small className="cpanel-note">{whenLabel(step.when)}</small>
               <button type="button" className="cpanel-btn" aria-label={`${label} kaldır`} disabled={disabled} onClick={() => change(removeSaveStep(def, step.queryId))}><X size={13}/></button></li>;
           })}</ol>}
           {record && <select className="cpanel-add" aria-label="Adım ekle" value="" disabled={disabled}
@@ -285,11 +288,11 @@ export function CommandsSection(props: CommandsSectionProps) {
         </>;
       }
       case "filter": return <>
-        <Pick label="Odaklanacak alan" value={text(barProps.focusInput)} options={inputOptions} disabled={disabled} onPick={(value) => change(setFocusInput(def, value || null))}/>
+        <Pick label="Odaklanacak alan" value={text(barProps.focusInput)} options={inputOptions} empty="—" disabled={disabled} onPick={(value) => change(setFocusInput(def, value || null))}/>
         <Note>Filtre (Ctrl+F) bu alana odaklanır.</Note>
       </>;
       case "export": return <>
-        <Pick label="Hangi liste" value={text(barProps.exportTable)} options={tableOptions} disabled={disabled} onPick={(value) => change(setExportTable(def, value || null))}/>
+        <Pick label="Hangi liste" value={text(barProps.exportTable)} options={tableOptions} empty="—" disabled={disabled} onPick={(value) => change(setExportTable(def, value || null))}/>
         <Note>Görünen satırlar Excel olarak iner; "CSV olarak dışa aktar" menüdedir.</Note>
       </>;
       case "print": return <Note>Sayfayı yazdırır.</Note>;

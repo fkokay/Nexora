@@ -2243,6 +2243,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     && definitionRef.current.components.some((component) => component.id === id && component.props.slot === "list");
   const removeComponent = (id: string) => {
     if (isTemplateList(id)) return;
+    // Kalıplı sayfanın Komutlar çubuğu genel yolla silinmez: komutlar Komutlar bölümünde gizlenir (ayarları korunur).
+    const target = definitionRef.current.components.find((component) => component.id === id);
+    if (readPageTemplate(definitionRef.current.template) && target?.type === "actionBar" && target.props.slot === "commands") return;
     // Kayıt kartının parçaları modelin kuralıyla silinir (eyleme bağlı alan silinmez; özet, sekmeler ve eylem düğmeleri hiç).
     const record = recordRemoval(definitionRef.current as unknown as ModelDefinition, id);
     if (record.kind === "none") return;
@@ -3925,7 +3928,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const freeTabRequest = freeTabTarget ? { ...freeTabTarget, key: selectedComponentId ?? "" } : null;
   // Serbest gövdenin paneli (TemplateInspector `free`): sayfa, bölüm, bileşen ve Liste aynı tanımı ve zenginleştirilmiş kataloğu görür.
   // Komutlar bölümü: "Hangi ekran" seçimi tenant sayfalarından (bu sayfa hariç), kural kurucu tasarımcının bağlama önerilerinden.
-  const commandPages = pages.filter((page) => page.code !== code).map((page) => ({ code: page.code, name: page.name }));
+  const commandPages = [...pages.filter((page) => !page.screenKey && page.code !== code).map((page) => ({ code: page.code, name: page.name })),
+    ...erpScreens.map((screen) => ({ code: `@${screen.key}`, name: screen.label }))];
   const commandPaths = bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
   const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition) };
   const freePanel = isFreePage ? {
