@@ -1,4 +1,38 @@
 # Master Prompt Phase Status
+### 2026-11-26 Developer components in the catalog (Yazılımcı bileşeni)
+
+Plan `docs/superpowers/plans/2026-11-26-yazilimci-bileseni.md`. A developer writes a **component** (CSS + JavaScript + a settings schema) in the firm module under `bilesenler/<kod>/` (`bilesen.json`, `stil.css`, `kod.js`) and releases it with the catalog; a consultant picks it as "Yazılımcı bileşeni" and fills only the settings the developer defined; the ERP draws it in today's isolated code frame.
+
+- **Catalog:** new item kind `components` (code, label, description, height, CSS, JavaScript, settings of type text / number / bool / choice with optional default), validated with today's code-field rules and listed in the active catalog view without CSS/JavaScript. Activating a release whose components differ from the active release's (added, removed, or changed code / CSS / JavaScript / height / settings; no active release counts as different when the new one has a component) needs a verified TenantAdmin; a Studio Developer can still activate releases with unchanged components.
+- **Page format:** a `code` component carries only `catalogComponent` + `componentSettings`; CSS/JavaScript next to `catalogComponent` is rejected, so any page writer may save it (inline code still needs a verified TenantAdmin). Save checks that the component exists in the active catalog (the error names it) and that every setting is defined and fits its type; duplicate JSON keys return 400. Reading a page resolves CSS, JavaScript, height and defaults from the active catalog, drops settings that no longer fit, and marks a removed component `catalogMissing`.
+- **ERP:** settings are read through the bridge (`get("ayarlar.<ad>")`, falling back to the default, then null); a missing component shows "Bu bileşen katalogda yok." (respects `hidden`) and the rest of the page renders; on a free body the component is a full row.
+- **Studio (developer):** a "Bileşenler" group in the catalog workbench with the component form, CSS/JS editors, a preview with sample settings that never touches firm data (`runQuery` / `callOperation` answer "Önizlemede sayfa verisi yok."), and components counted in the release dialog; a developer who is not TenantAdmin sees the admin-only message instead of Etkinleştir when the release adds or removes components (other component changes surface the server's 403 text).
+- **Studio (consultant):** "Yazılımcı bileşeni" in the palette when the active catalog has components — in the List template's extra areas, the record card's extra-area add list and the free body — with the mockup 03 panel (component choice, settings by type, number setting committed on blur). Before every save stale settings are pruned against the active catalog; a component no longer in the catalog is flagged in the panel. The legacy canvas draws a catalog component as a labelled placeholder.
+- No migration.
+
+Test results: development-studio `npm test` 1014 vitest + 13 node tests and `npm run build` passed on the integrated branch before the final fixes, and after them the designer and catalog tests 901/901 and the build passed; erp-web `npm run build` passed and `npm test` had 2 failures under machine load that pass alone (39/39), after the final fixes `src/page-templates` + `src/custom-page` 867/867; `dotnet test AIERP.slnx` unit tests 1183/1183, integration tests 1934 passed, 64 skipped, 21 timed out under machine load in classes this branch does not touch (not re-run; CI decides), and the catalog, component and free-fixture filters 113/113 after the final fixes
+
+Not verified: a browser pass against Studio + ERP; a real backend and login; Docker Compose; the publish and catalog activation flow end to end; a developer component running real page queries in a published page. Known gap: the release dialog only activates the draft it just created (rollback covers Superseded releases), so a draft a developer created with changed components has no Studio button for a TenantAdmin; the admin creates the release again (adding one is a screen change awaiting design approval).
+
+Deploy order: platform-api and erp-web first, then development-studio.
+
+
+### 2026-11-26 Free body additions on top of 5c
+
+Six additions to the 5c free body, Studio only (no server, ERP or .NET change, no migration):
+
+- **Indicator panel:** catalog `int` and `decimal` columns count as numbers (not money), and the indicator title follows the chosen source or column unless the consultant edited it by hand.
+- **Screen button:** the free page panel's Eylemler section adds a button that opens a screen by code (`actionType: "page"`, `slot: "actions"`); the 5c limit of 8 actions and "first action is primary" still apply.
+- **Tab order:** tabs can be moved with the arrow buttons in the page panel.
+- **Layers:** on template pages the rows show consultant names without the "N/12" badge; pages without a template are unchanged.
+- **Canvas drag and drop (free pages):** drop palette items into a section at a position, move components between and within sections, reorder sections (inside a tab and across tabs), with a drop marker; a drop outside any section shows a reason, free-page Layers rows are not draggable, and a full section (12) refuses with a reason (unit tests only).
+
+Verified: development-studio `npm test` (97 vitest files, 1037 tests; 13 node tests) and `npm run build` passed on the branch. Browser pass with the mock backend (Studio dev + ERP dev, Chromium): new free page, Metin/Gösterge/Liste dropped into sections, component moved between sections (lands between the two target items), section dragged above another, drop outside a section shows "Bu bileşen buraya bırakılamaz; bir bölümün içine bırakın.", screen-open button saved as a page button, three tabs reordered, Layers without "/12". Drop markers matched the real ERP boxes (item left edge, section outline, line under a table); hovering the left half of an item showed no marker in the probe, the right half showed the marker before the next item.
+
+Not verified: a real backend and login (mock only); the ERP rendering of pages built this way against a real server; the publish flow end to end; the 12-member refusal and moving a section to another tab in the browser; whether the drop marker lags the pointer in two-column sections (one sample showed a stale full-width marker while the drop landed correctly). No .NET changes in this branch, so no dotnet test run.
+
+Deploy: development-studio only.
+
 ### 2026-11-26 Free body template (subproject 5c)
 
 Pages can now use a third template, **Serbest** (`template: { "name": "free" }`, level 3): the shared shell (title, action bar) around optional tabs and sections, each section 1, 2 or 3 columns. A section lists its components by id (`members`), so the components stay top-level and the 5a panels work on them unchanged. The new-page dialog offers Liste, Kayıt kartı, Serbest and, last, "Eski tasarımcı (kalıpsız)"; the Ekranlar list shows "Serbest · 3. basamak".
@@ -11,7 +45,7 @@ Pages can now use a third template, **Serbest** (`template: { "name": "free" }`,
 
 Test results (2026-11-26, branch `claude/serbest-govde-5c`): development-studio `npm test` 981 vitest + 13 node tests and `npm run build` passed after the final fixes; erp-web `npm run build` passed and `npm test` on the integrated branch had 54 failures from worker timeouts under machine load (dotnet ran in parallel) in 13 files, mostly modules this branch does not touch — those 13 files plus `src/page-templates` re-run alone passed 261/261; `dotnet test AIERP.slnx` unit tests 1183/1183; integration tests 1841 passed, 64 skipped (SQL Server acceptance), 82 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled) in 22 classes this branch does not touch — re-running those classes alone was still in progress when this entry was written; the Studio-built free definition passes the real server validator (`TenantCustomPageFreeStudioFixtureTests` 2/2).
 
-Not verified: a browser pass against Studio + ERP; a real backend and login; Docker Compose; the publish flow end to end.
+Not verified: a browser pass against Studio + ERP; a real backend and login; Docker Compose; the publish flow end to end; the 12-member refusal and moving a section to another tab in the browser; whether the drop marker lags the pointer in two-column sections (one sample showed a stale full-width marker while the drop landed correctly).
 
 Deploy order: platform-api and erp-web first, then development-studio.
 
@@ -30,7 +64,7 @@ Server: six new v2 props validated (`textAlign`, `items` on alert/card, `dismiss
 
 Test results (2026-11-26, branch `claude/bilesen-panelleri-5a`): erp-web `npm test` 2134/2134 and `npm run build` passed on the integrated branch; after the final fix erp-web `legacyUnchanged` + `custom-page` 739/739 and build passed; development-studio `npm test` 800 vitest + 13 node tests and `npm run build` passed; `dotnet test AIERP.slnx` unit tests 1183/1183, integration tests 1786 passed, 64 skipped (SQL Server acceptance), 55 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled) in 17 classes this branch does not touch; those 17 classes re-run alone passed 376/381, and the remaining 5 tests re-run on their own passed 5/5. Schema tests (`TenantCustomPageSchema*`) 107/107.
 
-Not verified: a browser pass against Studio + ERP (the mock backend of subproject 3 was not available in this session); a real backend and login; Docker Compose; the publish flow end to end.
+Not verified: a browser pass against Studio + ERP (the mock backend of subproject 3 was not available in this session); a real backend and login; Docker Compose; the publish flow end to end; the 12-member refusal and moving a section to another tab in the browser; whether the drop marker lags the pointer in two-column sections (one sample showed a stale full-width marker while the drop landed correctly).
 
 Deploy order: platform-api and erp-web first, then development-studio.
 

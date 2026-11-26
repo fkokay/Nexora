@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api";
 import type { AppliedCodeSuggestion, WorkspaceFileContent, WorkspaceFileEntry, WorkspaceFileListing, WorkspaceGitStatus } from "../types";
-import { findCatalogRoot, readCatalogEntries, type CatalogFile } from "./catalogFiles";
+import { COMPONENT_FILES, COMPONENT_FOLDER, findCatalogRoot, readCatalogEntries, type CatalogFile } from "./catalogFiles";
 
 /** `base`: `/studio/projects/<proje>/workspace-requests/<çalışma alanı>` */
 export type WorkspaceRead = <T>(url: string) => Promise<T>;
 
-const CATALOG_FOLDERS = ["veri", "eylemler"];
+const CATALOG_FOLDERS = ["veri", "eylemler", COMPONENT_FOLDER];
+const COMPONENT_FILE_NAMES: string[] = Object.values(COMPONENT_FILES);
 
 /** Klasörün bütün girdileri (`nextOffset` ile sayfalı liste sonuna kadar okunur). */
 export async function listDirectory(read: WorkspaceRead, base: string, path: string): Promise<WorkspaceFileEntry[]> {
@@ -50,17 +51,28 @@ export async function detectCatalogRoot(read: WorkspaceRead, base: string, modul
   return findCatalogRoot(null, modules.map(m => m.path), withCatalog);
 }
 
-/** `veri/` ve `eylemler/` altındaki .json ve .sql dosyaları, içerik ve sha256 ile. */
+/** `veri/` ve `eylemler/` altındaki .json ve .sql dosyaları ile `bilesenler/<kod>/` altındaki bilesen.json, stil.css ve kod.js; içerik ve sha256 ile. */
 export async function loadCatalogFiles(read: WorkspaceRead, base: string, root: string): Promise<CatalogFile[]> {
   // Henüz oluşturulmamış modül klasörü (yeni modül) boş katalogdur.
   const rootEntries = (await listIfExists(read, base, root)) ?? [];
   const files: CatalogFile[] = [];
+  const readFile = async (path: string) => {
+    const file = await read<WorkspaceFileContent>(`${base}/file-content?path=${encodeURIComponent(path)}`);
+    files.push({ path: file.path, content: file.content, sha256: file.sha256 });
+  };
   for (const folder of rootEntries.filter(e => e.kind === "Directory" && CATALOG_FOLDERS.includes(e.name))) {
     const entries = await listDirectory(read, base, folder.path);
-    for (const entry of entries.filter(e => e.kind === "File" && /\.(json|sql)$/.test(e.name))) {
-      const file = await read<WorkspaceFileContent>(`${base}/file-content?path=${encodeURIComponent(entry.path)}`);
-      files.push({ path: file.path, content: file.content, sha256: file.sha256 });
+    if (folder.name === COMPONENT_FOLDER) {
+      for (const dir of entries.filter(e => e.kind === "Directory")) {
+        const inner = await listDirectory(read, base, dir.path);
+        for (const name of COMPONENT_FILE_NAMES) {
+          const entry = inner.find(e => e.kind === "File" && e.name === name);
+          if (entry) await readFile(entry.path);
+        }
+      }
+      continue;
     }
+    for (const entry of entries.filter(e => e.kind === "File" && /\.(json|sql)$/.test(e.name))) await readFile(entry.path);
   }
   return files;
 }

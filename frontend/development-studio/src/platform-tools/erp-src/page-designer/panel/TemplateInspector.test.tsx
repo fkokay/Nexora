@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { ActiveCatalog, CatalogAction, CatalogDataSource } from "../catalogClient";
+import type { ActiveCatalog, CatalogAction, CatalogComponent, CatalogDataSource } from "../catalogClient";
 import { NEW_FREE_BLOCK_ID, newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import { addBlock, addItem, addPageAction, addTab, FREE_BLOCK_FULL, MAX_BLOCK_MEMBERS, moveItem, moveItemToBlock, setBlockTitle } from "./freeModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
@@ -271,5 +271,64 @@ describe("TemplateInspector on free pages (5c Task 8)", () => {
     const record = { def, catalog: null, onChange: () => {}, onSelect: () => {} };
     expect(renderToString(<TemplateInspector component={null} legacy={null} list={null} record={record} tokens={[]} onPlace={() => {}}/>)).toContain("Hangi kayıt gösterilsin?");
     expect(usesTemplateInspector({ schemaVersion: 2, queries: [], components: [{ id: "m", type: "heading", props: {} }] } as ModelDefinition, "m")).toBe(false);
+  });
+});
+
+describe("TemplateInspector on developer components (Task 7)", () => {
+  const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240, settings: [
+    { name: "baslik", label: "Harita başlığı", type: "text", options: [], default: null }] };
+  const catalog: ActiveCatalog = { version: "1", dataSources: [], actions: [], components: [harita] };
+  const dev = (slot: string): ModelComponent => ({ id: "y1", type: "code", props: { slot, catalogComponent: "satisHaritasi" } });
+  const inline = (slot: string): ModelComponent => ({ id: "y1", type: "code", props: { slot, title: "Özel", css: "", javascript: "x()" } });
+  const renderList = (component: ModelComponent) => {
+    const def = withComponent(component);
+    return renderToString(<TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def, catalog }} tokens={[]} onPlace={() => {}}/>);
+  };
+  const renderRecord = (component: ModelComponent) => {
+    const base = newRecordTemplateDefinition() as unknown as ModelDefinition;
+    const def = { ...base, components: [...base.components, component] } as ModelDefinition;
+    return renderToString(<TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def, catalog }}
+      record={{ def, catalog, onChange: () => {}, onSelect: () => {} }} tokens={[]} onPlace={() => {}}/>);
+  };
+  const freeDef = (component: ModelComponent) => {
+    const base = newFreeTemplateDefinition() as unknown as ModelDefinition;
+    return { ...base, components: [...base.components.map((item) => item.id === NEW_FREE_BLOCK_ID
+      ? { ...item, props: { ...item.props, members: [component.id] } } : item), component] } as ModelDefinition;
+  };
+  const renderFreeItem = (component: ModelComponent) => {
+    const def = freeDef(component);
+    return renderToString(<TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def, catalog }}
+      free={{ def, catalog, catalogStatus: "ready", name: "Pano", onRename: () => {}, onChange: () => {}, onSelect: () => {} }} tokens={[]} onPlace={() => {}}/>);
+  };
+
+  it("inspector opens developer panel for catalog component in list extra area, record extra area and free item", () => {
+    for (const slot of ["above", "below"]) {
+      const html = renderList(dev(slot));
+      expect(html, slot).not.toContain("BUGUNKU");
+      expect(html, slot).toContain("Hangi bileşen?");
+      expect(html, slot).toContain("Harita başlığı");
+      expect(html, slot).toContain("Listenin altı");
+      expect(html.indexOf("Yeri"), slot).toBeLessThan(html.indexOf("Hangi bileşen?"));
+    }
+    const record = renderRecord(dev("below"));
+    expect(record).not.toContain("BUGUNKU");
+    expect(record).toContain("Hangi bileşen?");
+    expect(record).toContain("Kartın üstü");
+    const free = renderFreeItem(dev("item"));
+    expect(free).not.toContain("BUGUNKU");
+    expect(free).toContain("Hangi bileşen?");
+    expect(free).toContain('aria-label="Bölüm"');
+    expect(free.indexOf('aria-label="Bölüm"')).toBeLessThan(free.indexOf("Hangi bileşen?"));
+    for (const html of [renderList(dev("below")), record, free]) {
+      expect(html).not.toContain("JavaScript");
+      expect(html).not.toContain("satisHaritasi");
+    }
+  });
+
+  it("inline code component keeps old panel", () => {
+    for (const html of [renderList(inline("below")), renderRecord(inline("above")), renderFreeItem(inline("item"))]) {
+      expect(html).toContain("BUGUNKU");
+      expect(html).not.toContain("Hangi bileşen?");
+    }
   });
 });

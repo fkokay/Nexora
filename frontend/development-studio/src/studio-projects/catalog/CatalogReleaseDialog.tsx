@@ -17,8 +17,12 @@ export type CatalogReleaseDialogProps = {
   repositoryUrl: string | null;
   /** Firma yöneticisi ya da Studio yazılımcısı: önizleme ve sürüm yayını (sunucu da aynı kuralı uygular). */
   canDevelop: boolean;
+  /** Doğrulanmış firma yöneticisi: bileşenleri değiştiren sürümü yalnız o etkinleştirir (sunucu da reddeder). */
+  isTenantAdmin?: boolean;
   onClose: () => void;
 };
+
+export const COMPONENT_ADMIN_ONLY = "Yazılımcı bileşeni içeren bu sürümü yalnız firma yöneticisi etkinleştirebilir.";
 
 const semver = /^(\d+)\.(\d+)\.(\d+)$/;
 const parts = (v: string) => (semver.exec(v) ?? []).slice(1).map(Number);
@@ -36,7 +40,7 @@ function nextVersion(releases: CatalogRelease[]): string {
 const errorText = (error: unknown) => (error instanceof Error ? error.message : "İşlem tamamlanamadı.");
 
 export function CatalogReleaseDialog({
-  token, root, files, hasUncommittedCatalogChanges, headCommitSha, repositoryUrl, canDevelop, onClose,
+  token, root, files, hasUncommittedCatalogChanges, headCommitSha, repositoryUrl, canDevelop, isTenantAdmin = false, onClose,
 }: CatalogReleaseDialogProps) {
   const blocked = hasUncommittedCatalogChanges || !canDevelop;
   const [releases, setReleases] = useState<CatalogRelease[]>([]);
@@ -117,19 +121,36 @@ export function CatalogReleaseDialog({
     }
   }
 
-  const entryCount = readCatalogEntries(root, files).entries.length;
+  const currentEntries = readCatalogEntries(root, files).entries;
+  const count = (kind: string) => currentEntries.filter(e => e.kind === kind).length;
+  const componentCount = count("component");
+  // Bileşen eklenen ya da çıkarılan sürüm (kod kümesi değişir) yalnız firma yöneticisince etkinleştirilir. Kodu ya da ayarı değişen
+  // bileşeni istemci göremez (etkin katalog kodu vermez); o durumda sunucunun reddi hata olarak gösterilir.
+  const draftCodes = currentEntries.filter(e => e.kind === "component").map(e => e.code).sort();
+  const activeCodes = (active?.components ?? []).map(c => c.code).sort();
+  const adminOnly = !isTenantAdmin && (draftCodes.length !== activeCodes.length || draftCodes.some((code, i) => code !== activeCodes[i]));
 
   return (
     <Dialog onClose={onClose} labelledBy="sp-catalog-release-title" className="sp-dialog" dismissible={!busy}>
       <header className="sp-dialog-head">
         <div>
           <h2 id="sp-catalog-release-title">Sürüm yayınla</h2>
-          <p>Katalogdaki veri kaynakları ve eylemler ({entryCount} öğe) yeni bir sürüm olarak firmaya kurulur.</p>
+          <p>Katalogdaki veri kaynakları, eylemler ve bileşenler ({currentEntries.length} öğe) yeni bir sürüm olarak firmaya kurulur.</p>
         </div>
         <button type="button" className="ns-btn ns-btn-sm small-button ns-btn-ghost" aria-label="Kapat" disabled={busy} onClick={onClose}>
           <X size={17} />
         </button>
       </header>
+      <div className="sp-catalog-sum">
+        <div><span>Veri kaynağı</span><b>{count("dataSource")}</b></div>
+        <div><span>Eylem</span><b>{count("action")}</b></div>
+        <div><span>Bileşen</span><b>{componentCount}</b></div>
+      </div>
+      {componentCount > 0 && (
+        <p className="sp-catalog-note">
+          Yayınlanan sürüm taslaktır; firmada TenantAdmin etkinleştirince bütün sayfalar yeni bileşen kodunu kullanır. Danışmanın sayfaları ve ayar değerleri değişmez.
+        </p>
+      )}
       {!canDevelop && <div className="alert">Yalnızca yazılımcı ya da yönetici yayınlayabilir.</div>}
       {canDevelop && hasUncommittedCatalogChanges && <div className="alert">Önce değişiklikleri commit edin.</div>}
       {error && <div className="alert">{error}</div>}
@@ -155,7 +176,9 @@ export function CatalogReleaseDialog({
         <footer className="sp-dialog-foot">
           <small><ShieldCheck size={14} aria-hidden="true" /> Yalnız yazılımcı ya da yönetici yayınlayabilir</small>
           <button type="button" className="ns-btn" disabled={busy} onClick={onClose}>Vazgeç</button>
-          {draftId ? (
+          {draftId && adminOnly ? (
+            <span className="alert" role="note">{COMPONENT_ADMIN_ONLY}</span>
+          ) : draftId ? (
             <button type="button" className="ns-btn ns-btn-primary" disabled={busy} onClick={() => void activate(draftId, version)}>
               {busy ? "Etkinleştiriliyor…" : "Etkinleştir"}
             </button>

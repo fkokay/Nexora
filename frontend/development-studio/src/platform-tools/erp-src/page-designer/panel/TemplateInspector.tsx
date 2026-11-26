@@ -3,6 +3,7 @@ import { readPageTemplate } from "../pageTemplates";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ComponentPanel } from "./ComponentPanel";
 import { consultantKindOf } from "./consultantPalette";
+import { DeveloperComponentPanel } from "./DeveloperComponentPanel";
 import { FreePanel, freeSelectionOf, type FreePanelProps, type FreeSelection } from "./FreePanel";
 import { blockOf, freeBlocks, freeTabs, isFreeItem, moveItem, moveItemToBlock, removeItem } from "./freeModel";
 import { FreeTablePanel } from "./FreeTablePanel";
@@ -80,7 +81,7 @@ function FreePlace({ free, itemId, disabled }: { free: FreeInspectorProps; itemI
 
 /**
  * Serbest gövdenin paneli: seçim yok ya da sayfa eylemi / sekme bileşeni → sayfa; bölüm → bölüm (FreePanel); Liste → FreeTablePanel;
- * Metin, Bilgi kutusu, Gösterge, Görsel → 5a paneli (yeri "Bölüm" seçimi); öteki bileşenler → ComponentPanel içinde bugünkü ayarlar.
+ * Metin, Bilgi kutusu, Gösterge, Görsel, Yazılımcı bileşeni → danışman paneli (yeri "Bölüm" seçimi); öteki bileşenler → ComponentPanel içinde bugünkü ayarlar.
  */
 function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
   component: ModelComponent | null; legacy: ReactNode; list: Omit<ListPanelProps, "listId"> | null; free: FreeInspectorProps; tokens: FieldToken[]; disabled?: boolean;
@@ -103,6 +104,7 @@ function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
     case "text": return <TextPanel {...common} tokens={tokens} place={place}/>;
     case "infoBox": return <InfoBoxPanel {...common} tokens={tokens} place={place}/>;
     case "image": return <ImagePanel {...common} tokens={tokens} place={place}/>;
+    case "developer": return <DeveloperComponentPanel {...common} catalog={free.catalog} catalogStatus={free.catalogStatus ?? "ready"} place={place}/>;
     case "indicator":
       if (list) return <IndicatorPanel {...common} catalog={list.catalog} catalogStatus={list.catalogStatus} operationOf={list.operationOf} operationsStatus={list.operationsStatus} place={place}/>;
       break;
@@ -117,7 +119,7 @@ function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
  * - Serbest gövdede (`free` verilirse) seçim `FreeInspector`'da yönlendirilir.
  * - Kayıt kartında (`record` verilirse) kartın parçaları ve sayfa (`component` yokken) `RecordPanel`'de açılır.
  * - Liste kalıbında liste için `ListPanel`; Metin, Bilgi kutusu, Gösterge, Görsel ve eylem yerlerindeki düğmeler için
- *   danışman panelleri (alt proje 5a). Kayıt kartının ek alanlarında (`above` / `below`) da aynı paneller açılır (alanlar kaydın kolonlarındandır).
+ *   danışman panelleri (alt proje 5a); ek alanlardaki katalog `code` bileşeni için `DeveloperComponentPanel`. Kayıt kartının ek alanlarında (`above` / `below`) da aynı paneller açılır (alanlar kaydın kolonlarındandır).
  * - Öteki bileşenler için `ComponentPanel` içinde bugünkü ayar alanları.
  * Bileşen adı bağlamalarda kullanıldığından danışman panellerinde salt okunurdur. Ek alanlarda (`above` / `below`) Ad
  * bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
@@ -161,6 +163,10 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
       case "text": return <TextPanel {...common} tokens={tokens} place={placeChoice}/>;
       case "infoBox": return <InfoBoxPanel {...common} tokens={tokens} place={placeChoice}/>;
       case "image": return <ImagePanel {...common} tokens={tokens} place={placeChoice}/>;
+      // Yazılımcı bileşeni yalnız ek alanlarda (Karar 5); öteki yerlerde eski panel kalır.
+      case "developer":
+        if (extra) return <DeveloperComponentPanel {...common} catalog={list.catalog} catalogStatus={list.catalogStatus} place={placeChoice}/>;
+        break;
       case "indicator": return <IndicatorPanel {...common} catalog={list.catalog} catalogStatus={list.catalogStatus}
         operationOf={list.operationOf} operationsStatus={list.operationsStatus}/>;
       case "buttons": {

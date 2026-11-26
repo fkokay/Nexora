@@ -52,6 +52,9 @@ internal static class PageTemplateRules
     private const string ItemOutsideBlock = "Serbest gövdede her bileşen tam bir bölüme ait olmalı.";
     private const string FreeBlockOutsideTab = "Serbest gövdede sekme varsa her bölüm tam bir sekmede yer almalı.";
     private const string FreeBlockTooFull = "Serbest gövdede bir bölüm en fazla 12 bileşen içerebilir.";
+    private const string FreeInlineCode = "Serbest gövdede yalnız katalogdan seçilen yazılımcı bileşeni kullanılabilir.";
+    private static bool HasCatalogComponent(JsonElement component) =>
+        component.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object && props.TryGetProperty("catalogComponent", out _);
     private const string FreeNoChildren = "Serbest gövdede iç içe bileşen (children) kullanılmaz; bileşenler bölümün üyeleri olarak eklenir.";
     private const string FreeEmptyTab = "Serbest gövdede boş sekme olamaz; her sekmede en az bir bölüm bulunmalı.";
     private const string FreeTabOnlyBlocks = "Serbest gövdede sekmeler yalnız bölümleri içerebilir.";
@@ -243,8 +246,14 @@ internal static class PageTemplateRules
                 && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() > 0) return FreeNoChildren;
         if (Place(components, FreeSlots, out var placed) is { } placeError) return placeError;
 
-        foreach (var (_, slot, type) in placed)
+        foreach (var (component, slot, type) in placed)
         {
+            // A developer component (code + catalogComponent) may be an item; inline code may not.
+            if (slot == "item" && type == "code")
+            {
+                if (!HasCatalogComponent(component)) return FreeInlineCode;
+                continue;
+            }
             var allowed = slot == "item" ? FreeItemTypes.Contains(type) : FreeSlotTypes[slot] == type;
             if (!allowed) return WrongPart(slot, type, FreeSlotTypes[slot]);
         }

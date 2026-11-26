@@ -43,3 +43,31 @@ describe("loadCatalog column flags", () => {
     expect(columns[1]).toMatchObject({ longText: false, required: false, maxLength: null });
   });
 });
+
+describe("loadCatalog components", () => {
+  it("catalog client reads components", async () => {
+    respond(200, { version: "3", dataSources: [], actions: [], components: [
+      { code: "satisHaritasi", label: "Satış haritası", description: "Bölgelere göre", height: 300, settings: [
+        { name: "baslik", label: "Başlık", type: "text", default: "Bölgeler" },
+        { name: "donem", label: "Dönem", type: "choice", options: ["Bu ay", "Bu yıl"], default: "Bu ay" },
+        { name: "adet", label: "Adet", type: "number", default: "x" },
+        { name: "etiket", label: "Etiket", type: "bool", default: true },
+        { name: "garip", label: "Garip", type: "renk" }] },
+      { label: "Kodsuz" },
+      { code: "takvim", label: "Teslimat takvimi" }] });
+    const catalog = (await loadCatalog("t"))!;
+    expect(catalog.components).toHaveLength(2);
+    const [harita, takvim] = catalog.components!;
+    expect(harita).toMatchObject({ code: "satisHaritasi", label: "Satış haritası", description: "Bölgelere göre", height: 300 });
+    expect(harita.settings).toEqual([
+      { name: "baslik", label: "Başlık", type: "text", options: [], default: "Bölgeler" },
+      { name: "donem", label: "Dönem", type: "choice", options: ["Bu ay", "Bu yıl"], default: "Bu ay" },
+      { name: "adet", label: "Adet", type: "number", options: [], default: null },
+      { name: "etiket", label: "Etiket", type: "bool", options: [], default: true },
+      { name: "garip", label: "Garip", type: "text", options: [], default: null },
+    ]);
+    expect(takvim).toEqual({ code: "takvim", label: "Teslimat takvimi", description: null, height: 240, settings: [] });
+    respond(200, { version: "4", dataSources: [], actions: [] });
+    expect((await loadCatalog("t"))!.components).toEqual([]);
+  });
+});
