@@ -6,7 +6,8 @@ import { RECORD_LOADING, RECORD_UNREADABLE } from "./recordMessages";
 
 type Component = { id: string; type: string; props?: Record<string, unknown> };
 
-const UNBOUND = "Bu sayfada bağlanmadı";
+/** Bağlanmamış komutun nedeni: eski çubuk soluk çizer (`barLook unbound=hide` gizler); kalıp kabuğu hiç çizmez. */
+export const UNBOUND_REASON = "Bu sayfada bağlanmadı";
 const NO_RIGHT = "Bu işlem için yetkiniz yok";
 const BUSY = "İşlem sürüyor…";
 const NEEDS_SELECTION = "Önce bir kayıt seçin";
@@ -208,7 +209,7 @@ export type PageActionDeps = {
   };
 };
 
-const unbound = { disabledReason: UNBOUND };
+const unbound = { disabledReason: UNBOUND_REASON };
 /** Eski listelerin İşlemler öğesi (commands/gridCommands `csvExportCommand`). */
 export const CSV_EXPORT_COMMAND_ID = "export-csv";
 export const CSV_EXPORT_LABEL = "CSV olarak dışa aktar";
@@ -349,7 +350,7 @@ function applyBarVisibility(props: Record<string, unknown>, built: PageCommands,
   for (const id of STANDARD_BAR_IDS) {
     // Görüntüle, Aç'ın kardeşidir: Aç gizlenince (hiddenCommands / commandWhen) o da gizlenir.
     const hidden = barCommandHidden(props, id as BarCommandId, commandVisible) || (id === "view" && barCommandHidden(props, "open", commandVisible));
-    if (hidden || (hideUnbound && result[id]?.disabledReason === UNBOUND)) {
+    if (hidden || (hideUnbound && result[id]?.disabledReason === UNBOUND_REASON)) {
       result[id] = { hidden: true } satisfies CommandSpec;
     }
   }

@@ -54,6 +54,11 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   return <RegistryContext.Provider value={registry}>{children}</RegistryContext.Provider>;
 }
 
+/** The registry, or null outside a CommandProvider (a component that also renders standalone, e.g. the template shell). */
+export function useOptionalCommandRegistry(): CommandRegistry | null {
+  return useContext(RegistryContext);
+}
+
 export function useCommandRegistry(): CommandRegistry {
   const registry = useContext(RegistryContext);
   if (!registry) throw new Error('useCommandRegistry must be used inside CommandProvider');
