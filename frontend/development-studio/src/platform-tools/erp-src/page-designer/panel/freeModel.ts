@@ -70,6 +70,28 @@ export function blockOf(def: ModelDefinition, itemId: string): string | null {
   return freeBlocks(def).find((block) => membersOf(block).includes(itemId))?.id ?? null;
 }
 
+/**
+ * Seçili bölümün ya da bileşenin (bölümünün) sekmesi: tuval o sekmeyi `showTab` ile gösterir. Sekmesiz sayfada, seçim yokken,
+ * sekme bileşeninde, sayfa eyleminde ve sekmede olmayan bölümde null.
+ */
+export function freeSelectionTab(def: ModelDefinition, componentId: string | null | undefined): { tabsId: string; index: number } | null {
+  if (!componentId) return null;
+  const owner = tabsComponent(def);
+  const tabs = freeTabs(def);
+  if (!owner || !tabs) return null;
+  const blockId = findBlock(def, componentId) ? componentId : findItem(def, componentId) ? blockOf(def, componentId) : null;
+  const index = blockId ? tabs.findIndex((tab) => tab.blockIds.includes(blockId)) : -1;
+  return index < 0 ? null : { tabsId: owner.id, index };
+}
+
+/** Tuvalde görünen sekme: görünen bloklar arasında bölümü olan ilk sekme; sekmesiz sayfada ya da bilinmiyorsa -1. */
+export function shownFreeTab(def: ModelDefinition, visibleIds: Iterable<string>): number {
+  const tabs = freeTabs(def);
+  if (!tabs) return -1;
+  const ids = new Set(visibleIds);
+  return tabs.findIndex((tab) => tab.blockIds.some((id) => ids.has(id)));
+}
+
 // ---------- yazma yardımcıları ----------
 
 const withProps = (component: ModelComponent, patch: Record<string, PropValue | undefined>): ModelComponent => {
@@ -118,7 +140,7 @@ function reorderBlocks<D extends ModelDefinition>(def: D, order: string[]): D {
   return { ...def, components: def.components.map((component) => isFreeBlock(component) ? sorted[next++] : component) };
 }
 
-const tabLabel = (label: string) => label.replace(/[=,]/g, "").trim().slice(0, MAX_TAB_LABEL).trim();
+const tabLabel = (label: string) => label.replace(/[=,{}]/g, "").trim().slice(0, MAX_TAB_LABEL).trim();
 function nextBlockTitle(def: ModelDefinition): string {
   const titles = new Set(def.components.filter(isFreeBlock).map((block) => block.props.title));
   let index = def.components.filter(isFreeBlock).length + 1;
@@ -142,9 +164,9 @@ function insertBlock<D extends ModelDefinition>(def: D, block: ModelComponent, a
 
 /**
  * Yeni boş bölüm ("Bölüm N", 2 kolon), `afterBlockId`'nin arkasına; yoksa en sona. Sekme varsa `afterBlockId`'nin sekmesine
- * (onun arkasına), yoksa ilk sekmenin sonuna girer. 20 bölümde neden döner.
+ * (onun arkasına), yoksa `shownTab` sekmesinin (tuvalde görünen), o da bilinmiyorsa ilk sekmenin sonuna girer. 20 bölümde neden döner.
  */
-export function addBlock<D extends ModelDefinition>(def: D, afterBlockId?: string): { def: D; blockId: string } | { reason: string } {
+export function addBlock<D extends ModelDefinition>(def: D, afterBlockId?: string, shownTab?: number): { def: D; blockId: string } | { reason: string } {
   if (def.components.filter(isFreeBlock).length >= MAX_FREE_BLOCKS) return { reason: FREE_BLOCKS_FULL };
   const after = afterBlockId && findBlock(def, afterBlockId) ? afterBlockId : undefined;
   const block = newFreeBlock(def);
@@ -152,8 +174,9 @@ export function addBlock<D extends ModelDefinition>(def: D, afterBlockId?: strin
   const tabs = freeTabs(next);
   if (tabs) {
     const tabIndex = after ? tabs.findIndex((tab) => tab.blockIds.includes(after)) : -1;
+    const endTab = shownTab !== undefined && Number.isInteger(shownTab) && shownTab >= 0 && shownTab < tabs.length ? shownTab : 0;
     next = setFreeTabs(next, tabs.map((tab, index) => {
-      if (tabIndex >= 0 ? index !== tabIndex : index !== 0) return tab;
+      if (tabIndex >= 0 ? index !== tabIndex : index !== endTab) return tab;
       const at = tabIndex >= 0 ? tab.blockIds.indexOf(after!) + 1 : tab.blockIds.length;
       return { ...tab, blockIds: [...tab.blockIds.slice(0, at), block.id, ...tab.blockIds.slice(at)] };
     }));
@@ -226,7 +249,7 @@ export function addTab<D extends ModelDefinition>(def: D, label?: string): { def
   return { def: setFreeTabs(next, [...tabs, { label: clean, blockIds: [block.id] }]), tabIndex: tabs.length, blockId: block.id };
 }
 
-/** Etiketten `=` ve `,` atılır, en çok 40 karakter; boş etiket yok sayılır. */
+/** Etiketten `=`, `,`, `{` ve `}` atılır, en çok 40 karakter; boş etiket yok sayılır. */
 export function renameTab<D extends ModelDefinition>(def: D, tabIndex: number, label: string): D {
   const tabs = freeTabs(def);
   const clean = tabLabel(label);

@@ -41,3 +41,16 @@ describe("ImagePanel record options (5c)", () => {
     expect(empty(c)).toContain("Kayıttaki resim");
   });
 });
+
+describe("ImagePanel column binding (5c final review)", () => {
+  it("selects the token whose binding matches exactly, even with a dotted column code", () => {
+    const dotted = [{ label: "Adres logo", binding: "liste.seciliSatir.adres.logo" }, { label: "Logo", binding: "liste.seciliSatir.logo" }];
+    const c: ModelComponent = { id: "i1", type: "image", props: { value: "{{liste.seciliSatir.logo}}" } };
+    const html = renderToString(<ImagePanel component={c} definition={def(c)} tokens={dotted} onChange={() => {}} onRename={() => {}}/>);
+    expect(html).toMatch(/<option value="liste\.seciliSatir\.logo" selected/);
+    expect(html).not.toMatch(/<option value="liste\.seciliSatir\.adres\.logo" selected/);
+    const d: ModelComponent = { id: "i1", type: "image", props: { value: "{{liste.seciliSatir.adres.logo}}" } };
+    const second = renderToString(<ImagePanel component={d} definition={def(d)} tokens={dotted} onChange={() => {}} onRename={() => {}}/>);
+    expect(second).toMatch(/<option value="liste\.seciliSatir\.adres\.logo" selected/);
+  });
+});

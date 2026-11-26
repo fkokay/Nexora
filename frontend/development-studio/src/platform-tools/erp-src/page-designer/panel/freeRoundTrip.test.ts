@@ -81,7 +81,7 @@ const steps: Step[] = [
   ["add image", (d) => { const r = ok(addItem(d, "image", { blockId: ids.b2 })); ids.img = r.itemId; return r.def; }],
   ["add table", (d) => { const r = ok(addItem(d, "table", { blockId: ids.b2 })); ids.table = r.itemId; return r.def; }],
   ["table source", (d) => chooseTableSource(d, ids.table, siparisler)],
-  ["table page size", (d) => setTablePageSize(d, ids.table, 25)],
+  ["table page size", (d) => setTablePageSize(d, ids.table, 50)],
   ["table empty text", (d) => setTableEmptyText(d, ids.table, "Sipariş yok")],
   ["text style", (d) => setTextStyle(d, ids.text, "subheading")],
   ["text content", (d) => setTextContent(d, ids.text, "Bugünkü durum")],

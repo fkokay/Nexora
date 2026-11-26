@@ -15,8 +15,8 @@ export type FreeTableState = {
 /** Panelin sunduğu değerler; eski kayıttaki 100 (sunucu kabul eder) yalnız seçiliyken sunulur. */
 export const FREE_TABLE_PAGE_SIZES: readonly FreeTablePageSize[] = [10, 25, 50];
 export const FREE_TABLE_LEGACY_PAGE_SIZE: FreeTablePageSize = 100;
-/** Yeni Listenin sayfa başına değeri (satır tablosu gibi); kaydında `pageSize` olmayan tablo da böyle okunur. */
-export const DEFAULT_FREE_TABLE_PAGE_SIZE: FreeTablePageSize = 10;
+/** Yeni Listenin sayfa başına değeri; kaydında `pageSize` olmayan tablo da böyle okunur (ERP varsayılanı, listResponsive: 25). */
+export const DEFAULT_FREE_TABLE_PAGE_SIZE: FreeTablePageSize = 25;
 export const FREE_TABLE_SOURCE_NEEDS_INPUT = "Bu kaynak ek bilgi istiyor; burada kullanılamaz.";
 const MAX_TEXT = 120;
 
@@ -47,7 +47,7 @@ export function tableOf(def: ModelDefinition, id: string): FreeTableState | null
 
 /**
  * Kaynağı seçer: aynı kaynağa bağlı parametresiz bir okuma sorgusu varsa (ör. bir göstergenin) onu paylaşır, yoksa ekler. Başlık
- * kaynağın adı olur, ilk 6 kolon ve etiketleri yazılır, sayfa başına korunur (yoksa 10). Artık hiçbir yerde anılmayan eski sorgu
+ * kaynağın adı olur, ilk 6 kolon ve etiketleri yazılır, sayfa başına korunur (yoksa 25). Artık hiçbir yerde anılmayan eski sorgu
  * silinir. Ek bilgi isteyen kaynakta ya da aynı kaynakta tanım değişmez.
  */
 export function chooseTableSource<D extends ModelDefinition>(def: D, id: string, ds: CatalogDataSource): D {

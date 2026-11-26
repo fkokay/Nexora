@@ -47,7 +47,7 @@ describe("serbest gövdenin Listesi", () => {
     expect(props.columns).toEqual(["k1", "k2", "k3", "k4", "k5", "k6"]);
     expect(props.columnLabels).toEqual(["k1=Kolon 1", "k2=Kolon 2", "k3=Kolon 3", "k4=Kolon 4", "k5=Kolon 5", "k6=Kolon 6"]);
     expect(tableOf(next, id)).toEqual({ source: "siparisler", title: "siparisler kaynağı", columns: ["k1", "k2", "k3", "k4", "k5", "k6"],
-      labels: { k1: "Kolon 1", k2: "Kolon 2", k3: "Kolon 3", k4: "Kolon 4", k5: "Kolon 5", k6: "Kolon 6" }, pageSize: 10, emptyText: "" });
+      labels: { k1: "Kolon 1", k2: "Kolon 2", k3: "Kolon 3", k4: "Kolon 4", k5: "Kolon 5", k6: "Kolon 6" }, pageSize: 25, emptyText: "" });
     // Aynı kaynak yeniden seçilince tanım (kolon seçimi) değişmez.
     expect(chooseTableSource(next, id, siparisler)).toBe(next);
   });
@@ -76,7 +76,9 @@ describe("serbest gövdenin Listesi", () => {
 
   it("page size, empty text and tableOf", () => {
     const { def, id } = withTable();
-    expect(tableOf(def, id)).toEqual({ source: null, title: "", columns: [], labels: {}, pageSize: DEFAULT_FREE_TABLE_PAGE_SIZE, emptyText: "" });
+    // Kaydında `pageSize` olmayan tablo ERP'nin varsayılanıyla (25, listResponsive) okunur.
+    expect(DEFAULT_FREE_TABLE_PAGE_SIZE).toBe(25);
+    expect(tableOf(def, id)).toEqual({ source: null, title: "", columns: [], labels: {}, pageSize: 25, emptyText: "" });
     expect(tableOf(def, "yok")).toBeNull();
     const bound = chooseTableSource(def, id, siparisler);
     expect(tableProps(setTablePageSize(bound, id, 50), id).pageSize).toBe(50);

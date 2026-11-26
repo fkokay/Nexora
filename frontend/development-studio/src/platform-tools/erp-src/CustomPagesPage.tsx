@@ -43,7 +43,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { NEW_FREE_BLOCK_ID, NEW_LIST_ID, freeSourceProblem, freeSourceTable, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { LIST_SOURCE_HINT, NEW_FREE_BLOCK_ID, NEW_LIST_ID, freeSourceProblem, freeSourceTable, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -1778,8 +1778,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (!canEdit || !consultantAvailability(kind, "free").available) return;
     const current = definitionRef.current as unknown as ModelDefinition;
     const selected = selectedComponentId ?? undefined;
+    // Seçim yokken yeni bölüm tuvalde görünen sekmeye girer (biliniyorsa).
+    const shownTab = erpCanvas ? freeModel.shownFreeTab(current, erpBlocks.current.map((block) => block.id)) : -1;
     const result = kind === "sections"
-      ? (() => { const added = freeModel.addBlock(current, selected ? (current.components.some((c) => c.id === selected && freeModel.isFreeBlock(c)) ? selected : freeModel.blockOf(current, selected) ?? undefined) : undefined); return "reason" in added ? added : { def: added.def, id: added.blockId }; })()
+      ? (() => { const added = freeModel.addBlock(current, selected ? (current.components.some((c) => c.id === selected && freeModel.isFreeBlock(c)) ? selected : freeModel.blockOf(current, selected) ?? undefined) : undefined, shownTab >= 0 ? shownTab : undefined); return "reason" in added ? added : { def: added.def, id: added.blockId }; })()
       : kind === "list" || isCreatableKind(kind)
         ? (() => { const added = freeModel.addItem(current, kind === "list" ? "table" : kind, { blockId: selected, nearItemId: selected }); return "reason" in added ? added : { def: added.def, id: added.itemId }; })()
         : null;
@@ -2449,6 +2451,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
     holdKey: current ? null : JSON.stringify([name, code]),
   });
+  // Var olan serbest sayfada kaynaksız Liste otomatik kaydı durdurur: danışman nedenini tuvalin üstünde görür; sorun kalkınca
+  // (kaynak seçilir ya da Liste silinir) ipucu da kalkar.
+  const freePauseHint = isFreePage && erpCanvas && current ? freeSourceProblem(definition) : null;
+  useEffect(() => {
+    if (freePauseHint) setCanvasHint(freePauseHint);
+    else setCanvasHint((hint) => hint === LIST_SOURCE_HINT ? "" : hint);
+  }, [freePauseHint]);
   // Önizleme taslak tanımla çalışır: kaydedilmemiş değişiklik varsa önce taslak kaydedilir.
   const runQueryPreview = async (queryId: string, confirmWrite: boolean): Promise<number | null> => {
     const operationQuery = definitionRef.current.queries.find((item) => item.id === queryId);
@@ -3838,6 +3847,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (!source) { setError("Satır tablosu için bu kaydın anahtarıyla okunan bir kaynak yok; yazılımcıdan isteyin."); return; }
     commitRecord(addLines(recordDef, source, tabIndex, end), "dataTable");
   };
+  // Serbest gövde tuvali seçili bölümün / bileşenin sekmesini gösterir (Kayıt kartı kaplamasının showTab'ı gibi); sekme eklenince
+  // yeni bölüm seçildiği, bölüm başka sekmeye taşınınca sekmesi değiştiği için istek kendiliğinden yenilenir.
+  const freeTabTarget = isFreePage && erpCanvas ? freeModel.freeSelectionTab(definition as unknown as ModelDefinition, selectedComponentId) : null;
+  const freeTabRequest = freeTabTarget ? { ...freeTabTarget, key: selectedComponentId ?? "" } : null;
   // Serbest gövdenin paneli (TemplateInspector `free`): sayfa, bölüm, bileşen ve Liste aynı tanımı ve zenginleştirilmiş kataloğu görür.
   const freePanel = isFreePage ? {
     def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
@@ -3952,6 +3965,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onBlocks={(blocks) => { erpBlocks.current = blocks; if (isRecordPage) leaveHiddenRecordTab(shownRecordTab(blocks, recordDef)); }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
+              tabRequest={freeTabRequest}
               overlay={isRecordPage ? ({ blocks, showTab }) => {
                 const activeTab = canvasRecordTab(blocks);
                 const tabsId = recordDef.components.find((component) => component.type === "tabs" && component.props.slot === "tabs")?.id;

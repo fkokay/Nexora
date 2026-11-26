@@ -49,7 +49,7 @@ import { confirmStartNew } from "./commands/PageCommandsSlot";
 import { EditableGrid, type GridPicker } from "./custom-page/EditableGrid";
 import { gridColumnTotals, parseGridTotals } from "./custom-page/gridTotals";
 import { CALC_EMPTY, calcText, previewRows, previewScopeState, usePreviewQueries, withRowKeys, type PreviewPlan } from "./custom-page/previewQueries";
-import { DataTableGrid, gridToolsOf } from "./custom-page/DataTableGrid";
+import { DataTableGrid, gridToolsOf, NO_GRID_TOOLS } from "./custom-page/DataTableGrid";
 import { CLIENT_PAGE_SIZES, DEFAULT_CLIENT_PAGE_SIZE } from "./page-templates/listResponsive";
 import { CustomFieldsBlock } from "./custom-page/CustomFieldsBlock";
 import { emptyGridState, fixedRowValues, gridReducer, gridScope, iterationRows, parseColumnEntries, parseGridColumns, sentDrafts, validateGrid, wireRow, MATRIX_MAX_ROWS,
@@ -1413,7 +1413,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
           formats={parseColumnFormats(props.columnFormats)} toneMap={parseToneMap(props.toneMap)} totals={totals} density={props.density === "comfort" ? "comfort" : "dense"}
           selected={tableName ? runtime.selections[tableName] : undefined} onSelect={tableName ? (row, options) => runtime.select(tableName, row, options) : undefined} paging={paging}
           rowActions={rowActions} bulkDelete={bulkDelete} emptyText={textValue(props.emptyText).trim()} limit={limit} status={runtime.tableStatus[component.id] ?? null}
-          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={gridToolsOf(props)} toolbarToggles={toolbarToggles}
+          valueLabels={parseValueLabels(props.valueLabels)} columnLabels={pairMap(props.columnLabels)} columnUnits={pairMap(props.columnUnits)} tools={runtime.free && props.slot === "item" ? NO_GRID_TOOLS : gridToolsOf(props)} toolbarToggles={toolbarToggles}
           clientPageSize={pager ? undefined : typeof props.pageSize === "number" && CLIENT_PAGE_SIZES.includes(props.pageSize) ? props.pageSize : DEFAULT_CLIENT_PAGE_SIZE}
           onOpenRow={openByAction ?? (tableName && runtime.openTables.has(tableName) ? (row) => runtime.openRow(tableName, row) : undefined)} />;
       }

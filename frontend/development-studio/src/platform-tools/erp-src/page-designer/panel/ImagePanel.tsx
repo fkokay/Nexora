@@ -25,7 +25,9 @@ export function ImagePanel({ component, definition, tokens, disabled, onChange, 
   // Seçili satır dışındaki bir bağlama (ör. sorgu sonucu) adres kutusunda ham `{{…}}` olarak gösterilmez; "Adres" ile temizlenebilir.
   const bound = image.from === "address" && image.address.includes("{{");
   const problem = image.from === "address" && !bound ? imageAddressProblem(image.address) : null;
-  const columnBinding = tokens.find((token) => token.binding.endsWith(`.${image.column}`))?.binding ?? "";
+  // Kayıtlı bağlamanın kendisiyle tam eşleşme: noktalı kolon kodunda başka bir kolonun sonu seçilmez.
+  const stored = image.from === "record" ? String(component.props.value ?? "").trim().replace(/^\{\{\s*|\s*\}\}$/g, "") : "";
+  const columnBinding = tokens.find((token) => token.binding === stored)?.binding ?? "";
   const choose = (value: "address" | "record") => {
     if (value === image.from && !bound) return;
     if (value === "address") return onChange(setImageAddress(definition, component.id, ""));

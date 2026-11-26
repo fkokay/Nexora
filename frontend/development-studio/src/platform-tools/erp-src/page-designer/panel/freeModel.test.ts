@@ -3,7 +3,7 @@ import type { CatalogAction } from "../catalogClient";
 import { newFreeTemplateDefinition } from "../pageTemplates";
 import {
   addBlock, addItem, addPageAction, addTab, blockOf, DEFAULT_BLOCK_TITLE, FREE_BLOCK_FULL, FREE_BLOCK_NOT_EMPTY, FREE_BLOCKS_FULL,
-  FREE_LAST_BLOCK, FREE_TABS_FULL, freeBlocks, freeTabs, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
+  FREE_LAST_BLOCK, FREE_TABS_FULL, freeBlocks, freeSelectionTab, freeTabs, shownFreeTab, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, MAX_PAGE_ACTIONS, moveBlock, moveBlockToTab, moveItem,
   moveItemToBlock, PAGE_ACTION_BULK, PAGE_ACTION_NEEDS_INPUT, PAGE_ACTION_ROW, pageActionCodes, pageActionUsable, removeBlock, removeItem,
   removePageAction, removeTab, renameTab, setBlockColumns, setBlockTitle,
 } from "./freeModel";
@@ -72,6 +72,44 @@ describe("serbest gövde modeli", () => {
     const intoFirst = ok(addBlock(tabbed.def));
     expect(freeTabs(intoFirst.def)!.map((tab) => tab.blockIds)).toEqual([["bolum", intoFirst.blockId], [tabbed.blockId]]);
     assertShape(intoFirst.def);
+  });
+
+  it("addBlock without afterBlockId goes to the given (shown) tab; an unknown tab falls back to the first", () => {
+    const tabbed = ok(addTab(fresh()));
+    const intoShown = ok(addBlock(tabbed.def, undefined, 1));
+    expect(freeTabs(intoShown.def)!.map((tab) => tab.blockIds)).toEqual([["bolum"], [tabbed.blockId, intoShown.blockId]]);
+    assertShape(intoShown.def);
+    const unknown = ok(addBlock(tabbed.def, undefined, 7));
+    expect(freeTabs(unknown.def)!.map((tab) => tab.blockIds)).toEqual([["bolum", unknown.blockId], [tabbed.blockId]]);
+    // afterBlockId önce gelir.
+    const after = ok(addBlock(tabbed.def, "bolum", 1));
+    expect(freeTabs(after.def)!.map((tab) => tab.blockIds)).toEqual([["bolum", after.blockId], [tabbed.blockId]]);
+  });
+
+  it("freeSelectionTab finds the tab of a selected block or item", () => {
+    const tabbed = ok(addTab(fresh()));
+    const item = ok(addItem(tabbed.def, "text", { blockId: tabbed.blockId }));
+    const tabsId = tabsOf(item.def)[0].id;
+    expect(freeSelectionTab(item.def, tabbed.blockId)).toEqual({ tabsId, index: 1 });
+    expect(freeSelectionTab(item.def, item.itemId)).toEqual({ tabsId, index: 1 });
+    expect(freeSelectionTab(item.def, "bolum")).toEqual({ tabsId, index: 0 });
+    // Sekme bileşeni, bilinmeyen kimlik, seçimsizlik ve sekmesiz sayfa: null.
+    expect(freeSelectionTab(item.def, tabsId)).toBeNull();
+    expect(freeSelectionTab(item.def, "yok")).toBeNull();
+    expect(freeSelectionTab(item.def, null)).toBeNull();
+    const plain = ok(addItem(fresh(), "text", {}));
+    expect(freeSelectionTab(plain.def, plain.itemId)).toBeNull();
+    // Bölüm başka sekmeye taşınınca sekmesi de değişir.
+    const moved = moveBlockToTab(ok(addBlock(item.def, "bolum")).def, "bolum", 1);
+    expect(freeSelectionTab(moved, "bolum")).toEqual({ tabsId, index: 1 });
+  });
+
+  it("shownFreeTab reads the shown tab from the canvas block ids", () => {
+    const tabbed = ok(addTab(fresh()));
+    expect(shownFreeTab(tabbed.def, ["bolum"])).toBe(0);
+    expect(shownFreeTab(tabbed.def, [tabbed.blockId, "sekmeler"])).toBe(1);
+    expect(shownFreeTab(tabbed.def, [])).toBe(-1);
+    expect(shownFreeTab(fresh(), ["bolum"])).toBe(-1);
   });
 
   it("addBlock stops at twenty blocks", () => {
@@ -178,6 +216,8 @@ describe("serbest gövde modeli", () => {
     expect(renameTab(def, 1, " ,= ")).toBe(def);
     expect(renameTab(def, 5, "X")).toBe(def);
     expect(freeTabs(renameTab(def, 0, "x".repeat(60)))![0].label).toHaveLength(40);
+    expect(freeTabs(renameTab(def, 1, "{{a}} Sekme"))![1].label).toBe("a Sekme");
+    expect(freeTabs(ok(addTab(fresh(), "{Ek}")).def)![1].label).toBe("Ek");
   });
 
   it("removeTab moves blocks to previous tab", () => {

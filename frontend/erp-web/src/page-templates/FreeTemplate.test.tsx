@@ -111,6 +111,19 @@ describe('serbest gövde kalıbı', () => {
     expect(css).toMatch(/\.free-template-page \.free-cell\.is-full\s*\{[^}]*overflow-x:\s*auto/);
   });
 
+  it('free item table is read-only: no search, filters, column chooser or pivot', async () => {
+    render(<TenantCustomPage code="p" token="t" />);
+    const cell = (await screen.findByText('TK-1042', undefined, T)).closest('.free-cell')!;
+    expect(cell.querySelector('input[type=search]')).toBeNull();
+    // Yazdır ve tam ekran gibi görünüm düğmeleri kalabilir; arama, süzgeç, kolon seçici, pivot ve dışa aktarım yok.
+    const tools = [...cell.querySelectorAll('[data-grid-tool]')].map((tool) => tool.getAttribute('title') ?? tool.textContent);
+    expect(tools).not.toContain('Pivot görünümü');
+    expect([...cell.querySelectorAll('button')].map((b) => b.textContent)).not.toEqual(expect.arrayContaining(['XLSX']));
+    expect(cell.querySelector('.advanced-grid-search')).toBeNull();
+    expect(cell.querySelector('.advanced-grid-menu')).toBeNull();
+    expect(cell.textContent).not.toMatch(/Pivot|Filtre|Sütunlar/);
+  });
+
   it('blocks and members carry canvas anchors', async () => {
     publish(freeDefinition(freeTabbedComponents));
     const { container } = render(<CanvasAnchorContext.Provider value={true}><TenantCustomPage code="p" token="t" /></CanvasAnchorContext.Provider>);
