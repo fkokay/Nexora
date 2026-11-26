@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
+import { ANCHOR_ATTRIBUTE } from "../designer-canvas/canvasProtocol";
 import { confirmDialog, promptDialog } from "../confirmDialog";
 import { EditableGrid, type GridPicker } from "../custom-page/EditableGrid";
 import { LookupInput, type LookupOption } from "../custom-page/LookupInput";
@@ -76,6 +78,12 @@ function gridColumn(code: string, label: string, type: string, calculated: boole
 }
 
 type Picker = { options: LookupOption[]; loading: boolean; error?: string };
+
+/** Studio tuvalinde parçanın önüne seçim işaretçisi (`<template data-cp-anchor>`); normal sayfada hiçbir şey çizmez. */
+function Mark({ id }: { id: string | null }) {
+  const canvas = useContext(CanvasAnchorContext);
+  return canvas && id ? createElement("template", { [ANCHOR_ATTRIBUTE]: id }) : null;
+}
 
 /**
  * Belge kalıbı (belge kuralları PR 2, taslak 08): başlık, durum çizgisi, geçiş düğmeleri, başlık alanları, satırlar, toplamlar,
@@ -288,6 +296,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     <PageShell title={title} crumbs={[model.label]} actions={actions} head={head}>
       {message && <div className={`belge-message is-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>{message.text}</div>}
       {renderExtra && layout.above.length > 0 && renderExtra(layout.above)}
+      <Mark id={layout.ids.fields} />
       <section className="belge-fields" aria-label="Başlık alanları">{layout.fields.map(field)}</section>
       {definitions.length > 0 && <section className="belge-fields belge-custom-fields" aria-label="Özel alanlar">
         {definitions.map((d) => {
@@ -298,6 +307,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
               onChange={(e) => { setDirty(true); const value = e.target.value; setHeader((h) => ({ ...h, customFields: { ...h.customFields, [d.code]: value } })); }} /></div>;
         })}
       </section>}
+      <Mark id={layout.ids.lines} />
       <EditableGrid id="belge-satirlar" title="Satırlar" mode="list" columns={gridColumns} state={grid} sourceRows={[]} rowKey="lineNumber"
         dispatch={(action) => { if (action.type !== "add") setDirty(true); dispatch(action); }} errors={{}} fixedRowLabel="" addLabel="Satır ekle"
         maxRows={editable ? MAX_LINES : grid.rows.length} disabled={!editable} disabledReason={isEditable(status) ? "" : `${stateLabel(status)} belgenin satırları değişmez.`}
@@ -310,6 +320,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
           <ul>{(doc?.activity ?? []).map((a, i) => <li key={i}><strong>{a.step}</strong>{a.message ? <span> — {a.message}</span> : null}
             <time>{new Date(a.createdAt).toLocaleString("tr-TR")}</time></li>)}</ul>
         </section>}
+        <Mark id={layout.ids.summary} />
         <section className="belge-totals" aria-label="Toplamlar" aria-busy={calculation.pending || undefined}><h3>Toplamlar</h3>
           <dl>
             <div><dt>Ara toplam</dt><dd data-testid="belge-ara-toplam">{money(totals?.subtotal, currency)}</dd></div>

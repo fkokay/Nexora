@@ -48,6 +48,8 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
   const [shown, setShown] = useState<number | null>(null);
   // Studio'nun showTab ile istediği sekmeler; yeniden yüklemede (key değişimi) korunur.
   const [tabs, setTabs] = useState(NO_TABS);
+  // Belge kalıbı: Studio'nun "Önizlenen durum" seçimi; tuval örnek belgeyi bu durumda çizer.
+  const [belgeState, setBelgeState] = useState('Draft');
   const rootRef = useRef<HTMLDivElement>(null);
   const revisionRef = useRef(0);
   const notifyRef = useRef<() => void>(() => {});
@@ -92,7 +94,9 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
       if (event.origin !== studioOrigin || event.source !== window.parent) return;
       const message = parseStudioCanvasMessage(event.data);
       if (!message) return;
-      if (message.type === 'showTab') {
+      if (message.type === 'previewState') {
+        setBelgeState(message.state);
+      } else if (message.type === 'showTab') {
         const { tabsId, index } = message;
         // Her istek yeni bir sayaçla: kullanıcı başka sekmeye tıkladıktan sonra aynı sekme yeniden istenebilir.
         setTabs((current) => new Map(current).set(tabsId, { index, signal: (current.get(tabsId)?.signal ?? 0) + 1 }));
@@ -155,7 +159,7 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
             <CanvasAnchorContext.Provider value={true}>
               <CanvasTabsContext.Provider value={tabs}>
                 <Suspense fallback={null}>
-                  {shown !== null && <TenantCustomPage key={shown} token={token} previewId={previewId} systemScreenKey={systemScreenKey} />}
+                  {shown !== null && <TenantCustomPage key={shown} token={token} previewId={previewId} systemScreenKey={systemScreenKey} belgePreviewState={belgeState} />}
                 </Suspense>
               </CanvasTabsContext.Provider>
             </CanvasAnchorContext.Provider>

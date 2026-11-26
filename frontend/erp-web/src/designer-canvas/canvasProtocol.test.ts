@@ -38,6 +38,13 @@ describe('parseStudioCanvasMessage', () => {
     expect(parseStudioCanvasMessage(data)).toBeNull();
   });
 
+  it('parseStudioCanvasMessage accepts previewState and rejects bad states', () => {
+    expect(parseStudioCanvasMessage({ nx: 'nexora-canvas', v: 1, type: 'previewState', state: 'Open' }))
+      .toEqual({ nx: 'nexora-canvas', v: 1, type: 'previewState', state: 'Open' });
+    for (const state of ['', 'Açık', 'a b', 3, 'x'.repeat(33)])
+      expect(parseStudioCanvasMessage({ nx: 'nexora-canvas', v: 1, type: 'previewState', state })).toBeNull();
+  });
+
   it('parseStudioCanvasMessage accepts showTab and rejects bad index', () => {
     const msg = { nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 2 };
     expect(parseStudioCanvasMessage(msg)).toEqual(msg);

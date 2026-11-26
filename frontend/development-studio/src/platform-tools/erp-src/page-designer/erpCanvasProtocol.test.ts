@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasFrameUrl, parseCanvasMessage, reloadMessage, showTabMessage } from "./erpCanvasProtocol";
+import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showTabMessage } from "./erpCanvasProtocol";
 
 const base = { nx: "nexora-canvas", v: 1 };
 
@@ -13,6 +13,11 @@ describe("ERP tuval protokolü", () => {
 
   it("reload mesajı üretir", () => {
     expect(reloadMessage(3)).toEqual({ ...base, type: "reload", revision: 3 });
+  });
+
+  it("belge önizleme durumu mesajı üretir ve geçersiz durumu reddeder", () => {
+    expect(previewStateMessage("Fulfilled")).toEqual({ nx: "nexora-canvas", v: 1, type: "previewState", state: "Fulfilled" });
+    expect(() => previewStateMessage("Sevk edildi")).toThrow();
   });
 
   it("erpCanvasProtocol showTab round trip", () => {

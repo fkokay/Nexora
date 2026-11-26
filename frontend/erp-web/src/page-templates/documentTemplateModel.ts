@@ -8,6 +8,8 @@ export type BelgeLayout<C extends BelgeComponent> = {
   columns: string[]; columnLabels: Record<string, string>; density: "dense" | "normal" | "comfy";
   vatBreakdown: boolean; activity: boolean;
   actions: C[]; above: C[]; below: C[];
+  /** Parçaların bileşen kimlikleri (Studio tuvalinde seçim işaretçisi için). */
+  ids: { fields: string | null; lines: string | null; summary: string | null };
 };
 
 export const BELGE_PARTS = ["documentFields", "documentLines", "documentSummary"] as const;
@@ -20,6 +22,7 @@ const labels = (value: unknown): Record<string, string> =>
 
 export function layoutDocumentTemplate<C extends BelgeComponent>(components: C[]): BelgeLayout<C> {
   const part = (type: string) => components.find((c) => c.type === type)?.props ?? {};
+  const idOf = (type: string) => components.find((c) => c.type === type)?.id ?? null;
   const fields = part("documentFields"), lines = part("documentLines"), summary = part("documentSummary");
   const slot = (name: string) => components.filter((c) => c.props?.slot === name && !(BELGE_PARTS as readonly string[]).includes(c.type));
   const density = lines.density === "dense" || lines.density === "comfy" ? lines.density : "normal";
@@ -28,6 +31,7 @@ export function layoutDocumentTemplate<C extends BelgeComponent>(components: C[]
     columns: strings(lines.columns), columnLabels: labels(lines.labels), density,
     vatBreakdown: summary.vatBreakdown !== false, activity: summary.activity !== false,
     actions: slot("actions"), above: slot("above"), below: slot("below"),
+    ids: { fields: idOf("documentFields"), lines: idOf("documentLines"), summary: idOf("documentSummary") },
   };
 }
 
