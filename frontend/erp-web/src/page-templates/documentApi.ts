@@ -27,8 +27,11 @@ export type OrderView = {
 export type VatRow = { rate: number; taxableAmount: number; amount: number };
 export type DocumentAmounts = { currencyCode: string; subtotal: number; discountTotal: number; taxTotal: number; grandTotal: number; vat: VatRow[] };
 export type ActivityRow = { transition: string; step: string; source: string; outcome: string; message: string | null; createdAt: string };
+/** Onay bekleyen siparişin kararı: şu anki adımın karar verecek kişileri ve bu kullanıcının karar verip veremeyeceği. */
+export type DocumentApproval = { instanceId: string; step: string; approvers: string[]; canDecide: boolean };
 export type SalesOrderDocument = {
   order: OrderView; amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean;
+  approval?: DocumentApproval | null;
 };
 
 export type PreviewLine = { rowKey: string | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number };

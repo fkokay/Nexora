@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../erpApi";
+import { authenticatedFetch } from "../authApi";
+import { confirmDialog } from "../confirmDialog";
 import { DocumentTemplate } from "./DocumentTemplate";
 import TenantCustomPage from "../TenantCustomPage";
 import { CommandProvider } from "../commands/CommandProvider";
@@ -11,8 +13,10 @@ import { layoutDocumentTemplate, type BelgeComponent } from "./documentTemplateM
 // satırları yükler (G-S7), miktar değişince sunucu tutarlarını ve KDV dökümünü gösterir (G-S8), stok seçilince alanları doldurur (G-S9).
 
 vi.mock("../erpApi", () => ({ api: vi.fn() }));
+vi.mock("../authApi", () => ({ authenticatedFetch: vi.fn() }));
 vi.mock("../confirmDialog", () => ({ confirmDialog: vi.fn(async () => true), promptDialog: vi.fn(async () => "Müşteri vazgeçti") }));
 const mockedApi = vi.mocked(api);
+const mockedFetch = vi.mocked(authenticatedFetch);
 const T = { timeout: 4000 };
 
 export const belgeComponents: BelgeComponent[] = [
@@ -85,6 +89,8 @@ let previewReplies: ((body: { lines: { rowKey: string; quantity: number }[] }) =
 let definitionsFail: boolean;
 /** Stok doldurma yanıtları (stok kimliği → elle çözülen söz); yoksa hemen yanıtlanır. */
 let fillReplies: Map<string, Promise<unknown>> | null;
+/** Onayla yanıtı; verilirse sunucunun kural yanıtını taklit eder. */
+let approveReply: ((body: { acknowledgeWarnings?: boolean }) => unknown) | null;
 
 const previewOf = (body: { lines: { rowKey: string; quantity: number }[] }, perUnit = 100) => {
   const lines = body.lines.map((l) => ({ rowKey: l.rowKey, lineSubtotal: l.quantity * perUnit, discountAmount: 0, taxAmount: l.quantity * perUnit * 0.2, lineTotal: l.quantity * perUnit * 1.2 }));
@@ -99,7 +105,8 @@ beforeEach(() => {
   previewReplies = null;
   definitionsFail = false;
   fillReplies = null;
-  mockedApi.mockImplementation(async (url: string, _token?: string, init?: RequestInit) => {
+  approveReply = null;
+  const handler = async (url: string, _token?: string, init?: RequestInit): Promise<unknown> => {
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ url, method, body });
@@ -116,10 +123,24 @@ beforeEach(() => {
       return { values: { unitCode: "KG", unitPrice: 92.4, vatPercent: 10, discountPercent: 5, currencyCode: "TRY", availableQuantity: 310 } };
     if (url.startsWith("/api/stock/items")) return { items: [{ id: STOCK, code: "UN-07", name: "Tam buğday unu" }, { id: STOCK2, code: "SKR-02", name: "Toz şeker" }] };
     if (url.startsWith("/api/customers")) return { items: [{ id: CUSTOMER, code: "C-1", name: "Akdeniz Gıda", currencyCode: "TRY" }] };
-    if (url === `/api/sales/orders/${ORDER}/approve`) { current = document("Open", ["onayiGeriAl", "iptal"]); return {}; }
+    if (url === `/api/sales/orders/${ORDER}/approve`) {
+      if (approveReply) return approveReply(body as { acknowledgeWarnings?: boolean });
+      current = document("Open", ["onayiGeriAl", "iptal"]); return { status: "Open", warnings: [] };
+    }
+    if (url.startsWith("/api/workflows/instances/") && url.endsWith("/decision")) {
+      current = document((body as { decision: string }).decision === "Approved" ? "Open" : "Draft", []); return {};
+    }
     if (url === `/api/sales/orders/${ORDER}/cancel`) { current = document("Cancelled", []); return {}; }
     if (url === `/api/sales/orders/${ORDER}` && method === "PUT") return { id: ORDER };
     throw Object.assign(new Error(`beklenmeyen istek ${method} ${url}`), { status: 404 });
+  };
+  mockedApi.mockImplementation(handler as never);
+  mockedFetch.mockImplementation(async (url: string, token?: string, init?: RequestInit) => {
+    try { return new Response(JSON.stringify((await handler(url, token, init)) ?? {}), { status: 200 }); }
+    catch (failure) {
+      const error = failure as Error & { status?: number; body?: unknown };
+      return new Response(JSON.stringify(error.body ?? { error: error.message }), { status: error.status ?? 500 });
+    }
   });
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -307,5 +328,53 @@ describe("Belge kalıbı son inceleme düzeltmeleri", () => {
     await screen.findByText("SO-7", undefined, T);
     fireEvent.change(screen.getByLabelText("Miktar (satır 1)"), { target: { value: "5" } });
     await waitFor(() => expect(screen.getByTestId("belge-genel-toplam").textContent).toBe("—"), T);
+  });
+});
+
+describe("Belge kalıbı kurallar (PR 3)", () => {
+  const pending = (canDecide: boolean) => ({ ...document("PendingApproval", ["iptal"]),
+    approval: { instanceId: "11111111-2222-3333-4444-555555555555", step: "Onay: buyukTutar", approvers: ["Mehmet Demir", "Ayşe Kaya"], canDecide } });
+
+  it("onay bekleyen sipariş kimin karar vereceğini gösterir; kuraldaki kişi onaylar", async () => {
+    current = pending(true);
+    show();
+    expect((await screen.findByTestId("belge-onay", undefined, T)).textContent).toContain("karar: Mehmet Demir veya Ayşe Kaya");
+    expect(screen.getByTestId("belge-durum").textContent).toBe("Onay bekliyor");
+    fireEvent.click(screen.getByRole("button", { name: "Onayla" }));
+    await waitFor(() => expect(screen.getByTestId("belge-durum").textContent).toBe("Onaylı"), T);
+    expect(calls.find((c) => c.url.endsWith("/decision"))?.body).toEqual({ decision: "Approved", comment: null });
+  });
+
+  it("Reddet gerekçe ister; karar veremeyen kişi düğme görmez", async () => {
+    current = pending(true);
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Reddet" }, T));
+    await waitFor(() => expect(calls.find((c) => c.url.endsWith("/decision"))?.body).toEqual({ decision: "Rejected", comment: "Müşteri vazgeçti" }), T);
+    cleanup();
+    current = pending(false);
+    show();
+    await screen.findByTestId("belge-onay", undefined, T);
+    expect(screen.queryByRole("button", { name: "Reddet" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Onayla" })).toBeNull();
+  });
+
+  it("kural uyarısı onay ister; onaylanınca istek uyarılar görüldü diye yinelenir", async () => {
+    approveReply = (body) => {
+      if (!body.acknowledgeWarnings) throw Object.assign(new Error("uyarı"), { status: 409, body: { error: "Kurallar uyarı veriyor.", code: "needsConfirmation", warnings: ["İskonto yüksek."] } });
+      current = document("Open", []);
+      return { status: "Open", warnings: [] };
+    };
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Onayla" }, T));
+    await waitFor(() => expect(screen.getByTestId("belge-durum").textContent).toBe("Onaylı"), T);
+    expect(vi.mocked(confirmDialog)).toHaveBeenCalledWith(expect.objectContaining({ message: "• İskonto yüksek." }));
+    expect(calls.filter((c) => c.url.endsWith("/approve")).map((c) => (c.body as { acknowledgeWarnings: boolean }).acknowledgeWarnings)).toEqual([false, true]);
+  });
+
+  it("engelleyen kuralın mesajı gösterilir", async () => {
+    approveReply = () => { throw Object.assign(new Error("engel"), { status: 409, body: { error: "Bu cari grubuna sipariş onaylanamaz.", code: "blocked" } }); };
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Onayla" }, T));
+    expect((await screen.findByRole("alert", undefined, T)).textContent).toContain("Bu cari grubuna sipariş onaylanamaz.");
   });
 });

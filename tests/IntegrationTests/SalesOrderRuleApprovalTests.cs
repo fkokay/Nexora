@@ -239,4 +239,20 @@ public sealed class SalesOrderRuleApprovalTests
         Assert.Single(mine.EnumerateArray());
         Assert.Empty(theirs.EnumerateArray());
     }
+
+    [Fact]
+    public async Task Document_shows_the_pending_approval_and_who_may_decide()
+    {
+        await using var w = await WorldAsync();
+        await DocumentRuleEndpointsTests.PublishAsync(w.Admin, Rule("onay", "approval", people: [w.Mehmet, w.Seed.UserId]));
+        await ApproveAsync(w.As(w.Seed.UserId, "TenantUser"), w.OrderId);
+
+        var forMehmet = await SalesOrderApiFactory.ReadJsonAsync(await w.As(w.Mehmet, "TenantUser").GetAsync($"/api/sales/orders/{w.OrderId}/document"));
+        var forSaver = await SalesOrderApiFactory.ReadJsonAsync(await w.As(w.Seed.UserId, "TenantUser").GetAsync($"/api/sales/orders/{w.OrderId}/document"));
+
+        Assert.True(forMehmet.GetProperty("approval").GetProperty("canDecide").GetBoolean());
+        Assert.Equal(["Mehmet Demir"], forMehmet.GetProperty("approval").GetProperty("approvers").EnumerateArray().Select(x => x.GetString()));
+        Assert.False(forSaver.GetProperty("approval").GetProperty("canDecide").GetBoolean());
+        Assert.Equal(["iptal"], forSaver.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()));
+    }
 }

@@ -33,4 +33,8 @@ public sealed record DocumentAmounts(string CurrencyCode, decimal Subtotal, deci
 
 /// <summary>A sales order as its Belge page needs it: the order, amounts, what this user may do now and the işlem günlüğü.</summary>
 public sealed record SalesOrderDocumentView(AIERP.Platform.Application.SalesOrderView Order, DocumentAmounts Amounts,
-    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
+    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate,
+    DocumentApprovalView? Approval = null);
+
+/// <summary>A held order's pending approval (belge kuralı Onay iste): the current step's deciders and whether this user may decide.</summary>
+public sealed record DocumentApprovalView(Guid InstanceId, string Step, IReadOnlyList<string> Approvers, bool CanDecide);

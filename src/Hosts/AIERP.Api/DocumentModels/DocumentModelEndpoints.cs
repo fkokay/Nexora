@@ -43,8 +43,8 @@ internal static class DocumentModelEndpoints
         });
 
         app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()
-            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
-                CancellationToken ct) =>
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, PlatformDbContext platform,
+                IPlatformPermissionAuthorizer authorizer, CancellationToken ct) =>
             {
                 if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
                 if (await SalesOrderReads.ViewAsync(db, tenantId, id, ct) is not { } order) return Results.NotFound();
@@ -56,8 +56,25 @@ internal static class DocumentModelEndpoints
                 return Results.Ok(new SalesOrderDocumentView(order,
                     new DocumentAmounts(order.CurrencyCode, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, vat.OrderBy(x => x.Rate).ToList()),
                     await AllowedTransitionsAsync(db, authorizer, principal, tenantId, order, ct), activity,
-                    activity.Count == 0 && order.Status != SalesOrderStatus.Draft));
+                    activity.Count == 0 && order.Status != SalesOrderStatus.Draft,
+                    order.Status == SalesOrderStatus.PendingApproval ? await ApprovalAsync(db, platform, principal, tenantId, id, ct) : null));
             });
+    }
+
+    private static async Task<DocumentApprovalView?> ApprovalAsync(TenantDbContext db, PlatformDbContext platform, ClaimsPrincipal principal,
+        Guid tenantId, Guid orderId, CancellationToken ct)
+    {
+        var instance = await db.TenantWorkflowInstances.AsNoTracking().Where(x => x.TenantId == tenantId && x.SubjectType == AIERP.Api.DocumentRules.SalesOrderApprovalWorkflow.SubjectType
+            && x.SubjectId == orderId && x.Status == "Pending").OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
+        if (instance is null) return null;
+        var steps = System.Text.Json.JsonSerializer.Deserialize<List<TenantWorkflowStep>>(instance.StepsJsonSnapshot,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
+        if (instance.CurrentStepIndex < 0 || instance.CurrentStepIndex >= steps.Count) return null;
+        var step = steps[instance.CurrentStepIndex];
+        var people = (step.ApproverUserIds ?? []).Where(x => x != instance.StartedByUserId).ToArray();
+        var names = await platform.Users.AsNoTracking().Where(x => people.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
+        Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId);
+        return new DocumentApprovalView(instance.Id, step.Name, people.Select(x => names.GetValueOrDefault(x) ?? x.ToString("D")).ToList(), people.Contains(userId));
     }
 
     private static async Task<IReadOnlyList<string>> AllowedTransitionsAsync(TenantDbContext db, IPlatformPermissionAuthorizer authorizer,

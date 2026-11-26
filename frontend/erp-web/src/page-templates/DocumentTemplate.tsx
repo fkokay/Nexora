@@ -6,6 +6,7 @@ import { EditableGrid, type GridPicker } from "../custom-page/EditableGrid";
 import { LookupInput, type LookupOption } from "../custom-page/LookupInput";
 import { emptyGridState, gridReducer, type GridAction, type GridColumn, type GridDraft, type GridState } from "../custom-page/gridState";
 import { PageShell, type ShellAction } from "./PageShell";
+import { approveSalesOrder, decideSalesOrder, warningsText } from "../sales/orderApproval";
 import {
   fillLine, loadCustomFieldDefinitions, loadDocumentModel, loadSalesOrderDocument, loadSampleDocument, lookupLabel, runTransition, saveOrder,
   searchOptions, type CustomFieldDefinition, type DocumentModel, type OrderPreview, type PreviewLineRequest, type SalesOrderDocument,
@@ -261,11 +262,35 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     }
     setBusy(true); setMessage(null);
     try {
-      await runTransition(doc.order.id, code, reason, token);
+      if (code === "onayla") {
+        const outcome = await approveSalesOrder(doc.order.id, token, (warnings) => confirmDialog({
+          title: "Kurallar uyarı veriyor", message: warningsText(warnings), tone: "warning", confirmLabel: "Yine de onayla" }));
+        if (!outcome) return;
+        if (outcome.status === "PendingApproval") setMessage({ tone: "info", text: "Sipariş onay bekliyor; kuraldaki kişilerden biri karar verecek." });
+      } else await runTransition(doc.order.id, code, reason, token);
       setDirty(false);
       setReload((n) => n + 1);
     } catch (failure) {
       setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "İşlem yapılamadı." });
+    } finally { setBusy(false); }
+  };
+
+  /** Onay bekleyen siparişte kuraldaki kişinin kararı: Onayla ya da gerekçeyle Reddet. */
+  const decide = async (decision: "Approved" | "Rejected") => {
+    if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
+    const approval = doc?.approval;
+    if (!doc || !approval) return;
+    let comment: string | null = null;
+    if (decision === "Rejected") {
+      comment = await promptDialog({ title: `${doc.order.code}: Reddet`, label: "Gerekçe", required: true, maxLength: 500, tone: "danger", confirmLabel: "Reddet" });
+      if (comment === null) return;
+    }
+    setBusy(true); setMessage(null);
+    try {
+      await decideSalesOrder(approval.instanceId, decision, comment, token);
+      setReload((n) => n + 1);
+    } catch (failure) {
+      setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Karar kaydedilemedi." });
     } finally { setBusy(false); }
   };
 
@@ -275,6 +300,10 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const stateLabel = (code: string) => model.states.find((s) => s.code === code)?.label ?? code;
   const actions: ShellAction[] = [];
   if (isEditable(status)) actions.push({ id: "kaydet", label: "Kaydet", kind: "primary", disabled: busy, run: () => void save() });
+  if (doc?.approval?.canDecide) {
+    actions.push({ id: "karar-onayla", label: "Onayla", kind: "primary", disabled: busy, run: () => void decide("Approved") });
+    actions.push({ id: "karar-reddet", label: "Reddet", kind: "normal", disabled: busy, run: () => void decide("Rejected") });
+  }
   for (const code of doc ? doc.allowedTransitions : []) {
     const definition = model.transitions.find((t) => t.code === code);
     if (!definition) continue;
@@ -290,6 +319,8 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     <ol className="belge-chain" aria-label="Durum">
       {chain.map((s, i) => <li key={s.code} className={i < at ? "is-done" : i === at ? "is-current" : ""} aria-current={i === at ? "step" : undefined}>{s.label}</li>)}
     </ol>
+    {doc?.approval && <p className="belge-approval" role="status" data-testid="belge-onay">
+      Onay bekliyor · karar: {doc.approval.approvers.join(" veya ") || "—"}{doc.approval.canDecide ? " · sıra sizde" : ""}</p>}
     {renderExtra && layout.actions.length > 0 && <div className="belge-extra-actions">{renderExtra(layout.actions)}</div>}
   </div>;
 
