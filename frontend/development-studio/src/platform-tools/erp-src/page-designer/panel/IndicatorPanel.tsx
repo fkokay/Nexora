@@ -37,9 +37,11 @@ export type IndicatorPanelProps = {
   disabled?: boolean; onChange: (next: ModelDefinition) => void; onRename: (name: string) => void;
   /** "Ne zaman görünsün?" alanı (`VisibilityField` düğümü). */
   visibility?: ReactNode;
+  /** Ad bölümünün altındaki satırı değiştirir (serbest gövdede bölüm seçimi); verilmezse "Yeri" seçimi. */
+  place?: ReactNode;
 };
 
-export function IndicatorPanel({ component, definition, catalog, catalogStatus, operationOf, operationsStatus, disabled, onChange, onRename, visibility }: IndicatorPanelProps) {
+export function IndicatorPanel({ component, definition, catalog, catalogStatus, operationOf, operationsStatus, disabled, onChange, onRename, visibility, place: placeOverride }: IndicatorPanelProps) {
   const state = indicatorOf(definition, component.id);
   const sources = (catalog?.dataSources ?? []).map((item) => withOperationParameters(item, operationOf(item.erpOperation), false, operationsStatus));
   const source = sources.find((item) => item.code === state.source);
@@ -109,7 +111,7 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
   </>;
   // "Yeri" Ad bölümünün altında (Metin, Bilgi kutusu ve Görsel ile aynı); seçenekler `indicatorPlaces`'ten gelir.
   const record = readPageTemplate(definition.template)?.name === "record";
-  const place = <div className="cpanel-row cpanel-template-place">Yeri
+  const place = placeOverride ?? <div className="cpanel-row cpanel-template-place">Yeri
     <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, listLabel]) =>
       <button type="button" key={value} className={component.props.slot === value ? "on" : ""} aria-pressed={component.props.slot === value} disabled={disabled}
         onClick={() => change(setIndicatorPlace(definition, id, value))}>{(record && RECORD_PLACES[value]) || listLabel}</button>)}</div>

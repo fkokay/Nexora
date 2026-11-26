@@ -43,7 +43,7 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { NEW_FREE_BLOCK_ID, NEW_LIST_ID, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { NEW_FREE_BLOCK_ID, NEW_LIST_ID, freeSourceProblem, freeSourceTable, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -61,7 +61,8 @@ import { stringList, withOperationParameters, type ModelDefinition } from "./pag
 import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
-import { ensureTemplateSlots, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import type { FreeSelection } from "./page-designer/panel/FreePanel";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
 import { shownRecordTab } from "./page-designer/recordCanvasHit";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
@@ -219,6 +220,8 @@ const managedKeys = new Set(["size", "backdropClose", "text", "title", "label", 
   "definitionsQuery", "valuesQuery", "contains", "presentation", "saveLabel", "closeOnSave", "resetOnOpen", "height", "fit", "recordKey", "trackChanges",
   // Proje 4: form kartının tek satır (süzgeç) dizilimi, koşullu genişlik ve değer etiketleri.
   "layout", "widthWhen", "valueLabels", "columnLabels", "columnUnits",
+  // Alt proje 5c: serbest gövdenin bölüm üyeleri (bölüm panelinde ve bileşenin "Bölüm" seçiminde düzenlenir).
+  "members",
   // İşlem Çubuğu Yeni / Aç / kayıttan sonra düğmeleri ve sayfa başlığı olan başlık.
   "newButton", "openButton", "afterSaveButton", "pageTitle", ...BAR_COMMAND_PROPS,
   // Izgara tablo araçları (yoksa açık; kapalıysa false yazılır).
@@ -506,9 +509,10 @@ function reconcileLayoutRefs(definition: PageDefinition, options: ReconcileOptio
     if (component.type !== "dataTable") return component;
     const props = component.props;
     // Kalıplı sayfanın listesinde ve Kayıt kartının satır tablosunda sayfalama istemcidedir (Karar 4): yalnız `pageSize`
-    // "Sayfa başına" ayarıdır, korunur.
+    // "Sayfa başına" ayarıdır, korunur. Serbest gövdenin Listesi (`slot: item`) de öyledir.
     const pageTemplate = readPageTemplate(definition.template)?.name;
-    const clientPaged = (pageTemplate === "list" && props.slot === "list" || pageTemplate === "record" && props.slot === "lines") && props.paging === undefined;
+    const clientPaged = (pageTemplate === "list" && props.slot === "list" || pageTemplate === "record" && props.slot === "lines" || pageTemplate === "free" && props.slot === "item")
+      && props.paging === undefined;
     const hasPagingProps = PAGING_PROPS.some((key) => key in props && !(clientPaged && key === "pageSize"));
     if (!hasPagingProps) return component;
     const query = typeof props.query === "string" ? queriesById.get(props.query) : undefined;
@@ -1371,11 +1375,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kayıt kartının kataloğu bir kez zenginleştirilir (Liste panelindeki gibi `withOperationParameters`): sol liste, panel ve
   // model aynı kataloğu görür. Kancalar erken dönüşten önce durmalı; bu yüzden burada.
   const isRecordPage = pageTemplate?.name === "record";
-  const recordCatalog = useMemo<ActiveCatalog | null>(() => isRecordPage && activeCatalog.catalog ? {
+  // Serbest gövdenin panelleri (sayfa eylemleri ve Liste kaynakları) de aynı zenginleştirilmiş kataloğu kullanır.
+  const isFreePage = pageTemplate?.name === "free";
+  const recordCatalog = useMemo<ActiveCatalog | null>(() => (isRecordPage || isFreePage) && activeCatalog.catalog ? {
     ...activeCatalog.catalog,
     dataSources: activeCatalog.catalog.dataSources.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, false, erpCatalog.status)),
     actions: activeCatalog.catalog.actions.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, true, erpCatalog.status)),
-  } : null, [isRecordPage, activeCatalog.catalog, erpCatalog]);
+  } : null, [isRecordPage, isFreePage, activeCatalog.catalog, erpCatalog]);
   const needsCatalog = !!readPageTemplate(definition.template) || newPageDialog === "create";
   useEffect(() => {
     if (!needsCatalog) return;
@@ -2201,6 +2207,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (record.kind === "none") return;
     if (record.kind === "blocked") { setError(record.reason); return; }
     if (record.kind === "removed") { commit(() => record.def as unknown as PageDefinition); setSelectedComponentId((value) => value === id ? null : value); return; }
+    // Serbest gövdede bölüm, bileşen ve sayfa eylemi modelin kuralıyla silinir (üyelik geçerli kalır; dolu ya da son bölüm silinmez).
+    const free = freeRemoval(definitionRef.current as unknown as ModelDefinition, id);
+    if (free.kind === "none") return;
+    if (free.kind === "blocked") { setError(free.reason); return; }
+    if (free.kind === "removed") { commit(() => free.def as unknown as PageDefinition); setSelectedComponentId((value) => value === id ? null : value); return; }
     commit((state) => ({ ...state, components: cardTree.removeComponent(state.components, id).map((component) => { if (component.props.filterInput !== id && !(typeof component.props.filterInput === "string" && component.props.filterInput.startsWith(`${id}.`))) return component; const props = { ...component.props }; delete props.filterInput; delete props.filterValue; return { ...component, props }; }) })); setSelectedComponentId((value) => value === id ? null : value); };
   const duplicateComponent = (id: string) => {
     const original = cardTree.findComponent(definitionRef.current.components, id);
@@ -2355,12 +2366,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
     // Kaynağı seçilmemiş liste kalıbı kaydedilmez (sunucu "tam bir liste" ister); ipucu kendi metniyle gösterilir.
-    const sourceProblem = listSourceProblem(definition) ?? recordSourceProblem(definition);
+    const sourceProblem = listSourceProblem(definition) ?? recordSourceProblem(definition) ?? freeSourceProblem(definition);
     if (sourceProblem) {
       if (quiet) setCanvasHint(sourceProblem); else {
         setError(sourceProblem);
         const list = definition.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
-        const target = list ?? definition.components.find((component) => component.type === "recordHeader" && component.props.slot === "summary");
+        const freeTable = freeSourceTable(definition);
+        const target = list ?? definition.components.find((component) => component.type === "recordHeader" && component.props.slot === "summary")
+          ?? (freeTable ? definition.components.find((component) => component.id === freeTable) : undefined);
         if (target) { setSelectedComponentId(target.id); setRightMode("inspector"); }
       }
       return null;
@@ -2430,7 +2443,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // (sayfa açılışı) ya da elle kayıt sürerken PUT atılmaz.
   useDraftAutosave({
     // Kaynağı seçilmemiş liste kalıbı kaydedilmez; kaynak seçilince (kapalıyken gelen değişiklik unutulmaz) taslak oluşur.
-    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null && recordSourceProblem(definition) === null,
+    enabled: erpCanvasAvailable && canEdit && Boolean(name.trim() && code.trim()) && listSourceProblem(definition) === null && recordSourceProblem(definition) === null && freeSourceProblem(definition) === null,
     changeKey: definition,
     save: async () => saving || (!dirty && !!current) ? false : Boolean(await saveDraft({ quiet: true })),
     // Henüz oluşturulmamış sayfada ad / kod yazılırken bekleyen ilk kayıt ertelenir (yarım kodla taslak açılmaz).
@@ -2591,7 +2604,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && event.altKey && selectedComponentId) {
       event.preventDefault();
       const index = definition.components.findIndex((component) => component.id === selectedComponentId);
-      if (tabLocation(cardTree.flatWithCardTabs(definition.components), selectedComponentId)) moveInTab(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
+      const freeDef = definition as unknown as ModelDefinition;
+      const freeTarget = pageTemplate?.name === "free" ? freeDef.components.find((component) => component.id === selectedComponentId) : undefined;
+      // Serbest gövdede sıra `members` (bileşen) ya da bölüm sırasıdır; genel taşıma kullanılmaz.
+      if (pageTemplate?.name === "free") {
+        const direction = event.key === "ArrowUp" ? -1 : 1;
+        if (freeTarget && canEdit) {
+          const next = freeModel.isFreeBlock(freeTarget) ? freeModel.moveBlock(freeDef, freeTarget.id, direction)
+            : freeModel.isFreeItem(freeTarget) ? freeModel.moveItem(freeDef, freeTarget.id, direction) : freeDef;
+          if (next !== freeDef) commit(() => next as unknown as PageDefinition);
+        }
+      }
+      else if (tabLocation(cardTree.flatWithCardTabs(definition.components), selectedComponentId)) moveInTab(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
       else if (cardTree.cardLocation(definition.components, selectedComponentId)) stepInCard(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
       else if (focusOwner && refTree.refLocation(definition.components, selectedComponentId)?.ownerId === focusOwner.id) stepInOwner(selectedComponentId, event.key === "ArrowUp" ? -1 : 1);
       else if (index >= 0) moveComponent(index, event.key === "ArrowUp" ? -1 : 1);
@@ -3814,6 +3838,17 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (!source) { setError("Satır tablosu için bu kaydın anahtarıyla okunan bir kaynak yok; yazılımcıdan isteyin."); return; }
     commitRecord(addLines(recordDef, source, tabIndex, end), "dataTable");
   };
+  // Serbest gövdenin paneli (TemplateInspector `free`): sayfa, bölüm, bileşen ve Liste aynı tanımı ve zenginleştirilmiş kataloğu görür.
+  const freePanel = isFreePage ? {
+    def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
+    onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
+    onSelect: (selection: FreeSelection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id),
+    visibility: (id: string) => {
+      const component = definition.components.find((item) => item.id === id);
+      return component ? <VisibilityField key={`${id}-visibility`} props={component.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions}
+        disabled={!canEdit} onSet={(key, value) => setOptionalProp(id, key, value)}/> : null;
+    },
+  } : null;
   const recordPanel = isRecordPage ? {
     def: recordDef, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
     onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
@@ -3929,7 +3964,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
                   onDropBlock={(kind, tabIndex, index) => addRecordBlock(kind, { tabIndex, index })}/>;
               } : undefined}/>
           </div>
-            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
+            : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) ?? freeSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>
           : <div className={`pd-frame device-${device}`}>
             <div className="pd-frame-top"><b>Nexora ERP</b><span>{name || "Yeni sayfa"}</span></div>
@@ -4534,7 +4569,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // Danışman panelleri (alt proje 5a) Liste kalıbında Metin, Bilgi kutusu, Gösterge, Görsel ve eylem düğmeleri için açılır.
         const modelDefinition = definition as unknown as ModelDefinition;
         if (!usesTemplateInspector(modelDefinition, selected.id)) return legacyInspector;
-        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel}
+        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel} free={freePanel}
           tokens={fieldTokens(modelDefinition, activeCatalog.catalog)}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
@@ -4546,9 +4581,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       })() : <div className="pd-right-body">
           {/* Kayıt kartında sayfanın panelini Kayıt paneli çizer (ad dahil); sayfa kodu, açıklama, erişim ve silme altında kalır. */}
           {recordPanel ? <TemplateInspector component={null} legacy={null} list={null} record={recordPanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
+            : freePanel ? <TemplateInspector component={null} legacy={null} list={null} free={freePanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
             : <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {!recordPanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
+            {!recordPanel && !freePanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
             {systemScreenKey
               ? <label className="pd-field">Sayfa kodu<small>Sistem sayfasının kodu ekrana bağlıdır; değiştirilemez.</small><input value={`@${systemScreenKey}`} readOnly aria-readonly="true"/></label>
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}

@@ -81,6 +81,27 @@ export function listSourceProblem(definition: DefinitionLike & { queries?: unkno
   return queryId && queries.some((query) => query?.id === queryId && query.kind === "read") ? null : LIST_SOURCE_HINT;
 }
 
+/** Serbest gövdede okuma sorgusu (kaynağı) olmayan ilk Liste (`slot: item` `dataTable`); yoksa ya da sayfa serbest değilse null. */
+export function freeSourceTable(definition: DefinitionLike & { queries?: unknown }): string | null {
+  if (readPageTemplate(definition.template)?.name !== "free") return null;
+  const components = Array.isArray(definition.components) ? definition.components as { id?: unknown; type?: unknown; props?: Record<string, unknown> }[] : [];
+  const queries = Array.isArray(definition.queries) ? definition.queries as { id?: unknown; kind?: unknown }[] : [];
+  const table = components.find((component) => {
+    if (component?.type !== "dataTable" || component.props?.slot !== "item") return false;
+    const queryId = typeof component.props?.query === "string" ? component.props.query : "";
+    return !(queryId && queries.some((query) => query?.id === queryId && query.kind === "read"));
+  });
+  return table && typeof table.id === "string" ? table.id : null;
+}
+
+/**
+ * Serbest gövdede kaynağı seçilmemiş Liste varsa kaydın önündeki ipucu (`listSourceProblem` eşi); sunucu okuma sorgusu olmayan
+ * listeyi reddeder. Serbest olmayan sayfada ya da bütün listeler bağlıysa null.
+ */
+export function freeSourceProblem(definition: DefinitionLike & { queries?: unknown }): string | null {
+  return freeSourceTable(definition) ? LIST_SOURCE_HINT : null;
+}
+
 /** Basamak saklanmaz, hesaplanır: serbest gövde her zaman 3; `above`/`below` yerinde bileşen varsa 2, yoksa 1; kalıpsız sayfada null. */
 export function templateLevel(definition: DefinitionLike): 1 | 2 | 3 | null {
   const template = readPageTemplate(definition.template);

@@ -2,7 +2,10 @@
 // ağacın hiçbir yerinde `width` / `widthWhen` kalmaz. Eski ayar yollarından (satır düğmesi, kopyalama, standart öğeler…)
 // gelen bileşenler de böylece kaydı bozmaz. Değişiklik yoksa aynı nesne döner.
 import { readPageTemplate } from "../pageTemplates";
-import { freeBlocks, freeTabs, isFreeBlock, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, setFreeTabs } from "./freeModel";
+import {
+  freeBlocks, freeTabs, isFreeBlock, isFreeItem, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, removeBlock as removeFreeBlock, removeItem as removeFreeItem,
+  removePageAction, setFreeTabs,
+} from "./freeModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
@@ -174,9 +177,36 @@ export function recordRemoval<D extends ModelDefinition>(def: D, id: string): Re
   return { kind: "removed", def: removeBlock(def, id) };
 }
 
+/**
+ * Tasarımcının genel silme yolunun serbest gövdedeki karşılığı (üyelik geçerli kalsın diye): bölüm `freeModel.removeBlock`
+ * kuralıyla (üyesi olan ya da son bölüm silinmez, neden döner), bileşen `removeItem` ile, sayfa eylemi `removePageAction` ile
+ * silinir; sekme bileşeni silinmez (sekmeleri sayfa paneli yönetir). Serbest olmayan sayfada genel yol.
+ */
+export function freeRemoval<D extends ModelDefinition>(def: D, id: string): RecordRemoval<D> {
+  if (readPageTemplate(def.template)?.name !== "free") return { kind: "generic" };
+  const component = def.components.find((item) => item.id === id);
+  if (!component) return { kind: "none" };
+  if (isFreeBlock(component)) {
+    const result = removeFreeBlock(def, id);
+    return "reason" in result ? { kind: "blocked", reason: result.reason } : { kind: "removed", def: result.def };
+  }
+  if (isFreeItem(component)) return { kind: "removed", def: removeFreeItem(def, id) };
+  if (component.type === "tabs") return { kind: "none" };
+  if (component.type === "button" && component.props.slot === "actions") {
+    const query = def.queries.find((item) => item.id === component.props.queryId);
+    const code = typeof query?.action === "string" ? query.action : null;
+    const next = code ? removePageAction(def, code) : def;
+    if (next !== def) return { kind: "removed", def: next };
+  }
+  return { kind: "removed", def: { ...def, components: def.components.filter((item) => item !== component) } };
+}
+
 /** Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi ve kayıt kartının her parçası. */
 export function templateDuplicateBlocked(def: ModelDefinition, id: string): boolean {
-  if (!readPageTemplate(def.template)) return false;
+  const template = readPageTemplate(def.template);
+  if (!template) return false;
+  // Serbest gövdede kopya bölüm üyeliğini bozardı (kopya hiçbir bölümde olmaz ya da üyeleri iki bölümde olur); kopyalama kapalı.
+  if (template.name === "free") return def.components.some((item) => item.id === id);
   if (isRecordPart(def, id)) return true;
   const component = def.components.find((item) => item.id === id);
   if (!component) return false;
