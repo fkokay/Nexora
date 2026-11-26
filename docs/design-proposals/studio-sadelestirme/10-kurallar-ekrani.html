@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Kurallar ekranı – satış siparişi (taslak)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--core:#6b6880;--core-soft:#f1f0f6;--warn:#b45309;--warn-soft:#fdf3e2;--bad:#b42318;--bad-soft:#fdecea;--ok:#15803d;--ok-soft:#e7f6ec}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.45}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px}
+  .top h1{font-size:16px;margin:0}
+  select,input{font:inherit;border:1px solid var(--line);border-radius:7px;padding:5px 8px;background:#fff}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.link{border:0;background:none;color:var(--accent);padding:4px 0;font-weight:600}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;background:#fdf0d5;color:#8a5a00}
+  .chainbar{background:#fff;border-bottom:1px solid var(--line);padding:12px 16px}
+  .chain{display:flex;align-items:center;gap:0;flex-wrap:wrap}
+  .st{border:1.5px solid var(--line);border-radius:99px;padding:5px 12px;background:#fff;white-space:nowrap}
+  .st.cond{border-style:dashed;color:var(--muted)}
+  .tr{display:flex;flex-direction:column;align-items:center;min-width:110px;cursor:pointer;color:var(--muted);font-size:11.5px;padding:0 4px}
+  .tr .lbl{padding:2px 8px;border-radius:6px}
+  .tr .arrow{width:100%;height:2px;background:var(--line);position:relative;margin:3px 0}
+  .tr .arrow:after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left-color:var(--line)}
+  .tr.on .lbl{background:var(--accent);color:#fff;font-weight:600}
+  .tr.on .arrow{background:var(--accent)} .tr.on .arrow:after{border-left-color:var(--accent)}
+  .tr small{font-size:10.5px}
+  .side{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;color:var(--muted);font-size:12px;align-items:center}
+  .side .tr2{border:1px dashed var(--line);border-radius:7px;padding:3px 9px;cursor:pointer;background:#fff}
+  .side .tr2.on{border-style:solid;border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .legend{display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .wrap{display:grid;grid-template-columns:1fr 340px;height:calc(100vh - 210px)}
+  .main{overflow:auto;padding:16px 20px}
+  .sec{margin-bottom:18px}
+  .sec h3{margin:0 0 2px;font-size:14px}
+  .sec .sub{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .step{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:6px;background:#fff}
+  .step .ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:12px;flex:none}
+  .step .tx{flex:1;min-width:0}
+  .step .tx b{display:block;font-weight:600}
+  .step .tx span{color:var(--muted);font-size:12px}
+  .step .who{font-size:11px;color:var(--muted);white-space:nowrap}
+  .step.core .ic{background:var(--core-soft);color:var(--core)}
+  .step.ext{border-style:dashed;background:#fbfffe} .step.ext .ic{background:var(--dev-soft);color:var(--dev)}
+  .step.rule{border-color:#d9d0fb;background:#fcfbff} .step.rule .ic{background:var(--accent-soft);color:var(--accent)}
+  .step.rule.off{opacity:.55}
+  .sent{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+  .tok{border:1px solid #d9d0fb;background:#fff;border-radius:6px;padding:2px 7px;color:var(--accent);font-weight:600}
+  .act{border-radius:6px;padding:2px 7px;font-weight:600}
+  .act.onay{background:var(--accent-soft);color:var(--accent)} .act.uyar{background:var(--warn-soft);color:var(--warn)} .act.engel{background:var(--bad-soft);color:var(--bad)}
+  .badge{font-size:10.5px;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600}
+  .badge.draft{background:#fdf0d5;color:#8a5a00} .badge.pub{background:var(--ok-soft);color:var(--ok)}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:14px}
+  .builder{border:1.5px solid var(--accent);border-radius:12px;padding:12px;background:#fff;margin:8px 0}
+  .builder .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+  .builder .people{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:3px 10px;cursor:pointer;color:var(--muted);background:#fff}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .order{font-size:12px;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:6px}
+  .empty{color:var(--muted);font-size:12px;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+  .try{background:#fff;border-left:1px solid var(--line);overflow:auto;padding:14px 16px}
+  .try h4{margin:0 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .try label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+  .try input,.try select{width:100%}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;margin-bottom:6px}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .log{margin-top:12px}
+  .log div{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:12px}
+  .log div:last-child{border:0}
+  .log .o{width:18px;flex:none;text-align:center}
+  .result{margin-top:10px;border-radius:10px;padding:9px 11px;font-weight:600}
+  .result.ok{background:var(--ok-soft);color:var(--ok)} .result.wait{background:var(--accent-soft);color:var(--accent)} .result.bad{background:var(--bad-soft);color:var(--bad)} .result.warn{background:var(--warn-soft);color:var(--warn)}
+  .hint{color:var(--muted);font-size:11.5px;margin-top:6px;line-height:1.45}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 10 – Kurallar ekranı (satış siparişi):</b> Bu seride danışman kuralları yalnız <b>Onayla</b> geçişine bağlanır. Öteki geçişlere tıklayınca yalnız modülün yaptığı işler görünür. <b>Gri</b> adımlar modülden gelir ve değiştirilemez; <b>yeşil</b> kesikli kutu yazılımcı uzantısının yeridir (şimdilik boş); <b>mor</b> adımlar senin kurallarındır. “+ Kural ekle” ile cümle kur, sağda <b>Dene</b> ile örnek değerlerde çalıştır. Kurallar sayfalar gibi taslakta durur; <b>Yayınla</b> deyince geçerli olur.</div>
+
+<div class="top">
+  <h1>Kurallar</h1>
+  <select aria-label="Belge"><option>Satış siparişi</option><option disabled>Satış teklifi · yakında</option><option disabled>Satış faturası · yakında</option></select>
+  <span class="pill" id="draftPill">Taslak · 0 değişiklik</span>
+  <span class="sp"></span>
+  <button class="btn">Geçmiş</button>
+  <button class="btn primary" id="publish">Yayınla</button>
+</div>
+
+<div class="chainbar">
+  <div class="chain">
+    <span class="st">Taslak</span>
+    <div class="tr on" data-t="onayla"><span class="lbl">Onayla</span><div class="arrow"></div><small id="cnt-onayla"></small></div>
+    <span class="st cond" title="Yalnız bir kural onay isterse araya girer">Onay bekliyor</span>
+    <div class="tr" data-t="karar"><span class="lbl">Onaylayan karar verir</span><div class="arrow"></div><small>2 adım</small></div>
+    <span class="st">Onaylı</span>
+    <div class="tr" data-t="sevk"><span class="lbl">Sevk et</span><div class="arrow"></div><small>irsaliyeden</small></div>
+    <span class="st">Sevk edildi</span>
+    <div class="tr" data-t="fatura"><span class="lbl">Faturala</span><div class="arrow"></div><small>faturadan</small></div>
+    <span class="st">Faturalandı</span>
+  </div>
+  <div class="side">Öteki geçişler:
+    <span class="tr2" data-t="geri">Onayı geri al · Onaylı → Taslak</span>
+    <span class="tr2" data-t="iptal">İptal et · Taslak/Onaylı → İptal</span>
+  </div>
+  <div class="legend"><span><i style="background:var(--core-soft);border:1px solid #d8d5e3"></i>Modül · Nexora</span><span><i style="background:var(--dev-soft);border:1px dashed var(--dev)"></i>Yazılımcı uzantısı</span><span><i style="background:var(--accent-soft)"></i>Danışman kuralı</span></div>
+</div>
+
+<div class="wrap">
+  <div class="main" id="main"></div>
+  <aside class="try">
+    <h4>Dene · Onayla</h4>
+    <div class="seg" id="trySrc"><button class="on" data-s="ornek">Örnek değerler</button><button data-s="siparis">Var olan sipariş</button></div>
+    <div id="srcOrnek">
+      <label>Genel toplam (₺)</label><input id="tTotal" type="number" value="120000">
+      <label>En yüksek satır iskontosu (%)</label><input id="tDisc" type="number" value="5">
+      <label>Cari grubu</label><select id="tGroup"><option>Toptan</option><option>Perakende</option><option>Kara liste</option></select>
+      <label>Kaydeden</label><select id="tUser"><option>Fatih Kaya</option><option>Mehmet Demir</option></select>
+    </div>
+    <div id="srcSiparis" class="hidden">
+      <label>Sipariş</label><select><option>SO-2026-0148 · Akdeniz Gıda · 16.031,25 ₺ · Taslak</option><option>SO-2026-0151 · Ege Makina · 128.400,00 ₺ · Taslak</option></select>
+    </div>
+    <button class="btn primary" style="width:100%;margin-top:12px" id="run">“Onayla” geçişini dene</button>
+    <div class="hint">Sunucu kontrolleri ve <b>taslaktaki</b> kurallarla çalışır. Hiçbir kayıt değişmez, kimseye bildirim gitmez.</div>
+    <div id="out"></div>
+  </aside>
+</div>
+
+<script>
+const FIELDS=[["grandTotal","Genel toplam","money"],["subtotal","Ara toplam","money"],["discountTotal","İskonto toplamı","money"],["lineCount","Satır sayısı","number"],["maxLineDiscount","En yüksek satır iskontosu","percent"],["customer","Cari","text"],["customerGroup","Cari grubu","text"],["currency","Döviz","text"],["salesperson","Plasiyer","text"],["orderDate","Sipariş tarihi","date"],["deliveryDate","Teslim tarihi","date"]];
+const OPS=[">","≥","<","≤","=","≠","içerir"];
+const PEOPLE=["Mehmet Demir","Ayşe Kaya","Selin Arslan","Fatih Kaya"];
+let rules=[
+ {id:1,always:false,field:"grandTotal",op:">",value:"100000",action:"onay",people:["Mehmet Demir","Ayşe Kaya"],on:true,state:"pub"},
+ {id:2,always:false,field:"maxLineDiscount",op:">",value:"15",action:"uyar",text:"Satırda %15'ten yüksek iskonto var.",on:true,state:"pub"},
+ {id:3,always:false,field:"customerGroup",op:"=",value:"Kara liste",action:"engel",text:"Bu cari grubuna sipariş onaylanamaz; muhasebeye danışın.",on:true,state:"draft"}];
+let changes=1,next=4,building=null,current="onayla";
+const fieldLabel=c=>FIELDS.find(f=>f[0]===c)?.[1]??c;
+const fmt=(r)=>{const f=FIELDS.find(x=>x[0]===r.field);return f&&f[2]==="money"?Number(r.value).toLocaleString("tr-TR")+" ₺":f&&f[2]==="percent"?"%"+r.value:r.value};
+const actText=r=>r.action==="onay"?`Onay iste: ${r.people.join(" veya ")||"kişi seçin"}`:r.action==="uyar"?`Uyar ama devam et: “${r.text}”`:`Engelle: “${r.text}”`;
+function step(cls,ic,title,sub,who){return `<div class="step ${cls}"><span class="ic">${ic}</span><div class="tx"><b>${title}</b>${sub?`<span>${sub}</span>`:""}</div><span class="who">${who}</span></div>`}
+function ruleRow(r){
+  return `<div class="step rule ${r.on?"":"off"}"><span class="ic">✎</span><div class="tx"><div class="sent">${r.always?"<span>Her zaman</span>":`<span>Eğer</span><span class="tok">${fieldLabel(r.field)}</span><span class="tok">${r.op}</span><span class="tok">${fmt(r)}</span><span>ise</span>`}<span class="act ${r.action}">${actText(r)}</span><span class="badge ${r.state}">${r.state==="pub"?"Yayında":"Taslak"}</span></div></div>
+  <span class="tg ${r.on?"on":""}" data-tog="${r.id}" title="Aç / kapat"></span><button class="x" data-edit="${r.id}" title="Düzenle">✎</button><button class="x" data-del="${r.id}" title="Sil">✕</button></div>`;
+}
+function builder(){
+  const b=building;
+  const peopleHtml=PEOPLE.map(p=>`<span class="chip ${b.people.includes(p)?"on":""}" data-p="${p}">${p}</span>`).join("");
+  return `<div class="builder">
+   <div class="row"><select id="bMode"><option value="if" ${!b.always?"selected":""}>Eğer</option><option value="always" ${b.always?"selected":""}>Her zaman</option></select>
+   ${b.always?"":`<select id="bField">${FIELDS.map(f=>`<option value="${f[0]}" ${f[0]===b.field?"selected":""}>${f[1]}</option>`).join("")}</select>
+   <select id="bOp">${OPS.map(o=>`<option ${o===b.op?"selected":""}>${o}</option>`).join("")}</select>
+   <input id="bVal" value="${b.value}" style="width:120px"> <span>ise</span>`}</div>
+   <div class="row"><select id="bAct"><option value="onay" ${b.action==="onay"?"selected":""}>Onay iste</option><option value="uyar" ${b.action==="uyar"?"selected":""}>Uyar ama devam et</option><option value="engel" ${b.action==="engel"?"selected":""}>Engelle</option></select></div>
+   ${b.action==="onay"?`<div class="row" style="display:block"><div style="color:var(--muted);font-size:12px;margin-bottom:5px">Onaylayacak kişiler (biri karar verir; siparişi kaydeden kendi siparişine karar veremez)</div><div class="people">${peopleHtml}</div></div>`
+     :`<div class="row"><input id="bText" value="${b.text??""}" placeholder="${b.action==="uyar"?"Kullanıcıya gösterilecek uyarı":"Kullanıcıya gösterilecek neden"}" style="flex:1"></div>`}
+   <div class="row" style="margin:0"><button class="btn primary" id="bSave">Kuralı ekle</button><button class="btn" id="bCancel">Vazgeç</button></div></div>`;
+}
+const SECTIONS={
+ onayla:()=>`<div class="sec"><h3>“Onayla” denince — önce modülün kontrolleri</h3><div class="sub">Biri engellerse sipariş onaylanmaz, kullanıcı nedenini görür.</div>
+   ${step("core","🔒","Satırlar ve bilgiler geçerli","1–200 satır; cari, döviz ve plasiyer geçerli; stok kartları aktif","Modül")}
+   ${step("core","🔒","Zorunlu özel alanlar dolu","Firmanın zorunlu sipariş alanları","Modül")}
+   ${step("core","🔒","Cari risk limiti","Açık bakiye + bu sipariş limiti aşarsa engeller","Modül")}
+   ${step("core","⚠","Stok yeterli mi?","Kullanılabilir miktar azsa uyarır, onaylamayı durdurmaz","Modül")}</div>
+  <div class="sec"><h3>Sonra — senin kuralların</h3><div class="sub">Birden çok kural tutarsa önce <b>Engelle</b>, sonra <b>Onay iste</b>, sonra <b>Uyar</b> değerlendirilir. Birden çok onay kuralı tutarsa onaylar kural sırasıyla tek akışta birleşir.</div>
+   ${rules.map(ruleRow).join("")||`<div class="empty">Kural yok: siparişi kaydeden kendisi onaylar.</div>`}
+   ${building?builder():`<button class="btn link" id="add">+ Kural ekle</button>`}
+   <div class="order">Hiçbir kural onay istemezse siparişi <b>kaydeden kendisi onaylar</b> ve sipariş doğrudan <b>Onaylı</b> olur. Bir kural onay isterse sipariş <b>Onay bekliyor</b>'a geçer.</div></div>
+  <div class="sec"><h3>Geçişten sonra</h3><div class="sub">Aynı işlem içinde çalışır.</div>
+   ${step("core","🔒","Durum Onaylı (ya da Onay bekliyor) olur ve işlem günlüğüne yazılır","Kim, ne zaman, hangi kontrol ve kural","Modül")}
+   ${step("ext","＋","Yazılımcı uzantısı yok","Burası iş ortağı yazılımcısının kodunun yeri (onaylaSonra); sonraki projede bağlanır","Yazılımcı")}</div>`,
+ karar:()=>`<div class="sec"><h3>Onay bekleyen siparişte karar</h3><div class="sub">Bu geçişe kural bağlanmaz; kararı kuraldaki kişiler verir.</div>
+   ${step("core","🔒","Kuraldaki kişilerden biri Onayla ya da Reddet der","Siparişi kaydeden, listede olsa bile kendi siparişine karar veremez","Modül")}
+   ${step("core","🔒","Onaylanırsa Onaylı; reddedilirse açıklamayla Taslak'a döner","İşlem günlüğüne ve onay akışına yazılır","Modül")}</div>`,
+ sevk:()=>`<div class="sec"><h3>Sevk et</h3><div class="sub">Ayrı bir düğme değildir: irsaliye kaydedilince durum kendiliğinden türetilir. Bu seride kural bağlanmaz.</div>
+   ${step("core","🔒","Tüm satırlar sevk edilince Sevk edildi","Kısmi sevkte Onaylı kalır; irsaliye iptalinde geri türetilir","Modül")}</div>`,
+ fatura:()=>`<div class="sec"><h3>Faturala</h3><div class="sub">Faturadan türetilir. Bu seride kural bağlanmaz.</div>
+   ${step("core","🔒","Sevk edilen her irsaliye faturalanınca Faturalandı","Fatura iptalinde geri türetilir","Modül")}</div>`,
+ geri:()=>`<div class="sec"><h3>Onayı geri al</h3><div class="sub">Bu seride kural bağlanmaz.</div>
+   ${step("core","🔒","Sevk, fatura ve rezervasyon yoksa Taslak'a döner","Satırlar yeniden düzenlenebilir","Modül")}</div>`,
+ iptal:()=>`<div class="sec"><h3>İptal et</h3><div class="sub">Bu seride kural bağlanmaz.</div>
+   ${step("core","🔒","Gerekçe zorunlu; kayıtlı sevk ya da fatura varsa iptal edilemez","Taslak ya da Onaylı siparişte","Modül")}
+   ${step("core","🔒","Rezervasyon bırakılır, bekleyen onay akışı iptal edilir","Aynı işlem içinde","Modül")}</div>`
+};
+function render(){
+  document.getElementById("main").innerHTML=SECTIONS[current]();
+  document.querySelectorAll(".tr,.tr2").forEach(t=>t.classList.toggle("on",t.dataset.t===current));
+  document.getElementById("cnt-onayla").textContent=`${4+rules.length+2} adım`;
+  document.getElementById("draftPill").textContent=`Taslak · ${changes} değişiklik`;
+  const q=id=>document.getElementById(id);
+  q("add")&&(q("add").onclick=()=>{building={id:null,always:false,field:"grandTotal",op:">",value:"",action:"onay",people:[],text:""};render();});
+  if(building){
+    q("bMode").onchange=e=>{building.always=e.target.value==="always";render();};
+    q("bField")&&(q("bField").onchange=e=>{building.field=e.target.value;});
+    q("bOp")&&(q("bOp").onchange=e=>{building.op=e.target.value;});
+    q("bVal")&&(q("bVal").oninput=e=>{building.value=e.target.value;});
+    q("bAct").onchange=e=>{building.action=e.target.value;render();};
+    q("bText")&&(q("bText").oninput=e=>{building.text=e.target.value;});
+    document.querySelectorAll("[data-p]").forEach(c=>c.onclick=()=>{const p=c.dataset.p;building.people=building.people.includes(p)?building.people.filter(x=>x!==p):[...building.people,p];render();});
+    q("bSave").onclick=()=>{const b={...building,on:true,state:"draft"};if(b.id){rules=rules.map(r=>r.id===b.id?b:r);}else{b.id=next++;rules.push(b);}building=null;changes++;render();};
+    q("bCancel").onclick=()=>{building=null;render();};
+  }
+  document.querySelectorAll("[data-tog]").forEach(t=>t.onclick=()=>{const r=rules.find(x=>x.id==t.dataset.tog);r.on=!r.on;r.state="draft";changes++;render();});
+  document.querySelectorAll("[data-del]").forEach(t=>t.onclick=()=>{rules=rules.filter(x=>x.id!=t.dataset.del);changes++;render();});
+  document.querySelectorAll("[data-edit]").forEach(t=>t.onclick=()=>{building={...rules.find(x=>x.id==t.dataset.edit)};render();});
+}
+document.querySelectorAll(".tr,.tr2").forEach(t=>t.onclick=()=>{current=t.dataset.t;building=null;render();});
+document.getElementById("publish").onclick=()=>{rules.forEach(r=>r.state="pub");changes=0;render();};
+document.querySelectorAll("#trySrc button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#trySrc button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+  document.getElementById("srcOrnek").classList.toggle("hidden",b.dataset.s!=="ornek");document.getElementById("srcSiparis").classList.toggle("hidden",b.dataset.s!=="siparis");});
+function matches(r,v){if(r.always)return true;const a=v[r.field];if(a===undefined)return false;const n=Number(r.value),x=Number(a);
+  switch(r.op){case ">":return x>n;case "≥":return x>=n;case "<":return x<n;case "≤":return x<=n;case "=":return String(a)===r.value;case "≠":return String(a)!==r.value;default:return String(a).toLowerCase().includes(r.value.toLowerCase());}}
+document.getElementById("run").onclick=()=>{
+  const v={grandTotal:+document.getElementById("tTotal").value,maxLineDiscount:+document.getElementById("tDisc").value,customerGroup:document.getElementById("tGroup").value};
+  const user=document.getElementById("tUser").value;
+  const hit=rules.filter(r=>r.on&&matches(r,v));
+  const log=[["✓","Satırlar ve bilgiler geçerli"],["✓","Zorunlu özel alanlar dolu"],["✓","Cari risk limiti aşılmıyor"],["⚠","Stok: BAL-03 için kullanılabilir 8, istenen 25 (uyarı)"]];
+  const block=hit.find(r=>r.action==="engel"),approvals=hit.filter(r=>r.action==="onay"),warns=hit.filter(r=>r.action==="uyar");
+  let res;
+  if(block){log.push(["⛔",`Kural: ${actText(block)}`]);res=`<div class="result bad">Onaylanmazdı: ${block.text}</div>`;}
+  else{
+    warns.forEach(w=>log.push(["⚠",`Kural: ${actText(w)} — kullanıcı onaylarsa devam eder`]));
+    if(approvals.length){const people=[...new Set(approvals.flatMap(a=>a.people))];const self=people.includes(user);
+      approvals.forEach(a=>log.push(["⏸",`Kural: ${actText(a)}`]));
+      res=`<div class="result wait">Onay bekliyor'a geçerdi · karar: ${people.filter(p=>p!==user).join(" veya ")}${self?` <br><small style="font-weight:400">${user} kendi siparişine karar veremez.</small>`:""}</div>`;}
+    else res=`<div class="result ${warns.length?"warn":"ok"}">${warns.length?"Uyarıyla ":""}Onaylı olurdu · kaydeden onaylar</div>`;
+  }
+  document.getElementById("out").innerHTML=`<div class="log">${log.map(l=>`<div><span class="o">${l[0]}</span><span>${l[1]}</span></div>`).join("")}</div>${res}`;
+};
+render();
+</script>
+</body>
+</html>

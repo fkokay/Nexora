@@ -151,3 +151,4 @@
 .belge-totals .is-grand { border-top: 1px solid var(--nx-line); margin-top: 4px; padding-top: 7px; font-weight: 700; font-size: 15px; }
 .belge-template-page.is-dense td { padding-top: 3px; padding-bottom: 3px; }
 .belge-template-page.is-comfy td { padding-top: 11px; padding-bottom: 11px; }
+.belge-approval { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-size: 12.5px; }

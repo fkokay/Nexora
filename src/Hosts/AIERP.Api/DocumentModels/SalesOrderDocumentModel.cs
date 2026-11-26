@@ -40,7 +40,7 @@ internal static class SalesOrderDocumentModel
         [
             new(SalesOrderTransitionEndpoints.Approve, "Onayla", ["Draft"], "Open", "satis.siparis.onayla", false),
             new(SalesOrderTransitionEndpoints.Unapprove, "Onayı geri al", ["Open"], "Draft", "satis.siparis.onayiGeriAl", false),
-            new(SalesOrderTransitionEndpoints.Cancel, "İptal et", ["Draft", "Open"], "Cancelled", "satis.siparis.iptal", true)
+            new(SalesOrderTransitionEndpoints.Cancel, "İptal et", ["Draft", "PendingApproval", "Open"], "Cancelled", "satis.siparis.iptal", true)
         ],
         "satis.siparis.belge", "satis.siparis.hesapla", "satis.siparis.doldur",
         new Dictionary<string, IReadOnlyList<string>>

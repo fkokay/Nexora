@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { approveSalesOrder, decideSalesOrder, warningsText } from "./sales/orderApproval";
+import type { DocumentApproval } from "./page-templates/documentApi";
 import { createPortal } from "react-dom";
 import { dropPageParam, setPageParams, usePageParams } from "./pageNavigation";
 import { openSalesRequest } from "./sales/salesNavigation";
@@ -10079,6 +10081,35 @@ function SalesOrderModal({
       setBusy(false);
     }
   }
+  // Onay bekleyen sipariş (belge kuralı Onay iste): kimin karar vereceği ve bu kullanıcının karar verip veremeyeceği.
+  const [orderApproval, setOrderApproval] = useState<DocumentApproval | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (order.status !== "PendingApproval") { setOrderApproval(null); return; }
+    api<{ approval?: DocumentApproval | null }>(`/api/sales/orders/${order.id}/document`, token)
+      .then((document) => { if (alive) setOrderApproval(document?.approval ?? null); }, () => { if (alive) setOrderApproval(null); });
+    return () => { alive = false; };
+  }, [order.id, order.status, token]);
+  async function decideOrder(decision: "Approved" | "Rejected") {
+    if (!orderApproval) return;
+    let comment: string | null = null;
+    if (decision === "Rejected") {
+      comment = (await promptDialog({ title: "Ret gerekçesi", label: "Gerekçe", required: true, multiline: true, tone: "warning", confirmLabel: "Reddet" }))?.trim() ?? null;
+      if (!comment) return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await decideSalesOrder(orderApproval.instanceId, decision, comment, token);
+      setNotice(decision === "Approved" ? "Onay kaydedildi." : "Sipariş reddedildi, taslağa döndü.");
+      await onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function runOrderTransition(transition: "approve" | "unapprove" | "cancel") {
     let reason: string | undefined;
     if (transition === "cancel") {
@@ -10098,11 +10129,16 @@ function SalesOrderModal({
     setError("");
     setNotice("");
     try {
-      const result = await api<{ status: string; warnings: string[] }>(`/api/sales/orders/${order.id}/${transition}`, token, {
-        method: "POST",
-        body: JSON.stringify({ requestId: crypto.randomUUID(), reason }),
-      });
-      const done = transition === "approve" ? "Sipariş onaylandı." : transition === "unapprove" ? "Siparişin onayı geri alındı, sipariş taslakta." : "Sipariş iptal edildi.";
+      const result = transition === "approve"
+        ? await approveSalesOrder(order.id, token, (warnings) => confirmDialog({ title: "Kurallar uyarı veriyor", message: warningsText(warnings), tone: "warning", confirmLabel: "Yine de onayla" }))
+        : await api<{ status: string; warnings: string[] }>(`/api/sales/orders/${order.id}/${transition}`, token, {
+          method: "POST",
+          body: JSON.stringify({ requestId: crypto.randomUUID(), reason }),
+        });
+      if (!result) return;
+      const done = transition === "approve"
+        ? result.status === "PendingApproval" ? "Sipariş onay bekliyor; kuraldaki kişilerden biri karar verecek." : "Sipariş onaylandı."
+        : transition === "unapprove" ? "Siparişin onayı geri alındı, sipariş taslakta." : "Sipariş iptal edildi.";
       setNotice([done, ...(result?.warnings ?? [])].join(" "));
       await onSaved();
     } catch (e) {
@@ -10271,7 +10307,11 @@ function SalesOrderModal({
     orderMore.unshift({ id: "order-approve", label: "Onayla", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("approve") });
   if (order.status === "Open" && !orderHasDeliveries && !activeReservation)
     orderMore.push({ id: "order-unapprove", label: "Onayı geri al", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("unapprove") });
-  if (order.status === "Draft" || (order.status === "Open" && !orderHasDeliveries))
+  if (orderApproval?.canDecide) {
+    orderMore.unshift({ id: "order-decide-reject", label: "Reddet", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void decideOrder("Rejected") });
+    orderMore.unshift({ id: "order-decide-approve", label: "Onayla", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void decideOrder("Approved") });
+  }
+  if (order.status === "Draft" || order.status === "PendingApproval" || (order.status === "Open" && !orderHasDeliveries))
     orderMore.push({ id: "order-cancel", label: "İptal et", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("cancel") });
   if (orderMore.length) orderCommands.more = orderMore;
   const orderMoney = (value: number) => formatAmount(value, order.currencyCode);
@@ -10282,7 +10322,7 @@ function SalesOrderModal({
       code={order.code}
       subtitle={order.customerName}
       status={salesOrderStatus(order.status)}
-      meta={<span>{formatDate(order.orderDate)}</span>}
+      meta={<span>{formatDate(order.orderDate)}{orderApproval ? ` · Onay bekliyor · karar: ${orderApproval.approvers.join(" veya ") || "—"}` : ""}</span>}
       statusFlow={<SalesOrderFlow status={order.status} />}
       onClose={onClose}
       aside={

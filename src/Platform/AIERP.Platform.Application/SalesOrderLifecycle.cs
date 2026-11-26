@@ -19,7 +19,7 @@ public static class SalesOrderLifecycle
         status == SalesOrderStatus.Open && !hasDeliveries && !hasInvoices && !hasReservations;
 
     public static bool CanCancel(SalesOrderStatus status, bool hasDeliveries) =>
-        status == SalesOrderStatus.Draft || status == SalesOrderStatus.Open && !hasDeliveries;
+        status is SalesOrderStatus.Draft or SalesOrderStatus.PendingApproval || status == SalesOrderStatus.Open && !hasDeliveries;
 
     /// <summary>The <see cref="IsCommitted"/> statuses, for queries (<c>CommittedStatuses.Contains(x.Status)</c> translates to SQL).</summary>
     public static readonly SalesOrderStatus[] CommittedStatuses = [SalesOrderStatus.Open, SalesOrderStatus.Fulfilled, SalesOrderStatus.Invoiced];

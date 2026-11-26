@@ -281,6 +281,14 @@ Sonuçları:
 - **ERP çizimi.** Taslak'ta ana düğme Kaydet, yanında Onayla (taslak 08); geçişler `allowedTransitions`'tan gelir. Satırlar bugünkü `EditableGrid` ile çizilir; hesap 400 ms sonra gönderilir, yeni değişiklik eski isteği iptal eder, eski yanıt yok sayılır. Firmanın sipariş özel alanları başlık alanlarının altında kendiliğinden görünür. Onaylı belgede teslim tarihi Belge'den değişmez (eski ekranda değişir).
 - **Studio paneli (taslak 09).** Panel, taslak 09'daki üç eki taşır: tuvalde "Önizlenen durum" seçici (Taslak / Onaylı / Sevk edildi; yalnız tuvalde), "KDV'yi orana göre dök" ve "İşlem günlüğü" anahtarları. Danışmanın Satış siparişi okuma izni yoksa panel "Bu belgenin modelini görmek için Satış siparişi okuma izni gerekir." der ve düzenlemeyi kapatır. Ek eylemler, yalnız belge kimliğini (`id`) isteyen tek kayıt katalog eylemleridir.
 
+### 5.7 PR 3'te alınan kararlar (2026-11-26, plan onayıyla)
+
+- **Saklama:** Kurallar birlikte yayımlandığı için sürüm kural başına değil küme başınadır: `TenantDocumentRuleSets` satırı (Taslak / Yayında / Arşiv), kurallar JSON dizisinde (kod, sıra, açık/kapalı, koşul, eylem, kişiler, mesaj).
+- **Onay akışı:** İş akışı adımı isteğe bağlı kişi listesi taşır; kişi listeli adımda kararı yalnız listedeki, başlatan dışındaki kişi verir (rol ve yönetici atlatması uygulanmaz). Tutan her onay kuralı bir adımdır, kural sırasıyla. Tanım tenant başına sistemin yönettiği `sys.satis-siparisi-onayi`'dır; düzenlenemez, elle başlatılamaz.
+- **Uyar:** Onayla uyarıyla 409 `needsConfirmation` döner; kullanıcı onaylarsa istek uyarılar görüldü diye yinelenir.
+- **Yetki:** `erp.document-rules` öteki kaynaklar gibi rol temel kuralına girer; TenantUser (danışman) ve TenantDeveloper varsayılan olarak yazar, yönetici Deny ile kapatabilir. ERP API Studio rolünü görmez.
+- **İptal:** Onay bekleyen sipariş iptal edilebilir; bekleyen akış kapanır.
+
 ## 6. PR'lar
 
 1. **Sunucu: durum zinciri ve belge modeli.**
