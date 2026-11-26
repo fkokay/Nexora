@@ -214,6 +214,14 @@ if (args.Contains("--legacy-tenant-data-purge-preview", StringComparer.Ordinal) 
         Console.WriteLine($"{table.Schema}.{table.Table}: {table.Rows}");
     return;
 }
+if (PageTemplateMigrationOptions.IsRequested(args))
+{
+    // Template migration report (read-only); validated before any database is opened, prints every target database.
+    var migrationOptions = PageTemplateMigrationOptions.Parse(args);
+    var migrationRunner = PageTemplateMigrationRunner.CreateDefault(new PageTemplateMigrationSqlDatabases(app.Services, tenantConnectionString), Console.Out);
+    await migrationRunner.ReportAsync(migrationOptions, CancellationToken.None);
+    return;
+}
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 // Honour X-Forwarded-For only from explicitly trusted proxy networks (ReverseProxy:KnownNetworks), so rate limits see the real client.
 var trustedProxyNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
