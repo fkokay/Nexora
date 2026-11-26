@@ -298,6 +298,22 @@ describe("indicator title follows the choice (mockups 03 and 09)", () => {
     const status = step(progress, setIndicatorKind(progress, "g1", "status"));
     expect(comp(status).props.title).toBe("Gösterge");
   });
+  it("unrelated edits (size, place, hide on mobile, visibility) never rename an indicator", () => {
+    // Kaynağı seçilmiş, başlığı hâlâ paletin varsayılanı olan (eski) gösterge.
+    const old = { ...chooseIndicatorSource(defWith(metric()), "g1", ozet) };
+    const legacy = { ...old, components: old.components.map((c) => c.id === "g1" ? { ...c, props: { ...c.props, title: "Gösterge" } } : c) } as ModelDefinition;
+    const patch = (def: ModelDefinition, extra: Record<string, string | boolean>) =>
+      ({ ...def, components: def.components.map((c) => c.id === "g1" ? { ...c, props: { ...c.props, ...extra } } : c) }) as ModelDefinition;
+    for (const next of [setIndicatorSize(legacy, "g1", "lg"), setIndicatorPlace(legacy, "g1", "above"), patch(legacy, { hideOnMobile: true }),
+      patch(legacy, { visibleWhen: "kullanici.rol == 'TenantAdmin'" })]) {
+      expect(next).not.toBe(legacy);
+      expect(step(legacy, next)).toBe(next);
+      expect(comp(step(legacy, next)).props.title).toBe("Gösterge");
+    }
+    // Seçim değişince başlık yine izler.
+    expect(comp(step(legacy, setIndicatorValue(legacy, "g1", "adet", "number"))).props.title).toBe("Adet");
+  });
+
   it("does not change the input and returns it when nothing changes", () => {
     const start = Object.freeze(defWith(metric({ title: "Alacağımız" }))) as ModelDefinition;
     const next = chooseIndicatorSource(start, "g1", ozet);

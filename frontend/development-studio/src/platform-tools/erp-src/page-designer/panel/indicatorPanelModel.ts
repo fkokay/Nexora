@@ -201,13 +201,17 @@ function derivedTitle(def: ModelDefinition, id: string, sources: CatalogDataSour
 }
 
 /**
- * Panelde yapılan bir değişiklikten (`before` → `after`) sonra göstergenin başlığını seçime uydurur: başlık boşsa, paletin
+ * Panelde yapılan bir değişiklikten (`before` → `after`) sonra, kaynak, değer ya da tür değiştiyse göstergenin başlığını seçime uydurur: başlık boşsa, paletin
  * varsayılanıysa ya da önceki seçimden gelen başlıksa yeni seçimin başlığı yazılır; danışmanın elle verdiği öteki başlıklar kalır.
  * Yeni seçimin başlığı yoksa (durum, kaynaksız) önceki kendiliğinden başlık varsayılana döner.
  */
 export function withIndicatorTitle<D extends ModelDefinition>(before: ModelDefinition, after: D, id: string, sources: CatalogDataSource[]): D {
   const c = find(after, id);
   if (!c) return after;
+  // Yalnız seçim (kaynak, değer, tür) değişince: boyut, yer, mobilde gizleme ya da görünürlük başlığa dokunmaz.
+  const was = indicatorOf(before, id);
+  const now = indicatorOf(after, id);
+  if (was.source === now.source && was.column === now.column && was.kind === now.kind) return after;
   const current = typeof c.props.title === "string" ? c.props.title.trim() : "";
   const previous = derivedTitle(before, id, sources);
   if (current !== "" && current !== INDICATOR_DEFAULT_TITLE && current !== previous) return after;
