@@ -5,7 +5,9 @@
 // yalnız ikisinde de olan kimlikler için denetim çizilir. Kayıt kartı tuvali (RecordCanvasOverlay) ayrıdır.
 import { useRef, useState, type CSSProperties, type DragEvent } from "react";
 import type { CanvasBlock } from "./erpCanvasProtocol";
-import { freeDropAt, freeDropMarker, freeDropRefusal, freePaletteDrop, type FreeDrop, type FreeMoving, type Point } from "./freeCanvasHit";
+import {
+  FREE_PALETTE_REFUSED, FREE_SECTIONS_PLACE, freeDropAt, freeDropMarker, freeDropRefusal, freePaletteDrop, type FreeDrop, type FreeMoving, type Point,
+} from "./freeCanvasHit";
 import { consultantKindFromKey, consultantLayerLabel } from "./panel/consultantPalette";
 import { DEFAULT_BLOCK_TITLE, freeBlocks, isFreeItem, moveBlockTo, moveItemToBlock } from "./panel/freeModel";
 import { stringList, type ModelDefinition } from "./panel/listPanelModel";
@@ -43,6 +45,7 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
   const { blocks, def, disabled } = props;
   const [hover, setHover] = useState<Point | null>(null);
   const [drop, setDrop] = useState<FreeDrop>(null);
+  const [outside, setOutside] = useState<(Point & { reason: string }) | null>(null);
   const moving = useRef<FreeMoving>(null);
   const byId = new Map(blocks.map((block) => [block.id, block]));
   const sections = freeBlocks(def).filter((block) => byId.has(block.id));
@@ -65,10 +68,26 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
     const kind = disabled ? null : kindOf(Array.from(event.dataTransfer.types));
     return kind ? freeDropAt(blocks, def, local(event), kind) : null;
   };
+  // Paletten gelen öğe bölüm dışında da kabul edilir: bırakınca neden söylenir (yoksa sessizce hiçbir şey olmaz).
+  const outsideReason = (event: DragEvent<HTMLDivElement>) => {
+    const types = Array.from(event.dataTransfer.types);
+    if (disabled || !types.includes(PALETTE_DRAG)) return null;
+    return kindOf(types) === "block" ? FREE_SECTIONS_PLACE : FREE_PALETTE_REFUSED;
+  };
   const dragOver = (event: DragEvent<HTMLDivElement>) => {
     event.stopPropagation();
     const next = target(event);
-    if (!next) { if (drop) setDrop(null); return; }
+    if (!next) {
+      if (drop) setDrop(null);
+      const reason = outsideReason(event);
+      if (!reason) { if (outside) setOutside(null); return; }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      const point = local(event);
+      if (outside?.reason !== reason || outside.x !== point.x || outside.y !== point.y) setOutside({ ...point, reason });
+      return;
+    }
+    if (outside) setOutside(null);
     // Ret de bırakılabilir olmalı: gerekçe bırakınca gösterilir (yoksa `drop` hiç gelmez).
     event.preventDefault();
     event.dataTransfer.dropEffect = Array.from(event.dataTransfer.types).includes(PALETTE_DRAG) ? "copy" : "move";
@@ -77,10 +96,15 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
   const dropHere = (event: DragEvent<HTMLDivElement>) => {
     event.stopPropagation();
     setDrop(null);
+    setOutside(null);
     const where = target(event);
     const was = moving.current;
     moving.current = null;
-    if (!where) return;
+    if (!where) {
+      const reason = outsideReason(event);
+      if (reason) { event.preventDefault(); props.onRefuse(reason); }
+      return;
+    }
     event.preventDefault();
     const itemId = event.dataTransfer.getData(FREE_ITEM_DRAG);
     const blockId = event.dataTransfer.getData(FREE_BLOCK_DRAG);
@@ -110,7 +134,7 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
   };
   const dragLeave = (event: DragEvent<HTMLDivElement>) => {
     const to = event.relatedTarget as Node | null;
-    if (!to || !event.currentTarget.contains(to)) setDrop(null);
+    if (!to || !event.currentTarget.contains(to)) { setDrop(null); setOutside(null); }
   };
   const startDrag = (mime: string, id: string) => (event: DragEvent<HTMLDivElement>) => {
     event.stopPropagation();
@@ -118,7 +142,7 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
     event.dataTransfer.effectAllowed = "move";
     moving.current = mime === FREE_ITEM_DRAG ? { itemId: id } : { blockId: id };
   };
-  const endDrag = () => { moving.current = null; setDrop(null); };
+  const endDrag = () => { moving.current = null; setDrop(null); setOutside(null); };
 
   const marker = freeDropMarker(blocks, def, drop);
   const refusal = freeDropRefusal(def, drop, moving.current);
@@ -137,6 +161,8 @@ export function FreeCanvasOverlay(props: FreeCanvasOverlayProps) {
     {tagged && <span className="fco-tag" aria-hidden="true" style={tagStyle(tagged.box)}>{tagged.label}</span>}
     {marker && <div className={`fco-marker${refusal ? " is-refused" : ""}`} aria-hidden="true" title={refusal ?? undefined}
       style={{ position: "absolute", pointerEvents: "none", ...at(marker), background: refusal ? REFUSED : ACCENT, borderRadius: 2 }}/>}
+    {outside && <span className="fco-refusal" role="status" style={{ position: "absolute", pointerEvents: "none", left: outside.x + 12, top: outside.y + 12,
+      padding: "2px 6px", borderRadius: 4, background: REFUSED, color: "#fff", font: "600 11px/1.4 inherit", whiteSpace: "nowrap" }}>{outside.reason}</span>}
     {marker && refusal && <span className="fco-refusal" role="status" style={{ position: "absolute", pointerEvents: "none", left: marker.x, top: marker.y + marker.height + 4,
       padding: "2px 6px", borderRadius: 4, background: REFUSED, color: "#fff", font: "600 11px/1.4 inherit", whiteSpace: "nowrap" }}>{refusal}</span>}
   </div>;

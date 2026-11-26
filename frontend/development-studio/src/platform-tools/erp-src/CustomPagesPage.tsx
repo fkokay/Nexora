@@ -2306,12 +2306,21 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return { ...state, components: next };
   });
   // Serbest gövdede Katmanlar'ın ↑ / ↓'ı Alt+↑ / ↓ gibi bölüm ya da `members` sırasını değiştirir; bileşen dizisi dizilmez.
+  // Sekme bileşeni ve sayfa düğmelerinde bir şey yapmaz (tanım aynen döner); ↑ / ↓ o zaman kapalıdır.
+  const freeStep = (freeDef: ModelDefinition, id: string | undefined, delta: number): ModelDefinition => {
+    const target = id ? freeDef.components.find((component) => component.id === id) : undefined;
+    if (!target || (delta !== 1 && delta !== -1)) return freeDef;
+    return freeModel.isFreeBlock(target) ? freeModel.moveBlock(freeDef, target.id, delta)
+      : freeModel.isFreeItem(target) ? freeModel.moveItem(freeDef, target.id, delta) : freeDef;
+  };
+  const canStepFree = (id: string, delta: -1 | 1) => {
+    const freeDef = definition as unknown as ModelDefinition;
+    return freeStep(freeDef, id, delta) !== freeDef;
+  };
   const stepFree = (id: string | undefined, delta: number) => {
     const freeDef = definitionRef.current as unknown as ModelDefinition;
-    const target = id ? freeDef.components.find((component) => component.id === id) : undefined;
-    if (!canEdit || !target || (delta !== 1 && delta !== -1)) return;
-    const next = freeModel.isFreeBlock(target) ? freeModel.moveBlock(freeDef, target.id, delta)
-      : freeModel.isFreeItem(target) ? freeModel.moveItem(freeDef, target.id, delta) : freeDef;
+    if (!canEdit) return;
+    const next = freeStep(freeDef, id, delta);
     if (next !== freeDef) commit(() => next as unknown as PageDefinition);
   };
   const detachFromTab = (id: string) => commit((state) => {
@@ -3948,7 +3957,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onLayerDragStart={(index, id, event) => { event.dataTransfer.setData("application/x-nexora-index", String(index)); event.dataTransfer.effectAllowed = "move"; dragStore.set({ dragging: id }); }}
         onLayerDragEnd={() => live.current.clearDrag()}
         onLayerDragOver={(index, edge) => { const target = dragStore.get().dropTarget; if (target?.index !== index || target.edge !== edge) dragStore.set({ dropTarget: { index, edge } }); }}
-        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={(index, delta) => isFreePage ? stepFree(definition.components[index]?.id, delta) : moveComponent(index, delta)} componentCount={definition.components.length}
+        onLayerDrop={(index, event) => dropAt(index, event)} onLayerMove={(index, delta) => isFreePage ? stepFree(definition.components[index]?.id, delta) : moveComponent(index, delta)}
+        layerReorderable={!isFreePage} canLayerMove={isFreePage ? (_index, id, delta) => canStepFree(id, delta) : undefined} componentCount={definition.components.length}
         queries={definition.queries.map((query) => ({ id: query.id, name: query.name, kindLabel: queryKindLabels[query.kind], write: isWriteKind(query.kind), detail: `${querySourceLabel(query)}${queryPreviews[query.id] ? ` · ${queryPreviews[query.id].rowCount.toLocaleString("tr-TR")} satır` : ""}` }))}
         selectedQueryId={selectedQueryId} canAddQuery={queryEditable && definition.queries.length < MAX_QUERIES}
         addQueryTitle={!isAdmin ? "Sorguları yalnız tenant yöneticisi ekleyebilir." : definition.queries.length >= MAX_QUERIES ? `Bir sayfada en fazla ${MAX_QUERIES} sorgu olabilir.` : "Yeni sorgu"}

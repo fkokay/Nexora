@@ -3,6 +3,7 @@ import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CanvasBlock } from "./erpCanvasProtocol";
+import { FREE_PALETTE_REFUSED, FREE_SECTIONS_PLACE } from "./freeCanvasHit";
 import { FreeCanvasOverlay, FREE_BLOCK_DRAG, FREE_ITEM_DRAG, PALETTE_DRAG } from "./freeCanvasOverlay";
 import { newFreeTemplateDefinition } from "./pageTemplates";
 import { consultantPaletteKey } from "./panel/consultantPalette";
@@ -139,6 +140,19 @@ describe("FreeCanvasOverlay", () => {
     expect(fire(root, dragEvent("dragover", 50, 60, { [FREE_ITEM_DRAG]: metric })).defaultPrevented).toBe(false);
     fire(root, dragEvent("drop", 50, 60, { [FREE_ITEM_DRAG]: metric }));
     expect(props.onChange).not.toHaveBeenCalled();
+  });
+
+  it("paletten bölüm dışına bırakma kabul edilir ama gerekçeyle reddedilir", () => {
+    const { root, host, props } = setup({ paletteKey: () => consultantPaletteKey("text") });
+    const data = { [PALETTE_DRAG]: consultantPaletteKey("text") };
+    expect(fire(root, dragEvent("dragover", 100, 600, data)).defaultPrevented).toBe(true);
+    expect(host.querySelector(".fco-refusal")?.textContent).toBe(FREE_PALETTE_REFUSED);
+    fire(root, dragEvent("drop", 100, 600, data));
+    expect(props.onRefuse).toHaveBeenCalledWith(FREE_PALETTE_REFUSED);
+    expect(props.onChange).not.toHaveBeenCalled();
+    const sections = setup({ paletteKey: () => consultantPaletteKey("sections") });
+    fire(sections.root, dragEvent("drop", 900, 50, { [PALETTE_DRAG]: consultantPaletteKey("sections") }));
+    expect(sections.props.onRefuse).toHaveBeenCalledWith(FREE_SECTIONS_PLACE);
   });
 
   it("Katmanlar'dan ya da başka yerden gelen sürükleme yok sayılır", () => {

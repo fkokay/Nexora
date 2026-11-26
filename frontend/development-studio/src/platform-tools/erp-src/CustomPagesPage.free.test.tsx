@@ -149,10 +149,11 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     Object.assign(event, { clientX: 0, clientY: 0, dataTransfer: { types: ["application/x-nexora-index"], getData: (name: string) => name === "application/x-nexora-index" ? "3" : "" } });
     await act(async () => void row("t").dispatchEvent(event));
     expect(host.querySelector(".pd-dirty")).toBeNull();
-    // m1 is alone in its block: ↑ changes nothing (the generic move would swap it with b2 in the array).
-    const up = row("m1").querySelector<HTMLButtonElement>('button[aria-label="Yukarı taşı"]')!;
-    await act(async () => up.click());
-    expect(host.querySelector(".pd-dirty")).toBeNull();
+    // m1 is alone in its block: ↑/↓ are disabled (the generic move would swap it with b2 in the array); the tabs row too.
+    for (const id of ["m1", "t"]) for (const label of ["Yukarı taşı", "Aşağı taşı"]) {
+      expect(row(id).querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.disabled).toBe(true);
+    }
+    expect(host.querySelectorAll('[data-layer-id][draggable="true"]')).toHaveLength(0);
   });
 
   it("Katmanlar shows consultant names and no grid width on a free page", async () => {
