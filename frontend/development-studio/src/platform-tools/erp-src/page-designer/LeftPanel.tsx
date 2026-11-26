@@ -23,6 +23,9 @@ type Props = {
   onLayerDragOver: (index: number, edge: "before" | "after") => void;
   onLayerDrop: (index: number, event: DragEvent) => void;
   onLayerMove: (index: number, delta: number) => void;
+  /** Katmanlar sürüklenerek sıralanabilir mi (varsayılan evet). */
+  layerReorderable?: boolean;
+  canLayerMove?: (index: number, id: string, delta: -1 | 1) => boolean;
   componentCount: number;
   queries: QueryEntry[];
   selectedQueryId: string | null;
@@ -95,7 +98,8 @@ export default function LeftPanel(props: Props) {
       {palette.length === 0 && <p className="pd-empty-note">“{search.trim()}” ile eşleşen bileşen yok.</p>}
     </>;
     if (section === "layers") return <LayersTree items={props.layers} search={search} canEdit={props.canEdit} selectedId={props.selectedComponentId} onSelect={props.onSelectComponent}
-      dropTarget={props.dropTarget} onDragStart={props.onLayerDragStart} onDragEnd={props.onLayerDragEnd} onDragOver={props.onLayerDragOver} onDrop={props.onLayerDrop} onMove={props.onLayerMove} rootCount={props.componentCount}/>;
+      dropTarget={props.dropTarget} onDragStart={props.onLayerDragStart} onDragEnd={props.onLayerDragEnd} onDragOver={props.onLayerDragOver} onDrop={props.onLayerDrop} onMove={props.onLayerMove} rootCount={props.componentCount}
+      reorderable={props.layerReorderable} canMove={props.canLayerMove}/>;
     if (section === "variables") return props.variables;
     return props.queries.length === 0 ? <p className="pd-empty-note">Bu sayfada henüz sorgu yok. “＋” ile yeni sorgu ekleyin.</p>
       : queries.length === 0 ? <p className="pd-empty-note">“{search.trim()}” ile eşleşen sorgu yok.</p>
