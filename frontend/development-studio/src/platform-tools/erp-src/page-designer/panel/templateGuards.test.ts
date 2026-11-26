@@ -210,3 +210,36 @@ describe("record card guards for the designer's generic delete and duplicate", (
     expect(templateDuplicateBlocked(def, "ek")).toBe(false);
   });
 });
+
+describe("commands slot (5b-2a)", () => {
+  const bar = { id: "komutlar", type: "actionBar", props: { slot: "commands", hiddenCommands: ["print"], deleteQuery: "sil" } };
+  const templates = { list: newListTemplateDefinition, record: newRecordTemplateDefinition, free: newFreeTemplateDefinition };
+
+  it.each(Object.keys(templates) as (keyof typeof templates)[])("keeps the commands bar in place (%s)", (name) => {
+    const base = templates[name]() as unknown as ModelDefinition;
+    const def: ModelDefinition = { ...base, components: [...base.components, bar] };
+    const fixed = ensureTemplateSlots(def);
+    expect(fixed.components.find((c) => c.id === "komutlar")).toEqual(bar);
+    // Serbest gövdede çubuk bir bölümün üyesi olmaz.
+    expect(fixed.components.some((c) => Array.isArray(c.props.members) && c.props.members.includes("komutlar"))).toBe(false);
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+
+  it.each(Object.keys(templates) as (keyof typeof templates)[])("gives a slotless first action bar the commands slot (%s)", (name) => {
+    const base = templates[name]() as unknown as ModelDefinition;
+    const def: ModelDefinition = { ...base, components: [...base.components, { id: "cubuk", type: "actionBar", props: { hiddenCommands: ["print"] } },
+      { id: "ikinci", type: "actionBar", props: { slot: "list" } }] };
+    const fixed = ensureTemplateSlots(def);
+    expect(fixed.components.find((c) => c.id === "cubuk")!.props).toEqual({ hiddenCommands: ["print"], slot: "commands" });
+    // İkinci çubuk "commands" yerine konmaz (sunucu reddeder; yer tablosu dışı kalır).
+    expect(fixed.components.find((c) => c.id === "ikinci")!.props.slot).not.toBe("commands");
+    // Serbest gövdede öğe olamayan tip her geçişte yeniden yerleştirilir (bugünkü davranış); çubuk yine yerinde kalır.
+    if (name !== "free") expect(ensureTemplateSlots(fixed)).toBe(fixed);
+    else expect(ensureTemplateSlots(fixed).components.find((c) => c.id === "cubuk")!.props.slot).toBe("commands");
+  });
+
+  it("does not take a non-bar component into the commands slot", () => {
+    const def = page([list, { id: "yazi", type: "text", props: { slot: "commands" } }]);
+    expect(ensureTemplateSlots(def).components.find((c) => c.id === "yazi")!.props.slot).toBe("below");
+  });
+});

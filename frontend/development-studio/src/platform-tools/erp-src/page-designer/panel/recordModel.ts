@@ -217,7 +217,7 @@ const sectionComponent = (id: string, title: string, key: string, inputs: string
  * Anahtar alanı (Global Constraints): Kaydet'in *ekle* eyleminde anahtarla aynı adlı bilgi varsa anahtarı kullanıcı yazar ve
  * alan yalnız var olan kayıtta kilitlenir; yoksa anahtarı sistem üretir, alan salt okunurdur ve "(otomatik)" gösterir.
  */
-function applyKeyMode<D extends ModelDefinition>(def: D): D {
+export function applyKeyMode<D extends ModelDefinition>(def: D): D {
   const key = recordKey(def);
   const field = key ? fieldForColumn(def, key) : undefined;
   if (!key || !field) return def;
@@ -507,7 +507,7 @@ export function recordActionUsable(def: ModelDefinition, action: CatalogAction):
   return missing ? { usable: false, reason: actionMissingField(missing.name) } : { usable: true };
 }
 
-function actionQuery(def: ModelDefinition, action: CatalogAction, reserved: Set<string> = new Set()): PageQuery {
+export function actionQuery(def: ModelDefinition, action: CatalogAction, reserved: Set<string> = new Set()): PageQuery {
   const key = recordKey(def);
   const id = freeId(def, action.code, reserved);
   return {
