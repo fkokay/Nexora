@@ -58,8 +58,8 @@ internal static class DocumentModelEndpoints
     private static async Task<IReadOnlyList<string>> AllowedTransitionsAsync(TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
         ClaimsPrincipal principal, Guid tenantId, SalesOrderView order, CancellationToken ct)
     {
-        var hasDeliveries = await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == order.Id, ct);
-        var hasInvoices = await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == order.Id, ct);
+        var hasDeliveries = await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == order.Id && x.Status == SalesDeliveryStatus.Posted, ct);
+        var hasInvoices = await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == order.Id && x.Status == SalesInvoiceStatus.Posted, ct);
         var hasReservations = await db.SalesOrderReservations.AnyAsync(x => x.TenantId == tenantId && x.OrderId == order.Id, ct);
         var candidates = new List<string>();
         if (SalesOrderLifecycle.CanApprove(order.Status)) candidates.Add(SalesOrderTransitionEndpoints.Approve);

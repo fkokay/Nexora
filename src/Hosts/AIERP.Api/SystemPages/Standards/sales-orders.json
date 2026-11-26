@@ -190,16 +190,26 @@
         "props": {
           "width": 12 },
         "children": [
+          { "id": "rozetTaslak", "type": "badge", "name": "rozetTaslak",
+            "props": {
+              "text": "Taslak",
+              "variant": "info",
+              "visibleWhen": "siparis.rows[0].status == 'Draft'" } },
           { "id": "rozetAcik", "type": "badge", "name": "rozetAcik",
             "props": {
-              "text": "Açık",
+              "text": "Onaylı",
               "variant": "warning",
               "visibleWhen": "siparis.rows[0].status == 'Open'" } },
           { "id": "rozetTamam", "type": "badge", "name": "rozetTamam",
             "props": {
-              "text": "Tamamlandı",
+              "text": "Sevk edildi",
               "variant": "success",
               "visibleWhen": "siparis.rows[0].status == 'Fulfilled'" } },
+          { "id": "rozetFaturalandi", "type": "badge", "name": "rozetFaturalandi",
+            "props": {
+              "text": "Faturalandı",
+              "variant": "success",
+              "visibleWhen": "siparis.rows[0].status == 'Invoiced'" } },
           { "id": "rozetIptal", "type": "badge", "name": "rozetIptal",
             "props": {
               "text": "İptal",
@@ -290,8 +300,8 @@
         "props": {
           "width": 12,
           "title": "Teslim tarihi",
-          "description": "MRP, açık sipariş talebini bu tarihte karşılamaya çalışır.",
-          "visibleWhen": "siparis.rows[0].status == 'Open'" },
+          "description": "MRP, onaylı sipariş talebini bu tarihte karşılamaya çalışır.",
+          "visibleWhen": "siparis.rows[0].status == 'Draft' || siparis.rows[0].status == 'Open'" },
         "children": [
           { "id": "teslimFormu", "type": "formCard", "name": "teslimFormu",
             "props": {

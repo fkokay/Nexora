@@ -47,8 +47,9 @@ internal static class SalesOrderTransitionEndpoints
                 && x.DocumentType == DocumentActivityLog.SalesOrder && x.DocumentId == id && x.Transition == transition && x.RequestId == requestId, ct))
             return Results.Ok(new SalesOrderTransitionResult(order.Id, order.Code, order.Status, []));
 
-        var hasDeliveries = await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct);
-        var hasInvoices = await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct);
+        // Only posted documents count: an order whose deliveries / invoices were all voided can be cancelled or unapproved again.
+        var hasDeliveries = await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id && x.Status == SalesDeliveryStatus.Posted, ct);
+        var hasInvoices = await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id && x.Status == SalesInvoiceStatus.Posted, ct);
         var warnings = new List<string>();
         switch (transition)
         {

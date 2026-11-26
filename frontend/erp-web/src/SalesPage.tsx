@@ -10250,7 +10250,7 @@ function SalesOrderModal({
   if (order.status === "Open" && activeReservation && role === "TenantAdmin")
     orderMore.push({ id: "order-release", label: "Rezervasyonu bırak", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => releaseOrderReservation() });
   // Belge kuralları: the order's state transitions (the server re-checks every condition).
-  const orderHasDeliveries = deliveries.length > 0;
+  const orderHasDeliveries = deliveries.some((delivery) => delivery.status === "Posted");
   if (order.status === "Open")
     orderMore.push({
       id: "order-delivery",

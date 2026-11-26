@@ -13,6 +13,9 @@ public static class SalesOrderEndpoints
         orders.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+            // Lock the order like the transitions do, so a concurrent Onayla cannot pass between this check and the delete.
+            await LockOrderAsync(db, tenantId, id, ct);
             var order = await db.SalesOrders.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (order is null) return Results.NotFound();
             if (!SalesOrderLifecycle.CanEdit(order.Status) ||
@@ -28,7 +31,7 @@ public static class SalesOrderEndpoints
             db.SalesOrders.Remove(order);
             var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId) ? parsedUserId : (Guid?)null;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.deleted", Resource = order.Code });
-            try { await db.SaveChangesAsync(ct); }
+            try { await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct); }
             catch (DbUpdateException) { return Results.Conflict(new { error = "Sipariş ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip ilişkili işlemleri kontrol edin." }); }
             return Results.NoContent();
         });
@@ -136,6 +139,8 @@ public static class SalesOrderEndpoints
             var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId)
                 ? parsedUserId : (Guid?)null;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Lock the order like the transitions do, so a concurrent Onayla cannot approve content this edit is replacing.
+            await LockOrderAsync(db, tenantId, id, ct);
             var order = await db.SalesOrders.Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (order is null) return Results.NotFound();
@@ -265,6 +270,14 @@ public static class SalesOrderEndpoints
                 order.Customer.Name, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count,
                 order.CreatedAt, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
         });
+    }
+
+    /// <summary>UPDLOCK, HOLDLOCK on the order row for the rest of the caller's transaction (no-op on non-relational providers).</summary>
+    private static async Task LockOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct)
+    {
+        if (db.Database.IsRelational())
+            await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}")
+                .AsNoTracking().Select(x => x.Id).ToListAsync(ct);
     }
 
     private static string SanitizeForLog(string? value)

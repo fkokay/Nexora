@@ -206,6 +206,31 @@ public sealed class SalesOrderTransitionEndpointsTests
     }
 
     [Fact]
+    public async Task Cancel_open_with_only_voided_delivery_succeeds()
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        var orderId = await factory.SeedOrderAsync(seed, SalesOrderStatus.Open);
+        await factory.WithTenantDbAsync(async db =>
+        {
+            var delivery = new SalesDelivery { TenantId = seed.TenantId, OrderId = orderId, WarehouseId = seed.WarehouseId,
+                Code = "IRS-V", DeliveryDate = new DateOnly(2026, 11, 3), RequestId = Guid.NewGuid(), Status = SalesDeliveryStatus.Voided };
+            db.SalesDeliveries.Add(delivery);
+            db.SalesInvoices.Add(new SalesInvoice { TenantId = seed.TenantId, Delivery = delivery, OrderId = orderId, CustomerId = seed.CustomerId,
+                Code = "FTR-V", InvoiceDate = new DateOnly(2026, 11, 4), CurrencyCode = "TRY", Status = SalesInvoiceStatus.Voided });
+            await db.SaveChangesAsync();
+        });
+        using var client = factory.Client(seed);
+
+        using var document = await client.GetAsync($"/api/sales/orders/{orderId}/document");
+        Assert.Contains("iptal", await document.Content.ReadAsStringAsync());
+        using var response = await Post(client, orderId, "cancel", reason: "Sevk iptal edildi, sipariş kapanıyor");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(SalesOrderStatus.Cancelled, (await OrderAsync(factory, orderId)).Status);
+    }
+
+    [Fact]
     public async Task Cancel_releases_active_reservations()
     {
         await using var factory = new SalesOrderApiFactory();

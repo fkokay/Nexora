@@ -25,6 +25,9 @@ public sealed class SalesOrderStateChainStandardsTests
         Assert.Contains("'Draft'", Prop(Component(standard, "iptalDugmesi"), "visibleWhen"));
         Assert.Equal("true", Prop(Component(standard, "iptalDugmesi"), "promptRequired").ToLowerInvariant());
         Assert.Equal("liste.seciliSatir.status == 'Draft'", Prop(Component(standard, "duzenleDugmesi"), "visibleWhen"));
+        var badges = standard.DefinitionJson;
+        foreach (var label in new[] { "\"Taslak\"", "\"Onaylı\"", "\"Sevk edildi\"", "\"Faturalandı\"" }) Assert.Contains(label, badges);
+        Assert.DoesNotContain("\"Tamamlandı\"", badges);
     }
 
     [Fact]
