@@ -140,6 +140,21 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(def.components.find((component) => component.id === members[0])!.type).toBe("metric");
   });
 
+  it("Katmanlar drag and ↑/↓ don't reorder the component array on a free page", async () => {
+    const { host } = await open();
+    const row = (id: string) => host.querySelector(`[data-layer-id="${id}"]`)!;
+    expect(host.querySelector(".pd-dirty")).toBeNull();
+    // m1 (index 3) dropped on the "t" row: the generic path would move it to the front of the array.
+    const event = new Event("drop", { bubbles: true, cancelable: true });
+    Object.assign(event, { clientX: 0, clientY: 0, dataTransfer: { types: ["application/x-nexora-index"], getData: (name: string) => name === "application/x-nexora-index" ? "3" : "" } });
+    await act(async () => void row("t").dispatchEvent(event));
+    expect(host.querySelector(".pd-dirty")).toBeNull();
+    // m1 is alone in its block: ↑ changes nothing (the generic move would swap it with b2 in the array).
+    const up = row("m1").querySelector<HTMLButtonElement>('button[aria-label="Yukarı taşı"]')!;
+    await act(async () => up.click());
+    expect(host.querySelector(".pd-dirty")).toBeNull();
+  });
+
   it("Katmanlar shows consultant names and no grid width on a free page", async () => {
     const { host } = await open();
     const layers = host.querySelector(".pd-layer-tree");

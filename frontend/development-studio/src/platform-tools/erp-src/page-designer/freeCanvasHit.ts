@@ -35,14 +35,17 @@ function shownBlockIds(def: ModelDefinition, blocks: CanvasBlock[]): { tabIndex:
   return shown < 0 ? null : { tabIndex: shown, ids: tabs[shown].blockIds };
 }
 
-/** Bölümün görünen üye kutuları okuma sırasıyla (üstten alta, soldan sağa); her birinin `members` sırası ve tam satır olup olmadığı. */
+/**
+ * Bölümün görünen üye kutuları `members` sırasıyla (ERP ızgarası hücreleri bu sırayla, okuma sırasında dizer; ölçülen kutu
+ * hücrenin içindeki bileşen olduğundan aynı satırdaki üstler biraz farklı olabilir, kutulara göre sıralanmaz); her birinin
+ * `members` sırası ve tam satır olup olmadığı.
+ */
 function visibleMembers(def: ModelDefinition, block: ModelComponent, byId: Map<string, CanvasBlock>) {
   const find = (id: string) => def.components.find((component) => component.id === id);
   return stringList(block.props.members).map((id, index) => {
     const component = find(id);
     return { index, box: component ? byId.get(id) : undefined, full: component ? freeFullRow(component) : false };
-  }).filter((item): item is { index: number; box: CanvasBlock; full: boolean } => !!item.box)
-    .sort((a, b) => a.box.y - b.box.y || a.box.x - b.box.x);
+  }).filter((item): item is { index: number; box: CanvasBlock; full: boolean } => !!item.box);
 }
 /** Yarım üyede okuma sırası (satırın üstünde ya da aynı satırda yarısının solunda); tam satır üyede yüksekliğin ortası. */
 const memberBefore = (p: Point, item: { box: CanvasBlock; full: boolean }) => item.full ? p.y < item.box.y + item.box.height / 2
