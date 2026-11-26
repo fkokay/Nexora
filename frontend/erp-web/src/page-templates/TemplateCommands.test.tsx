@@ -5,6 +5,7 @@ import { CommandProvider, useCommandRegistry } from '../commands/CommandProvider
 import type { CommandRegistry } from '../commands/registry';
 import type { PageCommands, StandardCommandId } from '../commands/types';
 import { ConfirmDialogHost } from '../confirmDialog';
+import { CanvasAnchorContext } from '../designer-canvas/anchorContext';
 import { UNBOUND_REASON, VIEW_MODE_PARAM, VIEW_MODE_VALUE } from '../custom-page/pageActions';
 import {
   CLOSE_PAGE_EVENT, forgetOpener, OPEN_PAGE_EVENT, openWorkspacePage, pageParamsOf, setPageParams, type WorkspaceOpenRequest,
@@ -143,6 +144,12 @@ const listReady = () => waitFor(() => expect(view()?.export?.run).toBeTruthy(), 
 const selectRow = async (code: string) => { fireEvent.click((await screen.findByText(code, undefined, T)).closest('tr')!); };
 const pause = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms));
 const openMore = () => fireEvent.click(within(shellBar()).getByRole('button', { name: 'Diğer işlemler' }));
+const narrow = () => vi.stubGlobal('ResizeObserver', class {
+  constructor(private cb: ResizeObserverCallback) {}
+  observe() { this.cb([{ contentRect: { width: 100 } } as ResizeObserverEntry], this as unknown as ResizeObserver); }
+  disconnect() {}
+  unobserve() {}
+});
 const openedFromList = (params: Record<string, string> = {}) => { openWorkspacePage({ page: TAB, params, replace: true, from: LIST }); opens = []; };
 
 const IDS: StandardCommandId[] = ['new', 'open', 'view', 'save', 'delete', 'refresh', 'filter', 'export', 'undo'];
@@ -442,6 +449,51 @@ describe('kalıplı sayfada komutlar', () => {
     expect(within(shellBar()).getAllByRole('button').map((button) => button.textContent)).toEqual(['Yenile', 'Yazdır', 'Excel', 'Yenile', '⋯']);
     openMore();
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Dışa aktar', 'CSV olarak dışa aktar']);
+  });
+
+  it('at narrow width overflowed commands keep their shortcuts and Ctrl+S writes once', async () => {
+    narrow();
+    setPageParams(TAB, { kod: 'C-1001' });
+    setup(recordPage());
+    await waitFor(() => expect(enabled(command('save'))).toBe(true), T);
+    await waitFor(() => expect(view()?.delete?.run).toBeTruthy(), T);
+    // Yenile ve Sil ⋯ menüsünde; kısayolları kayıt defterinden çalışır, kabuk ikinci kez bağlamaz.
+    expect(command('refresh')).toBeNull();
+    openMore();
+    expect(screen.getByRole('menuitem', { name: /Yenile/ })).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    const loads = ran('kayit').length;
+    fireEvent.keyDown(document.body, { key: 'F5' });
+    await waitFor(() => expect(ran('kayit')).toHaveLength(loads + 1), T);
+    await pause();
+    expect(ran('kayit')).toHaveLength(loads + 1);
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 's', ctrlKey: true });
+    await waitFor(() => expect(ran('guncelle')).toHaveLength(1), T);
+    await pause(100);
+    expect(ran('guncelle')).toHaveLength(1);
+  });
+
+  it('a bar button stays out of Kaydet detection while İşlemler is hidden', async () => {
+    setPageParams(TAB, { kod: 'C-1001' });
+    const owned = { id: 'b_dizi', type: 'button', props: { slot: 'actions', text: 'Toplu güncelle', actionType: 'sequence', saveSequence: ['guncelle'] } };
+    // Kaydet kartın düğmesidir; çubuğun dizi düğmesi ondan önce gelse de Kaydet sayılmaz.
+    setup(recordPage(recordBar({ saveSequence: undefined, sequenceWhen: undefined, deleteQuery: undefined, moreButtons: ['b_dizi'], hiddenCommands: ['more'] }),
+      [owned, ...recordComponents]));
+    await waitFor(() => expect(shellButton('Kaydet')).toBeTruthy(), T);
+    // İşlemler gizli: düğme sayfada (kabukta) kalır, ama ana düğme kartın Kaydet'idir.
+    await waitFor(() => expect(shellButton('Toplu güncelle')).toBeTruthy(), T);
+    expect([...shellBar().querySelectorAll('.page-shell-action--primary')].map((button) => button.textContent)).toEqual(['Kaydet']);
+  });
+
+  it('on the Studio canvas the bar mark selects the whole shell toolbar', async () => {
+    definition = listPage();
+    render(<CommandProvider><Grab /><ActionBar locale="tr" />
+      <KeepAliveViews activeKey="v" openKeys={['v']}><CanvasAnchorContext.Provider value={true}><TenantCustomPage code="p" token="t" /></CanvasAnchorContext.Provider></KeepAliveViews>
+    </CommandProvider>);
+    await listReady();
+    const mark = await waitFor(() => { const found = document.querySelector('template[data-cp-anchor="komutlar"]'); expect(found).not.toBeNull(); return found!; }, T);
+    expect(mark.nextElementSibling).toBe(shellBar());
   });
 
   it('templated page without commands bar renders and registers as before', async () => {

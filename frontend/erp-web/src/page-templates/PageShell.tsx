@@ -124,7 +124,7 @@ function RecordTitle({ title }: { title: string }) {
 export function PageShell({ title, crumbs, count, actions, search, head, footer, children, variant = "list", menu, moreMenuHidden = false, barAnchor }: {
   title: string; crumbs: string[]; count?: number | null; actions: ShellAction[]; search?: ReactNode; head?: ReactNode; footer?: ReactNode; children?: ReactNode;
   variant?: "list" | "record"; menu?: ShellMenuItem[]; moreMenuHidden?: boolean;
-  /** Çubuğun başına konan görünmez işaret (Studio tuvali: sayfanın komut çubuğu bileşeni). */
+  /** Çubuğun hemen önüne konan görünmez işaret (Studio tuvali: sayfanın komut çubuğu bileşeni; işaret sonraki öğeyi seçer). */
   barAnchor?: ReactNode;
 }) {
   const barRef = useRef<HTMLDivElement>(null);
@@ -147,10 +147,11 @@ export function PageShell({ title, crumbs, count, actions, search, head, footer,
   const moreRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  // Alt+İ ile açılınca odak ilk öğeye gider (eski çubuğun İşlemler menüsü gibi).
+  // Alt+İ ile açılınca odak ilk öğeye gider; komutlu kabukta (`menu`) her açılışta, eski çubuğun İşlemler menüsü gibi, ki
+  // oklar tıklamayla açılan menüde de çalışsın.
   const focusFirst = useRef(false);
   useLayoutEffect(() => {
-    if (!menuOpen || !focusFirst.current) return;
+    if (!menuOpen || !(focusFirst.current || menu !== undefined)) return;
     focusFirst.current = false;
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
   }, [menuOpen]);
@@ -195,8 +196,9 @@ export function PageShell({ title, crumbs, count, actions, search, head, footer,
     {crumbs.length > 0 && <nav className="page-shell-crumbs" aria-label="Konum">{crumbs.map((crumb, index) => <span key={`${index}:${crumb}`}>{crumb}</span>)}</nav>}
     {variant === "record" ? <RecordTitle title={title} /> : <ListPageHeader title={title} count={count} />}
     {head}
+    {barAnchor}
     <div className="page-shell-bar" ref={barRef} role="toolbar" aria-label="İşlemler">
-      <div className="page-shell-bar-left">{barAnchor}{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
+      <div className="page-shell-bar-left">{shownLeft.map((action) => <ActionButton key={action.id} action={action} />)}</div>
       {search != null && <div className="page-shell-bar-search">{search}</div>}
       <div className="page-shell-bar-right">
         {hasMore && <div className="page-shell-more" ref={moreRef}>

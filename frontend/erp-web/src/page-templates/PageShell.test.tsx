@@ -180,7 +180,13 @@ describe("page templates", () => {
     expect(document.activeElement).toBe(items[0]);
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Diğer işlemler" }));
+    const more = screen.getByRole("button", { name: "Diğer işlemler" });
+    expect(document.activeElement).toBe(more);
+    // Tıklamayla açılan menüde de odak ilk öğededir ve oklar çalışır.
+    fireEvent.click(more);
+    expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[0]);
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getAllByRole("menuitem")[1]);
   });
 
   it("a command button keeps its command id in data-command", () => {

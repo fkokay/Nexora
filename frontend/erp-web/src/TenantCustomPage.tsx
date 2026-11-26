@@ -3810,10 +3810,15 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   if (recordLayout && runtime) {
     // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate). Komut çubuğunun çalıştırdığı
     // düğmeler Kaydet/Sil sayılmaz ve çizilmez (sunucunun IkiKaydet/IkiSil kuralı gibi).
-    const pageButtons = shellActionsFor(withoutBarButtons(recordLayout.actions, runtime), runtime, (button) => runtime.buttonAction(button)?.type === "sequence",
-      (button, kind) => recordDoneFor(button, kind, runtime), (button, action) => recordSequenceGate(button, action, runtime));
+    // İşlemler gizliyken (`more`) moreButtons sayfada çizilir ama yine çubuğun düğmesidir: kartın Kaydet'i/Sil'i sayılmaz.
+    const barRun = templateBar ? movedButtonIds(flat) : new Set<string>();
+    const pageButtons = shellActionsFor(withoutBarButtons(recordLayout.actions, runtime), runtime,
+      (button) => !barRun.has(button.id) && runtime.buttonAction(button)?.type === "sequence",
+      (button, kind) => (barRun.has(button.id) ? undefined : recordDoneFor(button, kind, runtime)),
+      (button, action) => (barRun.has(button.id) ? null : recordSequenceGate(button, action, runtime)));
     // Kaydet çubukta değil kayıt dizisi düğmesindeyse o düğme ana düğme kalır.
-    const recordSaveButton = pageButtons.some((action) => action.kind === "primary" && !!buttonById[action.id] && runtime.buttonAction(buttonById[action.id])?.type === "sequence");
+    const recordSaveButton = pageButtons.some((action) => action.kind === "primary" && !barRun.has(action.id) && !!buttonById[action.id]
+      && runtime.buttonAction(buttonById[action.id])?.type === "sequence");
     const summaryTitle = recordLayout.summary ? templateText(textValue(recordLayout.summary.props?.title), scope) : "";
     const crumbs = [page.name, isNewRecord ? "Yeni kayıt" : summaryTitle].filter((crumb) => crumb.trim() !== "");
     const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);
