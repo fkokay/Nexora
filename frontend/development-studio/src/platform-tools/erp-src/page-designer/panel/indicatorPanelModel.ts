@@ -26,8 +26,10 @@ const parse = (value: unknown): { query: string; column: string } | null => {
 };
 const binding = (queryName: string, column: string) => `{{${queryName}.rows[0].${column}}}`;
 const without = (props: Props, ...keys: string[]): Props => Object.fromEntries(Object.entries(props).filter(([key]) => !keys.includes(key)));
-const formatOf = (columnType?: string) => (columnType === "number" || columnType === "money" ? columnType : "text");
-const isNumeric = (type?: string) => type === "number" || type === "money";
+// Katalog kolon türleri `int` ve `decimal`dır (sunucu: text, int, decimal, date, bool, guid); ikisi de sayı biçimiyle gösterilir.
+// `number` / `money` eski ve elle yazılmış tanımlar için kabul edilir.
+const formatOf = (columnType?: string) => (columnType === "int" || columnType === "decimal" ? "number" : columnType === "number" || columnType === "money" ? columnType : "text");
+const isNumeric = (type?: string) => type === "int" || type === "decimal" || type === "number" || type === "money";
 
 /** Koşul yolunun bir parçası olabilecek ad (sunucu ve ERP koşul dilbilgisi: ASCII tanımlayıcı). */
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -185,6 +187,34 @@ function setBound<D extends ModelDefinition>(def: D, id: string, type: string, k
 }
 export const setIndicatorCompare = <D extends ModelDefinition>(def: D, id: string, column: string | null): D => setBound(def, id, "metric", "compareValue", column);
 export const setIndicatorTotal = <D extends ModelDefinition>(def: D, id: string, column: string | null): D => setBound(def, id, "progress", "progressTotal", column);
+
+/** Paletin koyduğu başlık (consultantPalette); kendiliğinden başlık yalnız bunun, boş başlığın ya da önceki kendiliğinden başlığın yerine yazılır. */
+export const INDICATOR_DEFAULT_TITLE = "Gösterge";
+
+/** Seçimden gelen başlık (taslak 03 ve 09): sayıda değerin etiketi, "Kayıt sayısı"nda kaynağın adı, ilerlemede değerin etiketi. Durumda yok. */
+function derivedTitle(def: ModelDefinition, id: string, sources: CatalogDataSource[]): string | null {
+  const state = indicatorOf(def, id);
+  const ds = sources.find((item) => item.code === state.source);
+  if (!ds || state.column === null || state.kind === "status") return null;
+  if (state.column === "count") return state.kind === "number" ? ds.label.trim() || null : null;
+  return ds.columns.find((column) => column.code === state.column)?.label.trim() || null;
+}
+
+/**
+ * Panelde yapılan bir değişiklikten (`before` → `after`) sonra göstergenin başlığını seçime uydurur: başlık boşsa, paletin
+ * varsayılanıysa ya da önceki seçimden gelen başlıksa yeni seçimin başlığı yazılır; danışmanın elle verdiği öteki başlıklar kalır.
+ * Yeni seçimin başlığı yoksa (durum, kaynaksız) önceki kendiliğinden başlık varsayılana döner.
+ */
+export function withIndicatorTitle<D extends ModelDefinition>(before: ModelDefinition, after: D, id: string, sources: CatalogDataSource[]): D {
+  const c = find(after, id);
+  if (!c) return after;
+  const current = typeof c.props.title === "string" ? c.props.title.trim() : "";
+  const previous = derivedTitle(before, id, sources);
+  if (current !== "" && current !== INDICATOR_DEFAULT_TITLE && current !== previous) return after;
+  const next = derivedTitle(after, id, sources) ?? (current === previous && previous !== null ? INDICATOR_DEFAULT_TITLE : null);
+  if (next === null || next === c.props.title) return after;
+  return mapComponent(after, id, (item) => ({ ...item, props: { ...item.props, title: next.slice(0, 200) } }));
+}
 
 /** Boyut yalnız sayıda yazılır; küçük varsayılandır ve yazılmaz. */
 export function setIndicatorSize<D extends ModelDefinition>(def: D, id: string, size: IndicatorSize): D {

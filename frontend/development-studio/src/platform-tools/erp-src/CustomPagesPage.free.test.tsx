@@ -107,4 +107,15 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(tabs[1].blockIds).toHaveLength(2);
     expect(tabs[1].blockIds[0]).toBe("b2");
   });
+
+  it("Katmanlar shows consultant names and no grid width on a free page", async () => {
+    const { host } = await open();
+    const layers = host.querySelector(".pd-layer-tree");
+    expect(layers).not.toBeNull();
+    const kinds = [...layers!.querySelectorAll(".pd-layer-open small")].map((small) => small.textContent);
+    expect(kinds).toContain("Sekmeler");
+    expect(kinds).toContain("Genel · Bölüm");
+    expect(kinds.some((kind) => kind?.endsWith("Metin"))).toBe(true);
+    expect(layers!.textContent).not.toContain("/12");
+  });
 });

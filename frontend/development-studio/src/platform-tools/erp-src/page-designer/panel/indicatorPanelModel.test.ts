@@ -4,7 +4,7 @@ import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageT
 import { missingCatalogCodes, withOperationParameters, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import {
   INDICATOR_SOURCE_NEEDS_INPUT, chooseIndicatorSource, indicatorOf, indicatorPlaces, indicatorSourceUsable, setIndicatorCompare, setIndicatorKind,
-  countColumnOf, setIndicatorPlace, setIndicatorSize, setIndicatorTotal, setIndicatorValue,
+  countColumnOf, setIndicatorPlace, setIndicatorSize, setIndicatorTotal, setIndicatorValue, withIndicatorTitle,
 } from "./indicatorPanelModel";
 import { parseCondition } from "../conditions";
 
@@ -183,6 +183,14 @@ describe("count mode (final review fix 1)", () => {
     expect(comp(column).props.source).toBeUndefined();
     expect(comp(column).props.value).toBe("{{kaynak.rows[0].durum}}");
   });
+  it("catalog column types int and decimal are numeric and show as numbers", () => {
+    const satis: CatalogDataSource = { ...ozet, code: "satis", columns: [col("ad", "Ad"), col("ciro", "Ciro", "decimal"), col("adet", "Adet", "int")] };
+    const def = chooseIndicatorSource(defWith(metric()), "g1", satis);
+    expect(comp(def).props).toMatchObject({ value: "{{kaynak.rows[0].ciro}}", format: "number" });
+    expect(comp(def).props.query).toBeUndefined();
+    expect(comp(setIndicatorValue(def, "g1", "adet", "int")).props.format).toBe("number");
+    expect(comp(setIndicatorValue(def, "g1", "ad", "text")).props.format).toBe("text");
+  });
   it("count without a count column leaves the definition unchanged", () => {
     const def = chooseIndicatorSource(defWith(metric()), "g1", ozet);
     expect(setIndicatorValue(def, "g1", "count")).toBe(def);
@@ -259,5 +267,40 @@ describe("indicatorPlaces by template (5c Karar 9)", () => {
     expect(comp(setIndicatorPlace(record, "g1", "below")).props.slot).toBe("below");
     const free = { ...record, template: { name: "free" as const } } as ModelDefinition;
     expect(indicatorPlaces(free, comp(free))).toEqual([]);
+  });
+});
+
+describe("indicator title follows the choice (mockups 03 and 09)", () => {
+  const sources = [ozet, siparis];
+  const step = (def: ModelDefinition, next: ModelDefinition) => withIndicatorTitle(def, next, "g1", sources);
+  it("palette default and empty titles take the value label, count takes the source label", () => {
+    const start = defWith(metric());
+    const chosen = step(start, chooseIndicatorSource(start, "g1", ozet));
+    expect(comp(chosen).props.title).toBe("Toplam alacak");
+    const counted = step(chosen, setIndicatorValue(chosen, "g1", "count", undefined, "adet"));
+    expect(comp(counted).props.title).toBe("Cari bakiye özeti");
+    const empty = defWith(metric({ title: "" }));
+    expect(comp(step(empty, chooseIndicatorSource(empty, "g1", ozet))).props.title).toBe("Toplam alacak");
+  });
+  it("a derived title follows later changes; a title typed by the consultant stays", () => {
+    const start = defWith(metric());
+    const chosen = step(start, chooseIndicatorSource(start, "g1", ozet));
+    const changed = step(chosen, setIndicatorValue(chosen, "g1", "adet", "number"));
+    expect(comp(changed).props.title).toBe("Adet");
+    const own = defWith(metric({ title: "Alacağımız" }));
+    expect(comp(step(own, chooseIndicatorSource(own, "g1", ozet))).props.title).toBe("Alacağımız");
+  });
+  it("progress uses the value label; status falls back to the default title", () => {
+    const start = defWith(metric());
+    const chosen = step(start, chooseIndicatorSource(start, "g1", ozet));
+    const progress = step(chosen, setIndicatorKind(chosen, "g1", "progress"));
+    expect(comp(progress).props.title).toBe("Toplam alacak");
+    const status = step(progress, setIndicatorKind(progress, "g1", "status"));
+    expect(comp(status).props.title).toBe("Gösterge");
+  });
+  it("does not change the input and returns it when nothing changes", () => {
+    const start = Object.freeze(defWith(metric({ title: "Alacağımız" }))) as ModelDefinition;
+    const next = chooseIndicatorSource(start, "g1", ozet);
+    expect(step(start, next)).toBe(next);
   });
 });

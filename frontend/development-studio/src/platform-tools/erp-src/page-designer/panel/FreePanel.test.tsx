@@ -1,11 +1,15 @@
-import { isValidElement, type ReactElement, type ReactNode } from "react";
+// @vitest-environment jsdom
+import { act, isValidElement, type ReactElement, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogDataSource } from "../catalogClient";
 import { newFreeTemplateDefinition } from "../pageTemplates";
 import { FreePanel, freeSelectionOf, type FreePanelProps, type FreeSelection } from "./FreePanel";
 import { FreeTablePanel } from "./FreeTablePanel";
-import { addItem, addPageAction, addTab, FREE_BLOCK_NOT_EMPTY, FREE_LAST_BLOCK, PAGE_ACTION_ROW, renameTab } from "./freeModel";
+import {
+  addItem, addPageAction, addPageButton, addTab, FREE_BLOCK_NOT_EMPTY, FREE_PAGE_CODE_INVALID, FREE_LAST_BLOCK, freeTabs, MAX_PAGE_ACTIONS, PAGE_ACTION_ROW, pageButtons, renameTab,
+} from "./freeModel";
 import { chooseTableSource, setTablePageSize } from "./freeTableModel";
 import type { ModelDefinition } from "./listPanelModel";
 
@@ -160,5 +164,99 @@ describe("serbest gövde paneli", () => {
     expect(renderTable(hundred, item.itemId)).toMatch(/class="on" aria-pressed="true"[^>]*>100<\/button>/);
     expect(renderTable(bound, item.itemId)).not.toContain(">100</button>");
     expect(setTablePageSize(bound, item.itemId, 100).components.find((c) => c.id === item.itemId)!.props.pageSize).toBe(100);
+  });
+
+  it("page panel shows screen-opening buttons and the form to add one, without technical words", () => {
+    const def = addPageButton(addPageAction(fresh(), actions[0]), "satis-raporu", "Satış raporu");
+    const html = renderPanel(def, { kind: "page" });
+    inOrder(html, ["Eylemler", "Raporu yenile", "Satış raporu", "Açılacak ekranın kodu", "Düğme metni", "＋ Ekran açan düğme",
+      "Eylemleri yazılımcı hazırlar", "İlk eylem ana düğmedir."]);
+    const text = visible(html);
+    for (const word of ["pageCode", "actionType", "page", "slot", "ekranDugmesi"]) expect(text, word).not.toContain(word);
+    // Katalog yokken de ekran açan düğme eklenebilir.
+    expect(renderPanel(fresh(), { kind: "page" }, null)).toContain("Açılacak ekranın kodu");
+  });
+
+  it("tab rows have up and down buttons; the ends are disabled", () => {
+    const def = ok(addTab(ok(addTab(fresh(), "Satış")).def, "Stok")).def;
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    act(() => root.render(<FreePanel def={def} selection={{ kind: "page" }} catalog={catalog} onChange={() => {}} onSelect={() => {}}/>));
+    const ups = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi yukarı taşı"]')];
+    const downs = [...host.querySelectorAll<HTMLButtonElement>('button[title="Sekmeyi aşağı taşı"]')];
+    expect(ups.map((b) => b.disabled)).toEqual([true, false, false]);
+    expect(downs.map((b) => b.disabled)).toEqual([false, false, true]);
+    act(() => root.unmount());
+  });
+});
+
+describe("serbest gövde paneli · etkileşim", () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const mount = (def: ModelDefinition, onChange: (next: ModelDefinition) => void) => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    act(() => root.render(<FreePanel def={def} selection={{ kind: "page" }} catalog={catalog} onChange={onChange} onSelect={() => {}}/>));
+    return { host, unmount: () => { act(() => root.unmount()); host.remove(); } };
+  };
+  const type = (input: HTMLInputElement, value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const click = (element: Element) => act(() => void element.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  const buttonWith = (host: Element, text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(text))!;
+  const inputOf = (host: Element, label: string) => [...host.querySelectorAll("label")].find((l) => l.textContent?.includes(label))!.querySelector("input")!;
+
+  it("adds a screen-opening button from the code and the text, then clears the form", () => {
+    const changes: ModelDefinition[] = [];
+    const view = mount(fresh(), (next) => changes.push(next));
+    const add = buttonWith(view.host, "Ekran açan düğme") as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    type(inputOf(view.host, "Açılacak ekranın kodu"), "satis-raporu");
+    expect(add.disabled).toBe(true);
+    type(inputOf(view.host, "Düğme metni"), "Satış raporu");
+    expect(add.disabled).toBe(false);
+    click(add);
+    expect(changes).toHaveLength(1);
+    expect(pageButtons(changes[0])).toEqual([{ id: "ekranDugmesi", text: "Satış raporu", pageCode: "satis-raporu" }]);
+    expect(inputOf(view.host, "Açılacak ekranın kodu").value).toBe("");
+    expect(inputOf(view.host, "Düğme metni").value).toBe("");
+    view.unmount();
+  });
+
+  it("an invalid screen code keeps the add button disabled and says why", () => {
+    const view = mount(fresh(), () => {});
+    type(inputOf(view.host, "Açılacak ekranın kodu"), "Satış raporu");
+    type(inputOf(view.host, "Düğme metni"), "Rapor");
+    expect((buttonWith(view.host, "Ekran açan düğme") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.host.textContent).toContain(FREE_PAGE_CODE_INVALID);
+    view.unmount();
+  });
+
+  it("removes a screen-opening button by clicking its chip", () => {
+    const def = addPageButton(fresh(), "rapor", "Rapor");
+    const changes: ModelDefinition[] = [];
+    const view = mount(def, (next) => changes.push(next));
+    click(buttonWith(view.host, "ekran açar"));
+    expect(pageButtons(changes[0])).toEqual([]);
+    view.unmount();
+  });
+
+  it("the form is disabled with the reason when the action bar is full", () => {
+    let def = fresh();
+    for (let index = 0; index < MAX_PAGE_ACTIONS; index++) def = addPageButton(def, `ekran${index}`, `Ekran ${index}`);
+    const view = mount(def, () => {});
+    expect((buttonWith(view.host, "Ekran açan düğme") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.host.textContent).toContain("İşlem çubuğunda en fazla 8 düğme olabilir.");
+    view.unmount();
+  });
+
+  it("moves a tab down", () => {
+    const def = ok(addTab(fresh(), "Satış")).def;
+    const changes: ModelDefinition[] = [];
+    const view = mount(def, (next) => changes.push(next));
+    click(view.host.querySelector('button[title="Sekmeyi aşağı taşı"]')!);
+    expect(freeTabs(changes[0])!.map((tab) => tab.label)).toEqual(["Satış", "Genel"]);
+    view.unmount();
   });
 });

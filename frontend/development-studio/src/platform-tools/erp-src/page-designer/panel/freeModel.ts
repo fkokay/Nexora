@@ -21,6 +21,8 @@ export const FREE_BLOCK_NOT_EMPTY = "Önce bu bölümdeki bileşenleri kaldırı
 export const FREE_LAST_BLOCK = "Serbest gövdede en az bir bölüm olmalı.";
 export const FREE_BLOCKS_FULL = "Serbest gövdede en fazla 20 bölüm olabilir.";
 export const FREE_TABS_FULL = "Serbest gövdede en fazla 8 sekme olabilir.";
+export const FREE_ACTIONS_FULL = "İşlem çubuğunda en fazla 8 düğme olabilir.";
+export const FREE_PAGE_CODE_INVALID = "Ekranın kodu yalnız harf, rakam, - ve _ içerebilir; en çok 40 karakter.";
 export const PAGE_ACTION_ROW = "Bu eylem bir satıra ait; serbest gövdede kullanılamaz.";
 export const PAGE_ACTION_BULK = "Toplu eylemler serbest gövdede kullanılamaz.";
 export const PAGE_ACTION_NEEDS_INPUT = "Bu eylem ek bilgi istiyor; serbest gövdede kullanılamaz.";
@@ -267,6 +269,14 @@ export function removeTab<D extends ModelDefinition>(def: D, tabIndex: number): 
   return setFreeTabs(def, next);
 }
 
+/** Sekmeyi bir sola / sağa taşır (bölümleri onunla gider). Uçta ya da sekmesiz sayfada tanım değişmez. */
+export function moveTab<D extends ModelDefinition>(def: D, tabIndex: number, direction: -1 | 1): D {
+  const tabs = freeTabs(def);
+  const other = tabIndex + direction;
+  if (!tabs?.[tabIndex] || other < 0 || other >= tabs.length) return def;
+  return setFreeTabs(def, swap(tabs, tabIndex, other));
+}
+
 /** Bölümü başka sekmenin sonuna taşır; boş kalan sekme kalkar, tek sekme kalırsa sekme bileşeni de. */
 export function moveBlockToTab<D extends ModelDefinition>(def: D, blockId: string, tabIndex: number): D {
   const tabs = freeTabs(def);
@@ -423,4 +433,47 @@ export function removePageAction<D extends ModelDefinition>(def: D, code: string
   const removed = def.components.filter((component) => isActionButton(component) && actionQueryOf(def, component)?.action === code);
   if (removed.length === 0) return def;
   return dropOrphanQueries({ ...def, components: def.components.filter((component) => !removed.includes(component)) }, removed);
+}
+
+// ---------- ekran açan düğmeler ----------
+
+const isPageButton = (component: ModelComponent) => isActionButton(component) && component.props.actionType === "page";
+
+// Sunucunun kabul ettiği kodlar (TenantCustomPageSchema.KnownPageCode): özel sayfa kodu ya da `@ekran-anahtarı`.
+const CUSTOM_PAGE_CODE = /^[A-Za-z0-9_-]{1,40}$/;
+const SCREEN_CODE = /^@[a-z0-9-]{1,39}$/;
+/** Açılacak ekranın kodu sunucunun kabul edeceği biçimde değilse neden; boş ya da geçerliyse null. */
+export function pageButtonCodeProblem(pageCode: string): string | null {
+  const code = pageCode.trim();
+  return !code || CUSTOM_PAGE_CODE.test(code) || SCREEN_CODE.test(code) ? null : FREE_PAGE_CODE_INVALID;
+}
+
+/**
+ * Başka bir ekranı açan düğmeyi (`actionType: "page"`) işlem çubuğuna ekler; ilk düğme ana düğmedir, sıra eklendiği gibi kalır
+ * (silme türündeki eylemler yine en sağda). Kod ya da metin boşsa, kod geçersizse ya da 8 düğme doluysa tanım değişmez.
+ */
+export function addPageButton<D extends ModelDefinition>(def: D, pageCode: string, label: string): D {
+  const code = pageCode.trim();
+  const text = label.trim().slice(0, MAX_TITLE).trim();
+  if (!code || !text || pageButtonCodeProblem(code) || pageActionsFull(def)) return def;
+  const button: ModelComponent = { id: freeId(def, "ekranDugmesi"), type: "button", props: { slot: "actions", text, actionType: "page", pageCode: code } };
+  return orderActions({ ...def, components: [...def.components, button] });
+}
+
+/** Ekran açan düğmeyi kaldırır; başka türdeki düğmede tanım değişmez. */
+export function removePageButton<D extends ModelDefinition>(def: D, buttonId: string): D {
+  const button = def.components.find((component) => component.id === buttonId && isPageButton(component));
+  return button ? { ...def, components: def.components.filter((component) => component !== button) } : def;
+}
+
+/** İşlem çubuğu dolu mu (8 düğme: katalog eylemleri ve ekran açan düğmeler birlikte). */
+export const pageActionsFull = (def: ModelDefinition) => def.components.filter(isActionButton).length >= MAX_PAGE_ACTIONS;
+
+/** İşlem çubuğundaki ekran açan düğmeler, sırayla. */
+export function pageButtons(def: ModelDefinition): { id: string; text: string; pageCode: string }[] {
+  return def.components.filter(isPageButton).map((component) => ({
+    id: component.id,
+    text: typeof component.props.text === "string" ? component.props.text : "",
+    pageCode: typeof component.props.pageCode === "string" ? component.props.pageCode : "",
+  }));
 }

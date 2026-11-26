@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, type LucideIcon } from "lucide-react";
 import { buildLayerTree, filterLayerTree, matchesTerm, type ChildGroup } from "./leftPanelModel";
 
 /** Katmanlar bölümünün bir bileşeni; `children` sekme/pencere sahipliğidir (sekme etiketiyle). */
-export type LayerItem = { id: string; name?: string; label: string; typeLabel: string; span: number; icon: LucideIcon; children: ChildGroup[] };
+export type LayerItem = { id: string; name?: string; label: string; typeLabel: string; /** Izgara genişliği; kalıplı sayfada verilmez (danışmana gösterilmez). */ span?: number; icon: LucideIcon; children: ChildGroup[] };
 
 type Props = {
   items: LayerItem[];
@@ -56,7 +56,7 @@ export default function LayersTree({ items, search, canEdit, selectedId, onSelec
       onDragOver={root ? (event) => { event.preventDefault(); const rect = event.currentTarget.getBoundingClientRect(); onDragOver(index, event.clientY < rect.top + rect.height / 2 ? "before" : "after"); } : undefined}
       onDrop={root ? (event) => onDrop(dropTarget?.index === index && dropTarget.edge === "after" ? index + 1 : index, event) : undefined}>
       <button type="button" className="pd-layer-open" aria-current={selectedId === node.id ? "true" : undefined} onClick={() => onSelect(node.id)}><Icon size={14}/>
-        <span><b>{item.label}</b><small>{node.group ? `${node.group} · ` : ""}{item.typeLabel} · {item.span}/12</small></span></button>
+        <span><b>{item.label}</b><small>{node.group ? `${node.group} · ` : ""}{item.typeLabel}{item.span === undefined ? "" : ` · ${item.span}/12`}</small></span></button>
       {root && <span className="pd-layer-actions">
         <button type="button" title="Yukarı taşı" aria-label="Yukarı taşı" disabled={!canEdit || index === 0} onClick={() => onMove(index, -1)}><ArrowUp size={13}/></button>
         <button type="button" title="Aşağı taşı" aria-label="Aşağı taşı" disabled={!canEdit || index === last} onClick={() => onMove(index, 1)}><ArrowDown size={13}/></button>

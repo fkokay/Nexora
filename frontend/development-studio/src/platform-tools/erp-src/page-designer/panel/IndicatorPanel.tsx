@@ -6,7 +6,7 @@ import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import { AppearanceSection } from "./AppearanceSection";
 import {
   chooseIndicatorSource, countColumnOf, indicatorOf, indicatorPlaces, indicatorSourceUsable, setIndicatorCompare, setIndicatorKind, setIndicatorPlace, setIndicatorSize,
-  setIndicatorTotal, setIndicatorValue, type IndicatorKind, type IndicatorPlace, type IndicatorSize,
+  setIndicatorTotal, setIndicatorValue, withIndicatorTitle, type IndicatorKind, type IndicatorPlace, type IndicatorSize,
 } from "./indicatorPanelModel";
 import { withOperationParameters, type ModelComponent, type ModelDefinition, type OperationListStatus } from "./listPanelModel";
 import { setHideOnMobile } from "./textPanelModel";
@@ -45,9 +45,10 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
   const state = indicatorOf(definition, component.id);
   const sources = (catalog?.dataSources ?? []).map((item) => withOperationParameters(item, operationOf(item.erpOperation), false, operationsStatus));
   const source = sources.find((item) => item.code === state.source);
-  const change = (next: ModelDefinition) => { if (!disabled && next !== definition) onChange(next); };
-  const typeOf = (column: string) => source?.columns.find((item) => item.code === column)?.type;
   const id = component.id;
+  // Başlık seçimi izler (taslak 03 ve 09): değer ya da kaynak değişince elle verilmemiş başlık yeni seçimin etiketini alır.
+  const change = (next: ModelDefinition) => { if (!disabled && next !== definition) onChange(withIndicatorTitle(definition, next, id, sources)); };
+  const typeOf = (column: string) => source?.columns.find((item) => item.code === column)?.type;
 
   const switchKind = (kind: IndicatorKind) => {
     let next = setIndicatorKind(definition, id, kind);

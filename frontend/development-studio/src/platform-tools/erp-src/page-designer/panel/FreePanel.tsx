@@ -1,12 +1,12 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { ActiveCatalog, CatalogAction } from "../catalogClient";
 import { AppearanceSection } from "./AppearanceSection";
 import { DraftInput } from "./DraftInput";
 import { LegacySettings } from "./ComponentPanel";
 import "./component-panel.css";
 import {
-  addPageAction, addTab, freeTabs, isFreeBlock, moveBlock, moveBlockToTab, pageActionCodes, pageActionUsable, removeBlock, removePageAction,
-  removeTab, renameTab, setBlockColumns, setBlockTitle, type BlockColumns,
+  addPageAction, addPageButton, addTab, FREE_ACTIONS_FULL, freeTabs, isFreeBlock, moveBlock, moveBlockToTab, moveTab, pageActionCodes, pageActionsFull, pageButtonCodeProblem,
+  pageActionUsable, pageButtons, removeBlock, removePageAction, removePageButton, removeTab, renameTab, setBlockColumns, setBlockTitle, type BlockColumns,
 } from "./freeModel";
 import type { ModelDefinition } from "./listPanelModel";
 import { setHideOnMobile } from "./textPanelModel";
@@ -32,6 +32,7 @@ export const FREE_PAGE_LEVEL_NOTE = "Serbest gövde · 3. basamak";
 export const FREE_MISSING_IN_CATALOG = "Katalogda yok";
 export const FREE_COLUMNS_NOTE = "Dar ekranda kolonlar kendiliğinden azalır: tablette en çok 2, telefonda 1.";
 export const FREE_ACTIONS_DEV_NOTE = "Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir";
+export const FREE_PAGE_BUTTON_NOTE = "Düğme, kodu yazılan ekranı açar.";
 export const FREE_ACTIONS_NOTE = "İlk eylem ana düğmedir. Bir satıra ait eylemler burada seçilemez; onlar için Liste kalıbını kullanın.";
 /** Bölümde panelin yazdığı özellikler; ötekiler "Eski ayarlar" altında salt okunur görünür. */
 const BLOCK_KNOWN = new Set(["slot", "title", "columns", "members", "visibleWhen", "hideOnMobile"]);
@@ -101,6 +102,10 @@ function PagePanel(props: FreePanelProps) {
     <section className="cpanel-sec" data-part="tabs"><h4>Sekmeler</h4>
       {tabs ? tabs.map((tab, index) => <div className="cpanel-row" key={index}>
         <DraftInput head label="Sekme adı" value={tab.label} maxLength={40} disabled={disabled} onCommit={(value) => change(renameTab(def, index, value))}/>
+        <button type="button" className="cpanel-btn" disabled={disabled || index === 0} title="Sekmeyi yukarı taşı"
+          onClick={() => change(moveTab(def, index, -1))}>↑</button>
+        <button type="button" className="cpanel-btn" disabled={disabled || index === tabs.length - 1} title="Sekmeyi aşağı taşı"
+          onClick={() => change(moveTab(def, index, 1))}>↓</button>
         <button type="button" className="cpanel-btn" disabled={disabled} title="Sekmeyi sil; bölümleri önceki sekmeye geçer"
           onClick={() => change(removeTab(def, index))}>Sil</button>
       </div>) : <p className="cpanel-note">Bu sayfada sekme yok; bölümler alt alta durur.</p>}
@@ -111,9 +116,32 @@ function PagePanel(props: FreePanelProps) {
     </section>
     <section className="cpanel-sec" data-part="actions"><h4>Eylemler</h4>
       {actionChips}
+      {pageButtons(def).length > 0 && <div className="cpanel-chips" role="group" aria-label="Ekran açan düğmeler">
+        {pageButtons(def).map((button) => <button type="button" key={button.id} className="cpanel-chip on" aria-pressed disabled={disabled}
+          title="Kaldırmak için tıklayın" onClick={() => change(removePageButton(def, button.id))}>{button.text}<small> · ekran açar</small></button>)}
+      </div>}
+      <PageButtonForm disabled={disabled} full={pageActionsFull(def)} onAdd={(code, label) => change(addPageButton(def, code, label))}/>
       <div className="cpanel-dev">{FREE_ACTIONS_DEV_NOTE}</div>
       <p className="cpanel-note">{FREE_ACTIONS_NOTE}</p>
     </section>
+  </div>;
+}
+
+/** Ekran açan düğme: panelde ekran listesi olmadığından açılacak ekranın kodu yazılır. */
+function PageButtonForm({ disabled, full, onAdd }: { disabled?: boolean; full: boolean; onAdd: (code: string, label: string) => void }) {
+  const [code, setCode] = useState("");
+  const [label, setLabel] = useState("");
+  const problem = pageButtonCodeProblem(code);
+  const ready = code.trim() !== "" && label.trim() !== "" && !problem;
+  return <div className="cpanel-sub" data-part="page-button">
+    <label className="cpanel-q">Açılacak ekranın kodu<input className="cpanel-txt" maxLength={40} spellCheck={false} value={code} disabled={disabled || full}
+      onChange={(event) => setCode(event.target.value)}/></label>
+    <label className="cpanel-q">Düğme metni<input className="cpanel-txt" maxLength={120} value={label} disabled={disabled || full}
+      onChange={(event) => setLabel(event.target.value)}/></label>
+    <button type="button" className="cpanel-add" disabled={disabled || full || !ready}
+      onClick={() => { onAdd(code, label); setCode(""); setLabel(""); }}>＋ Ekran açan düğme</button>
+    {problem && !full && <p className="cpanel-warn">{problem}</p>}
+    <p className="cpanel-note">{full ? FREE_ACTIONS_FULL : FREE_PAGE_BUTTON_NOTE}</p>
   </div>;
 }
 

@@ -57,7 +57,7 @@ import { loadCatalog, type ActiveCatalog } from "./page-designer/catalogClient";
 import { definitionNeedsAdmin } from "./page-designer/queryPageLock";
 import { TEMPLATE_CANVAS_FALLBACK, TemplateInspector, usesTemplateInspector } from "./page-designer/panel/TemplateInspector";
 import { fieldTokens } from "./page-designer/panel/consultantText";
-import { stringList, withOperationParameters, type ModelDefinition } from "./page-designer/panel/listPanelModel";
+import { stringList, withOperationParameters, type ModelComponent, type ModelDefinition } from "./page-designer/panel/listPanelModel";
 import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
@@ -73,7 +73,7 @@ import * as cardTree from "./page-designer/cardChildren";
 import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import * as freeModel from "./page-designer/panel/freeModel";
-import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
+import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantLayerLabel, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
@@ -3279,7 +3279,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
 
   // Katmanlar: üst düzey bileşenler (sırası kök sırasıdır), arkalarından kartların çocukları; kart açılır bir daldır
   // (kart › çocuklar › sekmeler › üyeler). Kartın içindeki bir bileşene tıklamak kart tasarım ekranını açar.
-  const layerOf = (component: PageComponent) => ({ id: component.id, name: component.name, label: summaryOf(component), typeLabel: titleFor(component.type), span: spanOf(component), icon: iconFor(component.type),
+  // Kalıplı sayfada (liste, kayıt, serbest) danışman adı görünür ve ızgara genişliği gösterilmez; kalıpsız sayfa değişmez.
+  const layerOf = (component: PageComponent) => ({ id: component.id, name: component.name, label: summaryOf(component),
+    typeLabel: (pageTemplate ? consultantLayerLabel(component as unknown as ModelComponent) : null) ?? titleFor(component.type),
+    span: pageTemplate ? undefined : spanOf(component), icon: iconFor(component.type),
     children: component.type === "tabs" ? parseTabs(component.props.tabs).map((tab) => ({ label: tab.label, ids: tab.ids }))
       : component.type === "dialog" ? [{ label: component.props.presentation === "drawer" ? "çekmece" : "pencere", ids: idList(component.props.contains, MAX_DIALOG_IDS) }]
         : component.type === "formCard" || component.type === "facetPanel" ? [{ ids: refTree.refIds(component) }]
