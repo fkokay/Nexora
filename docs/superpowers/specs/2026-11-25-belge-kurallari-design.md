@@ -273,6 +273,22 @@ Sonuçları:
   - Sunucu kontrolleri ve **taslak** kuralları yazmadan çalıştırır, günlüğü döndürür. Hiçbir kayıt değişmez.
   - Uç: `POST /api/document-rules/satis.siparis/try`.
 
+### 5.6 PR 2'de alınan kararlar (2026-11-26, plan onayıyla)
+
+- **Sistem standardı ertelendi.** §5.4'teki "`sales-order-create`'in yeni sürümü Belge kalıbını kullanır" yapılamaz: `SystemPageStandards.Restrict` kök anahtarları aynen kopyalar, bu yüzden eski sürüme kısıtlanan tanım `actionBar` ve `lookupFills` taşıyan bir belge sayfası olur ve doğrulamadan geçmez. Plan yerine yeni bir ekran anahtarı (`sales-order-document`) öngördü; ERP'de yeni anahtarın sekme, menü ve yönlendirme listelerine eklenmesi ve eski ekranı olmayan bir anahtarın geri dönüş yolu bu PR'ın ölçüsünü aştığı için o da sonraki işe kaldı. Bu PR'da Belge sipariş kartı Studio'da **Yeni sayfa → Belge** ile kurulur.
+- **Kalıp biçimi.** `template: { "name": "belge", "document": "satis.siparis" }`; seçimler üç üst düzey bileşendir: `documentFields` (`fields`, `labels`), `documentLines` (`columns`, `labels`, `density`), `documentSummary` (`vatBreakdown`, `activity`). `actions` yerine yalnız katalog eylemi düğmesi, `above`/`below` yerine her bileşen konur. Belge sayfasında `editableGrid` (ve onunla bütün doldurma/formül/hesap kolonu ayarları), `actionBar` ve genişlik ayarı reddedilir. Sunucu alan ve kolon kodlarını modele göre denetler; zorunlular gizlenemez, etiket en çok 60 karakterdir.
+- **Model genişledi (§5.2).** Alanlarda `readOnly` (belge no), kolonlarda `visibleFrom` (Sevk edilen Onaylı'dan itibaren), modelde `fills` (stok → birim, fiyat, KDV, iskonto, döviz, kullanılabilir), `createOperation` ve `updateOperation`. Tuval için `GET /api/document-models/satis.siparis/sample?state=` veritabanına dokunmadan örnek belge döner.
+- **ERP çizimi.** Taslak'ta ana düğme Kaydet, yanında Onayla (taslak 08); geçişler `allowedTransitions`'tan gelir. Satırlar bugünkü `EditableGrid` ile çizilir; hesap 400 ms sonra gönderilir, yeni değişiklik eski isteği iptal eder, eski yanıt yok sayılır. Firmanın sipariş özel alanları başlık alanlarının altında kendiliğinden görünür. Onaylı belgede teslim tarihi Belge'den değişmez (eski ekranda değişir).
+- **Studio paneli (taslak 09).** Panel, taslak 09'daki üç eki taşır: tuvalde "Önizlenen durum" seçici (Taslak / Onaylı / Sevk edildi; yalnız tuvalde), "KDV'yi orana göre dök" ve "İşlem günlüğü" anahtarları. Danışmanın Satış siparişi okuma izni yoksa panel "Bu belgenin modelini görmek için Satış siparişi okuma izni gerekir." der ve düzenlemeyi kapatır. Ek eylemler, yalnız belge kimliğini (`id`) isteyen tek kayıt katalog eylemleridir.
+
+### 5.7 PR 3'te alınan kararlar (2026-11-26, plan onayıyla)
+
+- **Saklama:** Kurallar birlikte yayımlandığı için sürüm kural başına değil küme başınadır: `TenantDocumentRuleSets` satırı (Taslak / Yayında / Arşiv), kurallar JSON dizisinde (kod, sıra, açık/kapalı, koşul, eylem, kişiler, mesaj).
+- **Onay akışı:** İş akışı adımı isteğe bağlı kişi listesi taşır; kişi listeli adımda kararı yalnız listedeki, başlatan dışındaki kişi verir (rol ve yönetici atlatması uygulanmaz). Tutan her onay kuralı bir adımdır, kural sırasıyla. Tanım tenant başına sistemin yönettiği `sys.satis-siparisi-onayi`'dır; düzenlenemez, elle başlatılamaz.
+- **Uyar:** Onayla uyarıyla 409 `needsConfirmation` döner; kullanıcı onaylarsa istek uyarılar görüldü diye yinelenir.
+- **Yetki:** `erp.document-rules` öteki kaynaklar gibi rol temel kuralına girer; TenantUser (danışman) ve TenantDeveloper varsayılan olarak yazar, yönetici Deny ile kapatabilir. ERP API Studio rolünü görmez.
+- **İptal:** Onay bekleyen sipariş iptal edilebilir; bekleyen akış kapanır.
+
 ## 6. PR'lar
 
 1. **Sunucu: durum zinciri ve belge modeli.**

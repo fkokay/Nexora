@@ -116,3 +116,39 @@
 .free-template-page .free-cell.is-full { grid-column: 1 / -1; min-width: 0; overflow-x: auto; }
 /* Üyesiz bölüm yalnız tuvalde görünür. */
 .free-template-page .free-section-placeholder { grid-column: 1 / -1; margin: 0; padding: 14px; text-align: center; color: var(--nx-muted); border: 1px dashed var(--nx-line); border-radius: 8px; }
+
+/* ---- Belge kalıbı (belge kuralları PR 2, taslak 08) ---- */
+.belge-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.belge-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.belge-title h2 { margin: 0; font-size: 20px; }
+.belge-badge { font-size: 12px; padding: 3px 10px; border-radius: 99px; font-weight: 600; background: var(--nx-canvas); color: var(--nx-ink-2); }
+.belge-badge.is-Open { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
+.belge-badge.is-Fulfilled, .belge-badge.is-Invoiced { background: var(--nx-warn-bg); color: var(--nx-warn); }
+.belge-badge.is-Cancelled { background: var(--nx-bad-bg); color: var(--nx-bad); }
+.belge-chain { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.belge-chain li { font-size: 11.5px; padding: 4px 10px; border-radius: 6px; background: var(--nx-canvas); color: var(--nx-muted); }
+.belge-chain li.is-done { background: var(--nx-primary-soft); color: var(--nx-primary-strong); }
+.belge-chain li.is-current { background: var(--nx-primary); color: var(--nx-on-primary); font-weight: 600; }
+.belge-extra-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.belge-message { padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; }
+.belge-message.is-error { background: var(--nx-bad-bg); color: var(--nx-bad); }
+.belge-message.is-info { background: var(--nx-ok-bg); color: var(--nx-ok); }
+.belge-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 14px; margin-bottom: 14px; }
+.belge-field label { display: block; font-size: 12px; color: var(--nx-muted); margin-bottom: 3px; }
+.belge-field input { width: 100%; box-sizing: border-box; }
+.belge-bottom { display: grid; grid-template-columns: 1fr minmax(240px, 300px); gap: 16px; margin-top: 14px; }
+@media (max-width: 760px) { .belge-bottom { grid-template-columns: 1fr; } }
+.belge-activity, .belge-totals { border: 1px solid var(--nx-line); border-radius: var(--nx-radius-card); padding: 10px 12px; background: var(--nx-surface); }
+.belge-activity h3, .belge-totals h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--nx-muted); }
+.belge-activity ul { list-style: none; margin: 0; padding: 0; }
+.belge-activity li { font-size: 12px; padding: 4px 0; border-bottom: 1px dashed var(--nx-line-soft); display: flex; flex-wrap: wrap; gap: 4px; }
+.belge-activity time { color: var(--nx-muted); margin-left: auto; }
+.belge-note { color: var(--nx-muted); font-size: 12px; margin: 0 0 6px; }
+.belge-totals dl { margin: 0; }
+.belge-totals dl > div { display: flex; justify-content: space-between; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.belge-totals dd { margin: 0; }
+.belge-totals .is-vat { color: var(--nx-muted); font-size: 12px; }
+.belge-totals .is-grand { border-top: 1px solid var(--nx-line); margin-top: 4px; padding-top: 7px; font-weight: 700; font-size: 15px; }
+.belge-template-page.is-dense td { padding-top: 3px; padding-bottom: 3px; }
+.belge-template-page.is-comfy td { padding-top: 11px; padding-bottom: 11px; }
+.belge-approval { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--nx-primary-soft); color: var(--nx-primary-strong); font-size: 12.5px; }

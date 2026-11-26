@@ -6,7 +6,9 @@ export type CanvasBlock = { id: string; x: number; y: number; width: number; hei
 export type StudioToCanvas =
   | { nx: 'nexora-canvas'; v: 1; type: 'reload'; revision: number }
   /** Kayıt kartı: `tabsId` bileşeninin `index`. sekmesini gösterir (sekme düğmesi kutuları `"<tabsId>#tab<i>"`). */
-  | { nx: 'nexora-canvas'; v: 1; type: 'showTab'; tabsId: string; index: number };
+  | { nx: 'nexora-canvas'; v: 1; type: 'showTab'; tabsId: string; index: number }
+  /** Belge kalıbı: tuvalde çizilen örnek belgenin durumu (ör. Draft, Open, Fulfilled). */
+  | { nx: 'nexora-canvas'; v: 1; type: 'previewState'; state: string };
 export type CanvasToStudio =
   | { nx: 'nexora-canvas'; v: 1; type: 'ready'; revision: number }
   | { nx: 'nexora-canvas'; v: 1; type: 'layout'; revision: number; height: number; blocks: CanvasBlock[] }
@@ -64,6 +66,12 @@ export function canvasFrameUrl(platformOrigin: string, target: { previewId: stri
 
 export function reloadMessage(revision: number): StudioToCanvas {
   return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'reload', revision };
+}
+
+/** Belge kalıbı: tuvalin örnek belgesini `state` durumunda çizdirir. */
+export function previewStateMessage(state: string): StudioToCanvas {
+  if (!/^[A-Za-z]{1,32}$/.test(state)) throw new Error('Geçersiz belge durumu.');
+  return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'previewState', state };
 }
 
 export function showTabMessage(tabsId: string, index: number): StudioToCanvas {

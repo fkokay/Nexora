@@ -70,6 +70,18 @@ internal sealed class FiscalCloseRouteSqlAcceptanceHarness : IAsyncDisposable
         }
     }
 
+    public PlatformDbContext NewPlatformDb() =>
+        new(new DbContextOptionsBuilder<PlatformDbContext>().UseSqlServer(_platformConnection).Options);
+
+    /// <summary>A client acting as another member of the tenant (after <see cref="StartApi"/>).</summary>
+    public HttpClient ClientFor(Guid userId)
+    {
+        var client = _factory!.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString("D"));
+        client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString("D"));
+        return client;
+    }
+
     public TenantDbContext NewTenantDb() =>
         new(new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(_tenantConnection).Options);
 

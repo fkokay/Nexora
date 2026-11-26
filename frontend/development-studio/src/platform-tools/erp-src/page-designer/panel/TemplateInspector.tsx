@@ -14,6 +14,7 @@ import { InfoBoxPanel } from "./InfoBoxPanel";
 import { ListPanel, type ListPanelProps } from "./ListPanel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { RecordPanel, recordSelectionOf, type RecordPanelProps } from "./RecordPanel";
+import { BelgePanel, type BelgePanelProps } from "./BelgePanel";
 import { TextPanel } from "./TextPanel";
 
 export const SLOT_LABELS: Record<string, string> = {
@@ -21,6 +22,8 @@ export const SLOT_LABELS: Record<string, string> = {
   rowActions: "Satır eylemleri", detail: "Yan panel", above: "Listenin üstü", below: "Listenin altı",
 };
 const RECORD_SLOT_LABELS: Record<string, string> = { above: "Kartın üstü", below: "Kartın altı" };
+const BELGE_SLOT_LABELS: Record<string, string> = { above: "Belgenin üstü", below: "Belgenin altı" };
+const BELGE_FOCUS: Record<string, BelgePanelProps["focus"]> = { documentFields: "fields", documentLines: "lines", documentSummary: "summary" };
 export const TEMPLATE_CANVAS_FALLBACK = "Bu ekran ERP önizlemesi açılınca görünür.";
 
 /** Kalıplı sayfa paneli yalnız kalıplı sayfanın üst düzey bileşenlerinde açılır; kalıpsız sayfada bugünkü sekmeli panel kalır. */
@@ -121,11 +124,13 @@ function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
  * Bileşen adı bağlamalarda kullanıldığından danışman panellerinde salt okunurdur. Ek alanlarda (`above` / `below`) Ad
  * bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
  */
-export function TemplateInspector({ component, legacy, list, record, free, tokens, disabled, onLeave, onPlace }: {
+export function TemplateInspector({ component, legacy, list, record, free, belge, tokens, disabled, onLeave, onPlace }: {
   component: ModelComponent | null; legacy: ReactNode; list: Omit<ListPanelProps, "listId"> | null;
   record?: Omit<RecordPanelProps, "selection"> | null;
   /** Serbest gövdede panelin bilgileri; verilirse bütün seçimler serbest gövdenin panellerine gider. */
   free?: FreeInspectorProps | null;
+  /** Belge sayfası: sayfa ve belge parçaları (alanlar, satırlar, toplamlar) Belge panelinde açılır; ek alanlar bugünkü yoldadır. */
+  belge?: Omit<BelgePanelProps, "focus"> | null;
   /** Metindeki `{Alan}` ifadeleri ve "Kayıttaki resim" için listenin kolonları (`fieldTokens`). */
   tokens: FieldToken[]; disabled?: boolean;
   onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
@@ -135,8 +140,13 @@ export function TemplateInspector({ component, legacy, list, record, free, token
     const selection = recordSelectionOf(record.def, component?.id ?? null);
     if (selection) return <RecordPanel {...record} selection={selection} disabled={disabled || record.disabled}/>;
   }
+  if (belge) {
+    const slot = typeof component?.props.slot === "string" ? component.props.slot : "";
+    if (!component || BELGE_FOCUS[component.type] || (slot === "actions" && component.type === "button"))
+      return <BelgePanel {...belge} focus={component ? BELGE_FOCUS[component.type] ?? null : null} disabled={disabled || belge.disabled}/>;
+  }
   if (!component) return null;
-  const labels = record ? { ...SLOT_LABELS, ...RECORD_SLOT_LABELS } : SLOT_LABELS;
+  const labels = record ? { ...SLOT_LABELS, ...RECORD_SLOT_LABELS } : belge ? { ...SLOT_LABELS, ...BELGE_SLOT_LABELS } : SLOT_LABELS;
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";
   if (slot === "list" && component.type === "dataTable" && list) return <ListPanel {...list} listId={component.id} disabled={disabled} onLeave={onLeave}/>;
   const extra = slot === "above" || slot === "below";

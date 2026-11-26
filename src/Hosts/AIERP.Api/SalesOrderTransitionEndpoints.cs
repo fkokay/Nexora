@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using AIERP.Api.DocumentRules;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
 using AIERP.Platform.Infrastructure;
@@ -61,6 +62,38 @@ internal static class SalesOrderTransitionEndpoints
                     "Zorunlu alanlar, satırlar ve cari risk limiti", userId);
                 foreach (var warning in warnings)
                     DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, "Stok yeterliliği", "core", "warned", warning, userId);
+                // Consultant rules (published set only): Engelle, then Onay iste, then Uyar (spec §5.5).
+                var rules = await DocumentRuleEndpoints.PublishedRulesAsync(db, tenantId, ct);
+                if (rules.Count > 0)
+                {
+                    await db.Entry(order).Collection(x => x.Lines).LoadAsync(ct);
+                    var outcome = DocumentRuleEvaluator.Evaluate(rules, await SalesOrderRuleFacts.BuildAsync(db, tenantId, order, ct));
+                    if (outcome.Blocks.Count > 0)
+                    {
+                        foreach (var block in outcome.Blocks)
+                            DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, block.Code, "rule", "blocked", block.Message, userId);
+                        await db.SaveChangesAsync(ct);
+                        await transaction.CommitAsync(ct);
+                        return Results.Conflict(new { error = outcome.Blocks[0].Message, code = "blocked" });
+                    }
+                    if (outcome.Warnings.Count > 0 && !request.AcknowledgeWarnings)
+                        return Results.Conflict(new { error = "Kurallar uyarı veriyor; onaylarsanız sipariş onaylanır.", code = "needsConfirmation",
+                            warnings = outcome.Warnings.Select(x => x.Message).ToArray() });
+                    foreach (var warning in outcome.Warnings)
+                        DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, warning.Code, "rule", "warned", warning.Message, userId);
+                    if (outcome.Approvals.Count > 0)
+                    {
+                        if (outcome.Approvals.FirstOrDefault(x => x.ApproverUserIds.All(person => person == userId)) is { } selfOnly)
+                            return Results.Conflict(new { error = $"'{selfOnly.Code}' kuralında karar verecek başka kişi yok; kendi siparişinize karar veremezsiniz.", code = "noApprover" });
+                        if (userId is null) return Results.Forbid();
+                        await SalesOrderApprovalWorkflow.StartAsync(db, tenantId, order, outcome.Approvals, userId.Value, ct);
+                        order.Status = SalesOrderStatus.PendingApproval;
+                        DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, "Onay bekleniyor", "rule", "waiting",
+                            string.Join(", ", outcome.Approvals.Select(x => x.Code)), userId, request.RequestId);
+                        db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.approval-requested", Resource = order.Code });
+                        break;
+                    }
+                }
                 order.Status = SalesOrderStatus.Open;
                 DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, "Onaylandı", "core", "done", null, userId, request.RequestId);
                 db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.approved", Resource = order.Code });
@@ -75,7 +108,9 @@ internal static class SalesOrderTransitionEndpoints
                 break;
             default:
                 if (!SalesOrderLifecycle.CanCancel(order.Status, hasDeliveries || hasInvoices))
-                    return Results.Conflict(new { error = "Yalnızca taslak ya da sevk kaydı olmayan onaylı sipariş iptal edilebilir." });
+                    return Results.Conflict(new { error = "Yalnızca taslak, onay bekleyen ya da sevk kaydı olmayan onaylı sipariş iptal edilebilir." });
+                if (order.Status == SalesOrderStatus.PendingApproval && await SalesOrderApprovalWorkflow.CloseAsync(db, tenantId, id, ct) > 0)
+                    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, id, transition, "Onay akışı kapatıldı", "core", "done", null, userId);
                 var now = DateTimeOffset.UtcNow;
                 var active = await db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == id
                     && x.Status == SalesOrderReservationStatus.Active).ToListAsync(ct);
@@ -98,6 +133,19 @@ internal static class SalesOrderTransitionEndpoints
     /// order currency, active salesperson, active stock cards, 1–200 lines, required custom fields) and the customer's risk limit. Short
     /// stock is a warning, not a block. Amounts were normalized at the order date with that date's rates, so they are not re-derived.
     /// </summary>
+    /// <summary>Dene: the approve checks' failure as text (null when they pass); stock shortages land in <paramref name="warnings"/>.</summary>
+    internal static async Task<string?> ApproveCheckErrorAsync(TenantDbContext db, Guid tenantId, SalesOrder order, List<string> warnings, CancellationToken ct)
+    {
+        if (await ApproveChecksAsync(db, tenantId, order, warnings, ct) is not { } failed) return null;
+        var value = (failed as IValueHttpResult)?.Value;
+        return value switch
+        {
+            HttpValidationProblemDetails problem => string.Join(" ", problem.Errors.SelectMany(x => x.Value)),
+            null => "Modülün kontrolleri geçmedi.",
+            _ => System.Text.Json.JsonSerializer.SerializeToElement(value).TryGetProperty("error", out var error) ? error.GetString() : "Modülün kontrolleri geçmedi."
+        };
+    }
+
     private static async Task<IResult?> ApproveChecksAsync(TenantDbContext db, Guid tenantId, SalesOrder order, List<string> warnings, CancellationToken ct)
     {
         var lines = await db.SalesOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == order.Id).ToListAsync(ct);

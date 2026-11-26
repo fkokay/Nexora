@@ -77,3 +77,21 @@ input.cpanel-colname{border:1px solid var(--ns-line);border-radius:6px;padding:2
 .rfl .cpanel-ask{padding:14px 0 0}
 /* Kayıt kartında hiçbir şey seçili değilken sayfa paneli sayfa ayarlarının içinde durur: öteki panellerle aynı kenarda. */
 .pd-right-body>.cpanel{margin:-10px -10px 10px;border-left:0}
+
+/* ---- Belge paneli (taslak 09) ---- */
+.cpanel-belge .cpanel-fixed { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--pd-line, #e6e4ee); border-radius: 8px; padding: 7px 10px; background: var(--pd-soft, #faf9fd); }
+.cpanel-belge .cpanel-fixed small { color: var(--pd-muted, #6b6880); }
+.cpanel-belge-items { list-style: none; margin: 0; padding: 0; }
+.cpanel-belge-items li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+.cpanel-belge-items li:hover { background: var(--pd-soft, #f6f5fa); }
+.cpanel-belge-items .cpanel-grip { color: #b8b5c8; cursor: grab; letter-spacing: -2px; }
+.cpanel-belge-items .cpanel-belge-name { flex: 1; min-width: 0; }
+.cpanel-belge-items .cpanel-txt { flex: 1; min-width: 0; }
+.cpanel-belge-items .cpanel-pen, .cpanel-belge-items .cpanel-move { border: 0; background: none; color: var(--pd-muted, #6b6880); cursor: pointer; padding: 0 2px; }
+.cpanel-tag { font-size: 10px; margin-left: 6px; padding: 1px 5px; border-radius: 4px; white-space: nowrap; background: #f1f0f6; color: var(--pd-muted, #6b6880); }
+.cpanel-tag.is-zorunlu { background: #fdf0d5; color: #8a5a00; }
+.cpanel-tag.is-hesaplanan { background: #e6f6f3; color: #0f766e; }
+.cpanel-chip.is-locked { background: #f1f0f6; border-color: #f1f0f6; color: #4b4866; cursor: default; }
+.cpanel-sec.is-focus { background: #fbfaff; }
+.cpanel-ask { margin: 14px 16px 20px; border: 1px dashed #b9d9d3; background: #e6f6f3; border-radius: 10px; padding: 10px 12px; color: #134e48; }
+.cpanel-ask a { color: #0f766e; font-weight: 600; }

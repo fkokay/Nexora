@@ -9,6 +9,7 @@ export const SECTION_TABS: Partial<Record<StudioSection, (SectionTab & { toolId:
     { id: "reports", label: "Raporlar", toolId: "reports" },
   ],
   rules: [
+    { id: "document-rules", label: "Belge kuralları", toolId: "document-rules" },
     { id: "workflows", label: "İş akışları", toolId: "workflows" },
     { id: "business-rules", label: "İş kuralları", toolId: "business-rules" },
   ],

@@ -26,7 +26,7 @@ describe("sayfa kalıpları", () => {
 
   it("newListTemplateDefinition shape", () => {
     expect(newListTemplateDefinition()).toEqual({ schemaVersion: 2, template: { name: "list" }, queries: [], components: [{ id: "liste", type: "dataTable", props: { slot: "list" } }] });
-    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "free"]);
+    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "belge", "free"]);
   });
 
   it("templateLevel of free is 3; label is Serbest; choices include legacy last", () => {
@@ -38,7 +38,7 @@ describe("sayfa kalıpları", () => {
     expect(PAGE_TEMPLATE_CHOICES.find((c) => c.id === "free")).toEqual({ id: "free", label: "Serbest", description: "Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin." });
     // Karar 1: pencere `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir (NewPageDialog Görev 5'te).
     const shown = [...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE];
-    expect(shown.map((c) => c.id)).toEqual(["list", "record", "free", "legacy"]);
+    expect(shown.map((c) => c.id)).toEqual(["list", "record", "belge", "free", "legacy"]);
     expect(LEGACY_TEMPLATE_CHOICE).toEqual({ id: "legacy", label: "Eski tasarımcı (kalıpsız)", description: "Sistem ekranlarına benzeyen gelişmiş sayfalar için." });
     expect(designerPersistence.normalizeDefinition(free).template).toEqual({ name: "free" });
   });

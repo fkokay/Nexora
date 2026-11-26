@@ -1,5 +1,6 @@
 using AIERP.Api;
 using AIERP.Api.DocumentModels;
+using AIERP.Api.DocumentRules;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -294,6 +295,7 @@ app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
 app.MapSalesOrderTransitionEndpoints();
 app.MapDocumentModelEndpoints();
+app.MapDocumentRuleEndpoints();
 app.MapSalesDocumentPreviewEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapSalesDeliveryListEndpoints();

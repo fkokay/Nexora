@@ -248,7 +248,7 @@ public sealed class SalesOrderTransitionEndpointsTests
     }
 
     [Fact]
-    public async Task Cancel_pending_approval_conflicts()
+    public async Task Cancel_pending_approval_succeeds()
     {
         await using var factory = new SalesOrderApiFactory();
         var seed = await factory.SeedAsync();
@@ -257,7 +257,8 @@ public sealed class SalesOrderTransitionEndpointsTests
 
         using var response = await Post(client, orderId, "cancel", reason: "Vazgeçildi");
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        // Belge kuralları PR 3: a held order (Onay bekliyor) may be cancelled; its pending approval is closed.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

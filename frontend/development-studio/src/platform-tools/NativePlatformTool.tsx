@@ -1,4 +1,5 @@
 import LowCodeDesignerPage from "./erp-src/LowCodeDesignerPage";
+import DocumentRulesPage from "./document-rules/DocumentRulesPage";
 import type { CanvasTenant } from "./erp-src/page-designer/ErpCanvasFrame";
 
 type NativeToolId =
@@ -8,7 +9,8 @@ type NativeToolId =
   | "reports"
   | "custom-menus"
   | "custom-pages"
-  | "custom-data";
+  | "custom-data"
+  | "document-rules";
 
 type Props = {
   toolId: string;
@@ -36,6 +38,8 @@ export default function NativePlatformTool({ toolId, token, role, platformOrigin
       return <LowCodeDesignerPage token={token} role={role} platformOrigin={platformOrigin} tenant={tenant} initialSection={toolId} backHref={backHref} />;
     case "custom-data":
       return <LowCodeDesignerPage token={token} role={role} platformOrigin={platformOrigin} tenant={tenant} initialSection={toolId} backHref={backHref} />;
+    case "document-rules":
+      return <DocumentRulesPage token={token} />;
     default:
       return null;
   }

@@ -43,7 +43,9 @@ import { DialogFields, sequencePatch } from "./page-designer/DialogFields";
 import LeftPanel from "./page-designer/LeftPanel";
 import DockPanel, { useDocks } from "./page-designer/DockPanel";
 import NewPageDialog, { type NewPageResult } from "./page-designer/NewPageDialog";
-import { LIST_SOURCE_HINT, NEW_FREE_BLOCK_ID, NEW_LIST_ID, freeSourceProblem, freeSourceTable, listSourceProblem, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { LIST_SOURCE_HINT, NEW_FREE_BLOCK_ID, NEW_LIST_ID, freeSourceProblem, freeSourceTable, listSourceProblem, newBelgeTemplateDefinition, newListTemplateDefinition, newPageDefinitionFor, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, readPageTemplate, type PageTemplate } from "./page-designer/pageTemplates";
+import { BELGE_PREVIEW_STATES, loadDocumentModel } from "./page-designer/documentModelClient";
+import type { BelgeModelState } from "./page-designer/panel/BelgePanel";
 import QueryEditorModal from "./page-designer/QueryEditorModal";
 import { COLUMN_STATIC_OPTION, columnEntries, gridTotalCodes, parseGridColumns, splitColumnEntry } from "./page-designer/gridColumns";
 import { conditionHolds, conditionProblem } from "./page-designer/conditions";
@@ -1150,6 +1152,8 @@ type Props = {
   tenant?: CanvasTenant;
 };
 
+/** Belge sayfasının ek alanları (üstü / altı) Liste kalıbının danışman paletini kullanır. */
+const consultantTemplateOf = (name: PageTemplate["name"]): ConsultantTemplate => (name === "belge" ? "list" : name);
 export default function CustomPagesPage({ token, role, platformOrigin, initialPageId, initialCreate = false, onBack, systemScreenKey, importNotes, tenant }: Props) {
   const systemMode = !!systemScreenKey;
   const [systemInfo, setSystemInfo] = useState<SystemPageInfo | null>(null);
@@ -1387,6 +1391,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kayıt kartının kataloğu bir kez zenginleştirilir (Liste panelindeki gibi `withOperationParameters`): sol liste, panel ve
   // model aynı kataloğu görür. Kancalar erken dönüşten önce durmalı; bu yüzden burada.
   const isRecordPage = pageTemplate?.name === "record";
+  const belgeDocument = pageTemplate?.name === "belge" ? pageTemplate.document : null;
+  const isBelgePage = belgeDocument !== null;
+  // Belge kalıbı: panelin işaretlediği alan ve kolonlar modelden gelir; tuval örnek belgeyi seçili durumda çizer.
+  const [belgeModel, setBelgeModel] = useState<BelgeModelState>("loading");
+  const [belgePreviewState, setBelgePreviewState] = useState<string>("Draft");
+  useEffect(() => {
+    if (!belgeDocument) return;
+    let alive = true;
+    setBelgeModel("loading");
+    loadDocumentModel(belgeDocument, token).then((model) => { if (alive) setBelgeModel(model); }, () => { if (alive) setBelgeModel("failed"); });
+    return () => { alive = false; };
+  }, [belgeDocument, token]);
   // Serbest gövdenin panelleri (sayfa eylemleri ve Liste kaynakları) de aynı zenginleştirilmiş kataloğu kullanır.
   const isFreePage = pageTemplate?.name === "free";
   const recordCatalog = useMemo<ActiveCatalog | null>(() => (isRecordPage || isFreePage) && activeCatalog.catalog ? {
@@ -1576,6 +1592,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // Liste kaynak seçilmeden kaydedilemez (sunucu reddeder): panelinde kaynak seçilsin diye liste seçilir.
       setNewPageDialog(null); setSelectedComponentId(NEW_LIST_ID); setRightMode("inspector"); setError("");
       setNotice("Liste kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce ne listeleneceğini seçin.");
+      return;
+    }
+    if (result.pageTemplate === "belge") {
+      const belgeDefinition = newBelgeTemplateDefinition() as unknown as PageDefinition;
+      setName(result.name); setCode(result.code);
+      commit((value) => ({ ...value, template: belgeDefinition.template, components: belgeDefinition.components }));
+      setNewPageDialog(null); setSelectedComponentId(null); setRightMode("inspector"); setError("");
+      setNotice("Belge kalıbıyla yeni satış siparişi sayfası hazır; yayımlanana kadar kullanıcılar görmez. Alanları ve kolonları sağdaki panelden seçin.");
       return;
     }
     if (result.pageTemplate === "record") {
@@ -1787,7 +1811,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   };
   // Serbest gövde (Karar 5): bileşen seçili bölüme, yoksa seçili bileşenin bölümüne, o da yoksa son bölüme eklenir;
   // "Bölümler" seçili bölümün arkasına yeni bölüm açar. Dolu bölümde ekleme yapılmaz, nedeni gösterilir.
-  const consultantTemplateNow = (): ConsultantTemplate => readPageTemplate(definitionRef.current.template)?.name ?? "list";
+  const consultantTemplateNow = (): ConsultantTemplate => consultantTemplateOf(readPageTemplate(definitionRef.current.template)?.name ?? "list");
   const addFreeConsultant = (kind: ConsultantKind) => {
     if (!canEdit || !consultantAvailability(kind, "free", activeCatalog.catalog).available) return;
     const current = definitionRef.current as unknown as ModelDefinition;
@@ -3898,6 +3922,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     if (!source) { setError("Satır tablosu için bu kaydın anahtarıyla okunan bir kaynak yok; yazılımcıdan isteyin."); return; }
     commitRecord(addLines(recordDef, source, tabIndex, end), "dataTable");
   };
+  const belgePanel = isBelgePage ? {
+    def: definition as unknown as ModelDefinition, model: belgeModel, catalog: activeCatalog.catalog, name, onRename: setName,
+    onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition), onAskDeveloper: askDeveloper, disabled: !canEdit,
+  } : null;
   // Serbest gövde tuvali seçili bölümün / bileşenin sekmesini gösterir (Kayıt kartı kaplamasının showTab'ı gibi); sekme eklenince
   // yeni bölüm seçildiği, bölüm başka sekmeye taşınınca sekmesi değiştiği için istek kendiliğinden yenilenir.
   const freeTabTarget = isFreePage && erpCanvas ? freeModel.freeSelectionTab(definition as unknown as ModelDefinition, selectedComponentId) : null;
@@ -3971,7 +3999,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         onAddColumn={addRecordColumn} onAddBlock={addRecordBlock} onAskDeveloper={askDeveloper}/>
       : <DragSelect store={dragStore} select={(state) => state.dropTarget}>{(dropTarget) => <LeftPanel canEdit={canEdit} paletteGroups={pageTemplate ? ["Bileşenler"] : paletteGroups}
         variables={<VariablesPanel embedded suggestions={bindingSuggestions} disabled={!canEdit}/>} variableCount={bindingSuggestions.length}
-        palette={pageTemplate ? consultantPaletteEntries(pageTemplate.name, activeCatalog.catalog) : palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
+        palette={pageTemplate ? consultantPaletteEntries(consultantTemplateOf(pageTemplate.name), activeCatalog.catalog) : palette.filter((item) => !focusOwner || (focusCard ? cardTree.canBeCardChild(item.type) : refTree.canOwnType(focusOwner.type as refTree.RefOwnerType, item.type))).map((item) => { const taken = item.type === "actionBar" && !!actionBarOf(definition.components); return { type: item.type, label: item.label, group: item.group, icon: item.icon, disabled: taken, title: taken ? "Sayfada zaten bir İşlem Çubuğu var" : undefined }; })}
         onPaletteDragStart={(type, event) => { event.dataTransfer.setData("application/x-nexora-component", type); event.dataTransfer.effectAllowed = "copy"; dragStore.set({ dragging: type }); }}
         onPaletteDragEnd={() => live.current.clearDrag()}
         onPaletteAdd={(type) => {
@@ -4007,6 +4035,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             <button type="button" className={`pd-button ${!canvasInteractive ? "active" : ""}`} aria-pressed={!canvasInteractive} title="Tıklanan bileşen seçilir" onClick={() => setCanvasInteractive(false)}>Seç</button>
             <button type="button" className={`pd-button ${canvasInteractive ? "active" : ""}`} aria-pressed={canvasInteractive} title="Sayfa ERP'deki gibi kullanılır" onClick={() => setCanvasInteractive(true)}>Dene</button>
           </div>}
+          {erpCanvas && isBelgePage && <div className="pd-button-group" role="group" aria-label="Önizlenen durum" title="Yalnız tuvalde; kayıt değişmez">
+            {BELGE_PREVIEW_STATES.map((state) => <button type="button" key={state.code} className={`pd-button ${belgePreviewState === state.code ? "active" : ""}`}
+              aria-pressed={belgePreviewState === state.code} onClick={() => setBelgePreviewState(state.code)}>{state.label}</button>)}
+          </div>}
           <span className="pd-canvas-meta">{focusOwner ? `${focusMembers.length} ${focusOwner.type === "formCard" || focusOwner.type === "facetPanel" ? "giriş" : "bileşen"} · ${focusKindText(focusOwner.type)} · ` : `${definition.components.length} bileşen · `}{erpCanvas ? "ERP önizlemesi · otomatik yerleşim" : device === "desktop" ? "12 kolon" : device === "tablet" ? "Tablet: bloklar yarım genişlik" : "Mobil: bloklar alt alta"}</span>
           {!focusOwner && !erpCanvas && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
@@ -4019,7 +4051,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
               revision={current.revision} device={device} topLevelIds={definition.components.map((component) => component.id)}
-              selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
+              selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId} previewState={isBelgePage ? belgePreviewState : null}
               onBlocks={(blocks) => { erpBlocks.current = blocks; if (isRecordPage) leaveHiddenRecordTab(shownRecordTab(blocks, recordDef)); }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
@@ -4645,7 +4677,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // Danışman panelleri (alt proje 5a) Liste kalıbında Metin, Bilgi kutusu, Gösterge, Görsel ve eylem düğmeleri için açılır.
         const modelDefinition = definition as unknown as ModelDefinition;
         if (!usesTemplateInspector(modelDefinition, selected.id)) return legacyInspector;
-        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel} free={freePanel}
+        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel} free={freePanel} belge={belgePanel}
           tokens={fieldTokens(modelDefinition, activeCatalog.catalog)}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
@@ -4657,10 +4689,11 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       })() : <div className="pd-right-body">
           {/* Kayıt kartında sayfanın panelini Kayıt paneli çizer (ad dahil); sayfa kodu, açıklama, erişim ve silme altında kalır. */}
           {recordPanel ? <TemplateInspector component={null} legacy={null} list={null} record={recordPanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
+            : belgePanel ? <TemplateInspector component={null} legacy={null} list={null} belge={belgePanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
             : freePanel ? <TemplateInspector component={null} legacy={null} list={null} free={freePanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
             : <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {!recordPanel && !freePanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
+            {!recordPanel && !freePanel && !belgePanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
             {systemScreenKey
               ? <label className="pd-field">Sayfa kodu<small>Sistem sayfasının kodu ekrana bağlıdır; değiştirilemez.</small><input value={`@${systemScreenKey}`} readOnly aria-readonly="true"/></label>
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}

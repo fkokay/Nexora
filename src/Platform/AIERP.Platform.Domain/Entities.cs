@@ -2327,6 +2327,29 @@ public sealed class TenantDocumentActivity
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+/// <summary>
+/// A versioned set of consultant rules on one document transition (belge kuralları, e.g. satis.siparis / onayla). One row per version;
+/// Status is Draft, Published or Archived; at most one Draft and one Published per (tenant, document, transition). RulesJson is the
+/// rule array validated by DocumentRuleSchema.
+/// </summary>
+public sealed class TenantDocumentRuleSet
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TenantId { get; set; }
+    public string Document { get; set; } = "";
+    public string Transition { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public string Status { get; set; } = "Draft";
+    public string RulesJson { get; set; } = "[]";
+    public Guid? CreatedByUserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? UpdatedByUserId { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? PublishedByUserId { get; set; }
+    public DateTimeOffset? PublishedAt { get; set; }
+    public byte[] RowVersion { get; set; } = [];
+}
+
 /// <summary>Names and numbers are kept (tenant row rules, standards and the API use the names); Open means "Onaylı" (approved), Fulfilled "Sevk edildi".</summary>
 public enum SalesOrderStatus { Open = 1, Fulfilled = 2, Cancelled = 3, Draft = 4, PendingApproval = 5, Invoiced = 6 }
 

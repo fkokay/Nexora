@@ -1,0 +1,30 @@
+// Testlerin kullandığı satış siparişi belge modeli (`GET /api/document-models/satis.siparis` yanıtının özü).
+export const belgeTestModel = {
+  code: "satis.siparis", label: "Satış siparişi",
+  fields: [
+    { code: "code", label: "Sipariş no", type: "text", required: false, readOnly: true },
+    { code: "customerId", label: "Müşteri", type: "lookup", required: true, readOnly: false },
+    { code: "orderDate", label: "Sipariş tarihi", type: "date", required: true, readOnly: false },
+    { code: "requestedDeliveryDate", label: "İstenen teslim tarihi", type: "date", required: false, readOnly: false },
+    { code: "salespersonEmployeeId", label: "Plasiyer", type: "lookup", required: false, readOnly: false },
+  ],
+  lineColumns: [
+    { code: "stockItemId", label: "Stok", type: "lookup", required: true, calculated: false, visibleFrom: null },
+    { code: "quantity", label: "Miktar", type: "number", required: true, calculated: false, visibleFrom: null },
+    { code: "unitCode", label: "Birim", type: "lookup", required: false, calculated: false, visibleFrom: null },
+    { code: "unitPrice", label: "Birim fiyat", type: "number", required: true, calculated: false, visibleFrom: null },
+    { code: "currencyCode", label: "Döviz", type: "text", required: false, calculated: false, visibleFrom: null },
+    { code: "discountPercent", label: "İsk. %", type: "number", required: false, calculated: false, visibleFrom: null },
+    { code: "vatPercent", label: "KDV %", type: "number", required: false, calculated: false, visibleFrom: null },
+    { code: "isVatIncluded", label: "KDV dâhil", type: "checkbox", required: false, calculated: false, visibleFrom: null },
+    { code: "availableQuantity", label: "Kullanılabilir", type: "number", required: false, calculated: true, visibleFrom: null },
+    { code: "lineSubtotal", label: "Ara toplam", type: "money", required: false, calculated: true, visibleFrom: null },
+    { code: "discountAmount", label: "İskonto", type: "money", required: false, calculated: true, visibleFrom: null },
+    { code: "taxAmount", label: "KDV", type: "money", required: false, calculated: true, visibleFrom: null },
+    { code: "lineTotal", label: "Tutar", type: "money", required: false, calculated: true, visibleFrom: null },
+    { code: "deliveredQuantity", label: "Sevk edilen", type: "number", required: false, calculated: true, visibleFrom: "Open" },
+  ],
+  states: [{ code: "Draft", label: "Taslak", terminal: false }, { code: "Open", label: "Onaylı", terminal: false }, { code: "Cancelled", label: "İptal", terminal: true }],
+  transitions: [{ code: "onayla", label: "Onayla" }, { code: "onayiGeriAl", label: "Onayı geri al" }, { code: "iptal", label: "İptal et" }],
+  fills: { stockItemId: ["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"] },
+};

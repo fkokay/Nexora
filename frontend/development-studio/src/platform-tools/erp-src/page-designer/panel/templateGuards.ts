@@ -12,6 +12,8 @@ import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRe
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
 export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
 const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
+export const BELGE_TEMPLATE_SLOTS = new Set(["fields", "lines", "summary", "actions", "above", "below"]);
+const BELGE_SLOT_TYPES: Record<string, string> = { fields: "documentFields", lines: "documentLines", summary: "documentSummary", actions: "button" };
 export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item"]);
 /** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules); `code` yalnız katalog bileşeniyle (`isFreeItemType`). */
 export const FREE_ITEM_TYPES = new Set(["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"]);
@@ -50,8 +52,8 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   const template = readPageTemplate(def.template);
   if (!template) return def;
   if (template.name === "free") return ensureFreeSlots(def);
-  const slots = template.name === "record" ? RECORD_TEMPLATE_SLOTS : TEMPLATE_SLOTS;
-  const slotTypes = template.name === "record" ? RECORD_SLOT_TYPES : SLOT_TYPES;
+  const slots = template.name === "record" ? RECORD_TEMPLATE_SLOTS : template.name === "belge" ? BELGE_TEMPLATE_SLOTS : TEMPLATE_SLOTS;
+  const slotTypes = template.name === "record" ? RECORD_SLOT_TYPES : template.name === "belge" ? BELGE_SLOT_TYPES : SLOT_TYPES;
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
     ? [...ids(component.props.rowActions), ...(typeof component.props.rowOpenAction === "string" ? [component.props.rowOpenAction] : [])] : []));
   let changed = false;

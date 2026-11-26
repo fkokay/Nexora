@@ -1600,3 +1600,27 @@ Tasarım `docs/superpowers/specs/2026-11-25-belge-kurallari-design.md`, plan `do
 - **Doğrulanan (yerel):** Siparişin durum zinciri Taslak → Onaylı → Sevk edildi → Faturalandı (+ İptal). Yeni sipariş ve tekliften dönüşüm Taslak yazılır. Onayla / Onayı geri al / İptal et uçları (`erp.sales-orders.execute`) çalışıyor. İşlem günlüğü `TenantDocumentActivities`'e yazılıyor. Belge modeli uçları (`/api/document-models/satis.siparis`, `/api/sales/orders/{id}/document`, `…/fill`) çalışıyor. Eski sipariş ekranı ve `sales-orders` v3 / `sales-order-create` v2 standartları yeni zinciri izliyor. Kanıt: bellek içi entegrasyon testleri ve yerel SQL Server'da `SalesOrderStateChainSqlAcceptanceTests` (dönüşüm, sevk, fatura ve iptalleri uçtan uca).
 - **Doğrulanmayan:** Migration'lar (`AddDocumentActivities`, `BackfillInvoicedSalesOrders`, Tenant karşılıkları) hiçbir uzak ortamda uygulanmadı. Standardın kendi kopyasını yayımlamış firmalar yeni butonları "Yeni" öğe olarak önerilir, kendiliğinden almaz. Bu firmaların sayısı provada sayılmalı. "Onay bekliyor" durumu bu PR'da yazılmıyor; danışman kuralları PR 3'te.
 - **Bilinen, bu PR'dan önce de var:** Yerel SQL'de `SalesDocumentPreviewSqlAcceptanceTests.Writes_store_what_their_previews_return` teklif satırı ondalık hassasiyetinde (7.7778 / 7.7777777) düşüyor.
+
+### 2026-11-26 belge kuralları (alt proje 6), PR 2: Belge kalıbı ve Studio Belge paneli
+
+Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-2-belge-kalibi.md`; kararlar tasarım belgesi §5.6'da.
+
+- **Doğrulanan (yerel, EF InMemory ve jsdom):**
+  - Sunucu: `template: belge` şeması (`TenantCustomPageSchemaBelgeTemplateTests`, taslak → önizleme → yayın dahil); model genişlemesi ve örnek belge ucu (`SalesOrderDocumentModelTests`); Studio'nun ürettiği belge sayfasının sunucu doğrulayıcısından geçmesi (`TenantCustomPageBelgeStudioFixtureTests`); G-S7/8/9'un belge uçlarıyla karşılanması (`SalesOrderBelgeAcceptanceTests`).
+  - ERP: `DocumentTemplate` (G-S7 satır yükleme, G-S8 sunucu tutarı ve KDV dökümü, G-S9 stok doldurma, sıradan çıkan hesap yanıtı, durumlar, önizleme engeli, başka firma 404); `legacyUnchanged` anlık görüntüsü değişmedi.
+  - Studio: Belge paneli, model ve fikstür testleri; `npm run build` iki ön yüzde de temiz.
+- **Doğrulanmayan:** Gerçek SQL Server'a karşı belge sayfası akışı; canlı ortamda Studio tuvalinde belge önizlemesi; üç genişlikte ekran görüntüsü karşılaştırması (eski kart ile Belge) alınmadı.
+- **Kalan:** `sales-order-document` sistem standardı ve sipariş listesinde "Belgede aç" (yeni ekran anahtarının ERP kayıtları); kurallar ve Kurallar ekranı (PR 3).
+
+### 2026-11-26 belge kuralları (alt proje 6), PR 3: danışman kuralları ve Kurallar ekranı
+
+Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı taslak `docs/design-proposals/studio-sadelestirme/10-kurallar-ekrani.html`.
+
+- **Doğrulanan (yerel):**
+  - Kural kümesi şeması ve değerlendirici (birim testleri).
+  - Kural uçları: taslak, yayın, geçmiş, Dene ve kişi listesi. Dene hiçbir tabloya yazmaz.
+  - Onayla akışı: Engelle 409 ve günlük, Uyar onay ister, Onay iste siparişi Onay bekliyor'a alır ve kişi listeli iş akışı başlatır. Kaydeden ve liste dışı kişi (TenantAdmin dahil) karar veremez, iki onay kuralı iki adım olur, red Taslak'a döndürür, iptal bekleyen akışı kapatır, elle "SalesOrder" başlatma ve sistem tanımını düzenleme reddedilir.
+  - Kilitli yollar yerel SQL Server'da kabul testiyle (`SalesOrderRuleApprovalSqlAcceptanceTests`).
+  - ERP: Belge kalıbı ve eski sipariş ekranında onay bekleyen sipariş, Onayla/Reddet, uyarı onayı. Studio: Kurallar ekranı.
+- **Doğrulanmayan:** Migration'lar hiçbir uzak ortamda uygulanmadı; canlı Studio'da Kurallar ekranı ve gerçek kullanıcılarla onay akışı denenmedi.
+- **Bilinen sınır:** Kural yazma izni temel kural düzeneğiyle TenantUser'a da açılır (yönetici Deny ile kapatabilir); ERP API Studio rolünü görmez.

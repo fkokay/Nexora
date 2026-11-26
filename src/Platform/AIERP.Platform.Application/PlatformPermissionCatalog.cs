@@ -43,6 +43,7 @@ public static class PlatformPermissionCatalog
         new("erp.custom-data", "/api/custom-data", "Tenant-defined logical data models and records"),
         new("erp.workflows", "/api/workflows", "Tenant workflow definitions, instances and approvals"),
         new("erp.business-rules", "/api/business-rules", "Tenant business rule definitions and evaluation history"),
+        new("erp.document-rules", "/api/document-rules", "Consultant rules on document transitions (belge kuralları)"),
         new("erp.reports", "/api/reports", "Tenant report definitions and execution"),
         new("erp.custom-menus", "/api/custom-menus", "Tenant custom navigation entries"),
         new("erp.tenant-customizations", "/api/tenant-customizations/packages", "Tenant low-code customization packages and snapshots"),
@@ -414,7 +415,7 @@ public static class PlatformPermissionCatalog
             "package", "version", "publish-pull-request", "pull-request-draft", "working-branch", "commit-approved-changes",
             "apply-code-suggestion", "multi-file-code-suggestion", "code-suggestion", "source-analysis", "test-plan",
             "architecture-plan", "code-review", "sandbox-error-analysis", "revalue", "reconcile", "convert", "close", "release",
-            "send", "accept", "unapprove", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute", "stage", "transition", "depreciation-postings", "return",
+            "send", "accept", "unapprove", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute", "stage", "transition", "depreciation-postings", "return", "try",
             "schedule", "start", "complete" };
         var tail = route.Split('/').LastOrDefault() ?? string.Empty;
         return operationSegments.Contains(tail, StringComparer.OrdinalIgnoreCase);

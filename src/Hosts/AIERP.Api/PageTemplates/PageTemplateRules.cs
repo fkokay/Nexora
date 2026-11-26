@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AIERP.Api.DocumentModels;
 
 /// <summary>
 /// Rules of a page that carries a root <c>template</c>: <c>list</c> (sub-project 3), <c>record</c> (Kayıt kartı, sub-project 4) or
@@ -28,6 +29,15 @@ internal static class PageTemplateRules
         ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text"
     };
 
+    internal static readonly IReadOnlySet<string> BelgeSlots = new HashSet<string>(StringComparer.Ordinal)
+    { "fields", "lines", "summary", "actions", "above", "below" };
+
+    /// <summary>The Belge parts: each lives only in its own slot, exactly once.</summary>
+    internal static readonly IReadOnlyDictionary<string, string> BelgeParts = new Dictionary<string, string>(StringComparer.Ordinal)
+    { ["documentFields"] = "fields", ["documentLines"] = "lines", ["documentSummary"] = "summary" };
+
+        private const string UnknownDocument = "Belge kalıbı bilinen bir belge ister (ör. \"satis.siparis\").";
+    private const string MaxLabelLength = "Belge etiketleri en fazla 60 karakter olabilir.";
     private static readonly string[] FreeItemTypes =
         ["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"];
 
@@ -36,7 +46,7 @@ internal static class PageTemplateRules
         ["actions"] = "button", ["tabs"] = "tabs", ["block"] = "section", ["item"] = string.Join(", ", FreeItemTypes)
     };
 
-    private const string UnknownTemplate = "Kalıp yalnız \"list\", \"record\" ya da \"free\" olabilir.";
+    private const string UnknownTemplate = "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.";
     private const string NeedBlock = "Serbest gövdede en az bir bölüm (section) olmalı.";
     private const string TooManyTabs = "Serbest gövdede en fazla bir sekme bileşeni (tabs) olabilir.";
     private const string ItemOutsideBlock = "Serbest gövdede her bileşen tam bir bölüme ait olmalı.";
@@ -68,18 +78,25 @@ internal static class PageTemplateRules
     /// </summary>
     internal static string? DeclaredName(JsonElement root) =>
         root.ValueKind == JsonValueKind.Object && root.TryGetProperty("template", out var template) && template.ValueKind == JsonValueKind.Object
-        && template.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() is "list" or "record" or "free"
+        && template.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() is "list" or "record" or "belge" or "free"
             ? name.GetString() : null;
 
     /// <summary>The template name ("list" or "record") when <paramref name="root"/> carries a well-formed template; otherwise null.</summary>
     internal static string? TemplateName(JsonElement root) =>
-        DeclaredName(root) is { } name && root.GetProperty("template").EnumerateObject().Count() == 1 ? name : null;
+        DeclaredName(root) is { } name && root.GetProperty("template").EnumerateObject().All(x => x.Name == "name" || name == "belge" && x.Name == "document")
+            ? name : null;
+
+    /// <summary>The Belge page's document code (<c>template.document</c>), or null.</summary>
+    internal static string? DocumentCode(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty("template", out var template) && template.ValueKind == JsonValueKind.Object
+        && template.TryGetProperty("document", out var document) && document.ValueKind == JsonValueKind.String ? document.GetString() : null;
 
     /// <summary>The error text, or null when the template page is valid. <paramref name="queries"/> may be undefined.</summary>
     internal static string? ValidateTemplate(JsonElement root, JsonElement components, JsonElement queries) => TemplateName(root) switch
     {
         "list" => ValidateList(components, queries),
         "record" => ValidateRecord(components),
+        "belge" => ValidateBelge(root, components),
         "free" => ValidateFree(components, queries),
         _ => UnknownTemplate
     };
@@ -130,6 +147,90 @@ internal static class PageTemplateRules
         var sectionInputs = placed.Where(x => x.Slot == "section").SelectMany(x => StringArray(x.Component, "inputs")).ToList();
         foreach (var (component, _, _) in placed.Where(x => x.Slot == "field"))
             if (sectionInputs.Count(x => x == Id(component)) != 1) return FieldOutsideSection;
+        return null;
+    }
+
+    /// <summary>
+    /// Belge: a known document; exactly one documentFields, documentLines and documentSummary, each in its own slot; their codes come
+    /// from the document model, are unique, and keep every required field and column. No grid, formula or fill settings anywhere:
+    /// lines, amounts and fills come from the model.
+    /// </summary>
+    private static string? ValidateBelge(JsonElement root, JsonElement components)
+    {
+        if (DocumentModelRegistry.Find(DocumentCode(root)) is not { } model) return UnknownDocument;
+        if (components.ValueKind != JsonValueKind.Array) return Need("documentFields");
+        if (Place(components, BelgeSlots, out var placed) is { } placeError) return placeError;
+        foreach (var (component, slot, type) in placed)
+        {
+            if (slot == "actions" && type != "button") return WrongPart(slot, type, "button");
+            var slotPart = BelgeParts.FirstOrDefault(x => x.Value == slot).Key;
+            if (slotPart is not null && type != slotPart) return WrongPart(slot, type, slotPart);
+            if (slotPart is null && BelgeParts.ContainsKey(type)) return $"'{type}' yalnız '{BelgeParts[type]}' yerine konabilir.";
+            if (ScanBelge(component) is { } scanError) return scanError;
+        }
+        foreach (var part in BelgeParts.Keys)
+            if (placed.Count(x => x.Type == part) != 1) return Need(part);
+
+        var fields = placed.Single(x => x.Type == "documentFields").Component;
+        var lines = placed.Single(x => x.Type == "documentLines").Component;
+        return Codes(fields, "fields", model.Fields.Select(x => (x.Code, x.Label, x.Required)).ToList(), "alanı")
+            ?? Codes(lines, "columns", model.LineColumns.Select(x => (x.Code, x.Label, x.Required)).ToList(), "kolonu");
+    }
+
+    private static string Need(string part) => $"Belge kalıbında tam bir '{part}' bileşeni olmalı.";
+
+    private static string? Codes(JsonElement component, string key, IReadOnlyList<(string Code, string Label, bool Required)> known, string kind)
+    {
+        var chosen = StringArray(component, key).ToList();
+        if (chosen.FirstOrDefault(x => known.All(k => k.Code != x)) is { } unknown) return $"'{unknown}' bu belgenin {kind} değil.";
+        if (chosen.GroupBy(x => x).FirstOrDefault(g => g.Count() > 1) is { } twice) return $"'{twice.Key}' iki kez seçilmiş.";
+        foreach (var required in known.Where(k => k.Required))
+            if (!chosen.Contains(required.Code)) return $"'{required.Label}' zorunlu, gizlenemez.";
+        if (component.GetProperty("props").TryGetProperty("labels", out var labels) && labels.ValueKind == JsonValueKind.Object)
+            foreach (var label in labels.EnumerateObject())
+            {
+                if (!chosen.Contains(label.Name)) return $"'{label.Name}' etiketi seçili olmayan bir {kind} için.";
+                if (label.Value.ValueKind != JsonValueKind.String || label.Value.GetString()!.Trim().Length is 0 or > 60) return MaxLabelLength;
+            }
+        return null;
+    }
+
+    /// <summary>Belge also forbids the grid (and with it every fill, formula and calculated-column setting) anywhere in the tree.</summary>
+    private static string? ScanBelge(JsonElement component)
+    {
+        if (component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "editableGrid")
+            return "Belge sayfasında 'editableGrid' kullanılamaz; satırlar ve hesap modelden gelir.";
+        if (component.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
+            foreach (var child in children.EnumerateArray())
+                if (ScanBelge(child) is { } error) return error;
+        return null;
+    }
+
+    /// <summary>
+    /// The props a Belge part may carry, checked in the component loop (the codes themselves are checked by <see cref="ValidateBelge"/>).
+    /// </summary>
+    internal static string? ValidateBelgePartProps(string type, JsonElement props)
+    {
+        string[] allowed = type switch
+        {
+            "documentFields" => ["slot", "fields", "labels"],
+            "documentLines" => ["slot", "columns", "labels", "density"],
+            _ => ["slot", "vatBreakdown", "activity"]
+        };
+        foreach (var prop in props.EnumerateObject())
+        {
+            if (!allowed.Contains(prop.Name)) return $"'{type}' bileşeninde '{prop.Name}' kullanılamaz.";
+            var ok = prop.Name switch
+            {
+                "slot" => prop.Value.ValueKind == JsonValueKind.String,
+                "fields" or "columns" => prop.Value.ValueKind == JsonValueKind.Array && prop.Value.GetArrayLength() <= 40
+                    && prop.Value.EnumerateArray().All(x => x.ValueKind == JsonValueKind.String),
+                "labels" => prop.Value.ValueKind == JsonValueKind.Object,
+                "density" => prop.Value.ValueKind == JsonValueKind.String && prop.Value.GetString() is "dense" or "normal" or "comfy",
+                _ => prop.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            };
+            if (!ok) return $"'{type}' bileşeninin '{prop.Name}' değeri geçersiz.";
+        }
         return null;
     }
 

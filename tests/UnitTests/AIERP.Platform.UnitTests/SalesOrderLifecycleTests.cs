@@ -52,7 +52,7 @@ public sealed class SalesOrderLifecycleTests
     [InlineData(SalesOrderStatus.Draft, false, true)]
     [InlineData(SalesOrderStatus.Open, false, true)]
     [InlineData(SalesOrderStatus.Open, true, false)]
-    [InlineData(SalesOrderStatus.PendingApproval, false, false)]
+    [InlineData(SalesOrderStatus.PendingApproval, false, true)] // belge kuralları PR 3: a held order may be cancelled
     [InlineData(SalesOrderStatus.Fulfilled, false, false)]
     [InlineData(SalesOrderStatus.Cancelled, false, false)]
     public void Cancel_only_draft_or_unshipped_approved(SalesOrderStatus status, bool deliveries, bool expected) =>

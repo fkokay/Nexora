@@ -1,3 +1,5 @@
+using AIERP.Api.DocumentRules;
+using AIERP.Api;
 using System.Security.Claims;
 using System.Text.Json;
 using AIERP.Platform.Application;
@@ -62,6 +64,8 @@ internal static class WorkflowEndpoints
             if (licenseError is not null) return licenseError;
             var definition = await db.TenantWorkflowDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (definition is null) return Results.NotFound();
+            if (definition.Code.StartsWith(SalesOrderApprovalWorkflow.SystemPrefix, StringComparison.Ordinal))
+                return Results.Conflict(new { error = "Sistemin yönettiği iş akışı düzenlenemez." });
             if (definition.Status != "Draft") return Results.Conflict(new { error = "Yalnızca taslak iş akışı düzenlenebilir." });
             if (!ValidateDefinition(definition.Code, request.Name, request.Description, request.Steps, out var steps, out var errors))
                 return Results.ValidationProblem(errors!);
@@ -106,6 +110,8 @@ internal static class WorkflowEndpoints
             if (licenseError is not null) return licenseError;
             var source = await db.TenantWorkflowDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == "Published", ct);
             if (source is null) return Results.NotFound();
+            if (source.Code.StartsWith(SalesOrderApprovalWorkflow.SystemPrefix, StringComparison.Ordinal))
+                return Results.Conflict(new { error = "Sistemin yönettiği iş akışı düzenlenemez." });
             var existingDraft = await db.TenantWorkflowDefinitions.AsNoTracking()
                 .Where(x => x.TenantId == tenantId && x.Code == source.Code && x.Status == "Draft")
                 .OrderByDescending(x => x.Version)
@@ -133,8 +139,10 @@ internal static class WorkflowEndpoints
             var query = db.TenantWorkflowInstances.AsNoTracking().Where(x => x.TenantId == tenantId);
             if (role != "TenantAdmin") query = query.Where(x => x.StartedByUserId == userId || x.Status == "Pending");
             var instances = await query.OrderByDescending(x => x.StartedAt).Take(300).ToListAsync(ct);
+            // A step that names its deciders is visible to them only (any role); other steps to their role.
             var pendingForRole = role == "TenantAdmin" ? instances.Where(x => x.Status == "Pending") :
-                instances.Where(x => x.Status == "Pending" && CurrentStep(x).ApproverRole == role);
+                instances.Where(x => x.Status == "Pending" && (CurrentStep(x).ApproverUserIds is { Count: > 0 } people
+                    ? people.Contains(userId) : CurrentStep(x).ApproverRole == role));
             var visible = role == "TenantAdmin" ? instances : instances.Where(x => x.StartedByUserId == userId || pendingForRole.Contains(x));
             var ids = visible.Select(x => x.Id).ToArray();
             var actions = await db.TenantWorkflowActions.AsNoTracking().Where(x => x.TenantId == tenantId && ids.Contains(x.InstanceId))
@@ -148,6 +156,7 @@ internal static class WorkflowEndpoints
             if (!Context(user, out var tenantId, out var userId, out var role)) return Results.Forbid();
             var definition = await db.TenantWorkflowDefinitions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id && x.Status == "Published", ct);
             if (definition is null) return Results.NotFound();
+            if (definition.Code.StartsWith(SalesOrderApprovalWorkflow.SystemPrefix, StringComparison.Ordinal)) return Results.Forbid();
             if (string.IsNullOrWhiteSpace(request.SubjectType) || request.SubjectType.Trim().Length > 80
                 || string.IsNullOrWhiteSpace(request.SubjectTitle) || request.SubjectTitle.Trim().Length > 160)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["subject"] = ["Kayıt türü 1–80, başlık 1–160 karakter olmalıdır."] });
@@ -249,6 +258,22 @@ internal static class WorkflowEndpoints
                 if (purchaseOrder is null || purchaseOrder.Status != PurchaseOrderStatus.PendingApproval)
                     return Results.Conflict(new { error = "Bağlı satın alma siparişi artık inceleme beklemiyor." });
             }
+            SalesOrder? salesOrder = null;
+            // Only the rule-started system workflow moves the order; a legacy hand-started "SalesOrder" instance never does.
+            if (instance.SubjectType == SalesOrderApprovalWorkflow.SubjectType && instance.DefinitionCode == SalesOrderApprovalWorkflow.DefinitionCode
+                && instance.SubjectId is not null)
+            {
+                salesOrder = db.Database.IsRelational()
+                    ? await db.SalesOrders.FromSqlInterpolated(
+                        $"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {instance.SubjectId.Value}").SingleOrDefaultAsync(ct)
+                    : await db.SalesOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == instance.SubjectId.Value, ct);
+                if (salesOrder is null || salesOrder.Status != SalesOrderStatus.PendingApproval)
+                    return Results.Conflict(new { error = "Bağlı satış siparişi artık onay beklemiyor." });
+                // The order may have waited: the final approval re-runs Onayla's core checks (active customer, lines, risk limit…).
+                if (transition.IsComplete && transition.Status == "Approved"
+                    && await SalesOrderTransitionEndpoints.ApproveCheckErrorAsync(db, tenantId, salesOrder, [], ct) is { } failed)
+                    return Results.Conflict(new { error = failed });
+            }
             var action = new TenantWorkflowAction
             {
                 TenantId = tenantId, InstanceId = instance.Id, StepIndex = instance.CurrentStepIndex, StepName = current.Name,
@@ -273,6 +298,24 @@ internal static class WorkflowEndpoints
             {
                 purchaseOrder.Status = transition.Status == "Approved" ? PurchaseOrderStatus.Open : PurchaseOrderStatus.Rejected;
                 Audit(db, tenantId, userId, transition.Status == "Approved" ? "purchase-order.approved-by-workflow" : "purchase-order.rejected-by-workflow", purchaseOrder.Code);
+            }
+            if (salesOrder is not null)
+            {
+                var comment = CleanDescription(request.Comment);
+                if (transition.Status == "Rejected")
+                {
+                    salesOrder.Status = SalesOrderStatus.Draft;
+                    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, salesOrder.Id, SalesOrderTransitionEndpoints.Approve, "Reddedildi", "rule", "done", comment, userId);
+                    Audit(db, tenantId, userId, "sales-order.rejected-by-workflow", salesOrder.Code);
+                }
+                else if (transition.IsComplete)
+                {
+                    salesOrder.Status = SalesOrderStatus.Open;
+                    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, salesOrder.Id, SalesOrderTransitionEndpoints.Approve, "Onaylandı", "rule", "done", comment, userId);
+                    Audit(db, tenantId, userId, "sales-order.approved-by-workflow", salesOrder.Code);
+                }
+                else
+                    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesOrder, salesOrder.Id, SalesOrderTransitionEndpoints.Approve, current.Name, "rule", "done", comment, userId);
             }
             if (customFormSubmission is not null && transition.IsComplete)
             {
@@ -336,7 +379,8 @@ internal static class WorkflowEndpoints
     private static async Task<IResult?> ValidateBusinessSubjectForStartAsync(TenantDbContext db, Guid tenantId,
         Guid userId, string role, string subjectType, Guid? subjectId, CancellationToken ct)
     {
-        if (subjectType == "CustomFormSubmission") return Results.Forbid();
+        // Rule-started subjects: only their own flow starts them (custom form rules, belge kuralı Onay iste).
+        if (subjectType is "CustomFormSubmission" or SalesOrderApprovalWorkflow.SubjectType) return Results.Forbid();
         if (subjectId is null) return null;
         switch (subjectType)
         {

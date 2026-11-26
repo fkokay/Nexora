@@ -1,5 +1,7 @@
 import { createElement, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
+import { DocumentTemplate } from "./page-templates/DocumentTemplate";
+import { BELGE_PARTS, layoutDocumentTemplate } from "./page-templates/documentTemplateModel";
 import { hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
 import { ListTemplate, ShellSearch } from "./page-templates/ListTemplate";
 import type { ShellAction } from "./page-templates/PageShell";
@@ -3880,11 +3882,13 @@ type TenantCustomPageProps = {
   /** The workspace tab the page lives in when it is not the screen's own key (an alias key such as `customer-edit`). */
   tabKey?: string;
   onOpenLegacy?: () => void;
+  /** Studio tuvali: belge kalıbında çizilecek örnek belgenin durumu (Taslak, Onaylı, Sevk edildi…). */
+  belgePreviewState?: string | null;
   /** Called on a 404 in system mode (stale runtime map) instead of showing an error. */
   onSystemPageMissing?: () => void;
 };
 
-export default function TenantCustomPage({ code, previewId, token, systemScreenKey, tabKey: aliasTabKey, onOpenLegacy, onSystemPageMissing }: TenantCustomPageProps) {
+export default function TenantCustomPage({ code, previewId, token, systemScreenKey, tabKey: aliasTabKey, onOpenLegacy, onSystemPageMissing, belgePreviewState = null }: TenantCustomPageProps) {
   const [page, setPage] = useState<PublishedPage | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -3969,6 +3973,22 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
     isV2 = definition.schemaVersion === 2;
     if (isV2) queryDefinitions = readPageQueries(definition);
   } catch { return <div className="tenant-custom-page-state tenant-custom-page-error" role="alert">Sayfa tanımı okunamadı.{legacyLink}</div>; }
+
+  if (isV2 && pageTemplate?.name === "belge") {
+    // Belge kalıbı: veri modelin uçlarından gelir; ek eylemler ve üst/alt bileşenler sayfanın kendi sorgularıyla çizilir.
+    const belgeLayout = layoutDocumentTemplate(components);
+    const orderId = typeof pageParams.id === "string" && pageParams.id ? pageParams.id : null;
+    const extra = (part: ComponentDefinition[]) => <PageBody key={`${page.id}:${page.revision}:${paramKey}:${part.map((c) => c.id).join(",")}`}
+      page={page} components={part} queryDefinitions={queryDefinitions} isV2 pageTemplate={null} token={token} previewId={previewId}
+      tabKey={tabKey} pageParams={pageParams} legacyLink={null} />;
+    return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
+      {previewId && !belgePreviewState && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}
+      <DocumentTemplate key={`${page.id}:${page.revision}`} document={pageTemplate.document} layout={belgeLayout} token={token} orderId={orderId}
+        isPreview={!!previewId} previewState={belgePreviewState} title={titleOverride || page.name}
+        onSaved={(id) => { if (tabKey) setPageParams(tabKey, { ...pageParams, id }); }}
+        renderExtra={(part) => extra(part.filter((c) => !(BELGE_PARTS as readonly string[]).includes(c.type)))} />
+    </main>;
+  }
 
   return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
     {previewId && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}

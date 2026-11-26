@@ -1770,5 +1770,5 @@ public sealed record DocumentActivityView(string Transition, string Step, string
     Guid? ActorUserId, DateTimeOffset CreatedAt);
 
 /// <summary>Body of the sales order transitions (approve, unapprove, cancel). A repeated <c>RequestId</c> returns the current order.</summary>
-public sealed record SalesOrderTransitionRequest(Guid? RequestId = null, string? Reason = null);
+public sealed record SalesOrderTransitionRequest(Guid? RequestId = null, string? Reason = null, bool AcknowledgeWarnings = false);
 public sealed record SalesOrderTransitionResult(Guid Id, string Code, SalesOrderStatus Status, IReadOnlyList<string> Warnings);

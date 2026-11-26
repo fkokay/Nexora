@@ -119,8 +119,9 @@ const apiMock = vi.hoisted(() => vi.fn());
 vi.mock('../erpApi', async (importOriginal) => ({ ...(await importOriginal<typeof import('../erpApi')>()), api: apiMock }));
 vi.mock('../authApi', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../authApi')>()),
-  authenticatedFetch: vi.fn(async (url: string) =>
-    new Response(JSON.stringify(respond(url)), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+  // Same answers as `api` (and recorded there): Onayla posts through authenticatedFetch to read the rule warnings.
+  authenticatedFetch: vi.fn(async (url: string, token?: string, init?: RequestInit) =>
+    new Response(JSON.stringify(await apiMock(url, token, init)), { status: 200, headers: { 'Content-Type': 'application/json' } })),
 }));
 
 beforeAll(() => {
@@ -688,6 +689,20 @@ describe('Satış siparişi durum zinciri (belge kuralları)', () => {
     });
     await waitFor(() => expect(sentBody('/api/sales/orders/o1/approve')).toBeDefined());
     expect(await screen.findByText(/STK-1: kullanılabilir 2 ADET, istenen 5 ADET/)).toBeTruthy();
+  });
+
+  it('a held order names its deciders; a listed person gets Onayla and Reddet, which posts the workflow decision', async () => {
+    withResponses({ ...asOrder('PendingApproval'), '/api/sales/orders/o1/document': { approval: { instanceId: 'w1', step: 'Onay: buyukTutar', approvers: ['Mehmet Demir'], canDecide: true } },
+      '/api/workflows/instances/w1/decision': {} });
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('S-o1');
+    expect(await screen.findByText(/Onay bekliyor · karar: Mehmet Demir/)).toBeTruthy();
+    expect(openMenu()).toEqual(['Onayla', 'Reddet', 'İptal et']);
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Onayla' }));
+    });
+    await waitFor(() => expect(sentBody('/api/workflows/instances/w1/decision')).toEqual({ decision: 'Approved', comment: null }));
   });
 
   it('an approved order without deliveries offers Onayı geri al and İptal et; İptal asks for a reason', async () => {
