@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { api } from '../erpApi';
+import { recordKeyParam } from '../page-templates/recordTemplateModel';
+import { readPageTemplate } from '../page-templates/pageTemplate';
 import { setPageParams, type PageParams } from '../pageNavigation';
 import { CanvasAnchorContext, CanvasTabsContext, type CanvasTabRequest } from './anchorContext';
 import { CANVAS_PROTOCOL, CANVAS_VERSION, collectBlocks, parseStudioCanvasMessage, type CanvasParams, type CanvasToStudio } from './canvasProtocol';
@@ -17,6 +19,27 @@ function sampleParams(value: unknown): PageParams {
   const params = (value as { params?: unknown } | null)?.params;
   if (typeof params !== 'object' || params === null || Array.isArray(params)) return {};
   return Object.fromEntries(Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+}
+
+const PAGE_PARAM = /^\s*\{\{\s*sayfa\.parametre\.([^\s}.]+)\s*\}\}\s*$/;
+/**
+ * Örnek kaydı belirleyen taslak parçası (`GET /preview` yanıtından): kayıt sorgusunun okuduğu sayfa parametresi ve kayıt
+ * sorgusunun kaynağı. Kayıt kartı değilse ya da parametre bulunamazsa `null` (sunucu da boş döner; uç çağrılmaz); tanım
+ * okunamazsa `undefined` (örnek saklanmadan istenir).
+ */
+export function sampleKeyOf(preview: unknown): string | null | undefined {
+  const json = (preview as { definitionJson?: unknown } | null)?.definitionJson;
+  if (typeof json !== 'string') return undefined;
+  let definition: { components?: unknown; queries?: unknown };
+  try { definition = JSON.parse(json) as typeof definition; } catch { return undefined; }
+  if (readPageTemplate(definition)?.name !== 'record') return null;
+  type Query = { id: string; name?: string; dataSource?: unknown; parameters?: { name: string; binding?: string }[] };
+  const components = Array.isArray(definition.components) ? (definition.components as Parameters<typeof recordKeyParam>[0]) : [];
+  const queries = Array.isArray(definition.queries) ? (definition.queries as Query[]).filter((query) => query && typeof query.id === 'string') : [];
+  const param = recordKeyParam(components, queries);
+  if (!param) return null;
+  const source = queries.find((query) => (query.parameters ?? []).some((parameter) => PAGE_PARAM.exec(parameter.binding ?? '')?.[1] === param))?.dataSource;
+  return JSON.stringify([param, typeof source === 'string' ? source : null]);
 }
 
 export default function DesignerCanvasHost({ token, params, studioOrigin }: { token: string; params: CanvasParams; studioOrigin: string }) {
@@ -88,22 +111,31 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
   }, [studioOrigin]);
 
   // Kayıt kartı taslağı örnek bir kayıtla açılır: uç, sayfa parametresini (`{ <p>: anahtar }`) verir; kalıp `record` değilse,
-  // kaynak ya da satır yoksa boş döner; hata da boş sayılır. Bulunan örnek taslak başına saklanır: sonraki sürümler liste
-  // kaynağını yeniden çalıştırmaz. Boş sonuç saklanmaz (kalıp sayfa yüklenmeden bilinmez; taslak sonradan Kayıt kartı olabilir).
-  // Parametreler sayfanın okuduğu sekme anahtarına (TenantCustomPage: systemScreenKey ?? `custom-page-preview:<id>`) yazılır.
+  // kaynak ya da satır yoksa boş döner; hata da boş sayılır. Her sürümde taslak (`/preview`, kaynak çalıştırmaz) okunur:
+  // kayıt kartı değilse uç hiç çağrılmaz. Uç yanıtı (boş da olsa) taslak + kayıt parametresi + kayıt kaynağı başına saklanır:
+  // sonraki sürümler liste kaynağını yeniden çalıştırmaz; kayıt kaynağı ya da parametresi değişince yeniden istenir. Hata
+  // saklanmaz. Parametreler sayfanın okuduğu sekme anahtarına (TenantCustomPage: systemScreenKey ?? `custom-page-preview:<id>`) yazılır.
   const { previewId, systemScreenKey } = params;
   const samples = useRef(new Map<string, PageParams>());
   useEffect(() => {
     let active = true;
     const tabKey = systemScreenKey ?? `custom-page-preview:${previewId}`;
-    const cached = samples.current.get(previewId);
-    const load = cached
-      ? Promise.resolve(cached)
-      : api<unknown>(`/api/custom-pages/${encodeURIComponent(previewId)}/preview/sample-params`, token).then(sampleParams, () => ({}));
-    void load
+    const base = `/api/custom-pages/${encodeURIComponent(previewId)}/preview`;
+    const load = async (): Promise<PageParams> => {
+      const key = await api<unknown>(base, token).then(sampleKeyOf, () => undefined);
+      if (key === null) return {};
+      const cacheKey = key === undefined ? null : `${previewId}\n${key}`;
+      const cached = cacheKey ? samples.current.get(cacheKey) : undefined;
+      if (cached) return cached;
+      try {
+        const sample = sampleParams(await api<unknown>(`${base}/sample-params`, token));
+        if (cacheKey) samples.current.set(cacheKey, sample);
+        return sample;
+      } catch { return {}; }
+    };
+    void load()
       .then((sample) => {
         if (!active) return;
-        if (Object.keys(sample).length > 0) samples.current.set(previewId, sample);
         setPageParams(tabKey, sample);
         revisionRef.current = revision;
         setShown(revision);

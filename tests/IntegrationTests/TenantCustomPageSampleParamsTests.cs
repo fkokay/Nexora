@@ -233,6 +233,37 @@ public sealed class TenantCustomPageSampleParamsTests
     }
 
     [Fact]
+    public async Task Sample_params_audits_only_runs_that_execute_a_source()
+    {
+        var executor = new FakeReadExecutor([new Dictionary<string, object?> { ["Code"] = "C-001" }]);
+        await using var app = await StartApplicationAsync(executor);
+        var draftId = await SeedPageAsync(app, RecordPage());
+        var listDraft = await SeedPageAsync(app, RecordPage(template: "list"), code: "liste-sayfa");
+        using var admin = Client(app, Admin, "TenantAdmin");
+        async Task<List<AuditEvent>> AuditsAsync()
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<PlatformDbContext>().AuditEvents.AsNoTracking()
+                .Where(x => x.Action == CustomPageQueryEndpoints.SampleParamsAuditAction).ToListAsync();
+        }
+
+        // Nothing runs: no active catalog, then a non-record page with one.
+        await AssertEmptyAsync(admin, draftId);
+        await SeedReleaseAsync(app, Bundle(DataSource("cariler", PageCode), DataSource("listeKaynak", "liste-sayfa")));
+        await AssertEmptyAsync(admin, listDraft);
+        Assert.Empty(executor.Calls);
+        Assert.Empty(await AuditsAsync());
+
+        // A real run is audited once per run, with the catalog item and row count but no parameter values.
+        var body = await admin.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{draftId}/preview/sample-params");
+        Assert.Equal("C-001", body.GetProperty("params").GetProperty("kartId").GetString());
+        var audit = Assert.Single(await AuditsAsync());
+        Assert.Equal($"{PageCode}:sample-params:catalog=cariler@1.0.0:rows=1", audit.Resource);
+        Assert.Equal(Admin, audit.UserId);
+        Assert.Single(executor.Calls);
+    }
+
+    [Fact]
     public async Task Sample_params_read_executor_is_not_registered_by_the_api_host()
     {
         // The executor is a test-only seam: the real host must run the source through the tenant query connection factory.

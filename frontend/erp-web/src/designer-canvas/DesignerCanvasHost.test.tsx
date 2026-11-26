@@ -33,6 +33,21 @@ vi.mock('../TenantCustomPage', async () => {
 const STUDIO = 'https://studio.test';
 let posted: { message: any; target: string }[];
 let frames: FrameRequestCallback[];
+let resizeCallbacks: (() => void)[];
+/** `GET /preview` yanıtı ve örnek kayıt ucunun yanıtı. */
+let preview: () => Promise<unknown>;
+let sample: () => Promise<unknown>;
+const recordPreview = (param = 'kartId', source = 'cariKart') => ({ definitionJson: JSON.stringify({
+  schemaVersion: 2, template: { name: 'record' },
+  queries: [{ id: 'kayit', name: 'kayit', kind: 'read', dataSource: source, parameters: [{ name: 'kod', binding: `{{sayfa.parametre.${param}}}` }] }],
+  components: [{ id: 'b1', type: 'formCard', props: { slot: 'section', recordKey: '{{kayit.rows[0].kod}}', inputs: [] } }],
+}) });
+const sampleCalls = () => apiMock.mock.calls.filter(([url]) => String(url).endsWith('/sample-params')).length;
+const reload = (revision: number) => act(() => {
+  window.dispatchEvent(new MessageEvent('message', {
+    origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision },
+  }));
+});
 
 function flushFrames() {
   const pending = frames;
@@ -52,7 +67,10 @@ beforeEach(() => {
   mounts.tabs = false;
   mounts.params = [];
   apiMock.mockReset();
-  apiMock.mockResolvedValue({ params: {} });
+  preview = async () => ({ definitionJson: JSON.stringify({ schemaVersion: 2, components: [] }) });
+  sample = async () => ({ params: {} });
+  apiMock.mockImplementation((url: string) => (url.endsWith('/sample-params') ? sample() : preview()));
+  resizeCallbacks = [];
   posted = [];
   frames = [];
   vi.spyOn(window, 'postMessage').mockImplementation(((message: unknown, target: string) => {
@@ -65,7 +83,10 @@ beforeEach(() => {
     return { left: 0, top: 0, width: h ? 100 : 0, height: h, right: 0, bottom: 0, x: 0, y: 0, toJSON() {} } as DOMRect;
   });
   vi.stubGlobal('cancelAnimationFrame', () => {});
-  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} unobserve() {} });
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { resizeCallbacks.push(callback); }
+    observe() {} disconnect() {} unobserve() {}
+  });
 });
 
 afterEach(() => {
@@ -171,39 +192,95 @@ describe('DesignerCanvasHost', () => {
   });
 
   it('canvas host passes sample params to record page', async () => {
-    apiMock.mockResolvedValue({ params: { kartId: 'C-001', bozuk: 5 } });
+    preview = async () => recordPreview();
+    sample = async () => ({ params: { kartId: 'C-001', bozuk: 5 } });
     renderHost();
     await waitFor(() => expect(mounts.count).toBe(1));
+    expect(apiMock).toHaveBeenCalledWith('/api/custom-pages/p1/preview', 't');
     expect(apiMock).toHaveBeenCalledWith('/api/custom-pages/p1/preview/sample-params', 't');
     // Sayfa ilk çizimde örnek kaydı görür; metin olmayan değerler alınmaz.
     expect(mounts.params[0]).toEqual({ kartId: 'C-001' });
 
     // Bulunan örnek saklanır: sonraki sürüm ucu yeniden çağırmaz (liste kaynağı yeniden çalışmaz).
-    const reload = (revision: number) => act(() => {
-      window.dispatchEvent(new MessageEvent('message', {
-        origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision },
-      }));
-    });
     reload(2);
     await waitFor(() => expect(mounts.count).toBe(2));
-    expect(apiMock).toHaveBeenCalledTimes(1);
+    expect(sampleCalls()).toBe(1);
     expect(mounts.params[1]).toEqual({ kartId: 'C-001' });
   });
 
-  it('a failed or empty sample is not cached and the page opens without params', async () => {
-    apiMock.mockRejectedValue(new Error('500'));
+  it('an empty sample is cached per draft too', async () => {
+    preview = async () => recordPreview();
     renderHost();
     await waitFor(() => expect(mounts.count).toBe(1));
     expect(mounts.params[0]).toEqual({});
-    apiMock.mockResolvedValue({ params: { kartId: 'C-009' } });
-    act(() => {
-      window.dispatchEvent(new MessageEvent('message', {
-        origin: STUDIO, source: window.parent, data: { nx: 'nexora-canvas', v: 1, type: 'reload', revision: 2 },
-      }));
-    });
+    sample = async () => ({ params: { kartId: 'C-009' } });
+    reload(2);
     await waitFor(() => expect(mounts.count).toBe(2));
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(sampleCalls()).toBe(1);
+    expect(mounts.params[1]).toEqual({});
+  });
+
+  it('a failed sample is not cached and the page opens without params', async () => {
+    preview = async () => recordPreview();
+    sample = async () => { throw new Error('500'); };
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    expect(mounts.params[0]).toEqual({});
+    sample = async () => ({ params: { kartId: 'C-009' } });
+    reload(2);
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(sampleCalls()).toBe(2);
     expect(mounts.params[1]).toEqual({ kartId: 'C-009' });
+  });
+
+  it('the cached sample is dropped when the record parameter or source changes', async () => {
+    preview = async () => recordPreview();
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    expect(sampleCalls()).toBe(1);
+    preview = async () => recordPreview('kod');
+    sample = async () => ({ params: { kod: 'C-002' } });
+    reload(2);
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(sampleCalls()).toBe(2);
+    expect(mounts.params[1]).toEqual({ kod: 'C-002' });
+    preview = async () => recordPreview('kod', 'baskaKaynak');
+    reload(3);
+    await waitFor(() => expect(mounts.count).toBe(3));
+    expect(sampleCalls()).toBe(3);
+  });
+
+  it('a page that is not a record card never asks for a sample', async () => {
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    reload(2);
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(sampleCalls()).toBe(0);
+    expect(mounts.params).toEqual([{}, {}]);
+  });
+
+  it('an unreadable draft asks for the sample every time', async () => {
+    preview = async () => { throw new Error('404'); };
+    sample = async () => ({ params: { kartId: 'C-001' } });
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    reload(2);
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(sampleCalls()).toBe(2);
+    expect(mounts.params[1]).toEqual({ kartId: 'C-001' });
+  });
+
+  it('resizing the canvas sends a fresh layout', async () => {
+    renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    flushFrames();
+    expect(lastOfType('layout')).toBeDefined();
+    posted = [];
+    // Studio penceresi daralınca iframe ve kök kutu küçülür: ResizeObserver yeni bir düzen yollar.
+    act(() => resizeCallbacks.forEach((callback) => callback()));
+    flushFrames();
+    expect(lastOfType('layout')?.message.blocks[0].id).toBe('x');
   });
 
   it('showTab switches the active tab', async () => {

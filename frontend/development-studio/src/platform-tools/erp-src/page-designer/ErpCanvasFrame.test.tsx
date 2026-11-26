@@ -244,6 +244,14 @@ describe("ErpCanvasFrame", () => {
       expect(post).toHaveBeenCalledWith(message, ORIGIN);
     });
 
+    it("ERP yeniden yerleşince (pencere daraldı) kaplama son kutularla çizilir", () => {
+      const seen: { id: string; x: number; y: number }[][] = [];
+      const { send } = setup({ overlay: (frame: { blocks: { id: string; x: number; y: number }[] }) => { seen.push(frame.blocks.map(({ id, x, y }) => ({ id, x, y }))); return null; } });
+      send(tabLayout);
+      send({ ...tabLayout, revision: 1, blocks: [{ id: "a", x: 0, y: 40, width: 200, height: 120 }, { id: "t#tab1", x: 10, y: 60, width: 40, height: 20 }] });
+      expect(seen.at(-1)).toEqual([{ id: "a", x: 0, y: 40 }, { id: "t#tab1", x: 10, y: 60 }]);
+    });
+
     it("kaplamalı tuvalde altta yer açılır (\"+ Bölüm ekle\" kırpılmaz); kaplamasız ve Dene'de açılmaz", () => {
       const withOverlay = setup({ overlay: () => null });
       expect((withOverlay.container.querySelector(".pd-erp-canvas") as HTMLElement).style.paddingBottom).toBe(`${OVERLAY_BOTTOM_SPACE}px`);
