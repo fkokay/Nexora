@@ -357,6 +357,7 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    - **Geri dönüş:** her sayfanın geçiş öncesi tanımı bir sürüm olarak saklanır. Tek komutla bütün sayfalar ya da tek bir sayfa eski haline döner.
    - **Geçişten sonra:** eski yerleşim dalı ERP'den kaldırılır. Bu da §10'daki "iki yerleşim dalı" durumunu sona erdirir.
    - **Eski Studio tuvali** (§6.8'deki kopya çizim kodu) bu adımda silinir.
+   - **Durum (2026-11-27, 5b-1):** kullanıcının kararıyla geçiş parça parça yapılır (önce envanter). 5b-1 sınıflandırıcıyı, kuru çalıştırma raporunu (ekran görüntüleri yok), geri alınabilir firma bazlı taşıma, doğrulama ve geri dönüş komutlarını ve prova yordamını (`docs/runbooks/page-template-migration.md`) ekler; yalnız Liste ve Serbest kalıba temiz eşlenen firma sayfaları taşınır. Envanterde 50 sistem standardının hiçbiri bugün eşlenemiyor (işlem çubuğu, form alanları, pencere vb.); Kayıt kartı ve Belge dönüşümü, eski dalın ve eski tuvalin silinmesi sonraki adımlardadır. Canlı çalıştırma ayrı kullanıcı onayı bekler.
 6. **Belge kuralları (§6.6).** Önce bir modülde (öneri: satış siparişi) belge modeli, hesaplama ve durum geçişleri kurulur, sonra Kurallar ekranı. Bu proje satış envanterindeki G-S7, G-S8 ve G-S9'u da kapatır. 2. projeden bağımsız olarak başlayabilir.
 
 ## 8. Kurucuya bırakılanlar

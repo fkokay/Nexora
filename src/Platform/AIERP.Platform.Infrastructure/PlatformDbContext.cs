@@ -2835,6 +2835,8 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.DefinitionJson).HasColumnType("nvarchar(max)").IsRequired();
             e.Property(x => x.ChangeKind).HasMaxLength(32).IsUnicode(false).IsRequired();
+            e.Property(x => x.MigrationBatch).HasMaxLength(64).IsUnicode(false);
+            e.HasIndex(x => new { x.TenantId, x.MigrationBatch });
             e.HasOne(x => x.CustomPage).WithMany(x => x.Revisions).HasForeignKey(x => new { x.TenantId, x.CustomPageId })
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Cascade);
         });

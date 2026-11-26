@@ -1,4 +1,16 @@
 # Master Prompt Phase Status
+### 2026-11-27 Page template migration, part 1 (5b-1)
+
+Plan `docs/superpowers/plans/2026-11-26-toplu-kalip-gecisi-5b1.md`, runbook `docs/runbooks/page-template-migration.md`. CLI commands in `AIERP.Api` (no HTTP endpoint):
+
+- **Classifier + equivalence:** `PageTemplateMigration.Classify` maps a legacy v2 tenant page to `list` or `free` only when the result is behaviour-equivalent (`BehaviorEquivalence`: same queries, actions, permissions, components and per-tab contents; only layout props may change) and passes page validation against the tenant's active catalog; everything else gets Turkish refusal reasons. Pages already on a template, pages with an open draft and tenant system rows (ScreenKey) are skipped.
+- **Report:** `--page-template-migration-report` writes per-page target and reasons plus counts; the inventory of the 50 system standards converts none today (top reasons: action bar 50, form fields 49, hidden commands 46, dialog 26).
+- **Run / verify / rollback:** `--page-template-migration-run=<batch>`, `--page-template-migration-verify=<batch>`, `--page-template-migration-rollback=<batch> [--page=]`, with `--tenants`, `--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP` (not for verify), strict batch/argument checking and exit codes 0/1/2. Each page is migrated in its own transaction with `BeforeTemplateMigration` + `TemplateMigrated` revisions (`MigrationBatch` column) and audit `custom-page.template-migrated`; rollback skips pages changed, republished or with an open draft after the migration. Studio "Yayınlar" lists migration revisions.
+- **Rehearsal:** `--rehearsal-database=<tenant>=AIERPTenant_<guid:N>_TplRehearsal` for every tenant plus `--expect-databases`, otherwise nothing opens; targets are printed `[PROVA KOPYASI]` / `[CANLI]`.
+- **Migrations (expand-only):** Tenant `AddTenantCustomPageRevisionMigrationBatch`, Platform `AddCustomPageRevisionMigrationBatch` (nullable `MigrationBatch` + index).
+
+Verified: page/custom-page integration tests 591 passed (4 skipped) and unit tests 1260/1260 after merging origin/master; `has-pending-model-changes` clean for Platform and Tenant. Not verified: SQL Server path (InMemory only: database open, Serializable transactions), the runbook against the live stack, the SQL container name; no live run has happened (needs a rehearsal report and separate user approval). Not in this part: Record card / Belge conversion, removal of the legacy layout branch and the old Studio canvas.
+
 ### 2026-11-26 Developer components in the catalog (Yazılımcı bileşeni)
 
 Plan `docs/superpowers/plans/2026-11-26-yazilimci-bileseni.md`. A developer writes a **component** (CSS + JavaScript + a settings schema) in the firm module under `bilesenler/<kod>/` (`bilesen.json`, `stil.css`, `kod.js`) and releases it with the catalog; a consultant picks it as "Yazılımcı bileşeni" and fills only the settings the developer defined; the ERP draws it in today's isolated code frame.

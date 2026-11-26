@@ -10,6 +10,8 @@ using Microsoft.EntityFrameworkCore;
 internal static class TenantCustomPageEndpoints
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>Revisions that make a definition the published one ("Yayınlar"): a publish, a template migration and its rollback.</summary>
+    private static readonly string[] PublicationKinds = ["Published", "TemplateMigrated", "TemplateMigrationRolledBack"];
 
     public static void MapTenantCustomPageEndpoints(this WebApplication app)
     {
@@ -39,16 +41,16 @@ internal static class TenantCustomPageEndpoints
                 .Select(x => new { x.Id, x.Code, x.Name, x.ScreenKey, x.UpdatedAt, x.UpdatedByUserId }).ToListAsync(ct);
             var published = await (from r in db.TenantCustomPageRevisions.AsNoTracking()
                                    join p in db.TenantCustomPages.AsNoTracking() on r.CustomPageId equals p.Id
-                                   where r.TenantId == tenant && p.TenantId == tenant && r.ChangeKind == "Published"
-                                   orderby r.CreatedAt descending
+                                   where r.TenantId == tenant && p.TenantId == tenant && PublicationKinds.Contains(r.ChangeKind)
+                                   orderby r.CreatedAt descending, r.Revision descending
                                    select new { r.CustomPageId, RevisionId = r.Id, r.Revision, r.Code, r.Name, p.ScreenKey, r.CreatedAt, r.ChangedByUserId })
                 .Take(limit).ToListAsync(ct);
             // The newest publish per code, regardless of the take window.
             var codes = published.Select(x => x.Code).Distinct().ToList();
             var latest = (await db.TenantCustomPageRevisions.AsNoTracking()
-                    .Where(x => x.TenantId == tenant && x.ChangeKind == "Published" && codes.Contains(x.Code))
-                    .Select(x => new { x.Code, x.Id, x.CreatedAt }).ToListAsync(ct))
-                .GroupBy(x => x.Code).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.CreatedAt).First().Id);
+                    .Where(x => x.TenantId == tenant && PublicationKinds.Contains(x.ChangeKind) && codes.Contains(x.Code))
+                    .Select(x => new { x.Code, x.Id, x.CreatedAt, x.Revision }).ToListAsync(ct))
+                .GroupBy(x => x.Code).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Revision).First().Id);
             var userIds = drafts.Select(x => x.UpdatedByUserId).Concat(published.Select(x => x.ChangedByUserId)).Distinct().ToList();
             var names = await (from m in platformDb.TenantMemberships.AsNoTracking()
                                join u in platformDb.Users.AsNoTracking() on m.UserId equals u.Id

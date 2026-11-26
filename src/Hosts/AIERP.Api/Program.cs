@@ -215,6 +215,17 @@ if (args.Contains("--legacy-tenant-data-purge-preview", StringComparer.Ordinal) 
         Console.WriteLine($"{table.Schema}.{table.Table}: {table.Rows}");
     return;
 }
+if (PageTemplateMigrationOptions.IsRequested(args))
+{
+    // Template migration report (read-only), verify (read-only), run and rollback. Any --page-template-migration* argument enters this
+    // mode and never starts the web host. Options are validated before any database is opened (run and rollback need --tenants and
+    // --confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP); every target database is printed first.
+    // Exit codes: 0 done, 1 a page failed (write error / failed verification), 2 argument or target error.
+    Environment.ExitCode = await PageTemplateMigrationCli.RunAsync(args,
+        () => PageTemplateMigrationRunner.CreateDefault(new PageTemplateMigrationSqlDatabases(app.Services, tenantConnectionString), Console.Out),
+        Console.Error, CancellationToken.None);
+    return;
+}
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 // Honour X-Forwarded-For only from explicitly trusted proxy networks (ReverseProxy:KnownNetworks), so rate limits see the real client.
 var trustedProxyNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];

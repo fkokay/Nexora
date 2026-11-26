@@ -48,6 +48,43 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
     }
 
     [Fact]
+    public async Task Publications_marks_template_migration_and_its_rollback_as_current()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        var pageId = await CreateAndPublishAsync(client, "asset-dashboard", "Pano");
+
+        async Task<List<JsonElement>> HistoryAsync() =>
+            (await client.GetFromJsonAsync<JsonElement>("/api/custom-pages/publications?take=100")).GetProperty("history").EnumerateArray().ToList();
+        async Task AddRevisionAsync(string changeKind)
+        {
+            await using var scope = app.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            var page = await db.TenantCustomPages.SingleAsync(x => x.Id == pageId);
+            page.Revision++;
+            db.TenantCustomPageRevisions.Add(TenantCustomPageEndpoints.RevisionOf(page, PageTemplateMigrationRunner.SystemUserId, changeKind));
+            await db.SaveChangesAsync();
+            await Task.Delay(5);
+        }
+
+        await AddRevisionAsync("BeforeTemplateMigration");
+        await AddRevisionAsync("TemplateMigrated");
+        var migrated = await HistoryAsync();
+        Assert.Equal(2, migrated.Count); // Published + TemplateMigrated; the BeforeTemplateMigration snapshot is not a publication
+        Assert.True(migrated[0].GetProperty("isCurrent").GetBoolean());
+        Assert.Equal(4, migrated[0].GetProperty("revision").GetInt32());
+        Assert.False(migrated[1].GetProperty("isCurrent").GetBoolean());
+
+        await AddRevisionAsync("TemplateMigrationRolledBack");
+        var rolledBack = await HistoryAsync();
+        Assert.Equal(3, rolledBack.Count);
+        Assert.True(rolledBack[0].GetProperty("isCurrent").GetBoolean());
+        Assert.Equal(5, rolledBack[0].GetProperty("revision").GetInt32());
+        Assert.Single(rolledBack, x => x.GetProperty("isCurrent").GetBoolean());
+    }
+
+    [Fact]
     public async Task Publications_is_tenant_scoped()
     {
         await using var app = await StartApplicationAsync();
