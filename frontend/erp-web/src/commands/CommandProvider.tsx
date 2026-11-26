@@ -70,7 +70,7 @@ function structureSignature(commands: PageCommands): string {
     return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden), spec.label ?? '']] : [];
   });
   const look = commands.look ? BAR_LOOK_KEYS.map((key) => commands.look![key] ?? null) : null;
-  return JSON.stringify([specs, moreSignature(commands.more), moreSignature(commands.barItems), Boolean(commands.besideList), Boolean(commands.moreHidden), look]);
+  return JSON.stringify([specs, moreSignature(commands.more), moreSignature(commands.barItems), Boolean(commands.besideList), Boolean(commands.moreHidden), look, Boolean(commands.shell)]);
 }
 
 // The registered `run` functions are stable wrappers that call through `ref`, so handlers may change every render.
@@ -109,6 +109,7 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
   if (latest.besideList) built.besideList = true;
   if (latest.moreHidden) built.moreHidden = true;
   if (latest.look) built.look = { ...latest.look };
+  if (latest.shell) built.shell = true;
   return built;
 }
 
@@ -156,4 +157,15 @@ export function useActionBarMounted(): boolean {
 export function useActivePageCommands(): PageCommands | undefined {
   const registry = useCommandRegistry();
   return useSyncExternalStore(registry.subscribe, registry.getActive, registry.getActive);
+}
+
+/**
+ * The merged commands of the view this component renders in (`ViewKeyContext`), whether or not it is the active view:
+ * a template shell draws its own view's bar, also while its tab is in the background.
+ */
+export function useViewPageCommands(): PageCommands | undefined {
+  const registry = useCommandRegistry();
+  const viewKey = useContext(ViewKeyContext);
+  const snapshot = useCallback(() => registry.getView(viewKey), [registry, viewKey]);
+  return useSyncExternalStore(registry.subscribe, snapshot, snapshot);
 }

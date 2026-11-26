@@ -45,6 +45,15 @@ export type CommandRegistry = {
   attachActionBar(): () => void;
   hasActionBar(): boolean;
   getActive(): PageCommands | undefined;
+  /** The merged commands of a view, active or not (same merge as `getActive`); stable until something changes. */
+  getView(viewKey: string): PageCommands | undefined;
+  /**
+   * A template shell of the view owns its ⋯ menu: Alt+İ calls `toggle` while the view is active instead of opening the
+   * shared bar's İşlemler. The first live claim of a view wins. Returns the release function.
+   */
+  claimMoreMenu(viewKey: string, toggle: () => void): () => void;
+  /** The effective ⋯ menu claim of the view (`undefined` for no view or no claim). */
+  moreMenuClaim(viewKey: string | undefined): (() => void) | undefined;
   registerGlobal(command: GlobalCommand): () => void;
   subscribe(listener: () => void): () => void;
   handleKeyDown(event: KeyboardEvent, env: DispatchEnv): boolean;
@@ -78,14 +87,22 @@ export function createCommandRegistry(): CommandRegistry {
   let actionBars = 0;
   let cache: PageCommands | undefined;
   let cacheValid = false;
+  // getView snapshots per view; cleared with the active cache.
+  const viewCache = new Map<string, PageCommands | undefined>();
+  const menuClaims = new Map<string, { toggle: () => void }[]>();
+
+  function invalidate() {
+    cacheValid = false;
+    viewCache.clear();
+  }
 
   function changed() {
-    cacheValid = false;
+    invalidate();
     for (const listener of [...listeners]) listener();
   }
 
-  function compute(): PageCommands | undefined {
-    const sources = activeView === undefined ? undefined : views.get(activeView);
+  function compute(viewKey: string | undefined): PageCommands | undefined {
+    const sources = viewKey === undefined ? undefined : views.get(viewKey);
     if (!sources) return undefined;
     // `form` slots: the record form that contains the focused element is effective; otherwise the one with the
     // latest activity (focus inside it, else mounting), so a newly opened dialog form beats the form behind it.
@@ -130,6 +147,7 @@ export function createCommandRegistry(): CommandRegistry {
     // without them) gets today's bar. An open form with its own İşlemler items keeps the menu (form wins, as above).
     if (pageCommands?.moreHidden && !formCommands?.more?.length) merged.moreHidden = true;
     if (pageCommands?.look) merged.look = pageCommands.look;
+    if (pageCommands?.shell) merged.shell = true;
     // An open record form that owns the primary Kaydet makes this a form screen (the bar drops Aç, Filtre, Excel);
     // a form that sits on a list screen (`besideList`) leaves it a list screen.
     if (formCommands?.save?.primary && !formCommands.besideList) merged.screen = 'form';
@@ -145,10 +163,16 @@ export function createCommandRegistry(): CommandRegistry {
 
   function getActive() {
     if (!cacheValid) {
-      cache = compute();
+      cache = compute(activeView);
       cacheValid = true;
     }
     return cache;
+  }
+
+  function getView(viewKey: string) {
+    if (viewKey === activeView) return getActive();
+    if (!viewCache.has(viewKey)) viewCache.set(viewKey, compute(viewKey));
+    return viewCache.get(viewKey);
   }
 
   function runCommand(event: KeyboardEvent, run: () => void | Promise<void>) {
@@ -217,6 +241,25 @@ export function createCommandRegistry(): CommandRegistry {
 
     getActive,
 
+    getView,
+
+    claimMoreMenu(viewKey, toggle) {
+      // An entry object, so claiming the same function twice releases each claim on its own.
+      const claim = { toggle };
+      const claims = menuClaims.get(viewKey) ?? [];
+      claims.push(claim);
+      menuClaims.set(viewKey, claims);
+      return () => {
+        const list = menuClaims.get(viewKey);
+        const index = list ? list.indexOf(claim) : -1;
+        if (!list || index < 0) return;
+        list.splice(index, 1);
+        if (!list.length) menuClaims.delete(viewKey);
+      };
+    },
+
+    moreMenuClaim: (viewKey) => (viewKey === undefined ? undefined : menuClaims.get(viewKey)?.[0]?.toggle),
+
     registerGlobal(command) {
       globals.push(command);
       return () => {
@@ -234,7 +277,7 @@ export function createCommandRegistry(): CommandRegistry {
 
     handleKeyDown(event, env) {
       // Which record form holds the focus is read at dispatch time.
-      cacheValid = false;
+      invalidate();
       if (env.modalOpen) {
         for (const command of globals) {
           if (command.allowInModal && matchesShortcut(event, parseShortcut(command.shortcut))) {

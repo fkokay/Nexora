@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CommandProvider, usePageCommands } from '../commands/CommandProvider';
+import { useContext, useEffect } from 'react';
+import { CommandProvider, useCommandRegistry, usePageCommands, useViewPageCommands, ViewKeyContext } from '../commands/CommandProvider';
 import { ACTION_BAR_ORDER, type CommandSource, type PageCommands } from '../commands/types';
 import { KeepAliveViews } from '../WorkspaceComponents';
 import { ActionBar, pickCompaction } from './ActionBar';
@@ -419,5 +420,71 @@ describe('ActionBar compaction (narrow bar)', () => {
       expect(bar().getAttribute('style') ?? '').toBe('');
       expect(button('more')).not.toBeNull();
     });
+  });
+});
+
+describe('ActionBar with a template shell view', () => {
+  function Claim({ toggle, commands }: { toggle: () => void; commands?: PageCommands }) {
+    const registry = useCommandRegistry();
+    const viewKey = useContext(ViewKeyContext);
+    useEffect(() => registry.claimMoreMenu(viewKey, toggle), [registry, viewKey, toggle]);
+    usePageCommands(commands ?? {});
+    return null;
+  }
+
+  it('ActionBar draws nothing for a shell view but F1 still opens help', () => {
+    setup({ ...all(), shell: true });
+    expect(screen.queryByRole('toolbar', { name: 'İşlemler çubuğu' })).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'F1' });
+    expect(screen.getByRole('dialog')).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('Alt+İ calls the claimed menu of the active view only', () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    const tree = (activeKey: string) => (
+      <CommandProvider>
+        <ActionBar locale="tr" />
+        <KeepAliveViews activeKey={activeKey} openKeys={['a', 'b']}>
+          {activeKey === 'a' ? <Claim toggle={a} commands={{ refresh: { run: vi.fn() }, shell: true }} />
+            : <Claim toggle={b} commands={{ refresh: { run: vi.fn() }, more: [{ id: 'x', label: 'X', run: vi.fn() }], shell: true }} />}
+        </KeepAliveViews>
+      </CommandProvider>
+    );
+    const { rerender } = render(tree('a'));
+    rerender(tree('b'));
+    fireEvent.keyDown(document.body, { key: 'İ', altKey: true });
+    expect(b).toHaveBeenCalledTimes(1);
+    expect(a).not.toHaveBeenCalled();
+    // The shared bar's own İşlemler menu does not open on top of the shell's.
+    expect(screen.queryByRole('menu')).toBeNull();
+    rerender(tree('a'));
+    fireEvent.keyDown(document.body, { key: 'İ', altKey: true });
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it('useViewPageCommands reads the commands of its own view, not the active one', () => {
+    const seen: Record<string, PageCommands | undefined> = {};
+    function Probe({ commands }: { commands: PageCommands }) {
+      usePageCommands(commands);
+      seen[useContext(ViewKeyContext)] = useViewPageCommands();
+      return null;
+    }
+    const tree = (activeKey: string) => (
+      <CommandProvider>
+        <KeepAliveViews activeKey={activeKey} openKeys={['a', 'b']}>
+          {activeKey === 'a' ? <Probe commands={{ save: { run: vi.fn() }, shell: true }} /> : <Probe commands={{ refresh: { run: vi.fn() } }} />}
+        </KeepAliveViews>
+      </CommandProvider>
+    );
+    const { rerender } = render(tree('a'));
+    rerender(tree('b'));
+    expect(seen.a?.save).toBeDefined();
+    expect(seen.a?.shell).toBe(true);
+    expect(seen.b?.refresh).toBeDefined();
+    expect(seen.b?.save).toBeUndefined();
   });
 });
