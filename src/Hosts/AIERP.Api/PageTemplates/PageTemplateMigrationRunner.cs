@@ -287,7 +287,7 @@ internal sealed partial class PageTemplateMigrationRunner(
         return new MigrationReportSummary(Count(tenants.SelectMany(x => x.Pages).Select(x => x.Target)), Count(standards.Select(x => x.Target)), byTenant, topReasons);
     }
 
-    private static string TargetLabel(string? target) => target switch { "list" => "Liste", "free" => "Serbest", _ => "—" };
+    private static string TargetLabel(string? target) => target switch { "list" => "Liste", "record" => "Kayıt kartı", "free" => "Serbest", _ => "—" };
     private static string Cell(string? value) => string.IsNullOrEmpty(value) ? "—" : value.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
 
     private static string Markdown(MigrationReport report)

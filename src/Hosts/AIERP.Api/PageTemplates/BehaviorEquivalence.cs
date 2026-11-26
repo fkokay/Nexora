@@ -15,6 +15,8 @@ using System.Text.Json.Nodes;
 /// <c>widthWhen</c> ve <c>title</c> var olan bileşende hiç değişemez (Karar 5'in katı okuması).</item>
 /// <item>Eklenen bileşen yalnız üst düzey, çocuksuz <c>section</c> (slot, columns, members, title, margin, padding) ya da
 /// <c>tabs</c> (slot, tabs) olabilir.</item>
+/// <item>Sonraki tanım kalıplıysa (5b-2a) işlem çubuğunun her ayarı (<c>slot</c> dışında) kalıpta karşılığı olan ayarlardandır ve
+/// görünen Yazdır önceki çubukta bağlıydı (<c>printEnabled: true</c>).</item>
 /// </list>
 /// </summary>
 internal static class BehaviorEquivalence
@@ -51,6 +53,7 @@ internal static class BehaviorEquivalence
         var afterById = @as.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var beforeById = bs.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var beforeIds = bs.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+        if (a.ContainsKey("template") && TemplateBarDifference(@as, beforeById) is { } barDifference) return barDifference;
 
         foreach (var entry in bs)
         {
@@ -108,6 +111,26 @@ internal static class BehaviorEquivalence
             return count;
         }
         catch (JsonException) { return 0; }
+    }
+
+    /// <summary>
+    /// Kalıplı sonraki tanımda işlem çubuğu (5b-2a): her ayarı (<c>slot</c> dışında) kalıpta karşılığı olan ayarlardandır
+    /// (<see cref="PageTemplateRules.TemplateBarProps"/>); kalıpta görünen Yazdır yazdırdığından Yazdır gizli değilse önceki çubukta
+    /// <c>printEnabled</c> açık olmalıydı. Ayarların kendisinin değişmemesi genel özellik kuralındadır.
+    /// </summary>
+    private static string? TemplateBarDifference(List<Entry> after, Dictionary<string, Entry> beforeById)
+    {
+        foreach (var bar in after.Where(x => (string?)x.Node["type"] == "actionBar"))
+        {
+            var props = bar.Node["props"] as JsonObject;
+            if (props?.FirstOrDefault(x => x.Key != "slot" && !PageTemplateRules.TemplateBarProps.Contains(x.Key)) is { Key: { } key })
+                return $"İşlem çubuğunun '{key}' ayarının kalıpta karşılığı yok.";
+            var printHidden = props?["hiddenCommands"] is JsonArray hidden && hidden.OfType<JsonValue>().Any(x => x.TryGetValue<string>(out var id) && id == "print");
+            var printBound = beforeById.TryGetValue(bar.Id, out var old) && old.Node["props"]?["printEnabled"] is JsonValue enabled
+                && enabled.TryGetValue<bool>(out var on) && on;
+            if (!printHidden && !printBound) return "Kalıpta görünen Yazdır yazdırır; önceki sayfada bağlı değildi.";
+        }
+        return null;
     }
 
     private static string? PropsDifference(string id, string? type, JsonObject? before, JsonObject? after)

@@ -163,14 +163,14 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
 
     public static TheoryData<string, string> UnsupportedFeatures() => new()
     {
-        { Page([C("cubuk", "actionBar"), NoTools("tablo")]), "İşlem çubuğu kalıplarda yok." },
+        { Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" } }), C("cubuk2", "actionBar", new { hiddenCommands = new[] { "print" } }), NoTools("tablo")]), "İşlem çubuğu kalıplarda yok." },
         { Page([C("pencere", "dialog"), NoTools("tablo")]), "Pencere kalıplarda yok." },
         { Page([C("adimlar", "steps"), NoTools("tablo")]), "Sihirbaz adımları kalıplarda yok." },
         { Page([C("satirlar", "editableGrid"), NoTools("tablo")]), "Düzenlenebilir satır tablosu (Belge kalıbı bekleniyor)." },
-        { Page([C("ad", "input"), NoTools("tablo")]), "Form alanları (Kayıt kartı adayı)." },
-        { Page([C("kart", "formCard", new { inputs = new[] { "ad" } }), NoTools("tablo")]), "Form alanları (Kayıt kartı adayı)." },
-        { Page([C("ozel", "customFieldsBlock"), NoTools("tablo")]), "Form alanları (Kayıt kartı adayı)." },
-        { Page([C("eskiForm", "form"), NoTools("tablo")]), "Form alanları (Kayıt kartı adayı)." },
+        { Page([C("ad", "input"), NoTools("tablo")]), "input bu kalıpta yok." },
+        { Page([C("kart", "formCard", new { inputs = new[] { "ad" } }), C("ad", "input"), NoTools("tablo")]), "Kayıt kartı tam bir kayıt özeti (recordHeader) ister." },
+        { Page([C("ozel", "customFieldsBlock"), NoTools("tablo")]), "customFieldsBlock bu kalıpta yok." },
+        { Page([C("eskiForm", "form"), NoTools("tablo")]), "form bu kalıpta yok." },
         { Page([C("sekme", "tabs", new { tabs = new[] { "Genel=t1" } }), C("t1", "text"), C("t2", "text")]), "Sekmeler bileşenlere göre bölünemiyor." },
         { Page([C("kod", "code", new { javascript = "1" }), NoTools("tablo")]), "Satır içi kod alanı kalıplarda yok." },
         { Page([C("cipler", "filterChips"), NoTools("tablo")]), "filterChips bu kalıpta yok." },
@@ -178,8 +178,7 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
         { Page([C("ozet", "recordHeader"), NoTools("tablo")]), "recordHeader bu kalıpta yok." },
         { Page([C("panel", "contextPanel", new { table = "tablo" }), C("t1", "text")]), "contextPanel bu kalıpta yok." },
         { Page([C("t1", "text", new { widthWhen = "6=sayfa.genis == true" }), NoTools("tablo")]), "Koşula bağlı genişlik kalıplarda yok." },
-        { Page([C("t1", "text", new { formulas = new[] { "x=1" } }), NoTools("tablo")]), "formulas ayarı kalıplarda yok." },
-        { Page([C("cubuk", "button", new { commandWhen = new[] { "x" } })]), "commandWhen ayarı kalıplarda yok." }
+        { Page([C("t1", "text", new { formulas = new[] { "x=1" } }), NoTools("tablo")]), "formulas ayarı kalıplarda yok." }
     };
 
     [Theory]
@@ -197,9 +196,8 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     {
         var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar"), C("pencere", "dialog"), C("ad", "input")]), hasOpenDraft: true);
         Assert.Null(result.Target);
-        Assert.Contains("İşlem çubuğu kalıplarda yok.", result.Reasons);
+        Assert.Contains("Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır.", result.Reasons);
         Assert.Contains("Pencere kalıplarda yok.", result.Reasons);
-        Assert.Contains("Form alanları (Kayıt kartı adayı).", result.Reasons);
         Assert.Contains("Sayfanın açık taslağı var; önce yayımlanmalı ya da silinmeli.", result.Reasons);
     }
 
@@ -342,28 +340,284 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void All_50_standards_classify_without_exception()
+    public void All_50_standards_classify_without_exception_and_none_reports_action_bar_or_form_reason()
     {
         var standards = SystemPageStandards.All.Values.OrderBy(x => x.ScreenKey, StringComparer.Ordinal).ToArray();
         Assert.Equal(50, standards.Length);
         var results = standards.Select(x => (x.ScreenKey, Result: PageTemplateMigration.Classify(x.DefinitionJson, hasOpenDraft: false))).ToArray();
         foreach (var (key, result) in results)
         {
+            Assert.DoesNotContain("İşlem çubuğu kalıplarda yok.", result.Reasons);
+            Assert.DoesNotContain("Form alanları (Kayıt kartı adayı).", result.Reasons);
+            Assert.DoesNotContain("hiddenCommands ayarı kalıplarda yok.", result.Reasons);
+            Assert.DoesNotContain("commandWhen ayarı kalıplarda yok.", result.Reasons);
             if (result.Target is null) Assert.True(result.Reasons.Count > 0, $"{key}: hedefsiz ama nedensiz");
             else
             {
                 Assert.NotNull(result.ConvertedJson);
                 Assert.Null(BehaviorEquivalence.Check(standards.Single(x => x.ScreenKey == key).DefinitionJson, result.ConvertedJson!));
+                Assert.True(TenantCustomPageSchema.Validate(result.ConvertedJson!, out var error), $"{key}: {error}");
             }
         }
 
+        output.WriteLine($"Kayıt kartı (record): {results.Count(x => x.Result.Target == "record")}");
         output.WriteLine("Hedefe göre: " + string.Join(", ", results.GroupBy(x => x.Result.Target ?? "—").OrderBy(x => x.Key, StringComparer.Ordinal)
             .Select(x => $"{x.Key}={x.Count()}")));
-        output.WriteLine("En sık nedenler:");
-        foreach (var group in results.SelectMany(x => x.Result.Reasons).GroupBy(x => x).OrderByDescending(x => x.Count()).ThenBy(x => x.Key, StringComparer.Ordinal).Take(15))
+        output.WriteLine("En sık 10 neden:");
+        foreach (var group in results.SelectMany(x => x.Result.Reasons).GroupBy(x => x).OrderByDescending(x => x.Count()).ThenBy(x => x.Key, StringComparer.Ordinal).Take(10))
             output.WriteLine($"  {group.Count(),2} × {group.Key}");
         output.WriteLine("Sayfalar:");
         foreach (var (key, result) in results)
             output.WriteLine($"  {key}: {result.Target ?? "—"} | {string.Join(" | ", result.Reasons)}");
+    }
+
+    // ---------------- 5b-2a: işlem çubuğu ve Kayıt kartı ----------------
+
+    private static readonly object[] RecordQueries =
+    [
+        new { id = "kayit", name = "kayit", kind = "read", sql = "SELECT @id AS id", runOn = "load", parameters = new object[] { new { name = "id", binding = "{{sayfa.parametre.kayit}}", type = "guid" } } },
+        new { id = "sil", name = "sil", kind = "delete", operation = "stok.kart.sil", runOn = "manual", parameters = new object[] { new { name = "id", binding = "{{bugun}}", type = "guid" } } }
+    ];
+
+    private static object Bar(object? props = null) => C("cubuk", "actionBar", props ?? new { hiddenCommands = new[] { "print" } });
+
+    private static string BarListPage() => Page(
+    [
+        C("cubuk", "actionBar", new { hiddenCommands = new[] { "print", "save" }, moreButtons = new[] { "yeniTeklif" }, openButton = "ac", exportTable = "tablo", titleCount = "{{liste.rows.length}}" }),
+        C("baslik", "heading", new { text = "Kartlar" }),
+        C("tablo", "dataTable", new { query = "liste" }),
+        C("yeniTeklif", "button", new { label = "Yeni teklif", actionType = "query", queryId = "sil" }),
+        C("ac", "button", new { label = "Aç", actionType = "query", queryId = "sil" })
+    ]);
+
+    /// <summary>Başlık, tek özet, iki bölüm (aralarında açıklama), üç alan, alt not; çubukta Yazdır gizli.</summary>
+    private static object[] RecordComponents(object? bar = null, object? between = null, object? keyedCard = null) =>
+    [
+        C("baslik", "heading", new { text = "Cari kartı" }),
+        C("ozet", "recordHeader", new { title = "Kart" }),
+        bar ?? Bar(),
+        keyedCard ?? C("b1", "formCard", new { inputs = new[] { "a1", "a2" }, recordKey = "{{kayit.rows[0].id}}" }),
+        C("a1", "input", new { label = "Kod" }),
+        C("a2", "input", new { label = "Ad", width = 6 }),
+        between ?? C("n1", "text", new { text = "Açıklama" }),
+        C("b2", "formCard", new { inputs = new[] { "a3" } }),
+        C("a3", "input", new { label = "Telefon" }),
+        C("alt", "text", new { text = "Alt not" })
+    ];
+
+    private static string RecordPage(object? bar = null, object? between = null, object? keyedCard = null) =>
+        Page(RecordComponents(bar, between, keyedCard), RecordQueries);
+
+    [Fact]
+    public void List_page_with_mappable_bar_becomes_list_with_commands_slot()
+    {
+        var before = BarListPage();
+        var after = Converted(before, "list").ConvertedJson!;
+        Assert.Equal(Ids(before), Ids(after));
+        Assert.Equal("\"commands\"", Prop(after, "cubuk", "slot"));
+        var barBefore = (JsonObject)Component(before, "cubuk")["props"]!.DeepClone();
+        var barAfter = (JsonObject)Component(after, "cubuk")["props"]!.DeepClone();
+        barAfter.Remove("slot");
+        Assert.True(JsonNode.DeepEquals(barBefore, barAfter));
+        Assert.Equal("\"actions\"", Prop(after, "yeniTeklif", "slot"));
+        Assert.Equal("\"actions\"", Prop(after, "ac", "slot"));
+        using var doc = JsonDocument.Parse(after);
+        Assert.Equal("cubuk", PageTemplateRules.CommandBarId(doc.RootElement.GetProperty("components")));
+    }
+
+    public static TheoryData<string, string> UnmappableBarSettings() => new()
+    {
+        { """{"hiddenCommands":["print"],"barLook":["unbound=hide"]}""", "İşlem çubuğunun barLook ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"formDialog":"pencere"}""", "İşlem çubuğunun formDialog ayarının kalıpta karşılığı yok." },
+        { """{"printEnabled":true}""", "İşlem çubuğunun printEnabled ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"exportCsv":false}""", "İşlem çubuğunun exportCsv ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"visibleWhen":"liste.rows.length > 0"}""", "İşlem çubuğunun visibleWhen ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"disabledWhen":"liste.rows.length > 0"}""", "İşlem çubuğunun disabledWhen ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"margin":2}""", "İşlem çubuğunun margin ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"newAction":"dialog"}""", "İşlem çubuğunun newAction ayarının kalıpta karşılığı yok." },
+        { """{"hiddenCommands":["print"],"openAction":"dialog"}""", "İşlem çubuğunun openAction ayarının kalıpta karşılığı yok." }
+    };
+
+    [Theory]
+    [MemberData(nameof(UnmappableBarSettings))]
+    public void Each_unmappable_bar_setting_reports_its_reason(string props, string reason)
+    {
+        var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar", JsonNode.Parse(props)), NoTools("tablo")]), hasOpenDraft: false);
+        Assert.Null(result.Target);
+        Assert.Null(result.ConvertedJson);
+        Assert.Contains(reason, result.Reasons);
+    }
+
+    [Fact]
+    public void Visible_unbound_print_is_not_converted()
+    {
+        var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "save" } }), NoTools("tablo")]), hasOpenDraft: false);
+        Assert.Null(result.Target);
+        Assert.Equal(new[] { "Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır." }, result.Reasons);
+        // Gizli Yazdır taşınır.
+        Converted(Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" } }), NoTools("tablo")]), "list");
+    }
+
+    [Fact]
+    public void Free_page_keeps_bar_and_does_not_count_bar_buttons()
+    {
+        var buttons = Enumerable.Range(1, 9).Select(i => C($"d{i}", "button", new { label = $"D{i}", actionType = "query", queryId = "sil" })).ToArray();
+        var before = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" }, moreButtons = Enumerable.Range(1, 9).Select(i => $"d{i}").ToArray() }), C("m1", "metric", new { title = "A", value = "1" }), .. buttons]);
+        var after = Converted(before, "free").ConvertedJson!;
+        Assert.Equal("\"commands\"", Prop(after, "cubuk", "slot"));
+        Assert.All(Enumerable.Range(1, 9), i => Assert.Equal("\"actions\"", Prop(after, $"d{i}", "slot")));
+    }
+
+    [Fact]
+    public void Form_page_with_one_summary_becomes_record()
+    {
+        var before = RecordPage();
+        var after = Converted(before, "record").ConvertedJson!;
+        var root = JsonNode.Parse(after)!;
+        Assert.Equal("""{"name":"record"}""", root["template"]!.ToJsonString());
+        Assert.Equal("\"above\"", Prop(after, "baslik", "slot"));
+        Assert.Equal("\"summary\"", Prop(after, "ozet", "slot"));
+        Assert.Equal("\"commands\"", Prop(after, "cubuk", "slot"));
+        Assert.Equal("\"section\"", Prop(after, "b1", "slot"));
+        Assert.Equal("\"section\"", Prop(after, "b2", "slot"));
+        foreach (var id in new[] { "a1", "a2", "a3" }) Assert.Equal("\"field\"", Prop(after, id, "slot"));
+        Assert.Null(Prop(after, "a2", "width"));
+        Assert.Equal("\"note\"", Prop(after, "n1", "slot"));
+        Assert.Equal("\"below\"", Prop(after, "alt", "slot"));
+        var tabs = Component(after, "sekmeler");
+        Assert.Equal("tabs", (string?)tabs["type"]);
+        Assert.Equal("\"tabs\"", tabs["props"]!["slot"]!.ToJsonString());
+        Assert.Equal(new[] { "Genel=b1,n1,b2" }, Strings(tabs["props"]!["tabs"]));
+        Assert.Equal(Ids(before), Ids(after).Where(x => x != "sekmeler").ToArray());
+    }
+
+    [Fact]
+    public void Form_page_with_existing_tabs_keeps_them()
+    {
+        var before = Page(
+        [
+            C("ozet", "recordHeader", new { title = "Kart" }),
+            Bar(),
+            C("sekme", "tabs", new { tabs = new[] { "Genel=b1", "Satırlar=satirlar,n1" } }),
+            C("b1", "formCard", new { inputs = new[] { "a1" }, recordKey = "{{kayit.rows[0].id}}" }),
+            C("a1", "input", new { label = "Kod" }),
+            C("satirlar", "dataTable", new { query = "kayit" }),
+            C("n1", "text", new { text = "Not" }),
+            C("alt", "text", new { text = "Alt" })
+        ], RecordQueries);
+        var after = Converted(before, "record").ConvertedJson!;
+        Assert.Equal(Ids(before), Ids(after));
+        Assert.Equal("\"tabs\"", Prop(after, "sekme", "slot"));
+        Assert.Equal("\"lines\"", Prop(after, "satirlar", "slot"));
+        Assert.Equal("\"note\"", Prop(after, "n1", "slot"));
+        Assert.Equal("\"below\"", Prop(after, "alt", "slot"));
+        Assert.Equal(new[] { "Genel=b1", "Satırlar=satirlar,n1" }, Strings(Component(after, "sekme")["props"]!["tabs"]));
+    }
+
+    [Fact]
+    public void Form_page_without_summary_reports_reason()
+    {
+        var without = Page(RecordComponents().Where(x => !JsonSerializer.Serialize(x).Contains("\"recordHeader\"")).ToArray(), RecordQueries);
+        Assert.Contains("Kayıt kartı tam bir kayıt özeti (recordHeader) ister.", PageTemplateMigration.Classify(without, false).Reasons);
+        var four = Page([.. RecordComponents(), C("ozet2", "recordHeader", new { title = "2" }), C("ozet3", "recordHeader", new { title = "3" }), C("ozet4", "recordHeader", new { title = "4" })], RecordQueries);
+        var result = PageTemplateMigration.Classify(four, false);
+        Assert.Null(result.Target);
+        Assert.Contains("Kayıt kartı tam bir kayıt özeti (recordHeader) ister.", result.Reasons);
+    }
+
+    [Fact]
+    public void Form_page_without_param_key_reports_reason()
+    {
+        var unkeyed = RecordPage(keyedCard: C("b1", "formCard", new { inputs = new[] { "a1", "a2" } }));
+        Assert.Contains("Kayıt kartının bölümleri sayfa parametresiyle okunan bir kayda bağlı değil.", PageTemplateMigration.Classify(unkeyed, false).Reasons);
+        var notParam = Page(RecordComponents(),
+        [
+            new { id = "kayit", name = "kayit", kind = "read", sql = "SELECT @id AS id", runOn = "load", parameters = new object[] { new { name = "id", binding = "{{bugun}}", type = "guid" } } },
+            RecordQueries[1]
+        ]);
+        var result = PageTemplateMigration.Classify(notParam, false);
+        Assert.Null(result.Target);
+        Assert.Contains("Kayıt kartının bölümleri sayfa parametresiyle okunan bir kayda bağlı değil.", result.Reasons);
+    }
+
+    [Fact]
+    public void Loose_input_reports_reason()
+    {
+        var result = PageTemplateMigration.Classify(Page([.. RecordComponents(), C("musteriTuru", "input", new { label = "Tür" })], RecordQueries), false);
+        Assert.Null(result.Target);
+        Assert.Contains("Kayıt kartında her alan bir bölümde olmalı: musteriTuru.", result.Reasons);
+    }
+
+    [Fact]
+    public void Badge_between_sections_reports_reason()
+    {
+        var result = PageTemplateMigration.Classify(RecordPage(between: C("rozet", "badge", new { text = "Durum" })), false);
+        Assert.Null(result.Target);
+        Assert.Contains("Kayıt kartında bölümlerin arasına yalnız açıklama (text) konabilir: rozet.", result.Reasons);
+    }
+
+    [Fact]
+    public void Record_bar_title_count_reports_reason()
+    {
+        var result = PageTemplateMigration.Classify(RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, titleCount = "{{kayit.rows.length}}" })), false);
+        Assert.Null(result.Target);
+        Assert.Contains("Kayıt kartında başlıkta kayıt sayısı yok.", result.Reasons);
+    }
+
+    [Fact]
+    public void Record_converted_definition_passes_schema_and_template_validation()
+    {
+        var converted = Converted(RecordPage(), "record").ConvertedJson!;
+        Assert.True(TenantCustomPageSchema.Validate(converted, out var error), error);
+        using var doc = JsonDocument.Parse(converted);
+        Assert.Equal("record", PageTemplateRules.TemplateName(doc.RootElement));
+        Assert.Null(PageTemplateRules.ValidateTemplate(doc.RootElement, doc.RootElement.GetProperty("components"), doc.RootElement.GetProperty("queries")));
+        Assert.Equal("kayit", CustomPageQueryEndpoints.RecordKeyParam(converted));
+    }
+
+    /// <summary>Elle kalıba çevrilmiş sonraki tanım: <paramref name="before"/>'un bileşenlerine yer verilir.</summary>
+    private static string HandConverted(string before, Action<JsonObject>? edit = null)
+    {
+        var root = JsonNode.Parse(before)!.AsObject();
+        root["template"] = new JsonObject { ["name"] = "list" };
+        foreach (var component in root["components"]!.AsArray().OfType<JsonObject>())
+        {
+            var props = (JsonObject)component["props"]!;
+            props.Remove("width");
+            props["slot"] = (string?)component["type"] switch { "actionBar" => "commands", "dataTable" => "list", "button" => "actions", _ => "above" };
+        }
+        edit?.Invoke(root);
+        return root.ToJsonString();
+    }
+
+    [Fact]
+    public void Equivalence_rejects_unmappable_bar_key_after_conversion()
+    {
+        var before = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" }, barLook = new[] { "unbound=hide" } }), NoTools("tablo")]);
+        Assert.Equal("İşlem çubuğunun 'barLook' ayarının kalıpta karşılığı yok.", BehaviorEquivalence.Check(before, HandConverted(before)));
+        // Kalıpsız sonraki tanımda (yalnız genişlik değişti) bu kural uygulanmaz.
+        var legacyAfter = JsonNode.Parse(before)!;
+        legacyAfter["components"]![0]!["props"]!["width"] = 12;
+        Assert.Null(BehaviorEquivalence.Check(before, legacyAfter.ToJsonString()));
+    }
+
+    [Fact]
+    public void Equivalence_rejects_visible_print_without_printEnabled()
+    {
+        var before = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "save" } }), NoTools("tablo")]);
+        Assert.Equal("Kalıpta görünen Yazdır yazdırır; önceki sayfada bağlı değildi.", BehaviorEquivalence.Check(before, HandConverted(before)));
+        var hidden = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" } }), NoTools("tablo")]);
+        Assert.Null(BehaviorEquivalence.Check(hidden, HandConverted(hidden)));
+    }
+
+    [Fact]
+    public void Equivalence_rejects_changed_hiddenCommands_and_saveSequence()
+    {
+        var before = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" }, saveSequence = new[] { "sil" } }), NoTools("tablo")]);
+        Assert.Null(BehaviorEquivalence.Check(before, HandConverted(before)));
+        var hidden = HandConverted(before, root => root["components"]![0]!["props"]!["hiddenCommands"] = new JsonArray("print", "delete"));
+        Assert.Contains("hiddenCommands", BehaviorEquivalence.Check(before, hidden));
+        var sequence = HandConverted(before, root => root["components"]![0]!["props"]!["saveSequence"] = new JsonArray("liste"));
+        Assert.Contains("saveSequence", BehaviorEquivalence.Check(before, sequence));
     }
 }
