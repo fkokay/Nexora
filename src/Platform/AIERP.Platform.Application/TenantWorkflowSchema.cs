@@ -3,7 +3,11 @@ using System.Text.RegularExpressions;
 
 namespace AIERP.Platform.Application;
 
-public sealed record TenantWorkflowStep(string Name, string ApproverRole);
+/// <summary>
+/// One sequential step. <see cref="ApproverUserIds"/> (system workflows only, e.g. a belge kuralı "Onay iste") names the deciders:
+/// then only a listed user other than the starter decides, whatever their role.
+/// </summary>
+public sealed record TenantWorkflowStep(string Name, string ApproverRole, IReadOnlyList<Guid>? ApproverUserIds = null);
 public sealed record TenantWorkflowSchemaResult(IReadOnlyList<TenantWorkflowStep> Steps, IReadOnlyList<string> Errors)
 {
     public bool IsValid => Errors.Count == 0;
@@ -34,6 +38,7 @@ public static partial class TenantWorkflowSchema
                 errors.Add($"Step {index + 1} name must contain 1 to 120 characters.");
             else if (!names.Add(step.Name.Trim())) errors.Add($"Step name '{step.Name.Trim()}' is duplicated.");
             if (!Roles.Contains(step.ApproverRole)) errors.Add($"Step {index + 1} has an unsupported approver role.");
+            if (step.ApproverUserIds is not null) errors.Add($"Step {index + 1} cannot name approvers; only system workflows do.");
             normalized.Add(step with { Name = step.Name?.Trim() ?? "" });
         }
         if (errors.Count > 0) return new([], errors);
@@ -50,6 +55,14 @@ public static partial class TenantWorkflowSchema
         bool allowRequesterRoleOverride = false)
     {
         if (status != "Pending") return new(false, status, currentStepIndex, false, "Only pending workflows can be decided.");
+        // A step that names its deciders: only a listed user other than the starter decides; no role or admin override applies.
+        if (currentStepIndex >= 0 && currentStepIndex < steps.Count && steps[currentStepIndex].ApproverUserIds is { Count: > 0 } people)
+        {
+            if (actorUserId == startedByUserId) return new(false, status, currentStepIndex, false, "The requester cannot decide their own workflow.");
+            if (!people.Contains(actorUserId)) return new(false, status, currentStepIndex, false, "The user is not assigned to the current workflow step.");
+            allowRequesterDecision = false;
+            allowRequesterRoleOverride = true;
+        }
         if (actorUserId == startedByUserId && !allowRequesterDecision) return new(false, status, currentStepIndex, false, "The requester cannot decide their own workflow.");
         if (steps.Count == 0 || currentStepIndex < 0 || currentStepIndex >= steps.Count)
             return new(false, status, currentStepIndex, false, "The current workflow step is invalid.");
