@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Save } from "lucide-react";
 import { WorkspaceCodeEditor } from "../../WorkspaceCodeEditor";
 import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
-import type { CatalogEntry } from "./catalogFiles";
+import type { SqlCatalogEntry } from "./catalogFiles";
 import { ParameterTable } from "./DataSourceForm";
 import {
   parametersJson, readParameters, readSource, saveEntry, type WriteCatalogFiles, useDirtyTracking, usableOperations, validateEntry,
@@ -12,7 +12,7 @@ import {
 export type ActionFormProps = {
   root: string;
   /** null: yeni eylem */
-  entry: CatalogEntry | null;
+  entry: SqlCatalogEntry | null;
   existingCodes: string[];
   canEdit: boolean;
   operations: ErpOperation[] | null;
@@ -50,7 +50,7 @@ export function ActionForm({ root, entry, existingCodes, canEdit, operations, wr
   // Depodaki öğe başka bir hedef (ör. bulk) kullanıyorsa seçenek kaybolmasın.
   const targets = TARGETS.some(([value]) => value === target) ? TARGETS : [...TARGETS, [target, target] as [string, string]];
 
-  function currentEntry(): CatalogEntry {
+  function currentEntry(): SqlCatalogEntry {
     const base = { ...json };
     delete base.parameters;
     delete base.confirm;

@@ -117,19 +117,31 @@ export function CatalogReleaseDialog({
     }
   }
 
-  const entryCount = readCatalogEntries(root, files).entries.length;
+  const currentEntries = readCatalogEntries(root, files).entries;
+  const count = (kind: string) => currentEntries.filter(e => e.kind === kind).length;
+  const componentCount = count("component");
 
   return (
     <Dialog onClose={onClose} labelledBy="sp-catalog-release-title" className="sp-dialog" dismissible={!busy}>
       <header className="sp-dialog-head">
         <div>
           <h2 id="sp-catalog-release-title">Sürüm yayınla</h2>
-          <p>Katalogdaki veri kaynakları ve eylemler ({entryCount} öğe) yeni bir sürüm olarak firmaya kurulur.</p>
+          <p>Katalogdaki veri kaynakları, eylemler ve bileşenler ({currentEntries.length} öğe) yeni bir sürüm olarak firmaya kurulur.</p>
         </div>
         <button type="button" className="ns-btn ns-btn-sm small-button ns-btn-ghost" aria-label="Kapat" disabled={busy} onClick={onClose}>
           <X size={17} />
         </button>
       </header>
+      <div className="sp-catalog-sum">
+        <div><span>Veri kaynağı</span><b>{count("dataSource")}</b></div>
+        <div><span>Eylem</span><b>{count("action")}</b></div>
+        <div><span>Bileşen</span><b>{componentCount}</b></div>
+      </div>
+      {componentCount > 0 && (
+        <p className="sp-catalog-note">
+          Yayınlanan sürüm taslaktır; firmada TenantAdmin etkinleştirince bütün sayfalar yeni bileşen kodunu kullanır. Danışmanın sayfaları ve ayar değerleri değişmez.
+        </p>
+      )}
       {!canDevelop && <div className="alert">Yalnızca yazılımcı ya da yönetici yayınlayabilir.</div>}
       {canDevelop && hasUncommittedCatalogChanges && <div className="alert">Önce değişiklikleri commit edin.</div>}
       {error && <div className="alert">{error}</div>}

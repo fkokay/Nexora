@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Play, Plus, Save, Trash2 } from "lucide-react";
 import { WorkspaceCodeEditor } from "../../WorkspaceCodeEditor";
 import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/erpOperations";
-import { buildBundle, toCatalogColumnType, type CatalogEntry } from "./catalogFiles";
+import { buildBundle, toCatalogColumnType, type SqlCatalogEntry } from "./catalogFiles";
 import { runPreview, storePreview, type PreviewResult } from "./catalogApi";
 import {
   MAX_LENGTH_LIMIT, TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, emptyColumn, previewColumn, validateColumns, type WriteCatalogFiles, useDirtyTracking,
@@ -12,7 +12,7 @@ import {
 export type DataSourceFormProps = {
   root: string;
   /** null: yeni veri kaynağı */
-  entry: CatalogEntry | null;
+  entry: SqlCatalogEntry | null;
   existingCodes: string[];
   canEdit: boolean;
   /** Firma yöneticisi ya da Studio yazılımcısı: önizleme ve sürüm yayını (sunucu da aynı kuralı uygular). */
@@ -107,7 +107,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
   const locked = !canEdit || busy;
   const readOperations = usableOperations(operations, "read");
 
-  function currentEntry(): CatalogEntry {
+  function currentEntry(): SqlCatalogEntry {
     const base = { ...json };
     delete base.parameters;
     const next: Record<string, unknown> = {

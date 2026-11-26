@@ -1,17 +1,48 @@
 export type CatalogFile = { path: string; content: string; sha256?: string }
-export type CatalogKind = 'dataSource' | 'action'
-export type CatalogEntry = {
-  kind: CatalogKind
+export type SqlCatalogKind = 'dataSource' | 'action'
+export type CatalogKind = SqlCatalogKind | 'component'
+/** Veri kaynağı ya da eylem: `<klasör>/<kod>.json` (+ isteğe bağlı `<kod>.sql`). */
+export type SqlCatalogEntry = {
+  kind: SqlCatalogKind
   code: string
   jsonPath: string
   sqlPath: string | null
   json: Record<string, unknown>
   sql: string | null
 }
+/** Yazılımcı bileşeni: `bilesenler/<kod>/bilesen.json` (css/javascript olmadan) + `stil.css` + `kod.js`. */
+export type ComponentCatalogEntry = {
+  kind: 'component'
+  code: string
+  jsonPath: string
+  cssPath: string
+  jsPath: string
+  json: Record<string, unknown>
+  css: string
+  javascript: string
+}
+export type CatalogEntry = SqlCatalogEntry | ComponentCatalogEntry
 
-const folders: Record<CatalogKind, string> = { dataSource: 'veri', action: 'eylemler' }
-const kindByFolder: Record<string, CatalogKind> = { veri: 'dataSource', eylemler: 'action' }
-const sqlHolder: Record<CatalogKind, 'source' | 'run'> = { dataSource: 'source', action: 'run' }
+export const COMPONENT_FOLDER = 'bilesenler'
+export const COMPONENT_FILES = { json: 'bilesen.json', css: 'stil.css', js: 'kod.js' } as const
+
+const folders: Record<SqlCatalogKind, string> = { dataSource: 'veri', action: 'eylemler' }
+const kindByFolder: Record<string, SqlCatalogKind> = { veri: 'dataSource', eylemler: 'action' }
+const sqlHolder: Record<SqlCatalogKind, 'source' | 'run'> = { dataSource: 'source', action: 'run' }
+
+/** Bileşen klasörü dosya yolları (kök + bilesenler/<kod>/…). */
+export function componentPaths(root: string, code: string) {
+  const dir = `${root.replace(/\/+$/, '')}/${COMPONENT_FOLDER}/${code}`
+  return { dir, jsonPath: `${dir}/${COMPONENT_FILES.json}`, cssPath: `${dir}/${COMPONENT_FILES.css}`, jsPath: `${dir}/${COMPONENT_FILES.js}` }
+}
+
+/** Dosyaya yazılan bileşen JSON'u: css ve javascript ayrı dosyalardadır. */
+function componentJson(json: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...json }
+  delete rest.css
+  delete rest.javascript
+  return rest
+}
 
 const moduleRoot = (dir: string) => {
   const clean = dir.replace(/^\/+|\/+$/g, '')
@@ -36,6 +67,20 @@ export function readCatalogEntries(root: string, files: CatalogFile[]): { entrie
   for (const file of sorted) {
     if (!file.path.startsWith(prefix)) continue
     const relative = file.path.slice(prefix.length)
+    const component = /^bilesenler\/([^/]+)\/bilesen\.json$/.exec(relative)
+    if (component) {
+      const code = component[1]
+      let json: unknown
+      try { json = JSON.parse(file.content) } catch { errors.push(`${relative}: JSON okunamadı.`); continue }
+      if (!isRecord(json)) { errors.push(`${relative}: JSON bir nesne olmalı.`); continue }
+      if (json.code !== code) { errors.push(`${relative}: klasör adı ile içindeki kod aynı olmalı (${code}).`); continue }
+      const paths = componentPaths(root, code)
+      const css = byPath.get(paths.cssPath)
+      const js = byPath.get(paths.jsPath)
+      if (!css || !js) { errors.push(`${code}: stil.css ya da kod.js bulunamadı.`); continue }
+      entries.push({ kind: 'component', code, jsonPath: file.path, cssPath: paths.cssPath, jsPath: paths.jsPath, json, css: css.content, javascript: js.content })
+      continue
+    }
     const match = /^(veri|eylemler)\/([^/]+)\.json$/.exec(relative)
     if (!match) continue
     const kind = kindByFolder[match[1]]
@@ -64,21 +109,52 @@ export function readCatalogEntries(root: string, files: CatalogFile[]): { entrie
 
 const ordinal = (a: CatalogEntry, b: CatalogEntry) => (a.code < b.code ? -1 : a.code > b.code ? 1 : 0)
 
-function embed(entry: CatalogEntry): Record<string, unknown> {
+function embed(entry: SqlCatalogEntry): Record<string, unknown> {
   if (entry.sql === null) return entry.json
   const key = sqlHolder[entry.kind]
   return { ...entry.json, [key]: { ...(entry.json[key] as Record<string, unknown>), sql: entry.sql } }
 }
 
-export function buildBundle(entries: CatalogEntry[]) {
-  return {
-    schemaVersion: 1,
-    dataSources: entries.filter(e => e.kind === 'dataSource').sort(ordinal).map(embed),
-    actions: entries.filter(e => e.kind === 'action').sort(ordinal).map(embed)
-  }
+/** Paketteki bileşen: `code, label, description?, css, javascript, height?, settings` (stil.css ve kod.js gömülür). */
+function embedComponent(entry: ComponentCatalogEntry): Record<string, unknown> {
+  const json = componentJson(entry.json)
+  const ordered: Record<string, unknown> = { code: json.code, label: json.label }
+  if ('description' in json) ordered.description = json.description
+  ordered.css = entry.css
+  ordered.javascript = entry.javascript
+  if ('height' in json) ordered.height = json.height
+  ordered.settings = json.settings ?? []
+  // Bilinmeyen anahtarlar olduğu gibi gider; sunucu reddeder ve hatayı gösterir.
+  for (const key of Object.keys(json)) if (!(key in ordered)) ordered[key] = json[key]
+  return ordered
 }
 
+const isSqlEntry = (entry: CatalogEntry): entry is SqlCatalogEntry => entry.kind !== 'component'
+const isComponentEntry = (entry: CatalogEntry): entry is ComponentCatalogEntry => entry.kind === 'component'
+
+/** `components` yalnız bileşen varsa eklenir: bileşensiz katalogların paketi (ve özeti) değişmez. */
+export function buildBundle(entries: CatalogEntry[]) {
+  const sql = entries.filter(isSqlEntry)
+  const components = entries.filter(isComponentEntry).sort(ordinal).map(embedComponent)
+  return {
+    schemaVersion: 1,
+    dataSources: sql.filter(e => e.kind === 'dataSource').sort(ordinal).map(embed),
+    actions: sql.filter(e => e.kind === 'action').sort(ordinal).map(embed),
+    ...(components.length ? { components } : {})
+  } as { schemaVersion: number; dataSources: Record<string, unknown>[]; actions: Record<string, unknown>[]; components?: Record<string, unknown>[] }
+}
+
+/** Kaydedilecek dosyalar; JSON en sonda (başvurduğu dosyalar önce yazılır, yarım kalan kayıt eksik dosyaya başvurmaz). */
 export function entryFiles(root: string, entry: CatalogEntry): CatalogFile[] {
+  if (entry.kind === 'component') {
+    const paths = componentPaths(root, entry.code)
+    return [
+      { path: paths.cssPath, content: entry.css },
+      { path: paths.jsPath, content: entry.javascript },
+      { path: paths.jsonPath, content: `${JSON.stringify(componentJson(entry.json), null, 2)}
+` }
+    ]
+  }
   const dir = `${root.replace(/\/+$/, '')}/${folders[entry.kind]}`
   const files: CatalogFile[] = []
   if (entry.sql !== null) files.push({ path: `${dir}/${entry.code}.sql`, content: entry.sql })

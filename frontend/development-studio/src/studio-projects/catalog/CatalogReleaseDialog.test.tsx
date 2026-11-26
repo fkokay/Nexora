@@ -95,6 +95,25 @@ describe("CatalogReleaseDialog", () => {
     expect(activateRelease).toHaveBeenCalledWith("t", "new", "old");
   });
 
+  it("release dialog counts components", async () => {
+    const withComponents = [
+      ...files,
+      { path: `${root}/bilesenler/harita/bilesen.json`, content: JSON.stringify({ code: "harita", label: "Harita", settings: [] }) },
+      { path: `${root}/bilesenler/harita/stil.css`, content: "" },
+      { path: `${root}/bilesenler/harita/kod.js`, content: "ciz()" },
+      { path: `${root}/bilesenler/takvim/bilesen.json`, content: JSON.stringify({ code: "takvim", label: "Takvim", settings: [] }) },
+      { path: `${root}/bilesenler/takvim/stil.css`, content: "" },
+      { path: `${root}/bilesenler/takvim/kod.js`, content: "takvim()" },
+    ];
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.0", status: "Draft", bundleSha256: "h" });
+    const host = await render(<CatalogReleaseDialog {...props} files={withComponents} />);
+    expect([...host.querySelectorAll(".sp-catalog-sum > div")].map(d => d.textContent)).toEqual(["Veri kaynağı1", "Eylem0", "Bileşen2"]);
+    expect(host.textContent).toContain("Danışmanın sayfaları ve ayar değerleri değişmez.");
+    await click(button(host, "Taslak oluştur"));
+    const bundle = createRelease.mock.calls[0][1].bundle as { components: { code: string; javascript: string }[] };
+    expect(bundle.components.map(c => [c.code, c.javascript])).toEqual([["harita", "ciz()"], ["takvim", "takvim()"]]);
+  });
+
   it("create_error_is_shown_verbatim", async () => {
     createRelease.mockRejectedValue(new api.CatalogApiError(400, "Sunucu: paket geçersiz"));
     const host = await render(<CatalogReleaseDialog {...props} />);
