@@ -42,6 +42,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
     public DbSet<TenantBusinessRuleDefinition> TenantBusinessRuleDefinitions => Set<TenantBusinessRuleDefinition>();
     public DbSet<TenantBusinessRuleEvaluation> TenantBusinessRuleEvaluations => Set<TenantBusinessRuleEvaluation>();
     public DbSet<TenantDocumentActivity> TenantDocumentActivities => Set<TenantDocumentActivity>();
+    public DbSet<TenantDocumentRuleSet> TenantDocumentRuleSets => Set<TenantDocumentRuleSet>();
     public DbSet<TenantSavedReport> TenantSavedReports => Set<TenantSavedReport>();
     public DbSet<TenantSavedReportRevision> TenantSavedReportRevisions => Set<TenantSavedReportRevision>();
     public DbSet<TenantDashboardWidget> TenantDashboardWidgets => Set<TenantDashboardWidget>();
@@ -2777,6 +2778,7 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
                 .HasPrincipalKey(x => new { x.TenantId, x.Id }).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.ApplyConfiguration(new DocumentActivityEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new DocumentRuleSetEntityConfiguration());
         modelBuilder.Entity<TenantScreenView>(e =>
         {
             e.ToTable("TenantScreenViews", table => table.HasCheckConstraint("CK_TenantScreenViews_Revision", "[Revision] >= 1"));

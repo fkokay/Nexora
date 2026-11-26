@@ -20034,6 +20034,79 @@ namespace AIERP.Platform.Infrastructure.Migrations
                     b.ToTable("TenantDocumentActivities", (string)null);
                 });
 
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantDocumentRuleSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Document")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("RulesJson")
+                        .IsRequired()
+                        .HasMaxLength(32000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(16)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Transition")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "Document", "Transition", "Status")
+                        .IsUnique()
+                        .HasFilter("[Status] IN ('Draft', 'Published')");
+
+                    b.HasIndex("TenantId", "Document", "Transition", "Version")
+                        .IsUnique();
+
+                    b.ToTable("TenantDocumentRuleSets", (string)null);
+                });
+
             modelBuilder.Entity("AIERP.Platform.Domain.TenantExchangeRate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -24098,6 +24171,15 @@ namespace AIERP.Platform.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("AIERP.Platform.Domain.TenantDocumentActivity", b =>
+                {
+                    b.HasOne("AIERP.Platform.Domain.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AIERP.Platform.Domain.TenantDocumentRuleSet", b =>
                 {
                     b.HasOne("AIERP.Platform.Domain.Tenant", null)
                         .WithMany()
