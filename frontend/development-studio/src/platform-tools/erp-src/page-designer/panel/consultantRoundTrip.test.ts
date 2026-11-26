@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CatalogAction, CatalogDataSource } from "../catalogClient";
+import type { CatalogAction, CatalogComponent, CatalogDataSource } from "../catalogClient";
 import { newListTemplateDefinition } from "../pageTemplates";
 import { setPrimaryButton, slotButtons, toggleButtonAction } from "./buttonsPanelModel";
 import { chooseIndicatorSource, setIndicatorCompare, setIndicatorKind, setIndicatorPlace, setIndicatorSize, setIndicatorTotal, setIndicatorValue } from "./indicatorPanelModel";
@@ -8,6 +8,7 @@ import { chooseDataSource, type ModelComponent, type ModelDefinition } from "./l
 import { ensureTemplateSlots, TEMPLATE_SLOTS } from "./templateGuards";
 import { setHideOnMobile, setInfoBox, setTextAlign, setTextContent, setTextStyle } from "./textPanelModel";
 import { createConsultantComponent } from "./consultantPalette";
+import { chooseComponent, setComponentSetting } from "./developerComponentModel";
 
 const col = (code: string, label: string, type = "text", key = false) => ({ code, label, type, key, longText: false, required: false, maxLength: null });
 const cariler: CatalogDataSource = {
@@ -19,6 +20,14 @@ const ozet: CatalogDataSource = { code: "cariOzet", label: "Cari bakiye özeti",
 const ekstre: CatalogAction = { code: "ekstre", label: "Ekstre al", kind: "update", target: "row", source: "sql", erpOperation: null, parameters: [{ name: "id", type: "guid" }], confirmText: null };
 const yeni: CatalogAction = { code: "yeniCari", label: "Yeni cari", kind: "update", target: "page", source: "sql", erpOperation: null, parameters: [], confirmText: null } as unknown as CatalogAction;
 
+const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240, settings: [
+  { name: "baslik", label: "Başlık", type: "text", options: [], default: "Satış" },
+  { name: "adet", label: "Bölge sayısı", type: "number", options: [], default: 5 },
+  { name: "etiketler", label: "Etiketler", type: "bool", options: [], default: true },
+  { name: "donem", label: "Dönem", type: "choice", options: ["Bu ay", "Bu yıl"], default: "Bu ay" },
+] };
+const takvim: CatalogComponent = { code: "teslimatTakvimi", label: "Teslimat takvimi", description: null, height: 300, settings: [] };
+
 const LIST = "liste";
 const place = (component: { id: string; type: string; props: ModelComponent["props"] }, slot: string): ModelComponent => ({ ...component, props: { ...component.props, slot } });
 const start = (): ModelDefinition => {
@@ -29,6 +38,7 @@ const start = (): ModelDefinition => {
     place(createConsultantComponent("indicator", "g1"), "indicators"),
     place(createConsultantComponent("indicator", "g2"), "indicators"),
     place(createConsultantComponent("image", "resim"), "below"),
+    place(createConsultantComponent("developer", "yb", harita), "above"),
   ] };
 };
 
@@ -62,6 +72,12 @@ const steps: Step[] = [
   ["image from record", (d) => setImageFromRecord(d, "resim", "liste.seciliSatir.logo")],
   ["row button", (d) => toggleButtonAction(d, LIST, ekstre, cariler.columns.map((c) => c.code), "row")],
   ["page button", (d) => toggleButtonAction(d, LIST, yeni, cariler.columns.map((c) => c.code), "above")],
+  ["developer text setting", (d) => setComponentSetting(d, "yb", harita, "baslik", "Bölgeler")],
+  ["developer other component", (d) => chooseComponent(d, "yb", takvim)],
+  ["developer back", (d) => chooseComponent(d, "yb", harita)],
+  ["developer number setting", (d) => setComponentSetting(d, "yb", harita, "adet", 8)],
+  ["developer bool setting", (d) => setComponentSetting(d, "yb", harita, "etiketler", false)],
+  ["developer choice setting", (d) => setComponentSetting(d, "yb", harita, "donem", "Bu yıl")],
 ];
 
 // Tasarımcı modülü büyük: soğuk dinamik içe aktarma yüklü makinede 5 sn sınırını aşabilir.
@@ -92,6 +108,12 @@ describe("Consultant panel output through the designer", { timeout: 30_000 }, ()
       const reconciled = designerInternals.reconcileDefinition(def as unknown as Def, { catalog: { status: "ready", operations: [] }, previous: def as unknown as Def, queryEditable });
       expect(reconciled, `queryEditable=${queryEditable}`).toEqual(def);
     }
+    // Yazılımcı bileşeni: başvuru ve ayar nesnesi uzlaştırmadan sağ çıkar; kod, CSS ve yükseklik sayfaya yazılmaz.
+    const developer = def.components.find((c) => c.id === "yb")!;
+    expect(developer.props.slot).toBe("above");
+    expect(developer.props.catalogComponent).toBe("satisHaritasi");
+    expect((developer.props as Record<string, unknown>).componentSettings).toEqual({ adet: 8, etiketler: false, donem: "Bu yıl" });
+    for (const key of ["css", "javascript", "height"]) expect(developer.props, key).not.toHaveProperty(key);
     // Göstergelerin kaynak sorgusu (yalnız `{{…}}` bağlamasıyla kullanılan) uzlaştırmadan sağ çıkar.
     expect(def.queries.some((query) => (query as { dataSource?: string }).dataSource === "cariOzet")).toBe(true);
   });

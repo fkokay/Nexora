@@ -1,5 +1,6 @@
 // Kalıplı sayfanın danışman paleti (alt proje 5a, taslak 03): 11 öğe, gruplanmadan. Hazır olmayanlar soluk görünür ve gerekçesi gösterilir.
 import { AlignLeft, BadgeInfo, ClipboardList, Code2, Gauge, ImageIcon, Info, List, MousePointerClick, Rows3, Table2, type LucideIcon } from "lucide-react";
+import type { ActiveCatalog, CatalogComponent } from "../catalogClient";
 import type { ModelComponent } from "./listPanelModel";
 
 type PropValue = string | number | boolean | string[];
@@ -30,13 +31,13 @@ export const consultantKindFromKey = (key: string): ConsultantKind | null => {
 };
 
 const NEXT_VERSION = "Bu bileşen sonraki sürümde gelir.";
-const DEVELOPER_LATER = "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil.";
+/** Karar 5: etkin katalogda yayınlanmış bileşen yoksa "Yazılımcı bileşeni" soluk kalır. */
+export const DEVELOPER_NONE = "Henüz yayınlanmış bir yazılımcı bileşeni yok.";
 /** Liste kalıbı (5a). Kayıt kartı da bunu kullanır; yalnız kartın kendi parçaları başka gerekçe gösterir. */
 const LIST_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = {
   list: "Bu kalıpta tek liste vardır.",
   form: NEXT_VERSION, lineTable: NEXT_VERSION, recordSummary: NEXT_VERSION, sections: NEXT_VERSION,
   buttons: "Düğmeleri Liste panelindeki Eylemler bölümünden ekleyin.",
-  developer: DEVELOPER_LATER,
 };
 const RECORD_OWN_FIELDS = "Kartın kendi alanlarını sol listeden ekleyin.";
 const RECORD_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = { ...LIST_UNAVAILABLE, form: RECORD_OWN_FIELDS, recordSummary: RECORD_OWN_FIELDS, lineTable: RECORD_OWN_FIELDS };
@@ -46,12 +47,13 @@ const FREE_UNAVAILABLE: Partial<Record<ConsultantKind, string>> = {
   form: RECORD_ONLY, recordSummary: RECORD_ONLY,
   lineTable: "Düzenlenebilir satırlar Belge kalıbıyla gelecek.",
   buttons: "Düğmeleri sayfa panelindeki Eylemler bölümünden ekleyin.",
-  developer: DEVELOPER_LATER,
 };
 export type ConsultantTemplate = "list" | "record" | "free";
 const UNAVAILABLE: Record<ConsultantTemplate, Partial<Record<ConsultantKind, string>>> = { list: LIST_UNAVAILABLE, record: RECORD_UNAVAILABLE, free: FREE_UNAVAILABLE };
 
-export function consultantAvailability(kind: ConsultantKind, template: ConsultantTemplate): { available: true } | { available: false; reason: string } {
+/** `catalog` yalnız "Yazılımcı bileşeni" için okunur: etkin katalogda en az bir bileşen varsa kullanılabilir (üç kalıpta da). */
+export function consultantAvailability(kind: ConsultantKind, template: ConsultantTemplate, catalog?: ActiveCatalog | null): { available: true } | { available: false; reason: string } {
+  if (kind === "developer") return (catalog?.components?.length ?? 0) > 0 ? { available: true } : { available: false, reason: DEVELOPER_NONE };
   const reason = UNAVAILABLE[template][kind];
   return reason ? { available: false, reason } : { available: true };
 }
@@ -65,9 +67,15 @@ export function consultantDescription(kind: ConsultantKind, template: Consultant
 export type CreatableKind = "text" | "infoBox" | "indicator" | "image";
 export const isCreatableKind = (kind: ConsultantKind): kind is CreatableKind => kind === "text" || kind === "infoBox" || kind === "indicator" || kind === "image";
 
-/** Palet öğesinden oluşan bileşen; `slot` eklenmez (yerini `addComponent` verir). */
-export function createConsultantComponent(kind: CreatableKind, id: string): { id: string; type: string; props: Record<string, PropValue> } {
+/**
+ * Palet öğesinden oluşan bileşen; `slot` eklenmez (yerini `addComponent` verir). "Yazılımcı bileşeni" katalogdan seçilen bileşene
+ * başvuran `code` bileşenidir (çağıran ilk bileşeni verir); kod ve ayar yazılmaz, ayarlar boş başlar (varsayılanı köprü verir).
+ */
+export function createConsultantComponent(kind: "developer", id: string, component: CatalogComponent): { id: string; type: string; props: Record<string, PropValue> };
+export function createConsultantComponent(kind: CreatableKind, id: string): { id: string; type: string; props: Record<string, PropValue> };
+export function createConsultantComponent(kind: CreatableKind | "developer", id: string, component?: CatalogComponent): { id: string; type: string; props: Record<string, PropValue> } {
   switch (kind) {
+    case "developer": return { id, type: "code", props: { catalogComponent: component?.code ?? "" } };
     case "text": return { id, type: "heading", props: { text: "Başlık" } };
     case "infoBox": return { id, type: "alert", props: { variant: "info", title: "Bilgi", text: "" } };
     case "indicator": return { id, type: "metric", props: { title: "Gösterge" } };
@@ -82,8 +90,13 @@ const KIND_BY_TYPE: Record<string, ConsultantKind> = {
   image: "image", button: "buttons",
 };
 
-/** Bileşenin danışman türü; yeni panelde açılmayanlar (sayfa başlığı, içi dolu bileşen, detay paneli kartı, öteki tipler) null. */
+/** Bileşenin danışman türü; yeni panelde açılmayanlar (sayfa başlığı, içi dolu bileşen, detay paneli kartı, satır içi kod, öteki tipler) null. */
 export function consultantKindOf(component: ModelComponent): ConsultantKind | null {
+  // Katalog bileşenine başvuran `code` yazılımcı bileşenidir; satır içi kodlu `code` eski panelde kalır (Review Focus 5).
+  if (component.type === "code") {
+    const ref = (component.props as Record<string, unknown>).catalogComponent;
+    return typeof ref === "string" && ref !== "" ? "developer" : null;
+  }
   const kind = KIND_BY_TYPE[component.type];
   if (!kind) return null;
   if (component.type === "heading" && component.props.pageTitle === true) return null;

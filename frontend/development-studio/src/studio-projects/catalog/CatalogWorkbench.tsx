@@ -6,6 +6,7 @@ import type { CatalogEntry, CatalogKind } from "./catalogFiles";
 import { confirmDiscardCatalogEdits, type WriteCatalogFiles } from "./catalogFormModel";
 import { DataSourceForm } from "./DataSourceForm";
 import { ActionForm } from "./ActionForm";
+import { ComponentForm } from "./ComponentForm";
 import "./catalog-workbench.css";
 
 export type CatalogWorkbenchProps = {
@@ -31,6 +32,9 @@ export type CatalogWorkbenchProps = {
 type Selection = { kind: CatalogKind; code: string | null } | null;
 
 const labelOf = (entry: CatalogEntry) => (typeof entry.json.label === "string" && entry.json.label) || entry.code;
+/** Öğenin dosyaları: veri kaynağı/eylem JSON (+ SQL), bileşen bilesen.json + stil.css + kod.js. */
+const pathsOf = (entry: CatalogEntry): string[] =>
+  entry.kind === "component" ? [entry.jsonPath, entry.cssPath, entry.jsPath] : [entry.sqlPath, entry.jsonPath].filter((p): p is string => !!p);
 
 export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, token, writeFiles, onPublish, changedPaths = [], fileShas = {}, version = 0, onDirtyChange }: CatalogWorkbenchProps) {
   const [selection, setSelection] = useState<Selection>(() => (entries[0] ? { kind: entries[0].kind, code: entries[0].code } : null));
@@ -48,8 +52,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, t
 
   const changed = new Set(changedPaths);
   const prefix = `${root.replace(/\/+$/, "")}/`;
-  const filePaths = entries.flatMap(e => [e.sqlPath, e.jsonPath]).filter((p): p is string => !!p)
-    .map(p => p.slice(prefix.length)).sort();
+  const filePaths = entries.flatMap(pathsOf).map(p => p.slice(prefix.length)).sort();
   const selected = selection?.code ? entries.find(e => e.kind === selection.kind && e.code === selection.code) ?? null : null;
   const existingCodes = entries.map(e => e.code);
   // Başka öğeye geçmek de formu yeniden kurar: kaydedilmemiş değişiklik varsa önce sorulur.
@@ -74,7 +77,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, t
           onClick={() => void select({ kind, code: entry.code })}
         >
           <span aria-hidden="true">{icon}</span> {labelOf(entry)}
-          {(changed.has(entry.jsonPath) || (entry.sqlPath && changed.has(entry.sqlPath))) && (
+          {pathsOf(entry).some(path => changed.has(path)) && (
             <span className="sp-cw-changed" title="Commit edilmemiş değişiklik" />
           )}
         </button>
@@ -114,6 +117,7 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, t
         <nav className="sp-cw-tree" aria-label="Yapı taşları">
           {group("dataSource", "Veri kaynakları", "Yeni veri kaynağı", "▤")}
           {group("action", "Eylemler", "Yeni eylem", "⏵")}
+          {group("component", "Bileşenler", "Yeni bileşen", "⬚")}
           <section className="sp-cw-group">
             <h4>Dosyalar</h4>
             <ul className="sp-cw-files">{filePaths.map(path => <li key={path}>{path}</li>)}</ul>
@@ -126,9 +130,12 @@ export function CatalogWorkbench({ root, entries, errors, canEdit, canDevelop, t
           )}
           {!selection && <p className="sp-cw-hint">Soldan bir yapı taşı seçin ya da "+ Yeni" ile ekleyin.</p>}
           {selection?.kind === "dataSource" && (
-            <DataSourceForm key={formId} {...formProps} entry={selected} canDevelop={canDevelop} token={token} />
+            <DataSourceForm key={formId} {...formProps} entry={selected?.kind === "dataSource" ? selected : null} canDevelop={canDevelop} token={token} />
           )}
-          {selection?.kind === "action" && <ActionForm key={formId} {...formProps} entry={selected} />}
+          {selection?.kind === "action" && <ActionForm key={formId} {...formProps} entry={selected?.kind === "action" ? selected : null} />}
+          {selection?.kind === "component" && (
+            <ComponentForm key={formId} {...formProps} entry={selected?.kind === "component" ? selected : null} />
+          )}
         </div>
       </div>
     </div>

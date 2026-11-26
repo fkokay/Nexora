@@ -200,3 +200,34 @@
   .sp-cw-tree { border-right: 0; border-bottom: 1px solid var(--ns-line); max-height: 40vh; }
 }
 .sp-cw-columns .sp-cw-maxlen { width: 5.5rem; }
+
+/* Yazılımcı bileşeni formu (taslak 10): solda form, sağda yapışkan önizleme. */
+.sp-cw-comp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: var(--ns-space-4); align-items: start; }
+.sp-cw-comp-preview { position: sticky; top: 0; }
+.sp-cw-editor-sm { height: 160px; }
+.sp-cw-prob { display: block; margin-top: 2px; color: var(--ns-danger); font-size: var(--ns-text-xs); }
+.sp-cw-settings .sp-cw-row-actions { display: flex; gap: 2px; white-space: nowrap; }
+.sp-cw-prev { overflow: hidden; border: 1px solid var(--ns-line); border-radius: var(--ns-radius-lg); background: var(--ns-surface); }
+.sp-cw-prev-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ns-space-2) var(--ns-space-3);
+  border-bottom: 1px solid var(--ns-line);
+}
+.sp-cw-prev-frame { padding: var(--ns-space-3); background: var(--ns-canvas); }
+.sp-cw-prev-iframe { display: block; width: 100%; border: 1px dashed var(--ns-line); border-radius: var(--ns-radius-md); background: #fff; }
+.sp-cw-prev-body { padding: var(--ns-space-3); }
+.sp-cw-prev-row { display: flex; justify-content: space-between; gap: var(--ns-space-2); padding: 2px 0; font-size: var(--ns-text-sm); }
+.sp-cw-prev-row .sp-cw-hint { margin: 0; }
+@media (max-width: 1100px) {
+  .sp-cw-comp { grid-template-columns: 1fr; }
+  .sp-cw-comp-preview { position: static; }
+}
+
+/* CatalogReleaseDialog öğe sayıları */
+.sp-catalog-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--ns-space-2); margin: 0 0 var(--ns-space-3); }
+.sp-catalog-sum > div { display: flex; flex-direction: column; padding: var(--ns-space-2) var(--ns-space-3); border: 1px solid var(--ns-line); border-radius: var(--ns-radius-md); }
+.sp-catalog-sum span { color: var(--ns-muted); font-size: var(--ns-text-xs); }
+.sp-catalog-sum b { font-size: var(--ns-text-md); }
+.sp-catalog-note { margin: 0 0 var(--ns-space-3); color: var(--ns-muted); font-size: var(--ns-text-xs); }

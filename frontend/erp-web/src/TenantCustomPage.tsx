@@ -1424,8 +1424,17 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       const form = forms.find((item) => item.code === formCode);
       return form ? <div key={component.id} className="tenant-page-form-wrap" style={style}><EmbeddedCustomForm form={form} token={token} /></div> : <section className="tenant-page-block tenant-page-form" style={style} key={component.id}><h3>{title || "Form"}</h3><p>Bu sayfa için seçilen form artık yayımlanmış değil.</p></section>;
     }
-    case "code": return <CodeFrame key={component.id} id={component.id} css={textValue(props.css)} javascript={textValue(props.javascript)}
-      hidden={props.hidden === true} style={style} title={title || "Yalıtılmış özel kod"} host={runtime?.codeHost ?? INERT_CODE_HOST} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
+    case "code": {
+      const host = runtime?.codeHost ?? INERT_CODE_HOST;
+      if (props.catalogMissing === true) {
+        return <section className="tenant-page-block tenant-page-code-missing" style={style} key={component.id} role="note" hidden={props.hidden === true}><p>{CATALOG_MISSING_TEXT}</p></section>;
+      }
+      const catalogCode = textValue(props.catalogComponent);
+      const frameHeight = typeof props.height === "number" && Number.isFinite(props.height) && props.height > 0 ? props.height : null;
+      return <CodeFrame key={component.id} id={component.id} css={textValue(props.css)} javascript={textValue(props.javascript)}
+        hidden={props.hidden === true} style={catalogCode && frameHeight !== null ? { ...style, height: `${frameHeight}px` } : style} title={title || "Yalıtılmış özel kod"}
+        host={catalogCode ? catalogComponentHost(host, props.componentSettings, props.componentDefaults) : host} events={runtime?.events ?? INERT_PAGE_EVENTS} />;
+    }
     case "alert": {
       const variant = ["success", "warning", "danger", "info"].includes(textValue(props.variant)) ? textValue(props.variant) : "info";
       const role = variant === "danger" ? "alert" : "status";
@@ -1590,6 +1599,20 @@ const codeWriteHooks = (events: PageEvents) => ({
   afterWrite: (query: PageQueryDefinition, result: WriteResult) => events.emit("afterSave", { query: query.name, sonuc: result.sonuc ?? null }),
 });
 
+const CATALOG_MISSING_TEXT = "Bu bileşen katalogda yok.";
+const SETTINGS_PREFIX = "ayarlar.";
+const isSettingValue = (value: unknown): value is string | number | boolean => typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+const ownSetting = (bag: unknown, name: string) => bag && typeof bag === "object" && !Array.isArray(bag) && Object.prototype.hasOwnProperty.call(bag, name) && isSettingValue((bag as Record<string, unknown>)[name])
+  ? (bag as Record<string, unknown>)[name] : undefined;
+/** Katalog bileşeninin köprüsü: `ayarlar.<ad>` yalnız bu bileşenin ayarından (yoksa varsayılanından, o da yoksa null); başka yollar sayfa köprüsüne gider. */
+const catalogComponentHost = (host: BridgeHost, settings: unknown, defaults: unknown): BridgeHost => ({
+  ...host,
+  get: (path) => {
+    if (!path.startsWith(SETTINGS_PREFIX)) return host.get(path);
+    const name = path.slice(SETTINGS_PREFIX.length);
+    return ownSetting(settings, name) ?? ownSetting(defaults, name) ?? null;
+  },
+});
 /** v1 sayfalarda bağlama/sorgu yoktur: köprü yalnız yüksekliği ve abonelikleri kabul eder, veri isteklerini reddeder. */
 const V1_BRIDGE_ERROR = "Bu sayfada kod köprüsü kullanılamaz.";
 const INERT_CODE_HOST: BridgeHost = {

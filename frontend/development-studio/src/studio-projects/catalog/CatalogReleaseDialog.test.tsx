@@ -95,6 +95,63 @@ describe("CatalogReleaseDialog", () => {
     expect(activateRelease).toHaveBeenCalledWith("t", "new", "old");
   });
 
+  it("release dialog counts components", async () => {
+    const withComponents = [
+      ...files,
+      { path: `${root}/bilesenler/harita/bilesen.json`, content: JSON.stringify({ code: "harita", label: "Harita", settings: [] }) },
+      { path: `${root}/bilesenler/harita/stil.css`, content: "" },
+      { path: `${root}/bilesenler/harita/kod.js`, content: "ciz()" },
+      { path: `${root}/bilesenler/takvim/bilesen.json`, content: JSON.stringify({ code: "takvim", label: "Takvim", settings: [] }) },
+      { path: `${root}/bilesenler/takvim/stil.css`, content: "" },
+      { path: `${root}/bilesenler/takvim/kod.js`, content: "takvim()" },
+    ];
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.0", status: "Draft", bundleSha256: "h" });
+    const host = await render(<CatalogReleaseDialog {...props} files={withComponents} />);
+    expect([...host.querySelectorAll(".sp-catalog-sum > div")].map(d => d.textContent)).toEqual(["Veri kaynağı1", "Eylem0", "Bileşen2"]);
+    expect(host.textContent).toContain("Danışmanın sayfaları ve ayar değerleri değişmez.");
+    await click(button(host, "Taslak oluştur"));
+    const bundle = createRelease.mock.calls[0][1].bundle as { components: { code: string; javascript: string }[] };
+    expect(bundle.components.map(c => [c.code, c.javascript])).toEqual([["harita", "ciz()"], ["takvim", "takvim()"]]);
+  });
+
+  const componentFiles = (...codes: string[]) => [...files, ...codes.flatMap((code) => [
+    { path: `${root}/bilesenler/${code}/bilesen.json`, content: JSON.stringify({ code, label: code, settings: [] }) },
+    { path: `${root}/bilesenler/${code}/stil.css`, content: "" },
+    { path: `${root}/bilesenler/${code}/kod.js`, content: "ciz()" },
+  ])];
+  const ADMIN_ONLY = "Yazılımcı bileşeni içeren bu sürümü yalnız firma yöneticisi etkinleştirebilir.";
+
+  it("developer sees admin-only text instead of Etkinleştir when the release changes components", async () => {
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.0", status: "Draft", bundleSha256: "h" });
+    const host = await render(<CatalogReleaseDialog {...props} files={componentFiles("harita")} />);
+    await click(button(host, "Taslak oluştur"));
+    expect(button(host, "Etkinleştir")).toBeUndefined();
+    expect(host.textContent).toContain(ADMIN_ONLY);
+  });
+
+  it("developer activates when component codes are unchanged; a server refusal is shown verbatim", async () => {
+    activeCatalog.mockResolvedValue({ releaseId: "old", version: "1.0.0", dataSources: [], actions: [],
+      components: [{ code: "harita" }] });
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.1", status: "Draft", bundleSha256: "h" });
+    activateRelease.mockRejectedValueOnce(new api.CatalogApiError(403, ADMIN_ONLY));
+    const host = await render(<CatalogReleaseDialog {...props} files={componentFiles("harita")} />);
+    await click(button(host, "Taslak oluştur"));
+    expect(host.textContent).not.toContain(ADMIN_ONLY);
+    await click(button(host, "Etkinleştir"));
+    expect(activateRelease).toHaveBeenCalledWith("t", "new", "old");
+    expect(host.textContent).toContain(ADMIN_ONLY);
+  });
+
+  it("TenantAdmin can activate a release that changes components", async () => {
+    createRelease.mockResolvedValue({ id: "new", version: "1.0.0", status: "Draft", bundleSha256: "h" });
+    activateRelease.mockResolvedValue({});
+    const host = await render(<CatalogReleaseDialog {...props} isTenantAdmin files={componentFiles("harita")} />);
+    await click(button(host, "Taslak oluştur"));
+    expect(host.textContent).not.toContain(ADMIN_ONLY);
+    await click(button(host, "Etkinleştir"));
+    expect(activateRelease).toHaveBeenCalledWith("t", "new", null);
+  });
+
   it("create_error_is_shown_verbatim", async () => {
     createRelease.mockRejectedValue(new api.CatalogApiError(400, "Sunucu: paket geçersiz"));
     const host = await render(<CatalogReleaseDialog {...props} />);

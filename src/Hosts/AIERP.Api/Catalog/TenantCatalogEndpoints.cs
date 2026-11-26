@@ -12,9 +12,10 @@ using Microsoft.EntityFrameworkCore;
 namespace AIERP.Api;
 
 /// <summary>
-/// Tenant catalog releases: immutable bundles of named data sources and actions that custom pages reference by code.
+/// Tenant catalog releases: immutable bundles of named data sources, actions and developer components that custom pages reference by code.
 /// Creating and activating a release needs a verified TenantAdmin or Studio Developer (<see cref="CatalogDeveloperAccess"/>);
-/// exactly one release per tenant is Active.
+/// activating one whose developer components differ from the active release's needs a verified TenantAdmin
+/// (<see cref="ComponentsChanged"/>). Exactly one release per tenant is Active.
 /// </summary>
 internal static partial class TenantCatalogEndpoints
 {
@@ -22,6 +23,24 @@ internal static partial class TenantCatalogEndpoints
     internal const string PreviewItemNotFoundError = "Önizlenecek veri kaynağı bulunamadı.";
     internal const string PreviewOperationItemError = "ERP işlemine dayanan veri kaynağı önizlenmez; sonuç kolonları işlem kataloğundan gelir.";
     private const string StaleMessage = "Katalog başka bir kullanıcı tarafından değiştirildi.";
+
+    internal const string ComponentAdminOnlyError = "Yazılımcı bileşeni içeren bu sürümü yalnız firma yöneticisi etkinleştirebilir.";
+
+    /// <summary>
+    /// Whether <paramref name="next"/>'s developer components differ from the active ones (code, CSS, JavaScript, height or
+    /// settings; added or removed). No active release counts as different when <paramref name="next"/> has a component.
+    /// </summary>
+    internal static bool ComponentsChanged(CatalogBundle? active, CatalogBundle next)
+    {
+        static string Key(CatalogComponent x) => JsonSerializer.Serialize(new
+        {
+            x.Code, x.Css, x.JavaScript, x.Height,
+            Settings = x.Settings.Select(s => new { s.Name, s.Label, s.Type, s.Options, Default = s.Default?.GetRawText() }),
+        });
+        var before = (active?.Components ?? []).Select(Key).Order(StringComparer.Ordinal).ToArray();
+        var after = next.Components.Select(Key).Order(StringComparer.Ordinal).ToArray();
+        return !before.SequenceEqual(after, StringComparer.Ordinal);
+    }
 
     [GeneratedRegex(@"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex SemVerPattern();
@@ -78,7 +97,7 @@ internal static partial class TenantCatalogEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             // One read of the Active row. Items that no longer validate are left out and listed by code in invalidItems.
             var active = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
-            if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], []));
+            if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], [], []));
             var bundle = active.Bundle;
             // SQL text is shown only to a verified TenantAdmin or Studio Developer (the designer); runtime consumers never need it.
             var showSql = await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct);
@@ -86,7 +105,11 @@ internal static partial class TenantCatalogEndpoints
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.Columns, x.Opens)).ToArray();
             var actions = bundle.Items.Where(x => x.ItemKind == "action").Select(x => new ActionView(x.Code, x.Label, x.QueryKind, x.Target, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.ConfirmText)).ToArray();
-            return Results.Ok(new ActiveCatalog(active.Id, active.Version, active.SourcePath, dataSources, actions, bundle.InvalidCodes));
+            // Developer components are listed without their CSS and JavaScript: pages carry only the code and the server
+            // resolves the rest when a page is read.
+            var components = bundle.Components.Select(x => new ComponentView(x.Code, x.Label, x.Description, x.Height,
+                x.Settings.Select(s => new ComponentSettingView(s.Name, s.Label, s.Type, s.Options, s.Default)).ToArray())).ToArray();
+            return Results.Ok(new ActiveCatalog(active.Id, active.Version, active.SourcePath, dataSources, actions, bundle.InvalidCodes, components));
         });
 
         catalog.MapPost("/releases/{id:guid}/activate", async (Guid id, ActivateRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -103,6 +126,10 @@ internal static partial class TenantCatalogEndpoints
                 return Results.Conflict(new { error = $"Saklı paket bugünkü kurallara göre geçerli değil. {parseError}".TrimEnd() });
 
             var oldBundle = await TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
+            // Developer components run their JavaScript inside every page that references them: a release that adds, removes
+            // or changes one needs a verified TenantAdmin. Releases with unchanged components keep the developer rule above.
+            if (ComponentsChanged(oldBundle, newBundle!) && !await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct))
+                return Results.Json(new { error = ComponentAdminOnlyError }, statusCode: StatusCodes.Status403Forbidden);
             var broken = await BrokenPagesAsync(db, tenant, oldBundle, newBundle!, ct);
             if (broken.Count > 0)
                 return Results.Conflict(new { error = "Bu sürüm yayımlanmış sayfaların kullandığı yapı taşlarını bozuyor.", pages = broken });
@@ -262,7 +289,9 @@ internal static partial class TenantCatalogEndpoints
     private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error);
     private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, string? SourcePath, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
-        IReadOnlyList<string> InvalidItems);
+        IReadOnlyList<string> InvalidItems, IReadOnlyList<ComponentView> Components);
+    private sealed record ComponentView(string Code, string Label, string? Description, int Height, IReadOnlyList<ComponentSettingView> Settings);
+    private sealed record ComponentSettingView(string Name, string Label, string Type, IReadOnlyList<string> Options, JsonElement? Default);
     private sealed record DataSourceView(string Code, string Label, string Source,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ErpOperation,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Sql,

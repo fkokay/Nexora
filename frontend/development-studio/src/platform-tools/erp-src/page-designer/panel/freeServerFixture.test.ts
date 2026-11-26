@@ -5,8 +5,9 @@
 // fikstürle aynı olmalıdır. Yeniden üretmek: UPDATE_FREE_BODY_FIXTURE=1 npx vitest run freeServerFixture
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseCatalog, type ActiveCatalog, type CatalogAction, type CatalogDataSource } from "../catalogClient";
+import { parseCatalog, type ActiveCatalog, type CatalogAction, type CatalogComponent, type CatalogDataSource } from "../catalogClient";
 import { newFreeTemplateDefinition, NEW_FREE_BLOCK_ID } from "../pageTemplates";
+import { setComponentSetting } from "./developerComponentModel";
 import { addItem, addPageAction, addTab, renameTab, setBlockColumns, setBlockTitle } from "./freeModel";
 import { chooseTableSource, setTableEmptyText, setTablePageSize } from "./freeTableModel";
 import { setImageAddress, setImageDescription } from "./imagePanelModel";
@@ -23,7 +24,8 @@ const ok = <T extends object>(result: T | { reason: string }): T => { if ("reaso
 const setVisibleWhen = (def: ModelDefinition, id: string, condition: string): ModelDefinition =>
   ({ ...def, components: def.components.map((c) => c.id === id ? { ...c, props: { ...c.props, visibleWhen: condition } } : c) });
 
-/** Danışmanın panelde yaptığı adımlar: iki sekme, iki bölüm, her danışman bileşeni, okuma sorgulu Liste ve bir sayfa eylemi. */
+const component = (code: string) => catalog.components?.find((item) => item.code === code) as CatalogComponent;
+/** Danışmanın panelde yaptığı adımlar: iki sekme, iki bölüm, her danışman bileşeni (yazılımcı bileşeni dahil), okuma sorgulu Liste ve bir sayfa eylemi. */
 function build(): ModelDefinition {
   const cari = source("cariListe");
   let def = newFreeTemplateDefinition() as unknown as ModelDefinition;
@@ -45,6 +47,9 @@ function build(): ModelDefinition {
   def = chooseTableSource(table.def, table.itemId, cari);
   def = setTablePageSize(def, table.itemId, 25);
   def = setTableEmptyText(def, table.itemId, "Cari yok.");
+  const harita = component("satisHaritasi");
+  const developer = ok(addItem(def, "developer", { blockId: tab.blockId }, harita));
+  def = setComponentSetting(setComponentSetting(developer.def, developer.itemId, harita, "baslik", "Akdeniz"), developer.itemId, harita, "adet", 4);
   return addPageAction(def, action("raporYenile"));
 }
 

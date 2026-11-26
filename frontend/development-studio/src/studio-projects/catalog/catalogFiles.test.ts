@@ -66,3 +66,62 @@ describe('katalog dosya formatı', () => {
       .toEqual(['int', 'decimal', 'date', 'bool', 'text', 'text'])
   })
 })
+
+describe('katalog bileşen dosyaları', () => {
+  const comp = (code: string, extra: object = {}) => JSON.stringify({ code, label: `${code} etiketi`, settings: [], ...extra })
+
+  it('reads component folder into entry and builds bundle components', () => {
+    const r = readCatalogEntries(R, [
+      f('veri/a.json', JSON.stringify({ code: 'a', label: 'A', source: { erpOperation: 'x' }, parameters: [], columns: [] })),
+      f('bilesenler/zHarita/bilesen.json', comp('zHarita', { description: 'Harita', height: 320, settings: [{ name: 'donem', label: 'Dönem', type: 'choice', options: ['Bu ay', 'Bu yıl'], default: 'Bu ay' }] })),
+      f('bilesenler/zHarita/stil.css', '.kutu{}'),
+      f('bilesenler/zHarita/kod.js', 'ciz()'),
+      f('bilesenler/bTakvim/bilesen.json', comp('bTakvim')),
+      f('bilesenler/bTakvim/stil.css', ''),
+      f('bilesenler/bTakvim/kod.js', 'takvim()')
+    ])
+    expect(r.errors).toEqual([])
+    expect(r.entries.find(e => e.code === 'zHarita')).toEqual({
+      kind: 'component', code: 'zHarita',
+      jsonPath: `${R}/bilesenler/zHarita/bilesen.json`, cssPath: `${R}/bilesenler/zHarita/stil.css`, jsPath: `${R}/bilesenler/zHarita/kod.js`,
+      json: JSON.parse(comp('zHarita', { description: 'Harita', height: 320, settings: [{ name: 'donem', label: 'Dönem', type: 'choice', options: ['Bu ay', 'Bu yıl'], default: 'Bu ay' }] })),
+      css: '.kutu{}', javascript: 'ciz()'
+    })
+    const bundle = buildBundle(r.entries)
+    expect(bundle.dataSources.map(d => d.code)).toEqual(['a'])
+    expect(bundle.actions).toEqual([])
+    expect(bundle.components).toEqual([
+      { code: 'bTakvim', label: 'bTakvim etiketi', css: '', javascript: 'takvim()', settings: [] },
+      {
+        code: 'zHarita', label: 'zHarita etiketi', description: 'Harita', css: '.kutu{}', javascript: 'ciz()', height: 320,
+        settings: [{ name: 'donem', label: 'Dönem', type: 'choice', options: ['Bu ay', 'Bu yıl'], default: 'Bu ay' }]
+      }
+    ])
+    expect(Object.keys(bundle.components![1])).toEqual(['code', 'label', 'description', 'css', 'javascript', 'height', 'settings'])
+    // Bileşensiz katalogların paketi değişmez.
+    expect('components' in buildBundle(r.entries.filter(e => e.kind !== 'component'))).toBe(false)
+  })
+
+  it('missing css or js file reports error', () => {
+    const noCss = readCatalogEntries(R, [f('bilesenler/harita/bilesen.json', comp('harita')), f('bilesenler/harita/kod.js', 'x')])
+    expect(noCss.entries).toEqual([])
+    expect(noCss.errors).toEqual(['harita: stil.css ya da kod.js bulunamadı.'])
+    const noJs = readCatalogEntries(R, [f('bilesenler/harita/bilesen.json', comp('harita')), f('bilesenler/harita/stil.css', '')])
+    expect(noJs.errors).toEqual(['harita: stil.css ya da kod.js bulunamadı.'])
+    const mismatch = readCatalogEntries(R, [f('bilesenler/harita/bilesen.json', comp('baska')), f('bilesenler/harita/stil.css', ''), f('bilesenler/harita/kod.js', 'x')])
+    expect(mismatch.entries).toEqual([])
+    expect(mismatch.errors[0]).toMatch(/^bilesenler\/harita\/bilesen\.json:/)
+  })
+
+  it('entryFiles writes bilesen.json stil.css kod.js', () => {
+    const { entries } = readCatalogEntries(R, [
+      f('bilesenler/harita/bilesen.json', comp('harita', { css: 'eski', javascript: 'eski' })), f('bilesenler/harita/stil.css', '.a{}'), f('bilesenler/harita/kod.js', 'ciz()')
+    ])
+    const files = entryFiles(R, entries[0])
+    expect(files.map(x => x.path)).toEqual([`${R}/bilesenler/harita/stil.css`, `${R}/bilesenler/harita/kod.js`, `${R}/bilesenler/harita/bilesen.json`])
+    expect(files[0].content).toBe('.a{}')
+    expect(files[1].content).toBe('ciz()')
+    expect(JSON.parse(files[2].content)).toEqual({ code: 'harita', label: 'harita etiketi', settings: [] })
+    expect(files[2].content.endsWith('\n')).toBe(true)
+  })
+})

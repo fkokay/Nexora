@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yazılımcı bileşeni (taslak 10)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--code:#1e1b2e}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none} .view.on{display:block}
+  .top{display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:9px 16px}
+  .top h1{font-size:15px;margin:0} .top .br{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)} .btn.dev{background:var(--dev);border-color:var(--dev);color:#fff}
+  .btn.sm{padding:3px 8px;font-size:12px}
+  .wrap{display:grid;grid-template-columns:240px 1fr;height:calc(100vh - 138px)}
+  .tree{background:#fff;border-right:1px solid var(--line);overflow:auto;padding:12px}
+  .tree h4{margin:12px 0 6px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+  .tree h4:first-child{margin-top:0}
+  .tree h4 a{color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;font-weight:600}
+  .it{padding:6px 8px;border-radius:7px;cursor:pointer;display:flex;gap:8px;align-items:center}
+  .it:hover{background:#f6f5fa} .it.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .raw{font-family:Consolas,monospace;font-size:12px;color:var(--muted);line-height:1.7;margin-top:6px;padding-left:4px}
+  .ed{overflow:auto;padding:18px 22px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+  .card h3{margin:0 0 2px;font-size:15px} .card .d{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label.l{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input.txt,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  table.st{width:100%;border-collapse:collapse}
+  table.st th,table.st td{border-bottom:1px solid var(--line);padding:6px 6px;text-align:left;font-size:12px;vertical-align:middle}
+  table.st th{color:var(--muted);font-weight:600;background:#faf9fd}
+  table.st input,table.st select{padding:4px 6px;font-size:12px}
+  .codeed{background:var(--code);color:#e7e3ff;font-family:Consolas,monospace;font-size:12px;border-radius:8px;padding:10px;min-height:120px;width:100%;border:0;line-height:1.55;resize:vertical}
+  .files{font-family:Consolas,monospace;font-size:11.5px;color:var(--muted);margin-top:6px}
+  .prob{color:var(--dan);font-size:12px;margin-top:6px}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:6px;line-height:1.5}
+  .src{font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px;margin-top:6px}
+  .prev{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .prevh{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);background:#faf9fd;font-weight:600}
+  .frame{padding:12px}
+  .map{border-radius:8px;background:linear-gradient(135deg,#ccfbf1,#bfdbfe);display:grid;place-items:center;color:#0f4c5c;font-weight:600;text-align:center;line-height:1.6}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none;display:inline-block;vertical-align:middle}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;gap:8px}
+  .q{font-weight:600;margin:10px 0 6px}
+  /* yayın penceresi */
+  .modal{max-width:560px;margin:40px auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:0 12px 40px rgba(30,20,80,.08)}
+  .modal h2{margin:0 0 4px;font-size:18px}
+  .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+  .sum div{border:1px solid var(--line);border-radius:10px;padding:10px}
+  .sum b{font-size:20px;display:block}
+  .chk{display:flex;gap:8px;align-items:center;padding:4px 0}
+  .chk i{font-style:normal;color:var(--ok)}
+  /* ERP */
+  .erp{max-width:960px;margin:24px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}
+  .bar{display:flex;gap:6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+  .bar span{border:1px solid var(--line);border-radius:7px;padding:5px 10px}
+  .bar span.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .metric{border:1px solid var(--line);border-radius:10px;padding:12px}
+  .metric span{color:var(--muted);font-size:12px;display:block}.metric b{font-size:20px}
+  .missing{border:1px dashed #f1c27d;background:var(--warn-soft);color:#7c2d12;border-radius:10px;padding:16px;text-align:center}
+  /* danışman paneli */
+  .dp{max-width:340px;margin:24px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .ih{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .ico{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none;font-size:11px}
+  .part{border-top:1px solid var(--line);padding:10px 0}
+  details summary{cursor:pointer;font-weight:600;list-style:none} details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  .side{display:grid;grid-template-columns:1fr 360px;gap:20px;max-width:1100px;margin:0 auto;padding:0 16px}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 10 — Yazılımcı bileşeni.</b> Yazılımcı, firma modülünde bir bileşen yazar: adı, danışmanın dolduracağı ayarlar, CSS ve JavaScript. Bileşen veri kaynakları ve eylemlerle aynı katalog sürümünde yayınlanır; danışman onu paletten seçip yalnız ayarları doldurur, kodu görmez. ERP bileşeni bugünkü yalıtılmış kod çerçevesinde çizer.</div>
+<div class="views"><span class="lbl">Görünüm</span><div class="seg" id="viewSeg">
+  <button class="on" data-v="dev">Yazılımcı: bileşen formu</button><button data-v="rel">Sürüm yayınla</button><button data-v="cons">Danışman paneli</button><button data-v="erp">ERP'de görünüş</button></div></div>
+
+<div class="view on" id="v-dev">
+  <div class="top"><h1>Akdeniz Gıda · firma modülü</h1><span class="br">⎇ talep-221-satis-haritasi</span><span class="sp"></span><button class="btn">Deneme ortamında aç</button><button class="btn primary" data-go="rel">Sürüm yayınla</button></div>
+  <div class="wrap">
+    <div class="tree">
+      <h4>Veri kaynakları <a>+ Yeni</a></h4><div class="it">▤ Cariler</div><div class="it">▤ Bölge satışları</div>
+      <h4>Eylemler <a>+ Yeni</a></h4><div class="it">⏵ Ekstre mail gönder</div>
+      <h4>Bileşenler <a data-act="newcomp">+ Yeni</a></h4><div id="comps"></div>
+      <h4>Dosyalar</h4><div class="raw" id="files"></div>
+    </div>
+    <div class="ed">
+      <div>
+        <div class="card"><h3 id="ftitle">Satış haritası</h3><div class="d">Bileşen · danışman bunu paletten “Yazılımcı bileşeni” olarak seçer.</div>
+          <div class="grid2">
+            <div><label class="l">Kod</label><input class="txt" id="fcode" data-f="code"><div class="prob" id="codeProb"></div></div>
+            <div><label class="l">Danışmanın göreceği ad</label><input class="txt" id="flabel" data-f="label"></div>
+            <div><label class="l">Açıklama (isteğe bağlı)</label><input class="txt" id="fdesc" data-f="description"></div>
+            <div><label class="l">Başlangıç yüksekliği (px)</label><input class="txt" id="fheight" data-f="height" type="number"></div>
+          </div>
+          <div class="opt">Bileşen gerekirse kendi yüksekliğini büyütebilir (en çok 2000 px).</div>
+        </div>
+        <div class="card"><h3>Danışmanın dolduracağı ayarlar</h3><div class="d">En çok 10 ayar. Danışman yalnız bunları görür; kodu görmez.</div>
+          <table class="st"><thead><tr><th>Ad</th><th>Etiket</th><th>Tür</th><th>Seçenekler</th><th>Varsayılan</th><th></th></tr></thead><tbody id="stbody"></tbody></table>
+          <button class="btn sm" data-act="addset" style="margin-top:8px">＋ Ayar ekle</button>
+          <div class="opt">Kodda bir ayar <code>nexora.get("ayarlar.donem")</code> ile okunur.</div>
+        </div>
+        <div class="card"><h3>Görünüş (CSS)</h3><div class="d">Harici kaynak (yazı tipi, görsel adresi, CDN) yüklenemez.</div><textarea class="codeed" id="fcss" data-f="css" rows="5"></textarea><div class="prob" id="cssProb"></div></div>
+        <div class="card"><h3>Kod (JavaScript)</h3><div class="d">Yalıtılmış çerçevede çalışır; sayfa verisine yalnız köprüyle ulaşır (sayfanın sorguları ve ERP işlemleri, kullanıcının yetkisiyle).</div><textarea class="codeed" id="fjs" data-f="javascript" rows="9"></textarea><div class="opt" id="jsCount"></div></div>
+        <div class="files">Dosyalar: bilesenler/<span id="fdir"></span>/bilesen.json · stil.css · kod.js — formdan ya da doğrudan dosyadan düzenlenebilir.</div>
+      </div>
+      <div style="position:sticky;top:0">
+        <div class="prev"><div class="prevh">Önizle<button class="btn sm dev" data-act="run">▶ Çalıştır</button></div>
+          <div class="frame" id="prevFrame"></div>
+          <div style="padding:0 12px 12px"><div class="q" style="margin-top:0">Örnek ayar değerleri</div><div id="prevSettings"></div>
+          <div class="src">Önizlemede sayfa verisi yok: <code>runQuery</code> ve <code>callOperation</code> boş yanıt döner. Firma verisine dokunulmaz.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="view" id="v-rel"><div class="modal">
+  <h2>Sürüm yayınla</h2><div class="opt" style="margin:0">Akdeniz Gıda · talep-221-satis-haritasi · son commit 4f2a91c</div>
+  <div class="sum"><div><span class="opt">Veri kaynağı</span><b>2</b></div><div><span class="opt">Eylem</span><b>1</b></div><div><span class="opt">Bileşen</span><b id="relComps">1</b></div></div>
+  <label class="l">Sürüm numarası</label><input class="txt" value="1.4.0">
+  <div class="q">Yayın öncesi kontroller</div>
+  <div class="chk"><i>✓</i> Bütün dosyalar okunabildi</div>
+  <div class="chk"><i>✓</i> Bileşen kodları tekil; ayarlar ve sınırlar uygun</div>
+  <div class="chk"><i>✓</i> CSS'te harici kaynak yok</div>
+  <div class="opt">Yayınlanan sürüm taslaktır; firmada TenantAdmin etkinleştirince bütün sayfalar yeni bileşen kodunu kullanır. Danışmanın sayfaları ve ayar değerleri değişmez.</div>
+  <div class="row" style="margin-top:12px"><span></span><span><button class="btn" data-go="dev">Vazgeç</button> <button class="btn primary">Taslak sürüm oluştur</button></span></div>
+</div></div>
+
+<div class="view" id="v-cons"><div class="side">
+  <div class="erp" style="margin-top:24px"><div class="crumb">Satış › Panolar</div><div class="ttl">Bölge panosu</div>
+    <div class="bar"><span class="pri">Raporu yenile</span></div>
+    <div id="consCanvas"></div></div>
+  <div class="dp" id="dp"></div>
+</div></div>
+
+<div class="view" id="v-erp"><div class="erp">
+  <div class="crumb">Satış › Panolar</div><div class="ttl">Bölge panosu</div>
+  <div class="bar"><span class="pri">Raporu yenile</span><span>Excel'e aktar</span></div>
+  <div class="grid"><div class="metric"><span>Bu ay satış</span><b>2.184.250 ₺</b></div><div class="metric"><span>Açık sipariş</span><b>42</b></div></div>
+  <div style="margin-top:12px" id="erpComp"></div>
+  <div style="margin-top:12px"><div class="missing"><b>Bu bileşen katalogda yok.</b><br><span style="font-size:12px">“Teslimat takvimi” etkin katalog sürümünden kaldırılmış. Sayfanın geri kalanı çalışır.</span></div></div>
+  <div class="opt" style="margin-top:8px">Üstteki kutu yazılımcı bileşeni (Satış haritası). Alttaki, kaydedildikten sonra katalogdan kaldırılmış bir bileşenin ERP'deki görünüşü.</div>
+</div></div>
+
+<script>
+let C={code:"satisHaritasi",label:"Satış haritası",description:"Bölgelere göre satış dağılımı",height:240,
+ settings:[{name:"baslik",label:"Başlık",type:"text",options:"",def:"Bölgelere göre satış"},{name:"donem",label:"Dönem",type:"choice",options:"Bu ay, Bu çeyrek, Bu yıl",def:"Bu ay"},{name:"etiketler",label:"Bölge adlarını göster",type:"bool",options:"",def:true}],
+ css:".kutu{border-radius:8px;padding:12px;background:linear-gradient(135deg,#ccfbf1,#bfdbfe)}\n.baslik{font-weight:600}",
+ javascript:"const baslik = await nexora.get(\"ayarlar.baslik\");\nconst donem = await nexora.get(\"ayarlar.donem\");\nconst sonuc = await nexora.runQuery(\"bolgeSatislari\");\nciz(baslik, donem, sonuc.rows);"};
+const OTHERS=["Teslimat takvimi"];
+const vals={};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const CODE_RE=/^[a-z][a-zA-Z0-9]{0,39}$/;
+function setVal(name){const s=C.settings.find(x=>x.name===name);return name in vals?vals[name]:s?s.def:null;}
+function compView(withData){const b=setVal("baslik"),d=setVal("donem"),e=setVal("etiketler");
+ return `<div class="map" style="height:${C.height}px"><div><div style="font-size:15px">${esc(b||C.label)}</div><div style="font-size:12px;opacity:.8">${esc(d)}</div>${withData?`🗺 ${e?"Akdeniz %34 · Ege %22 · Marmara %19":"%34 · %22 · %19"}`:`🗺 Harita (önizlemede örnek veri yok)`}</div></div>`;}
+function renderDev(){
+ document.getElementById("comps").innerHTML=[`<div class="it on">⬚ ${esc(C.label)}</div>`,...OTHERS.map(o=>`<div class="it">⬚ ${o}</div>`)].join("");
+ document.getElementById("files").innerHTML=`veri/…<br>eylemler/…<br>bilesenler/${esc(C.code)}/bilesen.json<br>bilesenler/${esc(C.code)}/stil.css<br>bilesenler/${esc(C.code)}/kod.js`;
+ document.getElementById("ftitle").textContent=C.label;document.getElementById("fdir").textContent=C.code;
+ for(const k of ["code","label","description","height","css","javascript"]){const el=document.querySelector(`[data-f="${k}"]`);if(document.activeElement!==el)el.value=C[k];}
+ document.getElementById("codeProb").textContent=CODE_RE.test(C.code)?"":"Kod harf ile başlamalı; harf ve rakamlardan oluşmalı.";
+ document.getElementById("cssProb").textContent=/url\(|@import|https?:/i.test(C.css)?"CSS'te harici kaynak kullanılamaz.":"";
+ document.getElementById("jsCount").textContent=`${C.javascript.length} / 20000 karakter`;
+ document.getElementById("stbody").innerHTML=C.settings.map((s,i)=>`<tr><td><input value="${esc(s.name)}" data-s="${i}" data-k="name"></td><td><input value="${esc(s.label)}" data-s="${i}" data-k="label"></td>
+  <td><select data-s="${i}" data-k="type">${[["text","Metin"],["number","Sayı"],["bool","Evet/hayır"],["choice","Seçim"]].map(([v,l])=>`<option value="${v}" ${s.type===v?"selected":""}>${l}</option>`).join("")}</select></td>
+  <td>${s.type==="choice"?`<input value="${esc(s.options)}" data-s="${i}" data-k="options" placeholder="virgülle">`:`<span class="opt">—</span>`}</td>
+  <td>${s.type==="bool"?`<span class="tg ${s.def?"on":""}" data-sb="${i}"></span>`:`<input value="${esc(s.def)}" data-s="${i}" data-k="def">`}</td>
+  <td><button class="btn sm" data-del="${i}" title="Sil">✕</button></td></tr>`).join("");
+ document.querySelector('[data-act="addset"]').disabled=C.settings.length>=10;
+ document.getElementById("prevSettings").innerHTML=C.settings.map(s=>`<div class="row"><span>${esc(s.label)}</span><span class="opt" style="margin:0">${esc(s.type==="bool"?(setVal(s.name)?"Evet":"Hayır"):String(setVal(s.name)??""))}</span></div>`).join("");
+ document.getElementById("relComps").textContent=1+OTHERS.length;}
+function run(){document.getElementById("prevFrame").innerHTML=compView(false);}
+function control(s){const v=setVal(s.name);
+ if(s.type==="bool")return `<div class="row">${esc(s.label)}<span class="tg ${v?"on":""}" data-cb="${esc(s.name)}"></span></div>`;
+ if(s.type==="choice"){const o=s.options.split(",").map(x=>x.trim()).filter(Boolean);return `<div class="q">${esc(s.label)}</div>`+(o.length<=4?`<div class="seg">${o.map(x=>`<button class="${v===x?"on":""}" data-cc="${esc(s.name)}" data-v="${esc(x)}">${esc(x)}</button>`).join("")}</div>`:`<select data-cs="${esc(s.name)}">${o.map(x=>`<option ${v===x?"selected":""}>${esc(x)}</option>`).join("")}</select>`);}
+ return `<div class="q">${esc(s.label)}</div><input class="txt" ${s.type==="number"?'type="number"':""} value="${esc(v??"")}" data-ct="${esc(s.name)}">`;}
+function renderCons(){
+ document.getElementById("dp").innerHTML=`<div class="ih"><span class="ico">&lt;/&gt;</span><input class="txt" style="border:0;font-weight:600" value="" placeholder="Yazılımcı bileşeni" readonly></div>
+  <div class="part" style="border-top:0"><div class="q" style="margin-top:0">Hangi bileşen?</div><select><option selected>${esc(C.label)}</option>${OTHERS.map(o=>`<option>${o}</option>`).join("")}</select>
+  ${C.description?`<div class="opt">${esc(C.description)}</div>`:""}<div class="src">Yazılımcının yayınladığı bileşen · danışman kodunu görmez</div></div>
+  <div class="part">${C.settings.map(control).join("")}<div class="opt">Bu ayarları yazılımcı tanımladı. Bileşen başka ayar isterse burada görünür.</div></div>
+  <div class="part"><details><summary>Görünüm</summary><div class="q">Ne zaman görünsün?</div><div class="seg"><button class="on">Her zaman</button><button>Koşula bağlı…</button></div><div class="row" style="margin-top:6px">Mobilde gizle<span class="tg"></span></div></details></div>`;
+ document.getElementById("consCanvas").innerHTML=compView(true);}
+function renderErp(){document.getElementById("erpComp").innerHTML=compView(true);}
+function render(){renderDev();renderCons();renderErp();}
+function show(v){document.querySelectorAll(".view").forEach(x=>x.classList.toggle("on",x.id==="v-"+v));document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
+document.addEventListener("click",e=>{const t=e.target;let c;
+ if(c=t.closest("[data-v]")&&t.closest("#viewSeg")){show(t.closest("[data-v]").dataset.v);return;}
+ if(c=t.closest("[data-go]")){show(c.dataset.go);return;}
+ if(c=t.closest('[data-act="addset"]')){if(C.settings.length<10)C.settings.push({name:"ayar"+(C.settings.length+1),label:"Yeni ayar",type:"text",options:"",def:""});render();return;}
+ if(c=t.closest("[data-del]")){const s=C.settings.splice(+c.dataset.del,1)[0];delete vals[s.name];render();run();return;}
+ if(c=t.closest("[data-sb]")){const s=C.settings[+c.dataset.sb];s.def=!s.def;render();return;}
+ if(c=t.closest('[data-act="run"]')){run();return;}
+ if(c=t.closest('[data-act="newcomp"]')){document.getElementById("files").insertAdjacentHTML("afterend",`<div class="opt">Yeni bileşen: kod ve ad sorulur; bilesenler/&lt;kod&gt;/ klasörü üç dosyayla (bilesen.json, stil.css, kod.js) oluşturulur.</div>`);return;}
+ if(c=t.closest("[data-cb]")){vals[c.dataset.cb]=!setVal(c.dataset.cb);renderCons();renderErp();return;}
+ if(c=t.closest("[data-cc]")){vals[c.dataset.cc]=c.dataset.v;renderCons();renderErp();return;}
+});
+document.addEventListener("input",e=>{const t=e.target;
+ if(t.dataset.f){C[t.dataset.f]=t.dataset.f==="height"?Math.max(80,Math.min(1200,+t.value||240)):t.value;renderDev();return;}
+ if(t.dataset.s!==undefined){const s=C.settings[+t.dataset.s];s[t.dataset.k]=t.value;renderDev();return;}
+ if(t.dataset.ct){vals[t.dataset.ct]=t.value;renderErp();document.getElementById("consCanvas").innerHTML=compView(true);}});
+document.addEventListener("change",e=>{const t=e.target;
+ if(t.dataset.s!==undefined&&t.dataset.k==="type"){const s=C.settings[+t.dataset.s];s.type=t.value;s.def=t.value==="bool"?false:"";if(t.value==="choice"&&!s.options)s.options="Seçenek 1, Seçenek 2";render();}
+ if(t.dataset.cs){vals[t.dataset.cs]=t.value;renderErp();}});
+render();run();
+</script>
+</body>
+</html>
