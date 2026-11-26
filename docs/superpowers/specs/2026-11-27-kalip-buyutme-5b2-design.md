@@ -83,6 +83,16 @@ Adım 1 kalıplara bu komutların karşılığını ekler: **hangi yerleşik kom
 - Kayıt kartının bugünkü sabit kayıt sonrası kuralları, sayfada açıkça bir ayar yoksa varsayılan olarak kalır; standarttan gelen ayar varsa o geçerlidir (davranış eşdeğerliği).
 - Dönüştürücü, `actionBar`'ın her ayarını yeni biçime birebir eşler; eşleyemediği ayar varsa sayfayı taşımaz (bugünkü gibi gerekçe yazar).
 - **Klavye kısayolları ve ortak komut sistemi korunur (karar, "davranış değişmez" kuralından):** eski çubuk komutlarını ERP'nin ortak `CommandProvider`'ına kaydeder (`usePageCommands`): F tuşları, Ctrl+F2 "Kaydet ve yeni", kayıt defterinin eklediği komutlar (ör. Görüntüle) ve gizli komutların tarayıcı kısayollarının engellenmesi. Kalıp kabuğu da komutlarını aynı sisteme kaydeder; kabuğun "⋯" menüsü ile kayıt defteri komutları tek listeden gelir. Başlık satırı ve `PageCommandsSlot` davranışı da aynen sürer.
+- **Taslak 11 (`docs/design-proposals/studio-sadelestirme/11-komutlar.html`, kullanıcı onayı 2026-11-27) ve kararları:**
+  - Komut listesi: Yeni, Düzenle (eski "Aç"), Görüntüle, Kaydet, Kaydet ve yeni, Sil, Yenile, Filtre, Yazdır, Excel (eski "Dışa aktar"); CSV dışa aktarma "⋯" menüsünde.
+  - `focusInput` ayrı bir açılış odağı değildir; Filtre komutunun (Ctrl+F) odaklandığı alandır ve öyle kalır.
+  - Kısayollar düğmede rozet değil, bugünkü ERP gibi üzerine gelince ipucu olarak gösterilir; kalıp kabuğu da bu ipucunu gösterir.
+  - **Tek "⋯" menüsü:** eski çubuğun İşlemler menüsü (`moreButtons`, Alt+İ, CSV) ile kabuğun taşan düğmeler menüsü tek "⋯" menüsünde birleşir; Alt+İ bu menüyü açar.
+  - **Kaydetme adımları:** danışman adımları katalog eylemi olarak seçer; standartlardan gelen ham sorgu adımları ve `sequenceWhen` ifadeleri "Gelişmiş" altında okunur ve korunur. Sil eylemi "Kaydet düğmesi" bölümünden Komutlar › Sil'e taşınır.
+  - **Başlıkta kayıt sayısı:** varsayılan sunucudaki toplam (standartların bağladığı `meta.totalCount`), yoksa görünen satır sayısı; danışmana ayrı seçenek açılmaz.
+  - **Düğme sırası sabittir:** Yeni · Düzenle · Görüntüle · Kaydet ve yeni · Yenile · Filtre · Yazdır · Excel (ana düğme solda, Sil en sağda); danışman sıralayamaz.
+  - Standartlarda hiç kullanılmayan eski çubuk ayarları (`barLook`, `formDialog`, `printEnabled`, `exportCsv`) yeni biçimde karşılık bulmaz; bunları kullanan firma sayfası gerekçesiyle taşınmaz kalır.
+  - `afterSaveRefresh`, yalnız "kayıttan sonra ekran aç" seçiliyken geçerli "açılan sayfayı yenile" seçeneğidir.
 - **Kayıt kartı:** bugünkü sabit Kaydet / Sil / kayıt sonrası kuralları (`recordDoneFor`, `recordSequenceGate`, `afterRecordSave`) sayfada ayar yoksa varsayılandır; `saveQuery`, `saveSequence`/`sequenceWhen`/`stopOnError`, `afterSave*`, `deleteQuery`/`deleteConfirmText`, `saveAndNew`, `newInputs` karşılıkları bu kurallara takılır.
 
 ### 5.3 Davranış eşdeğerliği nasıl sınanır (karar)
