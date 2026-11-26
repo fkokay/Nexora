@@ -292,7 +292,11 @@ export function chooseDataSource<D extends ModelDefinition>(def: D, listId: stri
 function rebindToSource<D extends ModelDefinition>(def: D, listId: string, ds: CatalogDataSource): D {
   let next = def;
   const choice = rowOpenChoice(next, listId);
-  if (choice === "card") next = rowOpenUsable(ds).usable ? setRowDoubleClick(next, listId, "card", ds) : setRowDoubleClick(next, listId, "none", ds);
+  if (choice === "card") {
+    // Kaynak değişince tasarımcının "+ Yeni" tercihi korunur (setRowDoubleClick kartı seçince düğmeyi açar).
+    const newOn = newButtonOn(next);
+    next = rowOpenUsable(ds).usable ? setNewButton(setRowDoubleClick(next, listId, "card", ds), listId, newOn, ds) : setRowDoubleClick(next, listId, "none", ds);
+  }
   if (choice === "panel") next = setRowDoubleClick(next, listId, ds.columns.length > 0 ? "panel" : "none", ds);
   const columns = new Set(ds.columns.map((column) => column.code));
   const prefix = (() => { const table = findList(next, listId); return table ? `{{${tableName(table)}.seciliSatir.` : ""; })();
@@ -397,7 +401,8 @@ export function setRowDoubleClick<D extends ModelDefinition>(def: D, listId: str
   const openId = typeof table.props.rowOpenAction === "string" ? table.props.rowOpenAction : undefined;
   const detail = detailOf(def, listId);
   const name = tableName(table);
-  let components = def.components.filter((component) => !(openId && component.id === openId && component.type === "button") && component.id !== detail?.id);
+  let components = def.components.filter((component) => !(openId && component.id === openId && component.type === "button") && component.id !== detail?.id
+    && !isNewButton(component));
   components = replaceComponent(components, listId, (item) => withProps({ ...item, name }, { rowOpenAction: undefined }));
   const cleared = { ...def, components };
   if (choice === "card") {
@@ -407,6 +412,7 @@ export function setRowDoubleClick<D extends ModelDefinition>(def: D, listId: str
       slot: "rowActions", text: "Aç", actionType: "page", pageCode: ds.opens!, params: [`${pageParamName(key)}=${rowBinding({ ...table, name }, key)}`],
     } };
     components = [...replaceComponent(components, listId, (item) => withProps(item, { rowOpenAction: buttonId })), button];
+    components = withNewButton(components, ds);
   } else if (choice === "panel") {
     const panelId = freeId(cleared, "detay");
     const panel: ModelComponent = { id: panelId, type: "contextPanel", props: {
@@ -416,4 +422,29 @@ export function setRowDoubleClick<D extends ModelDefinition>(def: D, listId: str
     components = [...components, panel];
   }
   return { ...def, components };
+}
+
+export const NEW_BUTTON_ID = "yeni";
+const isNewButton = (component: ModelComponent) => component.id === NEW_BUTTON_ID && component.type === "button";
+
+/** "+ Yeni" düğmesi `actions` yerinin başına konur (ERP liste kabuğu ilk eylemi birincil yapar); varsa yerinde yenilenir. */
+function withNewButton(components: ModelComponent[], ds: CatalogDataSource): ModelComponent[] {
+  if (!ds.opens || components.some((component) => component.id === NEW_BUTTON_ID && component.type !== "button")) return components;
+  const button: ModelComponent = { id: NEW_BUTTON_ID, type: "button", props: { slot: "actions", text: "+ Yeni", actionType: "page", pageCode: ds.opens } };
+  const rest = components.filter((component) => !isNewButton(component));
+  const at = rest.findIndex((component) => component.props.slot === "actions");
+  return at < 0 ? [...rest, button] : [...rest.slice(0, at), button, ...rest.slice(at)];
+}
+
+export const newButtonOn = (def: ModelDefinition): boolean => def.components.some(isNewButton);
+
+/**
+ * Listenin üstündeki "+ Yeni" düğmesini açar ya da kapatır. Düğme parametresiz bir sayfa düğmesidir: ERP kaydı
+ * anahtarsız açılan karta "yeni kayıt" kipinde açar. Açmak için kaynağın açılacak kartı (`opens`) olmalıdır.
+ */
+export function setNewButton<D extends ModelDefinition>(def: D, listId: string, on: boolean, ds: CatalogDataSource): D {
+  if (!findList(def, listId)) return def;
+  if (!on) return newButtonOn(def) ? { ...def, components: def.components.filter((component) => !isNewButton(component)) } : def;
+  const components = withNewButton(def.components, ds);
+  return components === def.components ? def : { ...def, components };
 }

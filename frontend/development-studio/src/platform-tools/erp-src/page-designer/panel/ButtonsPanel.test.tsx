@@ -9,7 +9,7 @@ import { addListAction, chooseDataSource, removeListAction, type ModelDefinition
 const catalog: ActiveCatalog = {
   version: "1",
   dataSources: [{ code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [], opens: null,
-    columns: [{ code: "id", label: "Kimlik", type: "guid", key: true }, { code: "unvan", label: "Unvan", type: "text", key: false }] }],
+    columns: [{ code: "id", label: "Kimlik", type: "guid", key: true, longText: false, required: false, maxLength: null }, { code: "unvan", label: "Unvan", type: "text", key: false, longText: false, required: false, maxLength: null }] }],
   actions: [
     { code: "ekstre", label: "Ekstre al", kind: "update", target: "row", source: "sql", erpOperation: null, parameters: [{ name: "id", type: "guid" }], confirmText: null },
     { code: "sil", label: "Sil", kind: "delete", target: "row", source: "sql", erpOperation: null, parameters: [{ name: "id", type: "guid" }], confirmText: "Silinsin mi?" },

@@ -11,7 +11,7 @@ import { parseCondition } from "../conditions";
 type P = ModelComponent["props"];
 const without = (props: P, ...keys: string[]): P => Object.fromEntries(Object.entries(props).filter(([key]) => !keys.includes(key)));
 
-const col = (code: string, label: string, type = "text") => ({ code, label, type, key: false });
+const col = (code: string, label: string, type = "text") => ({ code, label, type, key: false, longText: false, required: false, maxLength: null });
 const ozet: CatalogDataSource = {
   code: "cariOzet", label: "Cari bakiye özeti", source: "sql", erpOperation: null, parameters: [], opens: null,
   columns: [col("alacak", "Toplam alacak", "money"), col("gecenAy", "Geçen ay alacak", "money"), col("adet", "Adet", "number"), col("durum", "Durum")],
@@ -162,7 +162,7 @@ describe("indicator setters", () => {
 describe("count mode (final review fix 1)", () => {
   const keyed: CatalogDataSource = {
     code: "siparisler", label: "Siparişler", source: "sql", erpOperation: null, parameters: [], opens: null,
-    columns: [col("durum", "Durum"), { code: "siparisNo", label: "No", type: "text", key: true }],
+    columns: [col("durum", "Durum"), { code: "siparisNo", label: "No", type: "text", key: true, longText: false, required: false, maxLength: null }],
   };
   const textOnly: CatalogDataSource = { ...keyed, code: "notlar", columns: [col("baslik", "Başlık"), col("aciklama", "Açıklama")] };
   it("count writes query and a schema-valid countWhen on the key column", () => {
@@ -199,7 +199,7 @@ describe("count mode (final review fix 1)", () => {
     expect(countColumnOf(keyed)).toBe("siparisNo");
     expect(countColumnOf(textOnly)).toBe("baslik");
     expect(countColumnOf({ ...textOnly, columns: [col("tutar tl", "Tutar"), col("adet", "Adet")] })).toBe("adet");
-    expect(countColumnOf({ ...textOnly, columns: [{ code: "no-1", label: "No", type: "text", key: true }] })).toBeNull();
+    expect(countColumnOf({ ...textOnly, columns: [{ code: "no-1", label: "No", type: "text", key: true, longText: false, required: false, maxLength: null }] })).toBeNull();
   });
   it("indicatorOf reads count mode only from the query + countWhen pair", () => {
     const counted = chooseIndicatorSource(defWith(metric()), "g1", keyed);

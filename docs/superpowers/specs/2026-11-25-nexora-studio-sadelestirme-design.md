@@ -284,7 +284,7 @@ Mevcut sayfalardaki sayfa içi sorgular çalışmaya devam eder. Yeni tasarımc�
   - bırakma alanları
 - Protokol, kod bileşeni köprüsündeki güvenlik ilkelerini izler (`codeBridgeStub.ts`): sürüm numarası, kaynak kontrolü ve izinli origin listesi. Nonce kullanılmaz: kod köprüsünde sandbox'lı çerçevenin origin'i opak olduğu için gerekir, tuval iframe'inin origin'i gerçek olduğundan origin + source kontrolü yeterlidir.
 - Önizlemede yazma işlemleri bugünkü gibi engellenir.
-- Studio'daki kopya çizim kodu (`CanvasPreviews.tsx`, `useCanvasSamples`, `canvasSamples`, `preview-samples.ts` ve `CustomPagesPage.tsx` içindeki çizim dalları) bu projede silinmez; silme alt proje 4'e (Detay ekranı: Sekme → Bölüm → Alan) kalır. Kart içi tasarım modu ERP'de sayfa yüzeyinde görünmediği için eski tuval bu süre boyunca yedek olarak kullanılır (ERP'ye bağlanılamadığında da).
+- Studio'daki kopya çizim kodu (`CanvasPreviews.tsx`, `useCanvasSamples`, `canvasSamples`, `preview-samples.ts` ve `CustomPagesPage.tsx` içindeki çizim dalları) bu projede silinmez. Silme önce alt proje 4'e bırakılmıştı; kullanıcı 2026-11-25'te **toplu geçişe (5b)** erteledi, çünkü kalıpsız sayfaların kart içi tasarım modu, sekmeye bileşen koyma, boyut tutamaçları ve yedek tuval yalnız bu kodda var (`preview-samples.ts` ayrıca Hazır ekran görünümleri aracında kullanılıyor). Kart içi tasarım modu ERP'de sayfa yüzeyinde görünmediği için eski tuval bu süre boyunca yedek olarak kullanılır (ERP'ye bağlanılamadığında da).
 
 ### 6.9 Studio'nun yapısı (taslak 07, kullanıcı onayladı)
 
@@ -345,7 +345,7 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    
    Eski araçlar menüden ancak yerlerini alan ekranlar hazır olunca kalkar (§11). 1. projeden bağımsızdır, onunla paralel yürüyebilir.
 3. **Sayfa kalıpları (§6.1) + yeni panel kabuğu + Liste (§6.3).**
-4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).**
+4. **Detay ekranı (§6.4) ve otomatik yerleşim (§6.5).** Kapsam (kullanıcının kararı, 2026-11-25): Kayıt kartı kalıbı, 1. ve 2. basamak (tasarım `2026-11-25-kayit-karti-design.md`, plan `2026-11-25-kayit-karti.md`). Serbest gövde (3. basamak) 5. projeye, Önceki / Sonraki sonraya, eski Studio tuvalinin silinmesi 5b'ye kaldı.
 5. **Kalan bileşenlerin birleştirilmesi (§6.2).** Kullanıcı 2026-11-26'da üç plana böldü:
    - **5a** (plan `2026-11-26-bilesen-panelleri-5a.md`, taslak 03 onaylı): Metin, Bilgi kutusu, Gösterge, Görsel ve Butonlar panelleri; kalıplı sayfada 11 bileşenli palet. Gösterge değeri mevcut katalog veri kaynaklarından gelir; Görsel'de dosya yükleme ertelendi.
    - **İkinci plan** (alt proje 4 birleşince, kendi taslağıyla): Form, Satır tablosu, Kayıt özeti, Bölümler ve serbest gövde (3. basamak).
@@ -356,6 +356,7 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
    - **Prova:** geçiş önce firma veritabanlarının geri yüklenmiş bir kopyasında yapılır (canlı yayınlarda kullanılan prova yöntemi). Davranış testleri burada çalıştırılır: sorgular aynı sonucu veriyor mu, eylemler aynı işlemi yapıyor mu, yetkiler aynı mı.
    - **Geri dönüş:** her sayfanın geçiş öncesi tanımı bir sürüm olarak saklanır. Tek komutla bütün sayfalar ya da tek bir sayfa eski haline döner.
    - **Geçişten sonra:** eski yerleşim dalı ERP'den kaldırılır. Bu da §10'daki "iki yerleşim dalı" durumunu sona erdirir.
+   - **Eski Studio tuvali** (§6.8'deki kopya çizim kodu) bu adımda silinir.
 6. **Belge kuralları (§6.6).** Önce bir modülde (öneri: satış siparişi) belge modeli, hesaplama ve durum geçişleri kurulur, sonra Kurallar ekranı. Bu proje satış envanterindeki G-S7, G-S8 ve G-S9'u da kapatır. 2. projeden bağımsız olarak başlayabilir.
 
 ## 8. Kurucuya bırakılanlar
@@ -397,6 +398,15 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
   - Karar 5: eylemin her parametresi aynı adlı liste kolonuna bağlanır; eşleşmeyen eylem seçilemez, toplu eylem yalnız silme olabilir.
   - Karar 6: satıra çift tıklama "Kartı aç", "Yan panelde göster" ya da "Hiçbir şey" olur; kaynakta `opens` ya da anahtar kolon yoksa kartı aç seçilemez.
   - Karar 7: ERP tuvali kullanılamıyorsa tuval alanında "Bu ekran ERP önizlemesi açılınca görünür." yazar; panel çalışır.
+- **Kayıt kartı, alt proje 4** (plan: `docs/superpowers/plans/2026-11-25-kayit-karti.md`).
+  - Yaklaşım A: kart, Liste gibi bir kalıptır; sayfa modeli yalnız kayıt kaynağı, sekmeler, bölümler ve alanlardan oluşur.
+  - Katalog kolona üç bayrak ekler: uzun metin, zorunlu, en çok uzunluk. Uzun metin yeni girdi türü değil, master'daki `multiline` ile yapılır; girdiye yalnız `readOnly` eklenir. Zorunluluk kilidi yalnız Studio'da uygulanır.
+  - Kaydet'ten sonra yeni kayıt yazılan anahtarla yeniden açılır ve "Kaydedildi." der; Sil onaydan sonra listeye döner ve "Silindi" der. Kaydet'in hakları çalışacak adımlardan gelir; eklemesiz yeni kayıtta Kaydet nedenini söyleyerek pasiftir.
+  - Liste'ye "+ Yeni" bu projede eklenir (yoksa yeni kayıt kipine ulaşılamaz). Hedef kartta ekleme yoksa "+ Yeni" gizlenmez; bu sonraya kaldı.
+  - Tuvaldeki örnek kayıt ucu yalnız yöneticide (TenantAdmin) çalışır; örnek parametreler taslak başına saklanır.
+  - Bir bölümde en çok 12 alan olur (sunucu sınırı); fazlası "Diğer bilgiler" bölümlerine taşar. Ondalık özet değeri katalogda para birimi olmadığından `money` değil `number` biçimiyle gösterilir.
+  - Sekmeler taslaktaki alt çizgi yerine ERP'nin mevcut hap biçimini korur (tüm ERP ekranlarıyla tutarlılık).
+  - Kullanıcının ertelemeleri: eski Studio tuvalinin silinmesi 5b'ye, serbest gövde (3. basamak) 5. projeye, Önceki / Sonraki sonraya.
 
 ## 11. Kullanıcının kararları (2026-11-25)
 

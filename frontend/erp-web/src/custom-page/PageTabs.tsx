@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { CanvasTabsContext } from "../designer-canvas/anchorContext";
 import { displayText, interpolate, literalText, resolvePath, type PageScope } from "./pageBindings";
 
 const INVALID_CONTROL = ".tenant-page-input.is-invalid input, .tenant-page-input.is-invalid select";
@@ -25,20 +26,36 @@ export function boundTab(tab: { label: string; ids: string[] }, scope: PageScope
  * etkin olmayan paneller `hidden` taşır. `jumpTo.signal` değişince o sekme etkinleşir ve içindeki ilk geçersiz denetime
  * odak verilir.
  */
-export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style }: {
+export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style, tabAnchor, activeIndex }: {
   id: string; tabs: PageTab[]; defaultTab: number;
+  /**
+   * Dışarıdan denetlenen etkin sekme; verilirse kendi durumunu ezer. Tuval bunu değil `CanvasTabsContext`'i kullanır:
+   * oradaki `showTab` istekleri olay gibi uygulanır ve kullanıcının tıklaması sekmeyi yine değiştirir.
+   */
+  activeIndex?: number;
+  /** Her sekme düğmesinin hemen önüne konan görünmez işaret (Studio tuvali; yalnız Kayıt kartı). */
+  tabAnchor?: (index: number) => ReactNode;
   /** Sayfa parametresinin istediği sekme (`tabParam`); `key` değişince (açık tutulan sayfa yeni parametreyle açıldığında) etkinleşir. */
   requestedTab?: { tab: number; key: string } | null;
   renderOwned: (id: string) => ReactNode; errorCounts: number[]; jumpTo: { tab: number; signal: number } | null; style: CSSProperties;
 }) {
   const clamp = (index: number) => Math.max(0, Math.min(tabs.length - 1, Number.isInteger(index) ? index : 0));
-  const [active, setActive] = useState(() => clamp(defaultTab));
-  const current = clamp(active);
+  const canvasTab = useContext(CanvasTabsContext)?.get(id);
+  const [active, setActive] = useState(() => clamp(canvasTab?.index ?? defaultTab));
+  const current = clamp(activeIndex ?? active);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);
   const handledSignal = useRef(jumpTo?.signal);
   const handledRequest = useRef(requestedTab?.key);
+  const handledCanvasSignal = useRef(canvasTab?.signal);
+
+  // Tuval showTab'ı bir olaydır: yeni istek etkin sekmeyi değiştirir, sonraki tıklamalar yine kendi durumunu değiştirir.
+  useEffect(() => {
+    if (!canvasTab || canvasTab.signal === handledCanvasSignal.current) return;
+    handledCanvasSignal.current = canvasTab.signal;
+    setActive(clamp(canvasTab.index));
+  }, [canvasTab?.signal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!requestedTab || requestedTab.key === handledRequest.current) return;
@@ -86,13 +103,14 @@ export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwne
       {tabs.map((tab, index) => {
         const errors = errorCounts[index] ?? 0;
         const selected = index === current;
-        return <button key={index} ref={(element) => { tabRefs.current[index] = element; }} type="button" role="tab" id={tabId(index)}
+        const button = <button key={index} ref={(element) => { tabRefs.current[index] = element; }} type="button" role="tab" id={tabId(index)}
           aria-selected={selected} aria-controls={panelId(index)} tabIndex={selected ? 0 : -1}
           className={`tenant-page-tab${selected ? " is-active" : ""}${errors > 0 ? " is-error" : ""}`} onClick={() => setActive(index)}>
           <span>{tab.label}</span>
           {tab.count !== undefined && <>{" "}<span className="tenant-page-tab-count">{tab.count}</span></>}
           {errors > 0 && <span className="tenant-page-tab-badge" aria-label={`${errors} hata`}>{errors}</span>}
         </button>;
+        return tabAnchor ? <Fragment key={index}>{tabAnchor(index)}{button}</Fragment> : button;
       })}
     </div>
     {tabs.map((tab, index) => <div key={index} ref={(element) => { panelRefs.current[index] = element; }} role="tabpanel" id={panelId(index)}

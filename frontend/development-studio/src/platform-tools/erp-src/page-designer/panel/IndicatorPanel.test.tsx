@@ -6,7 +6,7 @@ import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { chooseIndicatorSource, setIndicatorCompare, setIndicatorKind, setIndicatorValue } from "./indicatorPanelModel";
 import { IndicatorPanel } from "./IndicatorPanel";
 
-const col = (code: string, label: string, type = "text") => ({ code, label, type, key: false });
+const col = (code: string, label: string, type = "text") => ({ code, label, type, key: false, longText: false, required: false, maxLength: null });
 const ozet: CatalogDataSource = { code: "cariOzet", label: "Cari bakiye özeti", source: "sql", erpOperation: null, parameters: [], opens: null,
   columns: [col("alacak", "Toplam alacak", "money"), col("gecenAy", "Geçen ay alacak", "money")] };
 const aranan: CatalogDataSource = { ...ozet, code: "aranan", label: "Aranan kayıtlar", parameters: [{ name: "q", type: "text" }] };

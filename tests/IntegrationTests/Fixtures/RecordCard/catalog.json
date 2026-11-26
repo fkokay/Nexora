@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "dataSources": [
+    {
+      "code": "cariListe", "label": "Cari listesi",
+      "source": { "sql": "SELECT kod, unvan, sehir FROM Cari" },
+      "columns": [
+        { "code": "kod", "label": "Cari kodu", "type": "text", "key": true },
+        { "code": "unvan", "label": "Ünvan", "type": "text" },
+        { "code": "sehir", "label": "Şehir", "type": "text" }
+      ],
+      "opens": "cari-karti"
+    },
+    {
+      "code": "cariKart", "label": "Cari kartı",
+      "source": { "sql": "SELECT kod, unvan, notlar, sehir, bakiye, acilis, aktif, kimlik FROM Cari WHERE kod = @kod" },
+      "parameters": [ { "name": "kod", "type": "text" } ],
+      "columns": [
+        { "code": "kod", "label": "Cari kodu", "type": "text", "key": true, "required": true, "maxLength": 20 },
+        { "code": "unvan", "label": "Ünvan", "type": "text", "required": true, "maxLength": 120 },
+        { "code": "notlar", "label": "Notlar", "type": "text", "longText": true, "maxLength": 2000 },
+        { "code": "sehir", "label": "Şehir", "type": "text", "maxLength": 40 },
+        { "code": "bakiye", "label": "Bakiye", "type": "decimal" },
+        { "code": "acilis", "label": "Açılış tarihi", "type": "date" },
+        { "code": "aktif", "label": "Aktif", "type": "bool", "required": true },
+        { "code": "kimlik", "label": "Kimlik", "type": "guid" }
+      ]
+    },
+    {
+      "code": "cariHareket", "label": "Hareketler",
+      "source": { "sql": "SELECT tarih, belge, tutar FROM CariHareket WHERE kod = @kod" },
+      "parameters": [ { "name": "kod", "type": "text" } ],
+      "columns": [
+        { "code": "tarih", "label": "Tarih", "type": "date" },
+        { "code": "belge", "label": "Belge no", "type": "text" },
+        { "code": "tutar", "label": "Tutar", "type": "decimal" }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "code": "cariEkle", "label": "Cari ekle", "target": "page", "kind": "insert",
+      "run": { "sql": "INSERT INTO Cari (kod, unvan, notlar, sehir) VALUES (@kod, @unvan, @notlar, @sehir)" },
+      "parameters": [ { "name": "kod", "type": "text" }, { "name": "unvan", "type": "text" }, { "name": "notlar", "type": "text" }, { "name": "sehir", "type": "text" } ]
+    },
+    {
+      "code": "cariEkleOtomatik", "label": "Cari ekle (otomatik kod)", "target": "page", "kind": "insert",
+      "run": { "sql": "INSERT INTO Cari (unvan, notlar) VALUES (@unvan, @notlar)" },
+      "parameters": [ { "name": "unvan", "type": "text" }, { "name": "notlar", "type": "text" } ]
+    },
+    {
+      "code": "cariGuncelle", "label": "Cari güncelle", "target": "row", "kind": "update",
+      "run": { "sql": "UPDATE Cari SET unvan = @unvan, notlar = @notlar, sehir = @sehir WHERE kod = @kod" },
+      "parameters": [ { "name": "kod", "type": "text" }, { "name": "unvan", "type": "text" }, { "name": "notlar", "type": "text" }, { "name": "sehir", "type": "text" } ]
+    },
+    {
+      "code": "cariSil", "label": "Cari sil", "target": "row", "kind": "delete",
+      "run": { "sql": "DELETE FROM Cari WHERE kod = @kod" },
+      "parameters": [ { "name": "kod", "type": "text" } ],
+      "confirm": { "text": "Cari silinsin mi?" }
+    },
+    {
+      "code": "pasifeAl", "label": "Pasife al", "target": "row", "kind": "update",
+      "run": { "sql": "UPDATE Cari SET aktif = 0 WHERE kod = @kod" },
+      "parameters": [ { "name": "kod", "type": "text" } ],
+      "confirm": { "text": "Cari pasife alınsın mı?" }
+    }
+  ]
+}

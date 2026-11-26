@@ -4,7 +4,7 @@ import { newListTemplateDefinition } from "../pageTemplates";
 import { fieldTokens, fromConsultantText, toConsultantText, type FieldToken } from "./consultantText";
 import { chooseDataSource, type ModelDefinition } from "./listPanelModel";
 
-const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key });
+const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key, longText: false, required: false, maxLength: null });
 const cariler: CatalogDataSource = {
   code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [], opens: null,
   columns: [col("id", "Kimlik", true), col("kod", "Cari kodu"), col("unvan", "Unvan")],

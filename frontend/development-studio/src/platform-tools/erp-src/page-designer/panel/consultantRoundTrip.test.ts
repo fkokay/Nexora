@@ -9,7 +9,7 @@ import { ensureTemplateSlots, TEMPLATE_SLOTS } from "./templateGuards";
 import { setHideOnMobile, setInfoBox, setTextAlign, setTextContent, setTextStyle } from "./textPanelModel";
 import { createConsultantComponent } from "./consultantPalette";
 
-const col = (code: string, label: string, type = "text", key = false) => ({ code, label, type, key });
+const col = (code: string, label: string, type = "text", key = false) => ({ code, label, type, key, longText: false, required: false, maxLength: null });
 const cariler: CatalogDataSource = {
   code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [], opens: null,
   columns: [col("id", "Kimlik", "text", true), col("kod", "Cari kodu"), col("logo", "Logo")],
