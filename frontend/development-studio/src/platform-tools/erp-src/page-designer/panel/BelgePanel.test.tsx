@@ -88,7 +88,7 @@ describe("Belge paneli (taslak 09)", () => {
   it("TemplateInspector belge parçasını Belge paneline yönlendirir", () => {
     const def = newBelgeTemplateDefinition() as unknown as ModelDefinition;
     const lines = def.components.find((c) => c.type === "documentLines")!;
-    const el = mount(<TemplateInspector component={lines} legacy={<p>eski</p>} list={null} onPlace={() => {}}
+    const el = mount(<TemplateInspector component={lines} legacy={<p>eski</p>} list={null} tokens={[]} onPlace={() => {}}
       belge={{ def, model, catalog: null, name: "Sipariş", onRename: () => {}, onChange: () => {} }}/>);
     expect(list(el, "Satır kolonları")).not.toBeNull();
     expect(el.textContent).not.toContain("eski");

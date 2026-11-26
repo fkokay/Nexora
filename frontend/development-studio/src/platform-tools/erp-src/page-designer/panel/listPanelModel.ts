@@ -98,7 +98,7 @@ export function rowOpenUsable(ds: CatalogDataSource): Usable {
 
 const keyColumn = (ds: CatalogDataSource) => ds.columns.find((column) => column.key)?.code;
 export const findList = (def: ModelDefinition, listId: string) => def.components.find((component) => component.id === listId && component.type === "dataTable");
-const tableName = (table: ModelComponent) => table.name || table.id;
+export const tableName = (table: ModelComponent) => table.name || table.id;
 const listQueryOf = (def: ModelDefinition, table: ModelComponent | undefined) =>
   table && typeof table.props.query === "string" ? def.queries.find((query) => query.id === table.props.query) : undefined;
 
@@ -203,7 +203,7 @@ function takenIds(def: ModelDefinition): Set<string> {
   return taken;
 }
 /** Sayfada (bileşen kimliği/adı ya da sorgu kimliği/adı olarak) kullanılmayan ilk ad: base, base2, base3… */
-function freeId(def: ModelDefinition, base: string, extra: Set<string> = new Set()): string {
+export function freeId(def: ModelDefinition, base: string, extra: Set<string> = new Set()): string {
   const taken = takenIds(def);
   const clean = base.replace(/[^A-Za-z0-9_]/g, "").slice(0, 60) || "oge";
   const root = /^[A-Za-z_]/.test(clean) ? clean : `k${clean}`;
