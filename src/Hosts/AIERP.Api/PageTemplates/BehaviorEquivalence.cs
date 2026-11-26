@@ -10,7 +10,8 @@ using System.Text.Json.Nodes;
 /// <item>Var olan her bileşen (çocuklar dahil) kalır; <c>type</c>, <c>name</c>, üst bileşeni ve çocuklarının sırası aynıdır;
 /// var olan bileşenlerin göreli sırası değişmez.</item>
 /// <item>Özelliklerden yalnız <c>slot</c>, <c>width</c>, <c>margin</c>, <c>padding</c>; bölümde (<c>section</c>) <c>columns</c> ve
-/// <c>members</c>; sekme bileşeninde (<c>tabs</c>) etiketleri ve sayısı aynı kalmak üzere <c>tabs</c> kimlik listeleri değişebilir.
+/// <c>members</c>; sekme bileşeninde (<c>tabs</c>) etiketleri, sayısı ve her sekmenin taşıdığı var olan bileşenler (bölümlerin
+/// <c>members</c> listesi açılarak) aynı kalmak üzere <c>tabs</c> kimlik listeleri değişebilir.
 /// <c>widthWhen</c> ve <c>title</c> var olan bileşende hiç değişemez (Karar 5'in katı okuması).</item>
 /// <item>Eklenen bileşen yalnız üst düzey, çocuksuz <c>section</c> (slot, columns, members, title, margin, padding) ya da
 /// <c>tabs</c> (slot, tabs) olabilir.</item>
@@ -48,6 +49,7 @@ internal static class BehaviorEquivalence
         if (Flatten(b) is not { } bs) return "Önceki tanımın bileşenleri okunamadı.";
         if (Flatten(a) is not { } @as) return "Dönüştürülen tanımın bileşenleri okunamadı.";
         var afterById = @as.ToDictionary(x => x.Id, StringComparer.Ordinal);
+        var beforeById = bs.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var beforeIds = bs.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
 
         foreach (var entry in bs)
@@ -62,6 +64,8 @@ internal static class BehaviorEquivalence
             if (!ChildIds(entry.Node).SequenceEqual(ChildIds(next.Node))) return $"'{entry.Id}' bileşeninin iç bileşenleri değişti.";
             var type = (string?)entry.Node["type"];
             if (PropsDifference(entry.Id, type, entry.Node["props"] as JsonObject, next.Node["props"] as JsonObject) is { } difference) return difference;
+            if (type == "tabs" && TabContentDifference(entry.Id, entry.Node["props"]?["tabs"], next.Node["props"]?["tabs"], beforeById, afterById) is { } tabDifference)
+                return tabDifference;
         }
 
         var beforeOrder = bs.Select(x => x.Id).ToArray();
@@ -135,6 +139,39 @@ internal static class BehaviorEquivalence
             if (bl < 0 || al < 0 || !string.Equals(bs[..bl], @as[..al], StringComparison.Ordinal)) return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Her sekme etiketi için önce/sonra taşıdığı var olan bileşen kümesi aynı mı. Bir kimlik bölümse (<c>section</c>) onun
+    /// <c>members</c> listesi de açılır; yalnız dönüşümde eklenen (önceki tanımda olmayan) kimlikler kümeye girmez.
+    /// </summary>
+    private static string? TabContentDifference(string id, JsonNode? before, JsonNode? after, Dictionary<string, Entry> beforeById, Dictionary<string, Entry> afterById)
+    {
+        if (before is not JsonArray b || after is not JsonArray a || b.Count != a.Count) return null; // label check reports this
+        for (var i = 0; i < b.Count; i++)
+        {
+            if (b[i] is not JsonValue bv || a[i] is not JsonValue av || !bv.TryGetValue<string>(out var bs) || !av.TryGetValue<string>(out var @as)) continue;
+            var bl = bs.IndexOf('=');
+            var al = @as.IndexOf('=');
+            if (bl < 0 || al < 0) continue;
+            var beforeSet = TabMembers(bs[(bl + 1)..], beforeById, beforeById);
+            var afterSet = TabMembers(@as[(al + 1)..], afterById, beforeById);
+            if (!beforeSet.SetEquals(afterSet)) return $"'{id}' bileşeninin '{bs[..bl]}' sekmesindeki bileşenler değişti.";
+        }
+        return null;
+    }
+
+    private static HashSet<string> TabMembers(string ids, Dictionary<string, Entry> nodes, Dictionary<string, Entry> existing)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (existing.ContainsKey(id)) result.Add(id);
+            if (!nodes.TryGetValue(id, out var node) || (string?)node.Node["type"] != "section" || node.Node["props"]?["members"] is not JsonArray members) continue;
+            foreach (var member in members.OfType<JsonValue>())
+                if (member.TryGetValue<string>(out var memberId) && existing.ContainsKey(memberId)) result.Add(memberId);
+        }
+        return result;
     }
 
     private static List<string> ChildIds(JsonObject component) =>

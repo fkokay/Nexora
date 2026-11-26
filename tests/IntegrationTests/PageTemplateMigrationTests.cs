@@ -304,6 +304,31 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Equivalence_rejects_components_moved_between_tabs()
+    {
+        var before = TabsPage();
+        var after = Converted(before, "free").ConvertedJson!;
+        var tabs = Strings(Component(after, "sekme")["props"]!["tabs"]);
+        Assert.Equal(2, tabs.Length);
+
+        // Same labels, same count, but the tabs' contents swapped: the item set per label changed.
+        var swapped = JsonNode.Parse(after)!;
+        var ids = tabs.Select(x => x[(x.IndexOf('=') + 1)..]).ToArray();
+        swapped["components"]!.AsArray().Single(x => (string?)x!["id"] == "sekme")!["props"]!["tabs"] =
+            new JsonArray($"Genel={ids[1]}", $"Diğer={ids[0]}");
+        Assert.Contains("sekmesindeki bileşenler", BehaviorEquivalence.Check(before, swapped.ToJsonString()));
+
+        // A member moved from one block to another across tabs is caught through the section members too.
+        var moved = JsonNode.Parse(after)!;
+        var blocks = moved["components"]!.AsArray().OfType<JsonObject>().Where(x => (string?)x["type"] == "section" && x["props"]?["members"] is JsonArray).ToList();
+        var first = blocks.Single(x => Strings(x["props"]!["members"]).Contains("m1"));
+        var second = blocks.Single(x => Strings(x["props"]!["members"]).Contains("t2"));
+        first["props"]!["members"] = new JsonArray("t1");
+        second["props"]!["members"] = new JsonArray("m1", "t2");
+        Assert.NotNull(BehaviorEquivalence.Check(before, moved.ToJsonString()));
+    }
+
+    [Fact]
     public void Converted_definition_passes_schema_and_template_validation()
     {
         foreach (var (json, target) in new[] { (ListPage(), "list"), (DashboardPage(), "free"), (SectionPage(), "free"), (TabsPage(), "free") })
