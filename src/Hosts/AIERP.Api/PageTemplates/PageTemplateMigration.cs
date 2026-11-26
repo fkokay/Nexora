@@ -257,8 +257,6 @@ internal static class PageTemplateMigration
             .Select(x => x.TryGetValue<string>(out var id) ? id : "").ToList();
         foreach (var input in components.Where(x => TypeOf(x) == "input"))
             if (cardInputs.Count(x => x == IdOf(input)) != 1) return new(null, RecordFieldOutsideSectionReason(IdOf(input)));
-        // Kayıt kartında satır eylemi yeri yok: satır düğmeleri 'actions'a düşüp kabukta da çizilirdi.
-        if (RowOwnedButtons(components.Where(x => TypeOf(x) == "dataTable")).Count > 0) return new(null, RecordRowActionsReason);
         if (components.Any(x => TypeOf(x) == "actionBar" && HasProp(x["props"] as JsonObject, "titleCount"))) return new(null, RecordTitleCountReason);
 
         var tabsList = components.Where(x => TypeOf(x) == "tabs").ToList();
@@ -322,7 +320,10 @@ internal static class PageTemplateMigration
         if (added is not null) array.Insert(array.IndexOf(cards[0]), added);
         root["template"] = new JsonObject { ["name"] = "record" };
         var json = root.ToJsonString(Output);
-        return CustomPageQueryEndpoints.RecordKeyParam(json) is null ? new(null, RecordNeedsKeyReason) : new(json, null);
+        if (CustomPageQueryEndpoints.RecordKeyParam(json) is null) return new(null, RecordNeedsKeyReason);
+        // Kayıt kartında satır eylemi yeri yok: satır düğmeleri 'actions'a düşüp kabukta da çizilirdi. Planın nedenleri önce gelir.
+        if (RowOwnedButtons(components.Where(x => TypeOf(x) == "dataTable")).Count > 0) return new(null, RecordRowActionsReason);
+        return new(json, null);
     }
 
     /// <summary>Sayfada (bileşen ya da sorgu kimliği olarak) kullanılmayan ilk kimlik: <paramref name="name"/>, <c>name-2</c>…</summary>

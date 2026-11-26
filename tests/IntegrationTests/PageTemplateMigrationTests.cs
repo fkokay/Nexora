@@ -361,6 +361,7 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"Kayıt kartı (record): {results.Count(x => x.Result.Target == "record")}");
+        output.WriteLine("Çubuk düğmesi aynı zamanda satır düğmesi: " + string.Join(", ", standards.Where(x => BarAndRowOwned(x.DefinitionJson)).Select(x => x.ScreenKey)));
         output.WriteLine("Hedefe göre: " + string.Join(", ", results.GroupBy(x => x.Result.Target ?? "—").OrderBy(x => x.Key, StringComparer.Ordinal)
             .Select(x => $"{x.Key}={x.Count()}")));
         output.WriteLine("En sık 10 neden:");
@@ -369,6 +370,22 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
         output.WriteLine("Sayfalar:");
         foreach (var (key, result) in results)
             output.WriteLine($"  {key}: {result.Target ?? "—"} | {string.Join(" | ", result.Reasons)}");
+    }
+
+    private static bool BarAndRowOwned(string json)
+    {
+        var components = JsonNode.Parse(json)!["components"]!.AsArray().OfType<JsonObject>().ToList();
+        static IEnumerable<string> IdsOf(JsonNode? node) => node switch
+        {
+            JsonValue one when one.TryGetValue<string>(out var id) => [id],
+            JsonArray many => many.OfType<JsonValue>().Select(x => x.TryGetValue<string>(out var id) ? id : ""),
+            _ => []
+        };
+        var bar = components.Where(x => (string?)x["type"] == "actionBar")
+            .SelectMany(x => new[] { "moreButtons", "newButton", "openButton", "afterSaveButton" }.SelectMany(key => IdsOf(x["props"]?[key]))).ToHashSet();
+        var row = components.Where(x => (string?)x["type"] == "dataTable")
+            .SelectMany(x => IdsOf(x["props"]?["rowActions"]).Concat(IdsOf(x["props"]?["rowOpenAction"]))).ToHashSet();
+        return bar.Overlaps(row);
     }
 
     // ---------------- 5b-2a: işlem çubuğu ve Kayıt kartı ----------------
@@ -562,6 +579,16 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
         var result = PageTemplateMigration.Classify(RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, titleCount = "{{kayit.rows.length}}" })), false);
         Assert.Null(result.Target);
         Assert.Contains("Kayıt kartında başlıkta kayıt sayısı yok.", result.Reasons);
+    }
+
+    [Fact]
+    public void Record_table_row_actions_report_reason()
+    {
+        var withRows = Page([.. RecordComponents(), C("satirlar", "dataTable", new { query = "kayit", rowActions = new[] { "satirSil" } }),
+            C("satirSil", "button", new { label = "Satırı sil", actionType = "query", queryId = "sil" })], RecordQueries);
+        var result = PageTemplateMigration.Classify(withRows, false);
+        Assert.Null(result.Target);
+        Assert.Contains("Veri listesinin satır eylemleri kayıt kartında yok.", result.Reasons);
     }
 
     [Fact]
