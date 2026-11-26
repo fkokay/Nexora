@@ -204,10 +204,10 @@ public sealed class PageTemplateMigrationRunTests
     public async Task Run_against_rehearsal_database_writes_only_to_the_copy()
     {
         using var kit = new Kit();
-        const string rehearsal = "AIERPTenant_R9_TplRehearsal";
+        var rehearsal = Kit.RehearsalName(Kit.TenantA);
         await kit.SeedPublishedAsync(Kit.TenantA, "musteri-listesi", "Müşteri listesi", Kit.ListPage);
         await kit.SeedAsync(rehearsal, Kit.TenantA, "musteri-listesi", "Müşteri listesi", Kit.ListPage, published: true);
-        var options = kit.RunOptions() with { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantA] = rehearsal } };
+        var options = kit.RunOptions() with { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantA] = rehearsal }, ExpectDatabases = [rehearsal] };
 
         var result = await kit.Runner().RunAsync(options, CancellationToken.None);
 
@@ -228,20 +228,28 @@ public sealed class PageTemplateMigrationRunTests
         var before = await kit.CountsAsync();
         var runner = kit.Runner();
 
-        foreach (var name in new[] { "AIERPTenant_R9Rehearsal", "Production_TplRehearsal;DROP", "AIERPTenant_x_tplrehearsal" })
+        // Only AIERPTenant_<guid:N>_TplRehearsal of the same tenant is accepted: not R9Rehearsal, not any other *_TplRehearsal,
+        // not another tenant's copy, not a different casing.
+        foreach (var name in new[] { "AIERPTenant_R9Rehearsal", "Production_TplRehearsal;DROP", "AIERPTenant_x_tplrehearsal", "AIERPTenant_R9_TplRehearsal",
+                     Kit.RehearsalName(Kit.TenantB), Kit.CanonicalName(Kit.TenantA), Kit.RehearsalName(Kit.TenantA).ToLowerInvariant(), Kit.RehearsalName(Kit.TenantA) + "\n" })
         {
-            var options = kit.RunOptions() with { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantA] = name } };
+            var options = kit.RunOptions() with { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantA] = name }, ExpectDatabases = [Kit.RehearsalName(Kit.TenantA)] };
             await Assert.ThrowsAsync<ArgumentException>(() => runner.RunAsync(options, CancellationToken.None));
-            await Assert.ThrowsAsync<ArgumentException>(() => runner.ReportAsync(kit.ReportOptions() with { RehearsalDatabases = options.RehearsalDatabases }, CancellationToken.None));
+            await Assert.ThrowsAsync<ArgumentException>(() => runner.ReportAsync(kit.ReportOptions() with
+            { TenantIds = [Kit.TenantA], RehearsalDatabases = options.RehearsalDatabases, ExpectDatabases = options.ExpectDatabases }, CancellationToken.None));
         }
         // A rehearsal for a tenant outside --tenants is refused too.
         await Assert.ThrowsAsync<ArgumentException>(() => runner.RunAsync(kit.RunOptions() with
-        { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantB] = "AIERPTenant_B_TplRehearsal" } }, CancellationToken.None));
+        { RehearsalDatabases = new Dictionary<Guid, string> { [Kit.TenantB] = Kit.RehearsalName(Kit.TenantB) }, ExpectDatabases = [Kit.RehearsalName(Kit.TenantB)] }, CancellationToken.None));
         Assert.Throws<ArgumentException>(() => PageTemplateMigrationOptions.Parse(["--page-template-migration-run=deneme-1", $"--tenants={Kit.TenantA}",
-            "--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP", $"--rehearsal-database={Kit.TenantA}=AIERPTenant_R9Rehearsal"]));
+            "--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP", $"--rehearsal-database={Kit.TenantA}=AIERPTenant_R9Rehearsal", $"--expect-databases=AIERPTenant_R9Rehearsal"]));
+        Assert.Throws<ArgumentException>(() => PageTemplateMigrationOptions.Parse(["--page-template-migration-run=deneme-1", $"--tenants={Kit.TenantA}",
+            "--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP", $"--rehearsal-database={Kit.TenantA}=AIERPTenant_R9_TplRehearsal", "--expect-databases=AIERPTenant_R9_TplRehearsal"]));
         var parsed = PageTemplateMigrationOptions.Parse(["--page-template-migration-run=deneme-1", $"--tenants={Kit.TenantA}",
-            "--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP", $"--rehearsal-database={Kit.TenantA}=AIERPTenant_R9_TplRehearsal"]);
-        Assert.Equal("AIERPTenant_R9_TplRehearsal", parsed.RehearsalDatabases[Kit.TenantA]);
+            "--confirm-page-template-migration=I_HAVE_A_VERIFIED_BACKUP", $"--rehearsal-database={Kit.TenantA}={Kit.RehearsalName(Kit.TenantA)}",
+            $"--expect-databases={Kit.RehearsalName(Kit.TenantA)}"]);
+        Assert.Equal(Kit.RehearsalName(Kit.TenantA), parsed.RehearsalDatabases[Kit.TenantA]);
+        Assert.Equal([Kit.RehearsalName(Kit.TenantA)], parsed.ExpectDatabases);
 
         Assert.Empty(kit.Databases.Opened);
         Assert.Equal(before, await kit.CountsAsync());

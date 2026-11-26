@@ -1,6 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AIERP.Api;
 
 /// <summary>
 /// Sınıflandırma sonucu. <see cref="ConvertedJson"/> yalnız dönüşüm şema + kalıp doğrulamasından ve
@@ -73,7 +74,10 @@ internal static class PageTemplateMigration
 
     private sealed record Attempt(string? Json, string? Reason);
 
-    public static MigrationResult Classify(string definitionJson, bool hasOpenDraft)
+    /// <param name="catalog">Firmanın etkin kataloğu: <c>dataSource</c> / <c>action</c> sorguları buna göre doğrulanır (yayın
+    /// kapısıyla aynı); null iken böyle bir sorgu taşıyan sayfa dönüştürülmez (standartlar kataloğa bağlı değildir).</param>
+    /// <param name="lookup">ERP işlem kataloğu; null iken <see cref="ErpOperationCatalog.TryGet"/> (test dikişi).</param>
+    public static MigrationResult Classify(string definitionJson, bool hasOpenDraft, CatalogBundle? catalog = null, ErpOperationLookup? lookup = null)
     {
         JsonObject root;
         try
@@ -100,7 +104,7 @@ internal static class PageTemplateMigration
         {
             var attempt = build((JsonObject)root.DeepClone());
             if (attempt.Json is null) { reasons.Add(attempt.Reason!); continue; }
-            if (!TenantCustomPageSchema.Validate(attempt.Json, out var error, TenantCustomPageQueries.OperationNames(definitionJson)))
+            if (!TenantCustomPageSchema.Validate(attempt.Json, out var error, TenantCustomPageQueries.OperationNames(definitionJson), lookup ?? ErpOperationCatalog.TryGet, catalog))
             { reasons.Add(ValidationFailedReason(error ?? "?")); continue; }
             if (BehaviorEquivalence.Check(definitionJson, attempt.Json) is { } difference)
             { equivalenceFailure ??= difference; reasons.Add(EquivalenceFailedReason(difference)); continue; }

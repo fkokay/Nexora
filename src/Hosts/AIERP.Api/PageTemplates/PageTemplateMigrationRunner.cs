@@ -9,10 +9,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AIERP.Api;
 
-internal delegate MigrationResult PageMigrationClassifier(string definitionJson, bool hasOpenDraft);
+internal delegate MigrationResult PageMigrationClassifier(string definitionJson, bool hasOpenDraft, CatalogBundle? catalog);
 internal delegate string? PageEquivalenceCheck(string before, string after);
 
-internal enum PageTemplateMigrationCommand { Report, Run, Rollback }
+internal enum PageTemplateMigrationCommand { Report, Run, Rollback, Verify }
 
 internal sealed record PageTemplateMigrationTenant(Guid TenantId, string Name);
 
@@ -20,40 +20,54 @@ internal sealed record PageTemplateMigrationTenant(Guid TenantId, string Name);
 internal interface IPageTemplateMigrationDatabases
 {
     Task<IReadOnlyList<PageTemplateMigrationTenant>> ActiveTenantsAsync(CancellationToken ct);
-    /// <summary>Opens <paramref name="databaseName"/>: the routed <c>AIERPTenant_&lt;guid&gt;</c> or a validated rehearsal copy.</summary>
+    /// <summary>Opens <paramref name="databaseName"/>: the routed <c>AIERPTenant_&lt;guid&gt;</c> or its <c>_TplRehearsal</c> copy.</summary>
     Task<TenantDbContext> OpenAsync(Guid tenantId, string databaseName, CancellationToken ct);
 }
 
 /// <summary>Parsed command line of the template migration (sub-project 5b-1). <see cref="Validate"/> runs before any connection.</summary>
 internal sealed partial record PageTemplateMigrationOptions(
     PageTemplateMigrationCommand Command, string? Batch, IReadOnlyList<Guid>? TenantIds, string? Confirmation, string? OutDir, string? PageCode,
-    IReadOnlyDictionary<Guid, string> RehearsalDatabases)
+    IReadOnlyDictionary<Guid, string> RehearsalDatabases, IReadOnlyList<string>? ExpectDatabases = null)
 {
+    /// <summary>Every argument of the migration mode starts with this; any such argument enters migration mode (typos fail there).</summary>
+    internal const string ModePrefix = "--page-template-migration";
     internal const string ReportFlag = "--page-template-migration-report";
     internal const string RunFlag = "--page-template-migration-run=";
     internal const string RollbackFlag = "--page-template-migration-rollback=";
+    internal const string VerifyFlag = "--page-template-migration-verify=";
     internal const string ConfirmFlag = "--confirm-page-template-migration=";
     internal const string ConfirmationValue = "I_HAVE_A_VERIFIED_BACKUP";
     internal const string RehearsalFlag = "--rehearsal-database=";
+    internal const string ExpectFlag = "--expect-databases=";
+    internal const string TenantsFlag = "--tenants=";
+    internal const string OutFlag = "--out=";
+    internal const string PageFlag = "--page=";
     internal const string RehearsalSuffix = "_TplRehearsal";
+    private static readonly string[] ValuedFlags = [RunFlag, RollbackFlag, VerifyFlag, ConfirmFlag, RehearsalFlag, ExpectFlag, TenantsFlag, OutFlag, PageFlag];
 
-    [GeneratedRegex("^[a-z0-9-]{4,64}$")] private static partial Regex BatchPattern();
-    [GeneratedRegex("^[A-Za-z0-9_]{1,128}$")] private static partial Regex DatabaseNamePattern();
+    [GeneratedRegex(@"\A[a-z0-9-]{4,64}\z")] private static partial Regex BatchPattern();
+    [GeneratedRegex(@"\A[A-Za-z0-9_]{1,128}\z")] private static partial Regex DatabaseNamePattern();
 
-    internal static bool IsRequested(string[] args) =>
-        args.Any(x => x == ReportFlag || x.StartsWith(RunFlag, StringComparison.Ordinal) || x.StartsWith(RollbackFlag, StringComparison.Ordinal));
+    internal static bool IsRequested(string[] args) => args.Any(x => x.StartsWith(ModePrefix, StringComparison.Ordinal));
 
-    /// <summary>Parses the arguments; throws <see cref="ArgumentException"/> on any malformed or missing value.</summary>
+    /// <summary>The only database name a rehearsal of <paramref name="tenantId"/> may use: <c>AIERPTenant_&lt;guid:N&gt;_TplRehearsal</c>.</summary>
+    internal static string RehearsalDatabaseName(Guid tenantId) => PageTemplateMigrationRunner.CanonicalDatabaseName(tenantId) + RehearsalSuffix;
+
+    /// <summary>Parses the arguments; throws <see cref="ArgumentException"/> on any unknown, malformed or missing value.</summary>
     internal static PageTemplateMigrationOptions Parse(string[] args)
     {
+        if (args.FirstOrDefault(x => x != ReportFlag && !ValuedFlags.Any(flag => x.StartsWith(flag, StringComparison.Ordinal))) is { } unknown)
+            throw new ArgumentException($"Unknown argument for the template migration: '{unknown}'. Values are given as --flag=value (no spaces).");
         var commands = new List<(PageTemplateMigrationCommand Command, string? Batch)>();
         if (args.Contains(ReportFlag, StringComparer.Ordinal)) commands.Add((PageTemplateMigrationCommand.Report, null));
         foreach (var arg in args.Where(x => x.StartsWith(RunFlag, StringComparison.Ordinal))) commands.Add((PageTemplateMigrationCommand.Run, arg[RunFlag.Length..]));
         foreach (var arg in args.Where(x => x.StartsWith(RollbackFlag, StringComparison.Ordinal))) commands.Add((PageTemplateMigrationCommand.Rollback, arg[RollbackFlag.Length..]));
-        if (commands.Count != 1) throw new ArgumentException("Use exactly one of --page-template-migration-report, --page-template-migration-run=<batch>, --page-template-migration-rollback=<batch>.");
+        foreach (var arg in args.Where(x => x.StartsWith(VerifyFlag, StringComparison.Ordinal))) commands.Add((PageTemplateMigrationCommand.Verify, arg[VerifyFlag.Length..]));
+        if (commands.Count != 1)
+            throw new ArgumentException("Use exactly one of --page-template-migration-report, --page-template-migration-run=<batch>, --page-template-migration-rollback=<batch>, --page-template-migration-verify=<batch>.");
 
         IReadOnlyList<Guid>? tenants = null;
-        if (Single(args, "--tenants=") is { } tenantList)
+        if (Single(args, TenantsFlag) is { } tenantList)
         {
             var parsed = new List<Guid>();
             foreach (var part in tenantList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -69,8 +83,11 @@ internal sealed partial record PageTemplateMigrationOptions(
                 throw new ArgumentException("Use --rehearsal-database=<tenant-guid>=<databaseName>.");
             if (!rehearsal.TryAdd(tenant, value[(separator + 1)..])) throw new ArgumentException($"--rehearsal-database is given twice for tenant {tenant:D}.");
         }
+        IReadOnlyList<string>? expect = Single(args, ExpectFlag) is { } expectList
+            ? expectList.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+            : null;
         var (command, batch) = commands[0];
-        var options = new PageTemplateMigrationOptions(command, batch, tenants, Single(args, ConfirmFlag), Single(args, "--out="), Single(args, "--page="), rehearsal);
+        var options = new PageTemplateMigrationOptions(command, batch, tenants, Single(args, ConfirmFlag), Single(args, OutFlag), Single(args, PageFlag), rehearsal, expect);
         options.Validate();
         return options;
     }
@@ -88,17 +105,31 @@ internal sealed partial record PageTemplateMigrationOptions(
 
     /// <summary>
     /// Throws <see cref="ArgumentException"/> unless the options are complete. Writing commands need the batch, an explicit
-    /// <c>--tenants</c> list (no default target) and the backup confirmation; a rehearsal database must end with
-    /// <see cref="RehearsalSuffix"/> and belong to a listed tenant.
+    /// <c>--tenants</c> list (no default target) and the backup confirmation. A rehearsal needs <c>--tenants</c>, a
+    /// <c>--rehearsal-database</c> for every listed tenant named exactly <see cref="RehearsalDatabaseName"/>, and
+    /// <c>--expect-databases</c>, so that no listed tenant silently falls back to its live database.
     /// </summary>
     internal void Validate()
     {
-        foreach (var (tenant, name) in RehearsalDatabases)
+        if (ExpectDatabases is not null && (ExpectDatabases.Count == 0 || ExpectDatabases.Any(x => !DatabaseNamePattern().IsMatch(x))))
+            throw new ArgumentException("--expect-databases must list database names (letters, digits, underscore), separated by commas.");
+        if (RehearsalDatabases.Count > 0)
         {
-            if (!DatabaseNamePattern().IsMatch(name) || !name.EndsWith(RehearsalSuffix, StringComparison.Ordinal))
-                throw new ArgumentException($"Rehearsal database '{name}' is refused: only names ending with {RehearsalSuffix} (letters, digits, underscore) are allowed.");
-            if (TenantIds is not null && !TenantIds.Contains(tenant))
-                throw new ArgumentException($"--rehearsal-database names tenant {tenant:D}, which is not in --tenants.");
+            if (TenantIds is null || TenantIds.Count == 0)
+                throw new ArgumentException("--rehearsal-database requires --tenants=<id,…>; every listed tenant needs its own rehearsal database.");
+            foreach (var (tenant, name) in RehearsalDatabases)
+            {
+                if (!TenantIds.Contains(tenant))
+                    throw new ArgumentException($"--rehearsal-database names tenant {tenant:D}, which is not in --tenants.");
+                var expected = RehearsalDatabaseName(tenant);
+                if (!string.Equals(name, expected, StringComparison.Ordinal))
+                    throw new ArgumentException($"Rehearsal database '{name}' is refused for tenant {tenant:D}: the only allowed name is {expected}.");
+            }
+            var missing = TenantIds.Where(x => !RehearsalDatabases.ContainsKey(x)).ToList();
+            if (missing.Count > 0)
+                throw new ArgumentException($"In a rehearsal every listed tenant needs its own --rehearsal-database (it would otherwise hit the live database); missing: {string.Join(", ", missing.Select(x => x.ToString("D")))}.");
+            if (ExpectDatabases is null)
+                throw new ArgumentException("A rehearsal requires --expect-databases=<name,…> listing every target database.");
         }
         if (Command == PageTemplateMigrationCommand.Report)
         {
@@ -107,11 +138,40 @@ internal sealed partial record PageTemplateMigrationOptions(
             return;
         }
         if (Batch is null || !BatchPattern().IsMatch(Batch)) throw new ArgumentException("The batch name must match ^[a-z0-9-]{4,64}$.");
+        if (Command == PageTemplateMigrationCommand.Verify)
+        {
+            if (PageCode is not null) throw new ArgumentException("--page is accepted only by --page-template-migration-rollback.");
+            return;
+        }
         if (TenantIds is null || TenantIds.Count == 0) throw new ArgumentException("--tenants=<id,…> is required for migration and rollback; there is no default target.");
         if (!string.Equals(Confirmation, ConfirmationValue, StringComparison.Ordinal))
             throw new ArgumentException($"Template migration and rollback require {ConfirmFlag}{ConfirmationValue}.");
         if (PageCode is not null && (Command != PageTemplateMigrationCommand.Rollback || !TenantCustomPageEndpoints.ValidCode(PageCode)))
             throw new ArgumentException("--page=<code> is accepted only by rollback and must be a valid page code.");
+    }
+}
+
+/// <summary>
+/// The CLI entry: parses, runs and maps the outcome to an exit code. 0 = done; 1 = a page failed with a write error (or a
+/// verification failed); 2 = an argument or target error (message only, no stack trace; nothing was written).
+/// </summary>
+internal static class PageTemplateMigrationCli
+{
+    internal static async Task<int> RunAsync(string[] args, Func<PageTemplateMigrationRunner> runner, TextWriter error, CancellationToken ct)
+    {
+        PageTemplateMigrationOptions options;
+        try { options = PageTemplateMigrationOptions.Parse(args); }
+        catch (ArgumentException exception)
+        {
+            await error.WriteLineAsync($"Kalıp geçişi başlatılmadı: {exception.Message}");
+            return 2;
+        }
+        try { return await runner().ExecuteAsync(options, ct); }
+        catch (ArgumentException exception)
+        {
+            await error.WriteLineAsync($"Kalıp geçişi durduruldu: {exception.Message}");
+            return 2;
+        }
     }
 }
 
@@ -145,12 +205,14 @@ internal sealed partial class PageTemplateMigrationRunner(
     /// <summary>The CLI acts as no user: revisions carry <see cref="Guid.Empty"/> and audit rows a null user.</summary>
     internal static readonly Guid SystemUserId = Guid.Empty;
 
-    private const string OpenDraftReason = "Sayfanın açık taslağı var; önce yayımlanmalı ya da silinmeli.";
+    private const string OpenDraftReason = PageTemplateMigration.OpenDraftReason;
+    internal const string SystemPageReason = "Sistem sayfası; standartlar ayrı geçirilir.";
+    internal const string DraftRowReason = "Taslak; toplu geçiş yalnız yayındaki tanımı taşır.";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     internal static PageTemplateMigrationRunner CreateDefault(IPageTemplateMigrationDatabases databases, TextWriter log) =>
-        new(databases, PageTemplateMigration.Classify, BehaviorEquivalence.Check, log);
+        new(databases, (json, hasOpenDraft, catalog) => PageTemplateMigration.Classify(json, hasOpenDraft, catalog), BehaviorEquivalence.Check, log);
 
     internal static string CanonicalDatabaseName(Guid tenantId) => TenantSqlCredentialPath.DatabaseName(tenantId, TenantSqlDatabaseComponent.Erp);
 
@@ -165,20 +227,24 @@ internal sealed partial class PageTemplateMigrationRunner(
         foreach (var (tenant, databaseName) in targets)
         {
             await using var db = await databases.OpenAsync(tenant.TenantId, databaseName, ct);
+            var catalog = await TenantCatalogStore.ActiveAsync(db, tenant.TenantId, ErpOperationCatalog.TryGet, ct);
             var rows = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant.TenantId && !x.IsArchived)
                 .OrderBy(x => x.Code).ThenByDescending(x => x.IsPublished)
-                .Select(x => new { x.Code, x.Name, x.IsPublished, x.DefinitionJson }).ToListAsync(ct);
+                .Select(x => new { x.Code, x.Name, x.IsPublished, x.ScreenKey, x.DefinitionJson }).ToListAsync(ct);
             var draftCodes = rows.Where(x => !x.IsPublished).Select(x => x.Code).ToHashSet(StringComparer.Ordinal);
+            // Same rules as run: only published, non-system pages without an open draft can get a target.
             var pages = rows.Select(x =>
             {
-                var result = SafeClassify(x.DefinitionJson, x.IsPublished && draftCodes.Contains(x.Code));
-                return new MigrationReportPage(x.Code, x.Name, x.IsPublished, result.Target, result.Reasons, EquivalenceText(result), result.LayoutChanges);
+                if (x.ScreenKey is not null) return new MigrationReportPage(x.Code, x.Name, x.IsPublished, null, [SystemPageReason], null, 0);
+                if (!x.IsPublished) return new MigrationReportPage(x.Code, x.Name, false, null, [DraftRowReason], null, 0);
+                var result = SafeClassify(x.DefinitionJson, draftCodes.Contains(x.Code), catalog);
+                return new MigrationReportPage(x.Code, x.Name, true, result.Target, result.Reasons, EquivalenceText(result), result.LayoutChanges);
             }).ToList();
             tenants.Add(new MigrationReportTenant(tenant.TenantId, tenant.Name, databaseName, pages));
         }
         var standards = SystemPageStandards.All.Values.OrderBy(x => x.ScreenKey, StringComparer.Ordinal).Select(x =>
         {
-            var result = SafeClassify(x.DefinitionJson, false);
+            var result = SafeClassify(x.DefinitionJson, false, null);
             return new MigrationReportStandard(x.ScreenKey, x.Version, result.Target, result.Reasons);
         }).ToList();
         var report = new MigrationReport(DateTimeOffset.UtcNow, tenants, standards, Summarize(tenants, standards));
@@ -190,9 +256,9 @@ internal sealed partial class PageTemplateMigrationRunner(
         return report;
     }
 
-    private MigrationResult SafeClassify(string definitionJson, bool hasOpenDraft)
+    private MigrationResult SafeClassify(string definitionJson, bool hasOpenDraft, CatalogBundle? catalog)
     {
-        try { return classify(definitionJson, hasOpenDraft); }
+        try { return classify(definitionJson, hasOpenDraft, catalog); }
         // Only the exception type is reported; its message could quote definition content.
         catch (Exception exception) { return new MigrationResult(null, [$"Sınıflandırma hatası: {exception.GetType().Name}."], null, null, 0); }
     }
@@ -254,7 +320,10 @@ internal sealed partial class PageTemplateMigrationRunner(
 
     // ---------------------------------------------------------------- targets
 
-    /// <summary>Resolves (and prints) every target database before any is opened. Unknown or inactive tenants fail the whole command.</summary>
+    /// <summary>
+    /// Resolves (and prints) every target database before any is opened. Unknown or inactive tenants, a rehearsal that does not
+    /// cover every target, or targets that differ from <c>--expect-databases</c> fail the whole command before anything is opened.
+    /// </summary>
     private async Task<IReadOnlyList<(PageTemplateMigrationTenant Tenant, string DatabaseName)>> ResolveTargetsAsync(PageTemplateMigrationOptions options, CancellationToken ct)
     {
         var active = await databases.ActiveTenantsAsync(ct);
@@ -268,10 +337,22 @@ internal sealed partial class PageTemplateMigrationRunner(
         }
         var unknownRehearsal = options.RehearsalDatabases.Keys.Where(id => selected.All(x => x.TenantId != id)).ToList();
         if (unknownRehearsal.Count > 0) throw new ArgumentException($"--rehearsal-database names tenant(s) that are not targeted: {string.Join(", ", unknownRehearsal.Select(x => x.ToString("D")))}.");
-        var targets = selected.Select(t => (t, options.RehearsalDatabases.TryGetValue(t.TenantId, out var rehearsal) ? rehearsal : CanonicalDatabaseName(t.TenantId))).ToList();
+        var rehearsalMode = options.RehearsalDatabases.Count > 0;
+        if (rehearsalMode && selected.FirstOrDefault(x => !options.RehearsalDatabases.ContainsKey(x.TenantId)) is { } uncovered)
+            throw new ArgumentException($"Tenant {uncovered.TenantId:D} has no --rehearsal-database; a rehearsal never falls back to a live database.");
+        var targets = selected.Select(t => (Tenant: t, DatabaseName: rehearsalMode ? PageTemplateMigrationOptions.RehearsalDatabaseName(t.TenantId) : CanonicalDatabaseName(t.TenantId))).ToList();
+        if (rehearsalMode && targets.Any(x => !string.Equals(x.DatabaseName, options.RehearsalDatabases[x.Tenant.TenantId], StringComparison.Ordinal)))
+            throw new ArgumentException("A rehearsal database name does not match AIERPTenant_<guid:N>_TplRehearsal.");
         log.WriteLine("Hedef veritabanları:");
         foreach (var (tenant, databaseName) in targets)
-            log.WriteLine($"  {databaseName}  ({tenant.Name}, {tenant.TenantId:D}){(options.RehearsalDatabases.ContainsKey(tenant.TenantId) ? "  [PROVA KOPYASI]" : "")}");
+            log.WriteLine($"  {databaseName}  ({tenant.Name}, {tenant.TenantId:D}){(rehearsalMode ? "  [PROVA KOPYASI]" : "  [CANLI]")}");
+        if (options.ExpectDatabases is { } expected)
+        {
+            var actual = targets.Select(x => x.DatabaseName).Order(StringComparer.Ordinal).ToList();
+            if (!actual.SequenceEqual(expected.Order(StringComparer.Ordinal), StringComparer.Ordinal))
+                throw new ArgumentException($"Target databases ({string.Join(", ", actual)}) differ from --expect-databases ({string.Join(", ", expected)}); nothing was opened.");
+            log.WriteLine("Hedefler --expect-databases ile aynı.");
+        }
         return targets;
     }
 
@@ -280,7 +361,7 @@ internal sealed partial class PageTemplateMigrationRunner(
 /// <summary>
 /// CLI database source: active tenants from PlatformDB; each ERP database through the routed tenant runtime credential
 /// (catalog entry Ready and canonical, Vault ERP credential), exactly as request routing does. A rehearsal override keeps
-/// that credential and server and changes only the database name (already validated to end with <c>_TplRehearsal</c>).
+/// that credential and server and changes only the database name (exactly <c>AIERPTenant_&lt;guid:N&gt;_TplRehearsal</c>).
 /// </summary>
 internal sealed class PageTemplateMigrationSqlDatabases(IServiceProvider services, string tenantConnectionTemplate) : IPageTemplateMigrationDatabases
 {
@@ -296,18 +377,28 @@ internal sealed class PageTemplateMigrationSqlDatabases(IServiceProvider service
     {
         await using var scope = services.CreateAsyncScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        EnsureAllowedDatabaseName(tenantId, databaseName);
         var canonical = PageTemplateMigrationRunner.CanonicalDatabaseName(tenantId);
         var entry = await platform.TenantDatabaseCatalog.AsNoTracking().Where(x => x.TenantId == tenantId).SingleOrDefaultAsync(ct);
         if (entry is null || entry.State != TenantDatabaseProvisioningState.Ready || !string.Equals(entry.DatabaseName, canonical, StringComparison.Ordinal))
             throw new InvalidOperationException($"Tenant {tenantId:D} has no Ready canonical ERP database.");
-        if (!string.Equals(databaseName, canonical, StringComparison.Ordinal)
-            && !databaseName.EndsWith(PageTemplateMigrationOptions.RehearsalSuffix, StringComparison.Ordinal))
-            throw new InvalidOperationException($"Database '{databaseName}' is neither the routed database nor a rehearsal copy.");
         var reader = scope.ServiceProvider.GetRequiredService<ITenantSqlCredentialReader>();
         var credential = await reader.ReadAsync(tenantId, TenantSqlDatabaseComponent.Erp, TenantSqlCredentialPath.ForTenant(tenantId, TenantSqlDatabaseComponent.Erp), ct);
         var connection = new SqlConnectionStringBuilder(TenantDatabaseRouting.BuildTenantConnectionString(tenantConnectionTemplate, tenantId, credential))
         { InitialCatalog = databaseName, ApplicationName = "Nexora.PageTemplateMigration" }.ConnectionString;
         return new TenantDbContext(new DbContextOptionsBuilder<TenantDbContext>().UseSqlServer(connection).Options,
             new AuditExecutionContext(tenantId, null, "page-template-migration"));
+    }
+
+    /// <summary>
+    /// Last guard before a connection: the tenant's own routed database <c>AIERPTenant_&lt;guid:N&gt;</c> or exactly its rehearsal
+    /// copy <c>AIERPTenant_&lt;guid:N&gt;_TplRehearsal</c>; any other name (another tenant's copy, <c>AIERPTenant_R9Rehearsal</c>…) throws.
+    /// </summary>
+    internal static void EnsureAllowedDatabaseName(Guid tenantId, string databaseName)
+    {
+        var canonical = PageTemplateMigrationRunner.CanonicalDatabaseName(tenantId);
+        if (!string.Equals(databaseName, canonical, StringComparison.Ordinal)
+            && !string.Equals(databaseName, PageTemplateMigrationOptions.RehearsalDatabaseName(tenantId), StringComparison.Ordinal))
+            throw new InvalidOperationException($"Database '{databaseName}' is neither the routed database of tenant {tenantId:D} nor its rehearsal copy.");
     }
 }

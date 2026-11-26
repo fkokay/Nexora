@@ -183,8 +183,11 @@ internal sealed class PageTemplateMigrationTestKit : IDisposable
         Databases = new TestDatabases(this, storeFor ?? (name => $"{prefix}-{name}"));
 
     internal static string CanonicalName(Guid tenant) => $"AIERPTenant_{tenant:N}";
+    internal static string RehearsalName(Guid tenant) => $"AIERPTenant_{tenant:N}_TplRehearsal";
 
     internal PageTemplateMigrationRunner Runner() => new(Databases, Classify, BehaviorEquivalence.Check, Log);
+    /// <summary>The production classifier and equivalence check (<see cref="PageTemplateMigrationRunner.CreateDefault"/>).</summary>
+    internal PageTemplateMigrationRunner RealRunner() => PageTemplateMigrationRunner.CreateDefault(Databases, Log);
 
     internal PageTemplateMigrationOptions ReportOptions() => new(PageTemplateMigrationCommand.Report, null, null, null, OutDir, null,
         new Dictionary<Guid, string>());
@@ -194,6 +197,9 @@ internal sealed class PageTemplateMigrationTestKit : IDisposable
 
     internal PageTemplateMigrationOptions RollbackOptions(string batch = "deneme-1", string? page = null, params Guid[] tenants) => new(PageTemplateMigrationCommand.Rollback, batch,
         tenants.Length == 0 ? [TenantA] : tenants, PageTemplateMigrationOptions.ConfirmationValue, null, page, new Dictionary<Guid, string>());
+
+    internal PageTemplateMigrationOptions VerifyOptions(string batch = "deneme-1", params Guid[] tenants) => new(PageTemplateMigrationCommand.Verify, batch,
+        tenants.Length == 0 ? [TenantA] : tenants, null, null, null, new Dictionary<Guid, string>());
 
     internal TenantDbContext OpenStore(string store) => new(new DbContextOptionsBuilder<TenantDbContext>()
         .UseInMemoryDatabase(store, Root)
@@ -245,7 +251,7 @@ internal sealed class PageTemplateMigrationTestKit : IDisposable
     }
 
     /// <summary>All-dataTable pages become a list template (slot "list", width removed); others are not converted.</summary>
-    internal static MigrationResult Classify(string definitionJson, bool hasOpenDraft)
+    internal static MigrationResult Classify(string definitionJson, bool hasOpenDraft, CatalogBundle? catalog)
     {
         var root = JsonNode.Parse(definitionJson)!.AsObject();
         if (root.ContainsKey("template")) return new(null, ["Sayfa zaten kalıplı."], null, null, 0);
