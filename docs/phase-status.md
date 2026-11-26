@@ -1,4 +1,20 @@
 # Master Prompt Phase Status
+### 2026-11-26 Free body template (subproject 5c)
+
+Pages can now use a third template, **Serbest** (`template: { "name": "free" }`, level 3): the shared shell (title, action bar) around optional tabs and sections, each section 1, 2 or 3 columns. A section lists its components by id (`members`), so the components stay top-level and the 5a panels work on them unchanged. The new-page dialog offers Liste, Kayıt kartı, Serbest and, last, "Eski tasarımcı (kalıpsız)"; the Ekranlar list shows "Serbest · 3. basamak".
+
+- **Server:** `free` template rules (actions ≤8, at most one tabs component, 1–20 sections, ≤12 members per section, every component in exactly one section, every section in exactly one tab, no empty tab, no `children`, no width/actionBar/spacer/divider, a table needs a read query); `members` only on a free section; section `columns` 1–3; `pageSize` 10/25/50/100 on a free table.
+- **ERP:** `FreeTemplate` draws tabs and sections through the page renderer (canvas anchors), sections reduce columns by box width like the record card (>720 / ≤720 / ≤480), full-row tables, images and bulleted boxes, `hideOnMobile`; empty sections show a placeholder only on the canvas. The free table is read-only: no search, filters, column chooser, pivot or export.
+- **Studio:** pure `freeModel` (sections, tabs — never an empty tab —, item placement, page actions) and the free guard in `ensureTemplateSlots`; page and section panels (`FreePanel`), a read-only table panel, the palette (Metin, Bilgi kutusu, Gösterge, Liste, Bölümler, Görsel; Form, Kayıt özeti, Satır tablosu, Butonlar and Yazılımcı bileşeni disabled with the reason), a "Bölüm" place control with Yukarı / Aşağı / Kaldır, Delete and Duplicate routed through the model, a source hint before a table without a source is saved, and the canvas switching to the tab of the selected section or component.
+- **Kayıt kartı:** 5a panels now open for components above or below the card; text fields and "Kayıttaki resim" bind to the record (`{{kayit.rows[0].<kolon>}}`).
+- No migration.
+
+Test results (2026-11-26, branch `claude/serbest-govde-5c`): development-studio `npm test` 981 vitest + 13 node tests and `npm run build` passed after the final fixes; erp-web `npm run build` passed and `npm test` on the integrated branch had 54 failures from worker timeouts under machine load (dotnet ran in parallel) in 13 files, mostly modules this branch does not touch — those 13 files plus `src/page-templates` re-run alone passed 261/261; `dotnet test AIERP.slnx` unit tests 1183/1183; integration tests 1841 passed, 64 skipped (SQL Server acceptance), 82 failed with request timeouts under heavy machine load (HTTP 499 / TaskCanceled) in 22 classes this branch does not touch — re-running those classes alone was still in progress when this entry was written; the Studio-built free definition passes the real server validator (`TenantCustomPageFreeStudioFixtureTests` 2/2).
+
+Not verified: a browser pass against Studio + ERP; a real backend and login; Docker Compose; the publish flow end to end.
+
+Deploy order: platform-api and erp-web first, then development-studio.
+
 ### 2026-11-26 Consultant component panels, part one (subproject 5a)
 
 On template pages the designer now offers the consultant's 11 components instead of the 30 component types, and five of them have the single-column panel from approved mockup 03: Metin, Bilgi kutusu, Gösterge, Görsel and Butonlar. Liste keeps its subproject 3 panel; Form, Satır tablosu, Kayıt özeti, Bölümler and Yazılımcı bileşeni show in the palette as disabled with the reason. Pages without a template keep the old palette and inspector.

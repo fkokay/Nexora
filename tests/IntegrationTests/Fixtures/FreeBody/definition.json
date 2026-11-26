@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 2,
+  "template": {
+    "name": "free"
+  },
+  "queries": [
+    {
+      "id": "kaynak",
+      "name": "kaynak",
+      "kind": "read",
+      "dataSource": "cariListe",
+      "parameters": [],
+      "runOn": "load"
+    },
+    {
+      "id": "raporYenile",
+      "name": "raporYenile",
+      "kind": "update",
+      "action": "raporYenile",
+      "runOn": "manual",
+      "parameters": []
+    }
+  ],
+  "components": [
+    {
+      "id": "sekmeler",
+      "type": "tabs",
+      "props": {
+        "slot": "tabs",
+        "tabs": [
+          "Genel=bolum",
+          "Ayrıntı=bolum2"
+        ]
+      }
+    },
+    {
+      "id": "bolum",
+      "type": "section",
+      "props": {
+        "slot": "block",
+        "title": "Özet",
+        "columns": 3,
+        "members": [
+          "metin",
+          "bilgi",
+          "gosterge",
+          "gorsel"
+        ],
+        "visibleWhen": "kullanici.rol == 'TenantAdmin'",
+        "hideOnMobile": true
+      }
+    },
+    {
+      "id": "bolum2",
+      "type": "section",
+      "props": {
+        "slot": "block",
+        "title": "Bölüm 2",
+        "columns": 2,
+        "members": [
+          "liste"
+        ]
+      }
+    },
+    {
+      "id": "metin",
+      "type": "text",
+      "props": {
+        "text": "Bugünkü durum",
+        "slot": "item"
+      }
+    },
+    {
+      "id": "bilgi",
+      "type": "alert",
+      "props": {
+        "title": "Dikkat",
+        "text": "Rapor her sabah yenilenir.",
+        "slot": "item",
+        "variant": "warning"
+      }
+    },
+    {
+      "id": "gosterge",
+      "type": "metric",
+      "props": {
+        "title": "Gösterge",
+        "slot": "item",
+        "query": "kaynak",
+        "countWhen": "kaynak.satir.kod != null"
+      }
+    },
+    {
+      "id": "gorsel",
+      "type": "image",
+      "props": {
+        "title": "Logo",
+        "value": "https://ornek.com/logo.png",
+        "height": 160,
+        "slot": "item"
+      }
+    },
+    {
+      "id": "liste",
+      "type": "dataTable",
+      "props": {
+        "slot": "item",
+        "query": "kaynak",
+        "title": "Cari listesi",
+        "pageSize": 25,
+        "columns": [
+          "kod",
+          "unvan",
+          "sehir"
+        ],
+        "columnLabels": [
+          "kod=Cari kodu",
+          "unvan=Ünvan",
+          "sehir=Şehir"
+        ],
+        "emptyText": "Cari yok."
+      }
+    },
+    {
+      "id": "raporYenileDugmesi",
+      "type": "button",
+      "props": {
+        "slot": "actions",
+        "text": "Raporu yenile",
+        "actionType": "query",
+        "queryId": "raporYenile",
+        "confirmEnabled": true,
+        "confirmText": "Rapor yenilensin mi?"
+      }
+    }
+  ]
+}

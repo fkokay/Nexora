@@ -25,6 +25,11 @@ type Props = {
    * isteği yollar ve istek, ERP belgesi yeniden açıldığında (ready) yinelenir.
    */
   overlay?: (frame: { blocks: CanvasBlock[]; showTab: (tabsId: string, index: number) => void }) => ReactNode;
+  /**
+   * Kaplamasız tuvalde (serbest gövde) gösterilmesi istenen sekme: değişince (ya da `key` değişince) `showTab` yollanır; istek
+   * overlay'deki gibi ERP belgesi yeniden açıldığında yinelenir.
+   */
+  tabRequest?: { tabsId: string; index: number; key?: string } | null;
 };
 
 const READY_TIMEOUT_MS = 10_000;
@@ -113,6 +118,13 @@ export default function ErpCanvasFrame(props: Props) {
       window.removeEventListener("message", onMessage);
     };
   }, [platformOrigin, target.previewId, target.systemScreenKey]);
+
+  // Etkiler sırayla çalışır: yukarıdaki sıfırlamadan (yeni hedef) sonra istenen sekme yeniden kaydedilir.
+  const tabRequest = props.tabRequest;
+  const tabRequestKey = tabRequest ? JSON.stringify([tabRequest.tabsId, tabRequest.index, tabRequest.key ?? ""]) : null;
+  useEffect(() => {
+    if (tabRequest) showTab(tabRequest.tabsId, tabRequest.index);
+  }, [tabRequestKey, showTab, platformOrigin, target.previewId, target.systemScreenKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sentRevision = useRef(revision);
   useEffect(() => {

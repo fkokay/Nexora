@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "dataSources": [
+    {
+      "code": "cariListe",
+      "label": "Cari listesi",
+      "source": "sql",
+      "sql": "SELECT kod, unvan, sehir FROM Cari",
+      "parameters": [],
+      "columns": [
+        {
+          "code": "kod",
+          "label": "Cari kodu",
+          "type": "text",
+          "key": true,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "unvan",
+          "label": "Ünvan",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "sehir",
+          "label": "Şehir",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        }
+      ],
+      "opens": "cari-karti"
+    }
+  ],
+  "actions": [
+    {
+      "code": "raporYenile",
+      "label": "Raporu yenile",
+      "kind": "update",
+      "target": "page",
+      "source": "sql",
+      "sql": "UPDATE Rapor SET yenilendi = 1 WHERE yenilendi = 0",
+      "parameters": [],
+      "confirm": "Rapor yenilensin mi?"
+    }
+  ]
+}
