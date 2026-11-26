@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { api } from '../erpApi';
 import { setPageParams, type PageParams } from '../pageNavigation';
-import { CanvasAnchorContext, CanvasTabsContext } from './anchorContext';
+import { CanvasAnchorContext, CanvasTabsContext, type CanvasTabRequest } from './anchorContext';
 import { CANVAS_PROTOCOL, CANVAS_VERSION, collectBlocks, parseStudioCanvasMessage, type CanvasParams, type CanvasToStudio } from './canvasProtocol';
 import './designer-canvas.css';
 
@@ -10,7 +10,7 @@ const TenantCustomPage = lazy(() => import('../TenantCustomPage'));
 const ERROR_SELECTOR = '.tenant-custom-page-state.tenant-custom-page-error';
 // Sayfa yüklenirken (her yeniden yüklemede kısa süre) düzen gönderilmez; Studio son yükseklik ve blokları korur.
 const LOADING_SELECTOR = '.tenant-custom-page-state:not(.tenant-custom-page-error)';
-const NO_TABS: ReadonlyMap<string, number> = new Map();
+const NO_TABS: ReadonlyMap<string, CanvasTabRequest> = new Map();
 
 /** Uçtan gelen örnek kayıt parametrelerinin yalnız metin değerleri; başka her şey yok sayılır. */
 function sampleParams(value: unknown): PageParams {
@@ -71,7 +71,8 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
       if (!message) return;
       if (message.type === 'showTab') {
         const { tabsId, index } = message;
-        setTabs((current) => current.get(tabsId) === index ? current : new Map(current).set(tabsId, index));
+        // Her istek yeni bir sayaçla: kullanıcı başka sekmeye tıkladıktan sonra aynı sekme yeniden istenebilir.
+        setTabs((current) => new Map(current).set(tabsId, { index, signal: (current.get(tabsId)?.signal ?? 0) + 1 }));
       } else {
         setRevision(message.revision);
       }

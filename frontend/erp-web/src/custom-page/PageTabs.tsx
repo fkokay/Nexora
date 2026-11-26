@@ -29,8 +29,8 @@ export function boundTab(tab: { label: string; ids: string[] }, scope: PageScope
 export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwned, errorCounts, jumpTo, style, tabAnchor, activeIndex }: {
   id: string; tabs: PageTab[]; defaultTab: number;
   /**
-   * Dışarıdan denetlenen etkin sekme (yalnız Studio tuvali). Verilmezse tuvalin `CanvasTabsContext`'inde bu kimliğe
-   * istenen sekme kullanılır; ikisi de yoksa sekmeler kendi durumunu yönetir.
+   * Dışarıdan denetlenen etkin sekme; verilirse kendi durumunu ezer. Tuval bunu değil `CanvasTabsContext`'i kullanır:
+   * oradaki `showTab` istekleri olay gibi uygulanır ve kullanıcının tıklaması sekmeyi yine değiştirir.
    */
   activeIndex?: number;
   /** Her sekme düğmesinin hemen önüne konan görünmez işaret (Studio tuvali; yalnız Kayıt kartı). */
@@ -40,15 +40,22 @@ export function PageTabs({ id, tabs, defaultTab, requestedTab = null, renderOwne
   renderOwned: (id: string) => ReactNode; errorCounts: number[]; jumpTo: { tab: number; signal: number } | null; style: CSSProperties;
 }) {
   const clamp = (index: number) => Math.max(0, Math.min(tabs.length - 1, Number.isInteger(index) ? index : 0));
-  const [active, setActive] = useState(() => clamp(defaultTab));
   const canvasTab = useContext(CanvasTabsContext)?.get(id);
-  const forced = activeIndex ?? canvasTab;
-  const current = clamp(forced ?? active);
+  const [active, setActive] = useState(() => clamp(canvasTab?.index ?? defaultTab));
+  const current = clamp(activeIndex ?? active);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const panelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);
   const handledSignal = useRef(jumpTo?.signal);
   const handledRequest = useRef(requestedTab?.key);
+  const handledCanvasSignal = useRef(canvasTab?.signal);
+
+  // Tuval showTab'ı bir olaydır: yeni istek etkin sekmeyi değiştirir, sonraki tıklamalar yine kendi durumunu değiştirir.
+  useEffect(() => {
+    if (!canvasTab || canvasTab.signal === handledCanvasSignal.current) return;
+    handledCanvasSignal.current = canvasTab.signal;
+    setActive(clamp(canvasTab.index));
+  }, [canvasTab?.signal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!requestedTab || requestedTab.key === handledRequest.current) return;

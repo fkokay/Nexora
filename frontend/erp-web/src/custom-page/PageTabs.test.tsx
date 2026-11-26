@@ -77,17 +77,35 @@ describe('PageTabs activeIndex', () => {
   });
 
   it('the canvas context selects the tab by component id; other ids keep their own state', () => {
-    render(<CanvasTabsContext.Provider value={new Map([['t', 1], ['baska', 2]])}>
+    render(<CanvasTabsContext.Provider value={new Map([['t', { index: 1, signal: 1 }], ['baska', { index: 2, signal: 1 }]])}>
       <PageTabs id="t" tabs={tabs} defaultTab={0} renderOwned={renderOwned} errorCounts={[0, 0, 0]} jumpTo={null} style={{}} />
     </CanvasTabsContext.Provider>);
     expect(selected()).toEqual([false, true, false]);
     cleanup();
-    render(<CanvasTabsContext.Provider value={new Map([['baska', 2]])}>
+    render(<CanvasTabsContext.Provider value={new Map([['baska', { index: 2, signal: 1 }]])}>
       <PageTabs id="t" tabs={tabs} defaultTab={0} renderOwned={renderOwned} errorCounts={[0, 0, 0]} jumpTo={null} style={{}} />
     </CanvasTabsContext.Provider>);
     expect(selected()).toEqual([true, false, false]);
     fireEvent.click(screen.getAllByRole('tab')[1]);
     expect(selected()).toEqual([false, true, false]);
+  });
+
+  it('a canvas showTab is an event: a later click still switches, a new request switches again', () => {
+    const view = (requests: Map<string, { index: number; signal: number }>) =>
+      <CanvasTabsContext.Provider value={requests}>
+        <PageTabs id="t" tabs={tabs} defaultTab={0} renderOwned={renderOwned} errorCounts={[0, 0, 0]} jumpTo={null} style={{}} />
+      </CanvasTabsContext.Provider>;
+    const { rerender } = render(view(new Map()));
+    rerender(view(new Map([['t', { index: 1, signal: 1 }]])));
+    expect(selected()).toEqual([false, true, false]);
+    fireEvent.click(screen.getAllByRole('tab')[0]);
+    expect(selected()).toEqual([true, false, false]);
+    rerender(view(new Map([['t', { index: 2, signal: 2 }]])));
+    expect(selected()).toEqual([false, false, true]);
+    // The same tab requested again (new signal) after a click is applied again.
+    fireEvent.click(screen.getAllByRole('tab')[0]);
+    rerender(view(new Map([['t', { index: 2, signal: 3 }]])));
+    expect(selected()).toEqual([false, false, true]);
   });
 });
 

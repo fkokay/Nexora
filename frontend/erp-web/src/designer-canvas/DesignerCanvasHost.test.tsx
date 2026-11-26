@@ -227,5 +227,12 @@ describe('DesignerCanvasHost', () => {
     expect(selected()).toEqual(['false', 'true']);
     send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 0 });
     await waitFor(() => expect(selected()).toEqual(['true', 'false']));
+    // "Dene" kipinde kullanıcının tıklaması sekmeyi yine değiştirir; sonraki showTab yeniden uygulanır.
+    send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 1 });
+    await waitFor(() => expect(selected()).toEqual(['false', 'true']));
+    act(() => { getAllByRole('tab')[0].click(); });
+    expect(selected()).toEqual(['true', 'false']);
+    send({ nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 1 });
+    await waitFor(() => expect(selected()).toEqual(['false', 'true']));
   });
 });
