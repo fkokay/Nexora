@@ -1242,7 +1242,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   useEffect(() => { erpBlocks.current = []; setCanvasError(""); }, [current?.id, systemScreenKey, erpCanvas]);
   // Kayıt kartı tuvalinde gösterilen sekme (ERP'ye `showTab` ile istenir); başka sayfada ilk sekmeden başlanır.
   const [recordTab, setRecordTab] = useState(0);
-  useEffect(() => { setRecordTab(0); }, [current?.id, systemScreenKey]);
+  useEffect(() => { setRecordTab(0); }, [current?.id, systemScreenKey, erpCanvas]);
   // Kart / pencere odağına girip çıkmak sessiz kaydın sorununu silmez; yalnız başka sayfaya geçince silinir.
   useEffect(() => { setCanvasHint(""); }, [current?.id, systemScreenKey]);
 

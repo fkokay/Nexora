@@ -184,7 +184,7 @@ export function RecordCanvasOverlay(props: RecordCanvasOverlayProps) {
   for (const item of tabBoxes) {
     controls.push(<button key={`tab-${item.index}`} type="button" className="rco-tab" aria-label={`${item.label} sekmesini göster`} aria-pressed={item.index === activeTab}
       style={{ ...auto, ...at(item.box), border: 0, background: "transparent", cursor: "pointer" }}
-      onClick={(event) => { stop(event); if (item.index !== activeTab) props.onShowTab(item.index); }}/>);
+      onClick={(event) => { stop(event); props.onShowTab(item.index); }}/>);
   }
 
   return <div className="rco" style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}
