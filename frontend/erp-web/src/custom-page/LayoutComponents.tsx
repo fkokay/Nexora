@@ -4,19 +4,21 @@ import { formatCell } from "./cellFormat";
 import "../list-page/list-page-v2.css";
 
 /** Form kartı — taslak `.card` + `.fg3`: başlık ve girişlerin 1/2/3 sütunlu ızgarası. */
-export function FormCard({ title, columns, children, style, meta, inline = false }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties;
+export function FormCard({ title, columns, children, style, meta, inline = false, wideCells }: { title: string; columns: 1 | 2 | 3; children: ReactNode; style: CSSProperties;
   /** Başlık yanındaki kısa bilgi (değişiklik izleme: "<n> değişiklik"). */
   meta?: string;
   /**
    * `layout: "inline"`: tek satırlık süzgeç dizilimi (taslak `.tb` araç satırı). Girişler kendi genişliğinde, etiketleri
    * yanında yan yana dizilir; dar ekranda alt satıra kayar. Başlık görsel olarak çizilmez, bölgenin erişilebilir adı olur.
    */
-  inline?: boolean }) {
+  inline?: boolean;
+  /** Tam satır hücreler (`is-wide`; Kayıt kartında çok satırlı girdi), çocuk sırasıyla. */
+  wideCells?: readonly boolean[] }) {
   return <section className={`tenant-page-block tenant-page-form-card${inline ? " is-inline list-v2" : ""}`} style={style} aria-label={inline && title ? title : undefined}>
     {title && !inline && <h3>{title}</h3>}
     {meta && <span className="tenant-page-form-card-meta" role="status">{meta}</span>}
     <div className={inline ? "tenant-page-form-card-grid is-inline list-v2-toolbar" : `tenant-page-form-card-grid is-cols-${columns}`}>
-      {Children.map(children, (child) => child == null || child === false ? null : <div className="tenant-page-form-card-cell">{child}</div>)}
+      {Children.map(children, (child, index) => child == null || child === false ? null : <div className={`tenant-page-form-card-cell${wideCells?.[index] ? " is-wide" : ""}`}>{child}</div>)}
     </div>
   </section>;
 }

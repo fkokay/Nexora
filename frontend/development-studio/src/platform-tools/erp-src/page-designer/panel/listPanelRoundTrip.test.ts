@@ -5,7 +5,7 @@ import { newListTemplateDefinition } from "../pageTemplates";
 import { definitionNeedsAdmin } from "../queryPageLock";
 import { addListAction, chooseDataSource, setPageSize, setRowDoubleClick, type ModelDefinition } from "./listPanelModel";
 
-const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key });
+const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key, longText: false, required: false, maxLength: null });
 const aranan: CatalogDataSource = {
   code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [{ name: "q", type: "text" }], opens: "@customer-create",
   columns: [col("id", "Kimlik", true), col("kod", "Cari kodu"), col("unvan", "Unvan")],

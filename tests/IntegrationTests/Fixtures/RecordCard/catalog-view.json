@@ -1,0 +1,276 @@
+{
+  "version": "1.0.0",
+  "dataSources": [
+    {
+      "code": "cariListe",
+      "label": "Cari listesi",
+      "source": "sql",
+      "sql": "SELECT kod, unvan, sehir FROM Cari",
+      "parameters": [],
+      "columns": [
+        {
+          "code": "kod",
+          "label": "Cari kodu",
+          "type": "text",
+          "key": true,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "unvan",
+          "label": "Ünvan",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "sehir",
+          "label": "Şehir",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        }
+      ],
+      "opens": "cari-karti"
+    },
+    {
+      "code": "cariKart",
+      "label": "Cari kartı",
+      "source": "sql",
+      "sql": "SELECT kod, unvan, notlar, sehir, bakiye, acilis, aktif, kimlik FROM Cari WHERE kod = @kod",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        }
+      ],
+      "columns": [
+        {
+          "code": "kod",
+          "label": "Cari kodu",
+          "type": "text",
+          "key": true,
+          "longText": false,
+          "required": true,
+          "maxLength": 20
+        },
+        {
+          "code": "unvan",
+          "label": "Ünvan",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "code": "notlar",
+          "label": "Notlar",
+          "type": "text",
+          "key": false,
+          "longText": true,
+          "required": false,
+          "maxLength": 2000
+        },
+        {
+          "code": "sehir",
+          "label": "Şehir",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": 40
+        },
+        {
+          "code": "bakiye",
+          "label": "Bakiye",
+          "type": "decimal",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "acilis",
+          "label": "Açılış tarihi",
+          "type": "date",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "aktif",
+          "label": "Aktif",
+          "type": "bool",
+          "key": false,
+          "longText": false,
+          "required": true,
+          "maxLength": null
+        },
+        {
+          "code": "kimlik",
+          "label": "Kimlik",
+          "type": "guid",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        }
+      ],
+      "opens": null
+    },
+    {
+      "code": "cariHareket",
+      "label": "Hareketler",
+      "source": "sql",
+      "sql": "SELECT tarih, belge, tutar FROM CariHareket WHERE kod = @kod",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        }
+      ],
+      "columns": [
+        {
+          "code": "tarih",
+          "label": "Tarih",
+          "type": "date",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "belge",
+          "label": "Belge no",
+          "type": "text",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        },
+        {
+          "code": "tutar",
+          "label": "Tutar",
+          "type": "decimal",
+          "key": false,
+          "longText": false,
+          "required": false,
+          "maxLength": null
+        }
+      ],
+      "opens": null
+    }
+  ],
+  "actions": [
+    {
+      "code": "cariEkle",
+      "label": "Cari ekle",
+      "kind": "insert",
+      "target": "page",
+      "source": "sql",
+      "sql": "INSERT INTO Cari (kod, unvan, notlar, sehir) VALUES (@kod, @unvan, @notlar, @sehir)",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        },
+        {
+          "name": "unvan",
+          "type": "text"
+        },
+        {
+          "name": "notlar",
+          "type": "text"
+        },
+        {
+          "name": "sehir",
+          "type": "text"
+        }
+      ],
+      "confirm": null
+    },
+    {
+      "code": "cariEkleOtomatik",
+      "label": "Cari ekle (otomatik kod)",
+      "kind": "insert",
+      "target": "page",
+      "source": "sql",
+      "sql": "INSERT INTO Cari (unvan, notlar) VALUES (@unvan, @notlar)",
+      "parameters": [
+        {
+          "name": "unvan",
+          "type": "text"
+        },
+        {
+          "name": "notlar",
+          "type": "text"
+        }
+      ],
+      "confirm": null
+    },
+    {
+      "code": "cariGuncelle",
+      "label": "Cari güncelle",
+      "kind": "update",
+      "target": "row",
+      "source": "sql",
+      "sql": "UPDATE Cari SET unvan = @unvan, notlar = @notlar, sehir = @sehir WHERE kod = @kod",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        },
+        {
+          "name": "unvan",
+          "type": "text"
+        },
+        {
+          "name": "notlar",
+          "type": "text"
+        },
+        {
+          "name": "sehir",
+          "type": "text"
+        }
+      ],
+      "confirm": null
+    },
+    {
+      "code": "cariSil",
+      "label": "Cari sil",
+      "kind": "delete",
+      "target": "row",
+      "source": "sql",
+      "sql": "DELETE FROM Cari WHERE kod = @kod",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        }
+      ],
+      "confirm": "Cari silinsin mi?"
+    },
+    {
+      "code": "pasifeAl",
+      "label": "Pasife al",
+      "kind": "update",
+      "target": "row",
+      "source": "sql",
+      "sql": "UPDATE Cari SET aktif = 0 WHERE kod = @kod",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text"
+        }
+      ],
+      "confirm": "Cari pasife alınsın mı?"
+    }
+  ]
+}

@@ -5,10 +5,10 @@ import { newListTemplateDefinition } from "../pageTemplates";
 import {
   actionMissingColumn, actionUsable, actionUsableAt, addListAction, chooseDataSource, dataSourceUsable, missingCatalogCodes, placedActions,
   CARD_UNAVAILABLE, OPERATIONS_FAILED, pageParamName, rowOpenUsable, OPERATIONS_LOADING, removeListAction, removePlacedAction, rowOpenChoice, searchState, setColumns, setPageSize, setRowDoubleClick, setSearch, SOURCE_NEEDS_INPUT,
-  withOperationParameters, type ModelDefinition,
+  withOperationParameters, newButtonOn, setNewButton, NEW_BUTTON_ID, type ModelDefinition,
 } from "./listPanelModel";
 
-const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key });
+const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key, longText: false, required: false, maxLength: null });
 const cariler: CatalogDataSource = {
   code: "cariler", label: "Cari hesaplar", source: "sql", erpOperation: null, parameters: [], opens: "@customer-create",
   columns: [col("id", "Kimlik", true), col("kod", "Cari kodu"), col("unvan", "Unvan"), col("sehir", "Şehir"), col("bakiye", "Bakiye"),
@@ -128,11 +128,11 @@ describe("pageParamName and Kartı aç with PascalCase keys", () => {
   it("Kod key is usable and binds the real column", () => {
     expect(rowOpenUsable(pascal("Kod")).usable).toBe(true);
     const def = setRowDoubleClick(bound(), "liste", "card", pascal("Kod"));
-    expect(def.components.find((component) => component.type === "button")!.props.params).toEqual(["kod={{liste.seciliSatir.Kod}}"]);
+    expect(def.components.find((component) => component.id === "satiriAc")!.props.params).toEqual(["kod={{liste.seciliSatir.Kod}}"]);
   });
   it("CariId key gives cariId param", () => {
     const def = setRowDoubleClick(bound(), "liste", "card", pascal("CariId"));
-    expect(def.components.find((component) => component.type === "button")!.props.params).toEqual(["cariId={{liste.seciliSatir.CariId}}"]);
+    expect(def.components.find((component) => component.id === "satiriAc")!.props.params).toEqual(["cariId={{liste.seciliSatir.CariId}}"]);
   });
   it("key starting with a digit is unusable with the reason", () => {
     expect(rowOpenUsable(pascal("1Kod"))).toEqual({ usable: false, reason: CARD_UNAVAILABLE });
@@ -142,7 +142,7 @@ describe("pageParamName and Kartı aç with PascalCase keys", () => {
 describe("setRowDoubleClick", () => {
   it("card creates page button with key column param and sets rowOpenAction", () => {
     const def = setRowDoubleClick(bound(), "liste", "card", cariler);
-    const button = def.components.find((component) => component.type === "button")!;
+    const button = def.components.find((component) => component.id === "satiriAc")!;
     expect(button.props).toEqual({ slot: "rowActions", text: "Aç", actionType: "page", pageCode: "@customer-create", params: ["id={{liste.seciliSatir.id}}"] });
     expect(list(def).props.rowOpenAction).toBe(button.id);
     expect(list(def).props.rowActions).toBeUndefined();
@@ -167,6 +167,39 @@ describe("setRowDoubleClick", () => {
     expect(rowOpenChoice(def, "liste")).toBe("panel");
     const none = setRowDoubleClick(def, "liste", "none", cariler);
     expect(none.components.map((component) => component.id)).toEqual(["liste"]);
+  });
+});
+
+describe("+ Yeni", () => {
+  const newButton = { id: "yeni", type: "button", props: { slot: "actions", text: "+ Yeni", actionType: "page", pageCode: "@customer-create" } };
+  it("card choice adds + Yeni first in actions", () => {
+    expect(NEW_BUTTON_ID).toBe("yeni");
+    const withAction = addListAction(bound(), "liste", sil, "above");
+    const def = setRowDoubleClick(withAction, "liste", "card", cariler);
+    expect(def.components.find((component) => component.id === "yeni")).toEqual(newButton);
+    const actions = def.components.filter((component) => component.props.slot === "actions");
+    expect(actions[0].id).toBe("yeni");
+    expect(newButtonOn(def)).toBe(true);
+  });
+  it("none removes + Yeni", () => {
+    const card = setRowDoubleClick(bound(), "liste", "card", cariler);
+    expect(newButtonOn(setRowDoubleClick(card, "liste", "none", cariler))).toBe(false);
+    expect(newButtonOn(setRowDoubleClick(card, "liste", "panel", cariler))).toBe(false);
+  });
+  it("toggle off keeps card open but removes button", () => {
+    const card = setRowDoubleClick(bound(), "liste", "card", cariler);
+    const off = setNewButton(card, "liste", false, cariler);
+    expect(newButtonOn(off)).toBe(false);
+    expect(rowOpenChoice(off, "liste")).toBe("card");
+    expect(setNewButton(off, "liste", true, cariler).components.find((component) => component.id === "yeni")).toEqual(newButton);
+    expect(setNewButton(off, "liste", false, cariler)).toBe(off);
+  });
+  it("does not mutate the input", () => {
+    const card = setRowDoubleClick(bound(), "liste", "card", cariler);
+    const snapshot = JSON.stringify(card);
+    setNewButton(card, "liste", false, cariler);
+    setNewButton(card, "liste", true, cariler);
+    expect(JSON.stringify(card)).toBe(snapshot);
   });
 });
 
@@ -242,7 +275,12 @@ describe("review fixes", () => {
     const switched = chooseDataSource(card, "liste", stok);
     const open = switched.components.find((component) => component.id === list(switched).props.rowOpenAction)!;
     expect(open.props).toMatchObject({ pageCode: "@stock-card", params: ["stokId={{liste.seciliSatir.stokId}}"] });
-    expect(switched.components.filter((component) => component.type === "button")).toHaveLength(1);
+    expect(switched.components.filter((component) => component.type === "button").map((component) => component.id).sort()).toEqual(["satiriAc", "yeni"]);
+    expect(switched.components.find((component) => component.id === "yeni")!.props.pageCode).toBe("@stock-card");
+    // Tasarımcı "+ Yeni"yi kapattıysa kaynak değişince geri gelmez.
+    const noNew = chooseDataSource(setNewButton(card, "liste", false, cariler), "liste", stok);
+    expect(newButtonOn(noNew)).toBe(false);
+    expect(rowOpenChoice(noNew, "liste")).toBe("card");
     expect(switched.queries.some((query) => query.action === "ekstre")).toBe(false);
     expect(list(switched).props.rowActions).toBeUndefined();
     expect(chooseDataSource(card, "liste", { ...stok, opens: null }).components.some((component) => component.type === "button")).toBe(false);

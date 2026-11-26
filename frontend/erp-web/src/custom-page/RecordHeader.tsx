@@ -51,16 +51,29 @@ export function recordHeaderFields(props: Record<string, unknown>, scope: PageSc
  * Kayıt özeti (yalnız sunum; taslak 16'nın 2. adımı): simge karesi, kalın başlık ve soluk alt satır, anahtar/değer çiftleri,
  * sağa yaslı düğmeler. Düğmeleri çağıran çizer (sayfa düğmeleri gibi çalışırlar).
  */
-export function RecordHeader({ icon, title, subtitle, fields, buttons, style }: {
+export function RecordHeader({ icon, title, subtitle, fields, buttons, style, record }: {
   icon?: string; title: string; subtitle: string; fields: RecordHeaderField[]; buttons?: ReactNode; style?: CSSProperties;
+  /**
+   * Kayıt kartı özeti: simge yoksa baş harfli kare (yeni kayıtta "+"), en çok 3 değer, kısaltılan metnin tamamı `title`'da.
+   * Verilmezse eski özet birebir çizilir.
+   */
+  record?: { isNew: boolean };
 }) {
   const Icon = icon && Object.hasOwn(METRIC_ICONS, icon) ? METRIC_ICONS[icon] : undefined;
+  const full = (text: string) => (record && text ? text : undefined);
+  const shown = record ? fields.slice(0, 3) : fields;
   return <section className="tenant-page-record-header" style={style} aria-label={title || undefined}>
     {Icon && <span className="tenant-page-record-header-icon" aria-hidden="true"><Icon size={17} /></span>}
-    <span className="tenant-page-record-header-title"><b>{title || EMPTY}</b>{subtitle && <small>{subtitle}</small>}</span>
-    {fields.length > 0 && <dl className="tenant-page-record-header-fields">
-      {fields.map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.text}</dd></div>)}
+    {!Icon && record && <span className="tenant-page-record-header-icon record-summary-avatar" aria-hidden="true">{record.isNew ? "+" : initials(title)}</span>}
+    <span className="tenant-page-record-header-title"><b title={full(title)}>{title || EMPTY}</b>{subtitle && <small title={full(subtitle)}>{subtitle}</small>}</span>
+    {shown.length > 0 && <dl className="tenant-page-record-header-fields">
+      {shown.map((field) => <div key={field.label}><dt>{field.label}</dt><dd title={full(field.text)}>{field.text}</dd></div>)}
     </dl>}
     {buttons && <span className="tenant-page-record-header-actions">{buttons}</span>}
   </section>;
+}
+
+/** Başlığın ilk iki sözcüğünün baş harfleri ("Akdeniz Gıda A.Ş." → "AG"); başlık yoksa boş. */
+function initials(title: string): string {
+  return title.split(/\s+/).filter((word) => /\p{L}|\p{N}/u.test(word)).slice(0, 2).map((word) => [...word.replace(/[^\p{L}\p{N}]/gu, "")][0] ?? "").join("").toLocaleUpperCase("tr-TR");
 }

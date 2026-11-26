@@ -15,7 +15,17 @@ export const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 export type WriteCatalogFiles = (files: CatalogFile[]) => Promise<CatalogFile[] | void>;
 
 export type ParameterRow = { name: string; type: string; trial: string };
-export type ColumnRow = { code: string; label: string; type: string; key: boolean; isNew: boolean };
+export type ColumnRow = {
+  code: string; label: string; type: string; key: boolean; isNew: boolean;
+  longText: boolean; required: boolean;
+  /** Form alanı metni; boş: sınır yok. Yalnız Metin türünde anlamlıdır. */
+  maxLength: string;
+};
+export const MAX_LENGTH_LIMIT = 4000;
+const newColumn = (code: string, label: string, type: string): ColumnRow =>
+  ({ code, label, type, key: false, isNew: false, longText: false, required: false, maxLength: "" });
+export const emptyColumn = (): ColumnRow => newColumn("", "", "text");
+export const previewColumn = (code: string, label: string, type: string): ColumnRow => ({ ...newColumn(code, label, type), isNew: true });
 export type SourceKind = "sql" | "erp";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -29,7 +39,14 @@ export function readParameters(json: Record<string, unknown>): ParameterRow[] {
 
 export function readColumns(json: Record<string, unknown>): ColumnRow[] {
   return Array.isArray(json.columns)
-    ? json.columns.filter(isRecord).map(c => ({ code: text(c.code), label: text(c.label), type: text(c.type) || "text", key: c.key === true, isNew: false }))
+    ? json.columns.filter(isRecord).map(c => {
+      const type = text(c.type) || "text";
+      return {
+        ...newColumn(text(c.code), text(c.label), type), key: c.key === true,
+        longText: c.longText === true, required: c.required === true,
+        maxLength: typeof c.maxLength === "number" ? String(c.maxLength) : "",
+      };
+    })
     : [];
 }
 
@@ -40,9 +57,31 @@ export function readSource(holder: unknown): { kind: SourceKind; operation: stri
 
 /** Yalnız `{ name, type }` dosyaya gider; deneme değeri formda kalır. */
 export const parametersJson = (rows: ParameterRow[]) => rows.map(({ name, type }) => ({ name, type }));
-/** Yalnız `{ code, label, type, key? }` dosyaya gider; "yeni" işareti formda kalır. */
+const parsedMaxLength = (raw: string) => (/^\d+$/.test(raw.trim()) ? Number(raw.trim()) : null);
+
+/** `{ code, label, type }` + yalnız dolu bayraklar dosyaya gider (key, longText, required: true ise; maxLength: doluysa). Uzun metin ve en çok yalnız Metin türünde yazılır; "yeni" işareti formda kalır. */
 export const columnsJson = (rows: ColumnRow[]) =>
-  rows.map(({ code, label, type, key }) => (key ? { code, label, type, key: true } : { code, label, type }));
+  rows.map(({ code, label, type, key, longText, required, maxLength }) => {
+    const isText = type === "text";
+    const limit = isText ? parsedMaxLength(maxLength) : null;
+    return {
+      code, label, type,
+      ...(key ? { key: true } : {}),
+      ...(isText && longText ? { longText: true } : {}),
+      ...(required ? { required: true } : {}),
+      ...(limit !== null ? { maxLength: limit } : {}),
+    };
+  });
+
+/** "En çok" doluysa 1–4000 arası tam sayı olmalı (yalnız Metin kolonlarında). */
+export function validateColumns(rows: ColumnRow[]): string | null {
+  for (const row of rows) {
+    if (row.type !== "text" || row.maxLength.trim() === "") continue;
+    const limit = parsedMaxLength(row.maxLength);
+    if (limit === null || limit < 1 || limit > MAX_LENGTH_LIMIT) return `"${row.code || "Kolon"}" için en çok değeri 1 ile ${MAX_LENGTH_LIMIT} arasında bir tam sayı olmalı.`;
+  }
+  return null;
+}
 
 /** Deneme değerleri sunucunun beklediği JSON türlerine çevrilir; boş değer null olur. */
 export function trialValues(rows: ParameterRow[]): Record<string, unknown> {

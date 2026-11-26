@@ -37,6 +37,21 @@ describe('parseStudioCanvasMessage', () => {
   ])('rejects %s', (_name, data) => {
     expect(parseStudioCanvasMessage(data)).toBeNull();
   });
+
+  it('parseStudioCanvasMessage accepts showTab and rejects bad index', () => {
+    const msg = { nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 2 };
+    expect(parseStudioCanvasMessage(msg)).toEqual(msg);
+    // Fazla alanlar taşınmaz.
+    expect(parseStudioCanvasMessage({ ...msg, revision: 5, extra: 'x' })).toEqual(msg);
+    for (const index of [-1, 1.5, '1', null, undefined, Number.NaN, 100]) {
+      expect(parseStudioCanvasMessage({ ...msg, index })).toBeNull();
+    }
+    for (const tabsId of ['', 'a b', 'a#tab1', 1, null, 'x'.repeat(65)]) {
+      expect(parseStudioCanvasMessage({ ...msg, tabsId })).toBeNull();
+    }
+    expect(parseStudioCanvasMessage({ ...msg, v: 2 })).toBeNull();
+    expect(parseStudioCanvasMessage({ ...msg, nx: 'other' })).toBeNull();
+  });
 });
 
 function setRect(el: Element, rect: { left: number; top: number; width: number; height: number }) {

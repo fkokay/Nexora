@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { buildCatalogRows, byKind, historyUrl, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, rowTemplateText, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
+import { templateFilterOptions, buildCatalogRows, byKind, historyUrl, filterCatalogRows, kindCounts, moduleOptions, NO_MODULE, paginate, rowTemplateText, type CustomPageCatalogItem, type PageCatalogItem, type SystemPageItem } from "./pageCatalogModel";
 
 vi.mock("./authApi", () => ({ authenticatedFetch: vi.fn(() => new Promise(() => {})) }));
 
@@ -99,5 +99,16 @@ describe("sayfa kataloğu kalıbı", () => {
     expect(filterCatalogRows(rows, { ...query, template: "list" }).map((row) => row.name)).toEqual(["Liste 1", "Liste 2"]);
     expect(filterCatalogRows(rows, { ...query, template: "none" }).map((row) => row.name)).toContain("Eski");
     expect(filterCatalogRows(rows, { ...query, template: "none" }).map((row) => row.name)).not.toContain("Liste 1");
+  });
+
+  it("catalog filter has Kayıt kartı", () => {
+    expect(templateFilterOptions.map((option) => option.label)).toEqual(["Tümü", "Liste", "Kayıt kartı", "Kalıpsız"]);
+    const records: CustomPageCatalogItem[] = [{ id: "r1", code: "cari-karti", name: "Cari kartı", isPublished: false, revision: 1, template: "record", templateLevel: 2 }];
+    const all = buildCatalogRows(screens, [...withTemplate, ...records], system);
+    const query = { search: "", status: "all" as const, module: "all" };
+    expect(filterCatalogRows(all, { ...query, template: "record" }).map((row) => row.name)).toEqual(["Cari kartı"]);
+    expect(filterCatalogRows(all, { ...query, template: "list" }).map((row) => row.name)).not.toContain("Cari kartı");
+    expect(filterCatalogRows(all, { ...query, template: "none" }).map((row) => row.name)).not.toContain("Cari kartı");
+    expect(rowTemplateText(all.find((row) => row.name === "Cari kartı")!)).toBe("Kayıt kartı · 2. basamak");
   });
 });

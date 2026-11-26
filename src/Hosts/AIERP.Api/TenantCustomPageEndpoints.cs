@@ -90,6 +90,26 @@ internal static class TenantCustomPageEndpoints
             return Results.Ok(new PublishedPage(page.Id, page.Code, page.Name, page.Description, page.Revision, await RuntimeDefinitionAsync(db, tenant, page.DefinitionJson, ct), embeddedForms, CustomPageRightsView.From(rights)));
         });
 
+        // Designer canvas: a sample record key for a Kayıt kartı draft (CustomPageQueryEndpoints.SampleParamsAsync), gated
+        // like GET /preview; the source runs only for verified TenantAdmins (others get {}). Anything short of authorization ("no source", "no row", a failed run) answers { params: {} }.
+        pages.MapGet("/{id:guid}/preview/sample-params", async (Guid id, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,
+            IPlatformPermissionAuthorizer auth, HttpContext http, CancellationToken ct) =>
+        {
+            if (!TryContext(user, out var tenant, out var userId, out var role) || !await Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
+            var page = await db.TenantCustomPages.AsNoTracking()
+                .Where(x => x.TenantId == tenant && x.Id == id && !x.IsPublished && !x.IsArchived)
+                .Select(x => new { x.Code, x.DefinitionJson })
+                .SingleOrDefaultAsync(ct);
+            if (page is null) return Results.NotFound();
+            var rights = await CustomPageAccess.GetRightsAsync(platformDb, tenant, page.Code, CustomPageAccess.RestrictsMembersWithoutRow(page.Code, page.DefinitionJson), userId, role, ct);
+            if (!rights.View) return ViewForbidden();
+            // Running the catalog source is a preview query run, which is limited to verified TenantAdmins
+            // (POST /{id}/preview/queries/{queryId}/run). Other viewers get no sample, so the canvas still renders.
+            if (await CustomPageAccessEndpoints.AdminContextAsync(user, platformDb, ct) is null) return Results.Ok(new { @params = new Dictionary<string, string>() });
+            var sample = await CustomPageQueryEndpoints.SampleParamsAsync(page.Code, page.DefinitionJson, tenant, userId, db, platformDb, http, ct);
+            return Results.Ok(new { @params = sample });
+        }).RequireRateLimiting(CustomPageQueryEndpoints.PreviewRateLimitPolicy);
+
         // Runtime consumers receive only the currently published declarative definition. Query SQL is never sent to the
         // runtime (queries run by id); the admin designer reads the full definition through GET /{id}.
         pages.MapGet("/{code}/published", async (string code, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb,

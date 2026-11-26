@@ -111,4 +111,62 @@ describe("DataSourceForm", () => {
     await click(button(host, "Kaydet"));
     expect(writeFiles.mock.calls.slice(2).map(c => c[0][0].sha256)).toEqual([`after-${entry.sqlPath}`, `after-${entry.jsonPath}`]);
   });
+  describe("column flags", () => {
+    const withColumns = (columns: unknown[]): CatalogEntry => ({ ...entry, json: { ...entry.json, columns } });
+    const savedColumns = (writeFiles: ReturnType<typeof vi.fn>) => {
+      const json = writeFiles.mock.calls.map(c => c[0][0]).find(f => f.path.endsWith(".json"))!;
+      return JSON.parse(json.content).columns as Record<string, unknown>[];
+    };
+
+    it("column flags round trip through catalog file", async () => {
+      vi.mocked(confirmDialog).mockResolvedValue(true);
+      const writeFiles = vi.fn(async () => {});
+      const host = await render(<DataSourceForm {...props()} entry={withColumns([
+        { code: "adres", label: "Adres", type: "text", longText: true, required: true, maxLength: 500 },
+        { code: "ad", label: "Ad", type: "text" },
+      ])} writeFiles={writeFiles} />);
+      expect(field(host, "Uzun metin", 0).checked).toBe(true);
+      expect(field(host, "Zorunlu", 0).checked).toBe(true);
+      expect(field(host, "En çok", 0).value).toBe("500");
+      expect(field(host, "Uzun metin", 1).checked).toBe(false);
+      await type(field(host, "En çok", 1), "40");
+      await click(field(host, "Zorunlu", 1));
+      await click(button(host, "Kaydet"));
+      expect(savedColumns(writeFiles)).toEqual([
+        { code: "adres", label: "Adres", type: "text", longText: true, required: true, maxLength: 500 },
+        { code: "ad", label: "Ad", type: "text", required: true, maxLength: 40 },
+      ]);
+    });
+
+    it("long text and max length disabled for non-text types", async () => {
+      vi.mocked(confirmDialog).mockResolvedValue(true);
+      const writeFiles = vi.fn(async () => {});
+      const host = await render(<DataSourceForm {...props()} entry={withColumns([
+        { code: "adres", label: "Adres", type: "text", longText: true, maxLength: 500 },
+      ])} writeFiles={writeFiles} />);
+      await type(field<HTMLSelectElement>(host, "Kolon tipi"), "int");
+      expect(field(host, "Uzun metin").disabled).toBe(true);
+      expect(field(host, "En çok").disabled).toBe(true);
+      expect(field(host, "Zorunlu").disabled).toBe(false);
+      await click(button(host, "Kaydet"));
+      expect(savedColumns(writeFiles)).toEqual([{ code: "adres", label: "Adres", type: "int" }]);
+    });
+
+    it("unchanged file keeps no new keys", async () => {
+      vi.mocked(confirmDialog).mockResolvedValue(true);
+      const writeFiles = vi.fn(async () => {});
+      const host = await render(<DataSourceForm {...props()} writeFiles={writeFiles} />);
+      await click(button(host, "Kaydet"));
+      expect(savedColumns(writeFiles)).toEqual([{ code: "Kod", label: "Cari kodu", type: "text", key: true }]);
+    });
+
+    it("invalid max length blocks save", async () => {
+      const writeFiles = vi.fn(async () => {});
+      const host = await render(<DataSourceForm {...props()} entry={withColumns([{ code: "a", label: "A", type: "text" }])} writeFiles={writeFiles} />);
+      await type(field(host, "En çok"), "5000");
+      await click(button(host, "Kaydet"));
+      expect(writeFiles).not.toHaveBeenCalled();
+      expect(host.textContent).toContain("1 ile 4000");
+    });
+  });
 });

@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LIST_SOURCE_HINT, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, templateLabel, templateLevel } from "./pageTemplates";
+import { RECORD_SOURCE_HINT, LIST_SOURCE_HINT, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, templateCatalogText, templateLabel, templateLevel } from "./pageTemplates";
 import { chooseDataSource, type ModelDefinition } from "./panel/listPanelModel";
 import NewPageDialog from "./NewPageDialog";
 import { designerPersistence } from "../CustomPagesPage";
@@ -14,7 +14,7 @@ describe("sayfa kalıpları", () => {
     expect(listSourceProblem(fresh)).toBe(LIST_SOURCE_HINT);
     expect(LIST_SOURCE_HINT).toBe("Önce ne listeleneceğini seçin.");
     const source = { code: "cariler", label: "Cari hesaplar", source: "sql" as const, erpOperation: null, parameters: [], opens: null,
-      columns: [{ code: "id", label: "Kimlik", type: "guid", key: true }, { code: "unvan", label: "Unvan", type: "text", key: false }] };
+      columns: [{ code: "id", label: "Kimlik", type: "guid", key: true, longText: false, required: false, maxLength: null }, { code: "unvan", label: "Unvan", type: "text", key: false, longText: false, required: false, maxLength: null }] };
     const chosen = chooseDataSource(fresh as unknown as ModelDefinition, NEW_LIST_ID, source);
     expect(listSourceProblem(chosen)).toBeNull();
     // Bağlı sorgu silinmişse ya da okuma sorgusu değilse yine kaydedilmez (sunucunun kuralı).
@@ -26,7 +26,7 @@ describe("sayfa kalıpları", () => {
 
   it("newListTemplateDefinition shape", () => {
     expect(newListTemplateDefinition()).toEqual({ schemaVersion: 2, template: { name: "list" }, queries: [], components: [{ id: "liste", type: "dataTable", props: { slot: "list" } }] });
-    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "free"]);
+    expect(PAGE_TEMPLATE_CHOICES.map((c) => c.id)).toEqual(["list", "record", "free"]);
   });
 
   it("templateLevel 2 with below component", () => {
@@ -54,5 +54,45 @@ describe("sayfa kalıpları", () => {
     expect(html.indexOf("Liste")).toBeGreaterThan(-1);
     expect(html.indexOf("Liste")).toBeLessThan(html.indexOf("Serbest"));
     expect(html).not.toContain("Boş sayfa");
+  });
+
+  it("new page dialog offers Kayıt kartı second", () => {
+    const html = renderToString(createElement(NewPageDialog, { mode: "create", templates: [], takenCodes: [], onCancel: () => {}, onConfirm: () => {} }));
+    expect(html.indexOf("Liste")).toBeLessThan(html.indexOf("Kayıt kartı"));
+    expect(html.indexOf("Kayıt kartı")).toBeLessThan(html.indexOf("Serbest"));
+    expect(html).toContain("Tek bir kaydı görmek ve düzenlemek için.");
+  });
+
+  it("newRecordTemplateDefinition shape", () => {
+    expect(newRecordTemplateDefinition()).toEqual({ schemaVersion: 2, template: { name: "record" }, queries: [], components: [
+      { id: "ozet", type: "recordHeader", props: { slot: "summary" } }, { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: [] } }] });
+  });
+
+  it("recordSourceProblem until a source is chosen", () => {
+    const fresh = newRecordTemplateDefinition();
+    expect(recordSourceProblem(fresh)).toBe(RECORD_SOURCE_HINT);
+    expect(RECORD_SOURCE_HINT).toBe("Önce hangi kaydın gösterileceğini seçin.");
+    const withTabs = { ...fresh, components: [fresh.components[0], { id: "sekmeler", type: "tabs", props: { slot: "tabs", tabs: [{ id: "genel", label: "Genel" }] } }] };
+    expect(recordSourceProblem(withTabs)).toBeNull();
+    expect(recordSourceProblem(newListTemplateDefinition())).toBeNull();
+    expect(recordSourceProblem({ components: [] })).toBeNull();
+    expect(listSourceProblem(fresh)).toBeNull();
+  });
+
+  it("templateLabel Kayıt kartı", () => {
+    const record = newRecordTemplateDefinition();
+    expect(templateLabel(record)).toBe("Kayıt kartı");
+    expect(templateLevel(record)).toBe(1);
+    expect(templateCatalogText("record", 2)).toBe("Kayıt kartı · 2. basamak");
+    expect(templateCatalogText("record", null)).toBe("Kayıt kartı · 1. basamak");
+  });
+
+  it("suggestRecordPageCode skips codes that already have pages", () => {
+    const column = { code: "id", label: "No", type: "int", key: true, longText: false, required: false, maxLength: null };
+    const source = (code: string, opens: string | null) => ({ code, label: code, source: "sql" as const, erpOperation: null, parameters: [], columns: [column], opens });
+    const catalog = { version: "1", actions: [], dataSources: [source("a", null), source("b", "cari-karti"), source("c", "stok-karti")] };
+    expect(suggestRecordPageCode(catalog, [])).toBe("cari-karti");
+    expect(suggestRecordPageCode(catalog, ["cari-karti"])).toBe("stok-karti");
+    expect(suggestRecordPageCode(catalog, ["cari-karti", "stok-karti"])).toBeNull();
   });
 });
