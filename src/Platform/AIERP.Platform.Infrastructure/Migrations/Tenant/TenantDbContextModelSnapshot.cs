@@ -18129,6 +18129,11 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("MigrationBatch")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -18146,6 +18151,8 @@ namespace AIERP.Platform.Infrastructure.Migrations.Tenant
                     b.HasKey("Id");
 
                     b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "MigrationBatch");
 
                     b.HasIndex("TenantId", "CustomPageId", "Revision")
                         .IsUnique();
