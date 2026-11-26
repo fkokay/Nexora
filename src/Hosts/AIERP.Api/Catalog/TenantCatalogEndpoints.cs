@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AIERP.Api;
 
 /// <summary>
-/// Tenant catalog releases: immutable bundles of named data sources and actions that custom pages reference by code.
+/// Tenant catalog releases: immutable bundles of named data sources, actions and developer components that custom pages reference by code.
 /// Creating and activating a release needs a verified TenantAdmin or Studio Developer (<see cref="CatalogDeveloperAccess"/>);
 /// exactly one release per tenant is Active.
 /// </summary>
@@ -78,7 +78,7 @@ internal static partial class TenantCatalogEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct)) return Results.Forbid();
             // One read of the Active row. Items that no longer validate are left out and listed by code in invalidItems.
             var active = await TenantCatalogStore.ActiveReleaseAsync(db, tenant, ErpOperationCatalog.TryGet, ct);
-            if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], []));
+            if (active is null) return Results.Ok(new ActiveCatalog(null, null, null, [], [], [], []));
             var bundle = active.Bundle;
             // SQL text is shown only to a verified TenantAdmin or Studio Developer (the designer); runtime consumers never need it.
             var showSql = await CatalogDeveloperAccess.IsAllowedAsync(platformDb, tenant, userId, role, ct);
@@ -86,7 +86,11 @@ internal static partial class TenantCatalogEndpoints
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.Columns, x.Opens)).ToArray();
             var actions = bundle.Items.Where(x => x.ItemKind == "action").Select(x => new ActionView(x.Code, x.Label, x.QueryKind, x.Target, SourceOf(x),
                 x.ErpOperation, showSql ? x.Sql : null, x.Parameters, x.ConfirmText)).ToArray();
-            return Results.Ok(new ActiveCatalog(active.Id, active.Version, active.SourcePath, dataSources, actions, bundle.InvalidCodes));
+            // Developer components are listed without their CSS and JavaScript: pages carry only the code and the server
+            // resolves the rest when a page is read.
+            var components = bundle.Components.Select(x => new ComponentView(x.Code, x.Label, x.Description, x.Height,
+                x.Settings.Select(s => new ComponentSettingView(s.Name, s.Label, s.Type, s.Options, s.Default)).ToArray())).ToArray();
+            return Results.Ok(new ActiveCatalog(active.Id, active.Version, active.SourcePath, dataSources, actions, bundle.InvalidCodes, components));
         });
 
         catalog.MapPost("/releases/{id:guid}/activate", async (Guid id, ActivateRequest? request, ClaimsPrincipal user, TenantDbContext db, PlatformDbContext platformDb, CancellationToken ct) =>
@@ -262,7 +266,9 @@ internal static partial class TenantCatalogEndpoints
     private sealed record BrokenPage(string Code, string Name, IReadOnlyList<string> References,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error);
     private sealed record ActiveCatalog(Guid? ReleaseId, string? Version, string? SourcePath, IReadOnlyList<DataSourceView> DataSources, IReadOnlyList<ActionView> Actions,
-        IReadOnlyList<string> InvalidItems);
+        IReadOnlyList<string> InvalidItems, IReadOnlyList<ComponentView> Components);
+    private sealed record ComponentView(string Code, string Label, string? Description, int Height, IReadOnlyList<ComponentSettingView> Settings);
+    private sealed record ComponentSettingView(string Name, string Label, string Type, IReadOnlyList<string> Options, JsonElement? Default);
     private sealed record DataSourceView(string Code, string Label, string Source,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ErpOperation,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Sql,
