@@ -37,6 +37,9 @@ describe("ComponentPreview", () => {
     expect(view.textContent).toContain("Başlık");
     expect(view.textContent).toContain("Satışlar");
     expect(view.textContent).toContain("Evet");
+    // Not metni gerçek davranışı söyler: istekler boş yanıt değil, "Önizlemede sayfa verisi yok." yanıtı alır.
+    expect(view.textContent).toContain(`runQuery ve callOperation "${PREVIEW_NO_DATA}" yanıtını alır.`);
+    expect(view.textContent).not.toContain("boş yanıt");
     await click(button(view, "Çalıştır"));
     const frame = view.querySelector("iframe")!;
     expect(frame.getAttribute("sandbox")).toBe("allow-scripts");

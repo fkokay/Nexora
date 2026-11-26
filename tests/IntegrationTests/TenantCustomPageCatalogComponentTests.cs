@@ -180,17 +180,32 @@ public sealed class TenantCustomPageCatalogComponentTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        const string message = "Seçilen bileşen etkin katalogda yok.";
-
-        await AssertRejected(client, Page(new { catalogComponent = "yokBilesen" }, nested: true), message);
+        // The error names the component, so the designer can tell which one to replace or remove.
+        await AssertRejected(client, Page(new { catalogComponent = "yokBilesen" }, nested: true), "Seçilen bileşen etkin katalogda yok: yokBilesen.");
         // Case matters: codes are compared ordinally.
-        await AssertRejected(client, Page(new { catalogComponent = "satisgrafigi" }), message);
+        await AssertRejected(client, Page(new { catalogComponent = "satisgrafigi" }), "Seçilen bileşen etkin katalogda yok: satisgrafigi.");
 
         // Without any active catalog nothing can be referenced.
         await using var empty = await StartApplicationAsync(activeBundle: null);
         using var other = empty.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(other, Ayse, "TenantUser");
-        await AssertRejected(other, Page(new { catalogComponent = "satisGrafigi" }), message);
+        await AssertRejected(other, Page(new { catalogComponent = "satisGrafigi" }), "Seçilen bileşen etkin katalogda yok: satisGrafigi.");
+    }
+
+    [Theory]
+    [InlineData("""{ "schemaVersion": 2, "components": [ { "id": "k1", "type": "code", "props": { "catalogComponent": "satisGrafigi", "catalogComponent": "yok" } } ] }""")]
+    [InlineData("""{ "schemaVersion": 2, "components": [ { "id": "k1", "type": "code", "props": { "catalogComponent": "satisGrafigi", "componentSettings": { "adet": 1, "adet": 2 } } } ] }""")]
+    [InlineData("""{ "schemaVersion": 2, "schemaVersion": 2, "components": [ { "id": "k1", "type": "code", "props": { "catalogComponent": "satisGrafigi" } } ] }""")]
+    public async Task Duplicate_json_keys_are_rejected_with_400(string definition)
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
+
+        var response = await CreateDraft(client, definition);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(TenantCustomPageQueries.DuplicateKeyError, await ErrorAsync(response));
     }
 
     [Fact]

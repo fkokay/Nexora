@@ -3,7 +3,7 @@ import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } f
 import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField, sectionRemovalBlocked } from "./recordModel";
-import { ensureTemplateSlots, FREE_TEMPLATE_SLOTS, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
+import { ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, isFreeItemType, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
   const base = newListTemplateDefinition() as unknown as ModelDefinition;
@@ -61,6 +61,15 @@ describe("free template guards", () => {
 
   it("FREE_TEMPLATE_SLOTS", () => {
     expect([...FREE_TEMPLATE_SLOTS].sort()).toEqual(["actions", "block", "item", "tabs"]);
+  });
+
+  it("only a catalog code is a free item; inline code is not (server rule)", () => {
+    expect(FREE_ITEM_TYPES.has("code")).toBe(false);
+    expect(isFreeItemType({ id: "y", type: "code", props: { slot: "item", catalogComponent: "harita" } })).toBe(true);
+    expect(isFreeItemType({ id: "k", type: "code", props: { slot: "item", css: ".a{}", javascript: "x()" } })).toBe(false);
+    expect(isFreeItemType({ id: "b", type: "code", props: { slot: "item", catalogComponent: "" } })).toBe(false);
+    expect(isFreeItemType({ id: "m", type: "metric", props: { slot: "item" } })).toBe(true);
+    expect(isFreeItemType({ id: "s", type: "spacer", props: { slot: "item" } })).toBe(false);
   });
 
   it("puts a component without a place into the last block as an item", () => {

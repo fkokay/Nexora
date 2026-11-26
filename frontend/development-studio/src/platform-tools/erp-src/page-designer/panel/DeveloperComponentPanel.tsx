@@ -8,7 +8,7 @@ import { chooseComponent, developerComponentOf, setComponentSetting, settingValu
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { setHideOnMobile } from "./textPanelModel";
 
-export const DEVELOPER_MISSING_IN_CATALOG = "Katalogda yok";
+export const DEVELOPER_MISSING_IN_CATALOG = "Bu bileşen katalogda yok; sayfayı kaydetmek için başka bir bileşen seçin ya da bileşeni kaldırın.";
 export const DEVELOPER_SOURCE_NOTE = "Yazılımcının yayınladığı bileşen · danışman kodunu görmez";
 export const DEVELOPER_SETTINGS_NOTE = "Bu ayarları yazılımcı tanımladı. Bileşen başka ayar isterse burada görünür.";
 const NO_SETTINGS_NOTE = "Bu bileşenin ayarı yok. Bileşen ayar isterse burada görünür.";
@@ -91,15 +91,15 @@ function SettingControl({ setting, stored, disabled, onSet }: {
           {setting.options.map((option, index) => <option key={index} value={option}>{option}</option>)}
         </select></label>;
     case "number":
-      return <label className="cpanel-q">{setting.label}
-        <input className="cpanel-txt" type="number" value={typeof value === "number" ? String(value) : ""} disabled={disabled}
-          placeholder={typeof setting.default === "number" ? String(setting.default) : undefined}
-          onChange={(event) => {
-            const text = event.target.value.trim();
-            if (text === "") { onSet(null); return; }
-            const parsed = Number(text);
-            if (Number.isFinite(parsed)) onSet(parsed);
-          }}/></label>;
+      // Yazarken ayrıştırılmaz; odaktan çıkınca sayıya çevrilip yazılır (geçersizse kayıttaki değere döner).
+      return <DraftInput label={setting.label} type="number" commitOnBlur value={typeof value === "number" ? String(value) : ""} disabled={disabled}
+        placeholder={typeof setting.default === "number" ? String(setting.default) : undefined}
+        onCommit={(raw) => {
+          const text = raw.trim();
+          if (text === "") { onSet(null); return; }
+          const parsed = Number(text);
+          if (Number.isFinite(parsed)) onSet(parsed);
+        }}/>;
     default:
       return <DraftInput label={setting.label} value={typeof value === "string" ? value : ""} maxLength={500} disabled={disabled}
         placeholder={typeof setting.default === "string" ? setting.default : undefined} onCommit={(text) => onSet(text)}/>;

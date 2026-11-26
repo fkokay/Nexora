@@ -281,6 +281,12 @@ describe('TenantCustomPage katalog bileşeni', () => {
     expect(frames).toHaveLength(0);
   });
 
+  it('gizli katalog bileşeni katalogda yoksa uyarı kutusu da gizlidir', async () => {
+    await openCatalog([{ id: 'c1', type: 'code', props: { catalogComponent: 'eski', catalogMissing: true, hidden: true } }]);
+    const box = screen.getByText('Bu bileşen katalogda yok.').closest('.tenant-page-code-missing') as HTMLElement;
+    expect(box.hidden).toBe(true);
+  });
+
   it('aynı sayfadaki iki katalog bileşeni kendi ayarlarını alır', async () => {
     const { frames, asker } = await openCatalog([
       catalog('c1', { componentSettings: { baslik: 'Bir' } }),

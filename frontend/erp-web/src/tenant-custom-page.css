@@ -106,6 +106,10 @@
 .tenant-page-alert.tone-success { border-color: color-mix(in srgb, var(--nx-ok) 30%, var(--nx-surface)); color: var(--nx-ok); background: var(--nx-ok-bg); }
 .tenant-page-alert.tone-warning { border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
 .tenant-page-alert.tone-danger { border-color: color-mix(in srgb, var(--nx-bad) 30%, var(--nx-surface)); color: var(--nx-bad); background: var(--nx-bad-bg); }
+/* Katalogda olmayan yazılımcı bileşeni: uyarı tonunda kutu (çerçeve çizilmez). */
+.tenant-page-block.tenant-page-code-missing { border-style: dashed; border-color: color-mix(in srgb, var(--nx-warn) 30%, var(--nx-surface)); color: var(--nx-warn); background: var(--nx-warn-bg); }
+.tenant-page-block.tenant-page-code-missing p { margin: 0; color: inherit; }
+.tenant-page-code-missing[hidden] { display: none; }
 /* Durum şeridi (uyarı + `icon`): eski Stok Kartları alt notu (inventory-list-v2.css `.stock-policy-note`) ile aynı ölçüler.
    Sınıf adları "-card"/"-icon"/"-badge" içermez: kabuğun alt dize kuralları !important dolgu ve köşe verir. */
 .tenant-page-status-strip { display: flex; align-items: center; gap: 12px; box-sizing: border-box; min-width: 0; padding: 10px 14px; border: 1px solid #dfe5ee; border-radius: var(--nx-radius-card); background: #fff; color: #17263a; }

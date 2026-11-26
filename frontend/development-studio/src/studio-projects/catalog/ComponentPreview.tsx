@@ -134,7 +134,7 @@ export function ComponentPreview({ css, javascript, height, settings }: {
           </div>
         ))}
         <p className="sp-cw-hint">
-          Önizlemede sayfa verisi yok: <code>runQuery</code> ve <code>callOperation</code> boş yanıt döner. Firma verisine dokunulmaz.
+          Örnek ayarlarla çalışır: <code>runQuery</code> ve <code>callOperation</code> "{PREVIEW_NO_DATA}" yanıtını alır. Firma verisine dokunulmaz.
         </p>
       </div>
     </div>

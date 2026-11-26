@@ -141,6 +141,67 @@ public sealed class TenantCatalogDeveloperAccessIntegrationTests
         Assert.DoesNotContain("CustomerAccounts", text);
     }
 
+    private static string ComponentBundleJson(string javascript) => $$"""
+        { "schemaVersion": 1,
+          "dataSources": [ { "code": "cariler", "label": "Cari hesaplar", "source": { "sql": "{{StoredSql}}" }, "parameters": [ { "name": "q", "type": "text" } ] } ],
+          "actions": [],
+          "components": [ { "code": "grafik", "label": "Grafik", "javascript": "{{javascript}}" } ] }
+        """;
+
+    private static Task<HttpResponseMessage> CreateRelease(HttpClient client, string version, string bundleJson) =>
+        client.PostAsJsonAsync(Releases, new { version, bundle = JsonDocument.Parse(bundleJson).RootElement });
+
+    [Fact]
+    public async Task Developer_activates_release_with_unchanged_components()
+    {
+        await using var app = await StartApplicationAsync(new CountingExecutor());
+        await SetMembershipAsync(app, "TenantUser", "Developer");
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        var active = await IdOf(await CreateRelease(client, "1.0.0", ComponentBundleJson("ciz();")));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, active, null)).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Mehmet, "TenantUser");
+        // Same components, only the data source label changes.
+        var next = await IdOf(await CreateRelease(client, "1.0.1", ComponentBundleJson("ciz();").Replace("Cari hesaplar", "Cariler")));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, next, active)).StatusCode);
+        // Dropping the components is a change, so the developer may not activate it.
+        var plain = await IdOf(await CreateRelease(client, "1.0.2"));
+        Assert.Equal(HttpStatusCode.Forbidden, (await Activate(client, plain, next)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Developer_gets_403_when_components_change_and_admin_activates()
+    {
+        await using var app = await StartApplicationAsync(new CountingExecutor());
+        await SetMembershipAsync(app, "TenantUser", "Developer");
+        using var client = app.GetTestClient();
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Mehmet, "TenantUser");
+        // No active release: a release with a component counts as a change.
+        var first = await IdOf(await CreateRelease(client, "1.0.0", ComponentBundleJson("ciz();")));
+        var refused = await Activate(client, first, null);
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.Equal(TenantCatalogEndpoints.ComponentAdminOnlyError, (await refused.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        // Without components the developer still activates.
+        var plain = await IdOf(await CreateRelease(client, "1.0.1"));
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, plain, null)).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, first, plain)).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Mehmet, "TenantUser");
+        var changed = await IdOf(await CreateRelease(client, "1.0.2", ComponentBundleJson("baskaKod();")));
+        Assert.Equal(HttpStatusCode.Forbidden, (await Activate(client, changed, first)).StatusCode);
+        // Removing the components is a change too.
+        Assert.Equal(HttpStatusCode.Forbidden, (await Activate(client, plain, first)).StatusCode);
+        // A stale TenantAdmin claim is not a verified admin.
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Mehmet, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await Activate(client, changed, first)).StatusCode);
+
+        CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
+        Assert.Equal(HttpStatusCode.OK, (await Activate(client, changed, first)).StatusCode);
+    }
+
     [Fact]
     public async Task Inactive_developer_gets_403()
     {

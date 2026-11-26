@@ -154,4 +154,17 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(added).toHaveLength(1);
     expect(added[0].props).toEqual({ slot: "below", catalogComponent: "satisHaritasi" });
   });
+
+  it("saving drops stale settings of a catalog component so the save is not blocked", async () => {
+    catalogState.components = [harita];
+    catalogState.definition = { ...start, components: start.components.map((c) => c.id === "y0"
+      ? { ...c, props: { ...c.props, componentSettings: { baslik: "Eski", kaldirilan: 3 } } } : c) };
+    const { host } = await open();
+    await act(async () => button(host, ".pd-palette-item", "Metin")!.click());
+    await key({ key: "s", ctrlKey: true });
+    await flush();
+    const def = saved.at(-1)!;
+    expect(def).toBeTruthy();
+    expect(def.components.find((c) => c.id === "y0")!.props).toEqual({ slot: "item", catalogComponent: "satisHaritasi", componentSettings: { baslik: "Eski" } });
+  });
 });

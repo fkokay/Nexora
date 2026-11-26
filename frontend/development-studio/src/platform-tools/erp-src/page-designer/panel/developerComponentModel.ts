@@ -84,3 +84,36 @@ export function developerComponentOf(def: ModelDefinition, id: string, catalog: 
   const comp = code ? catalog?.components?.find((item) => item.code === code) ?? null : null;
   return { comp, missing: code !== "" && !comp, values: { ...settingsOf(component.props) } };
 }
+
+/**
+ * Kayıttan önce: her katalog `code` bileşeninde (her derinlikte) etkin katalogdaki bileşenin artık tanımlamadığı ya da türüne
+ * uymayan ayar değerleri düşülür (Review Focus 2: eskimiş ayar kaydı engellemez). Katalogda olmayan bileşen olduğu gibi kalır;
+ * onu sunucu adıyla reddeder. Katalog yoksa ya da değişiklik yoksa aynı tanım döner.
+ */
+export function pruneComponentSettings<D extends ModelDefinition>(def: D, catalog: ActiveCatalog | null): D {
+  const components = catalog?.components ?? [];
+  if (components.length === 0) return def;
+  const visit = (list: ModelComponent[]): ModelComponent[] => {
+    let changed = false;
+    const next = list.map((c) => {
+      let item = c;
+      if (Array.isArray(c.children)) {
+        const children = visit(c.children as ModelComponent[]);
+        if (children !== c.children) item = { ...item, children };
+      }
+      const code = (c.props as Record<string, unknown>).catalogComponent;
+      const comp = c.type === "code" && typeof code === "string" ? components.find((entry) => entry.code === code) : undefined;
+      if (comp) {
+        const stored = (c.props as Record<string, unknown>).componentSettings;
+        const kept = fittingSettings(comp, settingsOf(c.props));
+        const same = isObject(stored) ? Object.keys(stored).length === Object.keys(kept).length : stored === undefined;
+        if (!same) item = { ...item, props: withSettings(item.props, kept) };
+      }
+      if (item !== c) changed = true;
+      return item;
+    });
+    return changed ? next : list;
+  };
+  const nextComponents = visit(def.components);
+  return nextComponents === def.components ? def : { ...def, components: nextComponents };
+}

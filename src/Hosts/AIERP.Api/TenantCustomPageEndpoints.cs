@@ -404,10 +404,13 @@ internal static class TenantCustomPageEndpoints
     /// Pages whose definition contains inline SQL queries, write ERP operation queries, or a code component with JavaScript
     /// (it can reach page data and operations) may only be written by a verified TenantAdmin (role claim and current
     /// membership). Catalog references (<c>dataSource</c> and <c>action</c>, whatever the item runs) carry only a code and
-    /// need no such gate: the catalog version is activated by a TenantAdmin and its SQL is re-validated on every run, so
-    /// any user with page write permission may save them. The same holds for a catalog component (<c>catalogComponent</c>): the
-    /// page carries only its code and setting values, never CSS/JavaScript (the schema rejects both alongside it), and the
-    /// code comes from the activated catalog when the page is read. Pages that only bind read ERP operations need no gate either:
+    /// need no such gate: the catalog version is activated by a verified TenantAdmin or Studio Developer and its SQL is
+    /// re-validated on every run, so any user with page write permission may save them. The same holds for a catalog component
+    /// (<c>catalogComponent</c>): the page carries only its code and setting values, never CSS/JavaScript (the schema rejects
+    /// both alongside it), and the code comes from the activated catalog when the page is read. A release whose components
+    /// differ from the active release's is activated only by a verified TenantAdmin
+    /// (<see cref="TenantCatalogEndpoints.ComponentsChanged"/>), so component JavaScript reaches pages only with an admin's
+    /// approval, as inline JavaScript does. Pages that only bind read ERP operations need no gate either:
     /// reads run against their own endpoints with the user's own token. The Platform database is read only when a
     /// definition needs the check.
     /// </summary>

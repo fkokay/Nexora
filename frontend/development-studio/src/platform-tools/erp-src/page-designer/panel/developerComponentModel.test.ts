@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogComponent } from "../catalogClient";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { chooseComponent, developerComponentOf, setComponentSetting } from "./developerComponentModel";
+import { chooseComponent, developerComponentOf, pruneComponentSettings, setComponentSetting } from "./developerComponentModel";
 
 const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: "Bölgelere göre satış", height: 240, settings: [
   { name: "baslik", label: "Başlık", type: "text", options: [], default: "Bölgeler" },
@@ -65,6 +65,29 @@ describe("developerComponentModel", () => {
     expect(developerComponentOf(make({ catalogComponent: "takvim" }), "y1", null)).toEqual({ comp: null, missing: true, values: {} });
     expect(developerComponentOf(make({}), "y1", catalog)).toEqual({ comp: null, missing: false, values: {} });
     expect(developerComponentOf(make({ catalogComponent: "takvim", componentSettings: "bozuk" }), "y1", catalog).values).toEqual({});
+  });
+
+  it("pruneComponentSettings drops stale settings of every catalog code before save", () => {
+    const nested = { id: "kart", type: "card", props: {}, children: [{ id: "y2", type: "code", props: { catalogComponent: "takvim", componentSettings: { donem: "Bu ay", baslik: "Takvim" } } }] };
+    const start: ModelDefinition = { schemaVersion: 2, queries: [], components: [other,
+      { id: "y1", type: "code", props: { slot: "below", catalogComponent: "satisHaritasi", componentSettings: { baslik: "Ege", silinen: 1, adet: "3" } } as unknown as ModelComponent["props"] },
+      nested as unknown as ModelComponent,
+      { id: "y3", type: "code", props: { catalogComponent: "kaldirilan", componentSettings: { a: 1 } } as unknown as ModelComponent["props"] },
+      { id: "y4", type: "code", props: { catalogComponent: "takvim", componentSettings: { donem: "x" } } as unknown as ModelComponent["props"] },
+      { id: "satir", type: "code", props: { css: ".a{}", javascript: "x()" } }] };
+    const snapshot = JSON.stringify(start);
+    const next = pruneComponentSettings(start, catalog);
+    expect(JSON.stringify(start)).toBe(snapshot);
+    const by = (id: string) => next.components.find((c) => c.id === id)!.props as Record<string, unknown>;
+    expect(by("y1")).toEqual({ slot: "below", catalogComponent: "satisHaritasi", componentSettings: { baslik: "Ege" } });
+    expect((next.components[2].children as ModelComponent[])[0].props).toEqual({ catalogComponent: "takvim", componentSettings: { baslik: "Takvim" } });
+    // Katalogda olmayan bileşen olduğu gibi kalır (sunucu adını söyleyerek reddeder); hepsi düşerse ayar nesnesi kalkar.
+    expect(by("y3")).toEqual({ catalogComponent: "kaldirilan", componentSettings: { a: 1 } });
+    expect(by("y4")).toEqual({ catalogComponent: "takvim" });
+    expect(by("satir")).toEqual({ css: ".a{}", javascript: "x()" });
+    // Değişiklik yoksa aynı tanım döner; katalog yoksa dokunulmaz.
+    expect(pruneComponentSettings(next, catalog)).toBe(next);
+    expect(pruneComponentSettings(start, null)).toBe(start);
   });
 
   it("functions never mutate input", () => {

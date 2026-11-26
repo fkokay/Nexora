@@ -12,7 +12,7 @@ import { chooseTableSource, setTableEmptyText, setTablePageSize } from "./freeTa
 import { setImageAddress, setImageDescription, setImageHeight } from "./imagePanelModel";
 import { chooseIndicatorSource, setIndicatorCompare, setIndicatorKind, setIndicatorPlace, setIndicatorSize, setIndicatorTotal, setIndicatorValue } from "./indicatorPanelModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, freeRemoval, templateDuplicateBlocked } from "./templateGuards";
+import { ensureTemplateSlots, FREE_TEMPLATE_SLOTS, freeRemoval, isFreeItemType, templateDuplicateBlocked } from "./templateGuards";
 import { setHideOnMobile, setInfoBox, setTextAlign, setTextContent, setTextStyle } from "./textPanelModel";
 
 const col = (code: string, label: string, type = "text") => ({ code, label, type, key: false, longText: false, required: false, maxLength: null });
@@ -55,7 +55,7 @@ function serverProblem(def: ModelDefinition): string | null {
     if (![1, 2, 3].includes(block.props.columns as number)) return `columns ${block.id}`;
   }
   for (const item of items) {
-    if (!FREE_ITEM_TYPES.has(item.type)) return `type ${item.id}`;
+    if (!isFreeItemType(item)) return `type ${item.id}`;
     if (item.type === "card" && item.props.variant === "panel") return `panel card ${item.id}`;
     const owners = blocks.filter((block) => (block.props.members as string[]).includes(item.id));
     if (owners.length !== 1) return `membership ${item.id}`;

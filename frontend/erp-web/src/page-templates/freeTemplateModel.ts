@@ -41,9 +41,9 @@ export function layoutFreeTemplate<C extends Component>(components: C[]): FreeLa
   };
 }
 
-/** Tam satır üyeler: Liste, Görsel ve maddeli Bilgi kutusu / kart / madde listesi. */
+/** Tam satır üyeler: Liste, Görsel, Yazılımcı bileşeni (`code`; serbest gövdede yalnız katalog bileşeni) ve maddeli Bilgi kutusu / kart / madde listesi. */
 export function freeFullRow(component: Component): boolean {
-  if (component.type === "dataTable" || component.type === "image") return true;
+  if (component.type === "dataTable" || component.type === "image" || component.type === "code") return true;
   if (component.type !== "alert" && component.type !== "card" && component.type !== "list") return false;
   const items = component.props?.items;
   return Array.isArray(items) && items.some((item) => typeof item === "string" && item.trim() !== "");

@@ -1,4 +1,21 @@
 # Master Prompt Phase Status
+### 2026-11-26 Developer components in the catalog (Yazılımcı bileşeni)
+
+Plan `docs/superpowers/plans/2026-11-26-yazilimci-bileseni.md`. A developer writes a **component** (CSS + JavaScript + a settings schema) in the firm module under `bilesenler/<kod>/` (`bilesen.json`, `stil.css`, `kod.js`) and releases it with the catalog; a consultant picks it as "Yazılımcı bileşeni" and fills only the settings the developer defined; the ERP draws it in today's isolated code frame.
+
+- **Catalog:** new item kind `components` (code, label, description, height, CSS, JavaScript, settings of type text / number / bool / choice with optional default), validated with today's code-field rules and listed in the active catalog view without CSS/JavaScript. Activating a release whose components differ from the active release's (added, removed, or changed code / CSS / JavaScript / height / settings; no active release counts as different when the new one has a component) needs a verified TenantAdmin; a Studio Developer can still activate releases with unchanged components.
+- **Page format:** a `code` component carries only `catalogComponent` + `componentSettings`; CSS/JavaScript next to `catalogComponent` is rejected, so any page writer may save it (inline code still needs a verified TenantAdmin). Save checks that the component exists in the active catalog (the error names it) and that every setting is defined and fits its type; duplicate JSON keys return 400. Reading a page resolves CSS, JavaScript, height and defaults from the active catalog, drops settings that no longer fit, and marks a removed component `catalogMissing`.
+- **ERP:** settings are read through the bridge (`get("ayarlar.<ad>")`, falling back to the default, then null); a missing component shows "Bu bileşen katalogda yok." (respects `hidden`) and the rest of the page renders; on a free body the component is a full row.
+- **Studio (developer):** a "Bileşenler" group in the catalog workbench with the component form, CSS/JS editors, a preview with sample settings that never touches firm data (`runQuery` / `callOperation` answer "Önizlemede sayfa verisi yok."), and components counted in the release dialog; a developer who is not TenantAdmin sees the admin-only message instead of Etkinleştir when the release adds or removes components (other component changes surface the server's 403 text).
+- **Studio (consultant):** "Yazılımcı bileşeni" in the palette when the active catalog has components — in the List template's extra areas, the record card's extra-area add list and the free body — with the mockup 03 panel (component choice, settings by type, number setting committed on blur). Before every save stale settings are pruned against the active catalog; a component no longer in the catalog is flagged in the panel. The legacy canvas draws a catalog component as a labelled placeholder.
+- No migration.
+
+Test results: TEST_RESULTS
+
+Not verified: a browser pass against Studio + ERP; a real backend and login; Docker Compose; the publish and catalog activation flow end to end; a developer component running real page queries in a published page. Known gap: the release dialog only activates the draft it just created (rollback covers Superseded releases), so a draft a developer created with changed components has no Studio button for a TenantAdmin; the admin creates the release again (adding one is a screen change awaiting design approval).
+
+Deploy order: platform-api and erp-web first, then development-studio.
+
 ### 2026-11-26 Free body template (subproject 5c)
 
 Pages can now use a third template, **Serbest** (`template: { "name": "free" }`, level 3): the shared shell (title, action bar) around optional tabs and sections, each section 1, 2 or 3 columns. A section lists its components by id (`members`), so the components stay top-level and the 5a panels work on them unchanged. The new-page dialog offers Liste, Kayıt kartı, Serbest and, last, "Eski tasarımcı (kalıpsız)"; the Ekranlar list shows "Serbest · 3. basamak".

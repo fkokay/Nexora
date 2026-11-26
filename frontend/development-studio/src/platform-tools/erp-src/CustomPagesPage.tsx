@@ -74,6 +74,7 @@ import * as refTree from "./page-designer/refOwners";
 import { DragSelect, createDragStore } from "./page-designer/dragStore";
 import * as freeModel from "./page-designer/panel/freeModel";
 import { CONSULTANT_PALETTE, consultantAvailability, consultantDescription, consultantKindFromKey, consultantPaletteKey, createConsultantComponent, isCreatableKind, type ConsultantKind, type ConsultantTemplate } from "./page-designer/panel/consultantPalette";
+import { pruneComponentSettings } from "./page-designer/panel/developerComponentModel";
 import SystemPageNewItems, { addStandardItems, standardItemBundle, standardItemId, type StandardNewItem, type StandardNewItems } from "./page-designer/SystemPageNewItems";
 import { DEFAULT_PAGE_SIZE, MAX_FOOTER_META, MAX_PAGE_SIZE, MIN_PAGE_SIZE, PAGING_PROPS, isPagedTable, pageBinding, pageSizeBinding, pagedTableProblem, pagingParams, pagingSourceProblem, stripPagingProps, supportsServerPaging, tableSearchInputIds, withPagingBindings, withoutPagingBindings } from "./page-designer/paging";
 import { QueryEditorProvider, QueryFieldActions, READ_KINDS, ALL_KINDS, WRITE_KINDS, useQueryEditor, type QueryBinder } from "./page-designer/QueryEditorDialog";
@@ -1392,7 +1393,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     dataSources: activeCatalog.catalog.dataSources.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, false, erpCatalog.status)),
     actions: activeCatalog.catalog.actions.map((item) => withOperationParameters(item, item.erpOperation ? findOperation(erpCatalog, item.erpOperation) : undefined, true, erpCatalog.status)),
   } : null, [isRecordPage, isFreePage, activeCatalog.catalog, erpCatalog]);
-  const needsCatalog = !!readPageTemplate(definition.template) || newPageDialog === "create";
+  // Kalıpsız sayfada da yazılımcı bileşeni (katalog `code`) varsa katalog okunur: eski tuval adını gösterir, kayıt eskimiş ayarları düşer.
+  const hasCatalogCode = useMemo(() => cardTree.flattenComponents(definition.components).some((component) => component.type === "code" && typeof component.props.catalogComponent === "string"), [definition.components]);
+  const needsCatalog = !!readPageTemplate(definition.template) || newPageDialog === "create" || hasCatalogCode;
   useEffect(() => {
     if (!needsCatalog) return;
     let active = true;
@@ -2379,7 +2382,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const fail = (message: string, reveal?: () => void) => { if (!quiet) { setError(message); reveal?.(); } else setCanvasHint(`Tuval güncellenmedi: ${message}`); return null; };
     if (!canEdit) return fail("Bu sayfayı düzenleme yetkiniz yok.");
     // Yüklenmiş ama düzenlenmemiş sayfalar da temizlensin; değişiklik editör durumuna işlenir ki kaydedilenle aynı olsun.
-    const reconciled = reconcileDefinition(definitionRef.current, { catalog: erpCatalog, catalogRefs, queryEditable });
+    // Katalog hazırsa yazılımcı bileşenlerinin artık tanımsız ya da türü uymayan ayarları düşülür (eskimiş ayar kaydı engellemez).
+    const pruned = activeCatalog.status === "ready" ? pruneComponentSettings(definitionRef.current as unknown as ModelDefinition, activeCatalog.catalog) as unknown as PageDefinition : definitionRef.current;
+    const reconciled = reconcileDefinition(pruned, { catalog: erpCatalog, catalogRefs, queryEditable });
     if (reconciled !== definitionRef.current) commit(() => reconciled);
     const definition = normalizeDefinition(reconciled);
     if (!name.trim() || !code.trim()) return fail("Sayfa adı ve kodu gerekli. Sağdaki sayfa ayarlarından girin.", () => { setSelectedComponentId(null); setRightMode("inspector"); });
@@ -2921,7 +2926,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         return <GridPreview key={component.id} title={shown(props.title, "Liste")} subtitle={source?.label || "Veri kaynağı seçilmedi"} columns={visibleColumns} rows={data.rows} truncated={data.totalCount > data.rows.length} props={props} emptyText="Kaynakta gösterilecek kayıt bulunamadı." rowAction={hasRowAction ? String(props.rowActionLabel || "İşlemi başlat") : undefined} style={style} />;
       }
       case "form": return <article key={component.id} className="custom-page-preview-card" style={style}><b>{shown(props.title, "Form")}</b><p>{forms.find((form) => form.code === props.formCode)?.name || "Yayımlanmış form seçin"}</p></article>;
-      case "code": return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
+      // Yazılımcı bileşeninin kodu sayfada yok (sunucu ERP'de çözer): eski tuvalde bileşen adıyla bir yer tutucu çizilir.
+      case "code": if (typeof props.catalogComponent === "string" && props.catalogComponent !== "") {
+        const catalogComp = activeCatalog.catalog?.components?.find((item) => item.code === props.catalogComponent);
+        return <article key={component.id} className="custom-page-preview-card custom-page-code-placeholder" hidden={props.hidden === true} style={style}>
+          <b>{catalogComp?.label ?? "Yazılımcı bileşeni"}</b><p>{catalogComp ? "Yazılımcı bileşeni · ERP önizlemesinde çizilir." : activeCatalog.status === "ready" ? "Bu bileşen katalogda yok." : activeCatalog.status === "failed" ? "Katalog okunamadı." : "Katalog yükleniyor…"}</p></article>;
+      }
+        return <CodePreviewFrame key={component.id} className="custom-page-code-preview" title={String(props.title || component.name || "Yalıtılmış kod önizlemesi")} hidden={props.hidden === true} style={style} css={String(props.css || "")} javascript={String(props.javascript || "")} host={bridgeHost} />;
       case "alert": { const variant = ["success", "warning", "danger", "info"].includes(String(props.variant)) ? String(props.variant) : "info";
         return <AlertPreview key={component.id} variant={variant} title={shown(props.title, "")} text={shown(props.text, "")} icon={String(props.icon || "")} value={String(props.value || "")} style={style} />; }
       // Etiket metni bağlama içerebilir ({{liste.seciliSatir.status}}): örnek veriyle çözülür, çözülemezse "Durum".
@@ -3888,8 +3899,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       return component ? <VisibilityField key={`${id}-visibility`} props={component.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions}
         disabled={!canEdit} onSet={(key, value) => setOptionalProp(id, key, value)}/> : null;
     },
-    extraTypes: palette.filter((item) => !TEMPLATE_FORBIDDEN_TYPES.has(item.type) && !RECORD_PART_TYPES.has(item.type)).map((item) => ({ type: item.type, label: item.label })),
-    onAddExtra: (type: string) => { const item = palette.find((entry) => entry.type === type); if (item) addComponent(item); },
+    // "Yazılımcı bileşeni" etkin katalogda bileşen varsa sunulur; katalogun ilk bileşenine başvurur (bileşeni panelde değişir).
+    extraTypes: [...palette.filter((item) => !TEMPLATE_FORBIDDEN_TYPES.has(item.type) && !RECORD_PART_TYPES.has(item.type)).map((item) => ({ type: item.type, label: item.label })),
+      ...(consultantAvailability("developer", "record", activeCatalog.catalog).available ? [{ type: consultantPaletteKey("developer"), label: "Yazılımcı bileşeni" }] : [])],
+    onAddExtra: (type: string) => {
+      const item = consultantKindFromKey(type) ? findPaletteItem(type, "record", activeCatalog.catalog) : palette.find((entry) => entry.type === type);
+      if (item) addComponent(item);
+    },
   } : null;
 
   return <QueryEditorProvider value={queryEditor.api}><main className={`pd-shell${fullscreen ? " pd-fullscreen" : ""}`}>

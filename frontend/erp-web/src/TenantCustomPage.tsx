@@ -1427,7 +1427,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
     case "code": {
       const host = runtime?.codeHost ?? INERT_CODE_HOST;
       if (props.catalogMissing === true) {
-        return <section className="tenant-page-block tenant-page-code-missing" style={style} key={component.id} role="note"><p>{CATALOG_MISSING_TEXT}</p></section>;
+        return <section className="tenant-page-block tenant-page-code-missing" style={style} key={component.id} role="note" hidden={props.hidden === true}><p>{CATALOG_MISSING_TEXT}</p></section>;
       }
       const catalogCode = textValue(props.catalogComponent);
       const frameHeight = typeof props.height === "number" && Number.isFinite(props.height) && props.height > 0 ? props.height : null;

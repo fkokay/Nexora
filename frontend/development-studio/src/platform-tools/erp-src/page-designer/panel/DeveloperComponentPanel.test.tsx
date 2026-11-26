@@ -1,8 +1,11 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogComponent } from "../catalogClient";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { DeveloperComponentPanel } from "./DeveloperComponentPanel";
+import { DEVELOPER_MISSING_IN_CATALOG, DeveloperComponentPanel } from "./DeveloperComponentPanel";
 
 const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: "Bölgelerin satış dağılımı", height: 240, settings: [
   { name: "baslik", label: "Başlık", type: "text", options: [], default: "Bölgelere göre satış" },
@@ -41,12 +44,13 @@ describe("DeveloperComponentPanel", () => {
 
   it("panel marks missing component", () => {
     const html = render({ catalogComponent: "kaldirilanBilesen", componentSettings: { baslik: "x" } });
-    expect(html).toContain("Katalogda yok");
+    expect(DEVELOPER_MISSING_IN_CATALOG).toBe("Bu bileşen katalogda yok; sayfayı kaydetmek için başka bir bileşen seçin ya da bileşeni kaldırın.");
+    expect(html).toContain(DEVELOPER_MISSING_IN_CATALOG);
     expect(html).not.toContain("kaldirilanBilesen");
     expect(html).not.toMatch(/<option[^>]*selected=""[^>]*>Satış haritası/);
     expect(html).not.toContain("Bu ayarları yazılımcı tanımladı.");
     // Katalog henüz yüklenmemişken "yok" denmez.
-    expect(render({ catalogComponent: "kaldirilanBilesen" }, null, "loading")).not.toContain("Katalogda yok");
+    expect(render({ catalogComponent: "kaldirilanBilesen" }, null, "loading")).not.toContain(DEVELOPER_MISSING_IN_CATALOG);
     expect(render({ catalogComponent: "kaldirilanBilesen" }, null, "failed")).toContain("Katalog okunamadı.");
   });
 
@@ -59,5 +63,22 @@ describe("DeveloperComponentPanel", () => {
     const html = render({ catalogComponent: "satisHaritasi", componentSettings: { baslik: "Ege", eski: "x" }, css: ".a{}", javascript: "x()" });
     for (const word of ["satisHaritasi", "teslimatTakvimi", "baslik", "donem", "etiketler", "eski", "ayarlar.", "CSS", "css", "JavaScript", "javascript", "catalogComponent", "componentSettings", "Eski ayarlar"])
       expect(html, word).not.toContain(word);
+  });
+
+  it("number setting commits on blur", async () => {
+    const changes: ModelDefinition[] = [];
+    const host = document.createElement("div"); document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<DeveloperComponentPanel {...make({ catalogComponent: "satisHaritasi" })} catalog={catalog} catalogStatus="ready"
+      onChange={(next) => changes.push(next)} onRename={() => {}}/>));
+    const input = host.querySelector<HTMLInputElement>('input[type="number"]')!;
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => { setValue.call(input, "1"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await act(async () => { setValue.call(input, "12"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect(changes).toHaveLength(0);
+    await act(async () => { input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(changes).toHaveLength(1);
+    expect((changes[0].components[0].props as Record<string, unknown>).componentSettings).toEqual({ adet: 12 });
+    await act(async () => root.unmount()); host.remove();
   });
 });

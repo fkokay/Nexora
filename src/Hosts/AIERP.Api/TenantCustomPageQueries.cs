@@ -59,10 +59,16 @@ internal static partial class TenantCustomPageQueries
         var queryReferences = HasCatalogQueryReferences(definitionJson);
         var componentReferences = HasCatalogComponents(definitionJson);
         if (!queryReferences && !componentReferences) return definitionJson;
-        if (JsonNode.Parse(definitionJson) is not JsonObject root) return definitionJson;
-        if (queryReferences && root["queries"] is JsonArray queries) ResolveQueryReferences(definitionJson, queries, catalog);
-        if (componentReferences) ResolveCatalogComponents(root, catalog);
-        return root.ToJsonString();
+        try
+        {
+            if (JsonNode.Parse(definitionJson) is not JsonObject root) return definitionJson;
+            if (queryReferences && root["queries"] is JsonArray queries) ResolveQueryReferences(definitionJson, queries, catalog);
+            if (componentReferences) ResolveCatalogComponents(root, catalog);
+            return root.ToJsonString();
+        }
+        // A duplicate JSON key (JsonObject throws ArgumentException): the save rule rejects such pages; a stored one is
+        // handed out without catalog code (its components and catalog queries stay unresolved) rather than failing the read.
+        catch (ArgumentException) { return definitionJson; }
     }
 
     private static void ResolveQueryReferences(string definitionJson, JsonArray queries, AIERP.Api.CatalogBundle? catalog)
@@ -161,12 +167,18 @@ internal static partial class TenantCustomPageQueries
 
     /// <summary>
     /// Structural check: a v2 definition with a <c>code</c> component (any depth) whose props have a <c>catalogComponent</c>
-    /// key (any value). Never throws on stored JSON.
+    /// key (any value). A definition with a duplicate JSON key that mentions <c>catalogComponent</c> counts too (fails safe:
+    /// the save rule then rejects it). Never throws on stored JSON.
     /// </summary>
-    internal static bool HasCatalogComponents(string definitionJson) => CatalogComponentReferences(definitionJson).Count > 0;
+    internal static bool HasCatalogComponents(string definitionJson) => CatalogComponentReferences(definitionJson) is not { Count: 0 };
 
-    /// <summary>The <c>catalogComponent</c> references of a v2 definition: the code (null when not a string) and the settings object.</summary>
-    internal static IReadOnlyList<(string? Code, JsonObject? Settings)> CatalogComponentReferences(string definitionJson)
+    internal const string DuplicateKeyError = "Sayfa tanımında aynı ad birden fazla kez yazılmış.";
+
+    /// <summary>
+    /// The <c>catalogComponent</c> references of a v2 definition: the code (null when not a string) and the settings object.
+    /// Null when the definition mentions <c>catalogComponent</c> but has a duplicate JSON key (it cannot be read reliably).
+    /// </summary>
+    internal static IReadOnlyList<(string? Code, JsonObject? Settings)>? CatalogComponentReferences(string definitionJson)
     {
         try
         {
@@ -177,9 +189,11 @@ internal static partial class TenantCustomPageQueries
                 (props["catalogComponent"] is JsonValue value && value.TryGetValue<string>(out var code) ? code : null, props["componentSettings"] as JsonObject)).ToArray();
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException) { return []; }
+        // JsonObject throws on a duplicate property name.
+        catch (ArgumentException) { return null; }
     }
 
-    internal const string MissingComponentError = "Seçilen bileşen etkin katalogda yok.";
+    internal const string MissingComponentPrefix = "Seçilen bileşen etkin katalogda yok: ";
 
     /// <summary>
     /// Save rule for catalog component references (after the schema's format rules): each referenced component exists in
@@ -188,10 +202,11 @@ internal static partial class TenantCustomPageQueries
     /// </summary>
     internal static string? CatalogComponentError(string definitionJson, AIERP.Api.CatalogBundle? catalog)
     {
-        foreach (var (code, settings) in CatalogComponentReferences(definitionJson))
+        if (CatalogComponentReferences(definitionJson) is not { } references) return DuplicateKeyError;
+        foreach (var (code, settings) in references)
         {
             var component = code is null ? null : catalog?.FindComponent(code);
-            if (component is null) return MissingComponentError;
+            if (component is null) return $"{MissingComponentPrefix}{code}.";
             if (settings is null) continue;
             foreach (var (name, value) in settings)
             {
