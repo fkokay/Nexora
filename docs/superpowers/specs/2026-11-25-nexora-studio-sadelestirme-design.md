@@ -395,6 +395,15 @@ Her alt proje kendi planıyla ve kendi PR(lar)ıyla ilerler.
   - Karar 5: eylemin her parametresi aynı adlı liste kolonuna bağlanır; eşleşmeyen eylem seçilemez, toplu eylem yalnız silme olabilir.
   - Karar 6: satıra çift tıklama "Kartı aç", "Yan panelde göster" ya da "Hiçbir şey" olur; kaynakta `opens` ya da anahtar kolon yoksa kartı aç seçilemez.
   - Karar 7: ERP tuvali kullanılamıyorsa tuval alanında "Bu ekran ERP önizlemesi açılınca görünür." yazar; panel çalışır.
+- **Kayıt kartı, alt proje 4** (plan: `docs/superpowers/plans/2026-11-25-kayit-karti.md`).
+  - Yaklaşım A: kart, Liste gibi bir kalıptır; sayfa modeli yalnız kayıt kaynağı, sekmeler, bölümler ve alanlardan oluşur.
+  - Katalog kolona üç bayrak ekler: uzun metin, zorunlu, en çok uzunluk. Uzun metin yeni girdi türü değil, master'daki `multiline` ile yapılır; girdiye yalnız `readOnly` eklenir. Zorunluluk kilidi yalnız Studio'da uygulanır.
+  - Kaydet'ten sonra yeni kayıt yazılan anahtarla yeniden açılır ve "Kaydedildi." der; Sil onaydan sonra listeye döner ve "Silindi" der. Kaydet'in hakları çalışacak adımlardan gelir; eklemesiz yeni kayıtta Kaydet nedenini söyleyerek pasiftir.
+  - Liste'ye "+ Yeni" bu projede eklenir (yoksa yeni kayıt kipine ulaşılamaz). Hedef kartta ekleme yoksa "+ Yeni" gizlenmez; bu sonraya kaldı.
+  - Tuvaldeki örnek kayıt ucu yalnız yöneticide (TenantAdmin) çalışır; örnek parametreler taslak başına saklanır.
+  - Bir bölümde en çok 12 alan olur (sunucu sınırı); fazlası "Diğer bilgiler" bölümlerine taşar. Ondalık özet değeri katalogda para birimi olmadığından `money` değil `number` biçimiyle gösterilir.
+  - Sekmeler taslaktaki alt çizgi yerine ERP'nin mevcut hap biçimini korur (tüm ERP ekranlarıyla tutarlılık).
+  - Kullanıcının ertelemeleri: eski Studio tuvalinin silinmesi 5b'ye, serbest gövde (3. basamak) 5. projeye, Önceki / Sonraki sonraya.
 
 ## 11. Kullanıcının kararları (2026-11-25)
 
