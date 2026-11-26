@@ -29,7 +29,7 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var draftId = await PublishPageAsync(client, keepDraft: true);
+        var draftId = await PublishPageAsync(app, client, keepDraft: true);
         await PutAccessAsync(client, new { mode = "AdminsOnly", expectedRevision = 0 });
 
         SetIdentity(client, Ayse, "TenantUser");
@@ -51,7 +51,7 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        await PublishPageAsync(client);
+        await PublishPageAsync(app, client);
         await PutAccessAsync(client, new { mode = "SelectedUsers", users = new object[] { new { userId = Ayse, canView = true } }, expectedRevision = 0 });
 
         SetIdentity(client, Ayse, "TenantUser");
@@ -67,7 +67,7 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        await PublishPageAsync(client);
+        await PublishPageAsync(app, client);
 
         SetIdentity(client, Mehmet, "TenantUser");
         var published = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{Code}/published");
@@ -81,7 +81,7 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        await PublishPageAsync(client);
+        await PublishPageAsync(app, client);
         await PutAccessAsync(client, new { mode = "SelectedUsers", users = new object[] { new { userId = Ayse, canView = true } }, expectedRevision = 0 });
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-menus/", new { code = "reports-shortcut", label = "Raporlar", targetPage = "reports" })).StatusCode);
 
@@ -100,7 +100,7 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        await PublishPageAsync(client);
+        await PublishPageAsync(app, client);
         await PutAccessAsync(client, new { mode = "AdminsOnly", expectedRevision = 0 });
 
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/custom-pages/{Code}/published")).StatusCode);
@@ -143,10 +143,10 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
     }
 
     /// <summary>Publishes the page and adds a menu entry for it; optionally leaves an open draft for preview.</summary>
-    private static async Task<Guid?> PublishPageAsync(HttpClient client, bool keepDraft = false)
+    private static async Task<Guid?> PublishPageAsync(WebApplication app, HttpClient client, bool keepDraft = false)
     {
         var definition = new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = "Varlıklar" } } } };
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Varlık panosu", definition });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Varlık panosu", definition);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 })).StatusCode);

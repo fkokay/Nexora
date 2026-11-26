@@ -28,7 +28,7 @@ public sealed class TenantCustomPageCatalogWriteGateTests
                 ["id"] = "q2", ["name"] = "sil", ["kind"] = "delete", ["action"] = "cariSil", ["runOn"] = "manual",
                 ["parameters"] = new object[] { new { name = "id", binding = "{{arama.value}}", type = "guid" } },
             })).RootElement;
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-liste", name = "Cari liste", definition = both });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-liste", "Cari liste", both);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
@@ -41,18 +41,15 @@ public sealed class TenantCustomPageCatalogWriteGateTests
         await using var app = await CustomPageCatalogReferenceEndpointsIntegrationTests.StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "ic-sql", name = "İç SQL", definition = InlineSqlPage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "ic-sql", "İç SQL", InlineSqlPage())).StatusCode);
 
         // Mixing a catalog reference with inline SQL is still inline SQL.
         var mixed = JsonDocument.Parse(CustomPageCatalogReferenceSchemaTests.Page(
             CustomPageCatalogReferenceSchemaTests.Reference("dataSource", "cariler"),
             new { id = "q2", name = "ic", kind = "read", sql = "SELECT 1 AS x", parameters = Array.Empty<object>(), runOn = "load" })).RootElement;
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "karisik", name = "Karışık", definition = mixed })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "karisik", "Karışık", mixed)).StatusCode);
 
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, CustomPageQueryEndpointsIntegrationTests.Admin, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "ic-sql", name = "İç SQL", definition = InlineSqlPage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "ic-sql", "İç SQL", InlineSqlPage())).StatusCode);
     }
 }

@@ -30,7 +30,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         var access = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{Code}/access");
         Assert.Equal(Code, access.GetProperty("pageCode").GetString());
@@ -53,7 +53,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         SetIdentity(client, TenantA, Ayse, "TenantUser");
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/custom-pages/{Code}/access")).StatusCode);
@@ -67,7 +67,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         var response = await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new
         {
@@ -127,7 +127,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new
         {
@@ -155,7 +155,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new
         {
@@ -169,7 +169,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
@@ -184,7 +184,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
 
         // Ayse's token claims TenantAdmin, but her membership row says TenantUser.
         SetIdentity(client, TenantA, Ayse, "TenantAdmin");
@@ -199,7 +199,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
 
         var conflict = await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AllUsers", expectedRevision = 0 });
@@ -221,7 +221,7 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        await CreatePageAsync(client);
+        await CreatePageAsync(app, client);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new
         {
             mode = "SelectedUsers",
@@ -247,14 +247,14 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, Admin, "TenantAdmin");
-        var firstId = await CreatePageAsync(client);
+        var firstId = await CreatePageAsync(app, client);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{firstId}/publish", new { expectedRevision = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new
         {
             mode = "SelectedUsers", users = new object[] { new { userId = Ayse, canView = true, canDelete = true } }, expectedRevision = 0
         })).StatusCode);
 
-        var secondId = await CreatePageAsync(client);
+        var secondId = await CreatePageAsync(app, client);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{secondId}/publish", new { expectedRevision = 1 })).StatusCode);
 
         var access = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{Code}/access");
@@ -265,14 +265,10 @@ public sealed class CustomPageAccessEndpointsIntegrationTests
         Assert.True(user.GetProperty("canDelete").GetBoolean());
     }
 
-    private static async Task<Guid> CreatePageAsync(HttpClient client)
+    private static async Task<Guid> CreatePageAsync(WebApplication app, HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/api/custom-pages/drafts", new
-        {
-            code = Code,
-            name = "Varlık panosu",
-            definition = new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = "Varlıklar" } } } }
-        });
+        var response = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Varlık panosu",
+            new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = "Varlıklar" } } } });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }

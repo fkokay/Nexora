@@ -47,7 +47,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
 
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-liste", name = "Cari liste", definition = OperationDataSourcePage() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-liste", "Cari liste", OperationDataSourcePage());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
@@ -61,7 +61,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-arama", "Cari arama", DataSourcePage());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{id}",
@@ -80,10 +80,8 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() })).StatusCode);
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "cari-liste", name = "Cari liste", definition = OperationDataSourcePage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-arama", "Cari arama", DataSourcePage())).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-liste", "Cari liste", OperationDataSourcePage())).StatusCode);
     }
 
     [Fact]
@@ -92,8 +90,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
-            new { code = "cari-sil", name = "Cari sil", definition = ActionPage() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-sil", "Cari sil", ActionPage())).StatusCode);
     }
 
     [Fact]
@@ -102,7 +99,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         await using var app = await StartApplicationAsync(withActiveCatalog: false);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        var response = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
+        var response = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-arama", "Cari arama", DataSourcePage());
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("Sayfa katalog öğesine başvuruyor ama etkin katalog sürümü yok.",
             (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
@@ -114,7 +111,7 @@ public sealed class CustomPageCatalogReferenceEndpointsIntegrationTests
         await using var app = await StartApplicationAsync(withActiveCatalog: true);
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "cari-arama", name = "Cari arama", definition = DataSourcePage() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, "cari-arama", "Cari arama", DataSourcePage());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 

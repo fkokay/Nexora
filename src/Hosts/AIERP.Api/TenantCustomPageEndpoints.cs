@@ -12,6 +12,8 @@ internal static class TenantCustomPageEndpoints
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     /// <summary>Revisions that make a definition the published one ("Yayınlar"): a publish, a template migration and its rollback.</summary>
     private static readonly string[] PublicationKinds = ["Published", "TemplateMigrated", "TemplateMigrationRolledBack"];
+    /// <summary>A new page is created only with a template (5b-2 §5.5); existing templateless pages stay editable.</summary>
+    internal const string YeniSayfaKalipli = "Yeni sayfa bir kalıpla (Liste, Kayıt kartı, Belge ya da Serbest) oluşturulmalıdır.";
 
     public static void MapTenantCustomPageEndpoints(this WebApplication app)
     {
@@ -142,6 +144,10 @@ internal static class TenantCustomPageEndpoints
             if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition,
                     TenantCustomPageQueries.OperationNames([.. liveDefinitions]), catalog, out var json, out var error)) return Results.BadRequest(new { error });
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, [json!, .. liveDefinitions])) return Results.Forbid();
+            // 5b-2: a new page (no published page or open draft under this code; archived rows do not count) needs a template.
+            // Existing templateless pages keep their new drafts. Schema version 1 cannot carry a template, so it is new-page-rejected too.
+            if (liveDefinitions.Count == 0 && PageTemplateRules.TemplateName(request.Definition) is null)
+                return Results.BadRequest(new { error = YeniSayfaKalipli });
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
             var now = DateTimeOffset.UtcNow;

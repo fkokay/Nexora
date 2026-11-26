@@ -57,7 +57,7 @@ public sealed class SystemPageStorageIntegrationTests
         var id = await SeedSystemRowAsync(app, StaticDefinition(), published: false, standardVersion: 2);
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        await CreateCustomDraftAsync(client, "musteri-panosu");
+        await CreateCustomDraftAsync(app, client, "musteri-panosu");
 
         var list = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-pages") ?? [];
         var system = Assert.Single(list, x => x.GetProperty("code").GetString() == SystemCode);
@@ -77,7 +77,7 @@ public sealed class SystemPageStorageIntegrationTests
         await SeedSystemRowAsync(app, StaticDefinition(), published: true, standardVersion: 1);
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var draftId = await CreateCustomDraftAsync(client, "musteri-panosu");
+        var draftId = await CreateCustomDraftAsync(app, client, "musteri-panosu");
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
 
         var targets = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-menus/targets") ?? [];
@@ -192,7 +192,7 @@ public sealed class SystemPageStorageIntegrationTests
         await AssertInvalidStandardVersionAsync(client.PutAsJsonAsync($"/api/custom-pages/{id}", Update(1, "Depo Yönetimi", 1)));
         await AssertInvalidStandardVersionAsync(client.PutAsJsonAsync($"/api/custom-pages/{id}", Update(1, "Depo Yönetimi", CurrentStandardVersion + 1)));
 
-        var customId = await CreateCustomDraftAsync(client, "musteri-panosu");
+        var customId = await CreateCustomDraftAsync(app, client, "musteri-panosu");
         await AssertInvalidStandardVersionAsync(client.PutAsJsonAsync($"/api/custom-pages/{customId}", Update(1, "Müşteri", 1)));
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{customId}", Update(1, "Müşteri", null))).StatusCode);
 
@@ -281,7 +281,7 @@ public sealed class SystemPageStorageIntegrationTests
         SetIdentity(client, Ayse, "TenantUser");
 
         // Ordinary static pages stay writable for this designer.
-        var customId = await CreateCustomDraftAsync(client, "musteri-panosu");
+        var customId = await CreateCustomDraftAsync(app, client, "musteri-panosu");
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{customId}", Update(1, "Müşteri", null))).StatusCode);
 
         await AssertAdminOnlyAsync(client.PutAsJsonAsync($"/api/custom-pages/{draftId}", Update(1, "Depo", null)));
@@ -341,9 +341,9 @@ public sealed class SystemPageStorageIntegrationTests
         StandardVersion = standardVersion
     };
 
-    private static async Task<Guid> CreateCustomDraftAsync(HttpClient client, string code)
+    private static async Task<Guid> CreateCustomDraftAsync(WebApplication app, HttpClient client, string code)
     {
-        var response = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code, name = "Özel sayfa", definition = StaticDefinition() });
+        var response = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, code, "Özel sayfa", StaticDefinition());
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
