@@ -1,4 +1,20 @@
 # Master Prompt Phase Status
+
+### 2026-11-26 Free body additions on top of 5c
+
+Six additions to the 5c free body, Studio only (no server, ERP or .NET change, no migration):
+
+- **Indicator panel:** catalog `int` and `decimal` columns count as numbers (not money), and the indicator title follows the chosen source or column unless the consultant edited it by hand.
+- **Screen button:** the free page panel's Eylemler section adds a button that opens a screen by code (`actionType: "page"`, `slot: "actions"`); the 5c limit of 8 actions and "first action is primary" still apply.
+- **Tab order:** tabs can be moved with the arrow buttons in the page panel.
+- **Layers:** on template pages the rows show consultant names without the "N/12" badge; pages without a template are unchanged.
+- **Canvas drag and drop (free pages):** drop palette items into a section at a position, move components between and within sections, reorder sections (inside a tab and across tabs), with a drop marker; a drop outside any section shows a reason, free-page Layers rows are not draggable, and a full section (12) refuses with a reason.
+
+Verified: development-studio `npm test` (97 files, 1034+ tests) and `npm run build` passed on the branch. Browser pass with the mock backend (Studio dev + ERP dev, Chromium): new free page, Metin/Gosterge/Liste dropped into sections, component moved between sections (lands between the two target items), section dragged above another, drop outside a section shows "Bu bileseni buraya birakilamaz; bir bolumun icine birakin", screen-open button saved as a page button, three tabs reordered, Layers without "/12". Drop markers matched the real ERP boxes (item left edge, section outline, line under a table); hovering the left half of an item showed no marker in the probe, the right half showed the marker before the next item.
+
+Not verified: a real backend and login (mock only); the ERP rendering of pages built this way against a real server; the publish flow end to end. No .NET changes in this branch, so no dotnet test run.
+
+Deploy: development-studio only.
 ### 2026-11-26 Free body template (subproject 5c)
 
 Pages can now use a third template, **Serbest** (`template: { "name": "free" }`, level 3): the shared shell (title, action bar) around optional tabs and sections, each section 1, 2 or 3 columns. A section lists its components by id (`members`), so the components stay top-level and the 5a panels work on them unchanged. The new-page dialog offers Liste, Kayıt kartı, Serbest and, last, "Eski tasarımcı (kalıpsız)"; the Ekranlar list shows "Serbest · 3. basamak".
