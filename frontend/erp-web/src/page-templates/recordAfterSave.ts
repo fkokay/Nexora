@@ -24,3 +24,4 @@ export function afterRecordDelete(opener: string | undefined): { kind: "backToOp
 }
 
 export const RECORD_SAVED_NOTICE = "Kaydedildi.";
+export const RECORD_DELETED_NOTICE = "Silindi.";

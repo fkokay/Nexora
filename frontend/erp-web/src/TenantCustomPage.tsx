@@ -64,7 +64,7 @@ import { ListPageHeader } from "./list-page/ListPageHeader";
 import { iterationOf, NOTHING_TO_SAVE, runSaveSequence, stepLabel, type SequenceList, type SequenceStep } from "./custom-page/saveSequence";
 import { isNavigationType, runNavigation } from "./custom-page/navigationActions";
 import { OPEN_PAGE_EVENT, openerOf, openWorkspacePage, publishRecordsDeleted, requestClosePage, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
-import { afterRecordDelete, afterRecordSave, RECORD_SAVED_NOTICE, type AfterSave } from "./page-templates/recordAfterSave";
+import { afterRecordDelete, afterRecordSave, RECORD_DELETED_NOTICE, RECORD_SAVED_NOTICE, type AfterSave } from "./page-templates/recordAfterSave";
 import { deletedRecordIds } from "./custom-page/deletedRecords";
 import { CanvasAnchorContext } from "./designer-canvas/anchorContext";
 import { ANCHOR_ATTRIBUTE } from "./designer-canvas/canvasProtocol";
@@ -305,6 +305,17 @@ const mergeOverlay = (scope: PageScope, overlay: Record<string, unknown>): PageS
 };
 const stringList = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 const rightOf = (kind: string) => (kind === "read" ? "view" : kind);
+/** Kayıt dizisinin `sequenceWhen` öğeleri (`<sorgu kimliği>=<koşul>`, en çok 8): adım, koşulu varsa yalnız koşul tutunca çalışır. */
+const sequenceConditions = (value: unknown): Record<string, string> => {
+  const when: Record<string, string> = {};
+  for (const entry of stringList(value).slice(0, 8)) {
+    const index = entry.indexOf("=");
+    if (index > 0) when[entry.slice(0, index).trim()] = entry.slice(index + 1).trim();
+  }
+  return when;
+};
+/** Kayıt kartı yeni kayıt kipinde ve Kaydet'in hiçbir ekleme adımı çalışamıyor (ör. yalnız güncelleme eylemi bağlı). */
+export const RECORD_NO_INSERT_REASON = "Bu kartta yeni kayıt eklenemez.";
 
 /** Düğmenin çalıştırılabilir eylemi: sorgu, kayıt dizisi, pencere ya da iş akışı; eylemi yoksa null. */
 function buttonActionOf(props: Record<string, unknown>, queryById: Record<string, PageQueryDefinition>, dialogIds: Set<string>, inputIds: ReadonlySet<string>): ButtonAction | null {
@@ -2701,7 +2712,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
    * seçim varken kayıt anahtarı boş olmamalı. Aksi halde okunamayan kayıt yeni kayıt sanılır ya da kısmi kayıt olur.
    */
   const sequenceReadGuard = (queries: PageQueryDefinition[], active: SequenceStep[], when: Record<string, string>): string | null => {
-    const denied = active.find((step) => !step.allowed);
+    // ERP işlem izni ve sayfanın ekle/güncelle/sil hakkı yalnız çalışacak adımlar için aranır (kayıt kartı Kaydet'i de böyle gösterir).
+    const denied = active.find((step) => !step.allowed || (rights as Record<string, boolean | undefined>)[rightOf(step.query.kind)] !== true);
     if (denied) return `${denied.label} için yetkiniz yok; bu değişiklik kaydedilemez. Hiçbir değişiklik kaydedilmedi.`;
     const readByName = new Map(queryDefinitions.filter((query) => query.kind === "read").map((query) => [query.name, query]));
     const reads = new Set(sourceReadIds(active).map((id) => queryById[id]).filter((query): query is PageQueryDefinition => !!query));
@@ -2737,11 +2749,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const bound = bindProps(props, baseScope);
     const text = (key: string) => interpolate(textValue(props[key]), baseScope).trim();
     // `sequenceWhen` ilk adımdan önce bir kez, sayfa kapsamında (ve satır bindirmesiyle) değerlendirilir; anahtar sorgu kimliğidir.
-    const when: Record<string, string> = {};
-    for (const entry of stringList(props.sequenceWhen).slice(0, 8)) {
-      const index = entry.indexOf("=");
-      if (index > 0) when[entry.slice(0, index).trim()] = entry.slice(index + 1).trim();
-    }
+    const when = sequenceConditions(props.sequenceWhen);
     const names = new Set(queries.map((query) => query.name));
     // İzni olmayan ve yalnız özel alan blokları yazan adım, bloklarda değişiklik yoksa yazacak bir şeyi olmadığından hiç çalışmaz
     // (sıfır satırlı yinelenen adım gibi); değişiklik varsa ön denetim tüm kaydı ilk yazmadan önce reddeder.
@@ -3591,14 +3599,17 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   /**
    * Kalıp kabuğunun işlem düğmeleri. Sayfa düğmesi gibi: görünmeyen ve hakkı olmayan eylem gizlenir (eylemsiz düğme pasif
    * kalır); silme sorgulu düğme `danger`. Ana düğme bu süzmeden sonra seçilir: `primary`'ye uyan ilk silme olmayan düğme,
-   * yoksa kalan ilk silme olmayan düğme.
+   * yoksa kalan ilk silme olmayan düğme. `gate` (yalnız kayıt kartı) düğmenin istediği hakları ve pasiflik nedenini verir.
    */
   const shellActionsFor = (buttons: ComponentDefinition[], runtime: PageRuntime, primary?: (button: ComponentDefinition) => boolean,
-    onDoneFor?: (button: ComponentDefinition, kind: ShellAction["kind"]) => (() => void) | undefined): ShellAction[] => {
+    onDoneFor?: (button: ComponentDefinition, kind: ShellAction["kind"]) => (() => void) | undefined,
+    gate?: (button: ComponentDefinition, action: ButtonAction) => { rights: string[]; blockedReason: string | null } | null): ShellAction[] => {
+    const gateOf = (button: ComponentDefinition) => { const action = runtime.buttonAction(button); return action && gate ? gate(button, action) : null; };
     const shownActions = buttons.filter((button) => {
       if (!componentVisible(button, runtime)) return false;
       const action = runtime.buttonAction(button);
-      return !action || actionAllowed(action, runtime.rights);
+      const gated = gateOf(button);
+      return !action || actionAllowed(gated ? { ...action, rights: gated.rights } : action, runtime.rights);
     });
     const isDelete = (button: ComponentDefinition) => runtime.buttonAction(button)?.query?.kind === "delete";
     const primaryId = (primary ? shownActions.find((button) => !isDelete(button) && primary(button)) : undefined)?.id
@@ -3610,9 +3621,10 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
       const text = textValue(props.text ?? props.label) || textValue(props.title);
       const workflowId = action?.type === "workflow" ? textValue(props.workflowId).trim() : "";
       const blocked = operationBlocked(action, runtime);
+      const gateReason = gateOf(button)?.blockedReason ?? null;
       const conditionDisabled = componentDisabled(button, runtime);
-      const disabled = !action || blocked || conditionDisabled || actionBusy;
-      const reason = blocked ? NO_OPERATION_RIGHT : conditionDisabled ? disabledReasonOf(button, props, runtime) : "";
+      const disabled = !action || blocked || !!gateReason || conditionDisabled || actionBusy;
+      const reason = blocked ? NO_OPERATION_RIGHT : gateReason ?? (conditionDisabled ? disabledReasonOf(button, props, runtime) : "");
       return {
         id: button.id, label: text || (workflowId ? "İş akışını başlat" : "Eylem"),
         kind,
@@ -3650,7 +3662,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     if (kind === "danger" && action?.type === "query" && action.query?.kind === "delete") {
       return () => {
         const next = afterRecordDelete(openerOf(tabKey));
-        if (next.kind === "backToOpener") backTo(next.opener);
+        if (next.kind === "backToOpener") backTo(next.opener, RECORD_DELETED_NOTICE);
         else requestClosePage(tabKey);
       };
     }
@@ -3667,10 +3679,26 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
       // reload: kayıt dizisi açılış sorgularını zaten yeniden çalıştırdı.
     };
   };
+  /**
+   * Kayıt kartında kayıt dizisi düğmesinin (Kaydet) hakları yalnız şu an `sequenceWhen`'i tutan adımlarındandır: güncelleme
+   * hakkı olup ekleme hakkı olmayan kullanıcı var olan kayıtta Kaydet'i görür (tersi yeni kayıtta). Yeni kayıt kipinde hiçbir
+   * ekleme adımı çalışamıyorsa Kaydet nedenli pasif çizilir. Kalıpsız sayfa ve Liste bütün adım türlerinin hakkını ister.
+   */
+  const recordSequenceGate = (button: ComponentDefinition, action: ButtonAction, runtime: PageRuntime) => {
+    if (action.type !== "sequence") return null;
+    const when = sequenceConditions(button.props?.sequenceWhen);
+    const steps = idList(button.props?.saveSequence, 8).map((id) => queryDefinitions.find((query) => query.id === id))
+      .filter((query): query is PageQueryDefinition => !!query && query.kind !== "read");
+    const active = steps.filter((query) => !(query.id in when) || conditionHolds(when[query.id], runtime.scope, true));
+    return {
+      rights: [...new Set(active.map((query) => query.kind))],
+      blockedReason: isNewRecord && !active.some((query) => query.kind === "insert") ? RECORD_NO_INSERT_REASON : null,
+    };
+  };
   if (recordLayout && runtime) {
     // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate).
     const shellActions = shellActionsFor(recordLayout.actions, runtime, (button) => runtime.buttonAction(button)?.type === "sequence",
-      (button, kind) => recordDoneFor(button, kind, runtime));
+      (button, kind) => recordDoneFor(button, kind, runtime), (button, action) => recordSequenceGate(button, action, runtime));
     const summaryTitle = recordLayout.summary ? templateText(textValue(recordLayout.summary.props?.title), scope) : "";
     const crumbs = [page.name, isNewRecord ? "Yeni kayıt" : summaryTitle].filter((crumb) => crumb.trim() !== "");
     const renderSlot = (component: ComponentDefinition) => renderComponent(component, page.forms ?? [], token, page.code, runtime);

@@ -26,6 +26,8 @@ let definition: unknown;
 /** Kayıt sorgusu yalnız bu anahtarlardan biriyle satır döner (yeni kayıtta parametre boş: satır yok). */
 let knownKeys: Set<string>;
 let opens: WorkspaceOpenRequest[];
+/** Sayfa hakları (`/published` yanıtı). */
+let rights: Record<string, boolean>;
 let closes: string[];
 const onOpen = (event: Event) => { opens.push((event as CustomEvent<WorkspaceOpenRequest>).detail); };
 const onClose = (event: Event) => { closes.push((event as CustomEvent<{ page: string }>).detail.page); };
@@ -46,10 +48,11 @@ beforeEach(() => {
   localStorage.clear();
   calls = []; opens = []; closes = [];
   knownKeys = new Set(['C-1001']);
+  rights = { view: true, insert: true, update: true, delete: true };
   definition = recordDefinition();
   mockedApi.mockReset();
   mockedApi.mockImplementation(async (endpoint: string, _token?: string, init?: RequestInit) => {
-    if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Cari kartı', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights: { view: true, insert: true, update: true, delete: true } } as never;
+    if (endpoint.includes('/published')) return { id: 'p', code: 'p', name: 'Cari kartı', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights } as never;
     if (endpoint === '/api/custom-pages/erp-operations') return { operations } as never;
     const body = typeof init?.body === 'string' ? init.body : '';
     calls.push({ endpoint, method: init?.method ?? 'GET', body });
@@ -149,7 +152,7 @@ describe('kayıt kartında kaydetme sonrası', () => {
     fireEvent.click(barButton('Sil'));
     await waitFor(() => expect(closes).toEqual([TAB]), T);
     expect(ran('sil')).toHaveLength(1);
-    expect(opens).toEqual([expect.objectContaining({ page: LIST, params: {}, from: TAB, refresh: true, keepParams: true })]);
+    expect(opens).toEqual([expect.objectContaining({ page: LIST, params: {}, from: TAB, refresh: true, keepParams: true, notice: 'Silindi.' })]);
     expect(pageParamsOf(LIST)).toEqual({ q: 'akdeniz' });
     first.unmount();
 
@@ -253,5 +256,90 @@ describe('yeni kayıt kipinde Kaydet engellenmez', () => {
     ]);
     expect(calls.filter((call) => call.method === 'PUT')).toEqual([]);
     expect(calls.filter((call) => call.endpoint.startsWith('/api/stock/items/'))).toEqual([]);
+  });
+});
+
+describe('kayıt kartında Kaydet hakları çalışacak adımlardan', () => {
+  const kaydet = () => [...document.querySelectorAll<HTMLButtonElement>('.page-shell-bar button')].find((button) => button.textContent === 'Kaydet');
+
+  it('update-only user saves an existing record', async () => {
+    rights = { view: true, update: true, delete: true };
+    setPageParams(TAB, { kod: 'C-1001' });
+    render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Akdeniz Gıda A.Ş.', { selector: 'b' }, T);
+    await waitFor(() => expect(kaydet()).toBeTruthy(), T);
+    expect(kaydet()!.disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText('Unvan'), { target: { value: 'Yeni ünvan' } });
+    fireEvent.click(kaydet()!);
+    await waitFor(() => expect(ran('guncelle')).toHaveLength(1), T);
+    expect(ran('ekle')).toHaveLength(0);
+  });
+
+  it('update-only user sees no Kaydet in new record mode', async () => {
+    rights = { view: true, update: true, delete: true };
+    render(<TenantCustomPage code="p" token="t" />);
+    await waitFor(() => expect(ran('kayit')).toHaveLength(1), T);
+    await waitFor(() => expect(document.querySelector('.page-shell-bar')).toBeTruthy(), T);
+    expect(kaydet()).toBeUndefined();
+  });
+
+  it('insert-only user saves a new record and sees no Kaydet on an existing one', async () => {
+    rights = { view: true, insert: true };
+    definition = recordDefinition(withKey({ readOnly: true, placeholder: '(otomatik)' }));
+    const first = render(<TenantCustomPage code="p" token="t" />);
+    await ready();
+    await waitFor(() => expect(ran('kayit')).toHaveLength(1), T);
+    fireEvent.change(screen.getByLabelText('Unvan'), { target: { value: 'Yeni cari' } });
+    fireEvent.click(barButton('Kaydet'));
+    await waitFor(() => expect(status()).toBe('Kaydedildi.'), T);
+    expect(ran('ekle')).toHaveLength(1);
+    first.unmount();
+
+    setPageParams(TAB, { kod: 'C-1001' });
+    render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Akdeniz Gıda A.Ş.', { selector: 'b' }, T);
+    await waitFor(() => expect(kaydet()).toBeUndefined(), T);
+  });
+
+  it('legacy sequence button still needs every step right', async () => {
+    rights = { view: true, update: true };
+    definition = {
+      schemaVersion: 2, queries: recordQueries, components: [
+        { id: 'kod', type: 'input', name: 'kod', props: { inputType: 'text', label: 'Cari kodu', defaultValue: '{{kayit.rows[0].Code}}' } },
+        { id: 'b_kaydet', type: 'button', props: { text: 'Kaydet', actionType: 'sequence', saveSequence: ['ekle', 'guncelle'],
+          sequenceWhen: ['ekle=kayit.rows[0].Code == null', 'guncelle=kayit.rows[0].Code != null'] } },
+      ],
+    };
+    setPageParams(TAB, { kod: 'C-1001' });
+    render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByLabelText('Cari kodu', undefined, T);
+    await waitFor(() => expect(ran('kayit')).toHaveLength(1), T);
+    expect(screen.queryByRole('button', { name: 'Kaydet' })).toBeNull();
+  });
+});
+
+describe('yeni kayıt kipinde eklemesiz Kaydet', () => {
+  const updateOnly = () => recordDefinition(recordComponents.map((component) => component.id === 'b_kaydet'
+    ? { ...component, props: { ...component.props, saveSequence: ['guncelle'], sequenceWhen: ['guncelle=kayit.rows[0].Code != null'] } } : component));
+
+  it('new record save is disabled when the card has no insert', async () => {
+    definition = updateOnly();
+    render(<TenantCustomPage code="p" token="t" />);
+    await ready();
+    await waitFor(() => expect(ran('kayit')).toHaveLength(1), T);
+    const button = barButton('Kaydet');
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('Bu kartta yeni kayıt eklenemez.');
+    fireEvent.click(button);
+    expect(ran('guncelle')).toHaveLength(0);
+  });
+
+  it('existing record with update-only Kaydet stays enabled', async () => {
+    definition = updateOnly();
+    setPageParams(TAB, { kod: 'C-1001' });
+    render(<TenantCustomPage code="p" token="t" />);
+    await screen.findByText('Akdeniz Gıda A.Ş.', { selector: 'b' }, T);
+    await waitFor(() => expect(barButton('Kaydet').disabled).toBe(false), T);
+    expect(barButton('Kaydet').title).toBe('');
   });
 });
