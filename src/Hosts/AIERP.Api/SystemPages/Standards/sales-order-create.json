@@ -3,7 +3,7 @@
   "title": "Satış siparişi",
   "description": "Satış siparişi oluşturma ve düzenleme (orderId): belge bilgileri, plasiyer, stok seçince dolan satırlar, sunucu hesabından satır tutarları, KDV dökümü ve genel toplam.",
   "module": "Satış & cari",
-  "version": 1,
+  "version": 2,
   "stage": "preview",
   "items": {
     "component:komutlar": {
@@ -244,7 +244,7 @@
           "afterSaveTarget": "sameTab",
           "afterSaveRefresh": true,
           "commandWhen": [
-            "save=sayfa.parametre.orderId == null || siparis.rows[0].status == 'Open'"
+            "save=sayfa.parametre.orderId == null || siparis.rows[0].status == 'Draft'"
           ],
           "hiddenCommands": [
             "open",
@@ -291,8 +291,8 @@
           "title": "Bu sipariş düzenlenemez",
           "variant": "warning",
           "width": 12,
-          "text": "Yalnızca sevkiyat, fatura veya rezervasyonu olmayan açık siparişler düzenlenebilir.",
-          "visibleWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'"
+          "text": "Yalnızca taslak siparişler düzenlenebilir; onaylı siparişin önce onayı geri alınmalıdır.",
+          "visibleWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Draft'"
         }
       },
       {
@@ -452,8 +452,8 @@
               "currencyCode": "priceCurrencyCode"
             }
           },
-          "disabledWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'",
-          "disabledReason": "Yalnızca açık siparişler düzenlenebilir."
+          "disabledWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Draft'",
+          "disabledReason": "Yalnızca taslak siparişler düzenlenebilir."
         }
       },
       {

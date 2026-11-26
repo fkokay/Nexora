@@ -2085,8 +2085,9 @@ public static class ReportEndpoints
         where line.TenantId == tenantId && order.TenantId == tenantId
         let fulfilled = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == line.OrderId && x.OrderLineNumber == line.LineNumber).Sum(x => (decimal?)x.FulfilledQuantity) ?? 0m
         let reservedOpen = db.SalesOrderReservations.Where(x => x.TenantId == tenantId && x.OrderId == line.OrderId && x.OrderLineNumber == line.LineNumber && x.Status == SalesOrderReservationStatus.Active).Sum(x => (decimal?)(x.Quantity - x.FulfilledQuantity)) ?? 0m
-        let reserved = order.Status == SalesOrderStatus.Cancelled ? 0m : reservedOpen
-        let remaining = order.Status == SalesOrderStatus.Cancelled ? 0m : line.Quantity - fulfilled
+        let committed = order.Status == SalesOrderStatus.Open || order.Status == SalesOrderStatus.Fulfilled || order.Status == SalesOrderStatus.Invoiced
+        let reserved = committed ? reservedOpen : 0m
+        let remaining = committed ? line.Quantity - fulfilled : 0m
         select new SalesOrderFulfillmentReportRow(order.Code, customer.Code, customer.Name, order.OrderDate, order.RequestedDeliveryDate,
             order.Status, line.LineNumber, line.StockCode, line.StockName, line.UnitCode, line.Quantity, reserved, fulfilled, remaining,
             remaining > reserved ? remaining - reserved : 0m);

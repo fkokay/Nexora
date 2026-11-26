@@ -13,13 +13,16 @@ public static class SalesOrderEndpoints
         orders.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
         {
             if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId) || principal.FindFirstValue("role") != "TenantAdmin") return Results.Forbid();
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(ct) : null;
+            // Lock the order like the transitions do, so a concurrent Onayla cannot pass between this check and the delete.
+            await LockOrderAsync(db, tenantId, id, ct);
             var order = await db.SalesOrders.Include(x => x.Lines).SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (order is null) return Results.NotFound();
-            if (order.Status != SalesOrderStatus.Open ||
+            if (!SalesOrderLifecycle.CanEdit(order.Status) ||
                 await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
                 await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
                 await db.SalesOrderReservations.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct))
-                return Results.Conflict(new { error = "Yalnızca irsaliye, fatura veya rezervasyon kaydı bulunmayan açık siparişler silinebilir." });
+                return Results.Conflict(new { error = "Yalnızca taslak siparişler silinebilir; irsaliye, fatura veya rezervasyon kaydı bulunan sipariş silinemez." });
 
             var revisions = await db.SalesOrderCustomFieldValueRevisions.Where(x => x.TenantId == tenantId && x.OrderId == id).ToListAsync(ct);
             var values = await db.SalesOrderCustomFieldValues.Where(x => x.TenantId == tenantId && x.OrderId == id).ToListAsync(ct);
@@ -28,7 +31,7 @@ public static class SalesOrderEndpoints
             db.SalesOrders.Remove(order);
             var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId) ? parsedUserId : (Guid?)null;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = userId, Action = "sales-order.deleted", Resource = order.Code });
-            try { await db.SaveChangesAsync(ct); }
+            try { await db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct); }
             catch (DbUpdateException) { return Results.Conflict(new { error = "Sipariş ilişkili bir kayıt nedeniyle silinemedi. Sayfayı yenileyip ilişkili işlemleri kontrol edin." }); }
             return Results.NoContent();
         });
@@ -56,7 +59,9 @@ public static class SalesOrderEndpoints
             if (request.SalespersonEmployeeId is { } salespersonId && !await db.EmployeeRecords.AsNoTracking().AnyAsync(x => x.TenantId == tenantId && x.Id == salespersonId && x.Status == EmployeeEmploymentStatus.Active, ct))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["salespersonEmployeeId"] = ["Aktif bir plasiyer seçilmelidir."] });
 
-            var definitions = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync(ct);
+            var definitions = db.Database.IsRelational()
+                ? await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync(ct)
+                : await db.SalesOrderCustomFieldDefinitions.Where(x => x.TenantId == tenantId && x.IsActive).ToListAsync(ct);
             var normalizedFields = new Dictionary<Guid, (SalesOrderCustomFieldDefinition Definition, string Value)>();
             var fieldErrors = new Dictionary<string, string[]>();
             if (request.CustomFields is { Count: > 40 }) fieldErrors["customFields"] = ["En fazla 40 özel alan gönderilebilir."];
@@ -89,7 +94,7 @@ public static class SalesOrderEndpoints
             var order = new SalesOrder { TenantId = tenantId, QuoteId = null, CustomerId = customer.Id, Code = code,
                 SalespersonEmployeeId = request.SalespersonEmployeeId,
                 OrderDate = request.OrderDate, RequestedDeliveryDate = request.RequestedDeliveryDate, CurrencyCode = currencyCode!,
-                Status = SalesOrderStatus.Open, Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
+                Status = SalesOrderStatus.Draft, Subtotal = totals.Subtotal, DiscountTotal = totals.DiscountTotal, TaxTotal = totals.TaxTotal, GrandTotal = totals.GrandTotal };
             for (var i = 0; i < normalizedLines.Count; i++)
             {
                 var normalized = normalizedLines[i]; var source = normalized.Base; var input = normalized.Input;
@@ -134,14 +139,16 @@ public static class SalesOrderEndpoints
             var userId = Guid.TryParse(principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier), out var parsedUserId)
                 ? parsedUserId : (Guid?)null;
             await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            // Lock the order like the transitions do, so a concurrent Onayla cannot approve content this edit is replacing.
+            await LockOrderAsync(db, tenantId, id, ct);
             var order = await db.SalesOrders.Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (order is null) return Results.NotFound();
-            if (order.Status != SalesOrderStatus.Open ||
+            if (!SalesOrderLifecycle.CanEdit(order.Status) ||
                 await db.SalesDeliveries.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
                 await db.SalesInvoices.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct) ||
                 await db.SalesOrderReservations.AnyAsync(x => x.TenantId == tenantId && x.OrderId == id, ct))
-                return Results.Conflict(new { error = "Yalnızca sevkiyat, fatura veya rezervasyonu olmayan açık siparişler düzenlenebilir." });
+                return Results.Conflict(new { error = "Yalnızca taslak siparişler düzenlenebilir; sevkiyat, fatura veya rezervasyonu olan sipariş düzenlenemez." });
 
             var code = request.Code?.Trim().ToUpperInvariant() ?? "";
             if (code.Length is < 1 or > 40 || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z0-9][A-Z0-9._/-]{0,39}$"))
@@ -246,8 +253,8 @@ public static class SalesOrderEndpoints
             var order = await db.SalesOrders.Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
                 .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id, ct);
             if (order is null) return Results.NotFound();
-            if (order.Status != SalesOrderStatus.Open)
-                return Results.Conflict(new { error = "Yalnızca açık satış siparişlerinin teslim tarihi düzenlenebilir." });
+            if (!SalesOrderLifecycle.CanEditDeliveryDateOrCustomFields(order.Status))
+                return Results.Conflict(new { error = "Yalnızca taslak ya da onaylı satış siparişlerinin teslim tarihi düzenlenebilir." });
             if (request.RequestedDeliveryDate is { } date && date < order.OrderDate)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["requestedDeliveryDate"] = ["İstenen teslim tarihi sipariş tarihinden önce olamaz."] });
 
@@ -263,6 +270,14 @@ public static class SalesOrderEndpoints
                 order.Customer.Name, order.OrderDate, order.CurrencyCode, order.Status, order.GrandTotal, order.Lines.Count,
                 order.CreatedAt, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
         });
+    }
+
+    /// <summary>UPDLOCK, HOLDLOCK on the order row for the rest of the caller's transaction (no-op on non-relational providers).</summary>
+    private static async Task LockOrderAsync(TenantDbContext db, Guid tenantId, Guid id, CancellationToken ct)
+    {
+        if (db.Database.IsRelational())
+            await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}")
+                .AsNoTracking().Select(x => x.Id).ToListAsync(ct);
     }
 
     private static string SanitizeForLog(string? value)

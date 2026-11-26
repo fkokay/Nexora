@@ -531,14 +531,14 @@ describe('Belge ekranı görünümü', () => {
     expect(openMenu()).toEqual([]);
   });
 
-  it('order create: no current step before save (Açık exists once saved), cari next to the heading, totals', async () => {
+  it('order create: no current step before save (Taslak exists once saved), cari next to the heading, totals', async () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantUser" onNavigate={vi.fn()} createOrderPage />);
     await waitFor(() => expect(enabled('save')).toBe(true));
     await settle();
     expectKitChrome('Satış siparişi');
     expect(openMenu()).toEqual([]);
     expect(footKeys()).toEqual(['Tab sonraki alan', 'Ctrl+S kaydet', 'Ctrl+Shift+Enter satır ekle', 'Esc kapat']);
-    expect(flowSteps()).toEqual(['Açık', 'Tamamlandı']);
+    expect(flowSteps()).toEqual(['Taslak', 'Onay bekliyor', 'Onaylı', 'Sevk edildi', 'Faturalandı']);
     expect(head().querySelector('.doc-surface-meta .rf-badge')!.textContent).toBe('YENİ KAYIT');
     fireEvent.click(document.querySelector<HTMLElement>('.customer-popup-trigger')!);
     fireEvent.click(await screen.findByRole('option', { name: /Acme/ }));

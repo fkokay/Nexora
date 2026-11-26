@@ -50,7 +50,7 @@ internal static partial class ForeignTradeEndpoints
                 return Results.Ok(await db.PurchaseOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status != PurchaseOrderStatus.Cancelled)
                     .OrderByDescending(x => x.OrderDate).Take(100).Select(x => new ForeignTradeOrderOption(x.Id, x.Code, x.Supplier.Name,
                         x.OrderDate, x.CurrencyCode, x.GrandTotal, x.Status.ToString())).ToListAsync(ct));
-            return Results.Ok(await db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && x.Status != SalesOrderStatus.Cancelled)
+            return Results.Ok(await db.SalesOrders.AsNoTracking().Where(x => x.TenantId == tenantId && SalesOrderLifecycle.CommittedStatuses.Contains(x.Status))
                 .OrderByDescending(x => x.OrderDate).Take(100).Select(x => new ForeignTradeOrderOption(x.Id, x.Code, x.Customer.Name,
                     x.OrderDate, x.CurrencyCode, x.GrandTotal, x.Status.ToString())).ToListAsync(ct));
         });
@@ -117,8 +117,8 @@ internal static partial class ForeignTradeEndpoints
                 if (request.PurchaseOrderId is null || request.SalesOrderId is not null || !await db.PurchaseOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == request.PurchaseOrderId && x.Status != PurchaseOrderStatus.Cancelled, ct))
                     return Results.ValidationProblem(new Dictionary<string, string[]> { ["purchaseOrderId"] = ["İthalat için aynı firmaya ait iptal edilmemiş bir satın alma siparişi seçin."] });
             }
-            else if (request.SalesOrderId is null || request.PurchaseOrderId is not null || !await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == request.SalesOrderId && x.Status != SalesOrderStatus.Cancelled, ct))
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesOrderId"] = ["İhracat için aynı firmaya ait iptal edilmemiş bir satış siparişi seçin."] });
+            else if (request.SalesOrderId is null || request.PurchaseOrderId is not null || !await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Id == request.SalesOrderId && SalesOrderLifecycle.CommittedStatuses.Contains(x.Status), ct))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["salesOrderId"] = ["İhracat için aynı firmaya ait onaylanmış ve iptal edilmemiş bir satış siparişi seçin."] });
 
             var (orderCurrency, orderTotal) = await OrderValueAsync(db, tenantId, request.PurchaseOrderId, request.SalesOrderId, ct);
             var record = new ForeignTradeCase

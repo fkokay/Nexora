@@ -165,8 +165,10 @@ describe('salesListTag', () => {
     expect(salesListTag('quote', 'Sent')).toEqual({ tone: 'warn', label: 'İletildi' });
     expect(salesListTag('quote', 'Rejected')).toEqual({ tone: 'bad', label: 'Reddedildi' });
     expect(salesListTag('quote', 'Expired')).toEqual({ tone: 'off', label: 'Süresi doldu' });
-    expect(salesListTag('order', 'Open')).toEqual({ tone: 'warn', label: 'Açık' });
-    expect(salesListTag('order', 'Fulfilled')).toEqual({ tone: 'ok', label: 'Tamamlandı' });
+    expect(salesListTag('order', 'Draft')).toEqual({ tone: 'info', label: 'Taslak' });
+    expect(salesListTag('order', 'Open')).toEqual({ tone: 'warn', label: 'Onaylı' });
+    expect(salesListTag('order', 'Fulfilled')).toEqual({ tone: 'ok', label: 'Sevk edildi' });
+    expect(salesListTag('order', 'Invoiced')).toEqual({ tone: 'ok', label: 'Faturalandı' });
     expect(salesListTag('delivery', 'Posted')).toEqual({ tone: 'ok', label: 'Sevk edildi' });
     expect(salesListTag('request', 'Open')).toEqual({ tone: 'warn', label: 'Açık' });
     expect(salesListTag('request', 'Quoted')).toEqual({ tone: 'ok', label: 'Teklif verildi' });

@@ -317,6 +317,13 @@ public static class PlatformPermissionCatalog
                 ? Resources.First(x => x.ResourceType == "erp.custom-menus")
                 : Resources.First(x => x.ResourceType == "erp.tenant-customizations");
         }
+        else if (path.StartsWith("/api/document-models/", StringComparison.OrdinalIgnoreCase))
+        {
+            // Belge modelleri hold no tenant data; "alan değişince" (POST …/fill) only reads stock cards. Read with the documents' own
+            // permission: satis.siparis is the sales orders' model (the only one so far).
+            resource = Resources.First(x => x.ResourceType == "erp.sales-orders");
+            explicitReadAction = true;
+        }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith(x.RoutePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.RoutePrefix.Length).FirstOrDefault();
@@ -407,7 +414,7 @@ public static class PlatformPermissionCatalog
             "package", "version", "publish-pull-request", "pull-request-draft", "working-branch", "commit-approved-changes",
             "apply-code-suggestion", "multi-file-code-suggestion", "code-suggestion", "source-analysis", "test-plan",
             "architecture-plan", "code-review", "sandbox-error-analysis", "revalue", "reconcile", "convert", "close", "release",
-            "send", "accept", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute", "stage", "transition", "depreciation-postings", "return",
+            "send", "accept", "unapprove", "match", "auto-match", "create-book-entry", "convert-to-order", "decision", "activate", "deactivate", "manual", "invoke", "run", "export", "ui-design", "execute", "stage", "transition", "depreciation-postings", "return",
             "schedule", "start", "complete" };
         var tail = route.Split('/').LastOrDefault() ?? string.Empty;
         return operationSegments.Contains(tail, StringComparer.OrdinalIgnoreCase);

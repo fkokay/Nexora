@@ -1,13 +1,16 @@
 {
   "screenKey": "sales-orders", "title": "Satış Siparişleri",
   "description": "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin.", "module": "Satış & cari",
-  "version": 2, "stage": "preview",
+  "version": 3, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:duzenleDugmesi", "component:irsaliyeOlusturDugmesi", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:siparisSil", "query:siparisler"]},
     "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (tarih bugün)"},
     "component:acDugmesi": {"since": 1, "label": "Siparişi aç komutu", "requires": ["component:liste", "component:siparisPenceresi"]},
     "component:duzenleDugmesi": {"since": 1, "label": "Düzenle komutu (sipariş kartı: kimlik, müşteri, tarih)", "requires": ["component:liste"]},
     "component:irsaliyeOlusturDugmesi": {"since": 1, "label": "İrsaliye oluştur komutu (eski ekran)", "requires": ["component:liste"]},
+    "component:onaylaDugmesi": {"since": 3, "label": "Onayla komutu (taslak sipariş)", "requires": ["component:liste", "query:onayla"]},
+    "component:onayiGeriAlDugmesi": {"since": 3, "label": "Onayı geri al komutu (sevksiz onaylı sipariş)", "requires": ["component:liste", "query:onayiGeriAl"]},
+    "component:iptalDugmesi": {"since": 3, "label": "İptal et komutu (gerekçeyle)", "requires": ["component:liste", "query:iptal"]},
     "component:tutarGostergesi": {"since": 1, "label": "Sipariş tutarı göstergesi (bu sayfa)", "requires": ["query:siparisler"]},
     "component:tutarKarisik": {"since": 1, "label": "Sipariş tutarı (birden çok para birimi)", "requires": ["query:siparisler"]},
     "component:sevkGostergesi": {"since": 1, "label": "Sevk bekleyen göstergesi", "requires": ["query:siparisler"]},
@@ -36,7 +39,10 @@
     "query:siparisSil": {"since": 1, "label": "Siparişi sil", "requires": ["component:liste"]},
     "query:stokAyir": {"since": 1, "label": "Sipariş için stok ayır", "requires": ["component:liste", "component:rezervasyonDeposu", "component:rezervasyonKimligi"]},
     "query:rezervasyonBirak": {"since": 1, "label": "Stok rezervasyonunu bırak", "requires": ["component:liste", "component:siparisIslemleri"]},
-    "query:teslimTarihiKaydet": {"since": 1, "label": "Teslim tarihini kaydet", "requires": ["component:liste", "component:teslimTarihi"]}
+    "query:teslimTarihiKaydet": {"since": 1, "label": "Teslim tarihini kaydet", "requires": ["component:liste", "component:teslimTarihi"]},
+    "query:onayla": {"since": 3, "label": "Siparişi onayla", "requires": ["component:liste"]},
+    "query:onayiGeriAl": {"since": 3, "label": "Siparişin onayını geri al", "requires": ["component:liste"]},
+    "query:iptal": {"since": 3, "label": "Siparişi iptal et", "requires": ["component:liste", "component:iptalDugmesi"]}
   },
   "screenViews": [
     {"key": "sales-orders", "component": "liste", "fields": {"code": "code", "quoteCode": "quoteCode", "customerName": "customerName", "orderDate": "orderDate", "lineCount": "lineCount", "grandTotal": "grandTotal", "status": "status"}},
@@ -53,7 +59,7 @@
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{siparisler.meta.totalCount}}",
-          "moreButtons": ["duzenleDugmesi", "irsaliyeOlusturDugmesi"],
+          "moreButtons": ["duzenleDugmesi", "irsaliyeOlusturDugmesi", "onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"],
           "commandWhen": ["delete=kullanici.rol == 'TenantAdmin' && liste.seciliSatir.id != null"],
           "hiddenCommands": ["save", "print"] } },
       { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi",
@@ -78,7 +84,35 @@
           "pageKey": "sales-order-create",
           "target": "newTab",
           "params": ["orderId={{liste.seciliSatir.id}}", "customerId={{liste.seciliSatir.customerId}}", "orderDate={{liste.seciliSatir.orderDate}}"],
-          "visibleWhen": "liste.seciliSatir.status == 'Open'" } },
+          "visibleWhen": "liste.seciliSatir.status == 'Draft'" } },
+      { "id": "onaylaDugmesi", "type": "button", "name": "onaylaDugmesi",
+        "props": {
+          "text": "Onayla",
+          "actionType": "query",
+          "queryId": "onayla",
+          "visibleWhen": "liste.seciliSatir.status == 'Draft'",
+          "successMessage": "Sipariş onaylandı.",
+          "refreshQueries": ["siparisler", "siparis"] } },
+      { "id": "onayiGeriAlDugmesi", "type": "button", "name": "onayiGeriAlDugmesi",
+        "props": {
+          "text": "Onayı geri al",
+          "actionType": "query",
+          "queryId": "onayiGeriAl",
+          "visibleWhen": "liste.seciliSatir.status == 'Open'",
+          "successMessage": "Siparişin onayı geri alındı; sipariş taslakta.",
+          "refreshQueries": ["siparisler", "siparis"] } },
+      { "id": "iptalDugmesi", "type": "button", "name": "iptalDugmesi",
+        "props": {
+          "text": "İptal et",
+          "actionType": "query",
+          "queryId": "iptal",
+          "promptLabel": "Gerekçe",
+          "promptRequired": true,
+          "promptMaxLength": 500,
+          "promptText": "{{liste.seciliSatir.code}} siparişi iptal edilsin mi? Aktif stok rezervasyonları bırakılır; gerekçe işlem günlüğüne yazılır.",
+          "visibleWhen": "liste.seciliSatir.status == 'Draft' || liste.seciliSatir.status == 'Open'",
+          "successMessage": "Sipariş iptal edildi.",
+          "refreshQueries": ["siparisler", "siparis"] } },
       { "id": "irsaliyeOlusturDugmesi", "type": "button", "name": "irsaliyeOlusturDugmesi",
         "props": {
           "text": "İrsaliye oluştur",
@@ -156,16 +190,26 @@
         "props": {
           "width": 12 },
         "children": [
+          { "id": "rozetTaslak", "type": "badge", "name": "rozetTaslak",
+            "props": {
+              "text": "Taslak",
+              "variant": "info",
+              "visibleWhen": "siparis.rows[0].status == 'Draft'" } },
           { "id": "rozetAcik", "type": "badge", "name": "rozetAcik",
             "props": {
-              "text": "Açık",
+              "text": "Onaylı",
               "variant": "warning",
               "visibleWhen": "siparis.rows[0].status == 'Open'" } },
           { "id": "rozetTamam", "type": "badge", "name": "rozetTamam",
             "props": {
-              "text": "Tamamlandı",
+              "text": "Sevk edildi",
               "variant": "success",
               "visibleWhen": "siparis.rows[0].status == 'Fulfilled'" } },
+          { "id": "rozetFaturalandi", "type": "badge", "name": "rozetFaturalandi",
+            "props": {
+              "text": "Faturalandı",
+              "variant": "success",
+              "visibleWhen": "siparis.rows[0].status == 'Invoiced'" } },
           { "id": "rozetIptal", "type": "badge", "name": "rozetIptal",
             "props": {
               "text": "İptal",
@@ -256,8 +300,8 @@
         "props": {
           "width": 12,
           "title": "Teslim tarihi",
-          "description": "MRP, açık sipariş talebini bu tarihte karşılamaya çalışır.",
-          "visibleWhen": "siparis.rows[0].status == 'Open'" },
+          "description": "MRP, onaylı sipariş talebini bu tarihte karşılamaya çalışır.",
+          "visibleWhen": "siparis.rows[0].status == 'Draft' || siparis.rows[0].status == 'Open'" },
         "children": [
           { "id": "teslimFormu", "type": "formCard", "name": "teslimFormu",
             "props": {
@@ -359,7 +403,10 @@
       {"id": "siparisSil", "name": "siparisSil", "kind": "delete", "operation": "satis.siparis.sil", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}]},
       {"id": "stokAyir", "name": "stokAyir", "kind": "insert", "operation": "satis.siparis.stokAyir", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}, {"name": "requestId", "binding": "{{rezervasyonKimligi.value}}", "type": "guid"}, {"name": "warehouseId", "binding": "{{rezervasyonDeposu.value}}", "type": "guid"}]},
       {"id": "rezervasyonBirak", "name": "rezervasyonBirak", "kind": "update", "operation": "satis.siparis.rezervasyonBirak", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}, {"name": "reason", "binding": "{{detayRezervasyonBirak.yanit}}", "type": "text"}]},
-      {"id": "teslimTarihiKaydet", "name": "teslimTarihiKaydet", "kind": "update", "operation": "satis.siparis.teslimTarihiKaydet", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}, {"name": "requestedDeliveryDate", "binding": "{{teslimTarihi.value}}", "type": "date"}]}
+      {"id": "teslimTarihiKaydet", "name": "teslimTarihiKaydet", "kind": "update", "operation": "satis.siparis.teslimTarihiKaydet", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}, {"name": "requestedDeliveryDate", "binding": "{{teslimTarihi.value}}", "type": "date"}]},
+      {"id": "onayla", "name": "onayla", "kind": "update", "operation": "satis.siparis.onayla", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}]},
+      {"id": "onayiGeriAl", "name": "onayiGeriAl", "kind": "update", "operation": "satis.siparis.onayiGeriAl", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}]},
+      {"id": "iptal", "name": "iptal", "kind": "update", "operation": "satis.siparis.iptal", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid"}, {"name": "reason", "binding": "{{iptalDugmesi.yanit}}", "type": "text"}]}
     ]
   }
 }

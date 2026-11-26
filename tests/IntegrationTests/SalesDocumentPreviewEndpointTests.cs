@@ -144,7 +144,7 @@ public sealed class SalesDocumentPreviewEndpointTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
-            var order = new SalesOrder { TenantId = seed.TenantId, CustomerId = seed.CustomerId, Code = "SO-1", OrderDate = new DateOnly(2026, 11, 20), CurrencyCode = "TRY" };
+            var order = new SalesOrder { TenantId = seed.TenantId, CustomerId = seed.CustomerId, Code = "SO-1", OrderDate = new DateOnly(2026, 11, 20), CurrencyCode = "TRY", Status = SalesOrderStatus.Draft };
             db.SalesOrders.Add(order);
             await db.SaveChangesAsync();
             orderId = order.Id;

@@ -291,8 +291,11 @@ describe('Satış siparişi detayı', () => {
     renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
     await openRow('S-o1');
     expect(flowSteps()).toEqual([
-      { label: 'Açık', state: 'current' },
-      { label: 'Tamamlandı', state: 'todo' },
+      { label: 'Taslak', state: 'done' },
+      { label: 'Onay bekliyor', state: 'done' },
+      { label: 'Onaylı', state: 'current' },
+      { label: 'Sevk edildi', state: 'todo' },
+      { label: 'Faturalandı', state: 'todo' },
     ]);
     expectNoHeaderActions();
     expect(openMenu()).toEqual(['Stok ayır', 'İrsaliye oluştur']);
@@ -661,5 +664,62 @@ describe('Belge sayfa parametresiyle açılır (Cari Hesap Hareketleri)', () => 
     await settle();
     await waitFor(() => expect(within(surface()).getByRole('table', { name: 'İade satırları' })).toBeTruthy());
     expect(pageParamsOf('sales-returns')).toEqual({});
+  });
+});
+
+describe('Satış siparişi durum zinciri (belge kuralları)', () => {
+  const asOrder = (status: string, extra: Record<string, unknown> = {}) => ({
+    '/api/sales/orders/': page([order('o1', status)]),
+    '/api/sales/orders/o1': { ...order('o1', status), ...amounts, lines: lines(), customFields: [] },
+    ...extra,
+  });
+  afterEach(restoreResponses);
+
+  it('a draft order shows the five-step flow and offers Onayla, which posts approve and shows the stock warning', async () => {
+    withResponses({ ...asOrder('Draft'), '/api/sales/orders/o1/approve': { id: 'o1', code: 'S-o1', status: 'Open', warnings: ['STK-1: kullanılabilir 2 ADET, istenen 5 ADET'] } });
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('S-o1');
+    expect(flowSteps().map((step) => step.label)).toEqual(['Taslak', 'Onay bekliyor', 'Onaylı', 'Sevk edildi', 'Faturalandı']);
+    expect(flowSteps()[0].state).toBe('current');
+    expect(openMenu()).toEqual(['Onayla', 'İptal et']);
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Onayla' }));
+    });
+    await waitFor(() => expect(sentBody('/api/sales/orders/o1/approve')).toBeDefined());
+    expect(await screen.findByText(/STK-1: kullanılabilir 2 ADET, istenen 5 ADET/)).toBeTruthy();
+  });
+
+  it('an approved order without deliveries offers Onayı geri al and İptal et; İptal asks for a reason', async () => {
+    withResponses({ ...asOrder('Open'), '/api/sales/deliveries/': page([]), '/api/sales/orders/o1/cancel': { id: 'o1', code: 'S-o1', status: 'Cancelled', warnings: [] } });
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await openRow('S-o1');
+    expect(flowSteps()[2]).toEqual({ label: 'Onaylı', state: 'current' });
+    expect(openMenu()).toEqual(['Stok ayır', 'İrsaliye oluştur', 'Onayı geri al', 'İptal et']);
+    fireEvent.click(command('more'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'İptal et' }));
+    });
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Müşteri vazgeçti' } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Siparişi iptal et' }));
+    });
+    await waitFor(() => expect(sentBody('/api/sales/orders/o1/cancel')).toMatchObject({ reason: 'Müşteri vazgeçti' }));
+  });
+
+  it('the list offers Düzenle only on draft rows', async () => {
+    withResponses({ '/api/sales/orders/': page([order('o1', 'Open'), { ...order('o2', 'Draft'), code: 'S-o2' }]) });
+    renderScreen(<SalesOrdersPage token="t" role="TenantAdmin" onNavigate={vi.fn()} />);
+    await settle();
+    const menuOf = (code: string) => {
+      const trigger = screen.getByRole('button', { name: `${code} işlemleri` });
+      fireEvent.click(trigger);
+      const items = Array.from(document.querySelectorAll<HTMLElement>('.sales-row-menu-item')).map((x) => x.textContent?.trim());
+      fireEvent.click(trigger);
+      return items;
+    };
+    expect(menuOf('S-o2')).toContain('Düzenle');
+    expect(menuOf('S-o1')).not.toContain('Düzenle');
   });
 });

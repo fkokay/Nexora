@@ -2025,7 +2025,7 @@ export function SalesPage({
         return (
           <SalesRowActionsMenu label={item.code}>
             <button role="menuitem" className="sales-row-menu-item" onClick={() => void openOrder(item.id)}>Detay</button>
-            {item.status === "Open" && (
+            {item.status === "Draft" && (
               <button role="menuitem" className="sales-row-menu-item" onClick={() => {
                 sessionStorage.setItem("nexora.sales-order.edit-id", item.id);
                 onNavigate("sales-order-create");
@@ -10079,6 +10079,38 @@ function SalesOrderModal({
       setBusy(false);
     }
   }
+  async function runOrderTransition(transition: "approve" | "unapprove" | "cancel") {
+    let reason: string | undefined;
+    if (transition === "cancel") {
+      reason = (
+        await promptDialog({
+          title: "Sipariş iptal gerekçesi",
+          label: "Gerekçe",
+          required: true,
+          multiline: true,
+          tone: "warning",
+          confirmLabel: "Siparişi iptal et",
+        })
+      )?.trim();
+      if (!reason) return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api<{ status: string; warnings: string[] }>(`/api/sales/orders/${order.id}/${transition}`, token, {
+        method: "POST",
+        body: JSON.stringify({ requestId: crypto.randomUUID(), reason }),
+      });
+      const done = transition === "approve" ? "Sipariş onaylandı." : transition === "unapprove" ? "Siparişin onayı geri alındı, sipariş taslakta." : "Sipariş iptal edildi.";
+      setNotice([done, ...(result?.warnings ?? [])].join(" "));
+      await onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function releaseOrderReservation() {
     const reason = (
       await promptDialog({
@@ -10217,6 +10249,8 @@ function SalesOrderModal({
     });
   if (order.status === "Open" && activeReservation && role === "TenantAdmin")
     orderMore.push({ id: "order-release", label: "Rezervasyonu bırak", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => releaseOrderReservation() });
+  // Belge kuralları: the order's state transitions (the server re-checks every condition).
+  const orderHasDeliveries = deliveries.some((delivery) => delivery.status === "Posted");
   if (order.status === "Open")
     orderMore.push({
       id: "order-delivery",
@@ -10233,6 +10267,12 @@ function SalesOrderModal({
         void startDelivery();
       },
     });
+  if (order.status === "Draft")
+    orderMore.unshift({ id: "order-approve", label: "Onayla", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("approve") });
+  if (order.status === "Open" && !orderHasDeliveries && !activeReservation)
+    orderMore.push({ id: "order-unapprove", label: "Onayı geri al", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("unapprove") });
+  if (order.status === "Draft" || (order.status === "Open" && !orderHasDeliveries))
+    orderMore.push({ id: "order-cancel", label: "İptal et", disabledReason: busy ? "Kaydediliyor…" : undefined, run: () => void runOrderTransition("cancel") });
   if (orderMore.length) orderCommands.more = orderMore;
   const orderMoney = (value: number) => formatAmount(value, order.currencyCode);
   return (
@@ -10312,7 +10352,7 @@ function SalesOrderModal({
             ]}
           />
         </div>
-        {order.status === "Open" && (
+        {(order.status === "Draft" || order.status === "Open") && (
           <form
             className="panel"
             style={{ marginTop: 14 }}
@@ -10350,9 +10390,9 @@ function SalesOrderModal({
               <div>
                 <b>Sipariş özel alanları</b>
                 <small>
-                  {order.status === "Open"
-                    ? "Açık siparişte düzenlenebilir."
-                    : "Sipariş kapanınca kilitlenir."}
+                  {order.status === "Draft" || order.status === "Open"
+                    ? "Taslak ve onaylı siparişte düzenlenebilir."
+                    : "Sipariş sevk edilince kilitlenir."}
                 </small>
               </div>
             </div>
@@ -10364,7 +10404,7 @@ function SalesOrderModal({
                   <small>
                     {field.code} · {field.dataType}
                   </small>
-                  {order.status !== "Open" ? (
+                  {order.status !== "Draft" && order.status !== "Open" ? (
                     <span>{field.value || "—"}</span>
                   ) : field.dataType === "Boolean" ? (
                     <select
@@ -10395,7 +10435,7 @@ function SalesOrderModal({
                         field.dataType === "Text" ? field.maxLength : undefined
                       }
                       required={field.isRequired}
-                      disabled={order.status !== "Open"}
+                      disabled={order.status !== "Draft" && order.status !== "Open"}
                       value={customFieldValues[field.code] || ""}
                       onChange={(e) =>
                         setCustomFieldValues((current) => ({
@@ -10408,7 +10448,7 @@ function SalesOrderModal({
                 </label>
               ))}
             </div>
-            {order.status === "Open" && (
+            {(order.status === "Draft" || order.status === "Open") && (
               <div className="modal-foot">
                 <span>Tekliften eşleşen kodlu alan değerleri taşındı.</span>
                 <button className="primary" disabled={busy}>

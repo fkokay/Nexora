@@ -30,10 +30,14 @@ export function salesQuoteStatus(status: string): DocumentStatus {
   }
 }
 
+/** Satış siparişi durum zinciri (belge kuralları): Taslak → (Onay bekliyor) → Onaylı → Sevk edildi → Faturalandı. */
 export function salesOrderStatus(status: string): DocumentStatus {
   switch (status) {
-    case "Open": return { label: "Açık", tone: "warning" };
-    case "Fulfilled": return { label: "Tamamlandı", tone: "success" };
+    case "Draft": return { label: "Taslak", tone: "neutral" };
+    case "PendingApproval": return { label: "Onay bekliyor", tone: "warning" };
+    case "Open": return { label: "Onaylı", tone: "warning" };
+    case "Fulfilled": return { label: "Sevk edildi", tone: "success" };
+    case "Invoiced": return { label: "Faturalandı", tone: "success" };
     case "Cancelled": return cancelled;
     default: return unknown(status);
   }

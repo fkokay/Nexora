@@ -1,4 +1,5 @@
 using AIERP.Api;
+using AIERP.Api.DocumentModels;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -280,6 +281,8 @@ app.MapPaymentInstrumentEndpoints();
 app.MapInventoryTrackingInquiryEndpoints();
 app.MapInventoryStockWidgetEndpoints();
 app.MapSalesOrderEndpoints();
+app.MapSalesOrderTransitionEndpoints();
+app.MapDocumentModelEndpoints();
 app.MapSalesDocumentPreviewEndpoints();
 app.MapSalesDeliverySearchEndpoints();
 app.MapSalesDeliveryListEndpoints();
@@ -2124,7 +2127,7 @@ stockItems.MapPost("/{id:guid}/deactivate", async (Guid id, StockItemStateChange
     var balances = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.StockItemId == id)
         .GroupBy(x => x.WarehouseId).Select(group => group.Sum(x => x.Direction == InventoryDirection.Receipt ? x.Quantity : -x.Quantity)).ToListAsync();
     if (balances.Any(quantity => quantity != 0)) return Results.Conflict(new { error = "Depolarda bakiyesi olan stok kartı devre dışı bırakılamaz; önce stok bakiyesini sıfırlayın." });
-    if (await db.SalesOrderLines.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id && x.Order.Status == SalesOrderStatus.Open))
+    if (await db.SalesOrderLines.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id && (x.Order.Status == SalesOrderStatus.Open || x.Order.Status == SalesOrderStatus.Draft || x.Order.Status == SalesOrderStatus.PendingApproval)))
         return Results.Conflict(new { error = "Bekleyen satış siparişi satırları bulunan stok kartı devre dışı bırakılamaz." });
     if (await db.PurchaseOrderLines.AnyAsync(x => x.TenantId == tenantId && x.StockItemId == id && (x.PurchaseOrder.Status == PurchaseOrderStatus.Open || x.PurchaseOrder.Status == PurchaseOrderStatus.PartiallyReceived || x.PurchaseOrder.Status == PurchaseOrderStatus.PendingApproval)))
         return Results.Conflict(new { error = "Bekleyen satın alma siparişi satırları bulunan stok kartı devre dışı bırakılamaz." });
@@ -3885,7 +3888,7 @@ salesQuotes.MapPost("/{id:guid}/convert-to-order", async (Guid id, ClaimsPrincip
     if (sourceLines.Count == 0) return Results.Conflict(new { error = "Satır içermeyen teklif siparişe dönüştürülemez." });
     var orderCode = await TenantDocumentNumbering.NextAsync(db, tenantId, "SalesOrder", null, DateOnly.FromDateTime(DateTime.UtcNow), CancellationToken.None);
     var order = new SalesOrder { TenantId = tenantId, QuoteId = quote.Id, CustomerId = orderCustomerId, SalespersonEmployeeId = quote.SalespersonEmployeeId, Code = orderCode,
-        OrderDate = DateOnly.FromDateTime(DateTime.UtcNow), CurrencyCode = quote.CurrencyCode, Status = SalesOrderStatus.Open,
+        OrderDate = DateOnly.FromDateTime(DateTime.UtcNow), CurrencyCode = quote.CurrencyCode, Status = SalesOrderStatus.Draft,
         Subtotal = quote.Subtotal, DiscountTotal = quote.DiscountTotal, TaxTotal = quote.TaxTotal, GrandTotal = quote.GrandTotal };
     foreach (var source in sourceLines)
         order.Lines.Add(new SalesOrderLine { TenantId = tenantId, Order = order, LineNumber = source.LineNumber,
@@ -3927,7 +3930,7 @@ salesOrders.MapPost("/custom-fields", async (SalesOrderCustomFieldCreateRequest 
     if (string.IsNullOrWhiteSpace(code) || !System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Z][A-Z0-9_]{0,39}$") || string.IsNullOrWhiteSpace(label) || label.Length > 120 || !Enum.IsDefined(body.DataType) || (body.DataType == CustomFieldDataType.Text && body.MaxLength is < 1 or > 500))
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["field"] = ["Alan kodu, etiketi, veri türü ve metin uzunluğu geçerli olmalıdır."] });
     if (await db.SalesOrderCustomFieldDefinitions.AnyAsync(x => x.TenantId == tenantId && x.Code == code)) return Results.Conflict(new { error = "Bu alan kodu tenant içinde daha önce kullanılmış." });
-    if (body.IsRequired && await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && x.Status == SalesOrderStatus.Open)) return Results.Conflict(new { error = "Açık siparişler doldurulmadan zorunlu alan açılamaz." });
+    if (body.IsRequired && await db.SalesOrders.AnyAsync(x => x.TenantId == tenantId && (x.Status == SalesOrderStatus.Open || x.Status == SalesOrderStatus.Draft || x.Status == SalesOrderStatus.PendingApproval))) return Results.Conflict(new { error = "Taslak, onay bekleyen ve onaylı siparişler doldurulmadan zorunlu alan açılamaz." });
     if (body.IsRequired && await db.SalesQuotes.AnyAsync(q => q.TenantId == tenantId && q.Status == SalesQuoteStatus.Accepted && !db.SalesOrders.Any(o => o.TenantId == tenantId && o.QuoteId == q.Id) &&
         !db.SalesQuoteCustomFieldValues.Any(v => v.TenantId == tenantId && v.QuoteId == q.Id && v.Value != "" && db.SalesQuoteCustomFieldDefinitions.Any(d => d.TenantId == tenantId && d.Id == v.DefinitionId && d.Code == code))))
         return Results.Conflict(new { error = "Siparişe dönüşmemiş kabul edilmiş teklifler bu kod için değer taşımalıdır. Önce teklif alanını oluşturup değeri teklifte saklayın." });
@@ -3948,7 +3951,7 @@ salesOrders.MapPut("/custom-fields/{definitionId:guid}", async (Guid definitionI
     if (definition is null) return Results.NotFound(); var maxLength = definition.DataType == CustomFieldDataType.Text ? body.MaxLength : 0; var required = body.IsRequired ?? definition.IsRequired;
     if (definition.DataType == CustomFieldDataType.Text && maxLength < 1) return Results.ValidationProblem(new Dictionary<string, string[]> { ["maxLength"] = ["Metin uzunluğu 1–500 olmalıdır."] });
     if (definition.DataType == CustomFieldDataType.Text && await db.SalesOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > maxLength)) return Results.Conflict(new { error = "Yeni uzunluk mevcut sipariş değerlerini geçersiz kılıyor." });
-    if (required && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesOrderStatus.Open && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm açık siparişlerde değer olmalıdır." });
+    if (required && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && (o.Status == SalesOrderStatus.Open || o.Status == SalesOrderStatus.Draft || o.Status == SalesOrderStatus.PendingApproval) && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı etkinleştirmek için tüm taslak, onay bekleyen ve onaylı siparişlerde değer olmalıdır." });
     definition.Label = label; definition.MaxLength = maxLength; definition.IsRequired = required; definition.Version++;
     db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Updated")); await db.SaveChangesAsync(); await tx.CommitAsync();
     return Results.Ok(new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
@@ -3975,7 +3978,7 @@ salesOrders.MapPost("/custom-fields/{definitionId:guid}/restore", async (Guid de
     if (definition is null) return Results.NotFound(); var revision = await db.SalesOrderCustomFieldDefinitionRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Version == body.Version);
     if (revision is null) return Results.NotFound(); if (revision.DataType != definition.DataType) return Results.Conflict(new { error = "Alan veri türü değiştirilemez." });
     if (revision.DataType == CustomFieldDataType.Text && await db.SalesOrderCustomFieldValues.AnyAsync(x => x.TenantId == tenantId && x.DefinitionId == definitionId && x.Value.Length > revision.MaxLength)) return Results.Conflict(new { error = "Bu sürüm mevcut değerleri geçersiz kılıyor." });
-    if (revision.IsRequired && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && o.Status == SalesOrderStatus.Open && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm açık siparişlerde değer olmalıdır." });
+    if (revision.IsRequired && await db.SalesOrders.AnyAsync(o => o.TenantId == tenantId && (o.Status == SalesOrderStatus.Open || o.Status == SalesOrderStatus.Draft || o.Status == SalesOrderStatus.PendingApproval) && !db.SalesOrderCustomFieldValues.Any(v => v.TenantId == tenantId && v.OrderId == o.Id && v.DefinitionId == definitionId && v.Value != ""))) return Results.Conflict(new { error = "Zorunlu alanı geri yüklemek için tüm taslak, onay bekleyen ve onaylı siparişlerde değer olmalıdır." });
     definition.Label = revision.Label; definition.MaxLength = revision.MaxLength; definition.IsRequired = revision.IsRequired; definition.IsActive = revision.IsActive; definition.Version++;
     db.SalesOrderCustomFieldDefinitionRevisions.Add(ToSalesOrderCustomFieldRevision(definition, GetUserId(principal), "Restored")); await db.SaveChangesAsync(); await tx.CommitAsync();
     return Results.Ok(new SalesOrderCustomFieldDefinitionView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, definition.IsActive));
@@ -3993,7 +3996,7 @@ salesOrders.MapPut("/{id:guid}/custom-fields", async (Guid id, SalesOrderCustomF
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (body.Values is { Count: > 40 }) return Results.ValidationProblem(new Dictionary<string, string[]> { ["values"] = ["En fazla 40 alan gönderilebilir."] });
     await using var tx = await db.Database.BeginTransactionAsync();
     var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
-    if (order is null) return Results.NotFound(); if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık sipariş özel alanları değiştirilebilir." });
+    if (order is null) return Results.NotFound(); if (!SalesOrderLifecycle.CanEditDeliveryDateOrCustomFields(order.Status)) return Results.Conflict(new { error = "Yalnızca taslak ya da onaylı sipariş özel alanları değiştirilebilir." });
     var definitions = await db.SalesOrderCustomFieldDefinitions.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrderCustomFieldDefinitions] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [IsActive] = 1").ToListAsync();
     var errors = new Dictionary<string, string[]>(); var normalized = new Dictionary<Guid, (SalesOrderCustomFieldDefinition Definition, string Value)>();
     if (body.Values is not null) foreach (var pair in body.Values)
@@ -4033,7 +4036,7 @@ salesOrders.MapPost("/{id:guid}/custom-fields/{definitionId:guid}/history/{revis
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid(); if (!body.Confirmation) return Results.BadRequest(new { error = "Değeri geri yüklemek için açık onay gerekir." });
     await using var tx = await db.Database.BeginTransactionAsync();
     var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
-    if (order is null) return Results.NotFound(); if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık sipariş değerleri geri yüklenebilir." });
+    if (order is null) return Results.NotFound(); if (!SalesOrderLifecycle.CanEditDeliveryDateOrCustomFields(order.Status)) return Results.Conflict(new { error = "Yalnızca taslak ya da onaylı sipariş değerleri geri yüklenebilir." });
     var definition = await db.SalesOrderCustomFieldDefinitions.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == definitionId && x.IsActive);
     var revision = await db.SalesOrderCustomFieldValueRevisions.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.OrderId == id && x.DefinitionId == definitionId && x.Id == revisionId);
     if (definition is null || revision is null) return Results.NotFound(); var target = revision.PreviousValue ?? "";
@@ -4065,7 +4068,7 @@ salesOrders.MapPost("/{id:guid}/reservations", async (Guid id, SalesOrderReserva
             x.WarehouseId, x.Warehouse.Name, x.OrderLine.StockItemId, x.OrderLine.StockCode, x.Quantity, x.FulfilledQuantity,
             x.Status == SalesOrderReservationStatus.Active ? x.Quantity - x.FulfilledQuantity : 0m, x.Status, x.CreatedAt, x.ReleasedAt)));
     }
-    if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık satış siparişi için stok ayrılabilir." });
+    if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca onaylı satış siparişi için stok ayrılabilir." });
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.WarehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     if (!warehouse.IsActive) return Results.Conflict(new { error = "Pasif depodan stok ayrılamaz." });
@@ -4158,7 +4161,7 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
         return closedDeliveryConflict;
     var order = await db.SalesOrders.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesOrders] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
     if (order is null) return Results.NotFound();
-    if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca açık satış siparişi sevk edilebilir." });
+    if (order.Status != SalesOrderStatus.Open) return Results.Conflict(new { error = "Yalnızca onaylı satış siparişi sevk edilebilir." });
     var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {request.WarehouseId}").SingleOrDefaultAsync();
     if (warehouse is null) return Results.NotFound();
     if (!warehouse.IsActive) return Results.Conflict(new { error = "Pasif depodan sevkiyat yapılamaz." });
@@ -4267,9 +4270,6 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
         db.InventoryTransactions.Add(movement);
     }
     db.SalesDeliveries.Add(delivery);
-    var deliveredAfter = new Dictionary<int, decimal>(delivered);
-    foreach (var input in request.Lines) deliveredAfter[input.OrderLineNumber] = deliveredAfter.GetValueOrDefault(input.OrderLineNumber) + input.Quantity;
-    order.Status = orderLines.All(x => deliveredAfter.GetValueOrDefault(x.LineNumber) >= x.Quantity) ? SalesOrderStatus.Fulfilled : SalesOrderStatus.Open;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-delivery.posted", Resource = code });
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex))
@@ -4277,6 +4277,9 @@ salesOrders.MapPost("/{id:guid}/deliveries", async (Guid id, SalesDeliveryWriteR
         await transaction.RollbackAsync();
         return Results.Conflict(new { error = "Bu sevkiyat istek anahtarı eşzamanlı başka bir işlemde kullanıldı; stok hareketi oluşturulmadı." });
     }
+    // Belge kuralları: Onaylı → Sevk edildi once every line is delivered (derived from what was just saved).
+    await SalesOrderStatusDeriver.RecomputeAsync(db, order, GetUserId(principal), ct);
+    await db.SaveChangesAsync(ct);
     await transaction.CommitAsync();
     return Results.Created($"/api/sales/deliveries/{delivery.Id}", new SalesDeliverySummary(delivery.Id, delivery.Code, order.Id, order.Code,
         warehouse.Id, warehouse.Name, delivery.DeliveryDate, delivery.Status, delivery.Lines.Count, delivery.CreatedAt)
@@ -4297,32 +4300,10 @@ salesOrders.MapGet("/", async (string? q, ClaimsPrincipal principal, TenantDbCon
             x.OrderDate, x.CurrencyCode, x.Status, x.GrandTotal, x.Lines.Count, x.CreatedAt, x.RequestedDeliveryDate, x.SalespersonEmployeeId)).ToListAsync();
     return Results.Ok(new SalesOrderPage(rows, page, pageSize, total));
 });
-salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+salesOrders.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var order = await db.SalesOrders.AsNoTracking().Include(x => x.Quote).Include(x => x.Customer).Include(x => x.Lines)
-        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
-    if (order is null) return Results.NotFound();
-    var delivered = await db.SalesDeliveryLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id && x.Delivery.Status == SalesDeliveryStatus.Posted)
-        .GroupBy(x => x.OrderLineNumber).Select(g => new { LineNumber = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.LineNumber, x => x.Quantity);
-    var reservations = await db.SalesOrderReservations.AsNoTracking().Include(x => x.Warehouse)
-        .Where(x => x.TenantId == tenantId && x.OrderId == id && x.Status == SalesOrderReservationStatus.Active)
-        .ToDictionaryAsync(x => x.OrderLineNumber);
-    var lines = order.Lines.OrderBy(x => x.LineNumber).Select(x =>
-    {
-        reservations.TryGetValue(x.LineNumber, out var reservation);
-        var deliveredQuantity = delivered.GetValueOrDefault(x.LineNumber);
-        return new SalesOrderLineView(x.LineNumber, x.StockItemId, x.StockCode, x.StockName, x.UnitCode, x.Quantity,
-            x.UnitPrice, x.DiscountPercent, x.VatPercent, x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal,
-            deliveredQuantity, Math.Max(0m, x.Quantity - deliveredQuantity), reservation?.Id, reservation?.WarehouseId,
-            reservation?.Warehouse.Name, reservation is null ? 0m : reservation.Quantity - reservation.FulfilledQuantity,
-            x.EnteredCurrencyCode, x.EnteredUnitPrice, x.EnteredUnitCode, x.IsVatIncluded, x.ExchangeRateToOrderCurrency);
-    }).ToList();
-    var customFields = await (from definition in db.SalesOrderCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
-        join value in db.SalesOrderCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
-        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesOrderCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    return Results.Ok(new SalesOrderView(order.Id, order.Code, order.QuoteId, order.Quote?.Code ?? "Bağımsız", order.CustomerId, order.Customer.Name,
-        order.OrderDate, order.CurrencyCode, order.Status, order.Subtotal, order.DiscountTotal, order.TaxTotal, order.GrandTotal, order.CreatedAt, lines, customFields, order.RequestedDeliveryDate, order.SalespersonEmployeeId));
+    return await SalesOrderReads.ViewAsync(db, tenantId, id, ct) is { } view ? Results.Ok(view) : Results.NotFound();
 });
 var salesDeliveries = app.MapGroup("/api/sales/deliveries").RequireAuthorization();
 salesDeliveries.MapGet("/", async (Guid? orderId, string? q, bool? unbilledOnly, ClaimsPrincipal principal, TenantDbContext db, int page = 1, int pageSize = 25) =>
@@ -4441,15 +4422,14 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
         }
     }
     delivery.Status = SalesDeliveryStatus.Voided;
-    if (order is not null && order.Status != SalesOrderStatus.Cancelled)
-    {
-        var orderLines = await db.SalesOrderLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == order.Id).ToListAsync();
-        var remainingDeliveries = await db.SalesDeliveryLines.AsNoTracking().Where(x => x.TenantId == tenantId && x.OrderId == order.Id && x.Delivery.Status == SalesDeliveryStatus.Posted && x.DeliveryId != id)
-            .GroupBy(x => x.OrderLineNumber).Select(g => new { LineNumber = g.Key, Quantity = g.Sum(x => x.Quantity) }).ToDictionaryAsync(x => x.LineNumber, x => x.Quantity);
-        order.Status = orderLines.All(x => remainingDeliveries.GetValueOrDefault(x.LineNumber) >= x.Quantity) ? SalesOrderStatus.Fulfilled : SalesOrderStatus.Open;
-    }
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-delivery.voided", Resource = delivery.Code });
     await db.SaveChangesAsync();
+    if (order is not null)
+    {
+        // Belge kuralları: re-derive from the remaining posted deliveries and their invoices (Sevk edildi / Faturalandı → Onaylı).
+        await SalesOrderStatusDeriver.RecomputeAsync(db, order, GetUserId(principal), CancellationToken.None);
+        await db.SaveChangesAsync();
+    }
     await transaction.CommitAsync();
     return Results.Ok(new { delivery.Id, delivery.Code, deliveryStatus = delivery.Status, orderStatus = order?.Status });
 });
@@ -4558,13 +4538,8 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     if (totals.GrandTotal <= 0) return Results.Conflict(new { error = "Cari borç kaydı oluşturulabilmesi için fatura toplamı sıfırdan büyük olmalıdır." });
     var customFields = await SalesInvoiceCustomFieldSupport.PrepareAsync(db, tenantId, request?.CustomFields, ct);
     if (customFields.Errors.Count > 0) return Results.ValidationProblem(customFields.Errors);
-    if (customer.RiskLimit is { } limit && customer.Type is CounterpartyType.Customer or CounterpartyType.Both or CounterpartyType.Dealer)
-    {
-        var currentDebit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == customer.Id && x.Direction == CustomerLedgerDirection.Debit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var currentCredit = await db.CustomerLedgerEntries.Where(x => x.TenantId == tenantId && x.CustomerId == customer.Id && x.Direction == CustomerLedgerDirection.Credit).SumAsync(x => (decimal?)x.Amount) ?? 0m;
-        var projectedBalance = currentDebit - currentCredit + totals.GrandTotal;
-        if (projectedBalance > limit) return Results.Conflict(new { error = "Fatura tutarı müşteri risk limitini aşacağı için kaydedilmedi.", currentBalance = currentDebit - currentCredit, projectedBalance, riskLimit = limit });
-    }
+    if (await CustomerRiskLimit.ProjectAsync(db, tenantId, customer, totals.GrandTotal, ct) is { Exceeded: true } risk)
+        return Results.Conflict(new { error = "Fatura tutarı müşteri risk limitini aşacağı için kaydedilmedi.", currentBalance = risk.CurrentBalance, projectedBalance = risk.ProjectedBalance, riskLimit = risk.Limit });
     var invoiceSeries = TenantDocumentNumbering.InvoiceSeries(eDocument?.Scenario);
     var code = await TenantDocumentNumbering.NextAsync(db, tenantId, invoiceSeries.Type, invoiceSeries.Scenario, invoiceDate, ct);
     var invoice = new SalesInvoice { TenantId = tenantId, DeliveryId = id, OrderId = order?.Id, CustomerId = customer.Id,
@@ -4598,6 +4573,13 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
     await db.SaveChangesAsync();
     SalesInvoiceCustomFieldSupport.AddValues(db, tenantId, invoice.Id, customFields.Values, GetUserId(principal));
     if (customFields.Values.Count > 0) await db.SaveChangesAsync();
+    if (order is not null)
+    {
+        // Belge kuralları: Sevk edildi → Faturalandı once every posted delivery of the order is invoiced.
+        var trackedOrder = await db.SalesOrders.SingleAsync(x => x.TenantId == tenantId && x.Id == order.Id, ct);
+        await SalesOrderStatusDeriver.RecomputeAsync(db, trackedOrder, GetUserId(principal), ct);
+        await db.SaveChangesAsync(ct);
+    }
     await transaction.CommitAsync();
     return Results.Created($"/api/sales/invoices/{invoice.Id}", new SalesInvoiceSummary(invoice.Id, invoice.Code, invoice.DeliveryId,
         delivery.Code, invoice.OrderId, order?.Code, invoice.CustomerId, customer.Name, invoice.InvoiceDate, invoice.CurrencyCode,
@@ -5380,6 +5362,13 @@ salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princip
     invoice.Status = SalesInvoiceStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-invoice.voided", Resource = invoice.Code });
     await db.SaveChangesAsync();
+    if (invoice.OrderId is { } invoicedOrderId
+        && await db.SalesOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == invoicedOrderId) is { } invoicedOrder)
+    {
+        // Belge kuralları: Faturalandı → Sevk edildi when an invoice of the order is voided.
+        await SalesOrderStatusDeriver.RecomputeAsync(db, invoicedOrder, GetUserId(principal), CancellationToken.None);
+        await db.SaveChangesAsync();
+    }
     await transaction.CommitAsync();
     return Results.Ok(new { invoice.Id, invoice.Code, invoice.Status });
 });

@@ -78,7 +78,7 @@ internal static partial class ErpOperationCatalog
         var orderSummary = Record(Columns<SalesOrderSummary>());
         yield return Write(SalesModule, "satis.siparis.olustur", "Satış siparişi oluştur", "insert", "POST", ordersRoute,
             [.. BodyParameters<SalesOrderWriteRequest>(sourceBacked: false), MapParameter("customFields"), writeLines], orderSummary, null, null);
-        // Only an open order without deliveries, invoices or reservations can be edited (the handler checks).
+        // Only a draft order without deliveries, invoices or reservations can be edited (the handler checks).
         yield return Write(SalesModule, "satis.siparis.guncelle", "Satış siparişini güncelle", "update", "PUT", orderRoute,
             [id, .. BodyParameters<SalesOrderWriteRequest>(sourceBacked: false), MapParameter("customFields"), writeLines], orderSummary, null, null);
         ErpOperationParameter[] orderPreview = [.. BodyParameters<SalesOrderPreviewRequest>(sourceBacked: false), previewLines];
@@ -88,6 +88,18 @@ internal static partial class ErpOperationCatalog
         yield return Write(SalesModule, "satis.siparis.irsaliyeOlustur", "Satış siparişinden irsaliye oluştur", "insert", "POST", orderRoute + "/deliveries",
             [id, .. BodyParameters<SalesDeliveryWriteRequest>(sourceBacked: false), ListParameter<SalesDeliveryLineWriteRequest>("lines")],
             Record(Columns<SalesDeliverySummary>()), null, null);
+        // State transitions (belge kuralları): resolve as erp.sales-orders.execute; requestId is page-made (autoId), a retry returns the order.
+        var transitionResult = Record(Columns<SalesOrderTransitionResult>());
+        yield return Write(SalesModule, "satis.siparis.onayla", "Satış siparişini onayla", "update", "POST", orderRoute + "/approve",
+            [id, .. BodyParameters<SalesOrderTransitionRequest>(sourceBacked: false, exclude: "reason")], transitionResult, null, null);
+        yield return Write(SalesModule, "satis.siparis.onayiGeriAl", "Satış siparişinin onayını geri al", "update", "POST", orderRoute + "/unapprove",
+            [id, .. BodyParameters<SalesOrderTransitionRequest>(sourceBacked: false, exclude: "reason")], transitionResult, null, null);
+        yield return Write(SalesModule, "satis.siparis.iptal", "Satış siparişini iptal et", "update", "POST", orderRoute + "/cancel",
+            [id, .. BodyParameters<SalesOrderTransitionRequest>(sourceBacked: false)], transitionResult, null, null);
+        // Belge modeli: the order as a document (order, amounts, allowed transitions, işlem günlüğü) and "alan değişince" fills.
+        yield return Read(SalesModule, "satis.siparis.belge", "Satış siparişi belgesi", orderRoute + "/document", [id], Record(Columns<SalesOrderView>()));
+        yield return new ErpOperation("satis.siparis.doldur", "Satış siparişi alanı değişince dolanlar", SalesModule, "read", "read", "POST",
+            "/api/document-models/satis.siparis/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
         var orderValues = Columns<SalesOrderCustomFieldValueView>();
         yield return Read(SalesModule, "satis.siparis.ozelAlanTanimlari", "Satış siparişi özel alan tanımları", ordersRoute + "/custom-fields", [],
             List(Columns<SalesOrderCustomFieldDefinitionView>(), null));

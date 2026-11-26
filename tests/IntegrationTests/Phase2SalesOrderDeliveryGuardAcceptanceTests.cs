@@ -20,6 +20,13 @@ public sealed class Phase2SalesOrderDeliveryGuardAcceptanceTests
     public async Task Delete_requires_admin_and_own_unprocessed_order_and_records_audit()
     {
         await using var app = await StartAsync();
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            // Only drafts can be deleted since the state chain (belge kuralları PR 1).
+            var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
+            (await db.SalesOrders.SingleAsync(x => x.Id == OpenOrderId)).Status = SalesOrderStatus.Draft;
+            await db.SaveChangesAsync();
+        }
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("X-Test-Tenant", TenantId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Role", "TenantUser");

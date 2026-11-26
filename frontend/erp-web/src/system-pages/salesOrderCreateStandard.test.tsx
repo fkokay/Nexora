@@ -19,7 +19,7 @@ const S9 = '11111111-0000-0000-0000-000000000009';
 const P1 = '66666666-0000-0000-0000-000000000001';
 
 type Body = Record<string, unknown> & { lines?: Record<string, unknown>[] };
-let status = 'Open';
+let status = 'Draft';
 
 const orderLine = (lineNumber: number, stockItemId: string, stockCode: string, stockName: string, extra: Record<string, unknown>) => ({
   lineNumber, stockItemId, stockCode, stockName, unitCode: 'ADET', quantity: 2, unitPrice: 10, enteredUnitPrice: 10, enteredUnitCode: 'ADET',
@@ -69,7 +69,7 @@ function respond(url: string, method: string, body?: string): unknown {
 }
 
 const h = salesHarness(KEY, api, catalog, respond);
-beforeEach(() => { api.mockReset(); localStorage.clear(); status = 'Open'; h.listen(); });
+beforeEach(() => { api.mockReset(); localStorage.clear(); status = 'Draft'; h.listen(); });
 afterEach(() => { h.reset(); cleanup(); setPageParams(KEY, {}); });
 
 const calls = (method: string, path: string) => h.state.calls.filter((call) => call.method === method && call.url.split('?')[0] === path);
@@ -82,8 +82,8 @@ const pick = async (element: HTMLElement, option: RegExp) => {
 };
 
 describe('Satış siparişi standart kartı', { timeout: 40000 }, () => {
-  it('is a v1 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 1, stage: 'preview' });
+  it('is a v2 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
