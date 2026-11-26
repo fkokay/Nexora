@@ -3,18 +3,18 @@
 // katalog okuma sorgusu, `title` kaynağın adı, `pageSize` (10 / 25 / 50), ilk 6 kolon ve etiketleri. Satır eylemi, çift tıklama,
 // arama ve süzgeç yoktur.
 import type { CatalogDataSource } from "../catalogClient";
-import type { PageQuery } from "../QueriesPanel";
-import { indicatorSourceUsable } from "./indicatorPanelModel";
-import { FIRST_COLUMNS, freeId, labelMap, safeLabel, stringList, type ModelComponent, type ModelDefinition, type Usable } from "./listPanelModel";
+import { indicatorSourceUsable, isCatalogRead, pruneOrphan } from "./indicatorPanelModel";
+import { FIRST_COLUMNS, freeId, labelMap, safeLabel, setListProps, stringList, type ModelComponent, type ModelDefinition, type Usable } from "./listPanelModel";
 
-type PropValue = string | number | boolean | string[];
-export type FreeTablePageSize = 10 | 25 | 50;
+export type FreeTablePageSize = 10 | 25 | 50 | 100;
 export type FreeTableState = {
   /** Bağlı katalog veri kaynağının kodu; kaynak seçilmemişse null. */
   source: string | null; title: string; columns: string[]; labels: Record<string, string>; pageSize: number; emptyText: string;
 };
 
+/** Panelin sunduğu değerler; eski kayıttaki 100 (sunucu kabul eder) yalnız seçiliyken sunulur. */
 export const FREE_TABLE_PAGE_SIZES: readonly FreeTablePageSize[] = [10, 25, 50];
+export const FREE_TABLE_LEGACY_PAGE_SIZE: FreeTablePageSize = 100;
 /** Yeni Listenin sayfa başına değeri (satır tablosu gibi); kaydında `pageSize` olmayan tablo da böyle okunur. */
 export const DEFAULT_FREE_TABLE_PAGE_SIZE: FreeTablePageSize = 10;
 export const FREE_TABLE_SOURCE_NEEDS_INPUT = "Bu kaynak ek bilgi istiyor; burada kullanılamaz.";
@@ -22,30 +22,8 @@ const MAX_TEXT = 120;
 
 const isFreeTable = (component: ModelComponent) => component.type === "dataTable" && component.props.slot === "item";
 const findTable = (def: ModelDefinition, id: string) => def.components.find((component) => component.id === id && isFreeTable(component));
-const isCatalogRead = (query: PageQuery) => query.kind === "read" && typeof query.dataSource === "string";
 const queryOf = (def: ModelDefinition, table: ModelComponent) =>
   typeof table.props.query === "string" ? def.queries.find((query) => query.id === table.props.query) : undefined;
-
-const withProps = (component: ModelComponent, patch: Record<string, PropValue | undefined>): ModelComponent => {
-  const props: Record<string, PropValue> = { ...component.props };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) delete props[key]; else props[key] = value;
-  }
-  return { ...component, props };
-};
-const patchTable = <D extends ModelDefinition>(def: D, id: string, patch: Record<string, PropValue | undefined>): D =>
-  ({ ...def, components: def.components.map((component) => component.id === id ? withProps(component, patch) : component) });
-
-/** Sorgu başka hiçbir yerden (bileşen, öteki sorgu) anılıyor mu; ad ya da kimlik sözcük olarak aranır (şüphede "anılıyor"). */
-function queryInUse(def: ModelDefinition, query: PageQuery): boolean {
-  const text = JSON.stringify([def.components, def.queries.filter((item) => item.id !== query.id)]);
-  return [query.id, query.name].some((token) =>
-    new RegExp(`(^|[^A-Za-z0-9_])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z0-9_]|$)`).test(text));
-}
-function pruneOrphan<D extends ModelDefinition>(def: D, query: PageQuery | undefined): D {
-  if (!query || !isCatalogRead(query) || query.parameters.length > 0 || queryInUse(def, query)) return def;
-  return { ...def, queries: def.queries.filter((item) => item.id !== query.id) };
-}
 
 /** Karar 7: Gösterge'deki kural (yalnız parametresiz kaynak); ek bilgi isteyen kaynağın nedeni Listeye göre yazılır. */
 export function freeTableSourceUsable(ds: CatalogDataSource): Usable {
@@ -86,7 +64,7 @@ export function chooseTableSource<D extends ModelDefinition>(def: D, id: string,
   }
   const columns = ds.columns.slice(0, FIRST_COLUMNS);
   const pageSize = typeof table.props.pageSize === "number" ? table.props.pageSize : DEFAULT_FREE_TABLE_PAGE_SIZE;
-  const next = patchTable({ ...def, queries }, id, {
+  const next = setListProps({ ...def, queries }, id, {
     query: query.id, source: undefined, title: ds.label.trim().slice(0, MAX_TEXT) || ds.code, pageSize,
     columns: columns.map((column) => column.code),
     columnLabels: columns.length > 0 ? columns.map((column) => `${column.code}=${safeLabel(column.label, column.code)}`) : undefined,
@@ -94,11 +72,11 @@ export function chooseTableSource<D extends ModelDefinition>(def: D, id: string,
   return pruneOrphan(next, before);
 }
 
-/** Sayfa başına 10 / 25 / 50 (sunucu 100'ü de kabul eder; panel sunmaz). Her zaman açıkça yazılır. */
+/** Sayfa başına 10 / 25 / 50 / 100 (sunucunun kabul ettikleri). Her zaman açıkça yazılır. */
 export function setTablePageSize<D extends ModelDefinition>(def: D, id: string, size: FreeTablePageSize): D {
   const table = findTable(def, id);
-  if (!table || !FREE_TABLE_PAGE_SIZES.includes(size) || table.props.pageSize === size) return def;
-  return patchTable(def, id, { pageSize: size });
+  if (!table || ![...FREE_TABLE_PAGE_SIZES, FREE_TABLE_LEGACY_PAGE_SIZE].includes(size) || table.props.pageSize === size) return def;
+  return setListProps(def, id, { pageSize: size });
 }
 
 /** Liste boşken yazılacak metin: kırpılır (en çok 120); boş metin kaldırır (ERP kendi metnini yazar). */
@@ -107,5 +85,5 @@ export function setTableEmptyText<D extends ModelDefinition>(def: D, id: string,
   if (!table) return def;
   const clean = text.trim().slice(0, MAX_TEXT) || undefined;
   if (clean === table.props.emptyText) return def;
-  return patchTable(def, id, { emptyText: clean });
+  return setListProps(def, id, { emptyText: clean });
 }

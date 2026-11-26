@@ -1,11 +1,12 @@
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogDataSource } from "../catalogClient";
 import { newFreeTemplateDefinition } from "../pageTemplates";
-import { FreePanel, freeSelectionOf, type FreeSelection } from "./FreePanel";
+import { FreePanel, freeSelectionOf, type FreePanelProps, type FreeSelection } from "./FreePanel";
 import { FreeTablePanel } from "./FreeTablePanel";
-import { addItem, addPageAction, addTab, FREE_BLOCK_NOT_EMPTY, FREE_LAST_BLOCK, PAGE_ACTION_ROW } from "./freeModel";
-import { chooseTableSource } from "./freeTableModel";
+import { addItem, addPageAction, addTab, FREE_BLOCK_NOT_EMPTY, FREE_LAST_BLOCK, PAGE_ACTION_ROW, renameTab } from "./freeModel";
+import { chooseTableSource, setTablePageSize } from "./freeTableModel";
 import type { ModelDefinition } from "./listPanelModel";
 
 const column = (code: string, label: string) => ({ code, label, type: "text", key: false, longText: false, required: false, maxLength: null });
@@ -127,5 +128,37 @@ describe("serbest gövde paneli", () => {
       const text = visible(html);
       for (const word of ["members", "slot", "{{", "dataTable", "section", "query", "rows[0]", "bolum", "sekmeler", "Eski ayarlar"]) expect(text, word).not.toContain(word);
     }
+  });
+
+  it("tab rows keep their key while the tab is renamed (focus stays in the input)", () => {
+    // PagePanel kancasız: öğe ağacı doğrudan çağrılarak açılır, sekme satırlarının anahtarları okunur.
+    const rowKeys = (def: ModelDefinition) => {
+      const page = FreePanel({ def, selection: { kind: "page" }, catalog, onChange: () => {}, onSelect: () => {} }) as ReactElement<FreePanelProps>;
+      const tree = (page.type as (props: FreePanelProps) => ReactNode)(page.props);
+      const keys: (string | null)[] = [];
+      const walk = (node: ReactNode) => {
+        if (Array.isArray(node)) { node.forEach(walk); return; }
+        if (!isValidElement(node)) return;
+        const children = (node.props as { children?: ReactNode }).children;
+        const asArray = Array.isArray(children) ? children : [children];
+        if (asArray.some((child) => isValidElement(child) && (child.props as { label?: string }).label === "Sekme adı")) keys.push(node.key);
+        walk(children);
+      };
+      walk(tree);
+      return keys;
+    };
+    const def = ok(addTab(fresh(), "Ayrıntı")).def;
+    const before = rowKeys(def);
+    expect(before).toHaveLength(2);
+    expect(rowKeys(renameTab(def, 1, "Ayrıntılar"))).toEqual(before);
+  });
+
+  it("table panel offers 100 per page when the saved list uses it", () => {
+    const item = ok(addItem(fresh(), "table", { blockId: "bolum" }));
+    const bound = chooseTableSource(item.def, item.itemId, siparisler);
+    const hundred = { ...bound, components: bound.components.map((c) => c.id === item.itemId ? { ...c, props: { ...c.props, pageSize: 100 } } : c) };
+    expect(renderTable(hundred, item.itemId)).toMatch(/class="on" aria-pressed="true"[^>]*>100<\/button>/);
+    expect(renderTable(bound, item.itemId)).not.toContain(">100</button>");
+    expect(setTablePageSize(bound, item.itemId, 100).components.find((c) => c.id === item.itemId)!.props.pageSize).toBe(100);
   });
 });

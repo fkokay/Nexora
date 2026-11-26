@@ -63,7 +63,7 @@ export function indicatorSourceUsable(ds: CatalogDataSource): Usable {
   return ds.parameters.length === 0 ? { usable: true } : { usable: false, reason: INDICATOR_SOURCE_NEEDS_INPUT };
 }
 
-const isCatalogRead = (query: PageQuery) => query.kind === "read" && typeof query.dataSource === "string";
+export const isCatalogRead = (query: PageQuery) => query.kind === "read" && typeof query.dataSource === "string";
 const kindOf = (type: string): IndicatorKind => (type === "progress" ? "progress" : type === "badge" ? "status" : "number");
 
 /** Göstergenin bağlı olduğu katalog okuma sorgusu: sayım yolunda `query`, kolon yolunda değer bağlaması. */
@@ -95,12 +95,12 @@ export function indicatorOf(def: ModelDefinition, id: string): IndicatorState {
 }
 
 /** Bir sorgu başka hiçbir yerden (bileşen, öteki sorgu) anılmıyorsa; ad ya da kimlik sözcük olarak aranır (şüphede "kullanılıyor" sayılır). */
-function queryInUse(def: ModelDefinition, query: PageQuery): boolean {
+export function queryInUse(def: ModelDefinition, query: PageQuery): boolean {
   const text = JSON.stringify([def.components, def.queries.filter((item) => item.id !== query.id)]);
   return [query.id, query.name].some((token) =>
     new RegExp(`(^|[^A-Za-z0-9_])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z0-9_]|$)`).test(text));
 }
-function pruneOrphan<D extends ModelDefinition>(def: D, query: PageQuery | undefined): D {
+export function pruneOrphan<D extends ModelDefinition>(def: D, query: PageQuery | undefined): D {
   if (!query || !isCatalogRead(query) || query.parameters.length > 0 || queryInUse(def, query)) return def;
   return { ...def, queries: def.queries.filter((item) => item.id !== query.id) };
 }

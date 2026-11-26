@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { ActiveCatalog, CatalogAction } from "../catalogClient";
 import { AppearanceSection } from "./AppearanceSection";
+import { DraftInput } from "./DraftInput";
 import { LegacySettings } from "./ComponentPanel";
 import "./component-panel.css";
 import {
@@ -32,7 +33,6 @@ export const FREE_MISSING_IN_CATALOG = "Katalogda yok";
 export const FREE_COLUMNS_NOTE = "Dar ekranda kolonlar kendiliğinden azalır: tablette en çok 2, telefonda 1.";
 export const FREE_ACTIONS_DEV_NOTE = "Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir";
 export const FREE_ACTIONS_NOTE = "İlk eylem ana düğmedir. Bir satıra ait eylemler burada seçilemez; onlar için Liste kalıbını kullanın.";
-const MAX_PAGE_NAME = 120;
 /** Bölümde panelin yazdığı özellikler; ötekiler "Eski ayarlar" altında salt okunur görünür. */
 const BLOCK_KNOWN = new Set(["slot", "title", "columns", "members", "visibleWhen", "hideOnMobile"]);
 
@@ -45,19 +45,6 @@ export function freeSelectionOf(def: ModelDefinition, componentId: string | null
   const component = def.components.find((item) => item.id === componentId);
   if (!component) return { kind: "page" };
   return isFreeBlock(component) ? { kind: "block", id: component.id } : null;
-}
-
-/** Yazarken boşluk ya da boş değer kaybolmasın diye taslak tutan metin kutusu; her değişiklik bildirilir. */
-function DraftInput({ label, value, placeholder, maxLength = MAX_PAGE_NAME, disabled, readOnly, head, onCommit }: {
-  label: string; value: string; placeholder?: string; maxLength?: number; disabled?: boolean; readOnly?: boolean; head?: boolean; onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => { setDraft((current) => current.trim() === value.trim() ? current : value); }, [value]);
-  const input = <input className={head ? undefined : "cpanel-txt"} aria-label={head ? label : undefined} value={draft} placeholder={placeholder} maxLength={maxLength}
-    disabled={disabled} readOnly={readOnly}
-    onChange={(event) => { setDraft(event.target.value); onCommit(event.target.value); }}
-    onBlur={() => { if (draft.trim() !== value.trim()) setDraft(value); }}/>;
-  return head ? input : <label className="cpanel-q">{label}{input}</label>;
 }
 
 /** Serbest gövdenin paneli (taslak 09): sayfa (ad, sekmeler, eylemler) ya da bölüm. Sekme ve açılır pencere yok. */
@@ -112,7 +99,7 @@ function PagePanel(props: FreePanelProps) {
       onCommit={(value) => props.onRename?.(value)}/></div>
     <p className="cpanel-note">{FREE_PAGE_LEVEL_NOTE}</p>
     <section className="cpanel-sec" data-part="tabs"><h4>Sekmeler</h4>
-      {tabs ? tabs.map((tab, index) => <div className="cpanel-row" key={`${index}-${tab.label}`}>
+      {tabs ? tabs.map((tab, index) => <div className="cpanel-row" key={index}>
         <DraftInput head label="Sekme adı" value={tab.label} maxLength={40} disabled={disabled} onCommit={(value) => change(renameTab(def, index, value))}/>
         <button type="button" className="cpanel-btn" disabled={disabled} title="Sekmeyi sil; bölümleri önceki sekmeye geçer"
           onClick={() => change(removeTab(def, index))}>Sil</button>
@@ -154,7 +141,7 @@ function BlockPanel(props: FreePanelProps & { id: string }) {
           onClick={() => change(setBlockColumns(def, id, count))}>{count}</button>)}</div>
       <p className="cpanel-note">{FREE_COLUMNS_NOTE}</p>
       {tabs && <label className="cpanel-q">Sekme<select value={tabIndex} disabled={disabled} onChange={(event) => change(moveBlockToTab(def, id, Number(event.target.value)))}>
-        {tabs.map((tab, index) => <option key={`${index}-${tab.label}`} value={index}>{tab.label}</option>)}
+        {tabs.map((tab, index) => <option key={index} value={index}>{tab.label}</option>)}
       </select></label>}
       <div className="cpanel-q">{tabs ? "Sıra (sekme içinde)" : "Sıra"}</div>
       <div className="cpanel-row">

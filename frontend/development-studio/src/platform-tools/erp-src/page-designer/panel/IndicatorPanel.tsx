@@ -19,10 +19,10 @@ const KINDS: [IndicatorKind, string][] = [["number", "Sayı"], ["progress", "İl
 const PLACES: [IndicatorPlace, string][] = [["indicators", "Göstergeler"], ["above", "Listenin üstü"], ["below", "Listenin altı"]];
 const RECORD_PLACES: Partial<Record<IndicatorPlace, string>> = { above: "Kartın üstü", below: "Kartın altı" };
 const SIZES: [IndicatorSize, string][] = [["sm", "Küçük"], ["lg", "Büyük"]];
-const NO_INDICATORS_NOTE: Record<string, string> = {
-  progress: "İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.",
-  badge: "Durum göstergeler sırasına konamaz; listenin üstünde ya da altında durur.",
-};
+const NO_INDICATORS_KIND: Record<string, string> = { progress: "İlerleme", badge: "Durum" };
+/** İlerleme ve durumun neden göstergeler sırasında olmadığı; Kayıt kartında yerleri kartın üstü ve altıdır. */
+const noIndicatorsNote = (type: string, record: boolean) => NO_INDICATORS_KIND[type]
+  ? `${NO_INDICATORS_KIND[type]} göstergeler sırasına konamaz; ${record ? "kartın" : "listenin"} üstünde ya da altında durur.` : null;
 const COMMON = ["title", "slot", "visibleWhen", "hideOnMobile"];
 /** Panelin yazdığı özellikler (türe göre) ve ortak olanlar; ötekiler "Eski ayarlar" altında salt okunur görünür. */
 /** `countWhen` yalnız Studio'nun yazdığı "Kayıt sayısı" koşuluysa panelindir; başka bir koşul "Eski ayarlar"da görünür. */
@@ -113,7 +113,7 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
     <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, listLabel]) =>
       <button type="button" key={value} className={component.props.slot === value ? "on" : ""} aria-pressed={component.props.slot === value} disabled={disabled}
         onClick={() => change(setIndicatorPlace(definition, id, value))}>{(record && RECORD_PLACES[value]) || listLabel}</button>)}</div>
-    {NO_INDICATORS_NOTE[component.type] && <p className="cpanel-note">{NO_INDICATORS_NOTE[component.type]}</p>}
+    {noIndicatorsNote(component.type, record) && <p className="cpanel-note">{noIndicatorsNote(component.type, record)}</p>}
   </div>;
 
   const extra = state.kind === "number"

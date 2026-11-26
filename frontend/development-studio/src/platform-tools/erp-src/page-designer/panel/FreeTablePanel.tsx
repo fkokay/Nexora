@@ -1,8 +1,9 @@
-import { useEffect, useState, type DragEvent, type ReactNode } from "react";
+import { useState, type DragEvent, type ReactNode } from "react";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
 import { AppearanceSection } from "./AppearanceSection";
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
-import { chooseTableSource, FREE_TABLE_PAGE_SIZES, freeTableSourceUsable, setTableEmptyText, setTablePageSize, tableOf } from "./freeTableModel";
+import { DraftInput } from "./DraftInput";
+import { chooseTableSource, FREE_TABLE_LEGACY_PAGE_SIZE, FREE_TABLE_PAGE_SIZES, freeTableSourceUsable, setTableEmptyText, setTablePageSize, tableOf } from "./freeTableModel";
 import { MAX_LIST_COLUMNS, setColumns, type ModelDefinition } from "./listPanelModel";
 import { setHideOnMobile } from "./textPanelModel";
 
@@ -27,17 +28,6 @@ export type FreeTablePanelProps = {
   visibility?: ReactNode;
 };
 
-/** Yazarken boşluk ya da boş değer kaybolmasın diye taslak tutan metin kutusu. */
-function DraftInput({ label, value, placeholder, disabled, onCommit }: {
-  label: string; value: string; placeholder?: string; disabled?: boolean; onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => { setDraft((current) => current.trim() === value.trim() ? current : value); }, [value]);
-  return <label className="cpanel-q">{label}<input className="cpanel-txt" value={draft} placeholder={placeholder} maxLength={120} disabled={disabled}
-    onChange={(event) => { setDraft(event.target.value); onCommit(event.target.value); }}
-    onBlur={() => { if (draft.trim() !== value.trim()) setDraft(value); }}/></label>;
-}
-
 /** Serbest gövdedeki salt okunur Liste paneli (taslak 09, Karar 7): Ne listelensin? → Kolonlar → Sayfa başına → Görünüm. */
 export function FreeTablePanel(props: FreeTablePanelProps) {
   const { def, id, catalog, disabled } = props;
@@ -55,6 +45,8 @@ export function FreeTablePanel(props: FreeTablePanelProps) {
   const ordered = [...columns, ...sourceCodes.filter((column) => !columns.includes(column))];
   const labelOf = (column: string) => labels[column] ?? source?.columns.find((item) => item.code === column)?.label ?? column;
   const full = columns.length >= MAX_LIST_COLUMNS;
+  // Eski kayıttaki 100 seçili görünür ve yeniden seçilebilir; yeni Listede 10 / 25 / 50 sunulur.
+  const pageSizes = state.pageSize === FREE_TABLE_LEGACY_PAGE_SIZE ? [...FREE_TABLE_PAGE_SIZES, FREE_TABLE_LEGACY_PAGE_SIZE] : FREE_TABLE_PAGE_SIZES;
   // Yeni işaretlenen kolon sona eklenir (sıra, işaretleme sırasıdır).
   const toggleColumn = (column: string, on: boolean) => change(on
     ? setColumns(def, id, [...columns, column], labels[column] ? {} : { [column]: labelOf(column) })
@@ -105,7 +97,7 @@ export function FreeTablePanel(props: FreeTablePanelProps) {
       })}</ul>}
       <p className="cpanel-note">{FREE_TABLE_COLUMNS_NOTE}</p>
     </div>
-    <div className="cpanel-row">Sayfa başına<div className="cpanel-seg" role="group" aria-label="Sayfa başına">{FREE_TABLE_PAGE_SIZES.map((size) =>
+    <div className="cpanel-row">Sayfa başına<div className="cpanel-seg" role="group" aria-label="Sayfa başına">{pageSizes.map((size) =>
       <button type="button" key={size} className={state.pageSize === size ? "on" : ""} aria-pressed={state.pageSize === size} disabled={disabled || !state.source}
         onClick={() => change(setTablePageSize(def, id, size))}>{size}</button>)}</div></div>
   </>;
