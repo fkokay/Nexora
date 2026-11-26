@@ -266,3 +266,8 @@
     box-shadow: 0 8px 24px color-mix(in srgb, var(--nx-ink) 30%, transparent);
   }
 }
+
+/* The panel is on but no row is current: no empty card, the list takes the full width. The panel appears as soon
+   as a row is selected. */
+#root .list-v2 .sales-list-body > .sales-ld.is-empty { display: none; }
+#root .list-v2 .sales-list-body.has-detail:has(> .sales-ld.is-empty) { grid-template-columns: minmax(0, 1fr); }

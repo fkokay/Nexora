@@ -5,6 +5,10 @@ import { buildOperationRequest, fieldErrorsByParameter, mapOperationResult, miss
 import { SOURCE_LOADING } from "./recordMessages";
 import { readPreviewTrigger } from "./previewQueries";
 
+const CATALOG_NOT_LOADED = "ERP işlem kataloğu henüz yüklenmedi.";
+/** Katalog bu süre içinde gelmezse bekleyen işlem eski hatayla sonlanır (katalog hiç istenmiyorsa sonsuza dek beklenmez). */
+const CATALOG_WAIT_MS = 15_000;
+
 export type PageQueryDefinition = {
   id: string; name: string; runOn: "load" | "manual"; kind: "read" | "insert" | "update" | "delete";
   parameters: { name: string; binding: string; type: string }[];
@@ -81,6 +85,8 @@ export function usePageQueries(options: {
   buildScope: (states: Record<string, QueryState>) => PageScope;
   /** ERP işlem kataloğu; null iken işlem sorguları katalog yüklenene kadar bekler. */
   operations?: Map<string, ErpOperation> | null;
+  /** Katalog yüklenemediyse hata metni; kataloğu bekleyen işlemler bu metinle sonlanır. */
+  operationsError?: string;
 }): {
   states: Record<string, QueryState>; scope: PageScope;
   /** Verilen okuma sorgularını (id) güncel parametrelerle hemen yeniden çalıştırır. */
@@ -107,6 +113,7 @@ export function usePageQueries(options: {
 } {
   const { queries, token, pageCode, previewId, buildScope } = options;
   const operations = options.operations ?? null;
+  const operationsError = options.operationsError ?? "";
   const endpointFor = (query: PageQueryDefinition) => previewId
     ? `/api/custom-pages/${encodeURIComponent(previewId)}/preview/queries/${encodeURIComponent(query.id)}/run`
     : `/api/custom-pages/${encodeURIComponent(pageCode)}/queries/${encodeURIComponent(query.id)}/run`;
@@ -146,12 +153,35 @@ export function usePageQueries(options: {
   latestStates.current = states;
   const latestOperations = useRef(operations);
   latestOperations.current = operations;
-  const operationOf = (query: PageQueryDefinition): ErpOperation => {
-    if (!latestOperations.current) throw new Error("ERP işlem kataloğu henüz yüklenmedi.");
-    const op = latestOperations.current.get(query.operation!);
+  const latestOperationsError = useRef(operationsError);
+  latestOperationsError.current = operationsError;
+  // Katalog yüklenmeden çalıştırılan işlemler (ör. sayfa açılır açılmaz basılan düğme) hata vermez, kataloğu bekler.
+  const catalogWaiters = useRef(new Set<() => void>());
+  useEffect(() => {
+    if (!operations && !operationsError) return;
+    const waiters = [...catalogWaiters.current];
+    catalogWaiters.current.clear();
+    waiters.forEach((wake) => wake());
+  }, [operations, operationsError]);
+  const catalogReady = (): Promise<Map<string, ErpOperation>> => new Promise((resolve, reject) => {
+    const settle = () => {
+      clearTimeout(timer);
+      catalogWaiters.current.delete(settle);
+      if (latestOperations.current) resolve(latestOperations.current);
+      else reject(new Error(latestOperationsError.current || CATALOG_NOT_LOADED));
+    };
+    const timer = setTimeout(settle, CATALOG_WAIT_MS);
+    if (latestOperations.current || latestOperationsError.current) settle();
+    else catalogWaiters.current.add(settle);
+  });
+  const operationIn = (catalog: Map<string, ErpOperation>, query: PageQueryDefinition): ErpOperation => {
+    const op = catalog.get(query.operation!);
     if (!op) throw new Error(`ERP işlemi bulunamadı: ${query.operation}`);
     return op;
   };
+  /** Katalog hazırsa işlem eşzamanlı döner (yazma sırası değişmez); değilse katalog beklenir. */
+  const operationOf = (query: PageQueryDefinition): ErpOperation | Promise<ErpOperation> => latestOperations.current
+    ? operationIn(latestOperations.current, query) : catalogReady().then((catalog) => operationIn(catalog, query));
   /** İşlemin kaynak sorgusu: sayfada `operation === op.sourceOperation` olan okuma sorgusu. */
   const sourceQueryOf = (op: ErpOperation) => op.sourceOperation
     ? queries.find((candidate) => candidate.kind === "read" && candidate.operation === op.sourceOperation) : undefined;
@@ -181,7 +211,8 @@ export function usePageQueries(options: {
     const currentGeneration = generation.current;
     setStates((current) => ({ ...current, [query.name]: { ...(current[query.name] ?? emptyState(true)), loading: true, error: "" } }));
     try {
-      const op = operationOf(query);
+      const pending = operationOf(query);
+      const op = pending instanceof Promise ? await pending : pending;
       if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
       const source = sourceRow(op);
       // Yol parametresi ya da zorunlu süzgeç henüz yok (ör. tabloda satır seçilmedi): istek atılmaz, hata da gösterilmez; sorgu boş kalır.
@@ -209,7 +240,8 @@ export function usePageQueries(options: {
 
   const runOperationWrite = async (query: PageQueryDefinition, values: Record<string, unknown>, cleared?: ReadonlySet<string>): Promise<WriteResult> => {
     if (previewId) throw new Error("Önizlemede ERP yazma işlemi çalıştırılmaz.");
-    const op = operationOf(query);
+    const pending = operationOf(query);
+    const op = pending instanceof Promise ? await pending : pending;
     const source = sourceQueryOf(op);
     // Kaynak kayıt yenilenirken eski satırın gizli alanları ve rowVersion'ı gönderilmesin.
     const mapSource = mapSourceQueryOf(op);
@@ -328,7 +360,8 @@ export function usePageQueries(options: {
     if (query.catalogError) return { ...emptyState(false), error: query.catalogError, ran: true };
     try {
       if (query.operation !== undefined) {
-        const op = operationOf(query);
+        const pending = operationOf(query);
+        const op = pending instanceof Promise ? await pending : pending;
         if (op.kind !== "read") throw new Error(`ERP yazma işlemi okuma sorgusunda çalıştırılmaz: ${op.name}`);
         if (missingRequiredValue(op, values, null)) return emptyState(false);
         const request = buildOperationRequest(op, values, null);

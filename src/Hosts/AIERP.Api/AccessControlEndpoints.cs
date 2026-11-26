@@ -249,6 +249,14 @@ internal static class AccessControlEndpoints
             if (request.Effect == TenantPermissionEffect.Deny && role == "TenantAdmin" && permission.ResourceType != "erp.payroll-compensation")
                 return Validation("effect", "TenantAdmin access cannot be denied by a tenant policy except for payroll-compensation permissions.");
 
+            // One unconditional role rule per role, permission and effect (filtered unique index): a second identical
+            // Allow or Deny would change nothing, so reject it instead of failing on the index.
+            const string DuplicateRuleMessage = "An identical role rule already exists for this permission.";
+            if (role is not null && attributeName is null && await db.TenantPermissionRules.AnyAsync(x => x.TenantId == tenantId
+                    && x.SubjectType == TenantPermissionSubjectType.Role && x.SubjectRole == role && x.SubjectUserId == null
+                    && x.AttributeName == null && x.PermissionCode == permission.Code && x.Effect == request.Effect && x.IsActive, ct))
+                return Validation("effect", DuplicateRuleMessage);
+
             var permissionEntity = await db.PermissionDefinitions.SingleOrDefaultAsync(x => x.Code == permission.Code, ct);
             if (permissionEntity is null)
             {
@@ -273,7 +281,11 @@ internal static class AccessControlEndpoints
             db.TenantPermissionRules.Add(rule);
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = actorId,
                 Action = "access-control.rule.created", Resource = $"{rule.SubjectType}:{role ?? userId?.ToString("D")}:{permission.Code}:{rule.Effect}" });
-            await db.SaveChangesAsync();
+            try { await db.SaveChangesAsync(); }
+            catch (DbUpdateException exception) when (TenantPermissionDefaults.IsUniqueViolation(exception))
+            {
+                return Validation("effect", DuplicateRuleMessage);
+            }
             return Results.Created($"/api/access-control/rules/{rule.Id}", new TenantPermissionRuleView(rule.Id,
                 rule.SubjectType, rule.SubjectRole, rule.SubjectUserId,
                 userId is null ? null : await db.Users.Where(x => x.Id == userId).Select(x => x.DisplayName).SingleAsync(),

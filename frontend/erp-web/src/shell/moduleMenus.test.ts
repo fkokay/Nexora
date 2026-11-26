@@ -59,6 +59,7 @@ describe('module menus', () => {
     expect(moduleForPage('sales-order-create')?.railId).toBe('sales')
     expect(moduleForPage('finance-credit-security-create')?.railId).toBe('finance')
     expect(moduleForPage('address-definitions')?.railId).toBe('modules')
+    expect(moduleForPage('customer-groups')?.railId).toBe('customers')
     expect(moduleForPage('settings')).toBeUndefined()
     expect(moduleForPage('custom-page:abc')).toBeUndefined()
   })

@@ -73,10 +73,6 @@ const posts = () => writes().filter((call) => call.method === 'POST' && call.url
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name }, T);
-};
 const openNew = async (params: Record<string, string> = {}) => {
   setup(params);
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
@@ -141,7 +137,8 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     type('kod', 'kasa-03');
     type('ad', 'Birinci');
     type('doviz', 'TRY');
-    fireEvent.click(await menuItem(/Kaydet ve yeni/));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(input('ad').value).toBe('');
@@ -153,10 +150,8 @@ describe('Kasa/Banka kartı standart tanımı', { timeout: 30000 }, () => {
     expect(input('acilisBakiyesi')).toBeNull();
     expect(input('tur').disabled).toBe(true);
     expect(document.body.textContent).toContain('4 hareket');
-    fireEvent.click(command('more'));
     await settle();
-    expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull();
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(command('more')).toBeNull();
     type('ad', 'Merkez kasa TL');
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes()).toHaveLength(1), T);

@@ -115,6 +115,8 @@ const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command=
 const enabled = (id: string) => command(id).getAttribute('aria-disabled') !== 'true';
 const reason = (id: string) => commandReason(command(id)) ?? command(id).getAttribute('aria-label') ?? '';
 function menuItems() {
+  // No İşlemler button when the page has no menu items.
+  if (!command('more')) return [];
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => item.textContent?.trim());
   fireEvent.click(command('more'));
@@ -225,7 +227,8 @@ describe('Mal kabulleri list', () => {
     expect(screen.queryByRole('heading', { name: /Mal kabulleri/ })).toBeNull();
     expect(screen.queryByRole('table', { name: 'Mal kabul kayıtları' })).toBeNull();
     await waitFor(() => expect(enabled('save')).toBe(true));
-    expect(menuItems()).toContain('Temizle');
+    // Temizle is a bar button next to Kaydet.
+    expect(command('record-form-reset')).not.toBeNull();
     const listCalls = apiCalls('/api/purchasing/receipts/?page=1&pageSize=25');
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));

@@ -93,7 +93,10 @@ internal static partial class TenantCustomPageSchema
       // Veri listesi araç çubuğunun "Detay paneli" düğmesi: bağlı onay kutusu girişini açıp kapatır (giriş ayrıca çizilmez).
       "detailToggleInput",
       // Sayfa kalıbı (alt proje 3): bileşenin kalıptaki yeri (slot), dar kutuda gizleme ve çizgili satırlar. Kalıpsız sayfada slot yok sayılır.
-      "slot", "hideOnMobile", "striped" };
+      "slot", "hideOnMobile", "striped",
+      // Çok satırlı metin girişi (multiline), girişin altındaki hazır değer düğmeleri (presets: "değer=Etiket"), aranabilir
+      // açılır listede listede olmayan değeri kabul etme (allowCustom) ve açılış sekmesini sayfa parametresinden seçme (tabParam).
+      "multiline", "presets", "allowCustom", "tabParam" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -247,6 +250,14 @@ internal static partial class TenantCustomPageSchema
         public List<PagedTable> PendingPagedTables { get; } = [];
         /// <summary>Page queries by id, from <see cref="ValidateQueries"/>' result list.</summary>
         public Dictionary<string, PageQuery> QueryById { get; } = new(StringComparer.Ordinal);
+        /// <summary>
+        /// ERP operation of each operation-backed catalog reference, by query id. The reference is recorded without an
+        /// operation (it is not a page operation and satisfies no source read); the component rules read it from here.
+        /// </summary>
+        public Dictionary<string, string> ReferenceOperations { get; } = new(StringComparer.Ordinal);
+        /// <summary>The ERP operation the component rules apply to a query: its own, or that of the catalog item it references.</summary>
+        public string? ComponentOperation(PageQuery query) =>
+            query.Operation ?? ReferenceOperations.GetValueOrDefault(query.Id);
         /// <summary>
         /// list/map operation parameters and their binding (<c>{{root.satirlar}}</c> / <c>{{root.degerler}}</c>); Path is the
         /// binding path without braces. The roots are resolved against the page components after the component loop.
@@ -582,7 +593,9 @@ internal static partial class TenantCustomPageSchema
             // usable through it (grandfathered, like the lenient catalog read). Activation never installs a new one.
             if (!ValidateOperationQuery(query, id, name, kind, operation, context, result, pendingSources, out error, allowDeprecated: true)) return false;
             // Recorded as a reference: it must not satisfy another query's source read or count as a page operation.
+            // The component rules (paging, result columns, body maps, calc, sequences) still see the item's operation.
             result[^1] = result[^1] with { Operation = null, DataSource = dataSource, Action = action };
+            context.ReferenceOperations[id] = operation;
             return true;
         }
         if (!ReadParameters(query, name, MaxQueryParameters, allowCollections: false, out var parameters, out _, out error)) return false;
@@ -1452,6 +1465,9 @@ internal static partial class TenantCustomPageSchema
     private const int MaxPatternLength = 200;
     private const int MaxPatternMessageLength = 120;
     private static readonly Regex TabItem = new(@"^[^=,]{1,40}=([A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){0,19})?\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private const int MaxPresets = 10;
+    private static readonly Regex PresetItem = new(@"^[^=]{1,40}=[^=]{1,20}\z", RegexOptions.CultureInvariant, RegexTimeout);
+    private static readonly Regex ParamName = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex StaticOptionItem = new(@"^[^=]{0,128}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex FooterMetaItem = new(@"^[A-Za-z_][A-Za-z0-9_]{0,63}=[^=]{1,60}\z", RegexOptions.CultureInvariant, RegexTimeout);
     private static readonly Regex IsoDate = new(@"^[0-9]{4}-[0-9]{2}-[0-9]{2}\z", RegexOptions.CultureInvariant, RegexTimeout);
@@ -1561,7 +1577,7 @@ internal static partial class TenantCustomPageSchema
     private static bool ValidateTabsProps(JsonElement props, string id, string typeText, Context context, out string? error)
     {
         error = null;
-        foreach (var key in new[] { "tabs", "defaultTab" })
+        foreach (var key in new[] { "tabs", "defaultTab", "tabParam" })
             if (typeText != "tabs" && props.TryGetProperty(key, out _))
             { error = $"'{key}' özelliği yalnız sekme (tabs) bileşeninde kullanılabilir."; return false; }
         if (typeText != "tabs") return true;
@@ -1577,6 +1593,8 @@ internal static partial class TenantCustomPageSchema
         }
         if (props.TryGetProperty("defaultTab", out var defaultTab) && !IsIntIn(defaultTab, 0, tabs.GetArrayLength() - 1))
         { error = "'defaultTab' sekme sırası (0'dan başlar) olmalıdır."; return false; }
+        if (props.TryGetProperty("tabParam", out var tabParam) && !MatchesSafely(ParamName, tabParam))
+        { error = "'tabParam' sayfa parametresi adı olmalıdır (harf, rakam, alt çizgi; en çok 64 karakter)."; return false; }
         context.PendingTabRefs.Add((id, owned));
         return true;
     }
@@ -1597,6 +1615,9 @@ internal static partial class TenantCustomPageSchema
         // Aranabilir açılır liste yalnız select'te (arama kutusu zaten aranır); ilk seçenek varsayılanı select ve lookup'ta.
         if (props.TryGetProperty("searchable", out var searchable) && (inputType != "select" || !IsBool(searchable)))
         { error = "'searchable' yalnız açılır liste (inputType: select) girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("allowCustom", out var allowCustom) && (inputType != "select" || !IsBool(allowCustom)
+            || !(props.TryGetProperty("searchable", out var customSearchable) && customSearchable.ValueKind == JsonValueKind.True)))
+        { error = "'allowCustom' yalnız aranabilir açılır listede (inputType: select, searchable: true) true veya false olabilir."; return false; }
         if (props.TryGetProperty("defaultFirst", out var defaultFirst) && (inputType is not ("select" or "lookup") || !IsBool(defaultFirst)))
         { error = "'defaultFirst' yalnız açılır liste veya arama kutusu (inputType: select, lookup) girişinde true veya false olabilir."; return false; }
         if (!isLookup && inputType != "select") return true;
@@ -1673,6 +1694,12 @@ internal static partial class TenantCustomPageSchema
         error = null;
         if (props.TryGetProperty("upperCase", out var upperCase) && (typeText != "input" || inputType != "text" || !IsBool(upperCase)))
         { error = "'upperCase' yalnız metin girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("multiline", out var multiline) && (typeText != "input" || inputType != "text" || !IsBool(multiline)))
+        { error = "'multiline' yalnız metin girişinde true veya false olabilir."; return false; }
+        if (props.TryGetProperty("presets", out var presets) && (typeText != "input" || inputType is not ("text" or "number")
+            || presets.ValueKind != JsonValueKind.Array || presets.GetArrayLength() is < 1 or > MaxPresets
+            || !presets.EnumerateArray().All(x => MatchesSafely(PresetItem, x))))
+        { error = $"'presets' yalnız metin veya sayı girişinde 1–{MaxPresets} adet değer=Etiket öğesi olabilir."; return false; }
         if (typeText != "input")
         {
             // 'required' predates Faz A on other component types and stays unchecked there (v1 behaviour).
@@ -1782,7 +1809,7 @@ internal static partial class TenantCustomPageSchema
         error = null;
         ErpOperation? operation = null;
         if (table.Name is null || table.QueryId is null || !context.QueryById.TryGetValue(table.QueryId, out var query)
-            || query.Operation is null || !context.Lookup(query.Operation, out var found))
+            || context.ComponentOperation(query) is not { } tableOperation || !context.Lookup(tableOperation, out var found))
         { error = $"Sunucu sayfalı liste adlı ve ERP işlemine bağlı olmalıdır: {table.Id}"; return false; }
         operation = found;
         // Sayfa/boyut değişince yalnız sayfa açılınca çalışan sorgu yeniden çalışır; elle çalışan sorgu hiç sayfalanmaz.
@@ -1880,7 +1907,7 @@ internal static partial class TenantCustomPageSchema
 
     /// <summary>Result column codes of an operation query; null for SQL queries (not checked).</summary>
     private static IReadOnlyList<string>? OperationColumns(string queryId, Context context) =>
-        context.QueryById.TryGetValue(queryId, out var query) && query.Operation is { } operation && context.Lookup(operation, out var found)
+        context.QueryById.TryGetValue(queryId, out var query) && context.ComponentOperation(query) is { } operation && context.Lookup(operation, out var found)
             ? found.Result.Columns.Select(x => x.Code).ToArray() : null;
 
     /// <summary>v2 props added in Proje 2 Faz B; id references are collected here and resolved after the component loop.</summary>
@@ -2192,7 +2219,7 @@ internal static partial class TenantCustomPageSchema
             if (!bulkQuery.Parameters.Any(parameter => TenantCustomPageQueries.TryParseBinding(parameter.Binding, out var path)
                     && path.StartsWith(rowPrefix, StringComparison.Ordinal)))
                 return Fail($"'bulkDeleteQuery' sorgusu bu listenin seçili satırına bağlı olmalıdır ({{{{{name}.seciliSatir.…}}}}): {bulkQueryId}.", out error);
-            if (bulkQuery.Operation is { } bulkOperation && context.Lookup(bulkOperation, out var bulkOp) && bulkOp.SourceOperation is not null)
+            if (context.ComponentOperation(bulkQuery) is { } bulkOperation && context.Lookup(bulkOperation, out var bulkOp) && bulkOp.SourceOperation is not null)
                 return Fail($"'bulkDeleteQuery' sorgusu kaynak kayıttan başlayan bir işlem olamaz: {bulkQueryId}.", out error);
             context.DirectWriteQueries.Add(bulkQueryId);
         }
@@ -2618,7 +2645,7 @@ internal static partial class TenantCustomPageSchema
         foreach (var (gridName, column, calc) in context.PendingCalcColumns)
         {
             var prefix = $"'{gridName}' tablosunun '{column}' hesaplanan sütunu";
-            if (!context.QueryById.TryGetValue(calc.QueryId, out var query) || query.Kind != "read" || query.Operation is not { } operationName
+            if (!context.QueryById.TryGetValue(calc.QueryId, out var query) || query.Kind != "read" || context.ComponentOperation(query) is not { } operationName
                 || !context.Lookup(operationName, out var operation))
                 return Fail($"{prefix}: '{calc.QueryId}' sayfadaki bir ERP işlemi okuma sorgusu olmalıdır.", out error);
             var bindsRows = query.Parameters.Any(parameter => parameter.Type == "list"
@@ -2666,9 +2693,10 @@ internal static partial class TenantCustomPageSchema
                 if (!context.CustomFieldBlocks.TryGetValue(root, out var valuesQueryId))
                     return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi bir özel alanlar bloğuna bağlanmalıdır.", out error);
                 // The body map is the operation's whole value set: the block must show the very source read it is merged over,
-                // otherwise untouched codes would be sent as "" and wipe the stored values.
+                // otherwise untouched codes would be sent as "" and wipe the stored values. That read is a source read, so a
+                // catalog reference never satisfies it (its own Operation is null).
                 var mapQuery = context.QueryById.Values.First(x => x.Name == queryName);
-                if (mapQuery.Operation is { } mapOperationName && context.Lookup(mapOperationName, out var mapOperation)
+                if (context.ComponentOperation(mapQuery) is { } mapOperationName && context.Lookup(mapOperationName, out var mapOperation)
                     && mapOperation.BodyMap is { } bodyMap && string.Equals(bodyMap.Property, parameterName, StringComparison.Ordinal)
                     && (valuesQueryId is null || !context.QueryById.TryGetValue(valuesQueryId, out var valuesRead)
                         || !string.Equals(valuesRead.Operation, bodyMap.SourceOperation, StringComparison.Ordinal)))
@@ -2678,7 +2706,7 @@ internal static partial class TenantCustomPageSchema
             if (!context.GridModesByName.TryGetValue(root, out var grid) || grid.Mode is not ("list" or "matrix"))
                 return Fail($"'{queryName}' sorgusundaki '{parameterName}' parametresi listeli veya varyant kipinde bir düzenlenebilir tabloya bağlanmalıdır.", out error);
             var query = context.QueryById.Values.First(x => x.Name == queryName);
-            var items = query.Operation is { } operationName && context.Lookup(operationName, out var operation)
+            var items = context.ComponentOperation(query) is { } operationName && context.Lookup(operationName, out var operation)
                 ? operation.Parameters.FirstOrDefault(x => x.Name == parameterName)?.Items ?? [] : [];
             if (grid.Mode == "matrix")
             {
@@ -2741,7 +2769,7 @@ internal static partial class TenantCustomPageSchema
         error = null;
         foreach (var (_, steps) in context.PendingSequences)
         {
-            var sourceBacked = steps.Count(step => context.QueryById.TryGetValue(step, out var query) && query.Operation is { } operationName
+            var sourceBacked = steps.Count(step => context.QueryById.TryGetValue(step, out var query) && context.ComponentOperation(query) is { } operationName
                 && context.Lookup(operationName, out var operation) && operation.SourceOperation is not null);
             if (sourceBacked > 1) return Fail("Bir kayıt dizisinde kaynak kayıttan başlayan en fazla bir adım olabilir.", out error);
         }

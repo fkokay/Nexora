@@ -4,6 +4,7 @@ import { authorizedFetch } from "../api";
 import { Dialog } from "../ui/Dialog";
 import {
   inviteErrorMessage,
+  isKnownInviteError,
   personRoleLabel,
   roleFromSelect,
   roleToSelect,
@@ -252,7 +253,7 @@ function InviteDialog({
       });
       if (!response.ok) {
         const body = await readBody(response);
-        if (body?.code === "license.user_limit" || body?.code === "membership.exists" || response.status === 404)
+        if (isKnownInviteError(body?.code) || response.status === 404)
           throw new Error(inviteErrorMessage(body?.code));
         // Bu ucun diğer hata metinleri İngilizcedir; kullanıcıya Türkçe genel metin gösterilir.
         throw new Error(generic(response.status));

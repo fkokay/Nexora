@@ -60,8 +60,8 @@ describe('Kaydet ve yeni (E6)', () => {
     setup([card, input, bar()]);
     const field = await screen.findByLabelText('Ad') as HTMLInputElement;
     fireEvent.change(field, { target: { value: 'Birinci' } });
-    fireEvent.click(command('more'));
-    fireEvent.click(await screen.findByRole('menuitem', { name: /Kaydet ve yeni/ }));
+    // Kaydet ve yeni is a bar button next to Kaydet.
+    fireEvent.click(await waitFor(() => { const button = command('save-and-new'); expect(button).not.toBeNull(); return button; }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]).toContain('Birinci');
     await waitFor(() => expect((screen.getByLabelText('Ad') as HTMLInputElement).value).toBe(''));
@@ -87,8 +87,9 @@ describe('Kaydet ve yeni (E6)', () => {
   it('commandWhen saveNew hides the menu item and its shortcut', async () => {
     setup([card, input, bar({ commandWhen: ['saveNew=kart.rows[0].id != null'] })]);
     fireEvent.change(await screen.findByLabelText('Ad'), { target: { value: 'X' } });
-    fireEvent.click(command('more'));
-    await waitFor(() => expect(screen.queryByRole('menuitem', { name: /Kaydet ve yeni/ })).toBeNull());
+    await waitFor(() => expect(screen.getByLabelText('Ad')).toBeTruthy());
+    expect(command('save-and-new')).toBeNull();
+    expect(command('more')).toBeNull();
     fireEvent.keyDown(window, { key: 'F2', ctrlKey: true });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(writes).toHaveLength(0);
@@ -101,7 +102,7 @@ describe('buildPageCommands saveAndNew', () => {
     inputIds: new Set(['a']), tableState: () => undefined, buttonLabel: () => undefined, deleteNeedsSelection: false, queryAllowed: () => true,
     run: { clearInputs: () => {}, write: () => {}, saveSequence: () => {}, refresh: () => {}, focus: () => {}, print: () => {}, exportTable: () => {}, button: () => {}, saveAndNew: () => {}, ...run },
   });
-  const item = (props: Record<string, unknown>, d = deps()) => buildPageCommands(props, d).more?.find((entry) => entry.id === SAVE_AND_NEW_COMMAND_ID);
+  const item = (props: Record<string, unknown>, d = deps()) => buildPageCommands(props, d).barItems?.find((entry) => entry.id === SAVE_AND_NEW_COMMAND_ID);
 
   it('needs saveAndNew, a save path and a New command', () => {
     expect(item({ saveQuery: 'q', newInputs: ['a'], saveAndNew: true })).toMatchObject({ label: 'Kaydet ve yeni', shortcut: 'Ctrl+F2' });

@@ -108,11 +108,11 @@ internal static partial class CustomSqlReportRunner
 
     /// <summary>
     /// Runs one parameterized read query in a single tenant with the same limits as SQL reports: read login only,
-    /// 30 s command timeout, 5 000 rows, 4 000 characters per cell, 10 000 000 characters per response and a 60 s
+    /// 30 s command timeout, 5 000 rows (or fewer, <paramref name="maxRows"/>), 4 000 characters per cell, 10 000 000 characters per response and a 60 s
     /// total deadline. Parameter values are sent only as SqlParameters; the SQL text is never altered.
     /// </summary>
     internal static async Task<CustomSqlResult> ExecuteSingleAsync(string sql, IReadOnlyList<SqlParameter> parameters, Guid tenantId,
-        ITenantQueryConnectionFactory factory, CancellationToken ct)
+        ITenantQueryConnectionFactory factory, CancellationToken ct, int maxRows = MaxRows)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TotalTimeout);
@@ -124,7 +124,7 @@ internal static partial class CustomSqlReportRunner
             command.CommandText = sql;
             command.CommandTimeout = CommandTimeoutSeconds;
             foreach (var parameter in parameters) command.Parameters.Add(parameter);
-            return await ExecuteCommandAsync(command, MaxRows, new CustomSqlCharacterBudget(MaxResponseCharacters), deadline.Token);
+            return await ExecuteCommandAsync(command, Math.Clamp(maxRows, 1, MaxRows), new CustomSqlCharacterBudget(MaxResponseCharacters), deadline.Token);
         }
         catch (Exception exception) when (deadline.IsCancellationRequested && !ct.IsCancellationRequested)
         {

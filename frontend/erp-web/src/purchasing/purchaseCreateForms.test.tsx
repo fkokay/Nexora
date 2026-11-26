@@ -545,6 +545,8 @@ function selectRow(text: string) {
   fireEvent.click(rowCell(text));
 }
 function openMenu() {
+  // No İşlemler button when the page has no menu items.
+  if (!command('more')) return [];
   fireEvent.click(command('more'));
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) => ({
     label: item.querySelector('span')?.textContent ?? '',

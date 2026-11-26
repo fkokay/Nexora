@@ -225,6 +225,37 @@ public sealed class TenantMembershipLicenseIntegrationTests
             && x.SubjectRole == "TenantUser" && x.PermissionCode == permission.Code));
     }
 
+    [Fact]
+    public async Task Tenant_admin_can_add_a_deny_next_to_an_allow_but_not_an_identical_role_rule()
+    {
+        await using var app = await StartAsync(licensed: true);
+        using var client = app.GetTestClient();
+        object Rule(int effect) => new
+        {
+            subjectType = 1, subjectRole = "TenantUser", permissionCode = "erp.foreign-trade.create", effect,
+            resourceType = "erp.foreign-trade"
+        };
+
+        using (var allow = await client.PostAsJsonAsync("/api/access-control/rules", Rule(1)))
+            Assert.Equal(HttpStatusCode.Created, allow.StatusCode);
+        // A Deny next to the Allow is the way to revoke a baseline permission; the unique index keys on Effect.
+        using (var deny = await client.PostAsJsonAsync("/api/access-control/rules", Rule(2)))
+            Assert.Equal(HttpStatusCode.Created, deny.StatusCode);
+        using (var duplicate = await client.PostAsJsonAsync("/api/access-control/rules", Rule(1)))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+            Assert.Contains("identical role rule", await duplicate.Content.ReadAsStringAsync());
+        }
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();
+        var rules = await db.TenantPermissionRules.Where(x => x.TenantId == TenantId && x.SubjectRole == "TenantUser"
+            && x.PermissionCode == "erp.foreign-trade.create").ToListAsync();
+        Assert.Equal(2, rules.Count);
+        Assert.Equal(1, rules.Count(x => x.Effect == TenantPermissionEffect.Deny));
+        Assert.Equal(1, await db.AuditEvents.CountAsync(x => x.Action == "access-control.rule.created" && x.Resource.EndsWith(":Allow")));
+    }
+
     private static readonly Guid TestUserId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
     private static readonly Guid InactiveUserId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static readonly Guid OtherTenantUserId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");

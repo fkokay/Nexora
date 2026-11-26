@@ -124,7 +124,7 @@ export type RecordFormPageProps = {
  * record navigation; the action bar; an optional section navigator (from RecordFormTabs) left of the cards; an
  * optional context panel on the right; and a footer with the form's shortcuts and status.
  * While mounted it registers the action bar's Kaydet (Ctrl+S, primary) and, on a page, puts "Kaydet ve Yeni"
- * (Ctrl+F2) and "Temizle" into the İşlemler menu. Inside a modal (whose backdrop covers the bar), and wherever no
+ * (Ctrl+F2) and "Temizle" onto the action bar next to Kaydet. Inside a modal (whose backdrop covers the bar), and wherever no
  * action bar is mounted (platform admin, launcher), it keeps Kaydet, Kaydet ve Yeni and Temizle as its own buttons.
  * F2 is the bar's Yeni and is handled by the page.
  */
@@ -187,17 +187,17 @@ export function RecordFormPage({
     formRef.current?.requestSubmit();
   };
   const busyReason = busy ? "Kaydediliyor…" : undefined;
-  const more: MenuCommand[] = [];
+  const barItems: MenuCommand[] = [];
   if (!ownButtons && canSaveAndNew)
-    more.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
+    barItems.push({ id: "record-form-save-and-new", label: "Kaydet ve Yeni", shortcut: "Ctrl+F2", disabledReason: busyReason, run: () => submit(true) });
   if (!ownButtons && canReset)
-    more.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
-  // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" live in its İşlemler menu.
+    barItems.push({ id: "record-form-reset", label: "Temizle", disabledReason: busyReason, run: onReset });
+  // Saving is the action bar's Kaydet (Ctrl+S); on a page "Kaydet ve Yeni" and "Temizle" are bar buttons next to it.
   const markActive = usePageCommands(
     // Read-only: Kaydet is hidden (still primary, so the bar stays a form bar) and the page's Kaydet cannot come back.
     barCommands ? {
       save: viewOnly ? { primary: true, hidden: true } : { primary: true, disabledReason: busyReason ?? saveDisabledReason, run: () => submit(false) },
-      more: viewOnly ? [] : more, ...(inListPane ? { besideList: true } : {}),
+      ...(!viewOnly && barItems.length > 0 ? { barItems } : {}), ...(inListPane ? { besideList: true } : {}),
     } : {},
     "form",
     rootRef,

@@ -527,6 +527,13 @@ public abstract class PlatformDbContextBase<TContext> : DbContext where TContext
             e.HasIndex(x => new { x.TenantId, x.PermissionCode, x.IsActive });
             e.HasIndex(x => new { x.TenantId, x.SubjectRole, x.PermissionCode, x.IsActive });
             e.HasIndex(x => new { x.TenantId, x.SubjectUserId, x.PermissionCode, x.IsActive });
+            // One unconditional role rule per (role, permission, effect, active state). Effect is part of the key so an
+            // administrator can still add a Deny next to the baseline Allow (the only durable way to revoke a baseline
+            // permission). Concurrent login backfills hit this index instead of inserting the baseline twice.
+            e.HasIndex(x => new { x.TenantId, x.SubjectType, x.SubjectRole, x.PermissionCode, x.Effect, x.IsActive })
+                .IsUnique()
+                .HasDatabaseName(TenantPermissionDefaults.UnconditionalRoleRuleIndexName)
+                .HasFilter("[SubjectUserId] IS NULL AND [AttributeName] IS NULL");
             e.Property(x => x.SubjectRole).HasMaxLength(64).IsUnicode(false);
             e.Property(x => x.PermissionCode).HasMaxLength(120).IsUnicode(false);
             e.Property(x => x.ResourceType).HasMaxLength(80).IsUnicode(false);
