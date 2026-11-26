@@ -3,13 +3,26 @@ export const CANVAS_PROTOCOL = 'nexora-canvas';
 export const CANVAS_VERSION = 1;
 
 export type CanvasBlock = { id: string; x: number; y: number; width: number; height: number };
-export type StudioToCanvas = { nx: 'nexora-canvas'; v: 1; type: 'reload'; revision: number };
+export type StudioToCanvas =
+  | { nx: 'nexora-canvas'; v: 1; type: 'reload'; revision: number }
+  /** Kayıt kartı: `tabsId` bileşeninin `index`. sekmesini gösterir (sekme düğmesi kutuları `"<tabsId>#tab<i>"`). */
+  | { nx: 'nexora-canvas'; v: 1; type: 'showTab'; tabsId: string; index: number };
 export type CanvasToStudio =
   | { nx: 'nexora-canvas'; v: 1; type: 'ready'; revision: number }
   | { nx: 'nexora-canvas'; v: 1; type: 'layout'; revision: number; height: number; blocks: CanvasBlock[] }
   | { nx: 'nexora-canvas'; v: 1; type: 'error'; revision: number; message: string };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+/** Bileşen kutusu ya da Kayıt kartının sekme düğmesi kutusu (`"<tabsId>#tab<i>"`, i 0..99). */
+const BLOCK_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}(?:#tab(?:0|[1-9][0-9]?))?$/;
+const MAX_TAB_INDEX = 99;
+const TAB_BOX = /^(.+)#tab([0-9]{1,2})$/;
+
+/** Sekme düğmesi kutusu kimliği (`"<tabsId>#tab<i>"`) ise sekmeler bileşeni ve sıra; değilse null. */
+export function tabBoxOf(blockId: string): { tabsId: string; index: number } | null {
+  const match = TAB_BOX.exec(blockId);
+  return match ? { tabsId: match[1], index: Number(match[2]) } : null;
+}
 
 const isRevision = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 const isCoord = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -18,7 +31,7 @@ const isSize = (v: unknown): v is number => isCoord(v) && v >= 0;
 function parseBlock(raw: unknown): CanvasBlock | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const b = raw as Record<string, unknown>;
-  if (typeof b.id !== 'string' || !ID_PATTERN.test(b.id)) return null;
+  if (typeof b.id !== 'string' || !BLOCK_ID_PATTERN.test(b.id)) return null;
   if (!isCoord(b.x) || !isCoord(b.y) || !isSize(b.width) || !isSize(b.height)) return null;
   return { id: b.id, x: b.x, y: b.y, width: b.width, height: b.height };
 }
@@ -51,4 +64,9 @@ export function canvasFrameUrl(platformOrigin: string, target: { previewId: stri
 
 export function reloadMessage(revision: number): StudioToCanvas {
   return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'reload', revision };
+}
+
+export function showTabMessage(tabsId: string, index: number): StudioToCanvas {
+  if (!ID_PATTERN.test(tabsId) || !Number.isInteger(index) || index < 0 || index > MAX_TAB_INDEX) throw new Error('Geçersiz sekme.');
+  return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'showTab', tabsId, index };
 }

@@ -5,8 +5,8 @@ import { gridToolPatch, type GridToolKey } from "../GridSettingsFields";
 import { ComponentPanel, LegacySettings } from "./ComponentPanel";
 import {
   DEFAULT_LIST_PAGE_SIZE, actionUsableAt, addListAction, chooseDataSource, dataSourceUsable, findList, labelMap, listDataSourceCode,
-  missingCatalogCodes, placedActions, removeListAction, rowOpenChoice, rowOpenParamName, rowOpenUsable, searchState, setColumns, setListProps, setPageSize,
-  setRowDoubleClick, setSearch, stringList, withOperationParameters, MAX_LIST_COLUMNS, type ActionPlace, type ModelDefinition, type OperationListStatus,
+  missingCatalogCodes, newButtonOn, placedActions, removeListAction, rowOpenChoice, rowOpenParamName, rowOpenUsable, searchState, setColumns, setListProps, setPageSize,
+  setNewButton, setRowDoubleClick, setSearch, stringList, withOperationParameters, MAX_LIST_COLUMNS, type ActionPlace, type ModelDefinition, type OperationListStatus,
   type RowOpenChoice,
 } from "./listPanelModel";
 
@@ -143,6 +143,8 @@ export function ListPanel(props: ListPanelProps) {
           {OPEN_CHOICES.map(([value, label]) => <option key={value} value={value} disabled={value === "card" && !!source && !rowOpenUsable(source).usable}>{label}</option>)}
         </select></label>
       {source && !rowOpenUsable(source).usable && <p className="cpanel-note">{(rowOpenUsable(source) as { reason: string }).reason}</p>}
+      {open === "card" && source && <label className="cpanel-row" data-part="new-button">Listede “+ Yeni” düğmesi<input type="checkbox" checked={newButtonOn(definition)} disabled={disabled}
+        onChange={(event) => change(setNewButton(definition, listId, event.target.checked, source))}/></label>}
       {open === "card" && openParam && <p className="cpanel-note" data-part="open-param">Açılan sayfa bu kaydı <code>{openParam}</code> bilgisiyle alır.</p>}
       {open === "panel" && <p className="cpanel-note">Panel açılınca ızgara kendiliğinden daralır. Mobilde panel alttan açılır.</p>}
       <div className="cpanel-q">Kullanıcı araçları</div>

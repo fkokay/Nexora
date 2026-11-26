@@ -1,0 +1,364 @@
+{
+  "schemaVersion": 2,
+  "template": {
+    "name": "record"
+  },
+  "queries": [
+    {
+      "id": "kayit",
+      "name": "kayit",
+      "kind": "read",
+      "dataSource": "cariKart",
+      "runOn": "load",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{sayfa.parametre.kod}}"
+        }
+      ]
+    },
+    {
+      "id": "cariSil",
+      "name": "cariSil",
+      "kind": "delete",
+      "action": "cariSil",
+      "runOn": "manual",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{kayit.rows[0].kod}}"
+        }
+      ]
+    },
+    {
+      "id": "cariEkle",
+      "name": "cariEkle",
+      "kind": "insert",
+      "action": "cariEkle",
+      "runOn": "manual",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{kod.value}}"
+        },
+        {
+          "name": "unvan",
+          "type": "text",
+          "binding": "{{unvan.value}}"
+        },
+        {
+          "name": "notlar",
+          "type": "text",
+          "binding": "{{notlar.value}}"
+        },
+        {
+          "name": "sehir",
+          "type": "text",
+          "binding": "{{sehir.value}}"
+        }
+      ]
+    },
+    {
+      "id": "cariGuncelle",
+      "name": "cariGuncelle",
+      "kind": "update",
+      "action": "cariGuncelle",
+      "runOn": "manual",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{kayit.rows[0].kod}}"
+        },
+        {
+          "name": "unvan",
+          "type": "text",
+          "binding": "{{unvan.value}}"
+        },
+        {
+          "name": "notlar",
+          "type": "text",
+          "binding": "{{notlar.value}}"
+        },
+        {
+          "name": "sehir",
+          "type": "text",
+          "binding": "{{sehir.value}}"
+        }
+      ]
+    },
+    {
+      "id": "cariHareket",
+      "name": "cariHareket",
+      "kind": "read",
+      "dataSource": "cariHareket",
+      "runOn": "load",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{sayfa.parametre.kod}}"
+        }
+      ]
+    },
+    {
+      "id": "pasifeAl",
+      "name": "pasifeAl",
+      "kind": "update",
+      "action": "pasifeAl",
+      "runOn": "manual",
+      "parameters": [
+        {
+          "name": "kod",
+          "type": "text",
+          "binding": "{{kayit.rows[0].kod}}"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "ozet",
+      "type": "recordHeader",
+      "props": {
+        "slot": "summary",
+        "title": "{{kayit.rows[0].unvan}}",
+        "subtitle": "{{kayit.rows[0].kod}} · {{kayit.rows[0].sehir}}",
+        "fields": [
+          "Bakiye={{kayit.rows[0].bakiye}}",
+          "Açılış={{kayit.rows[0].acilis}}"
+        ],
+        "fieldFormats": [
+          "Bakiye=number",
+          "Açılış=date"
+        ]
+      }
+    },
+    {
+      "id": "sekmeler",
+      "type": "tabs",
+      "props": {
+        "slot": "tabs",
+        "tabs": [
+          "Genel=genel",
+          "Yeni sekme=tablo,aciklama,bolum"
+        ]
+      }
+    },
+    {
+      "id": "genel",
+      "type": "formCard",
+      "name": "genel",
+      "props": {
+        "slot": "section",
+        "title": "Genel bilgiler",
+        "columns": 2,
+        "inputs": [
+          "kod",
+          "unvan",
+          "notlar",
+          "sehir",
+          "bakiye",
+          "acilis",
+          "aktif",
+          "kimlik"
+        ],
+        "recordKey": "{{kayit.rows[0].kod}}",
+        "trackChanges": true
+      }
+    },
+    {
+      "id": "kod",
+      "type": "input",
+      "name": "kod",
+      "props": {
+        "slot": "field",
+        "inputType": "text",
+        "label": "Cari kodu",
+        "defaultValue": "{{kayit.rows[0].kod}}",
+        "required": true,
+        "maxLength": 20,
+        "disabledWhen": "kayit.rows[0].kod != null",
+        "disabledReason": "Kayıt kodu değiştirilemez."
+      }
+    },
+    {
+      "id": "unvan",
+      "type": "input",
+      "name": "unvan",
+      "props": {
+        "slot": "field",
+        "inputType": "text",
+        "label": "Ünvan",
+        "defaultValue": "{{kayit.rows[0].unvan}}",
+        "required": true,
+        "maxLength": 120,
+        "description": "Faturada görünen resmî ünvan."
+      }
+    },
+    {
+      "id": "notlar",
+      "type": "input",
+      "name": "notlar",
+      "props": {
+        "slot": "field",
+        "inputType": "text",
+        "label": "Notlar",
+        "defaultValue": "{{kayit.rows[0].notlar}}",
+        "multiline": true,
+        "maxLength": 2000
+      }
+    },
+    {
+      "id": "sehir",
+      "type": "input",
+      "name": "sehir",
+      "props": {
+        "slot": "field",
+        "inputType": "text",
+        "label": "Şehir",
+        "defaultValue": "{{kayit.rows[0].sehir}}",
+        "maxLength": 40
+      }
+    },
+    {
+      "id": "bakiye",
+      "type": "input",
+      "name": "bakiye",
+      "props": {
+        "slot": "field",
+        "inputType": "number",
+        "label": "Bakiye",
+        "defaultValue": "{{kayit.rows[0].bakiye}}"
+      }
+    },
+    {
+      "id": "acilis",
+      "type": "input",
+      "name": "acilis",
+      "props": {
+        "slot": "field",
+        "inputType": "date",
+        "label": "Açılış tarihi",
+        "defaultValue": "{{kayit.rows[0].acilis}}"
+      }
+    },
+    {
+      "id": "aktif",
+      "type": "input",
+      "name": "aktif",
+      "props": {
+        "slot": "field",
+        "inputType": "checkbox",
+        "label": "Aktif",
+        "defaultValue": "{{kayit.rows[0].aktif}}"
+      }
+    },
+    {
+      "id": "kimlik",
+      "type": "input",
+      "name": "kimlik",
+      "props": {
+        "slot": "field",
+        "inputType": "text",
+        "label": "Kimlik",
+        "defaultValue": "{{kayit.rows[0].kimlik}}",
+        "readOnly": true
+      }
+    },
+    {
+      "id": "kaydet",
+      "type": "button",
+      "name": "kaydet",
+      "props": {
+        "slot": "actions",
+        "text": "Kaydet",
+        "actionType": "sequence",
+        "saveSequence": [
+          "cariEkle",
+          "cariGuncelle"
+        ],
+        "sequenceWhen": [
+          "cariEkle=kayit.rows[0].kod == null",
+          "cariGuncelle=kayit.rows[0].kod != null"
+        ]
+      }
+    },
+    {
+      "id": "pasifeAlDugmesi",
+      "type": "button",
+      "name": "pasifeAlDugmesi",
+      "props": {
+        "slot": "actions",
+        "text": "Pasife al",
+        "actionType": "query",
+        "queryId": "pasifeAl",
+        "confirmEnabled": true,
+        "confirmText": "Cari pasife alınsın mı?",
+        "refreshQueries": [
+          "kayit"
+        ]
+      }
+    },
+    {
+      "id": "bolum",
+      "type": "formCard",
+      "name": "bolum",
+      "props": {
+        "slot": "section",
+        "title": "Yeni bölüm",
+        "columns": 2,
+        "inputs": [],
+        "recordKey": "{{kayit.rows[0].kod}}",
+        "trackChanges": true
+      }
+    },
+    {
+      "id": "tablo",
+      "type": "dataTable",
+      "name": "tablo",
+      "props": {
+        "slot": "lines",
+        "title": "Hareketler",
+        "query": "cariHareket",
+        "pageSize": 25,
+        "columns": [
+          "tarih",
+          "belge",
+          "tutar"
+        ],
+        "columnLabels": [
+          "tarih=Tarih",
+          "belge=Belge no",
+          "tutar=Tutar (TL)"
+        ],
+        "emptyText": "Bu carinin hareketi yok."
+      }
+    },
+    {
+      "id": "aciklama",
+      "type": "text",
+      "name": "aciklama",
+      "props": {
+        "slot": "note",
+        "text": "Hareketler muhasebeden gelir; burada değiştirilemez."
+      }
+    },
+    {
+      "id": "sil",
+      "type": "button",
+      "name": "sil",
+      "props": {
+        "slot": "actions",
+        "text": "Sil",
+        "actionType": "query",
+        "queryId": "cariSil",
+        "confirmEnabled": true,
+        "confirmText": "Cari silinsin mi?"
+      }
+    }
+  ]
+}

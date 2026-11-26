@@ -158,4 +158,70 @@ public sealed class TenantCatalogSchemaTests
         Assert.Contains("JSON", Reject("{ not json"));
         using var _ = JsonDocument.Parse(withParameters);
     }
+
+    private static string WithColumn(string column) =>
+        $$"""{ "schemaVersion": 1, "dataSources": [ { "code": "d", "label": "L", "source": { "sql": "SELECT 1" }, "columns": [ {{column}} ] } ] }""";
+
+    [Fact]
+    public void Column_long_text_required_max_length_are_parsed()
+    {
+        Assert.True(TenantCatalogSchema.TryParse(WithColumn("""{ "code": "Not", "label": "Not", "type": "text", "longText": true, "required": true, "maxLength": 500 }"""),
+            ErpOperationCatalog.TryGet, out var bundle, out var error), error);
+        var column = Assert.Single(bundle!.Find("d")!.Columns);
+        Assert.True(column.LongText);
+        Assert.True(column.Required);
+        Assert.Equal(500, column.MaxLength);
+    }
+
+    [Fact]
+    public void Old_catalog_without_flags_still_parses()
+    {
+        Assert.True(TenantCatalogSchema.TryParse(ValidBundle, ErpOperationCatalog.TryGet, out var bundle, out var error), error);
+        var column = Assert.Single(bundle!.Find("cariler")!.Columns);
+        Assert.False(column.LongText);
+        Assert.False(column.Required);
+        Assert.Null(column.MaxLength);
+    }
+
+    [Theory]
+    [InlineData("int")]
+    [InlineData("date")]
+    [InlineData("bool")]
+    public void Long_text_on_non_text_column_is_rejected(string type)
+    {
+        Assert.Contains("longText", Reject(WithColumn($$"""{ "code": "A", "label": "A", "type": "{{type}}", "longText": true }""")));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("4001")]
+    [InlineData("-1")]
+    [InlineData("1.5")]
+    [InlineData("\"10\"")]
+    public void Max_length_out_of_range_is_rejected(string value)
+    {
+        Assert.Contains("maxLength", Reject(WithColumn($$"""{ "code": "A", "label": "A", "type": "text", "maxLength": {{value}} }""")));
+    }
+
+    [Fact]
+    public void Max_length_on_non_text_column_is_rejected()
+    {
+        Assert.Contains("maxLength", Reject(WithColumn("""{ "code": "A", "label": "A", "type": "int", "maxLength": 10 }""")));
+    }
+
+    [Fact]
+    public void Max_length_bounds_are_accepted()
+    {
+        Assert.True(TenantCatalogSchema.TryParse(WithColumn("""{ "code": "A", "label": "A", "type": "text", "maxLength": 1 }"""), ErpOperationCatalog.TryGet, out _, out var e1), e1);
+        Assert.True(TenantCatalogSchema.TryParse(WithColumn("""{ "code": "A", "label": "A", "type": "text", "maxLength": 4000 }"""), ErpOperationCatalog.TryGet, out _, out var e2), e2);
+    }
+
+    [Theory]
+    [InlineData("\"required\": \"true\"")]
+    [InlineData("\"required\": 1")]
+    [InlineData("\"longText\": \"yes\"")]
+    public void Required_must_be_bool(string flag)
+    {
+        Assert.Contains("kolon", Reject(WithColumn($$"""{ "code": "A", "label": "A", "type": "text", {{flag}} }""")));
+    }
 }

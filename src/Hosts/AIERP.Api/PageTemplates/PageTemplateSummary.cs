@@ -15,7 +15,7 @@ internal static class PageTemplateSummary
             if (root.ValueKind != JsonValueKind.Object
                 || !root.TryGetProperty("template", out var template) || template.ValueKind != JsonValueKind.Object
                 || !template.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String
-                || name.GetString() != "list") return (null, null);
+                || name.GetString() is not ("list" or "record")) return (null, null);
             var level = 1;
             if (root.TryGetProperty("components", out var components) && components.ValueKind == JsonValueKind.Array)
                 foreach (var component in components.EnumerateArray())
@@ -24,7 +24,7 @@ internal static class PageTemplateSummary
                         || !props.TryGetProperty("slot", out var slot) || slot.ValueKind != JsonValueKind.String) continue;
                     if (slot.GetString() is "above" or "below") { level = 2; break; }
                 }
-            return ("list", level);
+            return (name.GetString(), level);
         }
         catch (JsonException) { return (null, null); }
     }

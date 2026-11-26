@@ -10,3 +10,5 @@ export const SOURCE_LOADING = "Kaynak kayıt yükleniyor; biraz sonra yeniden de
 export const SOURCE_FAILED = "Kayıt okunamadı; hiçbir değişiklik kaydedilmedi. Kaydı yeniden açıp deneyin.";
 /** Kısmi oluşturmadan sonraki yeniden deneme: alanları yazan adımlar (oluştur/güncelle) koşullarıyla atlandı. */
 export const CREATED_REOPEN = "Kart oluşturuldu; alan değişiklikleri için kartı yeniden açın.";
+/** Kayıt kartı özeti, yeni kayıt kipi: başlığın altındaki satır (taslak 08). */
+export const RECORD_UNSAVED_SUBTITLE = "Kaydedilmedi";

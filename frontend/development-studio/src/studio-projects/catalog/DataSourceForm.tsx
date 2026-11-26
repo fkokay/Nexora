@@ -5,7 +5,7 @@ import type { ErpOperation } from "../../platform-tools/erp-src/page-designer/er
 import { buildBundle, toCatalogColumnType, type CatalogEntry } from "./catalogFiles";
 import { runPreview, storePreview, type PreviewResult } from "./catalogApi";
 import {
-  TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, type WriteCatalogFiles, useDirtyTracking,
+  MAX_LENGTH_LIMIT, TYPE_LABELS, VALUE_TYPES, columnsJson, parametersJson, readColumns, readParameters, readSource, saveEntry, emptyColumn, previewColumn, validateColumns, type WriteCatalogFiles, useDirtyTracking,
   trialValues, usableOperations, validateEntry, type ColumnRow, type ParameterRow, type SourceKind,
 } from "./catalogFormModel";
 
@@ -131,7 +131,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
 
   const markSaved = useDirtyTracking(JSON.stringify(currentEntry()), onDirtyChange);
 
-  const invalid = () => validateEntry(code, label, isNew, existingCodes, sourceKind, sql, operation);
+  const invalid = () => validateEntry(code, label, isNew, existingCodes, sourceKind, sql, operation) ?? validateColumns(columns);
 
   async function preview() {
     if (!canDevelop || sourceKind !== "sql") return;
@@ -146,7 +146,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
         const known = new Set(current.map(c => c.code.toLowerCase()));
         const added = next.columns
           .filter(c => !known.has(c.code.toLowerCase()))
-          .map(c => ({ code: c.code, label: c.label || c.code, type: toCatalogColumnType(c.dataType), key: false, isNew: true }));
+          .map(c => previewColumn(c.code, c.label || c.code, toCatalogColumnType(c.dataType)));
         return [...current, ...added];
       });
     } catch (e) {
@@ -248,7 +248,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
         <h3>Kolonlar</h3>
         <p className="sp-cw-desc">Önizle sorgudaki yeni kolonları ekler. Danışmanın göreceği adı ve türü burada düzeltin.</p>
         <table className="sp-cw-table sp-cw-columns">
-          <thead><tr><th>Kod</th><th>Danışmanın göreceği ad</th><th>Tip</th><th>Anahtar</th><th aria-label="İşlem" /></tr></thead>
+          <thead><tr><th>Kod</th><th>Danışmanın göreceği ad</th><th>Tip</th><th>Anahtar</th><th>Uzun metin</th><th>Zorunlu</th><th>En çok</th><th aria-label="İşlem" /></tr></thead>
           <tbody>
             {columns.map((column, index) => (
               <tr key={index} className={column.isNew ? "is-new" : undefined}>
@@ -259,6 +259,9 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
                 <td><input aria-label="Kolon görünen adı" value={column.label} disabled={locked} onChange={e => updateColumn(index, { label: e.target.value })} /></td>
                 <td><TypeSelect label="Kolon tipi" value={column.type} disabled={locked} onChange={type => updateColumn(index, { type })} /></td>
                 <td><input type="checkbox" aria-label="Anahtar" checked={column.key} disabled={locked} onChange={e => updateColumn(index, { key: e.target.checked })} /></td>
+                <td><input type="checkbox" aria-label="Uzun metin" checked={column.longText && column.type === "text"} disabled={locked || column.type !== "text"} onChange={e => updateColumn(index, { longText: e.target.checked })} /></td>
+                <td><input type="checkbox" aria-label="Zorunlu" checked={column.required} disabled={locked} onChange={e => updateColumn(index, { required: e.target.checked })} /></td>
+                <td><input type="number" aria-label="En çok" className="sp-cw-maxlen" min={1} max={MAX_LENGTH_LIMIT} step={1} value={column.type === "text" ? column.maxLength : ""} disabled={locked || column.type !== "text"} onChange={e => updateColumn(index, { maxLength: e.target.value })} /></td>
                 <td>
                   <button type="button" className="ns-btn ns-btn-sm ns-btn-ghost" aria-label="Kolonu sil" disabled={locked} onClick={() => setColumns(rows => rows.filter((_, i) => i !== index))}>
                     <Trash2 size={14} />
@@ -268,7 +271,7 @@ export function DataSourceForm({ root, entry, existingCodes, canEdit, canDevelop
             ))}
           </tbody>
         </table>
-        <button type="button" className="ns-btn ns-btn-sm" disabled={locked} onClick={() => setColumns(rows => [...rows, { code: "", label: "", type: "text", key: false, isNew: false }])}>
+        <button type="button" className="ns-btn ns-btn-sm" disabled={locked} onClick={() => setColumns(rows => [...rows, emptyColumn()])}>
           <Plus size={14} /> Kolon ekle
         </button>
       </div>

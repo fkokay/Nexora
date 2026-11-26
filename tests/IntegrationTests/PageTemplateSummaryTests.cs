@@ -22,6 +22,23 @@ public sealed class PageTemplateSummaryTests
     }
 
     [Fact]
+    public void Record_template_without_extra_areas_is_level_one()
+    {
+        var json = """{"schemaVersion":2,"template":{"name":"record"},"queries":[],"components":[{"id":"ozet","type":"recordHeader","props":{"slot":"summary"}},{"id":"sekmeler","type":"tabs","props":{"slot":"tabs","tabs":["Genel="]}}]}""";
+        Assert.Equal(("record", 1), PageTemplateSummary.Read(json));
+    }
+
+    [Theory]
+    [InlineData("above")]
+    [InlineData("below")]
+    public void Record_template_with_above_or_below_component_is_level_two(string slot)
+    {
+        var json = """{"schemaVersion":2,"template":{"name":"record"},"queries":[],"components":[{"id":"ozet","type":"recordHeader","props":{"slot":"summary"}},{"id":"x","type":"text","props":{"slot":"SLOT"}}]}"""
+            .Replace("SLOT", slot);
+        Assert.Equal(("record", 2), PageTemplateSummary.Read(json));
+    }
+
+    [Fact]
     public void Legacy_definition_has_no_template()
         => Assert.Equal((null, null), PageTemplateSummary.Read("""{"schemaVersion":2,"queries":[],"components":[]}"""));
 

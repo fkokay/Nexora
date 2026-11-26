@@ -1,6 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { newListTemplateDefinition } from "../pageTemplates";
+import { newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { TemplateInspector } from "./TemplateInspector";
 
@@ -25,5 +25,18 @@ describe("TemplateInspector", () => {
   });
   it("shows a fixed place for slotted components", () => {
     expect(render({ id: "g", type: "metric", props: { slot: "indicators" } })).toContain("Yeri: Göstergeler");
+  });
+  it("opens the record panel for record pages and keeps extra areas on today's path", () => {
+    const def = newRecordTemplateDefinition() as unknown as ModelDefinition;
+    const record = { def, catalog: null, onChange: () => {}, onSelect: () => {} };
+    const page = renderToString(<TemplateInspector component={null} legacy={<i>BUGUNKU</i>} list={null} record={record} onPlace={() => {}}/>);
+    expect(page).toContain("Hangi kayıt gösterilsin?");
+    const summary = renderToString(<TemplateInspector component={def.components[0]} legacy={<i>BUGUNKU</i>} list={null} record={record} onPlace={() => {}}/>);
+    expect(summary).toContain("Hangi kayıt gösterilsin?");
+    expect(summary).not.toContain("BUGUNKU");
+    const extra = renderToString(<TemplateInspector component={{ id: "ek", type: "text", props: { slot: "above", text: "x" } }} legacy={<i>BUGUNKU</i>}
+      list={null} record={{ ...record, def: { ...def, components: [...def.components, { id: "ek", type: "text", props: { slot: "above", text: "x" } }] } }} onPlace={() => {}}/>);
+    expect(extra).toContain("BUGUNKU");
+    expect(extra).toContain("Kartın üstü");
   });
 });

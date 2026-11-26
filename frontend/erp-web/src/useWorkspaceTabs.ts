@@ -3,7 +3,7 @@ import type { GlobalSearchResult, Locale } from './WorkspaceComponents'
 import type { ModuleMenuSelection } from './ModuleMarketplacePage'
 import { getInitialPage, isPersistablePage, readWorkspacePreferences, readWorkspaceTabs, workspaceStorageKey } from './workspace-storage'
 import { standalonePageTitle } from './workspace-navigation'
-import { OPEN_PAGE_EVENT, RECORDS_DELETED_EVENT, setPageParams, tabRecordIds, type RecordsDeletedDetail, type WorkspaceOpenRequest } from './pageNavigation'
+import { CLOSE_PAGE_EVENT, forgetOpener, OPEN_PAGE_EVENT, RECORDS_DELETED_EVENT, setPageParams, tabRecordIds, type RecordsDeletedDetail, type WorkspaceOpenRequest } from './pageNavigation'
 
 type Tab = { id: string; label: string }
 type Props = {
@@ -34,10 +34,11 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
   const latestTabs = useRef({ moduleTabs, page })
   latestTabs.current = { moduleTabs, page }
 
-  const setPage = useCallback((nextPage: string, labelOverride?: string) => {
+  /** Opens (or switches to) a tab; false when the tab limit refused it. */
+  const setPage = useCallback((nextPage: string, labelOverride?: string): boolean => {
     if (nextPage === 'launcher' || nextPage === 'dashboard') {
       setActivePage('launcher')
-      return
+      return true
     }
     const result = pageResults.find(item => item.page === nextPage)
     if (result?.selection) onSelectModule(result.selection)
@@ -50,15 +51,18 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       const action = JSON.parse(sessionStorage.getItem('nexora.customer-sales-action') || 'null') as { page?: string; customerId?: string } | null
       pendingCustomerAction = action?.page === nextPage && Boolean(action.customerId)
     } catch { /* Session storage is optional; keep the normal tab limit if unavailable. */ }
-    if (!pendingCustomerAction && !moduleTabs.some(tab => tab.id === nextPage) && moduleTabs.length >= 12) {
+    // The latest tabs, not the render's: a tab closed by an event just before this open (CLOSE_PAGE_EVENT) no longer counts.
+    const openTabs = latestTabs.current.moduleTabs
+    if (!pendingCustomerAction && !openTabs.some(tab => tab.id === nextPage) && openTabs.length >= 12) {
       setNotice(tabLimitNotice(locale))
-      return
+      return false
     }
     clearTabLimitNotice()
     setActivePage(nextPage)
     setModuleTabs(current => current.some(tab => tab.id === nextPage)
       ? current.map(tab => tab.id === nextPage ? { ...tab, label: knownLabel || tab.label } : tab)
       : [...current, { id: nextPage, label }])
+    return true
   }, [pageResults, moduleTabs, locale, onSelectModule, clearTabLimitNotice])
 
   /**
@@ -70,17 +74,28 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
       const request = (event as CustomEvent<WorkspaceOpenRequest>).detail
       if (!request || typeof request.page !== 'string' || request.page === '') return
       const from = request.from
-      if (from && from !== request.page) openers.current.set(request.page, from)
+      // `keepParams` (back to the opener after a record save/delete): the returning card is not the opener's opener.
+      if (from && from !== request.page && !request.keepParams) openers.current.set(request.page, from)
+      if (request.notice) setNotice(request.notice)
       const canReplace = request.replace && !!from && from !== request.page && request.page !== 'launcher' && request.page !== 'dashboard'
         && moduleTabs.some(tab => tab.id === from) && !moduleTabs.some(tab => tab.id === request.page) && !dirtyTabs.has(from)
-      if (!canReplace) { setPage(request.page); return }
+      if (!canReplace) {
+        // A refused open (tab limit) did not open the tab: the opener openWorkspacePage recorded for it is dropped.
+        if (!setPage(request.page) && !request.keepParams) { forgetOpener(request.page); openers.current.delete(request.page) }
+        return
+      }
       const result = pageResults.find(item => item.page === request.page)
       if (result?.selection) onSelectModule(result.selection)
       const label = result?.label || standalonePageTitle(request.page, locale) || request.page.replace(/[-_]/g, ' ')
       clearTabLimitNotice()
       setActivePage(request.page)
       setModuleTabs(current => current.map(tab => tab.id === from ? { id: request.page, label } : tab))
-      if (from) openers.current.delete(request.page)
+      if (from) {
+        openers.current.delete(request.page)
+        // The replaced tab is gone: opened again later (menu, rail) it was opened directly, not by its old opener.
+        openers.current.delete(from)
+        forgetOpener(from)
+      }
     }
     window.addEventListener(OPEN_PAGE_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen)
@@ -94,6 +109,7 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
     // card opened for editing with `customerId` reopens as a new card).
     setPageParams(tabId, {})
     openers.current.delete(tabId)
+    forgetOpener(tabId)
     clearTabLimitNotice()
     setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
     if (page === tabId) setPage(nextTabs.at(-1)?.id || 'launcher')
@@ -126,11 +142,43 @@ export function useWorkspaceTabs({ standaloneStudio, embeddedStudioTool, tenantI
         nextPage = open(openers.current.get(page)) || open(source) || nextTabs.at(-1)?.id || 'launcher'
         setPage(nextPage)
       }
-      for (const tabId of closing) openers.current.delete(tabId)
+      for (const tabId of closing) { openers.current.delete(tabId); forgetOpener(tabId) }
       latestTabs.current = { moduleTabs: nextTabs, page: nextPage === 'dashboard' ? 'launcher' : nextPage }
     }
     window.addEventListener(RECORDS_DELETED_EVENT, onDeleted)
     return () => window.removeEventListener(RECORDS_DELETED_EVENT, onDeleted)
+  }, [setPage, clearTabLimitNotice])
+
+  /**
+   * A page asks to close its own tab without the unsaved-changes prompt (requestClosePage: a record card after its save or
+   * delete). It reads and advances the latest tabs like a delete, so an open request right after it (back to the opener) sees
+   * the tab already gone. An active closed tab hands over to the tab that opened it, else to the last remaining tab.
+   */
+  useEffect(() => {
+    const onClose = (event: Event) => {
+      const tabId = (event as CustomEvent<{ page?: unknown }>).detail?.page
+      if (typeof tabId !== 'string' || tabId === '' || tabId === 'dashboard') return
+      const { moduleTabs, page } = latestTabs.current
+      setPageParams(tabId, {})
+      forgetOpener(tabId)
+      if (!moduleTabs.some(tab => tab.id === tabId)) { openers.current.delete(tabId); return }
+      const nextTabs = moduleTabs.filter(tab => tab.id !== tabId)
+      let nextPage = page
+      setModuleTabs(current => current.filter(tab => tab.id !== tabId))
+      clearTabLimitNotice()
+      setDirtyTabs(current => { const next = new Set(current); next.delete(tabId); return next })
+      setPendingCloseTab(current => current === tabId ? null : current)
+      latestTabs.current = { moduleTabs: nextTabs, page }
+      if (page === tabId) {
+        const opener = openers.current.get(tabId)
+        nextPage = (opener && nextTabs.some(tab => tab.id === opener) ? opener : undefined) || nextTabs.at(-1)?.id || 'launcher'
+        setPage(nextPage)
+      }
+      openers.current.delete(tabId)
+      latestTabs.current = { moduleTabs: nextTabs, page: nextPage === 'dashboard' ? 'launcher' : nextPage }
+    }
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose)
+    return () => window.removeEventListener(CLOSE_PAGE_EVENT, onClose)
   }, [setPage, clearTabLimitNotice])
 
   const closeModuleTab = useCallback((tabId: string) => {
