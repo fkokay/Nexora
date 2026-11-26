@@ -11,7 +11,7 @@ export function sectionColumns(chosen: 1 | 2 | 3, width: number): 1 | 2 | 3 {
 }
 
 /** Öğenin içerik genişliği (`ResizeObserver`); bilinmiyorsa `null`. */
-function useBoxWidth(ref: RefObject<HTMLElement | null>): number | null {
+export function useBoxWidth(ref: RefObject<HTMLElement | null>): number | null {
   const [width, setWidth] = useState<number | null>(null);
   useLayoutEffect(() => {
     const element = ref.current;

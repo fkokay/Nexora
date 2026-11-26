@@ -1,5 +1,5 @@
-/** Sayfa tanımındaki `template` alanı. Kabul edilen adlar: `list` (Liste), `record` (Kayıt kartı) ve `belge` (Belge; `document` ile). */
-export type PageTemplate = { name: "list" } | { name: "record" } | { name: "belge"; document: string };
+/** Sayfa tanımındaki `template` alanı. Kabul edilen adlar: `list` (Liste), `record` (Kayıt kartı), `free` (Serbest gövde) ve `belge` (Belge; `document` ile). */
+export type PageTemplate = { name: "list" } | { name: "record" } | { name: "free" } | { name: "belge"; document: string };
 
 /** Geçersiz ya da eksik `template` için `null` döner: sayfa eski biçimde çizilir. */
 export function readPageTemplate(definition: unknown): PageTemplate | null {
@@ -11,5 +11,5 @@ export function readPageTemplate(definition: unknown): PageTemplate | null {
     const document = (template as { document?: unknown }).document;
     return typeof document === "string" && document ? { name: "belge", document } : null;
   }
-  return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : null;
+  return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : null;
 }

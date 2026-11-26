@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serbest gövde (taslak 09)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--info-soft:#e9effd}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .seg button:disabled{opacity:.45;cursor:not-allowed}
+  .wrap{display:grid;grid-template-columns:230px 1fr 320px;height:calc(100vh - 92px)}
+  .left{background:#fff;border-right:1px solid var(--line);overflow:auto;padding:14px}
+  h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .pal{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;cursor:pointer;margin-bottom:2px}
+  .pal:hover{background:#f6f5fa}
+  .pal i{font-style:normal;width:26px;height:26px;border-radius:7px;background:#f1effa;display:grid;place-items:center;color:var(--accent);flex:none;font-size:12px}
+  .pal small{display:block;color:var(--muted);font-size:11px}
+  .pal.off{opacity:.45;cursor:not-allowed}
+  .toast{margin-top:10px;font-size:11.5px;color:var(--warn);background:var(--warn-soft);border-radius:6px;padding:6px 8px;display:none}
+  .canvas{overflow:auto;padding:24px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px}
+  .page{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:980px;margin:0 auto;padding:16px 20px;container-type:inline-size;transition:max-width .25s}
+  body.tablet .page{max-width:768px} body.mobile .page{max-width:375px;padding:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}
+  .bar{display:flex;gap:6px;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:10px;flex-wrap:nowrap}
+  .bar .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap}
+  .bar .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .bar .more{display:none}
+  @container (max-width:480px){.bar .b.opt2{display:none}.bar .more{display:inline-block}}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+  .tab{padding:8px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+  .tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .blk{border:1px solid transparent;border-radius:10px;padding:10px;margin-bottom:8px;container-type:inline-size;cursor:pointer}
+  .design .blk:hover{border-color:#d9d3f3}
+  .blk.sel{border-color:var(--accent)!important}
+  .blk h3{margin:0 0 8px;font-size:14px}
+  .grid{display:grid;gap:12px 14px}
+  .grid.c1{grid-template-columns:1fr}.grid.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @container (max-width:720px){.grid.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @container (max-width:480px){.grid.c2,.grid.c3{grid-template-columns:1fr}.mhide{display:none}}
+  .it{border:1px solid transparent;border-radius:8px;padding:4px;min-width:0;cursor:pointer}
+  .design .it:hover{border-color:var(--line)}
+  .it.sel{border-color:var(--accent)!important;background:#faf8ff}
+  .it.wide{grid-column:1/-1}
+  .ph{grid-column:1/-1;color:#b0abc8;text-align:center;padding:14px;border:1px dashed var(--line);border-radius:8px}
+  .metric{border:1px solid var(--line);border-radius:10px;padding:12px}
+  .metric span{color:var(--muted);font-size:12px;display:block} .metric b{font-size:20px} .metric em{font-style:normal;font-size:11.5px;color:var(--ok)}
+  .pbar{height:8px;border-radius:99px;background:#eceaf3;overflow:hidden;margin-top:8px} .pbar i{display:block;height:100%;background:var(--accent)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-weight:600;font-size:12px;background:var(--ok-soft);color:var(--ok)}
+  .box{border-radius:10px;padding:10px 12px;line-height:1.5}
+  .box b{display:block}
+  .box.info{background:var(--info-soft);color:#1e3a8a}.box.warn{background:var(--warn-soft);color:#7c2d12}.box.ok{background:var(--ok-soft);color:#14532d}.box.plain{border:1px solid var(--line)}
+  .box ul{margin:4px 0 0;padding-left:18px}
+  .h1{font-size:18px;font-weight:700}.h2{font-size:15px;font-weight:700}.p{color:#3b3850;line-height:1.6}.lb{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .img{border-radius:10px;background:linear-gradient(135deg,#ddd6fe,#c7d2fe 60%,#bae6fd);display:grid;place-items:center;color:#4c3fa0;font-weight:600}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:420px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)} .tbl .n{text-align:right}
+  .tbl .pg{display:flex;justify-content:flex-end;gap:8px;padding:6px 10px;color:var(--muted);font-size:11.5px}
+  .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);margin-top:12px;padding-top:8px}
+  .addblk{display:block;width:100%;border:1px dashed #cfc9e6;color:var(--accent);background:none;border-radius:10px;padding:9px;cursor:pointer;font:inherit}
+  .insp{background:#fff;border-left:1px solid var(--line);overflow:auto;padding:14px 16px}
+  .ih{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+  .ih input{border:0;font:600 15px Inter,"Segoe UI",sans-serif;width:100%;outline:none;background:none}
+  .ico{width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+  .part{border-top:1px solid var(--line);padding:10px 0}
+  .q{font-weight:600;margin:8px 0 6px}
+  input.txt,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit;background:#fff}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;gap:8px}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.dan{color:var(--dan)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:4px 10px;cursor:pointer;color:var(--muted)}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  .chip.off{opacity:.45;cursor:not-allowed}
+  .src{margin-top:6px;font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:4px;line-height:1.5}
+  .why{color:var(--warn);font-size:11.5px;margin-top:4px}
+  .tabrow{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .tabrow input{flex:1}
+  details summary{cursor:pointer;font-weight:600;list-style:none} details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  /* yeni sayfa penceresi */
+  .dlgwrap{display:none;padding:40px 16px}
+  body.newpage .dlgwrap{display:block} body.newpage .wrap{display:none}
+  .dlg{background:#fff;border:1px solid var(--line);border-radius:14px;max-width:720px;margin:0 auto;padding:20px 22px;box-shadow:0 12px 40px rgba(30,20,80,.08)}
+  .dlg h2{margin:0 0 4px;font-size:18px}
+  .choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .choice{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
+  .choice.on{border-color:var(--accent);background:var(--accent-soft)}
+  .choice b{display:block;margin-bottom:4px}
+  .choice small{color:var(--muted);line-height:1.45;display:block}
+  .choice.legacy{border-style:dashed}
+  .sk{height:46px;border-radius:7px;background:#f3f1fa;margin-bottom:8px;display:grid;gap:3px;padding:5px}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 09 — Serbest gövde (alt proje 5c).</b> Kalıba uymayan sayfalar için: ortak kabuğun içinde sekmeler (isteğe bağlı) ve bölümler; her bölüm 1, 2 ya da 3 kolon. Tuvalde bir bölüme ya da bileşene tıkla, sağdaki panel değişir; soldaki bileşene tıklamak onu seçili bölüme ekler. Bileşenlerin kendi ayarları taslak 03'teki gibidir; burada yalnız serbest gövdeye özgü kısımlar var.</div>
+<div class="views">
+  <span class="lbl">Görünüm</span><div class="seg" id="viewSeg"><button class="on" data-view="design">Tasarımcı</button><button data-view="newpage">Yeni sayfa penceresi</button></div>
+  <span class="lbl">Cihaz</span><div class="seg" id="devSeg"><button class="on" data-dev="desk">Masaüstü 1280</button><button data-dev="tablet">Tablet 768</button><button data-dev="mobile">Telefon 375</button></div>
+  <span class="lbl">Tuval</span><div class="seg" id="modeSeg"><button class="on" data-mode="design">Tasarım</button><button data-mode="erp">ERP'de görünüş</button></div>
+</div>
+
+<div class="dlgwrap"><div class="dlg">
+  <h2>Yeni ekran</h2><div class="opt" style="margin:0">Önce ekranın kalıbını seçin. Kalıp, ekranın iskeletini ve düğmelerin yerini belirler.</div>
+  <div class="choices" id="choices"></div>
+  <div class="row"><span class="opt" id="choiceNote"></span><span><button class="btn">Vazgeç</button> <button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent)">Devam</button></span></div>
+</div></div>
+
+<div class="wrap" id="wrap">
+  <div class="left"><h4>Bileşenler</h4><div id="pal"></div><div class="toast" id="toast"></div>
+    <div class="opt" style="margin-top:14px">Bileşen, seçili bölüme eklenir. Bölüm seçili değilse seçili bileşenin bölümüne, o da yoksa son bölüme.</div></div>
+  <div class="canvas"><div class="page" id="page"></div></div>
+  <div class="insp" id="insp"></div>
+</div>
+
+<script>
+const PAL=[
+ {k:"metin",i:"T",n:"Metin",d:"Başlık, açıklama, etiket"},
+ {k:"bilgi",i:"i",n:"Bilgi kutusu",d:"Bilgi, uyarı, madde listesi"},
+ {k:"gosterge",i:"◔",n:"Gösterge",d:"Sayı, ilerleme, durum"},
+ {k:"liste",i:"☰",n:"Liste",d:"Kayıtları listeler"},
+ {k:"form",i:"▤",n:"Form",d:"Kayıt alanları",off:"Bu bileşen Kayıt kartı kalıbında kullanılır."},
+ {k:"satir",i:"▦",n:"Satır tablosu",d:"Belge satırları",off:"Düzenlenebilir satırlar Belge kalıbıyla gelecek."},
+ {k:"ozet",i:"◧",n:"Kayıt özeti",d:"Kaydın kimlik bilgisi",off:"Bu bileşen Kayıt kartı kalıbında kullanılır."},
+ {k:"bolum",i:"⊟",n:"Bölümler",d:"Yeni bölüm ekler"},
+ {k:"buton",i:"⏵",n:"Butonlar",d:"Sayfa eylemleri",off:"Düğmeleri sayfa panelindeki Eylemler bölümünden ekleyin."},
+ {k:"gorsel",i:"▨",n:"Görsel",d:"Resim ya da logo"},
+ {k:"yazilimci",i:"</>",n:"Yazılımcı bileşeni",d:"Özel çizim, harita, grafik…",off:"Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil."},
+];
+const KIND={metin:["T","Metin"],bilgi:["i","Bilgi kutusu"],gosterge:["◔","Gösterge"],liste:["☰","Liste"],gorsel:["▨","Görsel"]};
+const SOURCES=[{n:"Son siparişler",cols:["Sipariş no","Cari","Tarih","Tutar","Durum","Temsilci","Teslim"]},{n:"Vadesi geçen cariler",cols:["Cari kodu","Unvan","Bakiye","Gecikme","Temsilci"]},{n:"Cari ekstresi",off:"Bu kaynak ek bilgi istiyor; burada kullanılamaz."}];
+const ACTIONS=[{n:"Raporu yenile"},{n:"Excel'e aktar"},{n:"Haftalık özeti gönder"},{n:"Siparişi onayla",off:"Bu eylem bir satıra ait; serbest gövdede kullanılamaz."}];
+let S={name:"Satış panosu",actions:["Raporu yenile","Excel'e aktar"],tabs:[{label:"Genel",blocks:["b1","b2"]},{label:"Siparişler",blocks:["b3"]}],activeTab:0,
+ blocks:{b1:{title:"Bugün",cols:3,members:["m1","m2","m3"],mhide:false},b2:{title:"Duyurular",cols:2,members:["t1","i1","g1"],mhide:false},b3:{title:"Son siparişler",cols:1,members:["l1"],mhide:false},b9:{title:"Bölüm 4",cols:2,members:[],mhide:false}},
+ items:{m1:{kind:"gosterge",tur:"Sayı",label:"Bugünkü satış",val:"184.250 ₺"},m2:{kind:"gosterge",tur:"Sayı",label:"Açık sipariş",val:"42"},m3:{kind:"gosterge",tur:"İlerleme",label:"Aylık hedef",val:"65%"},
+  t1:{kind:"metin",stil:"Alt başlık",text:"Bu haftanın notları"},i1:{kind:"bilgi",tur:"Uyarı",baslik:"Kampanya bitiyor",text:"Bahar kampanyası cuma günü sona eriyor.",mhide:false},g1:{kind:"gorsel",boy:"Orta",alt:"Mağaza vitrini"},
+  l1:{kind:"liste",src:"Son siparişler",cols:["Sipariş no","Cari","Tarih","Tutar","Durum"],page:10}},
+ sel:{kind:"page"},n:20,mode:"design"};
+S.tabs[0].blocks.push("b9");
+const blockOfItem=id=>Object.keys(S.blocks).find(b=>S.blocks[b].members.includes(id));
+const tabOfBlock=b=>S.tabs?S.tabs.findIndex(t=>t.blocks.includes(b)):-1;
+const allBlocks=()=>S.tabs?S.tabs.flatMap(t=>t.blocks):Object.keys(S.blocks);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function viewItem(id){const it=S.items[id];
+ if(it.kind==="gosterge"){if(it.tur==="İlerleme")return `<div class="metric"><span>${esc(it.label)}</span><b>${it.val}</b><div class="pbar"><i style="width:65%"></i></div><em style="color:var(--muted)">130 / 200</em></div>`;
+  if(it.tur==="Durum")return `<div class="metric"><span>${esc(it.label)}</span><span class="badge">Aktif</span></div>`;
+  return `<div class="metric"><span>${esc(it.label)}</span><b>${it.val}</b><em> ▲ %12 önceki değere göre</em></div>`;}
+ if(it.kind==="metin"){const c={"Başlık":"h1","Alt başlık":"h2","Paragraf":"p","Küçük etiket":"lb"}[it.stil];return `<div class="${c}">${esc(it.text)}</div>`;}
+ if(it.kind==="bilgi"){const c={"Bilgi":"info","Uyarı":"warn","Başarılı":"ok","Sade":"plain"}[it.tur];return `<div class="box ${c}"><b>${esc(it.baslik)}</b>${esc(it.text)}</div>`;}
+ if(it.kind==="gorsel")return `<div class="img" style="height:${{"Küçük":96,"Orta":160,"Büyük":280}[it.boy]}px">🖼 ${esc(it.alt||"Görsel")}</div>`;
+ if(it.kind==="liste"){const R=[["SP-1042","Akdeniz Gıda","26.11.2026","24.320,00","Onaylı","Ayşe Y.","28.11"],["SP-1041","Ege Tekstil","26.11.2026","8.640,00","Taslak","Mert K.","02.12"],["SP-1040","Marmara Yapı","25.11.2026","112.900,00","Sevk edildi","Ayşe Y.","26.11"]];
+  const src=SOURCES.find(s=>s.n===it.src);const num=c=>c==="Tutar"||c==="Bakiye";
+  return `<div class="tbl"><table><tr>${it.cols.map(c=>`<th class="${num(c)?"n":""}">${c}</th>`).join("")}</tr>${R.map(r=>`<tr>${it.cols.map(c=>`<td class="${num(c)?"n":""}">${r[src.cols.indexOf(c)]??"—"}</td>`).join("")}</tr>`).join("")}</table><div class="pg">1–3 / 3 · sayfa başına ${it.page}</div></div>`;}
+ return "";}
+function wide(it){return it.kind==="liste"||it.kind==="gorsel";}
+function renderPage(){
+ const design=S.mode==="design";
+ const bar=S.actions.map((a,i)=>`<span class="b ${i===0?"pri":"opt2"}">${esc(a)}</span>`).join("")+`<span class="b more">⋯</span>`;
+ let blocks=S.tabs?S.tabs[S.activeTab].blocks:allBlocks();
+ const html=blocks.map(b=>{const B=S.blocks[b];
+  if(!design&&B.members.length===0)return "";
+  const body=B.members.length?B.members.map(m=>`<div class="it ${wide(S.items[m])?"wide":""} ${S.items[m].mhide?"mhide":""} ${S.sel.kind==="item"&&S.sel.id===m?"sel":""}" data-item="${m}">${viewItem(m)}</div>`).join("")
+   :`<div class="ph">Bu bölüme bileşen ekleyin.</div>`;
+  return `<div class="blk ${B.mhide?"mhide":""} ${S.sel.kind==="block"&&S.sel.id===b?"sel":""}" data-block="${b}">${B.title?`<h3>${esc(B.title)}</h3>`:""}<div class="grid c${B.cols}">${body}</div></div>`;}).join("");
+ document.getElementById("page").className="page "+(design?"design":"");
+ document.getElementById("page").innerHTML=`<div class="crumb">Satış › Panolar</div><div class="ttl">${esc(S.name)}</div><div class="bar">${bar}</div>
+  ${S.tabs?`<div class="tabs">${S.tabs.map((t,i)=>`<div class="tab ${i===S.activeTab?"on":""}" data-tab="${i}">${esc(t.label)}</div>`).join("")}</div>`:""}
+  ${html}${design?`<button class="addblk" data-act="addblock">＋ Bölüm ekle</button>`:""}<div class="foot"><span>Nexora ERP</span><span>Serbest · 3. basamak</span></div>`;}
+function renderPal(){document.getElementById("pal").innerHTML=PAL.map(p=>`<div class="pal ${p.off?"off":""}" data-pal="${p.k}" title="${esc(p.off||p.d)}"><i>${p.i}</i><div>${p.n}<small>${p.off?esc(p.off):p.d}</small></div></div>`).join("");}
+const appearance=(o,extra="")=>`<div class="part"><details><summary>Görünüm</summary>${extra}<div class="q">Ne zaman görünsün?</div><div class="seg"><button class="on">Her zaman</button><button>Koşula bağlı…</button></div><div class="row" style="margin-top:6px">Mobilde gizle<span class="tg ${o.mhide?"on":""}" data-mh="1"></span></div></details></div>`;
+function renderInsp(){const el=document.getElementById("insp");const s=S.sel;
+ if(s.kind==="page"){
+  el.innerHTML=`<div class="ih"><span class="ico">▣</span><input value="${esc(S.name)}" data-pname="1" aria-label="Sayfa adı"></div><div class="opt">Serbest gövde · 3. basamak</div>
+  <div class="part"><div class="q">Sekmeler</div>${S.tabs?S.tabs.map((t,i)=>`<div class="tabrow"><input class="txt" value="${esc(t.label)}" data-tabname="${i}"><button class="btn dan" data-deltab="${i}" title="Sekmeyi sil; bölümleri önceki sekmeye geçer">Sil</button></div>`).join(""):`<div class="opt">Bu sayfada sekme yok; bölümler alt alta durur.</div>`}
+   <button class="btn" data-act="addtab">＋ Sekme ekle</button><div class="opt">Yeni sekme, içinde boş bir bölümle açılır. ${S.tabs?"":"İlk sekme eklenince mevcut bölümler “Genel” sekmesine girer."}</div></div>
+  <div class="part"><div class="q">Eylemler</div><div class="chips">${ACTIONS.map(a=>`<span class="chip ${a.off?"off":S.actions.includes(a.n)?"on":""}" data-action="${esc(a.n)}" title="${esc(a.off||"")}">${a.n}</span>`).join("")}</div>
+   <div class="src">Eylemleri yazılımcı hazırlar · onay sorusu ve yetki ondan gelir</div><div class="opt">İlk eylem ana düğmedir. Bir satıra ait eylemler burada seçilemez; onlar için Liste kalıbını kullanın.</div></div>`;return;}
+ if(s.kind==="block"){const B=S.blocks[s.id];const ti=tabOfBlock(s.id);const order=S.tabs?S.tabs[ti].blocks:allBlocks();const idx=order.indexOf(s.id);
+  const delWhy=B.members.length?"Önce bu bölümdeki bileşenleri kaldırın ya da başka bölüme taşıyın.":allBlocks().length===1?"Serbest gövdede en az bir bölüm olmalı.":"";
+  el.innerHTML=`<div class="ih"><span class="ico">⊟</span><input value="Bölüm" readonly aria-label="Bileşen adı"></div>
+  <div class="part"><div class="q">Başlık</div><input class="txt" value="${esc(B.title)}" data-btitle="1" placeholder="Başlıksız bölüm">
+   <div class="q">Kolon sayısı</div><div class="seg">${[1,2,3].map(c=>`<button class="${B.cols===c?"on":""}" data-cols="${c}">${c}</button>`).join("")}</div><div class="opt">Dar ekranda kolonlar kendiliğinden azalır: tablette en çok 2, telefonda 1.</div>
+   ${S.tabs?`<div class="q">Sekme</div><select data-btab="1">${S.tabs.map((t,i)=>`<option value="${i}" ${i===ti?"selected":""}>${esc(t.label)}</option>`).join("")}</select>`:""}
+   <div class="q">Sıra${S.tabs?" (sekme içinde)":""}</div><button class="btn" data-bmove="-1" ${idx<=0?"disabled":""}>↑ Yukarı</button> <button class="btn" data-bmove="1" ${idx>=order.length-1?"disabled":""}>↓ Aşağı</button></div>
+  <div class="part"><button class="btn dan" data-act="delblock" ${delWhy?"disabled":""}>Bölümü sil</button>${delWhy?`<div class="why">${delWhy}</div>`:""}</div>${appearance(B)}`;return;}
+ const it=S.items[s.id];const [ic,nm]=KIND[it.kind];const bid=blockOfItem(s.id);const mem=S.blocks[bid].members;const i=mem.indexOf(s.id);
+ const place=`<div class="part" style="border-top:0;padding-top:4px"><div class="q" style="margin-top:0">Bölüm</div><select data-ibl="1">${allBlocks().map(b=>`<option value="${b}" ${b===bid?"selected":""}>${esc(S.blocks[b].title||"Başlıksız bölüm")}${S.tabs?" · "+esc(S.tabs[tabOfBlock(b)].label):""}</option>`).join("")}</select>
+  <div style="margin-top:6px"><button class="btn" data-imove="-1" ${i<=0?"disabled":""}>↑ Yukarı</button> <button class="btn" data-imove="1" ${i>=mem.length-1?"disabled":""}>↓ Aşağı</button> <button class="btn dan" data-act="delitem">Kaldır</button></div></div>`;
+ let body="";
+ if(it.kind==="liste"){body=`<div class="part"><div class="q" style="margin-top:0">Ne listelensin?</div>${SOURCES.map(x=>`<div class="row" style="padding:3px 0"><label style="${x.off?"opacity:.45":""}"><input type="radio" name="src" ${it.src===x.n?"checked":""} ${x.off?"disabled":""} data-src="${esc(x.n)}"> ${x.n}</label></div>${x.off?`<div class="why" style="margin:0 0 4px 20px">${x.off}</div>`:""}`).join("")}<div class="src">Yazılımcının hazırladığı veri kaynağı</div></div>
+  <div class="part"><div class="q" style="margin-top:0">Kolonlar</div><div class="chips">${SOURCES.find(x=>x.n===it.src).cols.map(c=>`<span class="chip ${it.cols.includes(c)?"on":""}" data-col="${esc(c)}">${c}</span>`).join("")}</div><div class="opt">Sıra, işaretleme sırasıdır; ilk kolonlar dar ekranda öne çıkar.</div>
+   <div class="q">Sayfa başına</div><div class="seg">${[10,25,50].map(n=>`<button class="${it.page===n?"on":""}" data-page="${n}">${n}</button>`).join("")}</div></div>
+  <div class="part"><div class="opt" style="margin:0">Bu liste salt okunurdur: satır eylemi, arama ve süzgeç yoktur. Bunlar için Liste kalıbını kullanın.</div></div>`+appearance(it,`<div class="q">Liste boşken yazılacak</div><input class="txt" value="Bugün sipariş yok.">`);}
+ else{const short={metin:`<div class="q" style="margin-top:0">Stil</div><div class="seg"><button class="${it.stil==="Başlık"?"on":""}">Başlık</button><button class="${it.stil==="Alt başlık"?"on":""}">Alt başlık</button><button>Paragraf</button><button>Küçük etiket</button></div><div class="q">Metin</div><textarea rows="2">${esc(it.text)}</textarea>`,
+  bilgi:`<div class="q" style="margin-top:0">Tür</div><div class="seg"><button>Bilgi</button><button class="on">Uyarı</button><button>Başarılı</button><button>Sade</button></div><div class="q">Başlık</div><input class="txt" value="${esc(it.baslik)}">`,
+  gosterge:`<div class="q" style="margin-top:0">Tür</div><div class="seg">${["Sayı","İlerleme","Durum"].map(t=>`<button class="${it.tur===t?"on":""}">${t}</button>`).join("")}</div><div class="q">Ne gösterilsin?</div><select><option>Günlük satış özeti</option></select><div class="src">Yazılımcının hazırladığı veri kaynağı · birimi kolonun türünden gelir</div>`,
+  gorsel:`<div class="q" style="margin-top:0">Görselin adresi</div><input class="txt" value="https://ornek-firma.com/vitrin.jpg"><div class="opt">Serbest gövdede kayıt yok; “Kayıttaki resim” seçeneği burada görünmez.</div><div class="q">Yükseklik</div><div class="seg"><button>Küçük</button><button class="on">Orta</button><button>Büyük</button></div>`}[it.kind];
+  body=`<div class="part">${short}<div class="opt">Bileşenin bütün ayarları taslak 03'teki panel gibidir. Serbest gövdede metne alan konmaz (“{ yazın” ipucu gizli) ve göstergenin “Yeri” seçimi yerine yukarıdaki Bölüm seçimi vardır.</div></div>`+appearance(it);}
+ el.innerHTML=`<div class="ih"><span class="ico">${ic}</span><input value="" placeholder="${nm}" readonly aria-label="Bileşen adı"></div>${place}${body}`;}
+function render(){renderPage();renderPal();renderInsp();}
+function toast(t){const e=document.getElementById("toast");e.textContent=t;e.style.display=t?"block":"none";}
+function targetBlock(){if(S.sel.kind==="block")return S.sel.id;if(S.sel.kind==="item")return blockOfItem(S.sel.id);const v=S.tabs?S.tabs[S.activeTab].blocks:allBlocks();return v[v.length-1];}
+function addBlock(){const id="b"+(++S.n);S.blocks[id]={title:"Bölüm "+(allBlocks().length+1),cols:2,members:[],mhide:false};if(S.tabs)S.tabs[S.activeTab].blocks.push(id);S.sel={kind:"block",id};}
+function cleanTabs(){if(!S.tabs)return;S.tabs=S.tabs.filter(t=>t.blocks.length);if(S.tabs.length<=1){S.tabs=null;S.activeTab=0;}else S.activeTab=Math.min(S.activeTab,S.tabs.length-1);}
+document.addEventListener("click",e=>{const t=e.target;let c;
+ if(c=t.closest("[data-view]")){document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("on",b===c));document.body.classList.toggle("newpage",c.dataset.view==="newpage");return;}
+ if(c=t.closest("[data-dev]")){document.querySelectorAll("#devSeg button").forEach(b=>b.classList.toggle("on",b===c));document.body.classList.remove("tablet","mobile");if(c.dataset.dev!=="desk")document.body.classList.add(c.dataset.dev);return;}
+ if(c=t.closest("[data-mode]")){document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b===c));S.mode=c.dataset.mode;renderPage();return;}
+ if(c=t.closest("[data-choice]")){document.querySelectorAll(".choice").forEach(b=>b.classList.toggle("on",b===c));document.getElementById("choiceNote").textContent=CHOICES.find(x=>x.id===c.dataset.choice).note;return;}
+ if(c=t.closest("[data-pal]")){const p=PAL.find(x=>x.k===c.dataset.pal);if(p.off){toast(p.off);return;}toast("");
+  if(p.k==="bolum"){addBlock();render();return;}
+  const b=targetBlock();if(S.blocks[b].members.length>=12){toast("Bu bölüm dolu; yeni bir bölüm ekleyin.");return;}
+  const id="x"+(++S.n);S.items[id]={metin:{kind:"metin",stil:"Başlık",text:"Başlık"},bilgi:{kind:"bilgi",tur:"Bilgi",baslik:"Bilgi",text:"Kısa bir açıklama."},gosterge:{kind:"gosterge",tur:"Sayı",label:"Gösterge",val:"—"},liste:{kind:"liste",src:"Vadesi geçen cariler",cols:["Cari kodu","Unvan","Bakiye","Gecikme"],page:10},gorsel:{kind:"gorsel",boy:"Orta",alt:""}}[p.k];
+  S.blocks[b].members.push(id);S.sel={kind:"item",id};render();return;}
+ if(c=t.closest("[data-tab]")){S.activeTab=+c.dataset.tab;S.sel={kind:"page"};render();return;}
+ if(c=t.closest("[data-item]")){if(S.mode!=="design")return;S.sel={kind:"item",id:c.dataset.item};render();return;}
+ if(c=t.closest("[data-block]")){if(S.mode!=="design")return;S.sel={kind:"block",id:c.dataset.block};render();return;}
+ if(c=t.closest("[data-act]")){const a=c.dataset.act;
+  if(a==="addblock")addBlock();
+  if(a==="addtab"){const nb="b"+(++S.n);S.blocks[nb]={title:"Bölüm "+(allBlocks().length+1),cols:2,members:[],mhide:false};
+   if(!S.tabs)S.tabs=[{label:"Genel",blocks:Object.keys(S.blocks).filter(x=>x!==nb)}];S.tabs.push({label:"Yeni sekme",blocks:[nb]});S.activeTab=S.tabs.length-1;}
+  if(a==="delblock"){const id=S.sel.id;delete S.blocks[id];if(S.tabs)S.tabs.forEach(t=>t.blocks=t.blocks.filter(x=>x!==id));cleanTabs();S.sel={kind:"page"};}
+  if(a==="delitem"){const id=S.sel.id;const b=blockOfItem(id);S.blocks[b].members=S.blocks[b].members.filter(x=>x!==id);delete S.items[id];S.sel={kind:"block",id:b};}
+  render();return;}
+ if(c=t.closest("[data-deltab]")){const i=+c.dataset.deltab;const moved=S.tabs[i].blocks;const to=i>0?i-1:1;S.tabs[to].blocks.push(...moved);S.tabs.splice(i,1);cleanTabs();render();return;}
+ if(c=t.closest("[data-action]")){if(c.classList.contains("off")){toast(c.title);return;}const n=c.dataset.action;S.actions=S.actions.includes(n)?S.actions.filter(x=>x!==n):[...S.actions,n];render();return;}
+ if(c=t.closest("[data-cols]")){S.blocks[S.sel.id].cols=+c.dataset.cols;render();return;}
+ if(c=t.closest("[data-bmove]")){const d=+c.dataset.bmove;const id=S.sel.id;const list=S.tabs?S.tabs[tabOfBlock(id)].blocks:null;
+  if(list){const i=list.indexOf(id),j=i+d;if(j>=0&&j<list.length)[list[i],list[j]]=[list[j],list[i]];}
+  else{const ks=Object.keys(S.blocks);const i=ks.indexOf(id),j=i+d;if(j>=0&&j<ks.length){[ks[i],ks[j]]=[ks[j],ks[i]];const nb={};ks.forEach(k=>nb[k]=S.blocks[k]);S.blocks=nb;}}
+  render();return;}
+ if(c=t.closest("[data-imove]")){const b=blockOfItem(S.sel.id);const m=S.blocks[b].members;const i=m.indexOf(S.sel.id),j=i+ +c.dataset.imove;if(j>=0&&j<m.length)[m[i],m[j]]=[m[j],m[i]];render();return;}
+ if(c=t.closest("[data-col]")){const it=S.items[S.sel.id];const v=c.dataset.col;it.cols=it.cols.includes(v)?it.cols.filter(x=>x!==v):[...it.cols,v];if(!it.cols.length)it.cols=[v];render();return;}
+ if(c=t.closest("[data-page]")){S.items[S.sel.id].page=+c.dataset.page;render();return;}
+ if(c=t.closest("[data-mh]")){const o=S.sel.kind==="block"?S.blocks[S.sel.id]:S.items[S.sel.id];o.mhide=!o.mhide;render();return;}
+});
+document.addEventListener("change",e=>{const t=e.target;
+ if(t.dataset.btab!==undefined){const id=S.sel.id;S.tabs.forEach(x=>x.blocks=x.blocks.filter(b=>b!==id));S.tabs[+t.value].blocks.push(id);S.activeTab=+t.value;cleanTabs();render();}
+ if(t.dataset.ibl!==undefined){const id=S.sel.id;const from=blockOfItem(id);if(S.blocks[t.value].members.length>=12){toast("Bu bölüm dolu; yeni bir bölüm ekleyin.");render();return;}S.blocks[from].members=S.blocks[from].members.filter(x=>x!==id);S.blocks[t.value].members.push(id);const ti=tabOfBlock(t.value);if(ti>=0)S.activeTab=ti;render();}
+ if(t.dataset.src!==undefined){const it=S.items[S.sel.id];it.src=t.dataset.src;it.cols=SOURCES.find(x=>x.n===it.src).cols.slice(0,6);render();}});
+document.addEventListener("input",e=>{const t=e.target;
+ if(t.dataset.pname!==undefined){S.name=t.value;renderPage();}
+ if(t.dataset.btitle!==undefined){S.blocks[S.sel.id].title=t.value;renderPage();}
+ if(t.dataset.tabname!==undefined){S.tabs[+t.dataset.tabname].label=t.value;renderPage();}});
+const CHOICES=[
+ {id:"list",n:"Liste",d:"Kayıtları aramak, süzmek ve seçmek için.",note:"Başlık, arama, liste ve detay paneli kalıptan gelir."},
+ {id:"record",n:"Kayıt kartı",d:"Tek bir kaydı görmek ve düzenlemek için.",note:"Kayıt özeti, sekmeler ve bölümler kaynağın alanlarından kurulur."},
+ {id:"free",n:"Serbest",d:"Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin.",note:"Başlık ve işlem çubuğu yine kalıptan gelir; içini bölümlerle kurarsınız."},
+ {id:"legacy",n:"Eski tasarımcı (kalıpsız)",d:"Sistem ekranlarına benzeyen gelişmiş sayfalar için.",note:"Bugünkü 12 kolonlu tasarımcı. Yeni ekranlar için önce yukarıdaki kalıpları deneyin.",legacy:true}];
+document.getElementById("choices").innerHTML=CHOICES.map((c,i)=>`<div class="choice ${c.legacy?"legacy":""} ${i===2?"on":""}" data-choice="${c.id}"><div class="sk"></div><b>${c.n}</b><small>${c.d}</small></div>`).join("");
+document.getElementById("choiceNote").textContent=CHOICES[2].note;
+render();
+</script>
+</body>
+</html>

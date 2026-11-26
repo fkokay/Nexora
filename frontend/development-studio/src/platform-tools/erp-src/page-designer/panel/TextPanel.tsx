@@ -34,7 +34,7 @@ export function TextPanel({ component, definition, tokens, disabled, onChange, o
   const basics = <>
     <textarea className="cpanel-txt" rows={4} aria-label="Metin" disabled={disabled || parts} value={shown.text}
       onChange={(event) => onChange(setTextContent(definition, component.id, fromConsultantText(event.target.value, tokens, stored)))}/>
-    <p className="cpanel-note">{TEXT_FIELD_NOTE}</p>
+    {tokens.length > 0 && <p className="cpanel-note">{TEXT_FIELD_NOTE}</p>}
     {parts && <p className="cpanel-note">{TEXT_PARTS_NOTE}</p>}
     {shown.unknown && <p className="cpanel-warn">{UNKNOWN_FIELD_WARNING}</p>}
   </>;

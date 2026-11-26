@@ -6,7 +6,8 @@ export type ImageInfo = { from: "address" | "record"; address: string; column: s
 export const IMAGE_ADDRESS_INVALID = "Adres http:// ya da https:// ile başlamalı.";
 export const IMAGE_HEIGHTS: Record<ImageSize, number> = { small: 96, medium: 160, large: 280 };
 
-const RECORD_BINDING = /^\{\{\s*[^{}.]+\.seciliSatir\.([^{}\s]+)\s*\}\}$/;
+/** Liste: `liste.seciliSatir.<kolon>`; Kayıt kartı: `kayit.rows[0].<kolon>` (5c Karar 9). */
+const RECORD_BINDING = /^\{\{\s*(?:[^{}.]+\.seciliSatir|kayit\.rows\[0\])\.([^{}\s]+)\s*\}\}$/;
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
 export function imageOf(c: ModelComponent): ImageInfo {

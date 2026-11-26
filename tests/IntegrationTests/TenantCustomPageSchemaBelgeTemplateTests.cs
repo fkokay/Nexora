@@ -63,7 +63,7 @@ public sealed class TenantCustomPageSchemaBelgeTemplateTests
     [Fact]
     public void Document_key_is_only_for_belge()
     {
-        Rejected(Page(new { name = "record", document = "satis.siparis" }, []), "Kalıp yalnız \"list\", \"record\" ya da \"belge\" olabilir.");
+        Rejected(Page(new { name = "record", document = "satis.siparis" }, []), "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.");
     }
 
     [Fact]

@@ -100,7 +100,9 @@ internal static partial class TenantCustomPageSchema
       // açılır listede listede olmayan değeri kabul etme (allowCustom) ve açılış sekmesini sayfa parametresinden seçme (tabParam).
       "multiline", "presets", "allowCustom", "tabParam",
       // Kayıt kartı (alt proje 4): düzenlenemez giriş (her v2 sayfada, yalnız input).
-      "readOnly" };
+      "readOnly",
+      // Serbest gövde (alt proje 5c): bölümün üye bileşen kimlikleri.
+      "members" };
     private const int MaxPropsV1 = 30;
     private const int MaxPropsV2 = 40;
     private static readonly string[] GridToolFlags = ["showGridSearch", "showColumnFilters", "showColumnChooser", "showExport", "showPivot", "showCsv", "showSelectedExport"];
@@ -211,7 +213,7 @@ internal static partial class TenantCustomPageSchema
     {
         public bool V2 { get; } = version == 2;
         /// <summary>
-        /// The v2 root <c>template</c> name ("list" or "record"; extra keys are rejected later by PageTemplateRules), else null. The list template's
+        /// The v2 root <c>template</c> name ("list", "record" or "free"; extra keys are rejected later by PageTemplateRules), else null. The list template's
         /// slot:list table and the record template's slot:lines tables may set <c>pageSize</c> without server paging; a record
         /// template's slot:section formCard may have empty <c>inputs</c>.
         /// </summary>
@@ -968,9 +970,20 @@ internal static partial class TenantCustomPageSchema
         foreach (var key in new[] { "inputs", "table", "fields", "relatedQuery", "relatedTitle", "facetCounts" })
             if (props.TryGetProperty(key, out _) && !AllowedOn(key, typeText))
             { error = $"'{key}' özelliği bu bileşen türünde kullanılamaz."; return false; }
-        if (props.TryGetProperty("columns", out var columns) && typeText is "formCard" or "customFieldsBlock"
+        // Serbest gövdenin bölümü (üst düzey section, slot: block): üyeleri ve kolon sayısı.
+        var freeBlock = context.Template == "free" && typeText == "section" && context.TopLevelIds.Contains(id) && StringOf(props, "slot") == "block";
+        if (props.TryGetProperty("members", out var members))
+        {
+            if (!freeBlock) { error = "'members' yalnız serbest gövdenin bölümünde kullanılabilir."; return false; }
+            if (members.ValueKind != JsonValueKind.Array
+                || members.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(x.GetString()))
+                || members.EnumerateArray().Select(x => x.GetString()).Distinct().Count() != members.GetArrayLength())
+            { error = "'members' farklı bileşen kimliklerinden oluşan bir dizi olmalıdır."; return false; }
+            if (members.GetArrayLength() > 12) { error = "Serbest gövdede bir bölüm en fazla 12 bileşen içerebilir."; return false; }
+        }
+        if (props.TryGetProperty("columns", out var columns) && (typeText is "formCard" or "customFieldsBlock" || freeBlock)
             && (columns.ValueKind != JsonValueKind.Number || !columns.TryGetInt32(out var columnCount) || columnCount is < 1 or > 3))
-        { error = "Form kartının 'columns' değeri 1, 2 veya 3 olmalıdır."; return false; }
+        { error = freeBlock ? "Bölümün 'columns' değeri 1, 2 veya 3 olmalıdır." : "Form kartının 'columns' değeri 1, 2 veya 3 olmalıdır."; return false; }
         List<string>? inputIds = null;
         if (typeText is "formCard" or "filterChips" or "facetPanel")
         {
@@ -1690,7 +1703,8 @@ internal static partial class TenantCustomPageSchema
         // sayfalaması olmadan 'pageSize' alabilir.
         var templateSlot = StringOf(props, "slot");
         var templateListTable = !paged && typeText == "dataTable" && context.TopLevelIds.Contains(id)
-            && (context.Template == "list" && templateSlot == "list" || context.Template == "record" && templateSlot == "lines");
+            && (context.Template == "list" && templateSlot == "list" || context.Template == "record" && templateSlot == "lines"
+                || context.Template == "free" && templateSlot == "item");
         if (templateListTable && props.TryGetProperty("pageSize", out var choice)
             && (choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out var rows) || rows is not (10 or 25 or 50 or 100)))
         { error = "Sayfa başına kayıt 10, 25, 50 ya da 100 olmalı."; return false; }
