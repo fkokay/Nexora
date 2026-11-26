@@ -32,3 +32,10 @@ describe("LegacySettings", () => {
     expect(renderToString(<LegacySettings props={{ title: "x" }} known={new Set(["title"])} />)).toBe("");
   });
 });
+
+describe("ComponentPanel namePlaceholder", () => {
+  it("passes the placeholder to the name box", () => {
+    const out = renderToString(<ComponentPanel name="" namePlaceholder="Görsel" nameReadOnly onRename={() => {}} what={null} basics={null} actions={null} appearance={null} />);
+    expect(out).toContain('placeholder="Görsel"');
+  });
+});

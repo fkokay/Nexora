@@ -9,6 +9,8 @@ import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, L
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
 import { MetricCard } from "./custom-page/MetricCard";
+import { metricCompare } from "./custom-page/metricCompare";
+import { DismissibleBox } from "./custom-page/DismissibleBox";
 import { countRowsWhen, countText } from "./custom-page/countWhen";
 import { openParamRow, openParamTargets, sameOpenRequest } from "./custom-page/openParam";
 import TenantWorkflowAction, { runWorkflowStart } from "./TenantWorkflowAction";
@@ -97,7 +99,7 @@ const textValue = (value: unknown, fallback = "") =>
   typeof value === "string" || typeof value === "number" ? String(value) : fallback;
 
 const BINDABLE_PROPS = ["text", "title", "description", "label", "value", "placeholder", "defaultValue", "disabledReason",
-  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey"];
+  "promptLabel", "fixedRowLabel", "matrixCode", "matrixName", "recordKey", "compareValue", "progressTotal"];
 type InputRaw = string | boolean;
 /** v2 sayfaların çalışma zamanı: bağlama kapsamı, sorgu durumları, giriş değerleri ve ızgara seçimleri. */
 type PageRuntime = {
@@ -553,17 +555,19 @@ function QueryError({ message }: { message: string }) {
   return <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{message}</span></div>;
 }
 
-type MetricExtras = Pick<ComponentProps<typeof MetricCard>, "tone" | "icon" | "trend" | "active" | "onActivate">;
+type MetricExtras = Pick<ComponentProps<typeof MetricCard>, "tone" | "icon" | "trend" | "active" | "onActivate" | "size">;
 
 const MANUAL_QUERY_IDLE = "Bu sorgu elle çalıştırılır.";
 /** Elle çalışan ve henüz hiç çalışmamış sorgu (yükleme sorguları açılışta yüklenme durumuyla başlar). */
 const neverRan = (state: QueryState) => !state.ran && !state.loading && !state.error;
 
-function QueryMetric({ state, title, description, style, count, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties; count?: number | null } & MetricExtras) {
+function QueryMetric({ state, title, description, style, count, compareValue, ...card }: { state: QueryState; title: string; description: string; style: CSSProperties; count?: number | null; compareValue?: unknown } & MetricExtras) {
   const first = state.columns[0]?.code;
   // `countWhen` varsa değer koşulu sağlayan yüklenmiş satır sayısıdır; yoksa ilk satırın ilk sütunu.
   const value = count !== undefined ? countText(count) : state.rows.length > 0 && first ? cellText(state.rows[0][first]) : "—";
-  return <MetricCard title={title} description={description} style={style} hasError={!!state.error} {...card}
+  const rawValue = count !== undefined ? count : state.rows.length > 0 && first ? state.rows[0][first] : null;
+  const compare = state.loading || state.error ? null : metricCompare(rawValue, compareValue);
+  return <MetricCard title={title} description={description} style={style} hasError={!!state.error} compare={compare} {...card}
     value={state.loading ? <strong className="tenant-report-status" role="status">Yükleniyor…</strong> : state.error ? <QueryError message={state.error} />
       : neverRan(state) ? <strong className="tenant-report-status" role="status">{MANUAL_QUERY_IDLE}</strong> : <strong>{value}</strong>} />;
 }
@@ -1092,6 +1096,9 @@ function AnchorMark({ id }: { id: string }): ReactNode {
   return canvas ? createElement("template", { [ANCHOR_ATTRIBUTE]: id }) : null;
 }
 
+/** Bilgi kutusu ve kartın `items` özelliği: yalnız metinler, en fazla 40. */
+const boxItemList = (raw: unknown): string[] => Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string" && item.trim() !== "").slice(0, 40) : [];
+
 const RECORD_KEY_ROOT = /^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\./;
 
 /**
@@ -1136,7 +1143,9 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
   // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
-  const style = withConditionalWidth(visualStyle(component.type, props), component.props?.widthWhen, runtime?.scope);
+  const baseStyle = withConditionalWidth(visualStyle(component.type, props), component.props?.widthWhen, runtime?.scope);
+  const alignable = component.type === "heading" || component.type === "text" || component.type === "label" || component.type === "section";
+  const style: CSSProperties = alignable && props.textAlign === "center" ? { ...baseStyle, textAlign: "center" } : baseStyle;
   const title = textValue(props.title);
   const text = textValue(props.text ?? props.label);
   const description = textValue(props.description);
@@ -1248,8 +1257,9 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
         : barTarget ? () => barTarget.set(active ? undefined : filterValue)
         : runtime.inputById[filterInput] ? () => runtime.setInput(filterInput, filterIsCheckbox ? (active ? filterValue !== "true" : filterValue === "true") : active ? "" : filterValue)
         : undefined;
-      const card = { tone, icon, trend, active, onActivate };
-      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card}
+      const size: "sm" | "lg" | undefined = props.size === "sm" ? "sm" : props.size === "lg" ? "lg" : undefined;
+      const card = { tone, icon, trend, active, onActivate, size };
+      if (runtime && queryName && runtime.states[queryName]) return <QueryMetric key={component.id} state={runtime.states[queryName]} title={title || text || "Gösterge"} description={description} style={style} {...card} compareValue={props.compareValue}
         count={countRowsWhen(component.props?.countWhen, runtime.states[queryName].rows, queryName, runtime.scope)} />;
       // Değeri bağlama olan (sorgusuz, kaynaksız) v2 gösterge: çözülen değer `format` ile (number/money; diğerleri metin) yazılır.
       const rawValue = component.props?.value;
@@ -1263,13 +1273,17 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
         const format = props.format === "number" || props.format === "money" || props.format === "date" || props.format === "datetime" ? props.format : "text";
         const shown = formatCell(typeof resolved === "object" && resolved !== null ? null : resolved, format);
         return <MetricCard key={component.id} title={title || text || "Gösterge"} description={description} style={style} {...card}
-          value={<strong>{rest ? `${shown} ${rest}` : shown}</strong>} />;
+          compare={metricCompare(resolved, props.compareValue)} value={<strong>{rest ? `${shown} ${rest}` : shown}</strong>} />;
       }
       return <TenantReportWidget key={component.id} kind="metric" source={props.source} title={title || text || "Gösterge"} description={description} fallbackValue={value} style={style} token={token} {...card} />;
     }
     case "card": case "section": if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
       runtime={runtime} render={(child) => renderComponent(child, forms, token, pageCode, runtime)} closeInput={textValue(props.closeInput).trim()} />;
-      return <section className={`tenant-page-block tenant-page-${component.type}`} style={style} key={component.id}>{title && <h3>{title}</h3>}{description && <p>{description}</p>}{text && <p>{text}</p>}{children}</section>;
+      {
+        const boxItems = component.type === "card" ? boxItemList(props.items) : [];
+        return <DismissibleBox key={component.id} dismissible={component.type === "card" && props.dismissible === true}>{(close) =>
+          <section className={`tenant-page-block tenant-page-${component.type}${close ? " is-dismissible" : ""}`} style={style}>{close}{title && <h3>{title}</h3>}{description && <p>{description}</p>}{boxItems.length ? <ul>{boxItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul> : text && <p>{text}</p>}{children}</section>}</DismissibleBox>;
+      }
     case "divider": return <hr key={component.id} style={style} />;
     case "spacer": return <div className="tenant-page-spacer" style={style} aria-hidden="true" key={component.id} />;
     case "actionBar": {
@@ -1418,7 +1432,9 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
           {badge && <span className="tenant-page-status-strip-badge">{badge}</span>}
         </aside>;
       }
-      return <aside key={component.id} className={`tenant-page-alert tone-${variant}`} style={style} role={role}><strong>{title || "Bilgilendirme"}</strong>{text && <p>{text}</p>}</aside>;
+      const alertItems = boxItemList(props.items);
+      return <DismissibleBox key={component.id} dismissible={props.dismissible === true}>{(close) =>
+        <aside className={`tenant-page-alert tone-${variant}${close ? " is-dismissible" : ""}`} style={style} role={role}>{close}<strong>{title || "Bilgilendirme"}</strong>{alertItems.length ? <ul>{alertItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul> : text && <p>{text}</p>}</aside>}</DismissibleBox>;
     }
     case "badge": {
       return <PageBadge key={component.id} text={text || title || "Durum"} variant={props.variant} toneMap={props.toneMap} style={style} />;
@@ -1468,8 +1484,11 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       return <PageImage key={component.id} url={value} alt={title} height={height} fit={props.fit === "cover" ? "cover" : "contain"} style={style} />;
     }
     case "progress": {
-      const progress = Math.max(0, Math.min(100, Number(props.value) || 0));
-      return <section key={component.id} className="tenant-page-block tenant-page-progress" style={style}><div><strong>{title || "İlerleme"}</strong><span>{progress}%</span></div><progress max={100} value={progress} aria-label={title || "İlerleme"} /></section>;
+      const totalText = textValue(props.progressTotal).trim();
+      const total = totalText !== "" && Number.isFinite(Number(totalText)) && Number(totalText) !== 0 ? Number(totalText) : null;
+      const current = Number(props.value) || 0;
+      const progress = Math.max(0, Math.min(100, total === null ? current : Math.round((current / total) * 100)));
+      return <section key={component.id} className="tenant-page-block tenant-page-progress" style={style}><div><strong>{title || "İlerleme"}</strong><span>{progress}%</span></div><progress max={100} value={progress} aria-label={title || "İlerleme"} />{total !== null && <small className="tenant-progress-total">{`${current} / ${total}`}</small>}</section>;
     }
     default: return null;
   }

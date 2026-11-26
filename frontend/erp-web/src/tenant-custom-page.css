@@ -521,3 +521,16 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 #root .app-shell .tenant-page-presets > button[aria-pressed="true"] { position: relative; border-color: var(--nx-primary); background: var(--nx-primary); color: #fff; }
 #root .app-shell .tenant-page-presets > button:focus-visible { position: relative; outline: 2px solid color-mix(in srgb, var(--nx-primary) 40%, transparent); outline-offset: 1px; }
 #root .app-shell .tenant-page-presets > button:disabled { color: var(--nx-muted); cursor: not-allowed; }
+
+/* Bileşen paneli özellikleri (alt proje 5a) */
+.tenant-metric-compare { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tenant-metric-compare.is-up { color: var(--nx-ok); }
+.tenant-metric-compare.is-down { color: var(--nx-bad); }
+.tenant-page-metric.is-sm { padding: 8px 10px; }
+.tenant-page-metric.is-sm strong { font-size: 14px; }
+.tenant-page-metric.is-lg strong { font-size: 26px; }
+.tenant-page-alert > ul, .tenant-page-card > ul { margin: 4px 0 0; padding-left: 18px; }
+.tenant-page-alert.is-dismissible, .tenant-page-card.is-dismissible { position: relative; padding-right: 34px; }
+.tenant-page-dismiss { position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; opacity: 0.7; }
+.tenant-page-dismiss:hover, .tenant-page-dismiss:focus-visible { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.tenant-progress-total { display: block; margin-top: 6px; color: var(--nx-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
