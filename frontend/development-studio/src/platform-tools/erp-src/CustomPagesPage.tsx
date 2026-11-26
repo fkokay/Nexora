@@ -60,7 +60,8 @@ import { stringList, withOperationParameters, type ModelDefinition } from "./pag
 import { addField, addLines, addNote, linesSourceUsable, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
-import { ensureTemplateSlots, recordRemoval, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { ensureTemplateSlots, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
 import type { CanvasBlock as ErpCanvasBlock } from "./page-designer/erpCanvasProtocol";
 import { dropIndex } from "./page-designer/canvasHitTest";
 import { useDraftAutosave } from "./page-designer/useDraftAutosave";
@@ -1239,6 +1240,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Önizleme uç noktası yalnız taslak açar: yayımlı sürümde (taslak yokken) sessizce yerleşik tuval gösterilir.
   const erpCanvas = erpCanvasAvailable && !focusOwner && !current?.isPublished;
   useEffect(() => { erpBlocks.current = []; setCanvasError(""); }, [current?.id, systemScreenKey, erpCanvas]);
+  // Kayıt kartı tuvalinde gösterilen sekme (ERP'ye `showTab` ile istenir); başka sayfada ilk sekmeden başlanır.
+  const [recordTab, setRecordTab] = useState(0);
+  useEffect(() => { setRecordTab(0); }, [current?.id, systemScreenKey]);
   // Kart / pencere odağına girip çıkmak sessiz kaydın sorununu silmez; yalnız başka sayfaya geçince silinir.
   useEffect(() => { setCanvasHint(""); }, [current?.id, systemScreenKey]);
 
@@ -3724,16 +3728,18 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     const owner = recordSections.find((section) => stringList(section.props.inputs).includes(selectedComponentId ?? ""))?.id ?? selectedComponentId ?? "";
     return Math.max(0, recordTabs(recordDef).findIndex((tab) => tab.ids.includes(owner)));
   };
-  const addRecordColumn = (code: string) => {
+  // Tuvale bırakılınca hedef verilir (bölüm ve sıra); tıklayınca seçime göre bulunur.
+  const addRecordColumn = (code: string, target?: { sectionId: string; index: number }) => {
     const column = recordCatalog?.dataSources.find((item) => item.code === recordQuery(recordDef)?.dataSource)?.columns.find((item) => item.code === code);
     if (!column) return;
-    const sectionId = sectionWithRoom();
-    if (!sectionId) { setError("Alanı ekleyecek yer yok: bir bölümde en çok 12 alan olur. Önce yeni bir bölüm ekleyin."); return; }
-    commitRecord(addField(recordDef, column, sectionId, MAX_SECTION_FIELDS), "input");
+    const targetSection = target ? recordSections.find((section) => section.id === target.sectionId) : undefined;
+    const sectionId = target ? (targetSection && stringList(targetSection.props.inputs).length < MAX_SECTION_FIELDS ? target.sectionId : null) : sectionWithRoom();
+    if (!sectionId) { setError(`Alanı ekleyecek yer yok: bir bölümde en çok ${MAX_SECTION_FIELDS} alan olur. Önce yeni bir bölüm ekleyin.`); return; }
+    commitRecord(addField(recordDef, column, sectionId, target?.index ?? MAX_SECTION_FIELDS), "input");
   };
-  const addRecordBlock = (kind: RecordBlockKind) => {
-    const tabIndex = selectedTab();
-    const end = recordTabs(recordDef)[tabIndex]?.ids.length ?? 0;
+  const addRecordBlock = (kind: RecordBlockKind, target?: { tabIndex: number; index: number }) => {
+    const tabIndex = target?.tabIndex ?? selectedTab();
+    const end = target?.index ?? recordTabs(recordDef)[tabIndex]?.ids.length ?? 0;
     if (kind === "note") { commitRecord(addNote(recordDef, tabIndex, end, "Açıklama metni"), "text"); return; }
     const own = recordQuery(recordDef)?.dataSource;
     const sources = (recordCatalog?.dataSources ?? []).filter((item) => linesSourceUsable(recordDef, item).usable);
@@ -3833,8 +3839,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {!focusOwner && !erpCanvas && condOffCount > 0 && <button type="button" className={`pd-cond-toggle${showCondOff ? " is-on" : ""}`} aria-pressed={showCondOff} title="Örnek veride koşulu tutmayan bileşenler ERP'deki gibi yer kaplamaz" onClick={() => setShowCondOff((value) => !value)}>{condOffCount} koşullu gizli · {showCondOff ? "gizle" : "göster"}</button>}
         </div>
         <div className="pd-canvas-scroll" onClick={() => setSelectedComponentId(null)}>
+          {/* Kayıt kartında sürükle-bırak tuvalin kaplamasındadır (RecordCanvasOverlay); genel bırakma yolu kullanılmaz. */}
           {erpCanvas ? current ? <div className="pd-erp-canvas-host" onClick={(event) => event.stopPropagation()}
-            onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}>
+            {...(isRecordPage ? {} : { onDragOver: canvasHandlers.onDragOver, onDragLeave: canvasHandlers.onDragLeave, onDrop: canvasHandlers.onDrop })}>
             {canvasError && <div className="pd-erp-canvas-hint" role="status">ERP sayfası yüklenemedi; sonraki kayıtta yeniden denenir. Neden: {canvasError}</div>}
             {canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}
             <ErpCanvasFrame platformOrigin={platformOrigin!} token={token} tenant={tenant!} target={{ previewId: current.id, systemScreenKey }}
@@ -3842,7 +3849,19 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               selectedId={selectedComponentId} interactive={canvasInteractive} onSelect={setSelectedComponentId}
               onBlocks={(blocks) => { erpBlocks.current = blocks; }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
-              onError={(message) => setCanvasError(message ?? "")}/>
+              onError={(message) => setCanvasError(message ?? "")}
+              overlay={isRecordPage ? ({ blocks, showTab }) => {
+                const tabCount = recordTabs(recordDef).length;
+                const activeTab = Math.max(0, Math.min(recordTab, tabCount - 1));
+                const tabsId = recordDef.components.find((component) => component.type === "tabs" && component.props.slot === "tabs")?.id;
+                return <RecordCanvasOverlay blocks={blocks} def={recordDef} activeTab={activeTab} disabled={!canEdit}
+                  selection={recordSelectionOf(recordDef, selectedComponentId)}
+                  onChange={(next) => commit(() => next as unknown as PageDefinition)}
+                  onSelect={(selection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id)}
+                  onShowTab={(index) => { setRecordTab(index); if (tabsId) showTab(tabsId, index); }}
+                  onDropColumn={(code, sectionId, index) => addRecordColumn(code, { sectionId, index })}
+                  onDropBlock={(kind, tabIndex, index) => addRecordBlock(kind, { tabIndex, index })}/>;
+              } : undefined}/>
           </div>
             : <>{canvasHint && <div className="pd-erp-canvas-hint" role="status">{canvasHint}</div>}<div className="pd-canvas-empty" onDragOver={canvasHandlers.onDragOver} onDragLeave={canvasHandlers.onDragLeave} onDrop={canvasHandlers.onDrop}><LayoutTemplate size={26}/><span>{(name.trim() && code.trim() ? listSourceProblem(definition) ?? recordSourceProblem(definition) : null) ?? "Önizleme için sağdan sayfa adı ve kodunu girin."}</span></div></>
           : pageTemplate && !focusOwner ? <div className="pd-canvas-empty pd-template-canvas-note" role="status"><LayoutTemplate size={26}/><span>{TEMPLATE_CANVAS_FALLBACK}</span></div>

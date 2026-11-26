@@ -224,4 +224,34 @@ describe("ErpCanvasFrame", () => {
     layout(1, 640);
     expect(container.querySelector(".pd-erp-canvas-selected")).not.toBeNull();
   });
+  describe("Kayıt kartı kaplaması", () => {
+    const ready = { nx: "nexora-canvas", v: 1, type: "ready", revision: 0 };
+    const tabLayout = { nx: "nexora-canvas", v: 1, type: "layout", revision: 1, height: 400,
+      blocks: [{ id: "a", x: 0, y: 0, width: 300, height: 80 }, { id: "t#tab1", x: 10, y: 10, width: 40, height: 20 }] };
+
+    it("kaplama blokları alır; showTab ERP'ye gider ve ready sonrası yinelenir", () => {
+      let api: { blocks: unknown[]; showTab: (tabsId: string, index: number) => void } | null = null;
+      const overlay = vi.fn((frame) => { api = frame; return <i className="kaplama"/>; });
+      const { container, send, post } = setup({ overlay });
+      send(tabLayout);
+      expect(container.querySelector(".kaplama")).not.toBeNull();
+      expect(api!.blocks).toHaveLength(2);
+      act(() => api!.showTab("t", 1));
+      const message = { nx: "nexora-canvas", v: 1, type: "showTab", tabsId: "t", index: 1 };
+      expect(post).toHaveBeenCalledWith(message, ORIGIN);
+      post.mockClear();
+      send(ready);
+      expect(post).toHaveBeenCalledWith(message, ORIGIN);
+    });
+
+    it("sekme kutusu seçilmez; Dene kipinde kaplama çizilmez", () => {
+      const { container, send, props } = setup({ overlay: () => <i className="kaplama"/> });
+      send(tabLayout);
+      fireEvent.click(container.querySelector(".pd-erp-canvas-overlay")!, { clientX: 20, clientY: 15 });
+      expect(props.onSelect).toHaveBeenCalledWith("a");
+      const tried = setup({ interactive: true, overlay: () => <i className="kaplama"/> });
+      tried.send(tabLayout);
+      expect(tried.container.querySelector(".kaplama")).toBeNull();
+    });
+  });
 });
