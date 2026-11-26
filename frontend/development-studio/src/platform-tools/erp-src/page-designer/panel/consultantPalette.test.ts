@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CONSULTANT_PALETTE, isCreatableKind, consultantAvailability, consultantDescription, consultantKindOf, createConsultantComponent, type ConsultantKind } from "./consultantPalette";
 import { designerInternals } from "../../CustomPagesPage";
+import type { ActiveCatalog, CatalogComponent } from "../catalogClient";
 
 const comp = (type: string, props: Record<string, string | number | boolean | string[]> = {}, extra: Record<string, unknown> = {}) => ({ id: "x", type, props, ...extra });
 
@@ -22,7 +23,7 @@ describe("consultantPalette", () => {
     expect(consultantAvailability("list", "list")).toEqual({ available: false, reason: "Bu kalıpta tek liste vardır." });
     for (const kind of ["form", "lineTable", "recordSummary", "sections"] as ConsultantKind[]) expect(consultantAvailability(kind, "list")).toEqual({ available: false, reason: "Bu bileşen sonraki sürümde gelir." });
     expect(consultantAvailability("buttons", "list")).toEqual({ available: false, reason: "Düğmeleri Liste panelindeki Eylemler bölümünden ekleyin." });
-    expect(consultantAvailability("developer", "list")).toEqual({ available: false, reason: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil." });
+    expect(consultantAvailability("developer", "list")).toEqual({ available: false, reason: "Henüz yayınlanmış bir yazılımcı bileşeni yok." });
   });
 
   it("createConsultantComponent returns expected type and props", () => {
@@ -72,7 +73,7 @@ describe("consultantAvailability per template (5c Karar 10)", () => {
     for (const kind of ["form", "recordSummary"] as ConsultantKind[]) expect(consultantAvailability(kind, "free")).toEqual({ available: false, reason: "Bu bileşen Kayıt kartı kalıbında kullanılır." });
     expect(consultantAvailability("lineTable", "free")).toEqual({ available: false, reason: "Düzenlenebilir satırlar Belge kalıbıyla gelecek." });
     expect(consultantAvailability("buttons", "free")).toEqual({ available: false, reason: "Düğmeleri sayfa panelindeki Eylemler bölümünden ekleyin." });
-    expect(consultantAvailability("developer", "free")).toEqual({ available: false, reason: "Yazılımcı bileşenleri katalogdan gelecek; henüz hazır değil." });
+    expect(consultantAvailability("developer", "free")).toEqual({ available: false, reason: "Henüz yayınlanmış bir yazılımcı bileşeni yok." });
   });
 
   it("record palette reasons for form recordSummary lineTable", () => {
@@ -93,5 +94,31 @@ describe("consultantKindOf strip alert (final review fix 3)", () => {
     expect(consultantKindOf(comp("alert", { icon: "shield" }))).toBeNull();
     expect(consultantKindOf(comp("alert", { icon: "" }))).toBe("infoBox");
     expect(consultantKindOf(comp("alert", { variant: "info" }))).toBe("infoBox");
+  });
+});
+
+describe("developer component in palette (Karar 5)", () => {
+  const harita: CatalogComponent = { code: "satisHaritasi", label: "Satış haritası", description: null, height: 240, settings: [] };
+  const withComponents: ActiveCatalog = { version: "1", dataSources: [], actions: [], components: [harita] };
+  const empty: ActiveCatalog = { version: "1", dataSources: [], actions: [], components: [] };
+
+  it("palette enables developer only when catalog has components", () => {
+    const none = { available: false, reason: "Henüz yayınlanmış bir yazılımcı bileşeni yok." };
+    for (const template of ["list", "record", "free"] as const) {
+      expect(consultantAvailability("developer", template)).toEqual(none);
+      expect(consultantAvailability("developer", template, null)).toEqual(none);
+      expect(consultantAvailability("developer", template, empty)).toEqual(none);
+      expect(consultantAvailability("developer", template, { version: "1", dataSources: [], actions: [] })).toEqual(none);
+      expect(consultantAvailability("developer", template, withComponents)).toEqual({ available: true });
+    }
+    // Öteki öğeler katalogdan etkilenmez.
+    expect(consultantAvailability("list", "list", withComponents)).toEqual(consultantAvailability("list", "list"));
+    expect(consultantAvailability("text", "free", withComponents)).toEqual({ available: true });
+  });
+
+  it("createConsultantComponent developer makes a catalog code component", () => {
+    expect(createConsultantComponent("developer", "y1", harita)).toEqual({ id: "y1", type: "code", props: { catalogComponent: "satisHaritasi" } });
+    const created = createConsultantComponent("developer", "y1", harita);
+    for (const key of ["css", "javascript", "slot", "componentSettings"]) expect(created.props).not.toHaveProperty(key);
   });
 });
