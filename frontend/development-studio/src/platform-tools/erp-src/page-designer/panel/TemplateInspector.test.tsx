@@ -132,3 +132,44 @@ describe("TemplateInspector", () => {
     expect(extra).toContain("Kartın üstü");
   });
 });
+
+describe("TemplateInspector on record extra areas (5c Karar 9)", () => {
+  const base = () => newRecordTemplateDefinition() as unknown as ModelDefinition;
+  const recordDef = (component: ModelComponent) => ({ ...base(), components: [...base().components, component] }) as ModelDefinition;
+  const recordTokens = [{ label: "Cari kodu", binding: "kayit.rows[0].kod" }];
+  const renderRecord = (component: ModelComponent) => {
+    const def = recordDef(component);
+    return renderToString(<TemplateInspector component={component} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def }}
+      record={{ def, catalog: null, onChange: () => {}, onSelect: () => {} }} tokens={recordTokens} onPlace={() => {}}/>);
+  };
+
+  it("record above text opens TextPanel with record tokens", () => {
+    const html = renderRecord({ id: "ek", type: "heading", name: "ek", props: { slot: "above", text: "Cari {{kayit.rows[0].kod}}" } });
+    expect(html).not.toContain("BUGUNKU");
+    expect(html).toContain("Paragraf");
+    expect(html).toContain("Cari {Cari kodu}");
+    expect(html).toContain("Kartın üstü");
+    expect(html).toContain("Kartın altı");
+    expect(html).not.toContain("Listenin üstü");
+    expect(html.indexOf("Bileşen adı")).toBeLessThan(html.indexOf("Yeri"));
+  });
+  it("record extra areas open info box, image and indicator panels", () => {
+    expect(renderRecord({ id: "b", type: "alert", props: { slot: "below", variant: "info", title: "Bilgi", text: "" } })).toContain("Kullanıcı kapatabilsin");
+    expect(renderRecord({ id: "r", type: "image", props: { slot: "below", value: "" } })).toContain("Görsel nereden?");
+    const metric = renderRecord({ id: "g", type: "metric", props: { slot: "above", title: "Gösterge" } });
+    expect(metric).not.toContain("BUGUNKU");
+    expect(metric).toContain("Kartın üstü");
+    expect(metric).not.toContain("Listenin üstü");
+    expect(metric).not.toContain("Göstergeler</button>");
+  });
+  it("record parts still open RecordPanel", () => {
+    const def = base();
+    const html = renderToString(<TemplateInspector component={def.components[0]} legacy={<i>BUGUNKU</i>} list={{ ...list, definition: def }}
+      record={{ def, catalog: null, onChange: () => {}, onSelect: () => {} }} tokens={[]} onPlace={() => {}}/>);
+    expect(html).toContain("Hangi kayıt gösterilsin?");
+    expect(html).not.toContain("BUGUNKU");
+  });
+  it("record buttons in extra areas keep today's panel", () => {
+    expect(renderRecord({ id: "d", type: "button", props: { slot: "below", text: "x" } })).toContain("BUGUNKU");
+  });
+});

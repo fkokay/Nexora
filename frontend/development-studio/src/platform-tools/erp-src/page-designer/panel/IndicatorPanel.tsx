@@ -1,3 +1,4 @@
+import { readPageTemplate } from "../pageTemplates";
 import type { ReactNode } from "react";
 import type { ActiveCatalog, CatalogDataSource } from "../catalogClient";
 import type { ErpOperation } from "../erpOperations";
@@ -16,6 +17,7 @@ export const INDICATOR_DELETED_COLUMN = "Silinmiş alan";
 export const INDICATOR_DEV_NOTE = "Yazılımcının hazırladığı değer · birimi ondan gelir";
 const KINDS: [IndicatorKind, string][] = [["number", "Sayı"], ["progress", "İlerleme"], ["status", "Durum"]];
 const PLACES: [IndicatorPlace, string][] = [["indicators", "Göstergeler"], ["above", "Listenin üstü"], ["below", "Listenin altı"]];
+const RECORD_PLACES: Partial<Record<IndicatorPlace, string>> = { above: "Kartın üstü", below: "Kartın altı" };
 const SIZES: [IndicatorSize, string][] = [["sm", "Küçük"], ["lg", "Büyük"]];
 const NO_INDICATORS_NOTE: Record<string, string> = {
   progress: "İlerleme göstergeler sırasına konamaz; listenin üstünde ya da altında durur.",
@@ -106,10 +108,11 @@ export function IndicatorPanel({ component, definition, catalog, catalogStatus, 
       </select></label>}
   </>;
   // "Yeri" Ad bölümünün altında (Metin, Bilgi kutusu ve Görsel ile aynı); seçenekler `indicatorPlaces`'ten gelir.
+  const record = readPageTemplate(definition.template)?.name === "record";
   const place = <div className="cpanel-row cpanel-template-place">Yeri
-    <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, label]) =>
+    <div className="cpanel-seg" role="group" aria-label="Yeri">{PLACES.filter(([value]) => indicatorPlaces(definition, component).includes(value)).map(([value, listLabel]) =>
       <button type="button" key={value} className={component.props.slot === value ? "on" : ""} aria-pressed={component.props.slot === value} disabled={disabled}
-        onClick={() => change(setIndicatorPlace(definition, id, value))}>{label}</button>)}</div>
+        onClick={() => change(setIndicatorPlace(definition, id, value))}>{(record && RECORD_PLACES[value]) || listLabel}</button>)}</div>
     {NO_INDICATORS_NOTE[component.type] && <p className="cpanel-note">{NO_INDICATORS_NOTE[component.type]}</p>}
   </div>;
 

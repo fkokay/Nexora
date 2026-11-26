@@ -2,6 +2,7 @@
 // Değerler parametresiz katalog veri kaynaklarından gelir: kaynak bir okuma sorgusu olur, değer `{{<sorgu>.rows[0].<kolon>}}` bağlamasıdır.
 import type { CatalogDataSource } from "../catalogClient";
 import type { PageQuery } from "../QueriesPanel";
+import { readPageTemplate } from "../pageTemplates";
 import { METRIC_ICONS } from "../metricIcons";
 import { freeId, type ModelComponent, type ModelDefinition, type Usable } from "./listPanelModel";
 
@@ -191,9 +192,14 @@ export function setIndicatorSize<D extends ModelDefinition>(def: D, id: string, 
   return mapComponent(def, id, (c) => ({ ...c, props: size === "lg" ? { ...c.props, size: "lg" } : without(c.props, "size") }));
 }
 
-/** Liste kalıbında göstergenin yerleri: ilerleme ve durum `indicators` sırasına konamaz. */
+/**
+ * Liste kalıbında göstergenin yerleri: ilerleme ve durum `indicators` sırasına konamaz. Kayıt kartında yalnız `above` / `below`;
+ * serbest gövdede yerleri bölüm seçimi verir (boş).
+ */
 export function indicatorPlaces(def: ModelDefinition, c: ModelComponent): IndicatorPlace[] {
-  void def;
+  const template = readPageTemplate(def.template)?.name;
+  if (template === "free") return [];
+  if (template === "record") return ["above", "below"];
   return c.type === "metric" ? ["indicators", "above", "below"] : ["above", "below"];
 }
 

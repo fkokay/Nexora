@@ -28,7 +28,7 @@ export function usesTemplateInspector(def: Pick<ModelDefinition, "template" | "c
  * Kalıplı sayfanın özellikler paneli.
  * - Kayıt kartında (`record` verilirse) kartın parçaları ve sayfa (`component` yokken) `RecordPanel`'de açılır.
  * - Liste kalıbında liste için `ListPanel`; Metin, Bilgi kutusu, Gösterge, Görsel ve eylem yerlerindeki düğmeler için
- *   danışman panelleri (alt proje 5a). Kayıt kartının ek alanlarında danışman panelleri sonraki planda gelir.
+ *   danışman panelleri (alt proje 5a). Kayıt kartının ek alanlarında (`above` / `below`) da aynı paneller açılır (alanlar kaydın kolonlarındandır).
  * - Öteki bileşenler için `ComponentPanel` içinde bugünkü ayar alanları.
  * Bileşen adı bağlamalarda kullanıldığından danışman panellerinde salt okunurdur. Ek alanlarda (`above` / `below`) Ad
  * bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
@@ -54,8 +54,8 @@ export function TemplateInspector({ component, legacy, list, record, tokens, dis
         <button type="button" key={value} className={slot === value ? "on" : ""} aria-pressed={slot === value} disabled={disabled} onClick={() => onPlace(value)}>{labels[value]}</button>)}</div></div>
     : null;
 
-  // Danışman panelleri yalnız Liste kalıbında (5a); Kayıt kartında yerler ve alanlar farklıdır.
-  const kind = list && !record ? consultantKindOf(component) : null;
+  // Danışman panelleri Liste kalıbında (5a) ve Kayıt kartının ek alanlarında (5c Karar 9) açılır; kartın öteki yerlerinde eski panel kalır.
+  const kind = list && (!record || extra) ? consultantKindOf(component) : null;
   if (list && kind) {
     const common = { component, definition: list.definition, disabled, onChange: list.onChange, onRename: () => {}, visibility: list.visibility };
     switch (kind) {
