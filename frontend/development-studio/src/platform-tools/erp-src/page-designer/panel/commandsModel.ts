@@ -78,15 +78,18 @@ export function commandShown(def: ModelDefinition, id: TemplateCommandId): boole
   return id === "saveNew" ? props.saveAndNew === true : !isCommandHidden(props.hiddenCommands, id);
 }
 
-/** Kaydet ve yeni açılabilir mi: sayfada bir Kaydet (çubukta ya da kartın düğmesinde) ve çubukta bir Yeni komutu var. */
-function saveNewPossible(def: ModelDefinition): boolean {
+/**
+ * Kaydet ve yeni açılabilir mi: Kaydet çubukta (`saveQuery`/`saveSequence`) ve çubukta bir Yeni komutu var. Kaydet kartın
+ * düğmesindeyse açılmaz: sunucu Kaydet ve yeni için çubukta bir Kaydet ister.
+ */
+export function saveNewPossible(def: ModelDefinition): boolean {
   const mode = barModes(barProps(def)).new;
-  return saveOwner(def) !== null && (mode === "clear" || mode === "page" || mode === "dialog" || mode === "button");
+  return saveOwner(def)?.owner === "bar" && (mode === "clear" || mode === "page" || mode === "dialog" || mode === "button");
 }
 
 /**
  * Gözü çevirir. Gizlenen komutun ayarları (sorgu, hedef, onay metni…) korunur; göz açılınca geri gelir. Kaydet ve yeni,
- * Kaydet ya da Yeni komutu yokken açılmaz (sunucunun `saveAndNew` kuralı); tanım değişmez.
+ * çubukta Kaydet ya da Yeni komutu yokken açılmaz (sunucunun `saveAndNew` kuralı); tanım değişmez.
  */
 export function toggleCommand<D extends ModelDefinition>(def: D, id: TemplateCommandId): D {
   const shown = commandShown(def, id);

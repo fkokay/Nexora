@@ -1,17 +1,16 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { PAGE_CODE_MAX, pageCodeFromName, sanitizePageCode, uniquePageCode } from "./leftPanelModel";
-import { LEGACY_TEMPLATE_CHOICE, PAGE_TEMPLATE_CHOICES, type LegacyTemplateChoice, type PageTemplateChoice } from "./pageTemplates";
+import { PAGE_TEMPLATE_CHOICES, type PageTemplateChoice } from "./pageTemplates";
 import "./left-panel.css";
 
 export type TemplateChoice = { id: string; label: string; description: string };
-/** Pencerenin kalıp seçimi: üç kalıp ve en sonda bugünkü kalıpsız tasarımcı ("legacy"). */
-export type NewPageChoice = PageTemplateChoice["id"] | LegacyTemplateChoice["id"];
+/** Pencerenin kalıp seçimi: yeni sayfa yalnız dört kalıptan biriyle açılır (5b-2); kalıpsız tasarımcı seçimi yoktur. */
+export type NewPageChoice = PageTemplateChoice["id"];
 export type NewPageResult = { name: string; code: string; templateId: string; pageTemplate?: NewPageChoice };
-const CHOICES: (PageTemplateChoice | LegacyTemplateChoice)[] = [...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE];
 
 type Props = {
-  /** "create": Yeni özel sayfa (ad, kod, şablon); "template": boş sayfaya yalnız şablon seçimi. */
+  /** "create": Yeni özel sayfa (ad, kod, kalıp); "template": var olan boş kalıpsız sayfaya yalnız bileşen ön ayarı ("Şablonla başla"). */
   mode: "create" | "template";
   templates: TemplateChoice[];
   /** Başka sayfalarda kullanılan kodlar (benzersizlik denetimi). */
@@ -32,9 +31,9 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
   const [code, setCode] = useState("");
   const [codeEdited, setCodeEdited] = useState(false);
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "blank");
-  // Yeni sayfada ilk adım kalıp seçimidir; "template" kipinde (kalıpsız sayfa) yalnız bileşen ön ayarı seçilir.
-  const [pageTemplate, setPageTemplate] = useState<NewPageChoice | null>(create ? null : "legacy");
-  const choosing = pageTemplate === null;
+  // Yeni sayfada ilk adım kalıp seçimidir; "template" kipinde (var olan kalıpsız sayfa) yalnız bileşen ön ayarı seçilir.
+  const [pageTemplate, setPageTemplate] = useState<NewPageChoice | null>(null);
+  const choosing = create && pageTemplate === null;
   const [prefilled, setPrefilled] = useState(false);
   const choose = (id: NewPageChoice) => {
     setPageTemplate(id);
@@ -49,9 +48,9 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
   const codeProblem = !create || !code ? null
     : !CODE_PATTERN.test(code) ? "Kod yalnız küçük harf, rakam, - ve _ içerebilir."
     : taken(code) ? "Bu kod başka bir sayfada kullanılıyor; farklı bir kod yazın." : null;
-  const ready = !create || (name.trim() !== "" && code !== "" && !codeProblem);
+  const ready = !create || (pageTemplate !== null && name.trim() !== "" && code !== "" && !codeProblem);
   const title = create ? "Yeni özel sayfa" : "Şablonla başla";
-  const confirm = () => { if (ready) onConfirm({ name: name.trim(), code, templateId, ...(create ? { pageTemplate: pageTemplate ?? "legacy" } : {}) }); };
+  const confirm = () => { if (ready) onConfirm({ name: name.trim(), code, templateId, ...(create && pageTemplate ? { pageTemplate } : {}) }); };
 
   return <div className="pd-lp-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
     <section className="pd-lp-modal pd-np-modal" role="dialog" aria-modal="true" aria-label={title} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onCancel(); } }}>
@@ -59,7 +58,7 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
       {choosing ? <div className="pd-lp-modal-body">
         <div className="pd-field">Sayfa kalıbı
           <div className="pd-np-templates" role="radiogroup" aria-label="Sayfa kalıbı">
-            {CHOICES.map((choice) => <button type="button" role="radio" aria-checked={false} key={choice.id} className={`pd-np-template${choice.id === "legacy" ? " is-legacy" : ""}`} onClick={() => choose(choice.id)}>
+            {PAGE_TEMPLATE_CHOICES.map((choice) => <button type="button" role="radio" aria-checked={false} key={choice.id} className="pd-np-template" onClick={() => choose(choice.id)}>
               <span className="pd-np-preview" aria-hidden="true"/><b>{choice.label}</b><small>{choice.description}</small>
             </button>)}
           </div>
@@ -72,10 +71,10 @@ export default function NewPageDialog({ mode, templates, takenCodes, suggestedRe
             onChange={(event) => { setCodeEdited(true); setPrefilled(false); setCode(sanitizePageCode(event.target.value)); }}/>
             {codeProblem ? <small className="pd-np-problem" role="alert">{codeProblem}</small> : <small>Adres olarak kullanılır; kaydedildikten sonra değiştirilemez.</small>}</label>
         </div>}
-        {pageTemplate === "legacy" && <div className="pd-field">Şablon
+        {!create && <div className="pd-field">Şablon
           <div className="pd-np-templates" role="radiogroup" aria-label="Şablon">
             {templates.map((template) => <button type="button" role="radio" aria-checked={templateId === template.id} key={template.id} className={`pd-np-template${templateId === template.id ? " is-on" : ""}`}
-              onClick={() => setTemplateId(template.id)} onDoubleClick={() => { setTemplateId(template.id); if (ready) onConfirm({ name: name.trim(), code, templateId: template.id, ...(create ? { pageTemplate: "legacy" as const } : {}) }); }}>
+              onClick={() => setTemplateId(template.id)} onDoubleClick={() => { setTemplateId(template.id); if (ready) onConfirm({ name: name.trim(), code, templateId: template.id }); }}>
               <span className="pd-np-preview" aria-hidden="true"/><b>{template.label}</b><small>{template.description}</small>
             </button>)}
           </div>

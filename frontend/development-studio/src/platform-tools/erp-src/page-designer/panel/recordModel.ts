@@ -546,19 +546,31 @@ export function setSaveActions<D extends ModelDefinition>(def: D, insert: Catalo
   if (insert && (insert.kind !== "insert" || !recordActionUsable(def, insert).usable)) return def;
   if (update && (update.kind !== "update" || !recordActionUsable(def, update).usable)) return def;
   const old = saveButtonOf(def);
+  // Ana ekle/güncelle dışındaki adımlar (Komutlar › Kaydet'te eklenenler) koşulları ve "hata olursa dur"la korunur.
+  const oldQueries = old ? buttonQueryIds(old).map((id) => queryById(def, id)) : [];
+  const mainIds = new Set([oldQueries.find((query) => query?.kind === "insert")?.id, oldQueries.find((query) => query?.kind === "update")?.id]);
+  const chosen = new Set([insert?.code, update?.code].filter((code): code is string => !!code));
+  const extras = oldQueries.filter((query): query is PageQuery => !!query && !mainIds.has(query.id) && !(query.action && chosen.has(query.action)));
+  const oldWhen = old ? Object.fromEntries(stringList(old.props.sequenceWhen).flatMap((item) => {
+    const at = item.indexOf("=");
+    return at > 0 ? [[item.slice(0, at), item.slice(at)]] : [];
+  })) as Record<string, string> : {};
   let next = old ? removeComponents(def, new Set([old.id])) : def;
-  if (insert || update) {
+  next = { ...next, queries: [...next.queries, ...extras.filter((query) => !next.queries.includes(query))] };
+  if (insert || update || extras.length > 0) {
     const insertQuery = insert ? actionQuery(next, insert) : null;
     const updateQuery = update ? actionQuery(next, update, new Set(insertQuery ? [insertQuery.id.toLowerCase()] : [])) : null;
     const steps = [insertQuery, updateQuery].filter((query): query is PageQuery => !!query);
     const reserved = new Set(steps.map((query) => query.id.toLowerCase()));
     const buttonId = freeId(next, "kaydet", reserved);
     const button: ModelComponent = { id: buttonId, type: "button", name: buttonId, props: {
-      slot: "actions", text: SAVE_LABEL, actionType: "sequence", saveSequence: steps.map((query) => query.id),
+      slot: "actions", text: SAVE_LABEL, actionType: "sequence", saveSequence: [...steps, ...extras].map((query) => query.id),
       sequenceWhen: [
         ...(insertQuery ? [`${insertQuery.id}=${rowPath(key)} == null`] : []),
         ...(updateQuery ? [`${updateQuery.id}=${rowPath(key)} != null`] : []),
+        ...extras.flatMap((query) => query.id in oldWhen ? [`${query.id}${oldWhen[query.id]}`] : []),
       ],
+      ...(old?.props.stopOnError === false ? { stopOnError: false } : {}),
     } };
     next = { ...next, queries: [...next.queries, ...steps], components: [...next.components, button] };
   }

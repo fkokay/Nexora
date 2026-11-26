@@ -10,7 +10,7 @@ import {
 } from "./commandsModel";
 import { fieldTokens } from "./consultantText";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
-import { chooseRecordSource, deleteAction, recordKey, saveActions } from "./recordModel";
+import { chooseRecordSource, deleteAction, recordKey, saveActions, setSaveActions } from "./recordModel";
 
 const col = (code: string, label: string, key = false) => ({ code, label, type: "text", key, longText: false, required: key, maxLength: null });
 const cari: CatalogDataSource = {
@@ -260,12 +260,20 @@ describe("commands model", () => {
     expect(setFocusInput(list, null)).toBe(list);
   });
 
-  it("Kaydet ve yeni opens only with a Kaydet and a Yeni command", () => {
+  it("Kaydet ve yeni opens only with a Kaydet in the bar and a Yeni command", () => {
     const studio = studioRecord();
     expect(toggleCommand(studio, "saveNew")).toBe(studio);
+    // Kaydet kartın düğmesindeyken açılmaz: sunucu Kaydet ve yeni için çubukta bir Kaydet ister.
     const withNew = setNewCommand(studio, { action: "clear", inputs: ["unvan"] });
-    const on = toggleCommand(withNew, "saveNew");
+    expect(toggleCommand(withNew, "saveNew")).toBe(withNew);
+    // Kaydet'i çubukta olan kart (katalog adımlarıyla).
+    const button = withNew.components.find((component) => component.type === "button" && component.props.actionType === "sequence")!;
+    const barOwned = deepFreeze<ModelDefinition>({ ...withNew, components: withNew.components.filter((component) => component.id !== button.id).map((component) =>
+      component.type === "actionBar" ? { ...component, props: { ...component.props, saveSequence: button.props.saveSequence, sequenceWhen: button.props.sequenceWhen } } : component) });
+    expect(saveSteps(barOwned).owner).toBe("bar");
+    const on = toggleCommand(barOwned, "saveNew");
     expect(commandShown(on, "saveNew")).toBe(true);
+    expect(barCommandProblem(barOf(on).props)).toBeNull();
     // Kaydet'in son adımı kalkınca Kaydet ve yeni de kalkar.
     const [first, second] = saveSteps(on).steps;
     const noSave = removeSaveStep(removeSaveStep(on, first.queryId), second.queryId);
@@ -310,6 +318,31 @@ describe("commands model", () => {
     const freeCleared = setDeleteCommand(free, null);
     expect(barOf(freeCleared).props).toEqual({ slot: "commands" });
     expect(freeCleared.queries).toEqual([]);
+  });
+
+  it("setSaveActions keeps steps added with addSaveStep", () => {
+    const studio = studioRecord();
+    const added = deepFreeze(setStopOnError(addSaveStep(studio, notGuncelle), false));
+    const [, , extra] = saveSteps(added).steps;
+    expect(extra).toMatchObject({ label: "cariNotGuncelle", when: "kayit.rows[0].id != null", raw: false });
+    // "Var olan kayıtta" değişince eklenen adım (güncelle türünde de olsa) korunur ve ana güncelleme sayılmaz.
+    const guncelle2 = action("cariGuncelle2", "update", ["id", "unvan"]);
+    const changed = setSaveActions(added, ekle, guncelle2);
+    expect(saveActions(changed)).toEqual({ insert: "cariEkle", update: "cariGuncelle2" });
+    const steps = saveSteps(changed);
+    expect(steps.steps.map((step) => step.label)).toEqual(["cariEkle", "cariGuncelle2", "cariNotGuncelle"]);
+    expect(steps.steps[2]).toEqual({ ...extra, queryId: steps.steps[2].queryId });
+    expect(steps.stopOnError).toBe(false);
+    expect(changed.queries.filter((query) => query.action === "cariNotGuncelle")).toHaveLength(1);
+    expect(changed.queries.some((query) => query.action === "cariGuncelle")).toBe(false);
+    // Eklenmiş adımın eylemi ana adım olarak seçilince adım iki kez yazılmaz.
+    expect(saveSteps(setSaveActions(added, ekle, notGuncelle)).steps.map((step) => step.label)).toEqual(["cariEkle", "cariNotGuncelle"]);
+    // İkisi de boşaltılınca Kaydet eklenen adımla kalır.
+    const only = setSaveActions(added, null, null);
+    expect(saveActions(only)).toEqual({ insert: null, update: "cariNotGuncelle" });
+    expect(saveSteps(only).steps.map((step) => step.label)).toEqual(["cariNotGuncelle"]);
+    // Eklenmiş adım yokken sonuç değişmez.
+    expect(setSaveActions(studio, ekle, guncelle2)).toEqual(setSaveActions(setSaveActions(studio, null, null), ekle, guncelle2));
   });
 
   it("titleCount uses the list query total", () => {
