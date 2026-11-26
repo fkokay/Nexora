@@ -196,7 +196,7 @@ public sealed class TenantCustomPageSchemaRecordTemplateTests
         Rejected(Page(Template, [Summary(), Tabs("Genel=b1"), Section("b1", "a1"), Field("a1", new { widthWhen = "6=a1.value == 1" })]), "Kalıplı sayfada genişlik ayarı kullanılmaz.");
         var bar = new { id = "ab", type = "actionBar", name = "ab", props = new { slot = "actions", exportTable = "l1" } };
         Rejected(Page(Template, [Summary(), Tabs(["Genel=b1", "Satırlar=l1"]), Section("b1", "a1"), Field("a1"), Lines(), bar]),
-            "Kalıplı sayfada işlem çubuğu bileşeni kullanılmaz; düğmeler 'actions' yerine konur.");
+            "Kalıplı sayfada işlem çubuğu yalnız üst düzeyde, 'commands' yerinde ve bir kez kullanılır; düğmeler 'actions' yerine konur.");
         foreach (var type in new[] { "spacer", "divider" })
             Rejected(Page(Template, [.. Minimal(), new { id = "x1", type, props = new { slot = "above" } }]), "Kalıplı sayfada boşluk ve ayırıcı bileşenleri kullanılmaz.");
     }

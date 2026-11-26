@@ -383,6 +383,7 @@ internal static partial class TenantCustomPageSchema
             {
                 root.TryGetProperty("queries", out var templateQueries);
                 if (PageTemplateRules.ValidateTemplate(root, components, templateQueries) is { } templateError) { error = templateError; return false; }
+                if (PageTemplateRules.ValidateBarButtons(components) is { } barButtonError) { error = barButtonError; return false; }
             }
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
@@ -712,8 +713,10 @@ internal static partial class TenantCustomPageSchema
         if (!(context.V2 ? ComponentTypesV2 : ComponentTypes).Contains(typeText)) { error = $"İzin verilmeyen bileşen türü: {typeText}."; return false; }
         context.ComponentTypesById[idText] = typeText;
         if (depth == 0) context.TopLevelIds.Add(idText);
+        // Belge: komutlar belge modelinden gelir. Liste, Kayıt kartı, Serbest: tek çubuk, üst düzeyde 'commands' yerinde (PageTemplateRules).
+        if (typeText == "actionBar" && context.Template == "belge") { error = PageTemplateRules.BelgeKomut; return false; }
         if (typeText == "actionBar" && ++context.ActionBarCount > 1)
-        { error = "Sayfada en fazla bir İşlem Çubuğu (actionBar) bulunabilir."; return false; }
+        { error = context.Template is null ? "Sayfada en fazla bir İşlem Çubuğu (actionBar) bulunabilir." : PageTemplateRules.KomutYeri; return false; }
         if (typeText == "input") context.InputIds.Add(idText);
         if (component.TryGetProperty("name", out var nameElement)
             && (nameElement.ValueKind != JsonValueKind.String || !ValidName(nameElement.GetString(), context, out error)))
@@ -1087,6 +1090,14 @@ internal static partial class TenantCustomPageSchema
                     return false;
                 }
             return typeText != "dialog" || ValidateSaveQueries(props, context, out error);
+        }
+        // Kalıplı sayfanın komutları: yalnız kalıpta karşılığı olan ayarlar; Yeni/Aç penceresi (dialog) henüz yok.
+        if (context.Template is not null)
+        {
+            foreach (var prop in props.EnumerateObject())
+                if (!PageTemplateRules.TemplateBarProps.Contains(prop.Name)) { error = PageTemplateRules.KomutAyari(prop.Name); return false; }
+            foreach (var key in new[] { "newAction", "openAction" })
+                if (StringOf(props, key) == "dialog") { error = PageTemplateRules.KomutAyari(key); return false; }
         }
         foreach (var (key, expected) in new[] { ("newInputs", "input"), ("moreButtons", "button") })
         {
