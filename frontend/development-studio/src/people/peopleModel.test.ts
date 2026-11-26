@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inviteErrorMessage, personRoleLabel, sameEmail, studioRoleOptions, type Person } from "./peopleModel";
+import { inviteErrorMessage, isKnownInviteError, personRoleLabel, sameEmail, studioRoleOptions, type Person } from "./peopleModel";
 
 const base: Person = {
   userId: "u1",
@@ -45,6 +45,25 @@ describe("inviteErrorMessage", () => {
   });
   it("explains an unknown e-mail", () => {
     expect(inviteErrorMessage()).toBe("Bu e-postayla kayıtlı bir Nexora kullanıcısı yok.");
+  });
+  it("explains a missing, expired or invalid company license", () => {
+    expect(inviteErrorMessage("license.required")).toBe("Firmanın etkin bir şirket lisansı yok. Kişi eklemek için önce lisansı etkinleştirin.");
+    expect(inviteErrorMessage("license.expired")).toBe("Firmanın şirket lisansının süresi dolmuş. Kişi eklemek için lisansı yenileyin.");
+    expect(inviteErrorMessage("license.invalid")).toBe("Firmanın şirket lisansı geçersiz. Kişi eklemek için geçerli bir lisans etkinleştirin.");
+  });
+  it("explains a concurrent membership change", () => {
+    expect(inviteErrorMessage("membership.conflict")).toBe("Üyelik aynı anda başka biri tarafından değiştirildi. Listeyi yenileyip yeniden deneyin.");
+  });
+});
+
+describe("isKnownInviteError", () => {
+  it("knows every invite error code the Platform API returns", () => {
+    for (const code of ["license.user_limit", "license.required", "license.expired", "license.invalid", "membership.exists", "membership.conflict"])
+      expect(isKnownInviteError(code), code).toBe(true);
+  });
+  it("leaves other codes to the generic message", () => {
+    expect(isKnownInviteError(undefined)).toBe(false);
+    expect(isKnownInviteError("something.else")).toBe(false);
   });
 });
 
