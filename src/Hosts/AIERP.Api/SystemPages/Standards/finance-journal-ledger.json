@@ -247,7 +247,7 @@
         "props": {
           "table": "liste",
           "search": true,
-          "searchPlaceholder": "Fi? no veya a??klama ara",
+          "searchPlaceholder": "Fiş no veya açıklama ara",
           "searchColumns": [
             "code",
             "description"
@@ -255,8 +255,7 @@
           "filters": [
             "sourceLabel|select|row||Kaynak"
           ],
-          "slot": "filters",
-          "searchParam": "q"
+          "slot": "filters"
         }
       },
       {
