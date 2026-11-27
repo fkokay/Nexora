@@ -11,7 +11,7 @@ internal static class TenantCustomPageEndpoints
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     /// <summary>Revisions that make a definition the published one ("Yayınlar"): a publish, a template migration and its rollback.</summary>
-    private static readonly string[] PublicationKinds = ["Published", "TemplateMigrated", "TemplateMigrationRolledBack"];
+    private static readonly string[] PublicationKinds = ["Published"];
 
     public static void MapTenantCustomPageEndpoints(this WebApplication app)
     {

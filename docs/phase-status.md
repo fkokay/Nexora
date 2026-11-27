@@ -7,9 +7,10 @@ Branch `claude/standart-tasima-1`; not merged. No migration.
 - Required updates (`sales-orders` `zincir`/`rozet`/`etiket`) still apply to templateless firm copies; the components they add now carry an inert `slot` (ignored on templateless pages) — tests compare without `slot`/`width`.
 - ERP standard tests for the four now render the template shell: the sales harness finds commands in the shell's "İşlemler" toolbar; inventory-tracking's 8/4 width pins became list/detail slot checks. Studio standard tests accept `slot` on templated standards.
 
+- **Removed (user decision 2026-11-27: development stage, live forms are test data):** the 5b-1 converter, behaviour-equivalence check and page-template migration CLI (`PageTemplateMigration`, `BehaviorEquivalence`, `PageTemplateMigrationRunner`, `--page-template-migration-*`), their tests/fixtures and the runbook; publications no longer list `TemplateMigrated` kinds. The nullable `MigrationBatch` columns stay (no live data; drop later with a contract migration). Remaining standards are redesigned directly on templates; firm copies will be reset to the standard (one live data operation with backup and approval).
 Verified (InMemory): integration filter PageTemplate|SystemPage|Sales|Inventory|TemplatedStandards 1015 passed, 7 skipped (SQL acceptance), 0 failed; erp-web standard tests for the four + sales-quotes/deliveries + legacyUnchanged 43/43, `npm run build`; development-studio standard/dialog tests touching these keys 46/46, `npm run build`.
 
-Not verified: full unit/integration/frontend suites (CI); browser pass; live. Firm copies (ScreenKey rows) of these standards are **not** migrated: the runner's system-page skip is unchanged (user decision pending: reset copies to standard).
+Not verified: full unit/integration/frontend suites (CI); browser pass; live. Firm copies (ScreenKey rows) of these standards are **not** migrated: they will be reset to the standard instead (decision 2026-11-27; was: reset copies to standard).
 
 ### 2026-11-27 5b-2 adım 2 — Pencere ve grup
 

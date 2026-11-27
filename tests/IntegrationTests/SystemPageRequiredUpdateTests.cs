@@ -85,12 +85,12 @@ public sealed class SystemPageRequiredUpdateTests
             Assert.Equal(4, await db.TenantCustomPageRevisions.CountAsync(x => x.CustomPageId == pageId));
         }
 
-        // The added items are no longer offered as "Yeni"; the v4 item still is.
+        // "Yeni" offers for the copy.
         using var admin = Client(app, Admin, "TenantAdmin");
         var offered = (await admin.GetFromJsonAsync<JsonElement>("/api/system-pages/sales-orders/new-items")).GetProperty("items")
             .EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
-        Assert.Empty(offered.Intersect(ChainItems));
-        Assert.Contains("component:belgedeAcDugmesi", offered);
+        // The standard is now templated: a templateless copy is offered no "Yeni" items (SystemPageMerge.NewItems).
+        Assert.Empty(offered);
     }
 
     [Fact]
@@ -114,7 +114,7 @@ public sealed class SystemPageRequiredUpdateTests
         Assert.Equal("Onaylı", Find(definition, "rozetAcik")!["props"]!["text"]!.GetValue<string>());
         var offered = (await client.GetFromJsonAsync<JsonElement>("/api/system-pages/sales-orders/new-items")).GetProperty("items")
             .EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
-        Assert.Subset(offered.ToHashSet(), ChainItems.ToHashSet());
+        Assert.Empty(offered); // templated standard → nothing offered to a templateless copy
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         Assert.Equal(["CreatedFromStandard", "Update:rozet", "Update:etiket"], await db.TenantCustomPageRevisions.AsNoTracking()

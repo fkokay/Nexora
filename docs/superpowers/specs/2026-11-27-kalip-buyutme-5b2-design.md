@@ -4,6 +4,14 @@ Durum: adım 1 canlıda (PR #190, 8c2ed6c6, 2026-11-27); canlı rapor yeniden ç
 
 Tarih: 2026-11-27. Üst belge: `2026-11-25-nexora-studio-sadelestirme-design.md` §7 madde 5b. Önceki parça: 5b-1 (PR #189, sınıflandırıcı + rapor + geri alınabilir taşıma; canlıda).
 
+## 0. Yön değişikliği (kullanıcı kararı, 2026-11-27)
+
+Canlıdaki formlar test verisidir. Kullanıcının kararları:
+- **Kalan standartlar kalıplarla yeniden tasarlanır.** Dalga 1'de dönüştürücüyle taşınan 4 standart (sales-orders, sales-invoices, inventory-cost, inventory-tracking) dışındakiler dönüştürücüyle değil, doğrudan kalıplarla (Liste / Kayıt kartı / Belge / Serbest) yeniden kurulur. "Davranış birebir aynı" kuralı bu standartları bağlamaz. Her ekran yine taslak ve onaydan geçer.
+- **Tasarımcı eski sisteme uydurulmaz.** Kalıplara ve Studio'ya yalnız eski ayarları karşılamak için özellik eklenmez (§5.1'deki 3.–5. adımlar bu biçimiyle düşer). Yeni bir kalıp özelliği ancak yeniden tasarlanan bir ekran onu gerçekten istiyorsa, kendi taslağıyla eklenir.
+- **Firma kopyaları standarda sıfırlanır.** ScreenKey satırları 5b-1 komutlarıyla taşınmaz; canlıda bir kez, yedekle ve kullanıcı onayıyla standarda döndürülür.
+- Bu belgenin aşağıdaki bölümleri dalga 1'e ve 1.–2. adımlara kadar olanı anlatır; sonrası yeni tasarım programıyla yazılır.
+
 ## 1. Amaç ve neden
 
 Kullanıcının kararı (2026-11-27): **kalıplar büyüsün**; amaç **ERP'deki iki yerleşim dalını kapatmak**. Bugün `template` alanı olmayan sayfalar eski çizimle (12 kolon), kalıplı sayfalar kalıp kabuğuyla çiziliyor. Eski dal ancak hiçbir canlı sayfa kalıpsız kalmadığında silinebilir (§7 5b "Geçişten sonra").
