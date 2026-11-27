@@ -1740,12 +1740,26 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanan (yerel):** Beş standart yüklenir, şemadan ve her sürüm kısıtlamasından geçer; ilgili .NET testleri (etkilenen sınıflar), tam ERP ve Studio vitest paketleri ve iki arayüzün `npm run build`'i geçti (Studio paketinde `tests/*.mjs` dosyalarının vitest'te toplanması ve yük altında zaman aşımına uğrayan bir pencere testi bu işten bağımsızdır). `legacyUnchanged` anlık görüntüleri artık cari standartlarının eski (dondurulmuş) kopyalarından çizilir.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
 
+
+### 2026-11-28 satın alma yeniden tasarım, 1. dalga: üç standart kalıba çizildi
+
+- **Ne değişti:** `sales-purchase-quotes` v2, `sales-purchase-receipts` v2 ve `sales-purchase-invoices` v3 el ile Liste kalıbına çizildi: gösterge, süzgeç (arama + durum), tablo, yanda detay kartı, Aç penceresi (sekmeli), satır eylemleri. Sorgular ve yazmalar (mal kabul iptali, ödeme ekle / iptal, fatura iptali) aynı kaldı.
+- **Sadeleşenler:**
+  - Teklifler: "Talepsiz teklif" kalktı; satırlar Aç penceresinde.
+  - Mal kabuller: "Siparişsiz mal kabul" ve "Eski ekranda aç" kalktı (siparişsiz ve izlemeli kabul pencere satır tablosu gelince kalıpla yapılacak); "Fatura bekleyen" göstergesi ve "Faturalanmamış" süzgeci yok (liste satırında fatura bilgisi yok).
+  - Faturalar: iade penceresi kalktı, "İade oluştur" İade ekranına gider; "Eski ekranda aç" kalktı; tedarikçi çipi sayfa parametresi uyarısına ve süzgeç alanına indi.
+- **Atlanan:** `sales-purchase-returns` ve `sales-purchase-delivery-notes`: yeni iade / yeni irsaliye pencereleri düzenlenebilir satır tablosu ister, kalıp penceresinde yok.
+- **Doğrulanan (yerel):** Standartlar yüklenir ve şemadan geçer; ilgili .NET ve vitest testleri ile iki arayüzün derlemesi (CI sonucu PR'da).
+- **Doğrulanmayan:** Canlıda firma kopyasıyla ve tarayıcıda görsel deneme; eski firma kopyalarının sıfırlanması bu işte yok.
+
+
 ### 2026-11-28 belge modeli `satis.teklif` ve Teklifler ekranı (yeni belge modelleri için örnek iş)
 
 - **Ne değişti:** İkinci belge modeli `satis.teklif` (alanlar: teklif no, müşteri, teklif tarihi, geçerlilik, plasiyer, teslimat koşulları, notlar; durumlar Taslak, İletildi, Kabul edildi, Reddedildi, Süresi doldu; geçişler İlet, Kabul et, Reddet mevcut `send/accept/reject` uçlarına bağlı). Yeni `sales-quote-document` (Belge) standardı; `sales-quotes` v2 Liste kalıbına yeniden yazıldı (Yeni ve Aç Belge sayfasını açar; Kabul et, Reddet, Siparişe çevir, Siparişi aç satır eylemi; detay kartı ve pencere kalktı). Sipariş ve teklifin ortak parçaları `SalesDocumentModelParts` içinde (satır kolonları, stok doldurma, örnek tutarlar, geçiş izin denetimi); ERP Belge kalıbı modele özgü bilgiyi `DocumentBinding` kayıtlarından okur. `/api/document-models/satis.teklif/*` yolları artık `erp.sales-quotes` iznine çözülür. Teklif geçişleri işlem günlüğüne yazar. Adım adım kontrol listesi: `docs/runbooks/yeni-belge-modeli.md`.
 - **Kalıpta karşılığı olmayıp bırakılanlar:** Yeni revizyon, Sipariş oluştur (belgeden belge; listede satır eylemi olarak var), Yazdır/PDF, teklif iptali (API'de yok), Kurallar ve onay (yalnız sipariş). Teklif özel alanları Belge'nin genel özel alan bölümünde görünür. Kayıtsız alıcılı teklif Belge'de açılır ve kaydedilir (alıcı adı korunur) ama alıcı Belge'den cariye çevrilemez.
 - **Doğrulanan (yerel):** Teklif model, belge görünümü, geçiş izinleri, işlem günlüğü, örnek, doldurma, yetki yolu ve standart testleri (.NET); ERP Belge kalıbı teklif testleri (kayıtta not, teslimat koşulu, kur, talep satırı ve özel alan geri gönderimi dahil) ve sipariş testleri değişmeden geçti; Studio varsayılan belge testi.
 - **Doğrulanmayan:** Gerçek SQL Server'a karşı teklif PUT/geçiş akışı (InMemory'de PUT kilidi çalışmaz); tarayıcıda görsel deneme; Studio tuvalinde teklif önizlemesi.
+
 ### 2026-11-28 finans ve duran varlık yeniden tasarım, 2. dalga: üç standart kalıba çizildi
 
 - **Ne değişti:** `finance-ledger-chart` v2 (Liste + kart grubu + üç pencere), `fixed-assets` v2 (Liste + kart grubu + iki pencere) ve `fixed-asset-create` v2 (Kayıt kartı, üç sekme) standartları el ile kalıplı sayfa olarak yeniden yazıldı (tasarım: `docs/superpowers/specs/2026-11-28-finans-muhasebe-varlik-yeniden-tasarim-design.md`). Sorgular ve işlemler aynı kaldı; yalnız düzen ve pencereler değişti.
