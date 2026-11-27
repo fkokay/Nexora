@@ -1,7 +1,7 @@
 {
   "screenKey": "sales-orders", "title": "Satış Siparişleri",
   "description": "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin.", "module": "Satış & cari",
-  "version": 4, "stage": "preview",
+  "version": 5, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:duzenleDugmesi", "component:irsaliyeOlusturDugmesi", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:siparisSil", "query:siparisler"]},
     "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (tarih bugün)"},
@@ -48,6 +48,23 @@
   "screenViews": [
     {"key": "sales-orders", "component": "liste", "fields": {"code": "code", "quoteCode": "quoteCode", "customerName": "customerName", "orderDate": "orderDate", "lineCount": "lineCount", "grandTotal": "grandTotal", "status": "status"}},
     {"key": "sales-order-lines", "component": "kalemTablosu", "fields": {"stockCode": "stockCode", "stockName": "stockName", "quantity": "quantity", "deliveredQuantity": "deliveredQuantity", "remainingQuantity": "remainingQuantity", "reservedQuantity": "reservedQuantity", "unitPrice": "unitPrice", "lineTotal": "lineTotal"}}
+  ],
+  "updates": [
+    { "id": "zincir", "label": "Onayla, Onayı geri al ve İptal et komutları; Düzenle yalnız taslakta", "below": 3,
+      "add": ["query:onayla", "query:onayiGeriAl", "query:iptal", "component:onaylaDugmesi", "component:onayiGeriAlDugmesi", "component:iptalDugmesi"],
+      "append": [{ "component": "komutlar", "prop": "moreButtons", "values": ["onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"] }],
+      "set": [
+        { "component": "duzenleDugmesi", "prop": "visibleWhen", "from": ["liste.seciliSatir.status == 'Open'"] },
+        { "component": "teslimBolumu", "prop": "visibleWhen", "from": ["siparis.rows[0].status == 'Open'"] }] },
+    { "id": "rozet", "label": "Sipariş durumu rozetleri (Taslak, Onaylı, Sevk edildi, Faturalandı)", "below": 3,
+      "children": [{ "parent": "siparisDurumu", "ids": ["rozetTaslak", "rozetFaturalandi"] }],
+      "set": [
+        { "component": "rozetAcik", "prop": "text", "from": ["Açık"] },
+        { "component": "rozetTamam", "prop": "text", "from": ["Tamamlandı"] }] },
+    { "id": "etiket", "label": "Liste durum etiketleri (Taslak, Onay bekliyor, Onaylı, Sevk edildi, Faturalandı)", "below": 5,
+      "set": [
+        { "component": "liste", "prop": "valueLabels", "from": [["status:Open=Açık", "status:Fulfilled=Tamamlandı", "status:Cancelled=İptal"]] },
+        { "component": "liste", "prop": "toneMap", "from": [["Açık=warning", "Tamamlandı=success", "İptal=info"]] }] }
   ],
   "definition": {
     "schemaVersion": 2,
@@ -176,8 +193,8 @@
           "columnLabels": ["code=Sipariş no", "quoteCode=Kaynak teklif", "customerName=Müşteri", "orderDate=Sipariş tarihi", "requestedDeliveryDate=Teslim tarihi", "lineCount=Satır", "grandTotal=Genel toplam", "status=Durum", "currencyCode=Döviz", "createdAt=Oluşturulma"],
           "columnFormats": ["code=code", "orderDate=date", "requestedDeliveryDate=date", "lineCount=number", "grandTotal=money", "status=status", "createdAt=date"],
           "columnUnits": ["grandTotal=currencyCode"],
-          "valueLabels": ["status:Open=Açık", "status:Fulfilled=Tamamlandı", "status:Cancelled=İptal"],
-          "toneMap": ["Açık=warning", "Tamamlandı=success", "İptal=info"],
+          "valueLabels": ["status:Draft=Taslak", "status:PendingApproval=Onay bekliyor", "status:Open=Onaylı", "status:Fulfilled=Sevk edildi", "status:Invoiced=Faturalandı", "status:Cancelled=İptal"],
+          "toneMap": ["Onay bekliyor=warning", "Onaylı=warning", "Sevk edildi=success", "Faturalandı=success", "İptal=info"],
           "rowOpenAction": "acDugmesi",
           "openParam": "orderId",
           "emptyText": "Aramanızla eşleşen sipariş yok." } },

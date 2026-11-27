@@ -58,6 +58,39 @@ public sealed class SystemPageStorageSqlAcceptanceTests
         Assert.True(CustomPageAccessEndpoints.IsConflict(exception));
     }
 
+    /// <summary>Two readers of an old copy at once: the required updates are written once (serializable read, unique revision index).</summary>
+    [SqlServerAcceptanceFact]
+    public async Task Concurrent_readers_apply_required_updates_once()
+    {
+        await using var database = await MigratedTenantDatabase.CreateAsync();
+        var tenantId = database.TenantId;
+        var copy = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "SystemPageCopies", "sales-orders-v2.json"));
+        Guid pageId;
+        await using (var db = database.Context())
+        {
+            var page = Page(tenantId, "@sales-orders", "sales-orders", 2, published: true);
+            page.DefinitionJson = copy;
+            db.TenantCustomPages.Add(page);
+            db.TenantCustomPageRevisions.Add(TenantCustomPageEndpoints.RevisionOf(page, page.CreatedByUserId, "CreatedFromStandard"));
+            await db.SaveChangesAsync();
+            pageId = page.Id;
+        }
+        Assert.True(SystemPageStandards.TryGet("sales-orders", out var standard));
+
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ =>
+        {
+            await using var db = database.Context();
+            await SystemPageEndpoints.ApplyRequiredUpdatesAsync(db, tenantId, standard, CancellationToken.None);
+        }));
+
+        await using var check = database.Context();
+        var stored = await check.TenantCustomPages.AsNoTracking().SingleAsync(x => x.Id == pageId);
+        Assert.Equal(4, stored.Revision);
+        Assert.Equal(["CreatedFromStandard", "Update:zincir", "Update:rozet", "Update:etiket"], await check.TenantCustomPageRevisions.AsNoTracking()
+            .Where(x => x.CustomPageId == pageId).OrderBy(x => x.Revision).Select(x => x.ChangeKind).ToListAsync());
+        Assert.Equal(3, await check.AuditEvents.CountAsync(x => x.TenantId == tenantId && x.Action == "system-page.standard-updated"));
+    }
+
     private static async Task AssertCheckViolationAsync(MigratedTenantDatabase database, TenantCustomPage page)
     {
         await using var db = database.Context();

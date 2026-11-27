@@ -1,5 +1,7 @@
 using System.Data;
+using System.Data.Common;
 using System.Security.Claims;
+using System.Text.Json.Nodes;
 using AIERP.Api;
 using AIERP.Platform.Application;
 using AIERP.Platform.Domain;
@@ -9,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// System pages: standard ERP screens served from a declarative standard definition, or from the firm's own design (an
-/// ordinary custom-page row with code <c>@&lt;screenKey&gt;</c>). Firm designs are written only by a verified TenantAdmin;
-/// a published firm design is never rewritten by the server.
+/// ordinary custom-page row with code <c>@&lt;screenKey&gt;</c>). Firm designs are written only by a verified TenantAdmin,
+/// with one exception: a standard's required updates (<see cref="SystemPageUpdates"/>) are applied by the server, once, to
+/// a firm design that still holds the old values of the parts they change, as a new revision with an audit row.
 /// </summary>
 internal static class SystemPageEndpoints
 {
@@ -86,6 +89,7 @@ internal static class SystemPageEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct, Runtime)) return Results.Forbid();
             if (!standards.TryGet(screenKey, out var standard)) return NotFound();
             var code = SystemPageCodes.CodeFor(standard.ScreenKey);
+            await ApplyRequiredUpdatesAsync(db, tenant, standard, ct);
             var page = await db.TenantCustomPages.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenant && x.Code == code && x.IsPublished, ct);
             if (page is not null)
             {
@@ -116,6 +120,7 @@ internal static class SystemPageEndpoints
             if (!await CustomPageAccessEndpoints.IsVerifiedTenantAdminAsync(platformDb, tenant, userId, role, ct)) return TenantCustomPageEndpoints.SystemRowForbidden();
             if (!await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "create", ct, Customizations)) return Results.Forbid();
             var code = SystemPageCodes.CodeFor(standard.ScreenKey);
+            await ApplyRequiredUpdatesAsync(db, tenant, standard, ct);
 
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             // Archived rows count too: the screen-view import runs only for the very first design of the screen.
@@ -227,6 +232,7 @@ internal static class SystemPageEndpoints
                 || !await TenantCustomPageEndpoints.Allowed(auth, tenant, userId, role, "read", ct, Customizations)) return Results.Forbid();
             if (!standards.TryGet(screenKey, out var standard)) return NotFound();
             var code = SystemPageCodes.CodeFor(standard.ScreenKey);
+            await ApplyRequiredUpdatesAsync(db, tenant, standard, ct);
             var design = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived)
                 .OrderBy(x => x.IsPublished).Select(x => new { x.DefinitionJson, x.StandardVersion }).FirstOrDefaultAsync(ct);
             if (design is null) return Results.Ok(new SystemPageNewItems(standard.Version, standard.Version, []));
@@ -270,6 +276,73 @@ internal static class SystemPageEndpoints
             foreach (var required in item.Requires) pending.Enqueue(required);
         }
         return offered;
+    }
+
+    /// <summary>
+    /// Applies the standard's required updates to the firm's open draft and published design of the screen (each row on
+    /// its own, every update at most once: <see cref="SystemPageUpdates.TryApply"/>). An update whose result does not pass
+    /// the schema stops that row's updates. Written in one serializable transaction; when the write fails (a concurrent
+    /// reader won, a deadlock), nothing is kept and the caller reads the stored rows as they are.
+    /// </summary>
+    internal static async Task ApplyRequiredUpdatesAsync(TenantDbContext db, Guid tenant, SystemPageStandard standard, CancellationToken ct)
+    {
+        if (standard.Updates.Count == 0) return;
+        var code = SystemPageCodes.CodeFor(standard.ScreenKey);
+        var standardDefinition = JsonNode.Parse(standard.DefinitionJson)!;
+        var stored = await db.TenantCustomPages.AsNoTracking().Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived)
+            .Select(x => new { x.DefinitionJson, x.StandardVersion }).ToListAsync(ct);
+        if (!stored.Any(x => Patched(standard, standardDefinition, x.DefinitionJson, x.StandardVersion).Count > 0)) return;
+
+        var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        try
+        {
+            var rows = await db.TenantCustomPages.Where(x => x.TenantId == tenant && x.Code == code && !x.IsArchived).ToListAsync(ct);
+            var changed = false;
+            foreach (var row in rows)
+            {
+                var existingOperations = TenantCustomPageQueries.OperationNames(row.DefinitionJson);
+                foreach (var (update, json) in Patched(standard, standardDefinition, row.DefinitionJson, row.StandardVersion))
+                {
+                    var catalog = TenantCustomPageQueries.HasCatalogReferences(json) ? await TenantCatalogStore.ActiveAsync(db, tenant, ErpOperationCatalog.TryGet, ct) : null;
+                    if (!TenantCustomPageSchema.Validate(json, out _, existingOperations, ErpOperationCatalog.TryGet, catalog)) break;
+                    row.DefinitionJson = json; row.Revision++; row.UpdatedAt = DateTimeOffset.UtcNow;
+                    db.TenantCustomPageRevisions.Add(TenantCustomPageEndpoints.RevisionOf(row, Guid.Empty, update.ChangeKind));
+                    db.AuditEvents.Add(new AuditEvent { TenantId = tenant, UserId = null, Action = "system-page.standard-updated", Resource = $"custom-page:{code}" });
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+        }
+        catch (Exception ex) when (ex is DbUpdateException or DbException or InvalidOperationException)
+        {
+            try { await transaction.RollbackAsync(ct); }
+            catch (InvalidOperationException) { } // Already rolled back by the server (e.g. a deadlock victim).
+            catch (DbException) { }
+        }
+        finally
+        {
+            db.ChangeTracker.Clear();
+            await transaction.DisposeAsync();
+        }
+    }
+
+    /// <summary>Each qualifying update in order, with the definition JSON after it (each builds on the previous one).</summary>
+    private static List<(SystemPageUpdate Update, string Json)> Patched(SystemPageStandard standard, JsonNode standardDefinition,
+        string definitionJson, int? standardVersion)
+    {
+        var applied = new List<(SystemPageUpdate, string)>();
+        if (standardVersion is not { } baseVersion) return applied;
+        JsonObject? copy;
+        try { copy = JsonNode.Parse(definitionJson) as JsonObject; }
+        catch (System.Text.Json.JsonException) { return applied; }
+        if (copy is null) return applied;
+        foreach (var update in standard.Updates.Where(x => baseVersion < x.Below))
+            if (SystemPageUpdates.TryApply(update, standardDefinition, copy)) applied.Add((update, copy.ToJsonString()));
+        return applied;
     }
 
     private static IReadOnlySet<string> EnabledStandards(IConfiguration configuration) =>

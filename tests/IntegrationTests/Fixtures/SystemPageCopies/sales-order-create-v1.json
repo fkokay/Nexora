@@ -1,0 +1,630 @@
+{
+ "schemaVersion": 2,
+ "components": [
+  {
+   "id": "komutlar",
+   "type": "actionBar",
+   "name": "komutlar",
+   "props": {
+    "saveSequence": [
+     "olustur",
+     "guncelle"
+    ],
+    "stopOnError": true,
+    "sequenceWhen": [
+     "olustur=sayfa.parametre.orderId == null && olustur.sonuc.id == null",
+     "guncelle=sayfa.parametre.orderId != null"
+    ],
+    "newAction": "page",
+    "newPageCode": "@sales-order-create",
+    "newTarget": "sameTab",
+    "afterSaveAction": "page",
+    "afterSavePageCode": "@sales-orders",
+    "afterSaveTarget": "sameTab",
+    "afterSaveRefresh": true,
+    "commandWhen": [
+     "save=sayfa.parametre.orderId == null || siparis.rows[0].status == 'Open'"
+    ],
+    "hiddenCommands": [
+     "open",
+     "delete",
+     "print",
+     "export",
+     "filter"
+    ]
+   }
+  },
+  {
+   "id": "yeniBaslik",
+   "type": "heading",
+   "name": "yeniBaslik",
+   "props": {
+    "text": "Yeni satış siparişi",
+    "pageTitle": true,
+    "visibleWhen": "sayfa.parametre.orderId == null"
+   }
+  },
+  {
+   "id": "duzenleBaslik",
+   "type": "heading",
+   "name": "duzenleBaslik",
+   "props": {
+    "text": "Sipariş düzenleme · {{siparis.rows[0].code}}",
+    "pageTitle": true,
+    "visibleWhen": "sayfa.parametre.orderId != null"
+   }
+  },
+  {
+   "id": "durumNotu",
+   "type": "text",
+   "name": "durumNotu",
+   "props": {
+    "text": "Sipariş müşterinin dövizinde tutulur; satır dövizi farklıysa sipariş tarihli kurla çevrilir. Satır: {{kalemler.satirSayisi}} / 200"
+   }
+  },
+  {
+   "id": "duzenlemeUyarisi",
+   "type": "alert",
+   "name": "duzenlemeUyarisi",
+   "props": {
+    "title": "Bu sipariş düzenlenemez",
+    "variant": "warning",
+    "width": 12,
+    "text": "Yalnızca sevkiyat, fatura veya rezervasyonu olmayan açık siparişler düzenlenebilir.",
+    "visibleWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'"
+   }
+  },
+  {
+   "id": "belgeKarti",
+   "type": "formCard",
+   "name": "belgeKarti",
+   "props": {
+    "title": "Belge bilgileri",
+    "columns": 3,
+    "inputs": [
+     "siparisNo",
+     "musteri",
+     "siparisTarihi",
+     "teslimTarihi",
+     "plasiyer"
+    ],
+    "recordKey": "{{sayfa.parametre.orderId}}",
+    "trackChanges": true
+   }
+  },
+  {
+   "id": "siparisNo",
+   "type": "input",
+   "name": "siparisNo",
+   "props": {
+    "inputType": "text",
+    "label": "Sipariş no",
+    "maxLength": 40,
+    "upperCase": true,
+    "placeholder": "Boşsa otomatik numara",
+    "pattern": "^[A-Z0-9][A-Z0-9._/-]{0,39}$",
+    "patternMessage": "Harf, sayı, nokta, kısa çizgi ve / kullanın.",
+    "defaultValue": "{{siparis.rows[0].code}}",
+    "requiredWhen": "sayfa.parametre.orderId != null"
+   }
+  },
+  {
+   "id": "musteri",
+   "type": "input",
+   "name": "musteri",
+   "props": {
+    "inputType": "lookup",
+    "label": "Müşteri",
+    "required": true,
+    "optionsQuery": "musteriler",
+    "optionValueColumn": "id",
+    "optionLabelColumn": "name",
+    "optionDescriptionColumn": "code",
+    "minChars": 0,
+    "optionsWhen": "satir.isActive == true && satir.type != 'Supplier' && satir.type != 'Employee'",
+    "defaultValue": "{{sayfa.parametre.customerId}}"
+   }
+  },
+  {
+   "id": "siparisTarihi",
+   "type": "input",
+   "name": "siparisTarihi",
+   "props": {
+    "inputType": "date",
+    "label": "Sipariş tarihi",
+    "required": true,
+    "defaultValue": "{{sayfa.parametre.orderDate}}",
+    "emptyDefault": "{{bugun}}"
+   }
+  },
+  {
+   "id": "teslimTarihi",
+   "type": "input",
+   "name": "teslimTarihi",
+   "props": {
+    "inputType": "date",
+    "label": "İstenen teslim tarihi",
+    "defaultValue": "{{siparis.rows[0].requestedDeliveryDate}}"
+   }
+  },
+  {
+   "id": "plasiyer",
+   "type": "input",
+   "name": "plasiyer",
+   "props": {
+    "inputType": "lookup",
+    "label": "Plasiyer",
+    "optionsQuery": "personel",
+    "optionValueColumn": "id",
+    "optionLabelColumn": "fullName",
+    "optionDescriptionColumn": "personnelCode",
+    "minChars": 0,
+    "allowClear": true,
+    "placeholder": "Plasiyer seçilmedi",
+    "optionsWhen": "satir.status == 'Active'",
+    "defaultValue": "{{siparis.rows[0].salespersonEmployeeId}}"
+   }
+  },
+  {
+   "id": "plasiyerSayfaBoyutu",
+   "type": "input",
+   "name": "plasiyerSayfaBoyutu",
+   "props": {
+    "inputType": "number",
+    "label": "Plasiyer seçici sayfa boyutu",
+    "hidden": true,
+    "defaultValue": "100"
+   }
+  },
+  {
+   "id": "dovizNotu",
+   "type": "text",
+   "name": "dovizNotu",
+   "props": {
+    "text": "Sipariş dövizi: {{musteriKarti.rows[0].currencyCode}}",
+    "visibleWhen": "musteriKarti.rows[0].id != null"
+   }
+  },
+  {
+   "id": "kalemler",
+   "type": "editableGrid",
+   "name": "kalemler",
+   "props": {
+    "gridMode": "list",
+    "title": "Sipariş satırları",
+    "addLabel": "Satır ekle",
+    "maxRows": 200,
+    "minRows": 1,
+    "fillQuery": "kalemKaynak",
+    "fillColumns": {
+     "stockItemId@label": "stockCode",
+     "unitPrice": "enteredUnitPrice",
+     "unitCode": "enteredUnitCode",
+     "currencyCode": "enteredCurrencyCode"
+    },
+    "gridColumns": [
+     "stockItemId|Stok|lookup:stoklar:id:code:name|required",
+     "quantity|Miktar|number|required,min:0.0001,step:0.0001",
+     "unitCode|Birim|lookup:birimler:unitCode:unitCode",
+     "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
+     "currencyCode|Döviz|text|upperCase,maxLength:3",
+     "discountPercent|İsk. %|number|min:0,max:100,step:0.01",
+     "vatPercent|KDV %|number|min:0,max:100,step:0.01",
+     "isVatIncluded|KDV dâhil|checkbox",
+     "lineSubtotal|Ara toplam|calc:onizleme:lineSubtotal",
+     "discountAmount|İskonto|calc:onizleme:discountAmount",
+     "taxAmount|KDV|calc:onizleme:taxAmount",
+     "lineTotal|Tutar|calc:onizleme:lineTotal"
+    ],
+    "columnOptionsWhen": [
+     "stockItemId=satir.isActive == true",
+     "unitCode=satir.isActive == true"
+    ],
+    "columnStaticOptions": [
+     "unitCode==Ana birim"
+    ],
+    "lookupFills": {
+     "stockItemId": {
+      "unitPrice": "salesListPrice",
+      "vatPercent": "salesVatPercent",
+      "discountPercent": "salesDiscountPercent",
+      "currencyCode": "priceCurrencyCode"
+     }
+    },
+    "disabledWhen": "sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'",
+    "disabledReason": "Yalnızca açık siparişler düzenlenebilir."
+   }
+  },
+  {
+   "id": "satirNotu",
+   "type": "text",
+   "name": "satirNotu",
+   "props": {
+    "text": "Stok seçilince liste fiyatı, dövizi, iskonto ve KDV oranı dolar (yazdığınız değer korunur). Boş birim stok kartının ana birimidir. Tutarlar sunucu önizlemesinden gelir; önizleme güncel değilse \"—\" görünür, kayıt yine yapılabilir."
+   }
+  },
+  {
+   "id": "ozelAlanlar",
+   "type": "customFieldsBlock",
+   "name": "ozelAlanlar",
+   "props": {
+    "title": "Sipariş özel alanları",
+    "definitionsQuery": "ozelTanimlar",
+    "valuesQuery": "ozelDegerler",
+    "columns": 2
+   }
+  },
+  {
+   "id": "araToplam",
+   "type": "metric",
+   "name": "araToplam",
+   "props": {
+    "title": "Ara toplam",
+    "value": "{{onizleme.meta.subtotal}}",
+    "format": "money",
+    "width": 3,
+    "icon": "calculator",
+    "description": "{{onizleme.meta.currencyCode}}"
+   }
+  },
+  {
+   "id": "iskontoToplami",
+   "type": "metric",
+   "name": "iskontoToplami",
+   "props": {
+    "title": "Toplam iskonto",
+    "value": "{{onizleme.meta.discountTotal}}",
+    "format": "money",
+    "width": 3,
+    "icon": "percent",
+    "description": "matrah {{onizleme.meta.taxableTotal}}",
+    "descriptionFormat": "money"
+   }
+  },
+  {
+   "id": "kdvToplami",
+   "type": "metric",
+   "name": "kdvToplami",
+   "props": {
+    "title": "KDV toplamı",
+    "value": "{{onizleme.meta.taxTotal}}",
+    "format": "money",
+    "width": 3,
+    "icon": "receipt",
+    "description": "oran dökümü aşağıda"
+   }
+  },
+  {
+   "id": "genelToplam",
+   "type": "metric",
+   "name": "genelToplam",
+   "props": {
+    "title": "Genel toplam",
+    "value": "{{onizleme.meta.grandTotal}}",
+    "format": "money",
+    "width": 3,
+    "icon": "banknote",
+    "description": "{{onizleme.meta.currencyCode}}"
+   }
+  },
+  {
+   "id": "vergiDokumu",
+   "type": "dataTable",
+   "name": "vergiDokumu",
+   "props": {
+    "title": "KDV dökümü",
+    "query": "vergiler",
+    "width": 12,
+    "columns": [
+     "rate",
+     "taxableAmount",
+     "amount"
+    ],
+    "columnLabels": [
+     "rate=KDV %",
+     "taxableAmount=Matrah",
+     "amount=KDV"
+    ],
+    "columnFormats": [
+     "rate=number",
+     "taxableAmount=money",
+     "amount=money"
+    ],
+    "emptyText": "Satır girildikçe KDV dökümü burada görünür.",
+    "showGridSearch": false,
+    "showColumnFilters": false,
+    "showColumnChooser": false,
+    "showExport": false,
+    "showPivot": false,
+    "showCsv": false,
+    "showSelectedExport": false
+   }
+  }
+ ],
+ "queries": [
+  {
+   "id": "siparis",
+   "name": "siparis",
+   "kind": "read",
+   "operation": "satis.siparis.getir",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{sayfa.parametre.orderId}}",
+     "type": "guid"
+    }
+   ]
+  },
+  {
+   "id": "kalemKaynak",
+   "name": "kalemKaynak",
+   "kind": "read",
+   "operation": "satis.siparis.kalemleri",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{sayfa.parametre.orderId}}",
+     "type": "guid"
+    }
+   ]
+  },
+  {
+   "id": "musteriler",
+   "name": "musteriler",
+   "kind": "read",
+   "operation": "cari.listele",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "q",
+     "binding": "{{musteri.search}}",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "id": "musteriKarti",
+   "name": "musteriKarti",
+   "kind": "read",
+   "operation": "cari.getir",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{musteri.value}}",
+     "type": "guid"
+    }
+   ]
+  },
+  {
+   "id": "stoklar",
+   "name": "stoklar",
+   "kind": "read",
+   "operation": "stok.kart.listele",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "q",
+     "binding": "{{kalemler.arama}}",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "id": "birimler",
+   "name": "birimler",
+   "kind": "read",
+   "operation": "stok.kart.birimleri",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{kalemler.satir.stockItemId}}",
+     "type": "guid"
+    }
+   ]
+  },
+  {
+   "id": "personel",
+   "name": "personel",
+   "kind": "read",
+   "operation": "ik.personel.listele",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "q",
+     "binding": "{{plasiyer.search}}",
+     "type": "text"
+    },
+    {
+     "name": "pageSize",
+     "binding": "{{plasiyerSayfaBoyutu.value}}",
+     "type": "int"
+    }
+   ]
+  },
+  {
+   "id": "ozelTanimlar",
+   "name": "ozelTanimlar",
+   "kind": "read",
+   "operation": "satis.siparis.ozelAlanTanimlari",
+   "runOn": "load",
+   "parameters": []
+  },
+  {
+   "id": "ozelDegerler",
+   "name": "ozelDegerler",
+   "kind": "read",
+   "operation": "satis.siparis.ozelAlanDegerleri",
+   "runOn": "load",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{sayfa.parametre.orderId}}",
+     "type": "guid"
+    }
+   ]
+  },
+  {
+   "id": "onizleme",
+   "name": "onizleme",
+   "kind": "read",
+   "operation": "satis.siparis.hesapla",
+   "runOn": [
+    "musteri",
+    "siparisTarihi",
+    "kalemler"
+   ],
+   "parameters": [
+    {
+     "name": "customerId",
+     "binding": "{{musteri.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "orderDate",
+     "binding": "{{siparisTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "lines",
+     "binding": "{{kalemler.satirlar}}",
+     "type": "list"
+    }
+   ]
+  },
+  {
+   "id": "vergiler",
+   "name": "vergiler",
+   "kind": "read",
+   "operation": "satis.siparis.hesaplaVergileri",
+   "runOn": [
+    "musteri",
+    "siparisTarihi",
+    "kalemler"
+   ],
+   "parameters": [
+    {
+     "name": "customerId",
+     "binding": "{{musteri.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "orderDate",
+     "binding": "{{siparisTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "lines",
+     "binding": "{{kalemler.satirlar}}",
+     "type": "list"
+    }
+   ]
+  },
+  {
+   "id": "olustur",
+   "name": "olustur",
+   "kind": "insert",
+   "operation": "satis.siparis.olustur",
+   "runOn": "manual",
+   "parameters": [
+    {
+     "name": "code",
+     "binding": "{{siparisNo.value}}",
+     "type": "text"
+    },
+    {
+     "name": "customerId",
+     "binding": "{{musteri.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "orderDate",
+     "binding": "{{siparisTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "requestedDeliveryDate",
+     "binding": "{{teslimTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "currencyCode",
+     "binding": "{{musteriKarti.rows[0].currencyCode}}",
+     "type": "text"
+    },
+    {
+     "name": "salespersonEmployeeId",
+     "binding": "{{plasiyer.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "customFields",
+     "binding": "{{ozelAlanlar.degerler}}",
+     "type": "map"
+    },
+    {
+     "name": "lines",
+     "binding": "{{kalemler.satirlar}}",
+     "type": "list"
+    }
+   ]
+  },
+  {
+   "id": "guncelle",
+   "name": "guncelle",
+   "kind": "update",
+   "operation": "satis.siparis.guncelle",
+   "runOn": "manual",
+   "parameters": [
+    {
+     "name": "id",
+     "binding": "{{sayfa.parametre.orderId}}",
+     "type": "guid"
+    },
+    {
+     "name": "code",
+     "binding": "{{siparisNo.value}}",
+     "type": "text"
+    },
+    {
+     "name": "customerId",
+     "binding": "{{musteri.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "orderDate",
+     "binding": "{{siparisTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "requestedDeliveryDate",
+     "binding": "{{teslimTarihi.value}}",
+     "type": "date"
+    },
+    {
+     "name": "currencyCode",
+     "binding": "{{musteriKarti.rows[0].currencyCode}}",
+     "type": "text"
+    },
+    {
+     "name": "salespersonEmployeeId",
+     "binding": "{{plasiyer.value}}",
+     "type": "guid"
+    },
+    {
+     "name": "customFields",
+     "binding": "{{ozelAlanlar.degerler}}",
+     "type": "map"
+    },
+    {
+     "name": "lines",
+     "binding": "{{kalemler.satirlar}}",
+     "type": "list"
+    }
+   ]
+  }
+ ]
+}
