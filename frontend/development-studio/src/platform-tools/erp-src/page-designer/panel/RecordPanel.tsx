@@ -5,6 +5,7 @@ import type { ConditionPath } from "../ConditionBuilder";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import { saveSteps } from "./commandsModel";
 import { ComponentPanel } from "./ComponentPanel";
+import { DialogsSection } from "./DialogsSection";
 import { fieldTokens, type FieldToken } from "./consultantText";
 import { labelMap, stringList, MAX_LIST_COLUMNS, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import {
@@ -37,6 +38,8 @@ export type RecordPanelProps = {
   extraTypes?: ExtraAreaType[]; onAddExtra?: (type: string) => void;
   /** Komutlar bölümü: "Hangi ekran" seçiminin sayfaları, onay metninin alanları (verilmezse kaydın kolonları), kural kurucunun alanları. */
   pages?: CommandsPage[]; tokens?: FieldToken[]; paths?: ConditionPath[]; pageNames?: string[];
+  /** Pencereler bölümü: tuvalde açık tutulan pencere ve seçimi (tuvale `showDialog`); verilmezse seçim bölümün içindedir. */
+  shownDialog?: string | null; onShowDialog?: (dialogId: string | null) => void;
 };
 
 export const RECORD_SAVE_IN_COMMANDS = "Bu kartın Kaydet'i Komutlar'dadır; adımları Komutlar › Kaydet'te düzenlenir.";
@@ -247,6 +250,7 @@ function PagePanel(props: RecordPanelProps) {
     whatTitle="Hangi kayıt gösterilsin?" basicsTitle={null} actionsTitle="Ek eylemler" what={what} basics={basics} actions={actionsPart} appearance={appearance}>
     <CommandsSection def={def} template="record" catalog={catalog} pages={props.pages ?? []} tokens={props.tokens ?? fieldTokens(def, catalog)}
       paths={props.paths} pageNames={props.pageNames} disabled={disabled} onChange={change}/>
+    <DialogsSection def={def} catalog={catalog} disabled={disabled} onChange={change} shownDialog={props.shownDialog} onShowDialog={props.onShowDialog}/>
     <div className="cpanel-ask"><b>Aradığın alan ya da eylem yok mu?</b> <AskLink onAskDeveloper={props.onAskDeveloper}/></div>
   </ComponentPanel>;
 }

@@ -2,9 +2,11 @@ type Patch = Record<string, unknown>;
 type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
 
 const SIZE_OPTIONS: [DialogSize, string][] = [["sm", "Küçük"], ["md", "Orta"], ["lg", "Büyük"], ["xl", "Çok büyük"], ["full", "Tam ekran"]];
+/** Kalıplı sayfanın pencere boyutları (sunucu: sm–xl; tam ekran ve çekmece kalıpta yok). */
+export const TEMPLATE_DIALOG_SIZES = SIZE_OPTIONS.filter(([option]) => option !== "full") as [Exclude<DialogSize, "full">, string][];
 const BACKDROP_OPTIONS: [boolean, string][] = [[false, "Kapanmasın"], [true, "Kapansın"]];
 
-const sizeOf = (value: unknown): DialogSize => value === "sm" || value === "lg" || value === "xl" || value === "full" ? value : "md";
+export const sizeOf = (value: unknown): DialogSize => value === "sm" || value === "lg" || value === "xl" || value === "full" ? value : "md";
 
 /**
  * Pencere görünümü: boyut (`size`; çekmecede çekmece genişliği) ve dışarı tıklayınca kapanma (`backdropClose`).

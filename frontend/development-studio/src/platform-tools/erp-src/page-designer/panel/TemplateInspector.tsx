@@ -3,6 +3,7 @@ import type { ConditionPath } from "../ConditionBuilder";
 import { LIST_SOURCE_HINT, readPageTemplate } from "../pageTemplates";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import { COMMANDS_SLOT } from "./commandsModel";
+import { DialogsSection } from "./DialogsSection";
 import { DraftInput } from "./DraftInput";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ComponentPanel } from "./ComponentPanel";
@@ -35,7 +36,10 @@ export const isCommandsBar = (component: ModelComponent | null | undefined) =>
   component?.type === "actionBar" && component.props.slot === COMMANDS_SLOT;
 
 /** Sayfa panelinin bilgileri (Liste kalıbında seçim yokken ya da Komutlar çubuğu seçiliyken). */
-export type TemplatePageProps = { name: string; onRename?: (name: string) => void; pages: CommandsPage[]; paths?: ConditionPath[]; pageNames?: string[] };
+export type TemplatePageProps = { name: string; onRename?: (name: string) => void; pages: CommandsPage[]; paths?: ConditionPath[]; pageNames?: string[];
+  /** Pencereler bölümü: tuvalde açık tutulan pencere ve seçimi (tuvale `showDialog`); verilmezse seçim bölümün içindedir. */
+  shownDialog?: string | null; onShowDialog?: (dialogId: string | null) => void;
+};
 
 /** Liste kalıbının sayfa paneli (taslak 11): Ad, listenin kaynağı ve kolon sayısı, Komutlar. */
 function ListPagePanel({ list, page, tokens, disabled }: { list: Omit<ListPanelProps, "listId">; page: TemplatePageProps; tokens: FieldToken[]; disabled?: boolean }) {
@@ -51,6 +55,7 @@ function ListPagePanel({ list, page, tokens, disabled }: { list: Omit<ListPanelP
       <p className="cpanel-note">{source ? `${source.label} veri kaynağı · ${columns} kolon` : code ? `${code} · Katalogda yok` : LIST_SOURCE_HINT}</p></section>
     <CommandsSection def={def} template="list" catalog={list.catalog} pages={page.pages} tokens={tokens.length > 0 ? tokens : fieldTokens(def, list.catalog)}
       paths={page.paths} pageNames={page.pageNames} disabled={off} onChange={list.onChange}/>
+    <DialogsSection def={def} catalog={list.catalog} disabled={off} onChange={list.onChange} shownDialog={page.shownDialog} onShowDialog={page.onShowDialog}/>
   </div>;
 }
 

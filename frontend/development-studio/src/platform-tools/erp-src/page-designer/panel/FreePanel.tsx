@@ -4,6 +4,7 @@ import type { ConditionPath } from "../ConditionBuilder";
 import { AppearanceSection } from "./AppearanceSection";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import type { FieldToken } from "./consultantText";
+import { DialogsSection } from "./DialogsSection";
 import { DraftInput } from "./DraftInput";
 import { LegacySettings } from "./ComponentPanel";
 import "./component-panel.css";
@@ -31,6 +32,8 @@ export type FreePanelProps = {
   name?: string; onRename?: (name: string) => void;
   /** Komutlar bölümü: "Hangi ekran" seçiminin sayfaları, metindeki alanlar, kural kurucunun alanları. */
   pages?: CommandsPage[]; tokens?: FieldToken[]; paths?: ConditionPath[]; pageNames?: string[];
+  /** Pencereler bölümü: tuvalde açık tutulan pencere ve seçimi (tuvale `showDialog`); verilmezse seçim bölümün içindedir. */
+  shownDialog?: string | null; onShowDialog?: (dialogId: string | null) => void;
 };
 
 export const FREE_PAGE_LEVEL_NOTE = "Serbest gövde · 3. basamak";
@@ -131,6 +134,7 @@ function PagePanel(props: FreePanelProps) {
     </section>
     <CommandsSection def={def} template="free" catalog={catalog} pages={props.pages ?? []} tokens={props.tokens ?? []} paths={props.paths}
       pageNames={props.pageNames} disabled={disabled} onChange={change}/>
+    <DialogsSection def={def} catalog={catalog} disabled={disabled} onChange={change} shownDialog={props.shownDialog} onShowDialog={props.onShowDialog}/>
   </div>;
 }
 

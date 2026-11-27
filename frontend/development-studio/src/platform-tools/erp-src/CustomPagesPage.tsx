@@ -1285,6 +1285,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kayıt kartı tuvalinde gösterilen sekme (ERP'ye `showTab` ile istenir); başka sayfada ilk sekmeden başlanır.
   const [recordTab, setRecordTab] = useState(0);
   useEffect(() => { setRecordTab(0); }, [current?.id, systemScreenKey, erpCanvas]);
+  // Kalıplı sayfa: Pencereler bölümünde seçilen, tuvalde açık tutulan pencere (ERP'ye `showDialog` ile istenir).
+  const [canvasDialog, setCanvasDialog] = useState<string | null>(null);
+  useEffect(() => { setCanvasDialog(null); }, [current?.id, systemScreenKey, erpCanvas]);
   // Kart / pencere odağına girip çıkmak sessiz kaydın sorununu silmez; yalnız başka sayfaya geçince silinir.
   useEffect(() => { setCanvasHint(""); }, [current?.id, systemScreenKey]);
 
@@ -3938,7 +3941,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commandPages = [...pages.filter((page) => !page.screenKey && page.code !== code).map((page) => ({ code: page.code, name: page.name })),
     ...erpScreens.map((screen) => ({ code: `@${screen.key}`, name: screen.label }))];
   const commandPaths = bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
-  const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition) };
+  // Pencereler bölümü (Liste, Kayıt kartı, Serbest): seçilen pencere tuvalde açılır.
+  const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition), shownDialog: canvasDialog, onShowDialog: setCanvasDialog };
+  const canvasDialogShown = canvasDialog && definition.components.some((component) => component.id === canvasDialog && component.type === "dialog") ? canvasDialog : null;
   const freePanel = isFreePage ? {
     ...commandProps,
     def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
@@ -4071,7 +4076,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onBlocks={(blocks) => { erpBlocks.current = blocks; if (isRecordPage) leaveHiddenRecordTab(shownRecordTab(blocks, recordDef)); }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
-              tabRequest={freeTabRequest}
+              tabRequest={freeTabRequest} dialogRequest={canvasDialogShown}
               overlay={isRecordPage ? ({ blocks, showTab }) => {
                 const activeTab = canvasRecordTab(blocks);
                 const tabsId = recordDef.components.find((component) => component.type === "tabs" && component.props.slot === "tabs")?.id;
