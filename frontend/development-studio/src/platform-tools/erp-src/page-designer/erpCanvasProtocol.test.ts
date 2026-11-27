@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showTabMessage } from "./erpCanvasProtocol";
+import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showDialogMessage, showTabMessage } from "./erpCanvasProtocol";
 
 const base = { nx: "nexora-canvas", v: 1 };
 
@@ -26,6 +26,14 @@ describe("ERP tuval protokolü", () => {
     expect(() => showTabMessage("a#tab1", 0)).toThrow();
     expect(() => showTabMessage("t", 100)).toThrow();
     expect(() => showTabMessage("t", 1.5)).toThrow();
+  });
+
+  it("showDialog mesajı pencereyi açar (null kapatır), geçersiz kimliği reddeder", () => {
+    // erp-web/src/designer-canvas/canvasProtocol.ts ile aynı biçim.
+    expect(showDialogMessage("siparisPenceresi")).toEqual({ ...base, type: "showDialog", dialogId: "siparisPenceresi" });
+    expect(showDialogMessage(null)).toEqual({ ...base, type: "showDialog", dialogId: null });
+    expect(() => showDialogMessage("a#tab1")).toThrow();
+    expect(() => showDialogMessage("")).toThrow();
   });
 
   it("Kayıt kartının sekme kutularını (\"<tabsId>#tab<i>\") kabul eder", () => {

@@ -3,7 +3,10 @@ import type { ConditionPath } from "../ConditionBuilder";
 import { LIST_SOURCE_HINT, readPageTemplate } from "../pageTemplates";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import { COMMANDS_SLOT } from "./commandsModel";
+import { DialogsSection } from "./DialogsSection";
+import { DIALOG_SLOT, DIALOGS_SLOT, isGroup } from "./dialogsModel";
 import { DraftInput } from "./DraftInput";
+import { GroupPanel } from "./GroupPanel";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ComponentPanel } from "./ComponentPanel";
 import { consultantKindOf } from "./consultantPalette";
@@ -35,7 +38,10 @@ export const isCommandsBar = (component: ModelComponent | null | undefined) =>
   component?.type === "actionBar" && component.props.slot === COMMANDS_SLOT;
 
 /** Sayfa panelinin bilgileri (Liste kalıbında seçim yokken ya da Komutlar çubuğu seçiliyken). */
-export type TemplatePageProps = { name: string; onRename?: (name: string) => void; pages: CommandsPage[]; paths?: ConditionPath[]; pageNames?: string[] };
+export type TemplatePageProps = { name: string; onRename?: (name: string) => void; pages: CommandsPage[]; paths?: ConditionPath[]; pageNames?: string[];
+  /** Pencereler bölümü: tuvalde açık tutulan pencere ve seçimi (tuvale `showDialog`); verilmezse seçim bölümün içindedir. */
+  shownDialog?: string | null; onShowDialog?: (dialogId: string | null) => void;
+};
 
 /** Liste kalıbının sayfa paneli (taslak 11): Ad, listenin kaynağı ve kolon sayısı, Komutlar. */
 function ListPagePanel({ list, page, tokens, disabled }: { list: Omit<ListPanelProps, "listId">; page: TemplatePageProps; tokens: FieldToken[]; disabled?: boolean }) {
@@ -51,6 +57,7 @@ function ListPagePanel({ list, page, tokens, disabled }: { list: Omit<ListPanelP
       <p className="cpanel-note">{source ? `${source.label} veri kaynağı · ${columns} kolon` : code ? `${code} · Katalogda yok` : LIST_SOURCE_HINT}</p></section>
     <CommandsSection def={def} template="list" catalog={list.catalog} pages={page.pages} tokens={tokens.length > 0 ? tokens : fieldTokens(def, list.catalog)}
       paths={page.paths} pageNames={page.pageNames} disabled={off} onChange={list.onChange}/>
+    <DialogsSection def={def} catalog={list.catalog} disabled={off} onChange={list.onChange} shownDialog={page.shownDialog} onShowDialog={page.onShowDialog}/>
   </div>;
 }
 
@@ -165,12 +172,22 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
   tokens: FieldToken[]; disabled?: boolean;
   onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
 }) {
-  if (free) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
-  if (record) {
+  // Pencere ve içeriği (5b-2 adım 2) kalıbın parça panellerine girmez; grup (pencerede ya da Liste detayında) Grup panelinde açılır.
+  const placed = typeof component?.props.slot === "string" ? component.props.slot : "";
+  const inDialog = placed === DIALOG_SLOT || placed === DIALOGS_SLOT;
+  if (component && isGroup(component) && (placed === DIALOG_SLOT || placed === "detail")) {
+    const def = free?.def ?? record?.def ?? belge?.def ?? list?.definition;
+    const onChange = free?.onChange ?? record?.onChange ?? belge?.onChange ?? list?.onChange;
+    if (def && onChange) return <GroupPanel def={def} groupId={component.id} onChange={onChange}
+      disabled={disabled || free?.disabled || record?.disabled || belge?.disabled || list?.disabled}
+      visibility={free?.visibility?.(component.id) ?? record?.visibility?.(component.id) ?? list?.visibility}/>;
+  }
+  if (free && !inDialog) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
+  if (record && !inDialog) {
     const selection = recordSelectionOf(record.def, component?.id ?? null);
     if (selection) return <RecordPanel {...record} selection={selection} disabled={disabled || record.disabled}/>;
   }
-  if (belge) {
+  if (belge && !inDialog) {
     const slot = typeof component?.props.slot === "string" ? component.props.slot : "";
     if (!component || BELGE_FOCUS[component.type] || (slot === "actions" && component.type === "button"))
       return <BelgePanel {...belge} focus={component ? BELGE_FOCUS[component.type] ?? null : null} disabled={disabled || belge.disabled}/>;

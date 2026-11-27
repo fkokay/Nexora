@@ -6,15 +6,16 @@ import {
   freeBlocks, freeTabs, isFreeBlock, isFreeItem, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, removeBlock as removeFreeBlock, removeItem as removeFreeItem,
   removePageAction, setFreeTabs,
 } from "./freeModel";
+import { DIALOG_SLOT, DIALOGS_SLOT, dialogOpeners, dialogOwners, removeDialog, removeDialogPart } from "./dialogsModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
-export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
-export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
+export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
+export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
 const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
 export const BELGE_TEMPLATE_SLOTS = new Set(["fields", "lines", "summary", "actions", "above", "below"]);
 const BELGE_SLOT_TYPES: Record<string, string> = { fields: "documentFields", lines: "documentLines", summary: "documentSummary", actions: "button" };
-export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item"]);
+export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item", DIALOGS_SLOT, DIALOG_SLOT]);
 /** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules); `code` yalnız katalog bileşeniyle (`isFreeItemType`). */
 export const FREE_ITEM_TYPES = new Set(["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"]);
 /** Serbest gövde öğesi olabilir mi: `FREE_ITEM_TYPES` ya da katalog bileşenine başvuran `code` (satır içi kodlu `code` olamaz; sunucu da reddeder). */
@@ -27,6 +28,21 @@ export function isFreeItemType(component: ModelComponent): boolean {
 }
 const FREE_SLOT_TYPES: Record<string, string> = { actions: "button", tabs: "tabs", block: "section" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
+/** Liste `detail` yerinde detay paneli ya da kart grubu durur (5b-2 adım 2). */
+const slotTypeFits = (slotTypes: Record<string, string>, slot: string, type: string) =>
+  !slotTypes[slot] || slotTypes[slot] === type || (slotTypes === SLOT_TYPES && slot === "detail" && type === "card");
+
+/**
+ * Pencerenin yeri (5b-2 adım 2; Belge'de yok): pencere `dialogs`'ta, bir pencereye ait içerik `dialog`'da durur (yeri olmayan ya da
+ * başka yerdeki pencere / içerik oraya alınır). Hiçbir pencereye ait olmayan `dialog` bileşeni kalıbın genel kuralına düşer.
+ * Pencere ve içeriği taşınmaz, grup çocuklarına dokunulmaz; dönen değer bileşenin yeri ya da kalıbın kuralı için null.
+ */
+function dialogSlotOf(component: ModelComponent, owners: Map<string, string>): string | null {
+  if (component.type === "dialog") return DIALOGS_SLOT;
+  if (owners.has(component.id)) return DIALOG_SLOT;
+  return null;
+}
+const placeIn = (component: ModelComponent, slot: string) => component.props.slot === slot ? component : { ...component, props: { ...component.props, slot } };
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
@@ -73,13 +89,16 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
     ? [...ids(component.props.rowActions), ...(typeof component.props.rowOpenAction === "string" ? [component.props.rowOpenAction] : [])] : []));
   const barId = commandsBarId(def);
+  const owners = dialogOwners(def.components);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const bar = placeCommandsBar(next, barId);
     if (bar) { if (bar !== component) changed = true; return bar; }
+    const dialogSlot = template.name === "belge" ? null : dialogSlotOf(next, owners);
+    if (dialogSlot) { next = placeIn(next, dialogSlot); if (next !== component) changed = true; return next; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = slots.has(slot) && (!slotTypes[slot] || slotTypes[slot] === next.type);
+    const fits = slots.has(slot) && slot !== DIALOG_SLOT && slot !== DIALOGS_SLOT && slotTypeFits(slotTypes, slot, next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" && rowButtons.has(next.id) ? "rowActions" : "below" } };
     if (next !== component) changed = true;
     return next;
@@ -89,13 +108,16 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
 
 function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
   const barId = commandsBarId(def);
+  const owners = dialogOwners(def.components);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const bar = placeCommandsBar(next, barId);
     if (bar) { if (bar !== component) changed = true; return bar; }
+    const dialogSlot = dialogSlotOf(next, owners);
+    if (dialogSlot) { next = placeIn(next, dialogSlot); if (next !== component) changed = true; return next; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
+    const fits = FREE_TEMPLATE_SLOTS.has(slot) && slot !== DIALOG_SLOT && slot !== DIALOGS_SLOT && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" ? "actions" : "item" } };
     if (next !== component) changed = true;
     return next;
@@ -175,7 +197,8 @@ export function recordSelectionOf(def: ModelDefinition, componentId: string | nu
   const component = componentId ? def.components.find((item) => item.id === componentId) : undefined;
   if (!component) return { kind: "page" };
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";
-  if (slot === "above" || slot === "below") return null;
+  // Ek alanlar ve pencere parçaları (5b-2 adım 2) kartın parçası değildir: genel silme / kopyalama yolu ve genel panel.
+  if (slot === "above" || slot === "below" || slot === DIALOG_SLOT || slot === DIALOGS_SLOT) return null;
   if (slot === "section" && component.type === "formCard") return { kind: "section", id: component.id };
   if (slot === "field" && component.type === "input") return { kind: "field", id: component.id };
   if (slot === "lines" && component.type === "dataTable") return { kind: "lines", id: component.id };
@@ -210,6 +233,23 @@ export function recordRemoval<D extends ModelDefinition>(def: D, id: string): Re
 }
 
 /**
+ * Kalıplı sayfada pencerenin silinmesi (Delete tuşu, çöp düğmeleri): açanı olan pencere silinmez (Pencereler bölümündeki Kaldır
+ * gibi; sunucu var olmayan pencereyi açan düğmeyi reddeder), öteki pencere yalnız kendine ait içeriğiyle silinir. Pencere
+ * içeriğindeki form kartı ya da sekmeler (üst düzey ya da grup çocuğu) yalnız kendi üzerinden sahiplenilenlerle silinir (yoksa
+ * onlar sahipsiz kalıp `below` / `item` yerine düşerdi). Öteki her şeyde ya da sayfa kalıpsızsa genel yol.
+ */
+export function dialogRemoval<D extends ModelDefinition>(def: D, id: string): RecordRemoval<D> {
+  if (!readPageTemplate(def.template)) return { kind: "generic" };
+  const component = def.components.find((item) => item.id === id);
+  if (component?.type !== "dialog") {
+    const next = removeDialogPart(def.components, id);
+    return next ? { kind: "removed", def: { ...def, components: next } } : { kind: "generic" };
+  }
+  if (dialogOpeners(def, id).length > 0) return { kind: "none" };
+  return { kind: "removed", def: { ...def, components: removeDialog(def.components, id) } };
+}
+
+/**
  * Tasarımcının genel silme yolunun serbest gövdedeki karşılığı (üyelik geçerli kalsın diye): bölüm `freeModel.removeBlock`
  * kuralıyla (üyesi olan ya da son bölüm silinmez, neden döner), bileşen `removeItem` ile, sayfa eylemi `removePageAction` ile
  * silinir; sekme bileşeni silinmez (sekmeleri sayfa paneli yönetir). Serbest olmayan sayfada genel yol.
@@ -233,14 +273,18 @@ export function freeRemoval<D extends ModelDefinition>(def: D, id: string): Reco
   return { kind: "removed", def: { ...def, components: def.components.filter((item) => item !== component) } };
 }
 
-/** Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi ve kayıt kartının her parçası. */
+/**
+ * Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi, kayıt kartının her parçası, pencere ve
+ * pencere içeriği (kopya içeriği ikinci kez sahiplenir ya da sahipsiz kalıp `below`'a düşerdi; sunucu reddeder).
+ */
 export function templateDuplicateBlocked(def: ModelDefinition, id: string): boolean {
   const template = readPageTemplate(def.template);
   if (!template) return false;
   // Serbest gövdede kopya bölüm üyeliğini bozardı (kopya hiçbir bölümde olmaz ya da üyeleri iki bölümde olur); kopyalama kapalı.
   if (template.name === "free") return def.components.some((item) => item.id === id);
-  if (isRecordPart(def, id)) return true;
   const component = def.components.find((item) => item.id === id);
+  if (component && (component.type === "dialog" || component.props.slot === DIALOG_SLOT || component.props.slot === DIALOGS_SLOT)) return true;
+  if (isRecordPart(def, id)) return true;
   if (!component) return false;
   if (component.props.slot === "list" || component.props.slot === "detail") return true;
   return def.components.some((item) => item.type === "dataTable" && item.props.rowOpenAction === id);

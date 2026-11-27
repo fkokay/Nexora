@@ -64,4 +64,17 @@ describe('freeTemplateModel', () => {
     // Yazılımcı bileşeni (katalog `code`) kendi yüksekliğiyle tam satır çizilir.
     expect(freeFullRow(c('x', 'code', 'item', { catalogComponent: 'harita' }))).toBe(true);
   });
+
+  it('dialogs are laid out apart and dialog contents enter no body slot', () => {
+    const layout = layoutFreeTemplate([
+      c('b1', 'section', 'block', { members: ['m1', 'tablo'] }), c('m1', 'text', 'item'),
+      c('p', 'dialog', 'dialogs', { contains: ['sek'] }),
+      c('sek', 'tabs', 'dialog', { tabs: ['Bilgi=tablo,bolum'] }),
+      c('tablo', 'dataTable', 'dialog'), c('bolum', 'section', 'dialog'), c('b', 'button', 'dialog'),
+    ]);
+    expect(ids(layout.dialogs)).toEqual(['p']);
+    expect(layout.tabsComponent).toBeNull();
+    expect(layout.blocks.map((entry) => [entry.block.id, ids(entry.members)])).toEqual([['b1', ['m1']]]);
+    expect(layout.actions).toEqual([]);
+  });
 });

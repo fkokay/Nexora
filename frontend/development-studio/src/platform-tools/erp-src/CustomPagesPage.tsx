@@ -63,7 +63,7 @@ import { stringList, withOperationParameters, type ModelComponent, type ModelDef
 import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
-import { ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { dialogRemoval, ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { FreeSelection } from "./page-designer/panel/FreePanel";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
 import { FreeCanvasOverlay } from "./page-designer/freeCanvasOverlay";
@@ -1285,6 +1285,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   // Kayıt kartı tuvalinde gösterilen sekme (ERP'ye `showTab` ile istenir); başka sayfada ilk sekmeden başlanır.
   const [recordTab, setRecordTab] = useState(0);
   useEffect(() => { setRecordTab(0); }, [current?.id, systemScreenKey, erpCanvas]);
+  // Kalıplı sayfa: Pencereler bölümünde seçilen, tuvalde açık tutulan pencere (ERP'ye `showDialog` ile istenir).
+  const [canvasDialog, setCanvasDialog] = useState<string | null>(null);
+  useEffect(() => { setCanvasDialog(null); }, [current?.id, systemScreenKey, erpCanvas]);
   // Kart / pencere odağına girip çıkmak sessiz kaydın sorununu silmez; yalnız başka sayfaya geçince silinir.
   useEffect(() => { setCanvasHint(""); }, [current?.id, systemScreenKey]);
 
@@ -2251,6 +2254,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     // Kalıplı sayfanın Komutlar çubuğu genel yolla silinmez: komutlar Komutlar bölümünde gizlenir (ayarları korunur).
     const target = definitionRef.current.components.find((component) => component.id === id);
     if (readPageTemplate(definitionRef.current.template) && target?.type === "actionBar" && target.props.slot === "commands") return;
+    // Kalıplı sayfanın penceresi: açanı varsa silinmez, yoksa yalnız kendi içeriğiyle silinir (Pencereler › Kaldır ile aynı kural).
+    const dialog = dialogRemoval(definitionRef.current as unknown as ModelDefinition, id);
+    if (dialog.kind === "none") return;
+    if (dialog.kind === "removed") { commit(() => dialog.def as unknown as PageDefinition); setSelectedComponentId((value) => value === id ? null : value); setCanvasDialog((value) => value === id ? null : value); return; }
     // Kayıt kartının parçaları modelin kuralıyla silinir (eyleme bağlı alan silinmez; özet, sekmeler ve eylem düğmeleri hiç).
     const record = recordRemoval(definitionRef.current as unknown as ModelDefinition, id);
     if (record.kind === "none") return;
@@ -3938,7 +3945,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commandPages = [...pages.filter((page) => !page.screenKey && page.code !== code).map((page) => ({ code: page.code, name: page.name })),
     ...erpScreens.map((screen) => ({ code: `@${screen.key}`, name: screen.label }))];
   const commandPaths = bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
-  const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition) };
+  // Pencereler bölümü (Liste, Kayıt kartı, Serbest): seçilen pencere tuvalde açılır.
+  const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition), shownDialog: canvasDialog, onShowDialog: setCanvasDialog };
+  const canvasDialogShown = canvasDialog && /^[A-Za-z0-9_-]{1,64}$/.test(canvasDialog) && definition.components.some((component) => component.id === canvasDialog && component.type === "dialog") ? canvasDialog : null;
   const freePanel = isFreePage ? {
     ...commandProps,
     def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
@@ -4071,7 +4080,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
               onBlocks={(blocks) => { erpBlocks.current = blocks; if (isRecordPage) leaveHiddenRecordTab(shownRecordTab(blocks, recordDef)); }}
               onUnavailable={(reason) => { setCanvasFallback(true); setNotice(reason); }}
               onError={(message) => setCanvasError(message ?? "")}
-              tabRequest={freeTabRequest}
+              tabRequest={freeTabRequest} dialogRequest={canvasDialogShown}
               overlay={isRecordPage ? ({ blocks, showTab }) => {
                 const activeTab = canvasRecordTab(blocks);
                 const tabsId = recordDef.components.find((component) => component.type === "tabs" && component.props.slot === "tabs")?.id;
@@ -4625,8 +4634,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "customFieldsBlock" && section("customFields", "Özel alanlar", <CustomFieldsBlockFields name={selected.name} props={selected.props} readQueries={readQueries}
               columnsOf={(queryId) => { const columns = queryColumns(queryId); return columns.length > 0 ? columns.map((column) => column.code) : null; }}
               disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
-            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components}
-              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
+            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components} templated={!!pageTemplate}
+              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} templated={!!pageTemplate} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               labelOf={(component) => { const summary = summaryOf(component as PageComponent); const title = titleFor(component.type as ComponentType); return summary === title ? title : `${title}: ${summary}`; }}
               writeQueries={writeQueries} readQueries={readQueries} pageNames={pageNamesOf(definition)} disabled={!canEdit}
               onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}

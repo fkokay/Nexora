@@ -88,6 +88,19 @@ docker --context $ctx cp ${api}:/tmp/tpl-report-$stamp ./tpl-report-$stamp
 
 **Neden metinleri (5b-2 adım 1, 2026-11-27):** "Form alanları (Kayıt kartı adayı)." ve çubuğun ayarlarını tek tek reddeden "… ayarı kalıplarda yok." (`hiddenCommands`, `commandWhen`…) nedenleri kalktı: üst düzey işlem çubuğu artık kalıbın `commands` yerine taşınır ve form sayfaları Kayıt kartına denenir. Eklenenler: "İşlem çubuğunun <ayar> ayarının kalıpta karşılığı yok." (`barLook`, `formDialog`, `exportCsv`, `visibleWhen`, `disabledWhen`, `margin`, Yeni/Aç penceresi…); "Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır."; Kayıt kartı için "Kayıt kartı tam bir kayıt özeti (recordHeader) ister.", "Kayıt kartının bölümleri sayfa parametresiyle okunan bir kayda bağlı değil.", "Kayıt kartında her alan bir bölümde olmalı: <id>.", "Kayıt kartında bölümlerin arasına yalnız açıklama (text) konabilir: <id>.", "Kayıt kartında başlıkta kayıt sayısı yok.", "Veri listesinin satır eylemleri kayıt kartında yok.", "Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir."; taşımada "Kayıt kartına taşıma henüz açık değil.". "İşlem çubuğu kalıplarda yok." yalnız iç içe ya da ikinci bir çubuk için kalır.
 
+**Neden metinleri (5b-2 adım 2, pencere ve grup):** "Pencere kalıplarda yok." ve "İç içe bileşenler (children) kalıplarda yok." nedenleri kalktı: pencere kalıbın `dialogs` yerine, içeriği (`contains`, penceredeki sekmelerin gösterdikleri ve bunlardaki form kartlarının girişleri) `dialog` yerine taşınır; tek katlı gruplar (`section`/`card` + `children`) olduğu gibi kalır, genişlikleri silinir; Liste'de seçili satıra bağlı ya da detay paneli içeren kart grubu `detail` yerine gider. Yerlerine gelen somut nedenler:
+
+| Neden | Ne zaman |
+|---|---|
+| "Pencerenin sunumu ya da boyutu kalıplarda yok." | Pencere `dialog` dışında bir sunumla (ör. `drawer`) ya da `sm`/`md`/`lg`/`xl` dışında bir boyutla (ör. `full`). |
+| "<tür> pencerenin içinde kalıplarda yok." | Pencerenin içeriğinde izinsiz bir tür (izinliler: `recordHeader`, `section`, `card`, `formCard`, `input`, `text`, `alert`, `metric`, `button`, `dataTable`, `tabs`). Pencere içindeki `editableGrid` ve `steps` kendi nedenleriyle ("Düzenlenebilir satır tablosu (Belge kalıbı bekleniyor).", "Sihirbaz adımları kalıplarda yok.") kalır. |
+| "Grubun içinde grup kalıplarda yok." | Grubun çocuğu bölüm, kart, pencere ya da kendi çocukları olan bir bileşen. |
+| "<tür> grubun içinde kalıplarda yok." | Grubun çocuğunda izinsiz bir tür (izinliler: `badge`, `heading`, `text`, `metric`, `alert`, `button`, `formCard`, `dataTable`, `contextPanel`, `tabs`). |
+
+Liste'de hiçbir form kartına, sekmeye ya da pencereye ait olmayan gizli giriş (`hidden: true`, yalnız sayfa durumu) `above` yerine gider; görünür sahipsiz giriş yine "input bu kalıpta yok." ile kalır. `finance-ledger-chart` bu adımda taşınmaz: detay kartının sekmesi üst düzey form kartlarını, girişlerini ve ikinci bir detay panelini gösterir, bunların Liste'de tanımlı yeri yok (raporda ilk neden "formCard bu kalıpta yok.").
+
+Pencere içeriği ve grubun yeri ayrıca kalıp doğrulamasından geçer; geçmezse neden "Dönüştürülen tanım doğrulanamadı: …" olarak yazılır (ör. grup Liste detayı ya da pencere dışında).
+
 **Yapılacak:** Markdown raporu kullanıcıya göster. Şunları ayrıca belirt: kaç sayfa taşınabilir, en sık nedenler, "eşdeğerlik denetimi başarısız" satırları.
 
 **Başarı:** Kullanıcı hedef firmaları ve sayfa sayılarını gördüğünü söyler. Bu adım canlıda yazma izni **vermez**.

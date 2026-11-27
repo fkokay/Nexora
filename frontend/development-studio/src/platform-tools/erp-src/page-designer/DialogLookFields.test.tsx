@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { DialogFields } from "./DialogFields";
 import { DialogLookFields } from "./DialogLookFields";
 
 type ButtonProps = { children: ReactNode; onClick: () => void; "aria-pressed": boolean };
@@ -19,6 +20,16 @@ const buttonsOf = (props: Record<string, unknown>, onPatch: (patch: Record<strin
 };
 
 describe("DialogLookFields", () => {
+  it("kalıplı sayfada Tam ekran boyutu yok (sunucu: sm–xl)", () => {
+    const html = renderToString(<DialogLookFields props={{}} templated onPatch={() => undefined} />);
+    expect(html).not.toContain("Tam ekran");
+    expect(html).toContain("Çok büyük");
+    const dialog = { id: "p", type: "dialog", props: { presentation: "dialog" } };
+    const fields = (templated: boolean) => renderToString(<DialogFields dialog={dialog} components={[dialog]} writeQueries={[]} readQueries={[]} pageNames={[]}
+      templated={templated} onPatch={() => undefined}/>);
+    expect(fields(false)).toContain("Çekmece");
+    expect(fields(true)).not.toContain("Çekmece");
+  });
   it("varsayılanlar Orta ve Kapanmasın seçili görünür", () => {
     const html = renderToString(<DialogLookFields props={{}} onPatch={() => undefined} />);
     expect(html).toContain("Boyut");

@@ -8,7 +8,9 @@ export type StudioToCanvas =
   /** Kayıt kartı: `tabsId` bileşeninin `index`. sekmesini gösterir (sekme düğmesi kutuları `"<tabsId>#tab<i>"`). */
   | { nx: 'nexora-canvas'; v: 1; type: 'showTab'; tabsId: string; index: number }
   /** Belge kalıbı: tuvalde çizilen örnek belgenin durumu (ör. Draft, Open, Fulfilled). */
-  | { nx: 'nexora-canvas'; v: 1; type: 'previewState'; state: string };
+  | { nx: 'nexora-canvas'; v: 1; type: 'previewState'; state: string }
+  /** Kalıplı sayfa: `dialogId` penceresini tuvalde açar; `null` açık pencereyi kapatır. */
+  | { nx: 'nexora-canvas'; v: 1; type: 'showDialog'; dialogId: string | null };
 export type CanvasToStudio =
   | { nx: 'nexora-canvas'; v: 1; type: 'ready'; revision: number }
   | { nx: 'nexora-canvas'; v: 1; type: 'layout'; revision: number; height: number; blocks: CanvasBlock[] }
@@ -77,4 +79,10 @@ export function previewStateMessage(state: string): StudioToCanvas {
 export function showTabMessage(tabsId: string, index: number): StudioToCanvas {
   if (!ID_PATTERN.test(tabsId) || !Number.isInteger(index) || index < 0 || index > MAX_TAB_INDEX) throw new Error('Geçersiz sekme.');
   return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'showTab', tabsId, index };
+}
+
+/** Kalıplı sayfa: tuvalde `dialogId` penceresini açar (`null` kapatır). */
+export function showDialogMessage(dialogId: string | null): StudioToCanvas {
+  if (dialogId !== null && !ID_PATTERN.test(dialogId)) throw new Error('Geçersiz pencere.');
+  return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'showDialog', dialogId };
 }

@@ -3,7 +3,7 @@ import { api } from '../erpApi';
 import { recordKeyParam } from '../page-templates/recordTemplateModel';
 import { readPageTemplate } from '../page-templates/pageTemplate';
 import { setPageParams, type PageParams } from '../pageNavigation';
-import { CanvasAnchorContext, CanvasTabsContext, type CanvasTabRequest } from './anchorContext';
+import { CanvasAnchorContext, CanvasDialogContext, CanvasTabsContext, type CanvasDialogRequest, type CanvasTabRequest } from './anchorContext';
 import { CANVAS_PROTOCOL, CANVAS_VERSION, collectBlocks, parseStudioCanvasMessage, type CanvasParams, type CanvasToStudio } from './canvasProtocol';
 import './designer-canvas.css';
 
@@ -48,6 +48,8 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
   const [shown, setShown] = useState<number | null>(null);
   // Studio'nun showTab ile istediği sekmeler; yeniden yüklemede (key değişimi) korunur.
   const [tabs, setTabs] = useState(NO_TABS);
+  // Studio'nun showDialog ile istediği pencere; yeniden yüklemede korunur.
+  const [dialog, setDialog] = useState<CanvasDialogRequest | null>(null);
   // Belge kalıbı: Studio'nun "Önizlenen durum" seçimi; tuval örnek belgeyi bu durumda çizer.
   const [belgeState, setBelgeState] = useState('Draft');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -100,6 +102,9 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
         const { tabsId, index } = message;
         // Her istek yeni bir sayaçla: kullanıcı başka sekmeye tıkladıktan sonra aynı sekme yeniden istenebilir.
         setTabs((current) => new Map(current).set(tabsId, { index, signal: (current.get(tabsId)?.signal ?? 0) + 1 }));
+      } else if (message.type === 'showDialog') {
+        const { dialogId } = message;
+        setDialog((current) => ({ dialogId, signal: (current?.signal ?? 0) + 1 }));
       } else {
         setRevision(message.revision);
       }
@@ -158,9 +163,11 @@ export default function DesignerCanvasHost({ token, params, studioOrigin }: { to
           <div className="workspace-page-main">
             <CanvasAnchorContext.Provider value={true}>
               <CanvasTabsContext.Provider value={tabs}>
-                <Suspense fallback={null}>
-                  {shown !== null && <TenantCustomPage key={shown} token={token} previewId={previewId} systemScreenKey={systemScreenKey} belgePreviewState={belgeState} />}
-                </Suspense>
+                <CanvasDialogContext.Provider value={dialog}>
+                  <Suspense fallback={null}>
+                    {shown !== null && <TenantCustomPage key={shown} token={token} previewId={previewId} systemScreenKey={systemScreenKey} belgePreviewState={belgeState} />}
+                  </Suspense>
+                </CanvasDialogContext.Provider>
               </CanvasTabsContext.Provider>
             </CanvasAnchorContext.Provider>
           </div>

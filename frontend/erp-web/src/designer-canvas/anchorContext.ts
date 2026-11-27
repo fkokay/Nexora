@@ -12,3 +12,12 @@ export type CanvasTabRequest = { index: number; signal: number };
  * tıklaması yine sekmeyi değiştirir; yeniden takılan (reload) sekmeler son istekle açılır.
  */
 export const CanvasTabsContext = createContext<ReadonlyMap<string, CanvasTabRequest> | null>(null);
+
+/** Studio'nun son `showDialog` isteği: açılacak pencere (`null` = kapat) ve her istekte artan sayaç (aynı pencere yeniden açılabilsin). */
+export type CanvasDialogRequest = { dialogId: string | null; signal: number };
+
+/**
+ * Tasarımcı tuvalinde Studio'nun `showDialog` ile istediği pencere. Yalnız tuval sağlar; normal sayfalarda null. Sayfa isteği
+ * bir olay gibi uygular: istenen pencereyi açar, diğer açık pencereleri kapatır; yeniden takılan (reload) sayfa son istekle açılır.
+ */
+export const CanvasDialogContext = createContext<CanvasDialogRequest | null>(null);

@@ -72,6 +72,7 @@ export function FreeTemplate<C extends Component>({ layout, render, title, crumb
           {layout.tabsComponent ? render(layout.tabsComponent) : layout.blocks.map((entry) => render(entry.block))}
         </FreeNarrowContext.Provider>
       </div>
+      {layout.dialogs.map(render)}
     </PageShell>
   </div>;
 }

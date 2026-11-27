@@ -94,6 +94,49 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(showTabs(spy)).toContainEqual(["t", 2]);
   });
 
+  it("selecting a window in Pencereler opens it on the canvas; deselecting closes it", async () => {
+    catalogState.definition = { ...start, components: [...start.components,
+      { id: "pencere", type: "dialog", props: { slot: "dialogs", presentation: "dialog", title: "Bilgi penceresi", contains: ["pencereMetni"] } },
+      { id: "pencereMetni", type: "text", props: { slot: "dialog", text: "İçerik" } }] };
+    const { host, frame } = await open();
+    const spy = vi.spyOn(frame.contentWindow!, "postMessage");
+    const dialogMessages = () => spy.mock.calls.map(([message]) => message as { type?: string; dialogId?: string | null })
+      .filter((message) => message.type === "showDialog").map((message) => message.dialogId);
+    const row = () => [...host.querySelectorAll<HTMLButtonElement>("[data-part='dialog-row']")].find((item) => item.textContent?.includes("Bilgi penceresi"));
+    expect(row()).toBeTruthy();
+    await act(async () => row()!.click());
+    await flush();
+    expect(dialogMessages()).toEqual(["pencere"]);
+    await act(async () => row()!.click());
+    await flush();
+    expect(dialogMessages()).toEqual(["pencere", null]);
+  });
+
+  it("Delete does not remove a window a button opens; without openers it removes the window and its content", async () => {
+    const withWindow = (opener: boolean) => ({ ...start, components: [...start.components,
+      { id: "pencere", type: "dialog", name: "pencere", props: { slot: "dialogs", presentation: "dialog", title: "Bilgi penceresi", contains: ["pencereMetni"] } },
+      { id: "pencereMetni", type: "text", name: "pencereMetni", props: { slot: "dialog", text: "İçerik" } },
+      ...(opener ? [{ id: "acan", type: "button", name: "acan", props: { slot: "actions", text: "Bilgi", actionType: "openDialog", dialogId: "pencere" } }] : [])] });
+    const layerIds = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>(".pd-layer-open")].map((item) => item.textContent ?? "");
+    const deleteWindow = async (host: HTMLElement) => {
+      const layer = [...host.querySelectorAll<HTMLButtonElement>(".pd-layer-open")].find((item) => item.textContent?.includes("Bilgi penceresi"));
+      expect(layer).toBeTruthy();
+      await act(async () => layer!.click());
+      await key({ key: "Delete" });
+      await flush();
+    };
+    catalogState.definition = withWindow(true);
+    const opened = await open();
+    await deleteWindow(opened.host);
+    expect(layerIds(opened.host).some((text) => text.includes("Bilgi penceresi"))).toBe(true);
+    mounted.forEach(({ root, host }) => { act(() => root.unmount()); host.remove(); }); mounted = [];
+
+    catalogState.definition = withWindow(false);
+    const plain = await open();
+    await deleteWindow(plain.host);
+    expect(layerIds(plain.host).some((text) => text.includes("Bilgi penceresi") || text.includes("İçerik"))).toBe(false);
+  });
+
   it("a Liste without a source pauses autosave and says why above the canvas", async () => {
     const { host } = await open();
     await act(async () => button(host, ".pd-palette-item", "Liste")!.click());

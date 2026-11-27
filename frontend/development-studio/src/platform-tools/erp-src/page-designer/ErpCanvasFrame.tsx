@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { pickBlock } from "./canvasHitTest";
-import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showTabMessage, tabBoxOf, type CanvasBlock } from "./erpCanvasProtocol";
+import { canvasFrameUrl, parseCanvasMessage, previewStateMessage, reloadMessage, showDialogMessage, showTabMessage, tabBoxOf, type CanvasBlock } from "./erpCanvasProtocol";
 
 export type CanvasTenant = { id: string; name: string; slug: string; role: string };
 
@@ -32,9 +32,15 @@ type Props = {
    * overlay'deki gibi ERP belgesi yeniden açıldığında yinelenir.
    */
   tabRequest?: { tabsId: string; index: number; key?: string } | null;
+  /**
+   * Kalıplı sayfa: tuvalde açık tutulacak pencere (Pencereler bölümünde seçilen). Değişince `showDialog` yollanır (`null` kapatır);
+   * açık pencere ERP belgesi yeniden açıldığında (ready) yeniden istenir.
+   */
+  dialogRequest?: string | null;
 };
 
 const READY_TIMEOUT_MS = 10_000;
+const DIALOG_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const AUTH_RESEND_MS = 1_000;
 const FALLBACK_MESSAGE = "ERP önizlemesine bağlanılamadı, yerleşik önizleme gösteriliyor.";
 const DEVICE_WIDTH = { desktop: "100%", tablet: "768px", mobile: "375px" } as const;
@@ -54,6 +60,7 @@ export default function ErpCanvasFrame(props: Props) {
   const handlers = useRef(props);
   handlers.current = props;
   const shownTabs = useRef(new Map<string, number>());
+  const shownDialog = useRef<string | null>(null);
   const showTab = useCallback((tabsId: string, index: number) => {
     const message = showTabMessage(tabsId, index);
     shownTabs.current.set(tabsId, index);
@@ -65,6 +72,7 @@ export default function ErpCanvasFrame(props: Props) {
     errored.current = false;
     lastRevision.current = -1;
     shownTabs.current = new Map();
+    shownDialog.current = null;
     setBlocks([]);
     setHoverId(null);
     let authTimer: number | undefined;
@@ -95,6 +103,8 @@ export default function ErpCanvasFrame(props: Props) {
         stopAuth();
         // Taze ERP belgesi ilk sekmeden başlar: Studio'nun gösterdiği sekmeler yeniden istenir.
         for (const [tabsId, index] of shownTabs.current) iframeRef.current?.contentWindow?.postMessage(showTabMessage(tabsId, index), platformOrigin);
+        // Taze ERP belgesi pencereler kapalı başlar: açık tutulan pencere yeniden istenir.
+        if (shownDialog.current) iframeRef.current?.contentWindow?.postMessage(showDialogMessage(shownDialog.current), platformOrigin);
         // Belge kalıbı: taze ERP belgesi Taslak'tan başlar; seçili önizleme durumu yeniden istenir.
         const state = handlers.current.previewState;
         if (state) iframeRef.current?.contentWindow?.postMessage(previewStateMessage(state), platformOrigin);
@@ -134,6 +144,15 @@ export default function ErpCanvasFrame(props: Props) {
   useEffect(() => {
     if (tabRequest) showTab(tabRequest.tabsId, tabRequest.index);
   }, [tabRequestKey, showTab, platformOrigin, target.previewId, target.systemScreenKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hedef değişince (yukarıdaki sıfırlama) açık pencere yeniden istenir; kapalıdan kapalıya mesaj yollanmaz.
+  // Kimlik desenine uymayan pencere istenmez (protokol onu reddeder); tuval hata atmaz.
+  const dialogRequest = props.dialogRequest && DIALOG_ID.test(props.dialogRequest) ? props.dialogRequest : null;
+  useEffect(() => {
+    if (dialogRequest === shownDialog.current) return;
+    shownDialog.current = dialogRequest;
+    iframeRef.current?.contentWindow?.postMessage(showDialogMessage(dialogRequest), platformOrigin);
+  }, [dialogRequest, platformOrigin, target.previewId, target.systemScreenKey]);
 
   const sentRevision = useRef(revision);
   useEffect(() => {

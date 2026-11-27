@@ -24,7 +24,6 @@ internal static class PageTemplateMigration
 {
     // ---- Global Constraints tablosundaki neden metinleri ----
     internal const string ActionBarReason = "İşlem çubuğu kalıplarda yok.";
-    internal const string DialogReason = "Pencere kalıplarda yok.";
     internal const string StepsReason = "Sihirbaz adımları kalıplarda yok.";
     internal const string EditableGridReason = "Düzenlenebilir satır tablosu (Belge kalıbı bekleniyor).";
     internal const string TabsReason = "Sekmeler bileşenlere göre bölünemiyor.";
@@ -40,7 +39,6 @@ internal static class PageTemplateMigration
     internal const string UnknownVersionReason = "Sayfa tanımının şema sürümü bilinmiyor.";
     internal const string AlreadyTemplatedReason = "Sayfa zaten bir kalıp kullanıyor.";
     internal const string NoComponentsReason = "Sayfada bileşen yok.";
-    internal const string NestedReason = "İç içe bileşenler (children) kalıplarda yok.";
     internal const string ListNeedsOneTableReason = "Liste kalıbı tam bir veri listesi (dataTable) ister.";
     internal const string ListTooManyPanelsReason = "Liste kalıbında en fazla bir süzgeç alanı ve bir detay paneli olabilir.";
     internal const string NoReadTableReason = "Veri listesi okuma (read) sorgusuna bağlı değil.";
@@ -51,6 +49,11 @@ internal static class PageTemplateMigration
     internal const string FreeTooManyActionsReason = "Serbest gövdede en fazla 8 düğme olabilir.";
     internal const string FreeTooManyBlocksReason = "Serbest gövdede en fazla 20 bölüm olabilir.";
     internal static string SectionSettingReason(string prop) => $"Bölüm başlığının {prop} ayarı serbest gövdede yok.";
+    // ---- 5b-2 adım 2: pencere ve grup ----
+    internal const string NestedGroupReason = "Grubun içinde grup kalıplarda yok.";
+    internal static string GroupChildReason(string type) => $"{type} grubun içinde kalıplarda yok.";
+    internal static string DialogPartReason(string type) => $"{type} pencerenin içinde kalıplarda yok.";
+    internal const string DialogShapeReason = "Pencerenin sunumu ya da boyutu kalıplarda yok.";
     internal static string ValidationFailedReason(string error) => $"Dönüştürülen tanım doğrulanamadı: {error}";
     internal static string EquivalenceFailedReason(string detail) => $"Eşdeğerlik denetimi başarısız: {detail}";
 
@@ -124,12 +127,13 @@ internal static class PageTemplateMigration
         if (hasOpenDraft) reasons.Add(OpenDraftReason);
         foreach (var component in components.OfType<JsonObject>()) Scan(component, reasons, topLevel: true);
         if (components.OfType<JsonObject>().Count(x => TypeOf(x) == "actionBar") > 1) reasons.Add(ActionBarReason);
+        var owners = WindowOwners(components, reasons);
         if (reasons.Any(x => x != OpenDraftReason)) return Refused([.. reasons.Distinct()]);
 
         string? equivalenceFailure = null;
-        foreach (var (target, build) in new (string, Func<JsonObject, Attempt>)[] { ("list", BuildList), ("record", BuildRecord), ("free", BuildFree) })
+        foreach (var (target, build) in new (string, Func<JsonObject, IReadOnlyDictionary<string, string>, Attempt>)[] { ("list", BuildList), ("record", BuildRecord), ("free", BuildFree) })
         {
-            var attempt = build((JsonObject)root.DeepClone());
+            var attempt = build((JsonObject)root.DeepClone(), owners);
             if (attempt.Json is null) { reasons.Add(attempt.Reason!); continue; }
             if (!TenantCustomPageSchema.Validate(attempt.Json, out var error, TenantCustomPageQueries.OperationNames(definitionJson), lookup ?? ErpOperationCatalog.TryGet, catalog))
             { reasons.Add(ValidationFailedReason(error ?? "?")); continue; }
@@ -154,7 +158,7 @@ internal static class PageTemplateMigration
         {
             case "actionBar" when !topLevel: reasons.Add(ActionBarReason); break;
             case "actionBar": ScanBar(props, reasons); break;
-            case "dialog": reasons.Add(DialogReason); break;
+            case "dialog" when topLevel && BadWindowShape(props): reasons.Add(DialogShapeReason); break;
             case "steps": reasons.Add(StepsReason); break;
             case "editableGrid": reasons.Add(EditableGridReason); break;
             case "code" when !HasProp(props, "catalogComponent"): reasons.Add(InlineCodeReason); break;
@@ -166,11 +170,52 @@ internal static class PageTemplateMigration
             if (type != "actionBar")
                 foreach (var setting in BlockedSettings) if (props.ContainsKey(setting)) reasons.Add(MissingSetting(setting));
         }
+        // Tek katlı grup (5b-2 adım 2): çocuk grup, pencere ya da kendi çocukları olan bileşen olamaz; türü izin listesinde olmalı.
         if (component["children"] is JsonArray children && children.Count > 0)
+            foreach (var child in children.OfType<JsonObject>())
+            {
+                var childType = TypeOf(child);
+                if (childType is "section" or "card" or "dialog" || child.ContainsKey("children")) reasons.Add(NestedGroupReason);
+                else if (!PageTemplateRules.GroupChildTypes.Contains(childType)) reasons.Add(GroupChildReason(childType));
+                Scan(child, reasons);
+            }
+    }
+
+    /// <summary>Kalıptaki pencere yalnız <c>dialog</c> sunumuyla ve sm–xl boyutunda olur (kalıp kuralıyla aynı: ayar yoksa sorun yok).</summary>
+    private static bool BadWindowShape(JsonObject? props) =>
+        props is not null
+        && (props.ContainsKey("presentation") && !(props["presentation"] is JsonValue p && p.TryGetValue<string>(out var presentation) && presentation == "dialog")
+            || props.ContainsKey("size") && !(props["size"] is JsonValue z && z.TryGetValue<string>(out var size) && size is "sm" or "md" or "lg" or "xl"));
+
+    /// <summary>
+    /// Pencere içeriği (<see cref="PageTemplateRules.DialogOwners(JsonElement, out string?)"/>): kimlik → pencere kimliği. İçerikte
+    /// izinsiz tür <see cref="DialogPartReason"/> olur (kendi nedeni olan <c>editableGrid</c> ve <c>steps</c> o nedenle kalır).
+    /// </summary>
+    private static IReadOnlyDictionary<string, string> WindowOwners(JsonArray components, List<string> reasons)
+    {
+        using var document = JsonDocument.Parse(components.ToJsonString());
+        var owners = PageTemplateRules.DialogOwners(document.RootElement, out var sharedError);
+        if (sharedError is not null) reasons.Add(sharedError);
+        foreach (var component in components.OfType<JsonObject>())
         {
-            reasons.Add(NestedReason);
-            foreach (var child in children.OfType<JsonObject>()) Scan(child, reasons);
+            var type = TypeOf(component);
+            if (owners.ContainsKey(IdOf(component)) && !PageTemplateRules.DialogPartTypes.Contains(type) && type is not ("editableGrid" or "steps"))
+                reasons.Add(DialogPartReason(type));
         }
+        return owners;
+    }
+
+    /// <summary>Pencereyi kalıbın <c>dialogs</c>, içeriğini <c>dialog</c> yerine koyar; geri kalanı (gövdeyi) sırasıyla döndürür.</summary>
+    private static List<JsonObject> PlaceWindows(List<JsonObject> components, IReadOnlyDictionary<string, string> owners)
+    {
+        var body = new List<JsonObject>();
+        foreach (var component in components)
+        {
+            if (TypeOf(component) == "dialog") Place(component, PageTemplateRules.DialogsSlot);
+            else if (owners.ContainsKey(IdOf(component))) Place(component, PageTemplateRules.DialogSlot);
+            else body.Add(component);
+        }
+        return body;
     }
 
     /// <summary>
@@ -224,18 +269,20 @@ internal static class PageTemplateMigration
 
     // ---------- Liste (Karar 2) ----------
 
-    private static Attempt BuildList(JsonObject root)
+    private static Attempt BuildList(JsonObject root, IReadOnlyDictionary<string, string> owners)
     {
-        var components = root["components"]!.AsArray().OfType<JsonObject>().ToList();
-        if (components.FirstOrDefault(x => !ListTypes.Contains(TypeOf(x))) is { } foreign) return new(null, MissingPart(TypeOf(foreign)));
+        var all = root["components"]!.AsArray().OfType<JsonObject>().ToList();
+        var components = PlaceWindows(all, owners);
+        if (components.FirstOrDefault(x => !ListTypes.Contains(TypeOf(x)) && !IsDetailCard(x) && !IsHiddenInput(x)) is { } foreign) return new(null, MissingPart(TypeOf(foreign)));
         var tables = components.Where(x => TypeOf(x) == "dataTable").ToList();
         if (tables.Count != 1) return new(null, ListNeedsOneTableReason);
         if (!IsReadTable(tables[0], root)) return new(null, NoReadTableReason);
-        if (components.Count(x => TypeOf(x) == "filterBar") > 1 || components.Count(x => TypeOf(x) == "contextPanel") > 1)
+        if (components.Count(x => TypeOf(x) == "filterBar") > 1 || components.Count(x => TypeOf(x) == "contextPanel" || IsDetailCard(x)) > 1)
             return new(null, ListTooManyPanelsReason);
 
         var tableIndex = components.IndexOf(tables[0]);
-        var rowOwned = RowOwnedButtons(tables);
+        // Penceredeki (ya da grup çocuğu) tabloların satır düğmeleri de satıra aittir; kabuk onları sayfa düğmesi olarak çizmez.
+        var rowOwned = RowOwnedButtons(AllTables(all));
         for (var i = 0; i < components.Count; i++)
         {
             var component = components[i];
@@ -244,7 +291,9 @@ internal static class PageTemplateMigration
                 "metric" => "indicators",
                 "filterBar" => "filters",
                 "dataTable" => "list",
-                "contextPanel" => "detail",
+                "contextPanel" or "card" => "detail",
+                // Gizli giriş (R11): hiç çizilmeyen sayfa durumu; 'above' yerinde de bir şey çizmez.
+                "input" => "above",
                 "actionBar" => PageTemplateRules.CommandsSlot,
                 // Satır düğmesi (çubuğun da çalıştırdığı olsa bile) 'rowActions'ta kalır: satırlar oradan çizer, Liste kuralı
                 // çubuğun düğmesini orada da kabul eder; kabuk çubuğa taşınan düğmeyi sayfadan kaldırır.
@@ -258,6 +307,26 @@ internal static class PageTemplateMigration
         return new(root.ToJsonString(Output), null);
     }
 
+    /// <summary>
+    /// Liste detayına giden kart grubu (5b-2 adım 2): çocuklu <c>card</c>; bir detay paneli taşır ya da seçili satıra bağlıdır
+    /// (ayarlarında ya da çocuklarında <c>.seciliSatir</c> geçer).
+    /// </summary>
+    private static bool IsDetailCard(JsonObject component) =>
+        TypeOf(component) == "card" && component["children"] is JsonArray children && children.Count > 0
+        && (children.OfType<JsonObject>().Any(x => TypeOf(x) == "contextPanel") || component.ToJsonString().Contains(".seciliSatir", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Liste gövdesinde kalan gizli giriş (R11): yalnız <c>input</c> türünü ve <c>hidden: true</c>'yu denetler; hiç çizilmez, yalnız
+    /// sayfa durumudur. Pencere sahipliğine burada bakılmaz (pencereye ait giriş <c>PlaceWindows</c> ile 'dialog' yerine alınır,
+    /// sahipliği <c>PageTemplateRules.PlaceWithDialogs</c> denetler). Görünür giriş Liste'de yine yoktur.
+    /// </summary>
+    private static bool IsHiddenInput(JsonObject component) =>
+        TypeOf(component) == "input" && component["props"]?["hidden"] is JsonValue hidden && hidden.TryGetValue<bool>(out var on) && on;
+
+    /// <summary>Sayfadaki bütün veri listeleri (grup çocukları dahil).</summary>
+    private static IEnumerable<JsonObject> AllTables(IEnumerable<JsonObject> components) =>
+        components.SelectMany(x => (x["children"] as JsonArray)?.OfType<JsonObject>().Prepend(x) ?? [x]).Where(x => TypeOf(x) == "dataTable");
+
     // ---------- Kayıt kartı (5b-2a Karar 4) ----------
 
     /// <summary>
@@ -268,10 +337,11 @@ internal static class PageTemplateMigration
     /// eklenen tek <c>Genel</c> sekmesine girer; ilk bölümden öncekiler above, sondan sonrakiler below olur; bölümler arasında
     /// başka bir şey olamaz. Düğme → actions, çubuk → commands. Kayıt özeti uydurulmaz.
     /// </summary>
-    private static Attempt BuildRecord(JsonObject root)
+    private static Attempt BuildRecord(JsonObject root, IReadOnlyDictionary<string, string> owners)
     {
         var array = root["components"]!.AsArray();
-        var components = array.OfType<JsonObject>().ToList();
+        var all = array.OfType<JsonObject>().ToList();
+        var components = PlaceWindows(all, owners);
         foreach (var component in components)
         {
             var type = TypeOf(component);
@@ -326,7 +396,7 @@ internal static class PageTemplateMigration
             }
             added = new JsonObject
             {
-                ["id"] = FreeComponentId(root, components, "sekmeler"), ["type"] = "tabs",
+                ["id"] = FreeComponentId(root, all, "sekmeler"), ["type"] = "tabs",
                 ["props"] = new JsonObject { ["slot"] = "tabs", ["tabs"] = new JsonArray(JsonValue.Create($"Genel={string.Join(",", genel)}")) }
             };
         }
@@ -350,8 +420,9 @@ internal static class PageTemplateMigration
         var json = root.ToJsonString(Output);
         if (CustomPageQueryEndpoints.RecordKeyParam(json) is null) return new(null, RecordNeedsKeyReason);
         // Kayıt kartında satır eylemi yeri yok: satır düğmeleri 'actions'a düşüp kabukta da çizilirdi. Planın nedenleri önce gelir.
-        if (RowOwnedButtons(components.Where(x => TypeOf(x) == "dataTable")).Count > 0) return new(null, RecordRowActionsReason);
-        if (RecordAfterRuleChanges(root, components)) return new(null, RecordAfterRuleReason);
+        if (RowOwnedButtons(AllTables(all)).Count > 0) return new(null, RecordRowActionsReason);
+        // Penceredeki düğmeler de üst düzey düğmedir: kartın kayıt/silme sonrası kuralı onlara da uygulanırdı.
+        if (RecordAfterRuleChanges(root, all)) return new(null, RecordAfterRuleReason);
         return new(json, null);
     }
 
@@ -410,10 +481,11 @@ internal static class PageTemplateMigration
         public string Id { get; set; } = "";
     }
 
-    private static Attempt BuildFree(JsonObject root)
+    private static Attempt BuildFree(JsonObject root, IReadOnlyDictionary<string, string> owners)
     {
         var array = root["components"]!.AsArray();
-        var components = array.OfType<JsonObject>().ToList();
+        var all = array.OfType<JsonObject>().ToList();
+        var components = PlaceWindows(all, owners);
         var buttons = new List<JsonObject>();
         JsonObject? tabs = null;
         foreach (var component in components)
@@ -464,7 +536,7 @@ internal static class PageTemplateMigration
         if (groups.Count == 0) return new(null, FreeNoBlockReason);
         if (groups.Count > MaxBlocks) return new(null, FreeTooManyBlocksReason);
 
-        var taken = new HashSet<string>(components.Select(IdOf), StringComparer.OrdinalIgnoreCase);
+        var taken = new HashSet<string>(all.Select(IdOf), StringComparer.OrdinalIgnoreCase);
         if (root["queries"] is JsonArray queries)
             foreach (var query in queries.OfType<JsonObject>()) if ((string?)query["id"] is { } queryId) taken.Add(queryId);
         foreach (var group in groups)
@@ -577,6 +649,9 @@ internal static class PageTemplateMigration
         if (component["props"] is not JsonObject props) { props = []; component["props"] = props; }
         props.Remove("width");
         props["slot"] = slot;
+        // Grup çocuklarının genişliği de yerleşimdir (kalıpta genişlik yok); çocuklara yer yazılmaz.
+        if (component["children"] is JsonArray children)
+            foreach (var child in children.OfType<JsonObject>()) (child["props"] as JsonObject)?.Remove("width");
     }
 
     private static HashSet<string> RowOwnedButtons(IEnumerable<JsonObject> tables)

@@ -8,7 +8,11 @@ export type FreeTab<C> = { label: string; blocks: FreeBlock<C>[] };
  * Serbest gövdenin yerleşimi. Sekmesizse `tabs: null`; `blocks` her zaman bütün bölümleri kayıt sırasıyla taşır.
  * `tabsComponent`: sekme bileşeninin kendisi (sekme çubuğu onunla çizilir: `tabParam`, tuvalin `showTab`'ı, sekme işaretleri).
  */
-export type FreeLayout<C> = { actions: C[]; tabs: FreeTab<C>[] | null; blocks: FreeBlock<C>[]; tabsComponent: C | null };
+export type FreeLayout<C> = {
+  actions: C[]; tabs: FreeTab<C>[] | null; blocks: FreeBlock<C>[]; tabsComponent: C | null;
+  /** Pencereler (`dialogs` yerinde `dialog`); içerikleri (`dialog` yeri) hiçbir yerleşim dizisine girmez. */
+  dialogs: C[];
+};
 
 const slotOf = (component: Component) => (typeof component.props?.slot === "string" ? component.props.slot : "");
 const isBlock = (component: Component) => component.type === "section" && slotOf(component) === "block";
@@ -38,6 +42,7 @@ export function layoutFreeTemplate<C extends Component>(components: C[]): FreeLa
   return {
     actions: components.filter((component) => component.type === "button" && slotOf(component) === "actions"),
     tabs, blocks, tabsComponent,
+    dialogs: components.filter((component) => component.type === "dialog" && slotOf(component) === "dialogs"),
   };
 }
 
