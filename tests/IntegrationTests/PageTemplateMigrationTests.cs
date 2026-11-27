@@ -164,7 +164,8 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     public static TheoryData<string, string> UnsupportedFeatures() => new()
     {
         { Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" } }), C("cubuk2", "actionBar", new { hiddenCommands = new[] { "print" } }), NoTools("tablo")]), "İşlem çubuğu kalıplarda yok." },
-        { Page([C("pencere", "dialog"), NoTools("tablo")]), "Pencere kalıplarda yok." },
+        { Page([C("pencere", "dialog", new { presentation = "drawer", contains = new[] { "t1" } }), C("t1", "text"), NoTools("tablo")]), "Pencerenin sunumu ya da boyutu kalıplarda yok." },
+        { Page([C("pencere", "dialog", new { size = "full", contains = new[] { "t1" } }), C("t1", "text"), NoTools("tablo")]), "Pencerenin sunumu ya da boyutu kalıplarda yok." },
         { Page([C("adimlar", "steps"), NoTools("tablo")]), "Sihirbaz adımları kalıplarda yok." },
         { Page([C("satirlar", "editableGrid"), NoTools("tablo")]), "Düzenlenebilir satır tablosu (Belge kalıbı bekleniyor)." },
         { Page([C("ad", "input"), NoTools("tablo")]), "input bu kalıpta yok." },
@@ -194,10 +195,10 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     [Fact]
     public void Page_can_carry_several_reasons()
     {
-        var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar"), C("pencere", "dialog"), C("ad", "input")]), hasOpenDraft: true);
+        var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar"), C("adimlar", "steps"), C("ad", "input")]), hasOpenDraft: true);
         Assert.Null(result.Target);
         Assert.Contains("Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır.", result.Reasons);
-        Assert.Contains("Pencere kalıplarda yok.", result.Reasons);
+        Assert.Contains("Sihirbaz adımları kalıplarda yok.", result.Reasons);
         Assert.Contains("Sayfanın açık taslağı var; önce yayımlanmalı ya da silinmeli.", result.Reasons);
     }
 
@@ -351,6 +352,8 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
             Assert.DoesNotContain("Form alanları (Kayıt kartı adayı).", result.Reasons);
             Assert.DoesNotContain("hiddenCommands ayarı kalıplarda yok.", result.Reasons);
             Assert.DoesNotContain("commandWhen ayarı kalıplarda yok.", result.Reasons);
+            Assert.DoesNotContain("Pencere kalıplarda yok.", result.Reasons);
+            Assert.DoesNotContain("İç içe bileşenler (children) kalıplarda yok.", result.Reasons);
             if (result.Target is null) Assert.True(result.Reasons.Count > 0, $"{key}: hedefsiz ama nedensiz");
             else
             {
