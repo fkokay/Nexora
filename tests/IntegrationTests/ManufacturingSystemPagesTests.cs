@@ -293,10 +293,12 @@ public sealed class ManufacturingSystemPagesTests
     [InlineData("manufacturing-order-create", "Yeni üretim emri")]
     [InlineData("manufacturing-recipes", "Tanımlı reçeteler")]
     [InlineData("manufacturing-cost-variance", "Üretim maliyet analizi")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    public void Standard_is_preview_and_uses_catalog_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Üretim"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        // Maliyet analizi Liste kalıbına taşındı (2. sürüm); diğer ekranlar henüz kalıpsız.
+        var version = key == "manufacturing-cost-variance" ? 2 : 1;
+        Assert.Equal((version, "preview", title, "Üretim"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         string[] pickers = ["depo.listele", "satis.siparis.listele", "satis.siparis.kalemleri"];
@@ -403,6 +405,11 @@ public sealed class ManufacturingSystemPagesTests
         Assert.Equal("{{rapor.meta.limitations}}", (string)Props(key, "kapsamNotu")["text"]!);
         Assert.Equal(("server", 50), ((string)Props(key, "liste")["paging"]!, (int)Props(key, "liste")["pageSize"]!));
         Assert.False(Props(key, "liste").ContainsKey("rowOpenAction"));
+        // Liste kalıbı: yedi sütun, tam döküm seçili emrin kart grubunda; rapor salt okunur.
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal(7, ((JsonArray)Props(key, "liste")["columns"]!).Count);
+        Assert.Equal("detail", (string)Props(key, "detayKarti")["slot"]!);
+        Assert.All(Definition(key)["queries"]!.AsArray().OfType<JsonObject>(), x => Assert.Equal("read", (string)x["kind"]!));
     }
 
     [Theory]

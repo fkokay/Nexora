@@ -2,7 +2,7 @@
   "screenKey": "manufacturing-cost-variance", "title": "Üretim maliyet analizi",
   "description": "Plan tarihi aralığındaki üretim emirlerinin planlanan ve fiilî malzeme, dönüşüm (işçilik, genel gider, enerji) maliyetleri ve farkları.",
   "module": "Üretim",
-  "version": 1, "stage": "preview",
+  "version": 2, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:liste", "query:rapor"]},
     "component:parametreler": {"since": 1, "label": "Rapor parametreleri (plan tarihi aralığı)", "requires": ["component:baslangic", "component:bitis"]},
@@ -12,6 +12,7 @@
     "component:donusumGostergesi": {"since": 1, "label": "Planlanan dönüşüm göstergesi (bu sayfa)", "requires": ["query:rapor"]},
     "component:fiiliGostergesi": {"since": 1, "label": "Fiilî malzeme göstergesi (bu sayfa)", "requires": ["query:rapor"]},
     "component:liste": {"since": 1, "label": "Üretim emri maliyetleri", "requires": ["query:rapor"]},
+    "component:detayKarti": {"since": 1, "label": "Detay: seçili emrin maliyet dökümü", "requires": ["component:liste"]},
     "component:kapsamNotu": {"since": 1, "label": "Rapor kapsamı notu", "requires": ["query:rapor"]},
     "query:rapor": {"since": 1, "label": "Üretim maliyet analizi", "requires": ["component:baslangic", "component:bitis", "component:liste"]}
   },
@@ -26,29 +27,28 @@
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
         "props": { "exportTable": "liste", "titleCount": "{{rapor.meta.totalCount}}",
-                   "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"] } },
+                   "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"], "slot": "commands" } },
 
       { "id": "parametreler", "type": "formCard", "name": "parametreler",
-        "props": { "title": "Plan tarihi", "layout": "inline", "width": 12, "inputs": ["baslangic", "bitis"] } },
+        "props": { "title": "Plan tarihi", "layout": "inline", "inputs": ["baslangic", "bitis"], "slot": "above" } },
       { "id": "baslangic", "type": "input", "name": "baslangic",
-        "props": { "inputType": "date", "label": "Başlangıç", "required": true, "defaultValue": "{{bugun}}" } },
+        "props": { "inputType": "date", "label": "Başlangıç", "required": true, "defaultValue": "{{bugun}}", "slot": "above" } },
       { "id": "bitis", "type": "input", "name": "bitis",
-        "props": { "inputType": "date", "label": "Bitiş", "required": true, "defaultValue": "{{bugun}}" } },
+        "props": { "inputType": "date", "label": "Bitiş", "required": true, "defaultValue": "{{bugun}}", "slot": "above" } },
 
       { "id": "malzemeGostergesi", "type": "metric", "name": "malzemeGostergesi",
-        "props": { "title": "Planlanan malzeme", "value": "{{rapor.meta.pagePlannedMaterialBase}}", "format": "money", "width": 4, "icon": "layers",
-                   "description": "bu sayfa · fire dahil · {{rapor.meta.baseCurrencyCode}}" } },
+        "props": { "title": "Planlanan malzeme", "value": "{{rapor.meta.pagePlannedMaterialBase}}", "format": "money", "icon": "layers",
+                   "description": "bu sayfa · fire dahil · {{rapor.meta.baseCurrencyCode}}", "slot": "indicators" } },
       { "id": "donusumGostergesi", "type": "metric", "name": "donusumGostergesi",
-        "props": { "title": "Planlanan dönüşüm", "value": "{{rapor.meta.pagePlannedConversionBase}}", "format": "money", "width": 4, "icon": "settings",
-                   "description": "bu sayfa · işçilik + genel gider + enerji" } },
+        "props": { "title": "Planlanan dönüşüm", "value": "{{rapor.meta.pagePlannedConversionBase}}", "format": "money", "icon": "settings",
+                   "description": "bu sayfa · işçilik + genel gider + enerji", "slot": "indicators" } },
       { "id": "fiiliGostergesi", "type": "metric", "name": "fiiliGostergesi",
-        "props": { "title": "Fiilî malzeme", "value": "{{rapor.meta.pageActualMaterialBase}}", "format": "money", "width": 4, "icon": "wallet",
-                   "description": "bu sayfa · {{rapor.meta.baseCurrencyCode}}" } },
+        "props": { "title": "Fiilî malzeme", "value": "{{rapor.meta.pageActualMaterialBase}}", "format": "money", "icon": "wallet",
+                   "description": "bu sayfa · {{rapor.meta.baseCurrencyCode}}", "slot": "indicators" } },
 
       { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Üretim emirleri", "query": "rapor", "paging": "server", "pageSize": 50, "width": 12,
-                   "columns": ["orderCode", "operationCount", "plannedDate", "status", "plannedQuantity", "plannedMaterialBase", "actualMaterialBase",
-                               "plannedConversionBase", "actualConversionBase", "conversionVarianceBase", "actualTotalCostBase", "totalVarianceBase"],
+        "props": { "title": "Üretim emirleri", "query": "rapor", "paging": "server", "pageSize": 50,
+                   "columns": ["orderCode", "plannedDate", "status", "plannedQuantity", "actualMaterialBase", "conversionVarianceBase", "totalVarianceBase"],
                    "columnLabels": ["orderCode=Üretim emri", "operationCount=Op.", "plannedDate=Plan tarihi", "status=Durum", "plannedQuantity=Miktar",
                                     "plannedMaterialBase=Plan. malzeme", "actualMaterialBase=Fiilî malzeme", "plannedConversionBase=Plan. dönüşüm",
                                     "actualConversionBase=Fiilî dönüşüm", "conversionVarianceBase=Dönüşüm farkı", "actualTotalCostBase=Fiilî toplam",
@@ -59,10 +59,22 @@
                                      "actualLaborBase=money"],
                    "valueLabels": ["status:Planned=Planlandı", "status:Released=Serbest bırakıldı", "status:Completed=Tamamlandı", "status:Cancelled=İptal edildi"],
                    "toneMap": ["Planlandı=info", "Serbest bırakıldı=warning", "Tamamlandı=success"],
-                   "emptyText": "Bu tarih aralığında üretim emri bulunamadı." } },
+                   "emptyText": "Bu tarih aralığında üretim emri bulunamadı.", "slot": "list" } },
+      { "id": "detayKarti", "type": "card", "name": "detayKarti",
+        "props": { "variant": "panel", "title": "{{liste.seciliSatir.orderCode}}", "description": "{{liste.seciliSatir.plannedDate}}", "slot": "detail" },
+        "children": [
+          { "id": "detayBos", "type": "text", "name": "detayBos",
+            "props": { "text": "Bir emir seçin; maliyet dökümünü burada görün.", "visibleWhen": "liste.seciliSatir.orderCode == null" } },
+          { "id": "detayDokum", "type": "contextPanel", "name": "detayDokum",
+            "props": { "table": "liste", "visibleWhen": "liste.seciliSatir.orderCode != null",
+                       "fields": ["status=Durum", "plannedQuantity=Miktar", "operationCount=Operasyon", "plannedMaterialBase=Plan. malzeme",
+                                  "actualMaterialBase=Fiilî malzeme", "plannedConversionBase=Plan. dönüşüm", "actualConversionBase=Fiilî dönüşüm",
+                                  "plannedLaborBase=Planlanan işçilik", "actualLaborBase=Fiilî işçilik", "conversionVarianceBase=Dönüşüm farkı",
+                                  "actualTotalCostBase=Fiilî toplam", "totalVarianceBase=Toplam fark"] } }
+        ] },
       { "id": "kapsamNotu", "type": "alert", "name": "kapsamNotu",
-        "props": { "title": "Rapor kapsamı", "variant": "info", "width": 12, "text": "{{rapor.meta.limitations}}",
-                   "visibleWhen": "rapor.meta.limitations != null" } }
+        "props": { "title": "Rapor kapsamı", "variant": "info", "text": "{{rapor.meta.limitations}}",
+                   "visibleWhen": "rapor.meta.limitations != null", "slot": "below" } }
     ],
     "queries": [
       { "id": "rapor", "name": "rapor", "kind": "read", "operation": "uretim.maliyetAnalizi", "runOn": "load",
@@ -71,6 +83,7 @@
           { "name": "to", "binding": "{{bitis.value}}", "type": "date" },
           { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
           { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] }
-    ]
+    ],
+    "template": { "name": "list" }
   }
 }
