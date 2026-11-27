@@ -3692,7 +3692,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
    */
   const shellActionsFor = (buttons: ComponentDefinition[], runtime: PageRuntime, primary?: (button: ComponentDefinition) => boolean,
     onDoneFor?: (button: ComponentDefinition, kind: ShellAction["kind"]) => (() => void) | undefined,
-    gate?: (button: ComponentDefinition, action: ButtonAction) => { rights: string[]; blockedReason: string | null } | null): ShellAction[] => {
+    gate?: (button: ComponentDefinition, action: ButtonAction) => { rights: string[]; blockedReason: string | null } | null,
+    plain?: (button: ComponentDefinition) => boolean): ShellAction[] => {
     const gateOf = (button: ComponentDefinition) => { const action = runtime.buttonAction(button); return action && gate ? gate(button, action) : null; };
     const shownActions = buttons.filter((button) => {
       if (!componentVisible(button, runtime)) return false;
@@ -3704,7 +3705,8 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     const primaryId = (primary ? shownActions.find((button) => !isDelete(button) && primary(button)) : undefined)?.id
       ?? shownActions.find((button) => !isDelete(button))?.id;
     return shownActions.map((button): ShellAction => {
-      const kind: ShellAction["kind"] = isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal";
+      // `plain`: sayfada çizilse de başkasının (komut çubuğunun) düğmesi; silme sorgulu olsa da kartın Sil'i gibi kırmızı çizilmez.
+      const kind: ShellAction["kind"] = plain?.(button) ? "normal" : isDelete(button) ? "danger" : button.id === primaryId ? "primary" : "normal";
       const action = runtime.buttonAction(button);
       const props = bindProps(button.props ?? {}, runtime.scope);
       const text = textValue(props.text ?? props.label) || textValue(props.title);
@@ -3810,12 +3812,14 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   if (recordLayout && runtime) {
     // Kaydet (kayıt dizisi) ana düğmedir; Sil en sağda, yeni kayıt kipinde gizli (RecordTemplate). Komut çubuğunun çalıştırdığı
     // düğmeler Kaydet/Sil sayılmaz ve çizilmez (sunucunun IkiKaydet/IkiSil kuralı gibi).
-    // İşlemler gizliyken (`more`) moreButtons sayfada çizilir ama yine çubuğun düğmesidir: kartın Kaydet'i/Sil'i sayılmaz.
+    // İşlemler gizliyken (`more`) moreButtons sayfada çizilir ama yine çubuğun düğmesidir: kartın Kaydet'i/Sil'i sayılmaz,
+    // silme sorgulu olsa da "normal" çizilir (ekranda iki kırmızı Sil olmaz).
     const barRun = templateBar ? movedButtonIds(flat) : new Set<string>();
     const pageButtons = shellActionsFor(withoutBarButtons(recordLayout.actions, runtime), runtime,
       (button) => !barRun.has(button.id) && runtime.buttonAction(button)?.type === "sequence",
       (button, kind) => (barRun.has(button.id) ? undefined : recordDoneFor(button, kind, runtime)),
-      (button, action) => (barRun.has(button.id) ? null : recordSequenceGate(button, action, runtime)));
+      (button, action) => (barRun.has(button.id) ? null : recordSequenceGate(button, action, runtime)),
+      (button) => barRun.has(button.id));
     // Kaydet çubukta değil kayıt dizisi düğmesindeyse o düğme ana düğme kalır.
     const recordSaveButton = pageButtons.some((action) => action.kind === "primary" && !barRun.has(action.id) && !!buttonById[action.id]
       && runtime.buttonAction(buttonById[action.id])?.type === "sequence");

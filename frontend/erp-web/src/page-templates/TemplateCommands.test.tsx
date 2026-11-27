@@ -486,6 +486,41 @@ describe('kalıplı sayfada komutlar', () => {
     expect([...shellBar().querySelectorAll('.page-shell-action--primary')].map((button) => button.textContent)).toEqual(['Kaydet']);
   });
 
+  it('a bar-run delete button drawn on the record card while İşlemler is hidden is a normal button, not a second Sil', async () => {
+    setPageParams(TAB, { kod: 'C-1001' });
+    const owned = { id: 'b_kaldir', type: 'button', props: { slot: 'actions', text: 'Kaydı kaldır', actionType: 'query', queryId: 'sil' } };
+    // Silme sorgulu çubuk düğmesi sayfada çizilir ama kartın Sil'i değildir: kırmızı (danger) çizilmez, yalnız çubuğun Sil'i kırmızıdır.
+    setup(recordPage(recordBar({ moreButtons: ['b_kaldir'], hiddenCommands: ['more'] }), [...recordBody, owned]));
+    await waitFor(() => expect(enabled(command('delete'))).toBe(true), T);
+    await waitFor(() => expect(shellButton('Kaydı kaldır')).toBeTruthy(), T);
+    const kaldir = shellButton('Kaydı kaldır')!;
+    expect(kaldir.className).not.toContain('page-shell-action--danger');
+    expect(kaldir.className).toContain('page-shell-action--normal');
+    expect([...shellBar().querySelectorAll('.page-shell-action--danger')]).toEqual([command('delete')]);
+    fireEvent.click(kaldir);
+    await waitFor(() => expect(ran('sil')).toHaveLength(1), T);
+    // Kartın Sil'inin sonrası (açan sekmeye dönüş) çalışmaz.
+    await pause();
+    expect(closes).toEqual([]);
+  });
+
+  it('a list button that is both a bar button and a row action sits in ⋯ and the row actions, not in the shell', async () => {
+    const body = listBody.map((component) => component.id === 'liste_t'
+      ? { ...component, props: { ...component.props, rowActions: ['b_teklif'] } } : component);
+    setup({ ...listPage(), components: [listBar(), ...body] });
+    await listReady();
+    await screen.findByText('C-1001', undefined, T);
+    expect(shellButton('Yeni teklif')).toBeNull();
+    expect(shellButton('Rapor')).toBeTruthy();
+    openMore();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Yeni teklif' }));
+    await waitFor(() => expect(ran('teklif')).toHaveLength(1), T);
+    const rowActions = [...document.querySelectorAll<HTMLButtonElement>('.tenant-page-row-action')].filter((button) => button.textContent === 'Yeni teklif');
+    expect(rowActions).toHaveLength(listRows.length);
+    fireEvent.click(rowActions[0]);
+    await waitFor(() => expect(ran('teklif')).toHaveLength(2), T);
+  });
+
   it('on the Studio canvas the bar mark selects the whole shell toolbar', async () => {
     definition = listPage();
     render(<CommandProvider><Grab /><ActionBar locale="tr" />
