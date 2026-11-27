@@ -64,6 +64,12 @@ internal static class PageTemplateMigration
     internal const string RecordTitleCountReason = "Kayıt kartında başlıkta kayıt sayısı yok.";
     /// <summary>Kayıt kartında satır eylemi yeri (rowActions) yok: satır düğmeleri kabukta da çizilirdi.</summary>
     internal const string RecordRowActionsReason = "Veri listesinin satır eylemleri kayıt kartında yok.";
+    /// <summary>
+    /// Kayıt kartı başarılı Kaydet / Sil'den sonra kendi kuralını uygular (kaydı yeniden açar, açan sekmeye döner, sekmeyi kapatır;
+    /// Sil yeni kayıtta gizlenir): çubuğun Kaydet'i (<c>afterSaveAction: "page"</c> olmadan) ya da Sil'i, çubuğun çalıştırmadığı
+    /// kayıt dizisi ya da silme sorgulu düğme taşıyan sayfa Kayıt kartına taşınmaz.
+    /// </summary>
+    internal const string RecordAfterRuleReason = "Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir.";
 
     /// <summary>
     /// Izgara motoru ayarları ("gridFormula") ve çubuk dışı bileşende <c>barLook</c>: taşıyan sayfa dönüştürülmez. İşlem çubuğunun
@@ -169,31 +175,50 @@ internal static class PageTemplateMigration
 
     /// <summary>
     /// Üst düzey işlem çubuğu kalıbın <c>commands</c> yerine birebir taşınır: her ayarı kalıbın izin listesinde olmalı (genişlik
-    /// yerleşimdir, silinir); Yeni/Aç penceresi yok; kalıpta görünen Yazdır yazdırır, bu yüzden görünür Yazdır bağlı olmalıydı
-    /// (bağlamak için gereken <c>printEnabled</c>'ın kendisi de karşılıksız, yani yalnız gizli Yazdır taşınır).
+    /// yerleşimdir, silinir); Yeni/Aç penceresi yok. Kalıpta görünen Yazdır her zaman yazdırır: görünür Yazdır yalnız
+    /// <c>printEnabled: true</c> ile taşınır; <c>printEnabled</c> (kalıpta karşılığı yok) dönüşümde silinir — Yazdır görünürken
+    /// true ise, ya da Yazdır gizliyse (değeri ne olursa olsun, mantıksal olmak şartıyla).
     /// </summary>
     private static void ScanBar(JsonObject? props, List<string> reasons)
     {
         props ??= [];
         foreach (var (key, _) in props)
-            if (key != "width" && !PageTemplateRules.TemplateBarProps.Contains(key)) reasons.Add(ActionBarSettingReason(key));
+            if (key is not ("width" or "printEnabled") && !PageTemplateRules.TemplateBarProps.Contains(key)) reasons.Add(ActionBarSettingReason(key));
         foreach (var key in new[] { "newAction", "openAction" })
             if (props[key] is JsonValue value && value.TryGetValue<string>(out var mode) && mode == "dialog") reasons.Add(ActionBarSettingReason(key));
-        var printHidden = props["hiddenCommands"] is JsonArray hidden && hidden.OfType<JsonValue>().Any(x => x.TryGetValue<string>(out var id) && id == "print");
-        if (!printHidden && !props.ContainsKey("printEnabled")) reasons.Add(PrintUnboundReason);
+        var printHidden = HasCommand(props, "print");
+        bool? printEnabled = props["printEnabled"] is JsonValue enabled && enabled.TryGetValue<bool>(out var on) ? on : null;
+        if (props.ContainsKey("printEnabled") && printEnabled is null) reasons.Add(ActionBarSettingReason("printEnabled"));
+        else if (!printHidden && printEnabled != true) reasons.Add(PrintUnboundReason);
     }
 
-    /// <summary>Üst düzey işlem çubuğunun çalıştırdığı düğmeler (<see cref="PageTemplateRules.BarButtonProps"/>).</summary>
+    private static bool HasCommand(JsonObject? barProps, string command) =>
+        barProps?["hiddenCommands"] is JsonArray hidden && hidden.OfType<JsonValue>().Any(x => x.TryGetValue<string>(out var id) && id == command);
+
+    /// <summary>Çubuğu <c>commands</c> yerine koyar; <see cref="ScanBar"/>'dan geçtiyse <c>printEnabled</c> güvenle silinir.</summary>
+    private static void PlaceBar(JsonObject bar)
+    {
+        Place(bar, PageTemplateRules.CommandsSlot);
+        ((JsonObject)bar["props"]!).Remove("printEnabled");
+    }
+
+    /// <summary>
+    /// Üst düzey işlem çubuğunun çalıştırdığı düğmeler (<see cref="PageTemplateRules.BarButtonProps"/>). "⋯" gizliyse
+    /// (<c>hiddenCommands</c>'ta "more") menü düğmeleri (<c>moreButtons</c>) sayfa düğmesi olarak çizilir; çubuğa sayılmaz.
+    /// </summary>
     private static HashSet<string> BarOwnedButtons(IEnumerable<JsonObject> components)
     {
         var owned = new HashSet<string>(StringComparer.Ordinal);
         foreach (var bar in components.Where(x => TypeOf(x) == "actionBar"))
             foreach (var key in PageTemplateRules.BarButtonProps)
+            {
+                if (key == "moreButtons" && HasCommand(bar["props"] as JsonObject, "more")) continue;
                 switch (bar["props"]?[key])
                 {
                     case JsonValue one when one.TryGetValue<string>(out var id): owned.Add(id); break;
                     case JsonArray many: foreach (var item in many.OfType<JsonValue>()) if (item.TryGetValue<string>(out var id)) owned.Add(id); break;
                 }
+            }
         return owned;
     }
 
@@ -221,11 +246,13 @@ internal static class PageTemplateMigration
                 "dataTable" => "list",
                 "contextPanel" => "detail",
                 "actionBar" => PageTemplateRules.CommandsSlot,
-                // Çubuğun çalıştırdığı düğme hem satır düğmesiyse 'rowActions'ta kalır; kalıp kuralı (KomutDugmesi) onu reddeder.
+                // Satır düğmesi (çubuğun da çalıştırdığı olsa bile) 'rowActions'ta kalır: satırlar oradan çizer, Liste kuralı
+                // çubuğun düğmesini orada da kabul eder; kabuk çubuğa taşınan düğmeyi sayfadan kaldırır.
                 "button" => rowOwned.Contains(IdOf(component)) ? "rowActions" : "actions",
                 _ => i < tableIndex ? "above" : "below"
             };
-            Place(component, slot);
+            if (slot == PageTemplateRules.CommandsSlot) PlaceBar(component);
+            else Place(component, slot);
         }
         root["template"] = new JsonObject { ["name"] = "list" };
         return new(root.ToJsonString(Output), null);
@@ -315,7 +342,8 @@ internal static class PageTemplateMigration
                 "tabs" => "tabs",
                 _ => slots[component]
             };
-            Place(component, slot);
+            if (slot == PageTemplateRules.CommandsSlot) PlaceBar(component);
+            else Place(component, slot);
         }
         if (added is not null) array.Insert(array.IndexOf(cards[0]), added);
         root["template"] = new JsonObject { ["name"] = "record" };
@@ -323,7 +351,43 @@ internal static class PageTemplateMigration
         if (CustomPageQueryEndpoints.RecordKeyParam(json) is null) return new(null, RecordNeedsKeyReason);
         // Kayıt kartında satır eylemi yeri yok: satır düğmeleri 'actions'a düşüp kabukta da çizilirdi. Planın nedenleri önce gelir.
         if (RowOwnedButtons(components.Where(x => TypeOf(x) == "dataTable")).Count > 0) return new(null, RecordRowActionsReason);
+        if (RecordAfterRuleChanges(root, components)) return new(null, RecordAfterRuleReason);
         return new(json, null);
+    }
+
+    /// <summary>
+    /// Kayıt kartının Kaydet / Sil sonrası kuralı eski sayfanın davranışını değiştirir mi (<see cref="RecordAfterRuleReason"/>):
+    /// çubuğun Kaydet'i (<c>saveQuery</c> / <c>saveSequence</c> dolu) <c>afterSaveAction: "page"</c> olmadan, çubuğun Sil'i
+    /// (<c>deleteQuery</c> dolu), ya da çubuğun çalıştırmadığı bir kayıt dizisi (<c>sequence</c>) ya da silme sorgulu düğme.
+    /// Gizli komutlar da sayılır (kısayol ya da sonraki bir ayar onları açabilir).
+    /// </summary>
+    private static bool RecordAfterRuleChanges(JsonObject root, List<JsonObject> components)
+    {
+        static bool Filled(JsonNode? node) => node switch
+        {
+            JsonValue value => value.TryGetValue<string>(out var text) && text.Length > 0,
+            JsonArray array => array.Count > 0,
+            _ => false
+        };
+        foreach (var bar in components.Where(x => TypeOf(x) == "actionBar"))
+        {
+            var props = bar["props"] as JsonObject;
+            var afterPage = props?["afterSaveAction"] is JsonValue after && after.TryGetValue<string>(out var mode) && mode == "page";
+            if ((Filled(props?["saveQuery"]) || Filled(props?["saveSequence"])) && !afterPage) return true;
+            if (Filled(props?["deleteQuery"])) return true;
+        }
+        var barRun = BarOwnedButtons(components);
+        var deleteQueries = root["queries"] is JsonArray queries
+            ? queries.OfType<JsonObject>().Where(x => (string?)x["kind"] == "delete").Select(x => (string?)x["id"]).OfType<string>().ToHashSet(StringComparer.Ordinal)
+            : [];
+        foreach (var button in components.Where(x => TypeOf(x) == "button" && !barRun.Contains(IdOf(x))))
+        {
+            var props = button["props"] as JsonObject;
+            var actionType = props?["actionType"] is JsonValue type && type.TryGetValue<string>(out var text) ? text : null;
+            if (actionType == "sequence") return true;
+            if (actionType == "query" && props?["queryId"] is JsonValue query && query.TryGetValue<string>(out var queryId) && deleteQueries.Contains(queryId)) return true;
+        }
+        return false;
     }
 
     /// <summary>Sayfada (bileşen ya da sorgu kimliği olarak) kullanılmayan ilk kimlik: <paramref name="name"/>, <c>name-2</c>…</summary>
@@ -377,7 +441,8 @@ internal static class PageTemplateMigration
                 if (GridToolFlags.Any(x => props?[x] is not JsonValue flag || !flag.TryGetValue<bool>(out var on) || on)) return new(null, GridToolsReason);
             }
         }
-        // Çubuğun çalıştırdığı düğmeler komutlarla ve "⋯" menüsünde çizilir; 8 sınırına girmez (ValidateFree ile aynı).
+        // Çubuğun çalıştırdığı düğmeler komutlarla ve "⋯" menüsünde çizilir; 8 sınırına girmez ("⋯" gizliyse menü düğmeleri
+        // sayfa düğmesidir ve sayılır; ValidateFree ile aynı).
         var barOwned = BarOwnedButtons(components);
         if (buttons.Count(x => !barOwned.Contains(IdOf(x))) > MaxActions) return new(null, FreeTooManyActionsReason);
 
@@ -415,7 +480,7 @@ internal static class PageTemplateMigration
             switch (TypeOf(component))
             {
                 case "button": Place(component, "actions"); break;
-                case "actionBar": Place(component, PageTemplateRules.CommandsSlot); break;
+                case "actionBar": PlaceBar(component); break;
                 case "tabs": Place(component, "tabs"); break;
                 case "section": break;
                 default: Place(component, "item"); break;

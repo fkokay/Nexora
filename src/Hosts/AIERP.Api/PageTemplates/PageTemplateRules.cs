@@ -71,16 +71,40 @@ internal static class PageTemplateRules
         CommandBar(components) is { } bar ? BarButtons(bar).ToHashSet(StringComparer.Ordinal) : new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>
-    /// Every button the commands bar runs is a top-level component in the <c>actions</c> slot (null when valid). Called once the
-    /// component loop resolved the references (they exist and are buttons).
+    /// The buttons the commands bar draws itself (not as page buttons): <see cref="BarButtonIds"/>, except the "⋯" menu buttons
+    /// (<c>moreButtons</c>) while "more" is in <c>hiddenCommands</c> — then the shell draws them as page buttons.
     /// </summary>
-    internal static string? ValidateBarButtons(JsonElement components)
+    internal static IReadOnlySet<string> BarDrawnButtonIds(JsonElement components)
+    {
+        if (CommandBar(components) is not { } bar) return new HashSet<string>(StringComparer.Ordinal);
+        var ids = BarButtons(bar).ToHashSet(StringComparer.Ordinal);
+        var props = bar.GetProperty("props");
+        if (props.TryGetProperty("hiddenCommands", out var hidden) && hidden.ValueKind == JsonValueKind.Array
+            && hidden.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String && x.GetString() == "more")
+            && props.TryGetProperty("moreButtons", out var more) && more.ValueKind == JsonValueKind.Array)
+        {
+            var otherKeys = BarButtonProps.Where(x => x != "moreButtons").ToArray();
+            var stillRun = otherKeys.Where(key => props.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+                .Select(key => props.GetProperty(key).GetString()).ToHashSet(StringComparer.Ordinal);
+            foreach (var item in more.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String && !stillRun.Contains(item.GetString())) ids.Remove(item.GetString()!);
+        }
+        return ids;
+    }
+
+    /// <summary>
+    /// Every button the commands bar runs is a top-level component in the <c>actions</c> slot — on Liste also <c>rowActions</c>
+    /// (rows draw from there; the shell removes the bar's buttons from the page) — null when valid. Called once the component
+    /// loop resolved the references (they exist and are buttons).
+    /// </summary>
+    internal static string? ValidateBarButtons(JsonElement components, string? template = null)
     {
         if (CommandBar(components) is not { } bar) return null;
-        var actions = components.EnumerateArray()
-            .Where(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("props", out var p) && StringProp(p, "slot") == "actions")
+        var allowed = template == "list" ? new[] { "actions", "rowActions" } : ["actions"];
+        var placed = components.EnumerateArray()
+            .Where(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("props", out var p) && allowed.Contains(StringProp(p, "slot")))
             .Select(Id).ToHashSet(StringComparer.Ordinal);
-        return BarButtons(bar).FirstOrDefault(id => !actions.Contains(id)) is { } wrong ? KomutDugmesi(wrong) : null;
+        return BarButtons(bar).FirstOrDefault(id => !placed.Contains(id)) is { } wrong ? KomutDugmesi(wrong) : null;
     }
 
     internal static readonly IReadOnlySet<string> Slots = new HashSet<string>(StringComparer.Ordinal)
@@ -237,12 +261,16 @@ internal static class PageTemplateRules
         var owned = BarButtonIds(components);
         var buttons = placed.Where(x => x.Slot == "actions" && x.Type == "button" && !owned.Contains(Id(x.Component) ?? ""))
             .Select(x => x.Component.TryGetProperty("props", out var p) ? p : default).ToArray();
-        if ((props.TryGetProperty("saveQuery", out _) || props.TryGetProperty("saveSequence", out _))
+        // The bar owns Kaydet / Sil only with a non-empty value (the schema rejects empty ones before this rule runs).
+        if ((StringProp(props, "saveQuery") is { Length: > 0 } || NonEmptyArray(props, "saveSequence"))
             && buttons.Any(x => StringProp(x, "actionType") == "sequence")) return IkiKaydet;
-        if (props.TryGetProperty("deleteQuery", out _)
+        if (StringProp(props, "deleteQuery") is { Length: > 0 }
             && buttons.Any(x => StringProp(x, "actionType") == "query" && QueryKind(queries, StringProp(x, "queryId")) == "delete")) return IkiSil;
         return null;
     }
+
+    private static bool NonEmptyArray(JsonElement element, string key) =>
+        element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Array && value.GetArrayLength() > 0;
 
     private static string? StringProp(JsonElement element, string key) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -367,8 +395,9 @@ internal static class PageTemplateRules
         var blocks = placed.Where(x => x.Slot == "block").ToArray();
         if (blocks.Length == 0) return NeedBlock;
         if (blocks.Length > 20) return FreeTooManyBlocks;
-        // Buttons the commands bar runs are drawn by its commands and "⋯" menu, not as page buttons.
-        var owned = BarButtonIds(components);
+        // Buttons the commands bar runs are drawn by its commands and "⋯" menu, not as page buttons; with "⋯" hidden the menu
+        // buttons are page buttons again and count.
+        var owned = BarDrawnButtonIds(components);
         if (placed.Count(x => x.Slot == "actions" && !owned.Contains(Id(x.Component) ?? "")) > 8) return FreeTooManyActions;
         var tabs = placed.Where(x => x.Slot == "tabs").ToArray();
         if (tabs.Length > 1) return TooManyTabs;

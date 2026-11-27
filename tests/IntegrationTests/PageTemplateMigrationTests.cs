@@ -446,7 +446,6 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     {
         { """{"hiddenCommands":["print"],"barLook":["unbound=hide"]}""", "İşlem çubuğunun barLook ayarının kalıpta karşılığı yok." },
         { """{"hiddenCommands":["print"],"formDialog":"pencere"}""", "İşlem çubuğunun formDialog ayarının kalıpta karşılığı yok." },
-        { """{"printEnabled":true}""", "İşlem çubuğunun printEnabled ayarının kalıpta karşılığı yok." },
         { """{"hiddenCommands":["print"],"exportCsv":false}""", "İşlem çubuğunun exportCsv ayarının kalıpta karşılığı yok." },
         { """{"hiddenCommands":["print"],"visibleWhen":"liste.rows.length > 0"}""", "İşlem çubuğunun visibleWhen ayarının kalıpta karşılığı yok." },
         { """{"hiddenCommands":["print"],"disabledWhen":"liste.rows.length > 0"}""", "İşlem çubuğunun disabledWhen ayarının kalıpta karşılığı yok." },
@@ -646,5 +645,163 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
         Assert.Contains("hiddenCommands", BehaviorEquivalence.Check(before, hidden));
         var sequence = HandConverted(before, root => root["components"]![0]!["props"]!["saveSequence"] = new JsonArray("liste"));
         Assert.Contains("saveSequence", BehaviorEquivalence.Check(before, sequence));
+    }
+
+    // ---------------- düzeltme dalgası A: Yazdır (I2), kayıt kartı kuralları (I3), Liste satır düğmesi (M1), Serbest "⋯" (M2) ----------------
+
+    private const string RecordRuleReason = "Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir.";
+
+    [Fact]
+    public void Bound_visible_print_converts_and_printEnabled_is_dropped()
+    {
+        var before = Page([C("cubuk", "actionBar", new { printEnabled = true }), NoTools("tablo")]);
+        var after = Converted(before, "list").ConvertedJson!;
+        Assert.Null(Prop(after, "cubuk", "printEnabled"));
+        Assert.Null(BehaviorEquivalence.Check(before, after));
+        Assert.True(TenantCustomPageSchema.Validate(after, out var error), error);
+    }
+
+    [Fact]
+    public void Hidden_print_drops_printEnabled_whatever_its_value()
+    {
+        var before = Page([C("cubuk", "actionBar", new { printEnabled = false, hiddenCommands = new[] { "print" } }), NoTools("tablo")]);
+        var after = Converted(before, "list").ConvertedJson!;
+        Assert.Null(Prop(after, "cubuk", "printEnabled"));
+    }
+
+    [Fact]
+    public void Visible_print_with_printEnabled_false_is_not_converted()
+    {
+        var result = PageTemplateMigration.Classify(Page([C("cubuk", "actionBar", new { printEnabled = false }), NoTools("tablo")]), hasOpenDraft: false);
+        Assert.Null(result.Target);
+        Assert.Equal(new[] { "Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır." }, result.Reasons);
+    }
+
+    [Fact]
+    public void Equivalence_accepts_only_safe_printEnabled_removal()
+    {
+        static string Removed(string before) => HandConverted(before, root => ((JsonObject)root["components"]![0]!["props"]!).Remove("printEnabled"));
+        var bound = Page([C("cubuk", "actionBar", new { printEnabled = true }), NoTools("tablo")]);
+        Assert.Null(BehaviorEquivalence.Check(bound, Removed(bound)));
+        var hidden = Page([C("cubuk", "actionBar", new { printEnabled = false, hiddenCommands = new[] { "print" } }), NoTools("tablo")]);
+        Assert.Null(BehaviorEquivalence.Check(hidden, Removed(hidden)));
+        var unbound = Page([C("cubuk", "actionBar", new { printEnabled = false }), NoTools("tablo")]);
+        Assert.NotNull(BehaviorEquivalence.Check(unbound, Removed(unbound)));
+        // Kalıpsız sonraki tanımda printEnabled silinemez.
+        var legacyAfter = JsonNode.Parse(bound)!;
+        ((JsonObject)legacyAfter["components"]![0]!["props"]!).Remove("printEnabled");
+        Assert.Contains("printEnabled", BehaviorEquivalence.Check(bound, legacyAfter.ToJsonString()));
+        // Başka bir ayarın silinmesi kabul edilmez.
+        var other = Page([C("cubuk", "actionBar", new { printEnabled = true, hiddenCommands = new[] { "save" } }), NoTools("tablo")]);
+        Assert.Contains("hiddenCommands", BehaviorEquivalence.Check(other, HandConverted(other, root =>
+        {
+            var props = (JsonObject)root["components"]![0]!["props"]!;
+            props.Remove("printEnabled");
+            props.Remove("hiddenCommands");
+        })));
+    }
+
+    private static object DeleteButton(string id = "silD") => C(id, "button", new { label = "Sil", actionType = "query", queryId = "sil" });
+    private static object SaveButton(string id = "kaydetD") => C(id, "button", new { label = "Kaydet", actionType = "sequence", saveSequence = new[] { "sil" } });
+
+    public static TheoryData<string> RecordRuleCases() => ["barSave", "barSaveQuery", "barDelete", "saveButton", "deleteButton", "hiddenMoreDelete"];
+
+    private static string RecordRuleCase(string name) => name switch
+    {
+        "barSave" => RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, saveSequence = new[] { "sil" } })),
+        "barSaveQuery" => RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, saveQuery = "sil", afterSaveAction = "off" })),
+        "barDelete" => RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, deleteQuery = "sil" })),
+        "saveButton" => Page([.. RecordComponents(), SaveButton()], RecordQueries),
+        "deleteButton" => Page([.. RecordComponents(), DeleteButton()], RecordQueries),
+        // "⋯" gizliyken menü düğmeleri sayfa düğmesi olarak çizilir: kartın Sil'i sayılır.
+        _ => Page([.. RecordComponents(Bar(new { hiddenCommands = new[] { "print", "more" }, moreButtons = new[] { "silD" } })), DeleteButton()], RecordQueries)
+    };
+
+    [Theory]
+    [MemberData(nameof(RecordRuleCases))]
+    public void Record_card_rules_that_change_behaviour_refuse_record(string name)
+    {
+        var result = PageTemplateMigration.Classify(RecordRuleCase(name), false);
+        Assert.NotEqual("record", result.Target);
+        Assert.Contains(RecordRuleReason, result.Reasons);
+    }
+
+    [Fact]
+    public void Record_bar_run_delete_button_and_page_after_save_do_not_trigger_record_rule()
+    {
+        var menu = PageTemplateMigration.Classify(Page([.. RecordComponents(Bar(new { hiddenCommands = new[] { "print" }, moreButtons = new[] { "silD" } })), DeleteButton()], RecordQueries), false);
+        Assert.DoesNotContain(RecordRuleReason, menu.Reasons);
+        var page = PageTemplateMigration.Classify(RecordPage(bar: Bar(new { hiddenCommands = new[] { "print" }, saveSequence = new[] { "sil" }, afterSaveAction = "page", afterSavePageCode = "cari-liste" })), false);
+        Assert.DoesNotContain(RecordRuleReason, page.Reasons);
+    }
+
+    /// <summary>Temiz Kayıt kartı dönüşümünün önce/sonra çiftine aynı düzenleme (sonrakinde düğme 'actions' yerinde).</summary>
+    private static (string Before, string After) RecordPair(Action<JsonObject, bool> edit)
+    {
+        var clean = RecordPage();
+        var before = JsonNode.Parse(clean)!.AsObject();
+        var after = JsonNode.Parse(Converted(clean, "record").ConvertedJson!)!.AsObject();
+        edit(before, false);
+        edit(after, true);
+        return (before.ToJsonString(), after.ToJsonString());
+    }
+
+    private static JsonObject BarProps(JsonObject root) =>
+        (JsonObject)root["components"]!.AsArray().OfType<JsonObject>().Single(x => (string?)x["type"] == "actionBar")["props"]!;
+
+    private static void AddButton(JsonObject root, bool templated, object button)
+    {
+        var node = JsonNode.Parse(JsonSerializer.Serialize(button))!.AsObject();
+        if (templated) node["props"]!["slot"] = "actions";
+        root["components"]!.AsArray().Add(node);
+    }
+
+    [Fact]
+    public void Equivalence_rejects_record_card_rules_that_change_behaviour()
+    {
+        var cases = new Action<JsonObject, bool>[]
+        {
+            (root, _) => BarProps(root)["saveSequence"] = new JsonArray("sil"),
+            (root, _) => BarProps(root)["deleteQuery"] = "sil",
+            (root, templated) => AddButton(root, templated, SaveButton()),
+            (root, templated) => AddButton(root, templated, DeleteButton()),
+            (root, templated) => { BarProps(root)["hiddenCommands"] = new JsonArray("print", "more"); BarProps(root)["moreButtons"] = new JsonArray("silD"); AddButton(root, templated, DeleteButton()); }
+        };
+        foreach (var edit in cases)
+        {
+            var (before, after) = RecordPair(edit);
+            Assert.Equal(RecordRuleReason, BehaviorEquivalence.Check(before, after));
+        }
+        var (menuBefore, menuAfter) = RecordPair((root, templated) => { BarProps(root)["moreButtons"] = new JsonArray("silD"); AddButton(root, templated, DeleteButton()); });
+        Assert.Null(BehaviorEquivalence.Check(menuBefore, menuAfter));
+        var (pageBefore, pageAfter) = RecordPair((root, _) =>
+        {
+            BarProps(root)["saveSequence"] = new JsonArray("sil"); BarProps(root)["afterSaveAction"] = "page"; BarProps(root)["afterSavePageCode"] = "cari-liste";
+        });
+        Assert.Null(BehaviorEquivalence.Check(pageBefore, pageAfter));
+    }
+
+    [Fact]
+    public void List_bar_button_that_is_also_a_row_action_converts_to_rowActions()
+    {
+        var before = Page(
+        [
+            // The schema forbids a row action in the "⋯" menu (moreButtons); the open command's button may be one.
+            C("cubuk", "actionBar", new { hiddenCommands = new[] { "print" }, openButton = "satirAc" }),
+            C("tablo", "dataTable", new { query = "liste", rowActions = new[] { "satirAc" } }),
+            C("satirAc", "button", new { label = "Aç", actionType = "erpPage", pageKey = "sales-invoices" })
+        ]);
+        var after = Converted(before, "list").ConvertedJson!;
+        Assert.Equal("\"rowActions\"", Prop(after, "satirAc", "slot"));
+    }
+
+    [Fact]
+    public void Free_page_counts_menu_buttons_when_more_is_hidden()
+    {
+        var buttons = Enumerable.Range(1, 9).Select(i => C($"d{i}", "button", new { label = $"D{i}", actionType = "query", queryId = "sil" })).ToArray();
+        var before = Page([C("cubuk", "actionBar", new { hiddenCommands = new[] { "print", "more" }, moreButtons = Enumerable.Range(1, 9).Select(i => $"d{i}").ToArray() }), C("m1", "metric", new { title = "A", value = "1" }), .. buttons]);
+        var result = PageTemplateMigration.Classify(before, false);
+        Assert.Null(result.Target);
+        Assert.Contains("Serbest gövdede en fazla 8 düğme olabilir.", result.Reasons);
     }
 }

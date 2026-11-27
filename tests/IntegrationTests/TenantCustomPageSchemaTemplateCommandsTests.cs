@@ -151,7 +151,8 @@ public sealed class TenantCustomPageSchemaTemplateCommandsTests
     {
         Rejected(Page("list", [Bar(new { moreButtons = new[] { "yeniTeklif" } }), ListTable(), Button("yeniTeklif", slot: "above")]),
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
-        Rejected(Page("list", [Bar(new { moreButtons = new[] { "yeniTeklif" } }), ListTable(), Button("yeniTeklif", slot: "rowActions")]),
+        // On Liste a bar-run button may also sit in 'rowActions' (M1); not on the other templates.
+        Rejected(Page("record", [Bar(new { moreButtons = new[] { "yeniTeklif" } }), .. RecordBody(), Button("yeniTeklif", slot: "above")]),
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
         Rejected(Page("list", [Bar(new { newButton = "yeniTeklif" }), ListTable(), Button("yeniTeklif", slot: "below")]),
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
@@ -191,6 +192,42 @@ public sealed class TenantCustomPageSchemaTemplateCommandsTests
         Rejected(Page(null, [Bar(new { barLook = new[] { "align=end" } }, slot: "actions")], belge), BelgeKomut);
         var card = new { id = "kart", type = "card", name = "kart", props = new { slot = "above" }, children = new[] { Bar(slot: "above", id: "ic") } };
         Rejected(Page(null, [card], belge), BelgeKomut);
+    }
+
+    [Fact]
+    public void List_bar_button_in_rowActions_is_valid()
+    {
+        var table = new { id = "tablo", type = "dataTable", name = "tablo", props = new { slot = "list", query = "liste", rowActions = new[] { "yeniTeklif" } } };
+        // (A row action may not be a "⋯" menu button — the schema's own rule — but the open command's button may.)
+        Accepted(Page("list", [Bar(new { openButton = "yeniTeklif" }), table, Button("yeniTeklif", slot: "rowActions")]));
+        Accepted(Page("list", [Bar(new { openButton = "yeniTeklif" }), ListTable(), Button("yeniTeklif")]));
+    }
+
+    [Fact]
+    public void Free_menu_buttons_count_toward_eight_when_more_is_hidden()
+    {
+        var owned = Enumerable.Range(1, 9).Select(i => $"menu{i}").ToArray();
+        Rejected(Page("free", [Bar(new { moreButtons = owned, hiddenCommands = new[] { "more" } }), .. owned.Select(id => Button(id)), Block()]),
+            "Serbest gövdede en fazla 8 düğme olabilir.");
+        var eight = owned.Take(8).ToArray();
+        Accepted(Page("free", [Bar(new { moreButtons = eight, hiddenCommands = new[] { "more" } }), .. eight.Select(id => Button(id)), Block()]));
+    }
+
+    [Fact]
+    public void Record_bar_owns_save_or_delete_only_with_a_non_empty_value()
+    {
+        // The schema rejects the empty values first; the template rule itself treats them as "no bar Kaydet / Sil".
+        foreach (var bar in new[] { Bar(new { saveQuery = "" }), Bar(new { saveSequence = Array.Empty<string>() }) })
+        {
+            using var doc = JsonDocument.Parse(Page("record", [bar, SaveButton(), .. RecordBody()]));
+            var root = doc.RootElement;
+            Assert.Null(PageTemplateRules.ValidateTemplate(root, root.GetProperty("components"), root.GetProperty("queries")));
+        }
+        using (var doc = JsonDocument.Parse(Page("record", [Bar(new { deleteQuery = "" }), DeleteButton(), .. RecordBody()])))
+        {
+            var root = doc.RootElement;
+            Assert.Null(PageTemplateRules.ValidateTemplate(root, root.GetProperty("components"), root.GetProperty("queries")));
+        }
     }
 
     [Fact]

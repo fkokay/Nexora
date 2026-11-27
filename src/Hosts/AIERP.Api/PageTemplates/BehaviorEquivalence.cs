@@ -16,7 +16,11 @@ using System.Text.Json.Nodes;
 /// <item>Eklenen bileşen yalnız üst düzey, çocuksuz <c>section</c> (slot, columns, members, title, margin, padding) ya da
 /// <c>tabs</c> (slot, tabs) olabilir.</item>
 /// <item>Sonraki tanım kalıplıysa (5b-2a) işlem çubuğunun her ayarı (<c>slot</c> dışında) kalıpta karşılığı olan ayarlardandır ve
-/// görünen Yazdır önceki çubukta bağlıydı (<c>printEnabled: true</c>).</item>
+/// görünen Yazdır önceki çubukta bağlıydı (<c>printEnabled: true</c>). Çubuktan yalnız <c>printEnabled</c> silinebilir: önceki
+/// değer true ise ya da Yazdır sonrakinde gizliyse.</item>
+/// <item>Sonraki tanım Kayıt kartıysa kartın Kaydet / Sil sonrası kuralı hiçbir komuta ya da düğmeye uygulanmaz: çubukta dolu
+/// <c>saveQuery</c> / <c>saveSequence</c> (<c>afterSaveAction: "page"</c> olmadan) ya da <c>deleteQuery</c> yok; çubuğun
+/// çalıştırmadığı ("⋯" gizliyse menü düğmeleri de sayılır) kayıt dizisi ya da silme sorgulu düğme yok.</item>
 /// </list>
 /// </summary>
 internal static class BehaviorEquivalence
@@ -53,7 +57,10 @@ internal static class BehaviorEquivalence
         var afterById = @as.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var beforeById = bs.ToDictionary(x => x.Id, StringComparer.Ordinal);
         var beforeIds = bs.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-        if (a.ContainsKey("template") && TemplateBarDifference(@as, beforeById) is { } barDifference) return barDifference;
+        var templated = a.ContainsKey("template");
+        if (templated && TemplateBarDifference(@as, beforeById) is { } barDifference) return barDifference;
+        if (a["template"] is JsonObject template && (string?)template["name"] == "record" && RecordRuleDifference(a, @as) is { } recordDifference)
+            return recordDifference;
 
         foreach (var entry in bs)
         {
@@ -66,7 +73,7 @@ internal static class BehaviorEquivalence
             if (entry.ParentId != next.ParentId) return $"'{entry.Id}' bileşeninin yeri (üst bileşeni) değişti.";
             if (!ChildIds(entry.Node).SequenceEqual(ChildIds(next.Node))) return $"'{entry.Id}' bileşeninin iç bileşenleri değişti.";
             var type = (string?)entry.Node["type"];
-            if (PropsDifference(entry.Id, type, entry.Node["props"] as JsonObject, next.Node["props"] as JsonObject) is { } difference) return difference;
+            if (PropsDifference(entry.Id, type, entry.Node["props"] as JsonObject, next.Node["props"] as JsonObject, templated) is { } difference) return difference;
             if (type == "tabs" && TabContentDifference(entry.Id, entry.Node["props"]?["tabs"], next.Node["props"]?["tabs"], beforeById, afterById) is { } tabDifference)
                 return tabDifference;
         }
@@ -133,7 +140,43 @@ internal static class BehaviorEquivalence
         return null;
     }
 
-    private static string? PropsDifference(string id, string? type, JsonObject? before, JsonObject? after)
+    /// <summary>
+    /// Sonraki Kayıt kartında kartın Kaydet / Sil sonrası kuralına giren komut ya da düğme (dönüştürücüden bağımsız yazıldı).
+    /// </summary>
+    private static string? RecordRuleDifference(JsonObject root, List<Entry> after)
+    {
+        const string RecordRule = "Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir.";
+        static bool NonEmpty(JsonNode? node) =>
+            node is JsonArray list ? list.Count > 0 : node is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrEmpty(text);
+        static string? Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+        var runByBar = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var bar in after.Where(x => x.ParentId is null && Text(x.Node["type"]) == "actionBar"))
+        {
+            var props = bar.Node["props"] as JsonObject;
+            if ((NonEmpty(props?["saveQuery"]) || NonEmpty(props?["saveSequence"])) && Text(props?["afterSaveAction"]) != "page") return RecordRule;
+            if (NonEmpty(props?["deleteQuery"])) return RecordRule;
+            var moreHidden = props?["hiddenCommands"] is JsonArray hidden && hidden.Any(x => Text(x) == "more");
+            foreach (var key in new[] { "newButton", "openButton", "afterSaveButton", "moreButtons" })
+            {
+                if (key == "moreButtons" && moreHidden) continue;
+                if (props?[key] is JsonArray ids) foreach (var id in ids) { if (Text(id) is { } one) runByBar.Add(one); }
+                else if (Text(props?[key]) is { } single) runByBar.Add(single);
+            }
+        }
+        var kinds = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (root["queries"] is JsonArray queries)
+            foreach (var query in queries.OfType<JsonObject>()) if (Text(query["id"]) is { } queryId) kinds[queryId] = Text(query["kind"]);
+        foreach (var button in after.Where(x => x.ParentId is null && Text(x.Node["type"]) == "button" && !runByBar.Contains(x.Id)))
+        {
+            var props = button.Node["props"] as JsonObject;
+            var action = Text(props?["actionType"]);
+            if (action == "sequence") return RecordRule;
+            if (action == "query" && Text(props?["queryId"]) is { } target && kinds.TryGetValue(target, out var kind) && kind == "delete") return RecordRule;
+        }
+        return null;
+    }
+
+    private static string? PropsDifference(string id, string? type, JsonObject? before, JsonObject? after, bool templated)
     {
         var keys = (before?.Select(x => x.Key) ?? []).Union(after?.Select(x => x.Key) ?? []).ToArray();
         foreach (var key in keys)
@@ -145,6 +188,11 @@ internal static class BehaviorEquivalence
             if (AnyComponentLayout.Contains(key)) continue;
             if (key is "columns" or "members" && type == "section") continue;
             if (key == "tabs" && type == "tabs" && SameTabLabels(bv, av)) continue;
+            // Kalıplı çubuktan printEnabled silinebilir: önceki true idiyse ya da Yazdır sonrakinde gizliyse (kalıpta görünen Yazdır yazdırır).
+            if (key == "printEnabled" && type == "actionBar" && templated && hasBefore && !hasAfter
+                && (bv is JsonValue was && was.TryGetValue<bool>(out var on) && on
+                    || after?["hiddenCommands"] is JsonArray hidden && hidden.OfType<JsonValue>().Any(x => x.TryGetValue<string>(out var command) && command == "print")))
+                continue;
             return $"'{id}' bileşeninin '{key}' özelliği değişti.";
         }
         return null;

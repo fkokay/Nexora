@@ -383,7 +383,7 @@ internal static partial class TenantCustomPageSchema
             {
                 root.TryGetProperty("queries", out var templateQueries);
                 if (PageTemplateRules.ValidateTemplate(root, components, templateQueries) is { } templateError) { error = templateError; return false; }
-                if (PageTemplateRules.ValidateBarButtons(components) is { } barButtonError) { error = barButtonError; return false; }
+                if (PageTemplateRules.ValidateBarButtons(components, PageTemplateRules.TemplateName(root)) is { } barButtonError) { error = barButtonError; return false; }
             }
             if (TenantCustomPageQueries.FindCycle(queries) is { } cycle)
             { error = $"Sorgular arasında döngüsel bağımlılık var: {cycle}."; return false; }
