@@ -30,11 +30,13 @@ export const sequencePatch = (next: SequenceValue): Patch => ({
  * kaydetme yolu (yok, tek yazma sorgusu ya da kayıt dizisi; ikisi birlikte olamaz), kaydet metni, kayıtta kapan,
  * açılışta sıfırla ve kayıttan sonra yenilenecek okuma sorguları. `onPatch` undefined değeri siler.
  */
-export function DialogFields({ dialog, components, labelOf = defaultLabel, writeQueries, readQueries, pageNames, disabled, onPatch, viewExtra }: {
+export function DialogFields({ dialog, components, labelOf = defaultLabel, writeQueries, readQueries, pageNames, disabled, onPatch, viewExtra, templated }: {
   dialog: DialogComponent; components: DialogComponent[]; labelOf?: (component: DialogComponent) => string;
   writeQueries: PageQuery[]; readQueries: { id: string; name: string }[]; pageNames: string[]; disabled?: boolean; onPatch: (patch: Patch) => void;
   /** Görünüm sekmesine eklenecek alanlar (boyut, dışarı tıklama). */
   viewExtra?: ReactNode;
+  /** Kalıplı sayfa: sunum yalnız pencere (çekmece seçimi gösterilmez; sunucu: PencereSunum). */
+  templated?: boolean;
 }) {
   const props = dialog.props;
   const contains = idList(props.contains, MAX_DIALOG_IDS);
@@ -111,12 +113,12 @@ export function DialogFields({ dialog, components, labelOf = defaultLabel, write
     </>}
     </SettingsPane>
     <SettingsPane tab="view">
-    <div className="pd-field">Sunum
+    {!templated && <div className="pd-field">Sunum
       <div className="pd-segment" role="group" aria-label="Pencere sunumu">
         <button type="button" aria-pressed={presentation === "dialog"} className={presentation === "dialog" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "dialog" })}>Pencere</button>
         <button type="button" aria-pressed={presentation === "drawer"} className={presentation === "drawer" ? "active" : ""} disabled={disabled} onClick={() => onPatch({ presentation: "drawer" })}>Çekmece</button>
       </div>
-    </div>
+    </div>}
     {viewExtra}
     </SettingsPane>
   </>;

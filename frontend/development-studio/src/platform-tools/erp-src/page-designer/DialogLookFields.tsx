@@ -12,12 +12,16 @@ export const sizeOf = (value: unknown): DialogSize => value === "sm" || value ==
  * Pencere görünümü: boyut (`size`; çekmecede çekmece genişliği) ve dışarı tıklayınca kapanma (`backdropClose`).
  * Varsayılanlar (Orta, Kapanmasın) özelliğe yazılmaz: `onPatch` undefined değeri siler.
  */
-export function DialogLookFields({ props, disabled, onPatch }: { props: Record<string, unknown>; disabled?: boolean; onPatch: (patch: Patch) => void }) {
+export function DialogLookFields({ props, disabled, templated, onPatch }: {
+  props: Record<string, unknown>; disabled?: boolean;
+  /** Kalıplı sayfa: yalnız Küçük–Çok büyük (sunucu: PencereSunum). */
+  templated?: boolean; onPatch: (patch: Patch) => void;
+}) {
   const size = sizeOf(props.size);
   const backdropClose = props.backdropClose === true;
   return <>
     <div className="pd-field">Boyut<small>Pencerenin genişliği; çekmecede çekmecenin genişliğidir.</small>
-      <div className="pd-segment" role="group" aria-label="Pencere boyutu">{SIZE_OPTIONS.map(([option, label]) =>
+      <div className="pd-segment" role="group" aria-label="Pencere boyutu">{(templated ? TEMPLATE_DIALOG_SIZES : SIZE_OPTIONS).map(([option, label]) =>
         <button type="button" key={option} disabled={disabled} aria-pressed={size === option} className={size === option ? "active" : ""}
           onClick={() => onPatch({ size: option === "md" ? undefined : option })}>{label}</button>)}</div>
     </div>

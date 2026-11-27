@@ -4630,8 +4630,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             {selected.type === "customFieldsBlock" && section("customFields", "Özel alanlar", <CustomFieldsBlockFields name={selected.name} props={selected.props} readQueries={readQueries}
               columnsOf={(queryId) => { const columns = queryColumns(queryId); return columns.length > 0 ? columns.map((column) => column.code) : null; }}
               disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch)}/>)}
-            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components}
-              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
+            {selected.type === "dialog" && <DialogFields dialog={selected} components={definition.components} templated={!!pageTemplate}
+              viewExtra={<DialogLookFields props={selected.props} disabled={!canEdit} templated={!!pageTemplate} onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}
               labelOf={(component) => { const summary = summaryOf(component as PageComponent); const title = titleFor(component.type as ComponentType); return summary === title ? title : `${title}: ${summary}`; }}
               writeQueries={writeQueries} readQueries={readQueries} pageNames={pageNamesOf(definition)} disabled={!canEdit}
               onPatch={(patch) => patchComponent(selected.id, patch as Record<string, PropValue | undefined>)}/>}

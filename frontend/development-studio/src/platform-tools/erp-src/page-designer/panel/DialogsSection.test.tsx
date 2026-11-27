@@ -146,4 +146,19 @@ describe("DialogsSection (taslak 12)", () => {
     const record = renderToString(<RecordPanel def={newRecordTemplateDefinition() as unknown as ModelDefinition} catalog={catalog} selection={{ kind: "page" }} onChange={() => {}} onSelect={() => {}}/>);
     expect(record.indexOf("Pencereler")).toBeGreaterThan(record.indexOf("Komutlar"));
   });
+
+  it("Kaldır removes a window without openers and is off while a button opens it", () => {
+    const onChange = vi.fn();
+    const onShowDialog = vi.fn();
+    const host = mount(page(), { onChange, onShowDialog });
+    const remove = () => [...host.querySelectorAll<HTMLButtonElement>("[data-part='dialog-settings'] button")].find((button) => button.textContent === "Kaldır")!;
+    act(() => rowOf(host, "Satış siparişi").click());
+    expect(remove().disabled).toBe(true);
+    act(() => [...host.querySelectorAll("button")].find((button) => button.textContent === "+ Pencere ekle")!.click());
+    expect(remove().disabled).toBe(false);
+    act(() => remove().click());
+    const def = onChange.mock.lastCall![0] as ModelDefinition;
+    expect(def.components.map((item) => item.id)).toEqual(page().components.map((item) => item.id));
+    expect(onShowDialog).toHaveBeenLastCalledWith(null);
+  });
 });

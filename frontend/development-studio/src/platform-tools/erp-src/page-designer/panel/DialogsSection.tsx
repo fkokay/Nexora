@@ -61,6 +61,7 @@ export function DialogsSection(props: DialogsSectionProps) {
   const dialogs = dialogsOf(def.components);
   const selectedId = controlled ? props.shownDialog ?? null : ownSelection;
   const selected = dialogs.find((dialog) => dialog.id === selectedId) ?? null;
+  const openers = selected ? dialogOpeners(def, selected.id) : [];
   const select = (id: string | null) => {
     if (!controlled) setOwnSelection(id);
     props.onShowDialog?.(id);
@@ -80,15 +81,16 @@ export function DialogsSection(props: DialogsSectionProps) {
       select(added.dialogId);
     }}>+ Pencere ekle</button>
     {selected && <>
-      {dialogOpeners(def, selected.id).length > 0 && <p className="cpanel-note">{`Açan düğmeler: ${dialogOpeners(def, selected.id).join(", ")}`}</p>}
-      <DialogSettings key={selected.id} def={def} dialog={selected} catalog={catalog} disabled={disabled} onChange={changeComponents}
+      {openers.length > 0 && <p className="cpanel-note">{`Açan düğmeler: ${openers.join(", ")}`}</p>}
+      {/* Açan düğmesi olan pencere kaldırılamaz: sunucu var olmayan pencereyi açan düğmeyi reddeder. */}
+      <DialogSettings key={selected.id} def={def} dialog={selected} catalog={catalog} disabled={disabled} removable={openers.length === 0} onChange={changeComponents}
         onRemove={() => { changeComponents(removeDialog(def.components, selected.id)); select(null); }}/>
     </>}
   </section>;
 }
 
-function DialogSettings({ def, dialog, catalog, disabled, onChange, onRemove }: {
-  def: ModelDefinition; dialog: ModelComponent; catalog: ActiveCatalog | null; disabled?: boolean;
+function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, onRemove }: {
+  def: ModelDefinition; dialog: ModelComponent; catalog: ActiveCatalog | null; disabled?: boolean; removable: boolean;
   onChange: (components: ModelComponent[]) => void; onRemove: () => void;
 }) {
   const props = dialog.props;
@@ -158,6 +160,6 @@ function DialogSettings({ def, dialog, catalog, disabled, onChange, onRemove }: 
           <button type="button" aria-label={`${label} aşağı`} disabled={disabled || index === contains.length - 1} onClick={() => move(index, 1)}>↓</button>
         </span></li>;
     })}</ol>
-    <button type="button" className="cpanel-btn danger" disabled={disabled} onClick={onRemove}>Kaldır</button>
+    <button type="button" className="cpanel-btn danger" disabled={disabled || !removable} onClick={onRemove}>Kaldır</button>
   </div>;
 }
