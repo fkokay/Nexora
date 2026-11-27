@@ -24,7 +24,7 @@
     "schemaVersion": 2,
     "components": [
       { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{gecmis.meta.totalCount}}",
+        "props": { "exportTable": "liste", "titleCount": "{{gecmis.meta.totalCount}}",
                    "hiddenCommands": ["new", "open", "save", "delete", "print"], "slot": "commands" } },
 
       { "id": "mevcutGostergesi", "type": "metric", "name": "mevcutGostergesi",
