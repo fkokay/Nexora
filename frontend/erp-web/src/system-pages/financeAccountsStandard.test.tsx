@@ -98,7 +98,7 @@ function setup(key: 'finance-accounts' | 'finance-banks' = 'finance-accounts', p
   api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
     if (endpoint === `/api/system-pages/${key}/published`) {
       return { id: 'sp', code: `@${key}`, name: standard.title, description: null, revision: 1, forms: [], rights: { view: true, insert: true, update: true, delete: true },
-        screenKey: key, source: 'standard', standardVersion: 1, definitionJson: JSON.stringify(standard.definition) };
+        screenKey: key, source: 'standard', standardVersion: standard.version, definitionJson: JSON.stringify(standard.definition) };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return catalog;
     const method = init?.method ?? 'GET';
@@ -116,14 +116,20 @@ function setup(key: 'finance-accounts' | 'finance-banks' = 'finance-accounts', p
 
 const T = { timeout: 10000 };
 const settle = (ms = 50) => new Promise((done) => setTimeout(done, ms));
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const pageToolbar = () => screen.getByRole('toolbar', { name: '\u0130\u015flemler' });
+const command = (id: string) => id === 'new'
+  ? pageToolbar().querySelector<HTMLElement>(`[data-command="${id}"]`)!
+  : id === 'more' ? within(pageToolbar()).getByRole('button', { name: '\u0044i\u011fer i\u015flemler' }) : screen.getByRole('button', { name: ( ({ open: 'Ekstre', edit: 'D\u00fczenle', statusOff: 'Pasife al', statusOn: 'Etkinle\u015ftir', delete: 'Sil', manual: 'Manuel hareket', transfer: 'Transfer / d\u00f6viz' } as Record<string, string>)[id] ?? id) });
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const statements = (id: string) => gets(`/api/finance/accounts/${id}`);
 const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name }, T);
+  const detail = document.querySelector('.list-template-detail');
+  const direct = detail ? within(detail as HTMLElement).queryByRole('button', { name }) : null;
+  if (direct) return direct;
+  fireEvent.click(within(pageToolbar()).getByRole('button', { name: '\u0044i\u011fer i\u015flemler' }));
+  return within(pageToolbar()).findByRole('menuitem', { name }, T);
 };
 const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 const listRow = async (text: string) => {
@@ -142,7 +148,9 @@ const confirmLast = async () => {
 };
 /** Ekstre adımını hesapla açar ve satırları bekler. */
 const openStatement = async (id = K1) => {
-  setup('finance-accounts', { accountId: id });
+  setup('finance-accounts');
+  await select(id === K1 ? 'Merkez kasa' : 'Ziraat TL', id);
+  fireEvent.click(command('open'));
   await waitFor(() => expect(statements(id).length).toBeGreaterThan(0), T);
   await listRow('Elle giriş · avans');
 };
@@ -163,7 +171,7 @@ describe('Kasalar standart tanımı', { timeout: 30000 }, () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     for (const key of ['finance-accounts', 'finance-banks']) {
       const standard = read(key);
-      expect(standard.version).toBe(1);
+      expect(standard.version).toBe(2);
       expect(standard.stage).toBe('preview');
       expect([...new Set(standard.definition.queries.map((item) => item.operation))].sort()).toEqual([...names].sort());
     }
@@ -221,47 +229,40 @@ describe('Kasalar standart tanımı', { timeout: 30000 }, () => {
     expect(writes()[1]).toMatchObject({ method: 'POST', url: `/api/finance/accounts/${K2}/status?isActive=true` });
   });
 
-  it('Sil is disabled for an account with movements and deletes an empty account after confirmation', async () => {
+  it('Sil is hidden for an account with movements and deletes an empty account after confirmation', async () => {
     setup();
     await select('Merkez kasa', K1);
-    expect((await menuItem(/^Sil/)).getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(within(pageToolbar()).getByRole('button', { name: '\u0044i\u011fer i\u015flemler' }));
+    expect(within(pageToolbar()).queryByRole('menuitem', { name: /^Sil/ })).toBeNull();
     closeMenu();
     await select('Eski kasa', K2);
     const item = await menuItem(/^Sil/);
-    await waitFor(() => expect(item.getAttribute('aria-disabled')).not.toBe('true'), T);
+    expect(item.getAttribute('aria-disabled')).not.toBe('true');
     fireEvent.click(item);
     await confirmLast();
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'DELETE', url: `/api/finance/accounts/${K2}` });
   });
 
-  it('İşlemler › Ekstre / hareketler opens step 2 with the statement of the selected account, 50 per page', async () => {
+  it('Ekstre opens a statement window for the selected account with server paging', async () => {
     setup();
     await select('Merkez kasa', K1);
-    // Ekstre adımı İşlemler › Ekstre / hareketler ile açılır (Aç yalnız satır açma eylemidir).
-    expect(command('open')).toBeNull();
-    const open = await menuItem(/^Ekstre \/ hareketler/);
-    await waitFor(() => expect(open.getAttribute('aria-disabled')).not.toBe('true'), T);
-    fireEvent.click(open);
+    fireEvent.click(command('open'));
+    const dialog = await screen.findByRole('dialog', { name: /Ekstre/ }, T);
     await waitFor(() => expect(statements(K1).length).toBeGreaterThan(0), T);
     expect(query(statements(K1)[0].url).get('page')).toBe('1');
     expect(query(statements(K1)[0].url).get('pageSize')).toBe('50');
-    await listRow('Elle giriş · avans');
-    const header = document.body.textContent ?? '';
-    expect(header).toContain('KASA-01 · Merkez kasa');
-    expect(header).toContain('Kasa · TRY');
-    for (const label of ['Güncel bakiye', 'Hareket (tümü)', 'Giriş · bu sayfa', 'Çıkış · bu sayfa']) expect(header).toContain(label);
-    // Sayfa giriş / çıkış toplamları sunucunun hesaplanan meta alanlarıdır (pageInflow, pageOutflow).
-    expect(header).toContain('2.000,00');
-    expect(header).toContain('3.500,00');
-    // ‹ Hesap değiştir 1. adıma döner.
-    fireEvent.click(await screen.findByRole('button', { name: /Hesap değiştir/ }, T));
-    expect(await listRow('Merkez kasa')).toBeTruthy();
+    await within(dialog).findByText('Elle giri\u015f \u00b7 avans', {}, T);
+    expect(dialog.textContent).toContain('KASA-01 \u00b7 Merkez kasa');
+    expect(dialog.textContent).toContain('D\u00f6viz');
+    expect(dialog.textContent).not.toContain('bu sayfa');
   });
 
-  it('double-clicking an account row opens its statement (rowOpenAction Aç)', async () => {
+  it('Ekstre opens only the selected account statement', async () => {
     setup();
-    fireEvent.doubleClick(await listRow('Eski kasa'));
+    await select('Eski kasa', K2);
+    fireEvent.click(command('open'));
+    await screen.findByRole('dialog', { name: /Ekstre/ }, T);
     await waitFor(() => expect(statements(K2).length).toBeGreaterThan(0), T);
     expect(statements(K1)).toEqual([]);
   });
@@ -345,7 +346,9 @@ describe('Bankalar standart tanımı', { timeout: 30000 }, () => {
   });
 
   it('the bank statement voids with the bank account id', async () => {
-    setup('finance-banks', { accountId: B1 });
+    setup('finance-banks');
+    await select('Ziraat TL', B1);
+    fireEvent.click(command('open'));
     await waitFor(() => expect(statements(B1).length).toBeGreaterThan(0), T);
     await waitFor(() => expect(document.body.textContent).toContain('Banka · TRY'), T);
     fireEvent.click(within(await listRow('Elle giriş · avans')).getByRole('button', { name: 'Hareketi iptal et' }));
