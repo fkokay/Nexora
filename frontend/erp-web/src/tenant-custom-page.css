@@ -470,6 +470,10 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 .tenant-page-group { display: flex; flex-direction: column; gap: 8px; }
 .tenant-page-group > h3, .tenant-page-group > p { margin: 0; }
 .tenant-page-group-badges, .tenant-page-group-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Pencerede grup çerçeveli bir kutudur (taslak 12 `.grp`); pencere içi bölümlerin çerçevesiz kuralının (yukarıda) önüne geçer. */
+:is(#root .app-shell, body) .tenant-page-dialog-body .tenant-page-group.tenant-page-group {
+  padding: 10px 12px !important; border: 1px solid var(--nx-line) !important; border-radius: 10px !important;
+}
 .tenant-page-dialog-footer .tenant-page-button.is-secondary { border-color: var(--nx-line); color: var(--nx-text); background: var(--nx-surface); }
 .tenant-page-dialog-footer .tenant-page-button.is-secondary:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-surface); }
 .tenant-page-image { box-sizing: border-box; margin: 0; overflow: hidden; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }

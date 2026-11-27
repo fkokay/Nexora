@@ -24,10 +24,11 @@ const queries = [
 const components = [
   { id: 'liste_t', type: 'dataTable', name: 'liste', props: { slot: 'list', query: 'siparisler', title: 'Siparişler', columns: ['code'] } },
   { id: 'acDugmesi', type: 'button', props: { slot: 'actions', text: 'Pencereyi aç', actionType: 'openDialog', dialogId: 'pen' } },
-  { id: 'pen', type: 'dialog', props: { slot: 'dialogs', presentation: 'dialog', size: 'md', title: 'Sipariş', saveQuery: 'kaydet', contains: ['metin', 'penDugme', 'sek', 'grupAcik', 'ozet', 'grupKapali'] } },
+  { id: 'pen', type: 'dialog', props: { slot: 'dialogs', presentation: 'dialog', size: 'md', title: 'Sipariş', saveQuery: 'kaydet', contains: ['metin', 'penDugme', 'penGizli', 'sek', 'grupAcik', 'ozet', 'grupKapali'] } },
   { id: 'ozet', type: 'recordHeader', props: { slot: 'dialog', title: 'Özet başlığı' } },
   { id: 'metin', type: 'text', props: { slot: 'dialog', text: 'Ara metin' } },
   { id: 'penDugme', type: 'button', props: { slot: 'dialog', text: 'Yazdır', actionType: 'query', queryId: 'siparisler' } },
+  { id: 'penGizli', type: 'button', props: { slot: 'dialog', text: 'Gizli düğme', actionType: 'query', queryId: 'siparisler', visibleWhen: "liste.seciliSatir.code == 'YOK'" } },
   { id: 'sek', type: 'tabs', props: { slot: 'dialog', tabs: ['Bilgi=sekMetin'] } },
   { id: 'sekMetin', type: 'text', props: { slot: 'dialog', text: 'Sekme metni' } },
   {
@@ -49,7 +50,9 @@ const unslot = (component: { props?: Record<string, unknown> }) => { const { slo
 const legacy = { schemaVersion: 2, queries, components: components.map(unslot) };
 
 let definition: unknown;
+let listReads: number;
 beforeEach(() => {
+  listReads = 0;
   localStorage.clear();
   api.mockReset();
   api.mockImplementation(async (endpoint: string) => {
@@ -57,6 +60,7 @@ beforeEach(() => {
       return { id: 'p', code: 'p', name: 'Siparişler', revision: 1, forms: [], definitionJson: JSON.stringify(definition), rights: { view: true, insert: true, update: true, delete: true } };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations: [] };
+    if (endpoint.includes('/queries/siparisler/run')) listReads += 1;
     if (endpoint.includes('/queries/siparisler/run')) return { columns: [{ code: 'id', label: 'id' }, { code: 'code', label: 'code' }], rows, rowCount: rows.length, truncated: false };
     return { affectedRows: 1 };
   });
@@ -96,6 +100,11 @@ describe('kalıplı pencere ve grup iskeleti', () => {
     expect(orderOf(bodyOf(dialog), ['Sekme metni', 'Durum', 'Ara metin', 'Özet başlığı'])).toEqual(['Özet başlığı', 'Ara metin', 'Durum', 'Sekme metni']);
     expect(within(bodyOf(dialog)).queryByText('Yazdır')).toBeNull();
     expect(footerButtons(dialog)).toEqual(['Yazdır', 'Vazgeç', 'Kaydet']);
+    expect(within(dialog).queryByText('Gizli düğme')).toBeNull();
+    // Alt satıra taşınan düğme eylemini aynen çalıştırır.
+    const before = listReads;
+    fireEvent.click(within(dialog.querySelector<HTMLElement>('.tenant-page-dialog-footer')!).getByRole('button', { name: 'Yazdır' }));
+    await waitFor(() => expect(listReads).toBe(before + 1), T);
   });
 
   it('templated group: hidden group is not drawn; badges first row, buttons last row; no width style', async () => {
@@ -110,6 +119,9 @@ describe('kalıplı pencere ve grup iskeleti', () => {
     expect(within(buttons).getByRole('button', { name: 'Grup düğmesi' })).toBeTruthy();
     expect(orderOf(group, ['Grup düğmesi', 'Grup metni', 'Acil', 'Onaylı', 'Durum'])).toEqual(['Durum', 'Onaylı', 'Acil', 'Grup metni', 'Grup düğmesi']);
     expect(within(group).getByText('Grup metni').style.gridColumn).toBe('');
+    const before = listReads;
+    fireEvent.click(within(buttons).getByRole('button', { name: 'Grup düğmesi' }));
+    await waitFor(() => expect(listReads).toBe(before + 1), T);
   });
 
   it('a group without badges or visible buttons draws no empty rows', async () => {
@@ -125,6 +137,7 @@ describe('kalıplı pencere ve grup iskeleti', () => {
     const dialog = await openDialog(legacy);
     expect(orderOf(bodyOf(dialog), ['Sekme metni', 'Durum', 'Ara metin', 'Özet başlığı', 'Yazdır'])).toEqual(['Ara metin', 'Yazdır', 'Sekme metni', 'Durum', 'Özet başlığı']);
     expect(footerButtons(dialog)).toEqual(['Vazgeç', 'Kaydet']);
+    expect(within(dialog).queryByText('Gizli düğme')).toBeNull();
     const group = groupOf(dialog);
     expect(group.querySelector('.tenant-page-group-badges')).toBeNull();
     expect(orderOf(group, ['Grup düğmesi', 'Grup metni', 'Acil', 'Onaylı'])).toEqual(['Grup metni', 'Onaylı', 'Grup düğmesi', 'Acil']);
