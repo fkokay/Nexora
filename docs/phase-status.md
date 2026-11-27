@@ -1753,6 +1753,13 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanmayan:** Canlıda firma kopyasıyla ve tarayıcıda görsel deneme; eski firma kopyalarının sıfırlanması bu işte yok.
 
 
+### 2026-11-28 belge modeli `satis.teklif` ve Teklifler ekranı (yeni belge modelleri için örnek iş)
+
+- **Ne değişti:** İkinci belge modeli `satis.teklif` (alanlar: teklif no, müşteri, teklif tarihi, geçerlilik, plasiyer, teslimat koşulları, notlar; durumlar Taslak, İletildi, Kabul edildi, Reddedildi, Süresi doldu; geçişler İlet, Kabul et, Reddet mevcut `send/accept/reject` uçlarına bağlı). Yeni `sales-quote-document` (Belge) standardı; `sales-quotes` v2 Liste kalıbına yeniden yazıldı (Yeni ve Aç Belge sayfasını açar; Kabul et, Reddet, Siparişe çevir, Siparişi aç satır eylemi; detay kartı ve pencere kalktı). Sipariş ve teklifin ortak parçaları `SalesDocumentModelParts` içinde (satır kolonları, stok doldurma, örnek tutarlar, geçiş izin denetimi); ERP Belge kalıbı modele özgü bilgiyi `DocumentBinding` kayıtlarından okur. `/api/document-models/satis.teklif/*` yolları artık `erp.sales-quotes` iznine çözülür. Teklif geçişleri işlem günlüğüne yazar. Adım adım kontrol listesi: `docs/runbooks/yeni-belge-modeli.md`.
+- **Kalıpta karşılığı olmayıp bırakılanlar:** Yeni revizyon, Sipariş oluştur (belgeden belge; listede satır eylemi olarak var), Yazdır/PDF, teklif iptali (API'de yok), Kurallar ve onay (yalnız sipariş). Teklif özel alanları Belge'nin genel özel alan bölümünde görünür. Kayıtsız alıcılı teklif Belge'de açılır ve kaydedilir (alıcı adı korunur) ama alıcı Belge'den cariye çevrilemez.
+- **Doğrulanan (yerel):** Teklif model, belge görünümü, geçiş izinleri, işlem günlüğü, örnek, doldurma, yetki yolu ve standart testleri (.NET); ERP Belge kalıbı teklif testleri (kayıtta not, teslimat koşulu, kur, talep satırı ve özel alan geri gönderimi dahil) ve sipariş testleri değişmeden geçti; Studio varsayılan belge testi.
+- **Doğrulanmayan:** Gerçek SQL Server'a karşı teklif PUT/geçiş akışı (InMemory'de PUT kilidi çalışmaz); tarayıcıda görsel deneme; Studio tuvalinde teklif önizlemesi.
+
 ### 2026-11-28 finans ve duran varlık yeniden tasarım, 2. dalga: üç standart kalıba çizildi
 
 - **Ne değişti:** `finance-ledger-chart` v2 (Liste + kart grubu + üç pencere), `fixed-assets` v2 (Liste + kart grubu + iki pencere) ve `fixed-asset-create` v2 (Kayıt kartı, üç sekme) standartları el ile kalıplı sayfa olarak yeniden yazıldı (tasarım: `docs/superpowers/specs/2026-11-28-finans-muhasebe-varlik-yeniden-tasarim-design.md`). Sorgular ve işlemler aynı kaldı; yalnız düzen ve pencereler değişti.
