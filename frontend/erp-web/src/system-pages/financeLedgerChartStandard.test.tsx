@@ -9,8 +9,8 @@ import { KeepAliveViews } from '../WorkspaceComponents';
 import TenantCustomPage from '../TenantCustomPage';
 import catalog from './financeLedgerChartOperations.fixture.json';
 
-// "Hesap Planı" standart tanımı (finance-ledger-chart.json): düz liste + sınıf süzgeci, sağda hesap kartı (yeni / düzenle),
-// pasife al / etkinleştir (kaynak kayıt finans.muhasebe.hesap.getir), sil, Tek Düzen Hesap Planı ve muavin penceresi.
+// "Hesap Planı" standart tanımı (finance-ledger-chart.json, Liste kalıbı): düz liste + sınıf süzgeci, sağda salt okunur kart grubu,
+// Yeni hesap / Hesabı düzenle / Muavin pencereleri, pasife al / etkinleştir (kaynak kayıt finans.muhasebe.hesap.getir), sil, Tek Düzen Hesap Planı.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -83,7 +83,16 @@ function setup(role = 'TenantAdmin') {
 
 const T = { timeout: 10000 };
 const settle = (ms = 50) => new Promise((done) => setTimeout(done, ms));
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`);
+// Liste kalıbı: komutlar kabuğun "İşlemler" çubuğundadır; "⋯" = "Diğer işlemler".
+const command = (id: string) => {
+  const shell = screen.getByRole('toolbar', { name: 'İşlemler' });
+  return id === 'more' ? within(shell).getByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`);
+};
+const detail = () => document.querySelector('.list-template-detail') as HTMLElement;
+const detailButton = (name: string) => within(detail()).queryByRole('button', { name });
+const cardButton = async (name: string) => { await waitFor(() => expect(detailButton(name)).not.toBeNull(), T); return detailButton(name)!; };
+const windowOf = (name: RegExp) => screen.findByRole('dialog', { name }, T);
+const saveWindow = (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
 const ready = (id: string) => waitFor(() => expect(command(id)?.getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -92,7 +101,6 @@ const menuItem = async (name: RegExp) => {
   fireEvent.click(command('more')!);
   return screen.findByRole('menuitem', { name }, T);
 };
-const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 const select = async (name: string, id: string) => {
   fireEvent.click(await screen.findByText(name, { selector: '.tenant-page-data-grid td' }, T));
   await waitFor(() => expect(gets(`${ACCOUNTS}/${id}`).length).toBeGreaterThan(0), T);
@@ -130,30 +138,31 @@ describe('Hesap Planı standart tanımı', { timeout: 30000 }, () => {
     expect(calls.filter((call) => new RegExp(`^${ACCOUNTS}/[0-9a-f-]{36}`).test(call.url))).toEqual([]);
   });
 
-  it('edit: the selected account fills the card and Kaydet PUTs it from the account read', async () => {
+  it('Düzenle opens Hesabı düzenle filled from the selected account and Kaydet PUTs it from the account read', async () => {
     setup();
     await select('Alıcılar · Yurt içi', A2);
+    fireEvent.click(await cardButton('Düzenle'));
+    const dialog = await windowOf(/Hesabı düzenle/);
     await waitFor(() => expect(input('kod').value).toBe('120.001'), T);
     expect(input('ad').value).toBe('Alıcılar · Yurt içi');
     fireEvent.change(input('ad'), { target: { value: 'Alıcılar (yurt içi)' } });
-    await ready('save');
-    fireEvent.click(command('save')!);
+    saveWindow(dialog);
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'PUT', url: `${ACCOUNTS}/${A2}` });
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: '120.001', name: 'Alıcılar (yurt içi)', statementSection: 'Asset', accountType: 'Asset',
       normalBalance: 'Debit', isActive: true });
   });
 
-  it('Yeni clears the card and Kaydet POSTs a new active account', async () => {
+  it('Yeni hesap opens an empty window and Kaydet POSTs a new active account', async () => {
     setup();
     await screen.findByText('Merkez kasa', { selector: '.tenant-page-data-grid td' }, T);
     await ready('new');
     fireEvent.click(command('new')!);
-    await waitFor(() => expect(input('kod').value).toBe(''), T);
-    fireEvent.change(input('kod'), { target: { value: '120.002' } });
-    fireEvent.change(input('ad'), { target: { value: 'Yeni alıcı' } });
-    await ready('save');
-    fireEvent.click(command('save')!);
+    const dialog = await windowOf(/Yeni hesap/);
+    await waitFor(() => expect(input('yeniKod').value).toBe(''), T);
+    fireEvent.change(input('yeniKod'), { target: { value: '120.002' } });
+    fireEvent.change(input('yeniAd'), { target: { value: 'Yeni alıcı' } });
+    saveWindow(dialog);
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: ACCOUNTS });
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: '120.002', name: 'Yeni alıcı', isActive: true });
@@ -163,14 +172,14 @@ describe('Hesap Planı standart tanımı', { timeout: 30000 }, () => {
     setup();
     await select('Merkez kasa', A1);
     await select('Alıcılar · Yurt içi', A2);
-    fireEvent.click(await menuItem(/Pasife al/));
+    fireEvent.click(await cardButton('Pasife al'));
     expect(await confirmLast()).toContain('120.001 · Alıcılar · Yurt içi');
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'PUT', url: `${ACCOUNTS}/${A2}` });
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: '120.001', isActive: false });
 
     await select('Yurt içi satışlar', A3);
-    fireEvent.click(await menuItem(/Etkinleştir/));
+    fireEvent.click(await cardButton('Etkinleştir'));
     await confirmLast();
     await waitFor(() => expect(writes()).toHaveLength(2), T);
     expect(writes()[1]).toMatchObject({ method: 'PUT', url: `${ACCOUNTS}/${A3}` });
@@ -180,12 +189,11 @@ describe('Hesap Planı standart tanımı', { timeout: 30000 }, () => {
   it('Sil is disabled for an account with movements and deletes after confirmation otherwise', async () => {
     setup();
     await select('Merkez kasa', A1);
-    expect((await menuItem(/^Sil/)).getAttribute('aria-disabled')).toBe('true');
-    closeMenu();
+    const blocked = await cardButton('Sil');
+    expect(blocked.getAttribute('aria-disabled') === 'true' || (blocked as HTMLButtonElement).disabled).toBe(true);
     await select('Alıcılar · Yurt içi', A2);
-    const item = await menuItem(/^Sil/);
-    await waitFor(() => expect(item.getAttribute('aria-disabled')).not.toBe('true'), T);
-    fireEvent.click(item);
+    await waitFor(() => { const item = detailButton('Sil')!; expect(item.getAttribute('aria-disabled') === 'true' || (item as HTMLButtonElement).disabled).toBe(false); }, T);
+    fireEvent.click(detailButton('Sil')!);
     await confirmLast();
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'DELETE', url: `${ACCOUNTS}/${A2}` });
@@ -206,18 +214,18 @@ describe('Hesap Planı standart tanımı', { timeout: 30000 }, () => {
   it('Hareketleri gör opens the ledger statement of the selected account', async () => {
     setup();
     await select('Merkez kasa', A1);
-    fireEvent.click(await menuItem(/Hareketleri gör/));
+    fireEvent.click(await cardButton('Hareketleri gör'));
     await screen.findByRole('dialog', { name: /Muavin · 100\.01 Merkez kasa/ }, T);
     await waitFor(() => expect(gets(`${ACCOUNTS}/${A1}/statement`).length).toBeGreaterThan(0), T);
   });
 
-  it('a non-admin sees the read-only note and no new / save commands', async () => {
+  it('a non-admin sees the read-only card: no Yeni hesap command, no edit, passivate or delete buttons; Hareketleri gör stays', async () => {
     setup('TenantUser');
-    await screen.findByText('Merkez kasa', { selector: '.tenant-page-data-grid td' }, T);
-    expect(await screen.findByText('Hesap planını firma yöneticisi düzenler.', {}, T)).toBeTruthy();
+    await select('Alıcılar · Yurt içi', A2);
+    await cardButton('Hareketleri gör');
     await settle(100);
     expect(command('new')).toBeNull();
-    expect(command('save')).toBeNull();
+    for (const name of ['Düzenle', 'Pasife al', 'Etkinleştir', 'Sil']) expect(detailButton(name)).toBeNull();
     expect(input('kod')).toBeNull();
   });
 });
