@@ -139,7 +139,7 @@ public sealed class HrSystemPagesTests
 
         var plain = await client.GetFromJsonAsync<JsonElement>("/api/hr/employees/");
         Assert.Equal(JsonValueKind.Array, plain.ValueKind);
-        Assert.Equal(new[] { "P-001", "P-002", "P-003" }, plain.EnumerateArray().Select(x => x.GetProperty("personnelCode").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "P-001", "P-002", "P-003" }, plain.EnumerateArray().Select(x => x.GetProperty("personnelCode").GetString()));
 
         var page = await client.GetFromJsonAsync<JsonElement>("/api/hr/employees/?page=1&pageSize=2");
         Assert.Equal((1, 2, 3, 2), (Int(page, "page"), Int(page, "pageSize"), Int(page, "totalCount"), page.GetProperty("items").GetArrayLength()));

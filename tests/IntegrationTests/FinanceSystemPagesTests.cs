@@ -286,9 +286,9 @@ public sealed class FinanceSystemPagesTests
         using var client = AdminClient(factory);
 
         var cash = await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts?type=Cash");
-        Assert.Equal(new[] { "K-01", "K-02" }, cash.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "K-01", "K-02" }, cash.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
         var bank = await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts?type=bank");
-        Assert.Equal(new[] { "B-EUR", "B-NEG" }, bank.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "B-EUR", "B-NEG" }, bank.EnumerateArray().Select(x => x.GetProperty("code").GetString()));
         Assert.Equal(4, (await client.GetFromJsonAsync<JsonElement>("/api/finance/accounts")).GetArrayLength());
         using var invalid = await client.GetAsync("/api/finance/accounts?type=1");
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);

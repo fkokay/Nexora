@@ -63,7 +63,7 @@ public sealed class GitHubAppInstallationTokenProviderTests
         {
             Assert.Equal("https://api.github.com/app/installations/12345/access_tokens", request.RequestUri!.AbsoluteUri);
             using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
-            Assert.Equal(new[] { "Inventory" }, json.RootElement.GetProperty("repositories").EnumerateArray()
+            Assert.Equal<IEnumerable<string?>>(new[] { "Inventory" }, json.RootElement.GetProperty("repositories").EnumerateArray()
                 .Select(repository => repository.GetString()).ToArray());
             var permissions = json.RootElement.GetProperty("permissions");
             Assert.Equal("read", permissions.GetProperty("contents").GetString());
