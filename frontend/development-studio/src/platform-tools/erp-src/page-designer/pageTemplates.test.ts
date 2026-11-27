@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RECORD_SOURCE_HINT, LIST_SOURCE_HINT, newBelgeTemplateDefinition, newFreeTemplateDefinition, newPageDefinitionFor, readPageTemplate, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, templateCatalogText, templateLabel, templateLevel } from "./pageTemplates";
+import { RECORD_SOURCE_HINT, LIST_SOURCE_HINT, newBelgeTemplateDefinition, newFreeTemplateDefinition, newPageDefinitionFor, readPageTemplate, newRecordTemplateDefinition, recordSourceProblem, suggestRecordPageCode, NEW_LIST_ID, PAGE_TEMPLATE_CHOICES, listSourceProblem, newListTemplateDefinition, BELGE_DOCUMENTS, templateCatalogText, templateLabel, templateLevel } from "./pageTemplates";
 import { chooseDataSource, type ModelDefinition } from "./panel/listPanelModel";
 import NewPageDialog from "./NewPageDialog";
 import { designerPersistence } from "../CustomPagesPage";
@@ -121,3 +121,16 @@ describe("sayfa kalıpları", () => {
     expect(html).not.toContain("Eski tasarımcı (kalıpsız)");
   });
 });
+
+describe("belge modelleri", () => {
+  it("satış siparişi ve satış teklifi seçilebilir; yeni teklif sayfası teklifin alanlarıyla başlar", () => {
+    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif"]);
+    const quote = newBelgeTemplateDefinition("satis.teklif");
+    expect(quote.template).toEqual({ name: "belge", document: "satis.teklif" });
+    const parts = quote.components as { type: string; props: { fields?: string[]; columns?: string[] } }[];
+    expect(parts.find((c) => c.type === "documentFields")!.props.fields).toEqual(["code", "customerId", "quoteDate", "validUntil"]);
+    expect(parts.find((c) => c.type === "documentLines")!.props.columns).not.toContain("deliveredQuantity");
+    expect((newBelgeTemplateDefinition().components as { props: { fields?: string[] } }[])[0].props.fields).toContain("orderDate");
+  });
+});
+

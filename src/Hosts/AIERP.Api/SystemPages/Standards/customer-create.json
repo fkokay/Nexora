@@ -65,7 +65,7 @@
     "component:yeniAdresVarsayilan": {"since": 1, "label": "Yeni adres: Varsayılan"},
     "query:ozelTanimlar": {"since": 3, "label": "Özel alan tanımları"},
     "query:ozelDegerler": {"since": 3, "label": "Açılan kartın özel alan değerleri", "requires": ["query:kart"]},
-    "query:ozelKaydet": {"since": 3, "label": "Özel alanları kaydet (var olan kart)", "requires": ["query:kart", "query:ozelDegerler"]},
+    "query:ozelKaydet": {"since": 3, "label": "Özel alanları kaydet (var olan kart)", "requires": ["component:ozelAlanlar", "query:kart"]},
     "query:kart": {"since": 1, "label": "Açılan cari kartı"},
     "query:bakiye": {"since": 2, "label": "Açılan kartın bakiyesi", "requires": ["query:kart"]},
     "query:gruplar": {"since": 1, "label": "Cari grupları"},
