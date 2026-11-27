@@ -473,10 +473,10 @@ public sealed class CustomerSystemPagesTests
     // ---- Standards ----
 
     [Theory]
-    // customers v2 (Satış Aşama B): "Yeni sipariş" also sends orderDate for the order card; changed in place (since 1).
-    [InlineData("customers", "Cari Hesaplar", 2)]
-    [InlineData("customer-create", "Cari kart", 1)]
-    [InlineData("customer-ledger", "Cari Hesap Hareketleri", 2)]
+    // Satış & cari 1. dalga: customers v3 (Liste), customer-create v2 (Kayıt kartı), customer-ledger v3 (Liste) kalıplarına çizildi.
+    [InlineData("customers", "Cari Hesaplar", 3)]
+    [InlineData("customer-create", "Cari kart", 2)]
+    [InlineData("customer-ledger", "Cari Hesap Hareketleri", 3)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];
@@ -512,9 +512,14 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(("@customer-create", "@customer-create", "{{cariler.meta.totalCount}}"),
             ((string)bar["newPageCode"]!, (string)bar["openPageCode"]!, (string)bar["titleCount"]!));
         Assert.Equal(new[] { "customerId={{liste.seciliSatir.id}}" }, Strings(bar["openParams"]));
-        Assert.Equal(9, Strings(bar["moreButtons"]).Length);
+        // Liste kalıbı: komutlar 'commands' yerinde; "Adresler" ve "Satış faturaları" düğmeleri kalktı (adres kartın Adresler sekmesinde).
+        Assert.Equal("list", (string)Definition("customers")["template"]!["name"]!);
+        Assert.Equal("commands", (string)bar["slot"]!);
+        Assert.Equal(new[] { "yeniTeklif", "yeniSiparis", "yeniIrsaliye", "yeniFatura", "pasifeAlDugmesi", "etkinlestirDugmesi", "hareketlerDugmesi" }, Strings(bar["moreButtons"]));
+        Assert.Equal(("list", "detail", "rowActions"), ((string)props["slot"]!, (string)Props("customers", "detayKarti")["slot"]!, (string)Props("customers", "acDugmesi")["slot"]!));
+        Assert.DoesNotContain(Definition("customers")["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "faturalarDugmesi" or "adreslerDugmesi" or "detayPaneli");
         foreach (var (button, page) in new[] { ("yeniTeklif", "sales-quote-create"), ("yeniSiparis", "sales-order-create"),
-                     ("yeniIrsaliye", "sales-delivery-create"), ("yeniFatura", "sales-invoice-create"), ("faturalarDugmesi", "sales-invoices") })
+                     ("yeniIrsaliye", "sales-delivery-create"), ("yeniFatura", "sales-invoice-create") })
         {
             var p = Props("customers", button);
             Assert.Equal(("erpPage", page), ((string)p["actionType"]!, (string)p["pageKey"]!));
@@ -533,7 +538,9 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(new[] { new SystemPageAlias("customer-edit", "customerId") }, standard.Aliases);
         Assert.Equal("{{sayfa.parametre.customerId}}", Binding("customer-create", "kart", "id"));
         var bar = Props("customer-create", "komutlar");
-        Assert.Equal(new[] { "olustur", "guncelle", "ozelKaydet" }, Strings(bar["saveSequence"]));
+        // Kayıt kartı kalıbı: özel alanlar sekmesi kalıpta karşılıksız (özel alan bloğu yok), kayıt dizisi yalnız kart.
+        Assert.Equal("record", (string)Definition("customer-create")["template"]!["name"]!);
+        Assert.Equal(new[] { "olustur", "guncelle" }, Strings(bar["saveSequence"]));
         Assert.True((bool)bar["saveAndNew"]!);
         Assert.Equal(new[] { "saveNew=kart.rows[0].id == null" }, Strings(bar["commandWhen"]));
         Assert.Equal(("page", "@customer-create", "@customers"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!, (string)bar["afterSavePageCode"]!));
@@ -542,12 +549,15 @@ public sealed class CustomerSystemPagesTests
         {
             Assert.Equal("{{il.value}}", Binding("customer-create", query, "address.city"));
             Assert.Equal("{{ulke.value}}", Binding("customer-create", query, "address.countryCode"));
-            Assert.Equal("{{enlem.value}}", Binding("customer-create", query, "address.latitude"));
+            // Harita enlem/boylam alanları kalktı.
+            Assert.Null(Binding("customer-create", query, "address.latitude"));
+            Assert.Null(Binding("customer-create", query, "customFields"));
         }
-        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("customer-create", "olustur", "customFields"));
-        Assert.Null(Binding("customer-create", "guncelle", "customFields"));
-        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("customer-create", "ozelKaydet", "values"));
-        Assert.Contains("Adresler=adreslerNotu,adresTablosu,yeniAdresDugmesi", Strings(Props("customer-create", "kartSekmeleri")["tabs"]));
+        Assert.DoesNotContain(Definition("customer-create")["queries"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "ozelKaydet" or "ozelTanimlar" or "ozelDegerler");
+        Assert.Equal(new[] { "Genel=kimlikKarti,vergiKarti,eFaturaUyarisi,zorunluNotu", "İletişim ve adres=iletisimKarti,adresKarti",
+            "Finans ve vergi=finansKarti,muhasebeKarti", "Adresler=adresTablosu" }, Strings(Props("customer-create", "kartSekmeleri")["tabs"]));
+        Assert.Equal(("lines", "dialogs"), ((string)Props("customer-create", "adresTablosu")["slot"]!, (string)Props("customer-create", "yeniAdresPenceresi")["slot"]!));
+        Assert.Equal(new[] { "adresPasifeAl", "adresAktifEt" }, Strings(Props("customer-create", "adresTablosu")["rowActions"]));
         Assert.Equal("{{adresTablosu.seciliSatir.id}}", Binding("customer-create", "adresPasifeAlSorgusu", "addressId"));
     }
 
@@ -566,12 +576,16 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal("{{cariSecimi.search}}", Binding("customer-ledger", "cariListesi", "q"));
         Assert.Equal(new[] { "cariSecimi", "baslangic", "bitis" }, Strings(Props("customer-ledger", "suzgecKarti")["inputs"]));
         Assert.Equal("cariSecimi.value == null", (string)Props("customer-ledger", "secimIpucu")["visibleWhen"]!);
-        foreach (var id in new[] { "secilenCari", "liste" }) Assert.Equal("cariSecimi.value != null", (string)Props("customer-ledger", id)["visibleWhen"]!);
-        Assert.False(Props("customer-ledger", "secilenCari").ContainsKey("buttons"));
+        // Liste kalıbı: üç gösterge (borç, alacak, dönem sonu bakiye); "Bu ay / Son 3 ay / Yıl başından" düğmeleri kalktı.
+        Assert.Equal("list", (string)Definition("customer-ledger")["template"]!["name"]!);
+        foreach (var id in new[] { "borcGostergesi", "alacakGostergesi", "bakiyeGostergesi", "liste" }) Assert.Equal("cariSecimi.value != null", (string)Props("customer-ledger", id)["visibleWhen"]!);
+        Assert.Equal(new[] { "{{ekstre.meta.debitTotal}}", "{{ekstre.meta.creditTotal}}", "{{ekstre.meta.closingAmount}}" },
+            new[] { "borcGostergesi", "alacakGostergesi", "bakiyeGostergesi" }.Select(x => (string)Props("customer-ledger", x)["value"]!));
+        Assert.All(new[] { "buAy", "sonUcAy", "yilBasindan", "secilenCari" },
+            id => Assert.DoesNotContain(Definition("customer-ledger")["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x == id));
         Assert.Equal(("{{cariSecimi.value}}", "{{baslangic.value}}", "{{bitis.value}}"),
             (Binding("customer-ledger", "ekstre", "id"), Binding("customer-ledger", "ekstre", "from"), Binding("customer-ledger", "ekstre", "to")));
         Assert.Equal("{{tarih.yilBasi}}", (string)Props("customer-ledger", "baslangic")["defaultValue"]!);
-        Assert.Equal(new[] { "baslangic={{tarih.ucAyOnce}}", "bitis={{bugun}}" }, Strings(Props("customer-ledger", "sonUcAy")["assignments"]));
         Assert.Equal(new[] { "debitAmount=foreignCurrencyCode", "creditAmount=foreignCurrencyCode", "balanceAmount=balanceSide" },
             Strings(Props("customer-ledger", "liste")["columnUnits"]));
         Assert.Equal("{{ekstre.satirSayisi}}", (string)Props("customer-ledger", "komutlar")["titleCount"]!);
@@ -633,7 +647,7 @@ public sealed class CustomerSystemPagesTests
         Assert.False(TenantCustomPageSchema.Validate(definition.ToJsonString(), out _));
 
         definition = Definition("customer-create");
-        Parameter(definition, "olustur", "address.latitude")["type"] = "text";
+        AddParameter(definition, "olustur", "address.latitude", "{{il.value}}", "text");
         Assert.False(TenantCustomPageSchema.Validate(definition.ToJsonString(), out error));
         Assert.Contains("decimal", error);
 

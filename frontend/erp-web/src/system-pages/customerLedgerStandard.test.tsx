@@ -11,8 +11,8 @@ import { OPEN_PAGE_EVENT, setPageParams, type WorkspaceOpenRequest } from '../pa
 import { pageDateScope } from '../custom-page/pageBindings';
 import catalog from './customerLedgerOperations.fixture.json';
 
-// "Cari Hesap Hareketleri" standart tanımı (customer-ledger.json): üstte cari seçici; seçilince ekstre görünür. Dönem düğmeleri `tarih` kökünden,
-// borç / alacak / B-A bakiye sütunları ekstrenin hesaplanan üyelerinden gelir.
+// "Cari Hesap Hareketleri" standart tanımı (customer-ledger.json, Liste kalıbı): üstte cari seçici ve tarih aralığı; seçilince ekstre görünür.
+// Borç / alacak / dönem sonu bakiye göstergeleri ve B-A bakiye sütunu ekstrenin hesaplanan üyelerinden gelir.
 
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
@@ -126,10 +126,13 @@ describe('Cari Hesap Hareketleri standart tanımı', { timeout: 30000 }, () => {
     setup(C1);
     await waitFor(() => expect(statements()).toHaveLength(1), T);
     await screen.findByText('Satış faturası SF-2026-0012', {}, T);
+    // Liste kalıbı: üç gösterge (borç toplamı, alacak toplamı, dönem sonu bakiye); cari başlığı ve açılış/net göstergeleri yok.
     const header = document.body.textContent ?? '';
-    expect(header).toContain('C-1001');
-    expect(header).toContain('FATİH KOKAY · TRY');
-    for (const label of ['Açılış', 'Dönem borç', 'Dönem alacak', 'Kapanış']) expect(header).toContain(label);
+    for (const label of ['Borç toplamı', 'Alacak toplamı', 'Dönem sonu bakiye']) expect(header).toContain(label);
+    expect(header).toContain('210.000,00');
+    expect(header).toContain('35.758,00');
+    expect(header).toContain('186.242,00');
+    expect(header).not.toContain('Dönem borç');
     const table = grid();
     for (const label of ['Borç', 'Alacak', 'Bakiye', 'Ters kayıt', 'Ters çevrildi']) expect(within(table).getAllByText(label).length).toBeGreaterThan(0);
     // Bakiye B/A birimiyle çizilir (balanceSide).
@@ -160,15 +163,15 @@ describe('Cari Hesap Hareketleri standart tanımı', { timeout: 30000 }, () => {
     }
   });
 
-  it('period chips assign both dates and re-run the statement', async () => {
+  it('the period is the two date inputs only (no Bu ay / Son 3 ay chips); changing one re-runs the statement', async () => {
     setup(C1);
     await waitFor(() => expect(statements()).toHaveLength(1), T);
+    await screen.findByText('Satış faturası SF-2026-0012', {}, T);
+    for (const name of ['Bu ay', 'Son 3 ay', 'Yıl başından']) expect(screen.queryByRole('button', { name })).toBeNull();
     const dates = pageDateScope();
-    fireEvent.click(await screen.findByRole('button', { name: 'Bu ay' }, T));
+    fireEvent.change(input('baslangic'), { target: { value: dates.ayBasi } });
     await waitFor(() => expect(statements().map((call) => range(call.url))).toContainEqual([dates.ayBasi, today()]), T);
-    fireEvent.click(screen.getByRole('button', { name: 'Son 3 ay' }));
-    await waitFor(() => expect(statements().map((call) => range(call.url))).toContainEqual([dates.ucAyOnce, today()]), T);
-    expect(input('baslangic').value).toBe(dates.ucAyOnce);
+    expect(input('baslangic').value).toBe(dates.ayBasi);
   });
 
   it('warns when the end date is before the start date and when a foreign currency movement exists', async () => {

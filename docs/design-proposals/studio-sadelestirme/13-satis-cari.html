@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satış ve cari — kalıplarla yeniden tasarım (taslak 13)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--dan-soft:#fdecea;--info:#1d4ed8;--info-soft:#e8efff;--sug:#9a3412;--sug-soft:#ffedd5}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none;padding:20px 16px 40px}.view.on{display:block}
+  .expl{max-width:1040px;margin:12px auto 0;color:#3b3850;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .expl ul{margin:4px 0 0;padding-left:18px}.expl b{color:var(--text)}
+  .code{font-family:Consolas,monospace;font-size:11.5px;background:#f1effa;border-radius:4px;padding:0 4px;color:#4c3fa0}
+  .sug{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--sug-soft);color:var(--sug);text-transform:uppercase;vertical-align:middle}
+  /* ERP sayfa + pencere */
+  .stage{position:relative;max-width:1040px;margin:0 auto;min-height:600px}
+  .erp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .dim:after{content:"";position:absolute;inset:0;background:rgba(29,27,42,.38);border-radius:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}.ttl span{color:var(--muted);font-size:13px;font-weight:400}
+  .bar{display:flex;gap:6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap;font:inherit;color:inherit}
+  .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}.b.dan{color:var(--dan)}.b.sm{padding:3px 8px;font-size:12px}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:480px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)}.tbl .n{text-align:right}.tbl tr.sel td{background:var(--accent-soft)}
+  .metrics{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .metric{flex:1 1 140px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.metric span{color:var(--muted);font-size:11.5px;display:block}.metric b{font-size:17px}
+  .win{position:absolute;left:50%;top:28px;transform:translateX(-50%);background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(20,10,60,.28);z-index:3;display:flex;flex-direction:column;max-height:calc(100% - 40px);width:calc(100% - 32px)}
+  .win.xl{max-width:920px}.win.md{max-width:560px}
+  .wh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .wh b{font-size:15px}.wh .x{margin-left:auto;color:var(--muted);font-size:18px;cursor:pointer}.wh .size{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 7px}
+  .wb{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .wb>*{flex:none}
+  .wf{display:flex;gap:6px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);background:#fcfbfe;border-radius:0 0 14px 14px}
+  .wf .r{margin-left:auto;display:flex;gap:6px}
+  .rh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .av{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .t{font-size:16px;font-weight:700}.rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}.kv span{display:block;color:var(--muted);font-size:11.5px}.kv b{font-size:14px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;position:relative}
+  .grp h4{margin:0 0 2px;font-size:13px}.grp .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .grp .badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .grp .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .grp.cond{border-style:dashed}
+  .when{position:absolute;right:10px;top:8px;font-size:10.5px;color:var(--muted);background:#f6f5fa;border-radius:99px;padding:1px 7px}
+  .bd{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px}
+  .bd.info{background:var(--info-soft);color:var(--info)}.bd.warn{background:var(--warn-soft);color:var(--warn)}.bd.ok{background:var(--ok-soft);color:var(--ok)}.bd.dan{background:var(--dan-soft);color:var(--dan)}
+  .chain{color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+  .tab{padding:7px 12px;color:var(--muted);border-bottom:2px solid transparent}.tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .inline{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;min-height:30px;min-width:150px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .txt{color:#4b4862;font-size:12px;line-height:1.5;background:#faf9fd;border-radius:8px;padding:8px 10px}
+  .split{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:14px}
+  .side{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fcfbfe}
+  .side h4{margin:0;font-size:14px}.side .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .kvs div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0;font-size:12px}.kvs span{color:var(--muted)}
+  /* Studio */
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;max-width:1100px;margin:0 auto}
+  .canvas{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:520px;position:relative}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .sec h5{margin:0 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:6px}
+  .row.on{border-color:var(--accent);background:var(--accent-soft)}
+  .row .m{color:var(--muted);font-size:11.5px}.row .sp{flex:1}
+  .fld{margin-bottom:8px}.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fld .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px}
+  .chk{display:flex;gap:6px;align-items:center;margin:4px 0}
+  .chips span{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px}
+  .add{color:var(--accent);font-size:12px;cursor:pointer}
+  .seg2{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg2 span{flex:1;text-align:center;padding:4px 0;font-size:12px;color:var(--muted)}.seg2 span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .ph{border:1px dashed #cfc8ef;border-radius:8px;padding:8px;color:var(--muted);font-size:12px;margin-bottom:8px;background:#fbfaff}
+  @media (max-width:760px){.split,.studio{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.kv{margin-left:52px}}
+</style>
+<style>
+  .chips2{display:flex;gap:6px;flex-wrap:wrap}
+  .step{border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--muted)}.step.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}.step.done{background:var(--ok-soft);color:var(--ok);border-color:#bfe3c9}
+  .tot{margin-left:auto;max-width:300px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .tot div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}.tot .g{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:14px;font-weight:700}
+  .page{max-width:1040px;margin:0 auto}
+  .sec-t{max-width:1040px;margin:18px auto 6px;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .stage.tight{min-height:560px}
+  .in.ph2{color:#9a98ab}
+  .tbl td.c{text-align:center}
+  .menu{display:inline-flex;gap:6px;flex-wrap:wrap}
+  @media (max-width:760px){.tot{max-width:none;margin-left:0}.win.xl{top:8px}.erp{padding:12px}}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 13 — Satış ve cari, kalıplarla yeniden tasarım.</b> 9 sistem standardı doğrudan Liste / Kayıt kartı / Belge kalıbına çizildi; ekranlar bugünkünün birebir kopyası değildir, iş akışı (oluştur, onayla, sevk et, faturala, iptal, yazdır) korunur. Örnek veriler uydurmadır. Kalıba yeni eklenen ya da yeni belge modeli isteyen metinler <span class="sug">yeni</span> ile işaretli. Ayrıntı: <span class="code">docs/superpowers/specs/2026-11-28-satis-cari-yeniden-tasarim-design.md</span></div>
+<div class="views"><span class="lbl">Ekran:</span>
+  <div class="seg" id="seg">
+    <button class="on" data-v="v1">customers</button>
+    <button data-v="v2">customer-create</button>
+    <button data-v="v3">customer-ledger</button>
+    <button data-v="v4">crm-opportunities</button>
+    <button data-v="v5">crm-opportunity-create</button>
+    <button data-v="v6">sales-quotes</button>
+    <button data-v="v7">sales-order-create</button>
+    <button data-v="v8">sales-deliveries</button>
+    <button data-v="v9">sales-invoice-create</button>
+  </div>
+</div>
+
+<!-- 1 customers : Liste -->
+<section class="view on" id="v1"><div class="page">
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Cari Hesaplar</div>
+    <div class="ttl">Cari Hesaplar <span>· 214 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Filtre</button><button class="b">Excel</button><button class="b dan">Sil</button><button class="b">⋯</button></div>
+    <div class="metrics"><div class="metric"><span>Cari kartı</span><b>214</b></div><div class="metric"><span>Pasif</span><b>18</b></div><div class="metric"><span>e-Fatura mükellefi</span><b>96</b></div><div class="metric"><span>Risk limiti tanımlı</span><b>41</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in">Karadeniz</div></div><div class="f"><label>Cari türü</label><div class="in">Müşteri</div></div><div class="f"><label>Durum</label><div class="in">Aktif</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Cari kodu</th><th>Ünvan</th><th>Tür</th><th>Döviz</th><th class="n">Vade</th><th>Durum</th></tr>
+        <tr class="sel"><td>C-0012</td><td>Karadeniz Gıda San. A.Ş.</td><td>Müşteri</td><td>TRY</td><td class="n">30</td><td>Aktif</td></tr>
+        <tr><td>C-0013</td><td>Ege Zeytincilik Ltd.</td><td>Bayi</td><td>TRY</td><td class="n">45</td><td>Aktif</td></tr>
+        <tr><td>C-0027</td><td>Nordic Foods GmbH</td><td>Müşteri</td><td>EUR</td><td class="n">60</td><td>Aktif</td></tr>
+        <tr><td>T-0004</td><td>Anadolu Ambalaj A.Ş.</td><td>Tedarikçi</td><td>TRY</td><td class="n">30</td><td>Pasif</td></tr></table></div>
+      <div class="side"><h4>Karadeniz Gıda San. A.Ş.</h4><div class="d">C-0012 · Müşteri · Toptan grubu</div>
+        <div class="badges" style="display:flex;gap:6px;margin-bottom:6px"><span class="bd ok">Aktif</span><span class="bd info">e-Fatura mükellefi</span></div>
+        <div class="metric" style="margin:6px 0 8px"><span>Bakiye (TRY)</span><b>148.320,50 B</b></div>
+        <div class="kvs"><div><span>Vergi no</span>1234567890</div><div><span>Vade</span>30 gün</div><div><span>Risk limiti</span>250.000,00</div><div><span>Telefon</span>0212 555 01 12</div><div><span>Adres</span>Maslak, İstanbul</div></div>
+        <div class="btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm">Yeni teklif ›</button><button class="b sm">Yeni sipariş ›</button><button class="b sm">Yeni irsaliye ›</button><button class="b sm">Yeni fatura ›</button><button class="b sm">Hesap hareketleri ›</button><button class="b sm">Pasife al</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="expl"><b>customers → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> dört gösterge, süzgeç (arama, tür, durum), liste, Yeni/Aç/Sil/Excel, sağda tek kart grubu (genel, finans, iletişim, varsayılan adres); satış işlemleri ve Hesap hareketleri seçili cariye göre düğme olarak.</li>
+      <li><b>Sadeleşir:</b> "Adresler" ve "Satış faturaları" düğmeleri kalkar (adres kartın Adresler sekmesinde; faturalar için Aç yeter); harita konumu metni ve döviz notu kartta tek satır olur. Pasife al / Etkinleştir tek düğme, duruma göre değişir.</li>
+      <li>Yeni ve Aç, <span class="code">customer-create</span> Kayıt kartını açar. Tedarikçi seçiliyken satış düğmeleri pasif ve nedeni yazılı.</li>
+    </ul></div>
+</div></section>
+
+<!-- 2 customer-create : Kayıt kartı -->
+<section class="view" id="v2"><div class="page">
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Cari Hesaplar › C-0012</div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Kaydet ve yeni</button><button class="b">Yeni</button><button class="b">Kapat</button></div>
+    <div class="rh"><div class="av">KG</div><div><div class="t">Karadeniz Gıda San. A.Ş.</div><div class="s">C-0012 · Müşteri · Toptan grubu</div></div><span class="bd ok">Aktif</span>
+      <div class="kv"><div><span>Bakiye</span><b>148.320,50 B</b></div><div><span>Vade</span><b>30 gün</b></div></div></div>
+    <div class="tabs" style="margin:12px 0"><span class="tab on">Genel</span><span class="tab">İletişim ve adres</span><span class="tab">Finans ve vergi</span><span class="tab">Adresler 2</span><span class="tab">Özel alanlar <span class="sug">yeni</span></span></div>
+    <div class="grp"><h4>Cari kimliği</h4><div class="d">* işaretli alanlar zorunludur.</div>
+      <div class="grid2"><div class="f"><label>Cari kodu *</label><div class="in">C-0012</div></div><div class="f"><label>Ünvan *</label><div class="in">Karadeniz Gıda San. A.Ş.</div></div><div class="f"><label>Cari türü *</label><div class="in">Müşteri</div></div><div class="f"><label>Cari grubu</label><div class="in">Toptan</div></div><div class="f"><label>Grup şirketi / ana firma</label><div class="in ph2">Seçin</div></div></div></div>
+    <div class="grp" style="margin-top:10px"><h4>Vergi ve e-Fatura</h4>
+      <div class="grid2"><div class="f"><label>Vergi dairesi</label><div class="in">Maslak</div></div><div class="f"><label>Vergi numarası</label><div class="in">1234567890</div></div><div class="f"><label>E-Fatura mükellefi</label><div class="in">Evet</div></div><div class="f"><label>Alıcı etiketi (PK)</label><div class="in ph2">urn:mail:defaultpk@…</div></div></div>
+      <div class="txt" style="margin-top:8px"><span class="bd warn">e-Fatura bilgisi eksik</span> Mükellef işaretliyse alıcı etiketi girilmelidir. (Koşullu uyarı, bugünkü gibi.)</div></div>
+  </div>
+  <div class="expl"><b>customer-create → Kayıt kartı</b>
+    <ul>
+      <li><b>Yerleşim:</b> üstte kayıt özeti (ünvan, kod, durum, bakiye), sonra sekmeler: <i>Genel</i> (kimlik + vergi/e-Fatura), <i>İletişim ve adres</i> (iletişim + birincil adres), <i>Finans ve vergi</i> (döviz, vade, risk, fiyat listesi, muhasebe hesapları, banka/IBAN), <i>Adresler</i> (tablo + Yeni adres penceresi), <i>Özel alanlar</i>.</li>
+      <li><b>Pencere:</b> "Yeni adres" bir pencere (kendi Kaydet'i); pasife al / etkinleştir satır eylemi. Adresler yalnız kayıttan sonra eklenir (bugünkü kural).</li>
+      <li><b>Sadeleşir:</b> harita enlem/boylam alanları kalkar; il/ilçe seçimi kalır. Kaydet ve yeni, kayıttan sonra listeye dön bugünkü gibi komut çubuğundan.</li>
+      <li><span class="sug">yeni</span> Özel alanlar sekmesi: Kayıt kartında özel alan bloğu bugün yok; kalıba eklenmesi gerekir (bkz. "Kalıplarda eksik").</li>
+    </ul></div>
+</div></section>
+
+<!-- 3 customer-ledger : Liste -->
+<section class="view" id="v3"><div class="page">
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Cari Hesap Hareketleri</div>
+    <div class="ttl">Cari Hesap Hareketleri <span>· 3 satır · Liste kalıbı</span></div>
+    <div class="bar"><button class="b">Yenile</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Cari *</label><div class="in">C-0012 · Karadeniz Gıda San. A.Ş.</div></div><div class="f"><label>Başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">30.11.2026</div></div></div>
+    <div class="metrics"><div class="metric"><span>Borç toplamı</span><b>12.000,00</b></div><div class="metric"><span>Alacak toplamı</span><b>5.600,00</b></div><div class="metric"><span>Dönem sonu bakiye</span><b>6.400,00 B</b></div></div>
+    <div class="tbl"><table><tr><th>Tarih</th><th>Belge türü</th><th>Belge no</th><th>Açıklama</th><th class="n">Borç</th><th class="n">Alacak</th><th class="n">Bakiye</th><th></th></tr>
+      <tr><td>03.11.2026</td><td>Satış faturası</td><td>F-2026-0412</td><td>Zeytinyağı 5 L x 40</td><td class="n">12.000,00</td><td class="n"></td><td class="n">12.000,00 B</td><td><button class="b sm">Belgeye git ›</button></td></tr>
+      <tr><td>09.11.2026</td><td>Tahsilat</td><td>TH-0087</td><td>Havale</td><td class="n"></td><td class="n">5.000,00</td><td class="n">7.000,00 B</td><td><button class="b sm">Belgeye git ›</button></td></tr>
+      <tr><td>14.11.2026</td><td>Satış iadesi</td><td>İA-0009</td><td>Hasarlı koli</td><td class="n"></td><td class="n">600,00</td><td class="n">6.400,00 B</td><td><button class="b sm">Belgeye git ›</button></td></tr></table></div>
+    <div class="txt" style="margin-top:8px">B borç bakiyesi · A alacak bakiyesi · Ters kayıt orijinal hareketi silmez, bağlı karşı kayıt olarak görünür.</div>
+  </div>
+  <div class="expl"><b>customer-ledger → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> cari seçimi (cari kartından gelince dolu), tarih aralığı, hareket tablosu, bakiye, "Belgeye git" satır eylemi (belge türüne göre ilgili sayfaya), Excel, ters kayıt notu.</li>
+      <li><b>Sadeleşir:</b> "Bu ay / Son 3 ay / Yıl başından" düğmeleri kalkar (tarih aralığı yeter); üç gösterge borç, alacak, bakiye olur. Cari seçilmeden tablo yerine tek satırlık ipucu görünür; farklı dövizli hareket uyarısı bugünkü gibi.</li>
+      <li>Salt okunur: Kaydet, Yeni, Sil yok. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 4 crm-opportunities : Liste -->
+<section class="view" id="v4"><div class="page">
+  <div class="erp">
+    <div class="crumb">CRM › Fırsatlar</div>
+    <div class="ttl">CRM Fırsatları <span>· 27 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button><button class="b dan">Sil</button></div>
+    <div class="metrics"><div class="metric"><span>Açık fırsat</span><b>19</b></div><div class="metric"><span>Kazanıldı</span><b>6</b></div><div class="metric"><span>Açık fırsat değeri</span><b>1.240.000 ₺</b></div><div class="metric"><span>Takibi geçmiş</span><b>3</b></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Fırsat</th><th>Müşteri</th><th>Aşama</th><th class="n">Değer</th><th class="n">%</th></tr>
+        <tr class="sel"><td>FR-021</td><td>Yıllık zeytinyağı anlaşması</td><td>Karadeniz Gıda</td><td>Nitelikli</td><td class="n">480.000</td><td class="n">60</td></tr>
+        <tr><td>FR-022</td><td>Hediye paketi siparişi</td><td>Ege Zeytincilik</td><td>Müzakere</td><td class="n">96.000</td><td class="n">80</td></tr></table></div>
+      <div class="side"><h4>Yıllık zeytinyağı anlaşması</h4><div class="d">FR-021 · Karadeniz Gıda San. A.Ş.</div>
+        <div class="chips2" style="margin-bottom:8px"><span class="step done">İlk temas</span><span class="step on">Nitelikli</span><span class="step">Teklif</span><span class="step">Müzakere</span><span class="step">Kazanıldı</span></div>
+        <div class="kvs"><div><span>Beklenen kapanış</span>15.12.2026</div><div><span>Sonraki takip</span>02.12.2026</div><div><span>Not</span>Fiyat listesi bekleniyor</div></div>
+        <div class="btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm pri">Teklife taşı</button><button class="b sm">Kaybedildi</button><button class="b sm"><span class="sug">yeni</span> Teklif oluştur ›</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="expl"><b>crm-opportunities → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> beş gösterge (çok dövizliyse değer tek karta indirgenir), süzgeç (arama, aşama), liste, sağ kart grubu (müşteri, aşama, kapanış, takip, not).</li>
+      <li><b>Sadeleşir:</b> beş ayrı "Aşamayı ilerlet" düğmesi yerine duruma göre tek <i>sıradaki aşama</i> düğmesi (Nitelikli → Teklif → Müzakere → Kazanıldı) ve Kaybedildi; hepsi satır eylemi. Aşama akışı kart içinde rozet satırı olur.</li>
+      <li><span class="sug">yeni</span> "Teklif oluştur ›" bu fırsatın müşterisiyle yeni teklif belgesini açar (yeni <span class="code">satis.teklif</span> Belge modeli gelince; o zamana dek düğme konmaz).</li>
+    </ul></div>
+</div></section>
+
+<!-- 5 crm-opportunity-create : Kayıt kartı -->
+<section class="view" id="v5"><div class="page">
+  <div class="erp">
+    <div class="crumb">CRM › Fırsatlar › FR-021</div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Kaydet ve yeni</button><button class="b">Kapat</button></div>
+    <div class="rh"><div class="av">FR</div><div><div class="t">Yıllık zeytinyağı anlaşması</div><div class="s">FR-021 · Karadeniz Gıda San. A.Ş.</div></div><span class="bd info">Nitelikli</span>
+      <div class="kv"><div><span>Tahmini tutar</span><b>480.000 ₺</b></div><div><span>Olasılık</span><b>% 60</b></div></div></div>
+    <div class="tabs" style="margin:12px 0"><span class="tab on">Fırsat</span><span class="tab">Tahmin ve takip</span><span class="tab">Not</span></div>
+    <div class="grp"><h4>Fırsat</h4><div class="grid2"><div class="f"><label>Fırsat adı *</label><div class="in">Yıllık zeytinyağı anlaşması</div></div><div class="f"><label>Fırsat kodu *</label><div class="in">FR-021</div></div><div class="f"><label>Müşteri</label><div class="in">C-0012 · Karadeniz Gıda San. A.Ş.</div></div></div></div>
+    <div class="grp" style="margin-top:10px"><h4>Tahmin ve takip</h4><div class="grid2"><div class="f"><label>Tahmini tutar</label><div class="in">480.000,00</div></div><div class="f"><label>Para birimi</label><div class="in">TRY</div></div><div class="f"><label>Beklenen kapanış</label><div class="in">15.12.2026</div></div><div class="f"><label>Sonraki takip</label><div class="in">02.12.2026</div></div><div class="f"><label>Kazanma olasılığı (%)</label><div class="in">60</div></div></div></div>
+  </div>
+  <div class="expl"><b>crm-opportunity-create → Kayıt kartı</b>
+    <ul>
+      <li><b>Yerleşim:</b> kayıt özetinde ad, kod, müşteri, aşama rozeti, tutar ve olasılık; üç sekme (Fırsat, Tahmin ve takip, Not) her biri bir kart.</li>
+      <li><b>Sadeleşir:</b> altı ayrı aşama rozeti tek rozet olur; "müşteri seçici cari türü/durumu" gizli süzgeç olarak sabitlenir (müşteri ve bayi, aktif); yeni ve düzenle için çifte alanlar (Para birimi, Olasılık) tek alana iner.</li>
+      <li>Kapanmış (Kazanıldı/Kaybedildi) fırsatta alanlar kilitli, üstte uyarı çıkar (bugünkü kural).</li>
+    </ul></div>
+</div></section>
+
+<!-- 6 sales-quotes : Liste + Belge -->
+<section class="view" id="v6"><div class="page">
+  <div class="sec-t">A · Teklif listesi (Liste kalıbı)</div>
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Satış Teklifleri</div>
+    <div class="ttl">Satış Teklifleri <span>· 58 kayıt</span></div>
+    <div class="bar"><button class="b pri">Yeni teklif</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button><button class="b">⋯</button></div>
+    <div class="metrics"><div class="metric"><span>Teklif tutarı (bu sayfa)</span><b>1.184.500 ₺</b></div><div class="metric"><span>Yanıt bekleyen</span><b>9</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in"></div></div><div class="f"><label>Durum</label><div class="in">Tümü</div></div><div class="f"><label>Başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">30.11.2026</div></div></div>
+    <div class="tbl"><table><tr><th>Teklif no</th><th>Rev.</th><th>Müşteri</th><th>Geçerlilik</th><th class="n">Genel toplam</th><th>Durum</th><th>Sipariş</th><th></th></tr>
+      <tr class="sel"><td>T-0141</td><td>2</td><td>Karadeniz Gıda</td><td>15.12.2026</td><td class="n">96.000,00</td><td><span class="bd info">İletildi</span></td><td></td><td><span class="menu"><button class="b sm">Kabul et</button><button class="b sm">Reddet</button></span></td></tr>
+      <tr><td>T-0140</td><td>1</td><td>Ege Zeytincilik</td><td>10.12.2026</td><td class="n">54.200,00</td><td><span class="bd ok">Kabul</span></td><td></td><td><button class="b sm">Siparişe çevir</button></td></tr></table></div>
+  </div>
+  <div class="sec-t">B · Teklif belgesi <span class="sug">yeni</span> Belge modeli <span class="code">satis.teklif</span></div>
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Satış Teklifleri › T-0141</div>
+    <div class="chips2" style="margin-bottom:8px"><span class="step done">Taslak</span><span class="step on">İletildi</span><span class="step">Kabul</span><span class="step">Sipariş</span></div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Kabul et</button><button class="b">Reddet</button><button class="b"><span class="sug">yeni</span> Yeni revizyon</button><button class="b">Yazdır / PDF</button><button class="b">⋯</button></div>
+    <div class="grid2"><div class="f"><label>Teklif no</label><div class="in">T-0141 · rev. 2</div></div><div class="f"><label>Müşteri *</label><div class="in">Karadeniz Gıda San. A.Ş.</div></div><div class="f"><label>Teklif tarihi *</label><div class="in">28.11.2026</div></div><div class="f"><label>Geçerlilik</label><div class="in">15.12.2026</div></div><div class="f"><label>Plasiyer</label><div class="in">Ayşe Demir</div></div></div>
+    <div class="tbl" style="margin:12px 0"><table><tr><th>Stok</th><th class="n">Miktar</th><th>Birim</th><th class="n">Fiyat</th><th class="n">İsk. %</th><th class="n">KDV %</th><th class="n">Tutar</th></tr>
+      <tr><td>ZYT-01 Sızma zeytinyağı 5 L</td><td class="n">40</td><td>KOLİ</td><td class="n">250,00</td><td class="n">5</td><td class="n">20</td><td class="n">11.400,00</td></tr></table></div>
+    <div class="tot"><div><span>Ara toplam</span>10.000,00</div><div><span>İskonto</span>500,00</div><div><span>KDV</span>1.900,00</div><div class="g"><span>Genel toplam</span>11.400,00</div></div>
+  </div>
+  <div class="expl"><b>sales-quotes → Liste + <span class="sug">yeni</span> Belge <span class="code">satis.teklif</span></b>
+    <ul>
+      <li><b>Liste:</b> iki gösterge, süzgeç, tablo. Bugünkü detay kartı ve teklif penceresi kalkar; Aç belgeyi açar. Durum geçişleri (Kabul, Reddet, Siparişe çevir) satır eylemi.</li>
+      <li><b>Belge:</b> bugün teklif düzenleme ayrı eski sayfada (<span class="code">sales-quote-create</span>). Sipariş belgesindeki gibi durum zinciri, başlık, satırlar, toplamlar. Durumlar: Taslak → İletildi → Kabul / Reddedildi; kabulden sonra Sipariş oluştur.</li>
+      <li><b>Revizyon:</b> "Yeni revizyon" geçişi ve işlem günlüğü revizyon tablosunun yerini alır. Yazdır / PDF belge komutu.</li>
+    </ul></div>
+</div></section>
+
+<!-- 7 sales-order-create : Belge (mevcut) -->
+<section class="view" id="v7"><div class="page">
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Satış Siparişleri › SO-0212</div>
+    <div class="chips2" style="margin-bottom:8px"><span class="step done">Taslak</span><span class="step on">Onaylı</span><span class="step">Sevk edildi</span><span class="step">Faturalandı</span></div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Onayı geri al</button><button class="b dan">İptal et</button><button class="b">⋯</button></div>
+    <div class="grid2"><div class="f"><label>Sipariş no</label><div class="in">SO-0212</div></div><div class="f"><label>Müşteri *</label><div class="in">Karadeniz Gıda San. A.Ş. · TRY</div></div><div class="f"><label>Sipariş tarihi *</label><div class="in">28.11.2026</div></div><div class="f"><label>İstenen teslim tarihi</label><div class="in">05.12.2026</div></div><div class="f"><label>Plasiyer</label><div class="in">Ayşe Demir</div></div></div>
+    <div class="tbl" style="margin:12px 0"><table><tr><th>Stok</th><th class="n">Miktar</th><th>Birim</th><th class="n">Fiyat</th><th class="n">İsk. %</th><th class="n">KDV %</th><th class="n">Kullanılabilir</th><th class="n">Tutar</th><th class="n">Sevk</th></tr>
+      <tr><td>ZYT-01 Sızma zeytinyağı 5 L</td><td class="n">40</td><td>KOLİ</td><td class="n">250,00</td><td class="n">5</td><td class="n">20</td><td class="n">112</td><td class="n">11.400,00</td><td class="n">0</td></tr></table></div>
+    <div class="split"><div class="grp"><h4>Özel alanlar <span class="sug">yeni</span></h4><div class="d">Sipariş özel alanları belge gövdesinde ayrı grup.</div><div class="grid2"><div class="f"><label>Nakliye şekli</label><div class="in">Karayolu</div></div><div class="f"><label>Müşteri sipariş no</label><div class="in">KG-7781</div></div></div></div>
+      <div class="tot" style="margin:0"><div><span>Ara toplam</span>10.000,00</div><div><span>KDV %20</span>1.900,00</div><div class="g"><span>Genel toplam</span>11.400,00</div></div></div>
+  </div>
+  <div class="expl"><b>sales-order-create → mevcut <span class="code">sales-order-document</span> Belge sayfasıyla değişir</b>
+    <ul>
+      <li>Yeni sipariş ve düzenleme aynı Belge sayfasından yapılır; <span class="code">sales-orders</span> listesinin Yeni / Aç düğmeleri oraya gider, <span class="code">sales-order-create</span> kaldırılır. Stok seçince fiyat, iskonto, KDV doluşu, sunucu hesabı, KDV dökümü, durum geçişleri (Onayla, Onayı geri al, İptal) belge modelinden gelir.</li>
+      <li><b>Kapatılması gereken tek boşluk:</b> <span class="sug">yeni</span> sipariş özel alanları (bugünkü <span class="code">customFieldsBlock</span>) Belge kalıbında yok. Özel alan kullanılmıyorsa boşluk kapanmadan da geçilebilir.</li>
+    </ul></div>
+</div></section>
+
+<!-- 8 sales-deliveries : Liste + pencere -->
+<section class="view" id="v8"><div class="page">
+  <div class="stage tight">
+    <div class="erp dim" style="position:relative;min-height:540px">
+      <div class="crumb">Satış &amp; cari › Satış İrsaliyeleri</div>
+      <div class="ttl">Satış İrsaliyeleri <span>· 73 kayıt</span></div>
+      <div class="bar"><button class="b pri">Yeni irsaliye</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button><button class="b">⋯</button></div>
+      <div class="metrics"><div class="metric"><span>Faturalanmamış</span><b>11</b></div><div class="metric"><span>İptal</span><b>2</b></div></div>
+      <div class="tbl"><table><tr><th>İrsaliye no</th><th>Tür</th><th>Sipariş</th><th>Müşteri</th><th>Sevk</th><th>Durum</th><th>Fatura</th></tr>
+        <tr class="sel"><td>IRS-0388</td><td>Siparişten</td><td>SO-0212</td><td>Karadeniz Gıda</td><td>02.12.2026</td><td>İşlendi</td><td>—</td></tr>
+        <tr><td>IRS-0387</td><td>Bağımsız</td><td>—</td><td>Ege Zeytincilik</td><td>01.12.2026</td><td>İşlendi</td><td>F-0411</td></tr></table></div>
+    </div>
+    <div class="win xl">
+      <div class="wh"><b>Satış irsaliyesi · IRS-0388</b><span class="size">Büyük</span><span class="x">×</span></div>
+      <div class="wb">
+        <div class="rh"><div class="av">IR</div><div><div class="t">IRS-0388 · Karadeniz Gıda</div><div class="s">Sipariş SO-0212 · Merkez depo</div></div><span class="bd ok">İşlendi</span><span class="bd warn">Faturalanmamış</span></div>
+        <div class="tabs"><span class="tab on">Kalemler</span><span class="tab">Faturalaştır</span></div>
+        <div class="tbl"><table><tr><th>Stok</th><th class="n">Miktar</th><th>Birim</th><th class="n">Tutar</th></tr><tr><td>ZYT-01 Sızma zeytinyağı 5 L</td><td class="n">40</td><td>KOLİ</td><td class="n">11.400,00</td></tr></table></div>
+        <div class="grid2"><div class="f"><label>Fatura türü</label><div class="in">Satış faturası</div></div><div class="f"><label>Belge senaryosu</label><div class="in">e-Fatura</div></div><div class="f"><label>Alıcı etiketi</label><div class="in">urn:mail:defaultpk@kgida.example</div></div><div class="f"><label>Fatura notu</label><div class="in"></div></div></div>
+      </div>
+      <div class="wf"><button class="b dan">İrsaliyeyi iptal et</button><div class="r"><button class="b">Kapat</button><button class="b pri">Faturalaştır</button></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>sales-deliveries → Liste (pencereli) + sonraki aşamada <span class="sug">yeni</span> Belge <span class="code">satis.irsaliye</span></b>
+    <ul>
+      <li><b>Liste:</b> iki gösterge, süzgeç (durum, faturalı/faturasız), tablo; satır eylemleri Faturalaştır, Faturayı aç, İptal et. Detay bir <b>pencere</b> olarak açılır (özet, rozetler, Kalemler ve Faturalaştır sekmeleri, kendi düğmeleri).</li>
+      <li><b>Sadeleşir:</b> "Eski ekranda aç" düğmesi kalkar. Yeni irsaliye bugün eski sayfa (<span class="code">sales-delivery-create</span>); ilk aşamada o düğme kalır, sonra belge modeli gelince Belge sayfasına gider (sipariş seçince açık satırlar dolar, bağımsız irsaliye de aynı belgede).</li>
+    </ul></div>
+</div></section>
+
+<!-- 9 sales-invoice-create : Belge -->
+<section class="view" id="v9"><div class="page">
+  <div class="erp">
+    <div class="crumb">Satış &amp; cari › Satış Faturaları › Yeni fatura</div>
+    <div class="chips2" style="margin-bottom:8px"><span class="step on">Taslak</span><span class="step">Kesildi</span><span class="step">e-Belge gönderildi</span></div>
+    <div class="bar"><button class="b pri">Faturayı kes</button><button class="b">Vazgeç</button><button class="b">⋯</button></div>
+    <div class="grid2"><div class="f"><label>Fatura tarihi *</label><div class="in">28.11.2026</div></div><div class="f"><label>Müşteri *</label><div class="in">Karadeniz Gıda San. A.Ş.</div></div><div class="f"><label>Fatura türü</label><div class="in">Satış faturası</div></div><div class="f"><label>Vergi mevzuatı profili</label><div class="in">Standart</div></div><div class="f"><label>Belge senaryosu</label><div class="in">e-Fatura</div></div><div class="f"><label>Alıcı e-Fatura etiketi</label><div class="in">urn:mail:defaultpk@kgida.example</div></div></div>
+    <div class="tbl" style="margin:12px 0"><table><tr><th>Stok</th><th>Depo</th><th class="n">Miktar</th><th>Birim</th><th class="n">Fiyat</th><th class="n">İsk. %</th><th class="n">KDV %</th><th class="n">Tutar</th></tr>
+      <tr><td>ZYT-01 Sızma zeytinyağı 5 L</td><td>Merkez</td><td class="n">40</td><td>KOLİ</td><td class="n">250,00</td><td class="n">5</td><td class="n">20</td><td class="n">11.400,00</td></tr></table></div>
+    <div class="split">
+      <div class="grp"><h4>e-Arşiv ayrıntıları <span class="sug">yeni</span></h4><div class="d">Yalnız e-ticaret ve taşıyıcı bilgisi gereken faturalarda. Ödeme aracısı, aracı firma ve taşıyıcı alanları burada tek pencerede açılır.</div><button class="b sm">Ayrıntıları gir…</button>
+        <div class="grp" style="margin-top:10px"><h4>Not</h4><div class="in" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px"></div></div></div>
+      <div class="tot" style="margin:0"><div><span>Ara toplam</span>10.000,00</div><div><span>KDV ve vergiler</span>1.900,00</div><div><span>Tevkifat <span class="sug">yeni</span></span>0,00</div><div class="g"><span>Genel toplam</span>11.400,00</div></div></div>
+  </div>
+  <div class="expl"><b>sales-invoice-create → <span class="sug">yeni</span> Belge <span class="code">satis.fatura</span></b>
+    <ul>
+      <li><b>Kalır:</b> fatura tarihi, müşteri, fatura türü, vergi profili, satırlar (depo satırda), sunucu hesabı (KDV, tevkifat, vergi dökümü), e-belge senaryosu/tür/alıcı etiketi, not, tekrar deneme kimliği (gizli, model gönderir).</li>
+      <li><b>Sadeleşir:</b> e-Arşiv ödeme, aracı firma ve taşıyıcı alanları (yaklaşık 20 alan) ana ekrandan çıkar, "e-Arşiv ayrıntıları" penceresine girer. Belge kalıbında kesilmiş fatura salt okunurdur; kesme sonrası geri alma bugünkü gibi iptal/iade akışıdır.</li>
+      <li>Yeni belge modeli: durumlar Taslak → Kesildi → e-Belge gönderildi; geçiş Faturayı kes (<span class="code">satis.fatura.olustur</span>).</li>
+    </ul></div>
+</div></section>
+
+<script>
+  document.querySelectorAll('#seg button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('#seg button').forEach(function(x){x.classList.toggle('on',x===b)});
+      document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('on',v.id===b.dataset.v)});
+    });
+  });
+</script>
+</body>
+</html>

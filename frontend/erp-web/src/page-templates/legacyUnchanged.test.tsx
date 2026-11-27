@@ -13,9 +13,11 @@ import catalog from '../system-pages/customersOperations.fixture.json';
 const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 
-const loadStandard = (key: string) => JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${key}.json`), 'utf8')) as { title: string; definition: unknown };
+// Cari standartları (customers, customer-create) Liste / Kayıt kartı kalıbına taşındı (Satış & cari 1. dalga); kalıpsız çizimin örneği
+// olarak eski tanımlarının dondurulmuş kopyaları kullanılır (legacyFixtures: standartların git'teki önceki sürümleri).
+const loadStandard = (key: string) => JSON.parse(readFileSync(resolve(process.cwd(), `src/page-templates/legacyFixtures/${key}.json`), 'utf8')) as { title: string; definition: unknown };
 const KEY = 'customers';
-const standard = loadStandard(KEY);
+const standard = loadStandard('customers-v2');
 const jwt = `x.${btoa(JSON.stringify({ sub: 'u1', role: 'TenantAdmin' })).replace(/=+$/, '')}.y`;
 
 const customer = (id: string, code: string, name: string) => ({
@@ -92,7 +94,7 @@ describe('kalıpsız sayfalar değişmeden çizilir', { timeout: 30000 }, () => 
   });
 
   it('customer-create system standard renders unchanged', async () => {
-    const create = loadStandard('customer-create');
+    const create = loadStandard('customer-create-v1');
     const { container } = setup(create.definition, true, 'customer-create', create.title);
     await screen.findByText('Cari kimliği', undefined, T);
     // ERP işlem kataloğu yerleşene kadar beklenir (yük altında 300 ms yetmez): kataloğa bağlı bütün iletiler çizilmiş,
