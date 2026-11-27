@@ -4,7 +4,9 @@ import { LIST_SOURCE_HINT, readPageTemplate } from "../pageTemplates";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import { COMMANDS_SLOT } from "./commandsModel";
 import { DialogsSection } from "./DialogsSection";
+import { DIALOG_SLOT, DIALOGS_SLOT, isGroup } from "./dialogsModel";
 import { DraftInput } from "./DraftInput";
+import { GroupPanel } from "./GroupPanel";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ComponentPanel } from "./ComponentPanel";
 import { consultantKindOf } from "./consultantPalette";
@@ -170,12 +172,22 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
   tokens: FieldToken[]; disabled?: boolean;
   onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
 }) {
-  if (free) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
-  if (record) {
+  // Pencere ve içeriği (5b-2 adım 2) kalıbın parça panellerine girmez; grup (pencerede ya da Liste detayında) Grup panelinde açılır.
+  const placed = typeof component?.props.slot === "string" ? component.props.slot : "";
+  const inDialog = placed === DIALOG_SLOT || placed === DIALOGS_SLOT;
+  if (component && isGroup(component) && (placed === DIALOG_SLOT || placed === "detail")) {
+    const def = free?.def ?? record?.def ?? belge?.def ?? list?.definition;
+    const onChange = free?.onChange ?? record?.onChange ?? belge?.onChange ?? list?.onChange;
+    if (def && onChange) return <GroupPanel def={def} groupId={component.id} onChange={onChange}
+      disabled={disabled || free?.disabled || record?.disabled || belge?.disabled}
+      visibility={free?.visibility?.(component.id) ?? record?.visibility?.(component.id) ?? list?.visibility}/>;
+  }
+  if (free && !inDialog) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
+  if (record && !inDialog) {
     const selection = recordSelectionOf(record.def, component?.id ?? null);
     if (selection) return <RecordPanel {...record} selection={selection} disabled={disabled || record.disabled}/>;
   }
-  if (belge) {
+  if (belge && !inDialog) {
     const slot = typeof component?.props.slot === "string" ? component.props.slot : "";
     if (!component || BELGE_FOCUS[component.type] || (slot === "actions" && component.type === "button"))
       return <BelgePanel {...belge} focus={component ? BELGE_FOCUS[component.type] ?? null : null} disabled={disabled || belge.disabled}/>;
