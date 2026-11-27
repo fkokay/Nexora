@@ -4,12 +4,14 @@ import { RECORD_SOURCE_HINT } from "../pageTemplates";
 import type { ConditionPath } from "../ConditionBuilder";
 import { CommandsSection, type CommandsPage } from "./CommandsSection";
 import { saveSteps } from "./commandsModel";
+import { CustomFieldsPanel } from "./ExtrasPanels";
+import { customFieldsOf } from "./extrasModel";
 import { ComponentPanel } from "./ComponentPanel";
 import { DialogsSection } from "./DialogsSection";
 import { fieldTokens, type FieldToken } from "./consultantText";
 import { labelMap, stringList, MAX_LIST_COLUMNS, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import {
-  addExtraAction, addLines, chooseRecordSource, extraActions, fieldKey, fieldLocks, fieldRemovalBlocked, linesSourceUsable,
+  addCustomFields, addExtraAction, addLines, chooseRecordSource, extraActions, fieldKey, fieldLocks, fieldRemovalBlocked, linesSourceUsable,
   missingRecordColumns, recordActionUsable, recordKey, recordQuery, recordSourceUsable, recordTabs, removeBlock, removeExtraAction, removeField,
   removeSection, saveActions, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle,
   sectionRemovalBlocked, setSummary, MAX_SUMMARY_SUBTITLE, MAX_SUMMARY_VALUES,
@@ -34,6 +36,8 @@ export type RecordPanelProps = {
   name?: string; onRename?: (name: string) => void;
   /** Bileşenin "Ne zaman görünsün?" seçicisi (Liste panelindeki `visibleWhen` seçicisi); verilmezse yalnız "Her zaman". */
   visibility?: (componentId: string) => ReactNode;
+  /** Özel alan bloğunun "Ne zaman salt okunur" seçicisi. */
+  readOnlyWhen?: (componentId: string) => ReactNode;
   /** Kartın üstüne / altına konabilecek ek alan türleri ve ekleme (Liste'deki ek alan yolu). */
   extraTypes?: ExtraAreaType[]; onAddExtra?: (type: string) => void;
   /** Komutlar bölümü: "Hangi ekran" seçiminin sayfaları, onay metninin alanları (verilmezse kaydın kolonları), kural kurucunun alanları. */
@@ -110,6 +114,8 @@ export function RecordPanel(props: RecordPanelProps) {
   if (selection.kind === "field") return <FieldPanel {...props} id={selection.id} key={selection.id}/>;
   if (selection.kind === "lines") return <LinesPanel {...props} id={selection.id} key={selection.id}/>;
   if (selection.kind === "note") return <NotePanel {...props} id={selection.id} key={selection.id}/>;
+  if (selection.kind === "customFields") return <CustomFieldsPanel def={props.def} id={selection.id} key={selection.id} disabled={props.disabled}
+    onChange={(next) => { if (!props.disabled && next !== props.def) props.onChange(next); }} visibility={props.visibility?.(selection.id)} readOnlyWhen={props.readOnlyWhen?.(selection.id)}/>;
   return <PagePanel {...props}/>;
 }
 
@@ -218,6 +224,7 @@ function PagePanel(props: RecordPanelProps) {
       </>}
       <p className="cpanel-note">En çok 3 değer.</p>
     </div>
+    <CustomFieldsAdd def={def} disabled={disabled} onChange={change} onSelect={props.onSelect}/>
   </>;
 
   const extras = extraActions(def);
@@ -253,6 +260,22 @@ function PagePanel(props: RecordPanelProps) {
     <DialogsSection def={def} catalog={catalog} disabled={disabled} onChange={change} shownDialog={props.shownDialog} onShowDialog={props.onShowDialog}/>
     <div className="cpanel-ask"><b>Aradığın alan ya da eylem yok mu?</b> <AskLink onAskDeveloper={props.onAskDeveloper}/></div>
   </ComponentPanel>;
+}
+
+/** "+ Özel alan bloğu ekle": sayfada en çok bir blok, tam bir sekmede (spec: Kayıt kartı). */
+function CustomFieldsAdd({ def, disabled, onChange, onSelect }: { def: ModelDefinition; disabled?: boolean; onChange: (def: ModelDefinition) => void; onSelect: (selection: RecordSelection) => void }) {
+  const tabs = recordTabs(def);
+  const [tab, setTab] = useState(0);
+  const existing = customFieldsOf(def);
+  return <div className="cpanel-sub" data-part="custom-fields"><h4>Özel alanlar</h4>
+    {existing ? <p className="cpanel-note">Sayfada bir özel alan bloğu var; sekmeden seçerek düzenleyin.</p> : <>
+      <label className="cpanel-row">Sekme<select aria-label="Özel alan bloğunun sekmesi" value={Math.min(tab, Math.max(tabs.length - 1, 0))} disabled={disabled || tabs.length === 0}
+        onChange={(event) => setTab(Number(event.target.value))}>{tabs.map((item, index) => <option key={index} value={index}>{item.label}</option>)}</select></label>
+      <button type="button" className="cpanel-btn" disabled={disabled || tabs.length === 0} onClick={() => {
+        const added = addCustomFields(def, Math.min(tab, tabs.length - 1));
+        if (added.blockId) { onChange(added.def); onSelect({ kind: "customFields", id: added.blockId }); }
+      }}>+ Özel alan bloğu ekle</button></>}
+  </div>;
 }
 
 const visibilityOf = (props: RecordPanelProps, id: string) => <>

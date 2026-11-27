@@ -1,6 +1,6 @@
 # Özel alan bloğu ve pencerede satır tablosu (tasarım taslağı)
 
-Durum: onay bekliyor (kod yok). Tarih: 2026-11-28. Taslak: `docs/design-proposals/studio-sadelestirme/17-ozel-alan-satir-tablosu.html`. Üst belgeler: `2026-11-27-pencere-grup-5b2b-design.md` (pencere/grup kuralları), `2026-11-25-kayit-karti-design.md`.
+Durum: onaylandı (2026-11-28), uygulanıyor. Tarih: 2026-11-28. Taslak: `docs/design-proposals/studio-sadelestirme/17-ozel-alan-satir-tablosu.html`. Üst belgeler: `2026-11-27-pencere-grup-5b2b-design.md` (pencere/grup kuralları), `2026-11-25-kayit-karti-design.md`.
 
 ## 1. Amaç ve ölçüm
 
@@ -116,9 +116,9 @@ Seçim/hesap sütunu, toplam satırı, formül, sorgudan doldurma, `stage`/`matr
 
 ## 5. Onay için sorular
 
-1. Kayıt kartında blok yalnız bir sekmede (önerilen) mi dursun, yoksa her sekmede bölüm gibi mi?
-2. Belge kalıbında sipariş özel alanları bu adımda yok; ertelenmesi uygun mu?
-3. Pencerede satır sınırı 200 (lot/seri ihtiyacı) uygun mu?
+1. Kayıt kartında blok yalnız bir sekmede (önerilen) mi dursun, yoksa her sekmede bölüm gibi mi? **Evet: tam bir sekmede.**
+2. Belge kalıbında sipariş özel alanları bu adımda yok; ertelenmesi uygun mu? **Evet: ertelendi.**
+3. Pencerede satır sınırı 200 (lot/seri ihtiyacı) uygun mu? **Evet: en çok 200.**
 
 ## 6. Builder'a bırakılanlar
 
