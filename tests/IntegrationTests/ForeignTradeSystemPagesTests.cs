@@ -261,10 +261,10 @@ public sealed class ForeignTradeSystemPagesTests
     [Theory]
     [InlineData("foreign-trade", "Dış Ticaret Dosyaları")]
     [InlineData("foreign-trade-case", "Dış ticaret dosyası")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    public void Standard_is_preview_version_2_and_uses_catalog_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Dış Ticaret"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((2, "preview", title, "Dış Ticaret"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
@@ -286,11 +286,17 @@ public sealed class ForeignTradeSystemPagesTests
         var bar = Props(key, "komutlar");
         Assert.Equal("{{dosyalar.meta.totalCount}}", (string)bar["titleCount"]!);
         Assert.Contains("delete", Strings(bar["hiddenCommands"]));
-        Assert.Equal(new[] { "direction={{yonSecimi.value}}" }, Strings(Props(key, "yeniDugmesi")["params"]));
+        // Liste kalıbı: eski ekran, detay paneli anahtarı, süzgeç çipleri ve özet metin yok; ithalat ve ihracat ayrı komut.
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.DoesNotContain(Definition(key)["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! is "detayPaneli" or "secimCipleri" or "ozetSayilari" or "eskiEkranDugmesi" or "yeniDugmesi");
+        Assert.Equal(new[] { "direction=Import" }, Strings(Props(key, "ithalatDugmesi")["params"]));
+        Assert.Equal(new[] { "direction=Export" }, Strings(Props(key, "ihracatDugmesi")["params"]));
         Assert.Equal(("@foreign-trade-case", "Yalnız Taslak ve Planlandı dosyalar düzenlenebilir"),
             ((string)Props(key, "acDugmesi")["pageCode"]!, (string)Props(key, "acDugmesi")["disabledReason"]!));
-        Assert.Equal(("{{suzgec.q}}", "{{yonSecimi.value}}", "{{durumSecimi.value}}"), (Binding(key, "dosyalar", "q"), Binding(key, "dosyalar", "direction"), Binding(key, "dosyalar", "status")));
+        Assert.Equal(("{{suzgec.q}}", "{{suzgec.direction}}", "{{suzgec.status}}"), (Binding(key, "dosyalar", "q"), Binding(key, "dosyalar", "direction"), Binding(key, "dosyalar", "status")));
         Assert.Equal("{{suzgec.q}}", Binding(key, "ozet", "q"));
+        Assert.Equal(new[] { "{{ozet.rows[0].totalCount}}", "{{ozet.rows[0].shippedCount}}", "{{ozet.rows[0].arrivedCount}}", "{{ozet.rows[0].closedCount}}" },
+            new[] { "toplamGostergesi", "sevktekiGostergesi", "ulastiGostergesi", "kapandiGostergesi" }.Select(x => (string)Props(key, x)["value"]!));
         Assert.Equal("Önce dosyayı açıp planlanan sevk tarihi, beyan değeri ve Incoterms girin", (string)Props(key, "sevkDugmesi")["disabledReason"]!);
         // The actual date inputs have no default: empty means the server's today (its future check is in UTC).
         foreach (var input in new[] { "sevkTarihi", "varisTarihi" }) Assert.False(Props(key, input).ContainsKey("defaultValue"), input);
@@ -307,6 +313,9 @@ public sealed class ForeignTradeSystemPagesTests
     public void Case_card_is_one_standard_for_new_and_edit()
     {
         const string key = "foreign-trade-case";
+        Assert.Equal("record", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal(new[] { "Dosya=kimlikKarti,guzergahKarti,zorunluNotu,bagliSiparis,ulkeNotu", "Değer ve planlama=degerKarti,degerNotu", "Referanslar ve not=referansKarti" },
+            Strings(Props(key, "sekmeler")["tabs"]));
         Assert.Equal("{{sayfa.parametre.id}}", Binding(key, "kart", "id"));
         Assert.Equal("{{kart.rows[0].direction}}{{sayfa.parametre.direction}}", (string)Props(key, "yon")["defaultValue"]!);
         Assert.Equal(("{{yon.value}}", "{{ithalatSiparisi.value}}", "{{ihracatSiparisi.value}}"),

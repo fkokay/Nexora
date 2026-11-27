@@ -301,8 +301,8 @@ public sealed class HrSystemPagesTests
     public void Standard_is_preview_and_uses_hr_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        // Liste kalıbına taşınan üç ekran (2. sürüm); kalan ekranlar henüz kalıpsız (1. sürüm).
-        var version = key is "hr-employees" or "hr-employee-create" or "hr-attendance" or "hr-period-summary" ? 2 : 1;
+        // Kalıba taşınan ekranlar (2. sürüm); kalan ekranlar henüz kalıpsız (1. sürüm).
+        var version = key is "hr-employees" or "hr-employee-create" or "hr-attendance" or "hr-period-summary" or "hr-leave-requests" ? 2 : 1;
         Assert.Equal((version, "preview", title, "İnsan Kaynakları"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
@@ -367,12 +367,16 @@ public sealed class HrSystemPagesTests
         Assert.Equal("{{talepGun.value}}", Binding(key, "talepEt", "requestedDays"));
         Assert.Null(Props(key, "talepGun")["defaultValue"]);
         Assert.Equal(("Annual", "{{bugun}}"), ((string)Props(key, "talepTuru")["defaultValue"]!, (string)Props(key, "talepBaslangic")["defaultValue"]!));
-        foreach (var query in new[] { "onayla", "reddet", "reddetPanel", "iptal" })
+        // Tek Reddet düğmesi ve tek ret sorgusu (eski panel kopyası kalktı).
+        Assert.DoesNotContain(Definition(key)["queries"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! == "reddetPanel");
+        foreach (var query in new[] { "onayla", "reddet", "iptal" })
             Assert.Equal("{{liste.seciliSatir.rowVersion}}", Binding(key, query, "rowVersion"));
         Assert.Equal("{{reddetDugmesi.yanit}}", Binding(key, "reddet", "note"));
-        var approve = Props(key, "onaylaDugmesi");
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        Assert.DoesNotContain(Definition(key)["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! is "eskiEkranDugmesi" or "secimCipleri" or "detayPaneli");
+        var approve = Children(key, "detayKarti", "onaylaDugmesi");
         Assert.Equal(("liste.seciliSatir.canReview != true", "Başka bir yönetici onaylamalı"), ((string)approve["disabledWhen"]!, (string)approve["disabledReason"]!));
-        Assert.Equal("liste.seciliSatir.canCancel == true", (string)Props(key, "iptalDugmesi")["visibleWhen"]!);
+        Assert.Equal("liste.seciliSatir.canCancel == true", (string)Children(key, "detayKarti", "iptalDugmesi")["visibleWhen"]!);
     }
 
     [Fact]
@@ -397,7 +401,7 @@ public sealed class HrSystemPagesTests
     [Fact]
     public void Employees_attendance_and_summary_use_the_list_template_without_legacy_screens()
     {
-        foreach (var key in new[] { "hr-employees", "hr-attendance", "hr-period-summary" })
+        foreach (var key in new[] { "hr-employees", "hr-attendance", "hr-period-summary", "hr-leave-requests" })
         {
             var definition = Definition(key);
             Assert.Equal("list", (string)definition["template"]!["name"]!);
@@ -540,6 +544,10 @@ public sealed class HrSystemPagesTests
         TenantId = ErpOperationCatalogTests.TenantA, SubjectType = TenantPermissionSubjectType.User, SubjectUserId = user, PermissionCode = code,
         ResourceType = PlatformPermissionCatalog.Definitions.Single(x => x.Code == code).ResourceType, Effect = TenantPermissionEffect.Allow, IsActive = true
     };
+
+    private static JsonObject Children(string key, string parent, string id) =>
+        Definition(key)["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == parent)["children"]!.AsArray().OfType<JsonObject>()
+            .Single(x => (string)x["id"]! == id)["props"]!.AsObject();
 
     private static JsonObject Definition(string key) => JsonNode.Parse(SystemPageStandards.All[key].DefinitionJson)!.AsObject();
 

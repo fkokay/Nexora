@@ -37,10 +37,10 @@ public sealed class PurchasingDocumentSystemPagesTests
         { "sales-purchase-returns", "Satınalma İadeleri" },
     };
 
-    /// <summary>Faz 2 bumped the invoices and returns standards to version 2 (return from the returnable lines).</summary>
+    /// <summary>Versions: receipts v2 and invoices v3 are Liste-template standards (satın alma 1. dalga); returns stays v2.</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 1, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 2, ["sales-purchase-returns"] = 2,
+        ["sales-purchase-receipts"] = 2, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 3, ["sales-purchase-returns"] = 2,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
@@ -161,7 +161,6 @@ public sealed class PurchasingDocumentSystemPagesTests
             .Select(x => (string)x["operation"]!).Distinct().ToArray();
         Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur" }, writes.Order(StringComparer.Ordinal));
         Assert.Equal("{{istekKimligi.value}}", Binding("sales-purchase-invoices", "odemeEkle", "requestId"));
-        Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-invoices", "iadeOlustur", "requestId"));
         Assert.Equal("{{iadeKimligi.value}}", Binding("sales-purchase-returns", "iadeOlustur", "requestId"));
     }
 
@@ -232,7 +231,8 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal(("satinalma.malKabul.iptal", "{{kabul.rows[0].id}}"), (Operation(key, "kabulIptal"), Binding(key, "kabulIptal", "id")));
         Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "kabulIptalSatir", "id"));
         Assert.Equal("kabul.rows[0].invoice.id != null", (string)Props(key, "iptalMenuDugmesi")["disabledWhen"]!);
-        Assert.Equal(new[] { "acDugmesi", "faturalaSatir", "iptalSatir" }, Strings(Props(key, "liste")["rowActions"]));
+        Assert.All(new[] { "acDugmesi", "faturalaSatir", "iptalSatir" }, id => Assert.Equal("rowActions", (string)Props(key, id)["slot"]!));
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
         var view = Assert.Single(SystemPageStandards.All[key].ScreenViews);
         Assert.Equal(("purchase-receipts", "liste"), (view.Key, view.Component));
         Assert.True(TenantScreenViewEndpoints.TryGetCatalogFields("purchase-receipts", out var fields));
@@ -279,12 +279,11 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal(fields.Where(x => x.Key != "actions").Select(x => x.Key).Order(StringComparer.Ordinal), view.Fields.Keys.Order(StringComparer.Ordinal));
         Assert.Equal("faturalar.satir.paymentState == 'Overdue'", (string)Props(key, "vadesiGecenGostergesi")["countWhen"]!);
         Assert.Contains("Kalan={{fatura.rows[0].displayOutstanding}}", Strings(Props(key, "belgeBasligi")["fields"]));
-        Assert.Contains("Gecikme={{fatura.rows[0].overdueDays}}", Strings(Props(key, "belgeBasligi")["fields"]));
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
 
         // Opened from Cari Hesaplar with ?supplierId= (a removable filter).
-        Assert.Equal("{{sayfa.parametre.supplierId}}", (string)Props(key, "tedarikciSecimi")["defaultValue"]!);
-        Assert.Equal(("{{tedarikciSecimi.value}}", "{{suzgec.q}}"), (Binding(key, "faturalar", "supplierId"), Binding(key, "faturalar", "q")));
-        Assert.Equal(new[] { "tedarikciSecimi=" }, Strings(Props(key, "tedarikciKaldir")["assignments"]));
+        Assert.Equal(("{{sayfa.parametre.supplierId}}", "{{suzgec.q}}"), (Binding(key, "faturalar", "supplierId"), Binding(key, "faturalar", "q")));
+        Assert.Equal("sayfa.parametre.supplierId != null", (string)Props(key, "tedarikciNotu")["visibleWhen"]!);
         var bar = Props(key, "komutlar");
         Assert.Equal(("page", "@sales-purchase-invoice-entry"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
 
@@ -343,11 +342,8 @@ public sealed class PurchasingDocumentSystemPagesTests
 
     public static TheoryData<string, string, string, string[]> LegacyCommands => new()
     {
-        { "sales-purchase-receipts", "eskiEkranDugmesi", "sales-purchase-receipts", ["receiptId={{liste.seciliSatir.id}}"] },
-        { "sales-purchase-receipts", "siparissizDugmesi", "sales-purchase-receipts", [] },
         { "sales-purchase-receipts", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{kabul.rows[0].invoice.id}}"] },
         { "sales-purchase-invoice-entry", "eskiEkranDugmesi", "sales-purchase-invoice-entry", ["receiptId={{kabulSecimi.value}}"] },
-        { "sales-purchase-invoices", "eskiEkranDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.id}}", "supplierId={{tedarikciSecimi.value}}"] },
         { "sales-purchase-returns", "eskiEkranDugmesi", "sales-purchase-returns", [] },
         { "sales-purchase-returns", "faturaAcDugmesi", "sales-purchase-invoices", ["purchaseInvoiceId={{liste.seciliSatir.purchaseInvoiceId}}"] },
     };
@@ -367,11 +363,17 @@ public sealed class PurchasingDocumentSystemPagesTests
     {
         var definition = Definition(key);
         var legacy = Components(definition).Where(x => (bool?)x["props"]?["legacyScreen"] == true).ToArray();
-        Assert.NotEmpty(legacy);
-        // "Eski ekranda aç": the page's own legacy screen, as the last İşlemler command.
-        var own = Assert.Single(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");
-        Assert.Equal(key, (string)own["props"]!["pageKey"]!);
-        Assert.Equal("eskiEkranDugmesi", Strings(Props(key, "komutlar")["moreButtons"]).Last());
+        // Receipts and invoices are Liste-template standards (satın alma 1. dalga): no "Eski ekranda aç" command any more.
+        if (key is "sales-purchase-receipts" or "sales-purchase-invoices")
+            Assert.DoesNotContain(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");
+        else
+        {
+            Assert.NotEmpty(legacy);
+            // "Eski ekranda aç": the page's own legacy screen, as the last İşlemler command.
+            var own = Assert.Single(legacy, x => (string?)x["props"]!["text"] == "Eski ekranda aç");
+            Assert.Equal(key, (string)own["props"]!["pageKey"]!);
+            Assert.Equal("eskiEkranDugmesi", Strings(Props(key, "komutlar")["moreButtons"]).Last());
+        }
         Assert.Equal(LegacyCommands.Count(x => (string)x[0] == key), legacy.Length);
         foreach (var button in legacy)
         {
