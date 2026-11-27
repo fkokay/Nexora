@@ -37,7 +37,7 @@ public sealed class InventoryTrackingStandardTests
             Assert.Equal(("read", "GET"), (op.Kind, op.Method));
         }
         var bar = Props("komutlar");
-        Assert.Equal(new[] { "focusInput", "exportTable", "titleCount", "hiddenCommands" }, bar.Select(x => x.Key));
+        Assert.Equal(new[] { "focusInput", "exportTable", "titleCount", "hiddenCommands", "slot" }, bar.Select(x => x.Key));
         // Yalnız okunan ekranda yazma komutları çubukta gizlidir (eski ekran: Yenile, Filtre, Excel).
         Assert.Equal(new[] { "new", "open", "save", "delete", "print" }, bar["hiddenCommands"]!.AsArray().Select(x => (string)x!));
         Assert.Equal("{{bakiye.meta.totalCount}}", (string)bar["titleCount"]!);
