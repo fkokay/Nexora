@@ -1702,6 +1702,18 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
   - Güncellemeden önce açılmış ve elle değiştirilmiş bir taslak yayımlanırsa güncelleme geri alınmış olur ve yeniden uygulanmaz.
   - Kartın "iptaller hariç" açıklaması taslakları ve onay bekleyenleri söylemez.
 
+## İK ve Üretim: 1. dalga standartları Liste kalıbına taşındı
+
+- **Ne değişti:** `hr-employees`, `hr-attendance`, `hr-period-summary` ve `manufacturing-cost-variance` (hepsi sürüm 2) elle Liste kalıbına yazıldı. Tasarım: `docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md`. Kalıba yeni özellik eklenmedi.
+  - Kalkanlar: "Eski ekranda aç" düğmesi, "Detay paneli" anahtarı, süzgeç çipleri, kalıpsız genişlik ayarları. Kart grubu hep sağda.
+  - `hr-employees`: süzgeç alanı (arama, durum, departman), altı sütun, kimlik özeti ve İzin talepleri / Puantaj bağlantıları kart grubunda.
+  - `hr-attendance`: personel ve onay durumu süzgeç alanında, tarih aralığı üstte ayrı kartta. Puantaj kaydı penceresi artık kayıttan sonra kapanır. Onay ve düzeltme kuralları değişmedi.
+  - `hr-period-summary`: Çalıştır sayfa düğmesidir, rapor elle çalışır; "Puantaj kaydı" göstergesi kalktı (altı gösterge).
+  - `manufacturing-cost-variance`: tablo yedi sütuna indi, tam döküm seçili emrin kart grubunda.
+- **Basitleştirmeler:** Süzgeç alanı tarih için sunucuya giden değer taşıyamadığından tarih aralığı `above` yerinde ayrı bir form kartıdır (kalıba özellik eklenmedi). Personel seçicinin gizli sayfa boyutu girdisi korundu (liste işlemi zarfı yalnız sayfalı istekte döner).
+- **Doğrulanan:** standart yüklenir ve şemadan geçer; İK ve Üretim standart testleri ile ERP/Studio vitest ve iki arayüzün derlemesi (`scripts/Test-Affected.ps1`).
+- **Doğrulanmayan:** canlıda görsel kontrol ve tarayıcıda dar ekran düzeni yapılmadı; firma kopyalarının standarda sıfırlanması bu işin dışındadır.
+
 
 ### 2026-11-28 satış ve cari yeniden tasarım, 1. dalga: beş standart kalıba çizildi
 
