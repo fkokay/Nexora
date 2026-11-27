@@ -12,7 +12,7 @@ import fixedAssetCardJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/S
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
 type Query = { id: string; name: string; parameters?: { name: string; type: string }[] };
-type Standard = { definition: { queries: Query[]; components: Component[] } };
+type Standard = { definition: { template?: unknown; queries: Query[]; components: Component[] } };
 const { reconcileDefinition, managedKeys, contentFields, palette, inputTypeOptions } = designerInternals;
 const standards: [string, Standard][] = ([
   ["fixed-assets", fixedAssetsJson], ["fixed-asset-create", fixedAssetCreateJson], ["fixed-asset-card", fixedAssetCardJson],
@@ -34,7 +34,7 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop), `${component.id}.${prop}`).toBe(true);
+      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop) || (!!standard.definition.template && prop === "slot"), `${component.id}.${prop}`).toBe(true);
     }
   });
   it("giriş türleri, biçimler ve parametre türleri tasarımcının seçeneklerindedir", () => {

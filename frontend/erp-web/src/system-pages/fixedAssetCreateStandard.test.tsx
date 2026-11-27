@@ -69,13 +69,14 @@ function setup() {
 }
 
 const T = { timeout: 10000 };
-const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+// Kayıt kartı kalıbı: komutlar kabuğun "İşlemler" çubuğundadır.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler' });
+const goTo = async (name: string) => { fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) })); await new Promise((done) => setTimeout(done, 0)); };
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`);
 const ready = (id: string) => waitFor(() => expect(command(id)?.getAttribute('aria-disabled')).not.toBe('true'), T);
 const posts = () => calls.filter((call) => call.method === 'POST' && call.url === '/api/fixed-assets');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 /** Boş (null / undefined) alanları atar: motor boş değeri göndermeyebilir ya da null yazabilir. */
 const filled = (body: Record<string, unknown>) => Object.fromEntries(Object.entries(body).filter(([, value]) => value !== null && value !== undefined && value !== ''));
 /** Arama kutulu seçici (lookup / searchable select): yazılır ve listelenen seçenek tıklanır. */
@@ -89,9 +90,12 @@ const openNew = async () => {
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
   await ready('save');
 };
-const fillRequired = () => {
+// Kıymet sekmesinde kod ve ad, Maliyet ve muhasebe sekmesinde maliyet; sekmeler arası geçişte girilen değerler korunur.
+const fillRequired = async () => {
   type('kod', 'dv-cnc-03');
   type('ad', 'CNC tezgâhı');
+  await goTo('Maliyet ve muhasebe');
+  await waitFor(() => expect(input('maliyet')).toBeTruthy(), T);
   type('maliyet', '120000');
 };
 
@@ -107,8 +111,8 @@ afterEach(() => {
 });
 
 describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
-  it('is a version 1 preview; uses only catalog operations and the create body has no supplierAccountId', () => {
-    expect(standard.version).toBe(1);
+  it('is a version 2 preview (Kayıt kartı); uses only catalog operations and the create body has no supplierAccountId', () => {
+    expect(standard.version).toBe(2);
     expect(standard.stage).toBe('preview');
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
@@ -118,20 +122,24 @@ describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
 
   it('defaults: today for both dates, 60 months, residual 0; the VUK section stays hidden', async () => {
     await openNew();
-    expect(title()).toBe('Edinim kaydı oluştur');
+    expect(document.body.textContent).toContain('Yeni edinim');
     expect(input('edinimTarihi').value).toBe(today());
     expect(input('kullanimaGiris').value).toBe(today());
     expect(input('omur').value).toBe('60');
+    await goTo('Maliyet ve muhasebe');
+    await waitFor(() => expect(input('kalinti')).toBeTruthy(), T);
     expect(input('kalinti').value).toBe('0');
     expect(document.body.textContent).toContain('Kalıntı değer');
+    await goTo('VUK vergi profili');
+    await waitFor(() => expect(input('vukAcik')).toBeTruthy(), T);
     expect(input('vukKodu')).toBeNull();
     expect(document.body.textContent).not.toContain('VUK profilini mali müşavirinizle doğruladığınızı onaylayın.');
   });
 
   it('saves the exact create body (upper-case code, linked invoice) and returns to the list with refresh', async () => {
     await openNew();
-    fillRequired();
     type('kategori', 'Makine');
+    await fillRequired();
     type('referans', 'SÖZ-42');
     await waitFor(() => expect(calls.some((call) => call.url === '/api/fixed-assets/purchase-invoices')).toBe(true), T);
     await pick('fatura', 'AF-2026', /AF-2026-0007/);
@@ -147,7 +155,8 @@ describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
 
   it('VUK on: fields become required, Kaydet is blocked until the confirmation; the body carries the profile', async () => {
     await openNew();
-    fillRequired();
+    await fillRequired();
+    await goTo('VUK vergi profili');
     fireEvent.click(input('vukAcik'));
     await waitFor(() => expect(input('vukKodu')).toBeTruthy(), T);
     expect(document.body.textContent).toContain('VUK profilini mali müşavirinizle doğruladığınızı onaylayın.');
@@ -181,7 +190,8 @@ describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
 
   it('VUK off after typing: the profile fields are cleared and not sent', async () => {
     await openNew();
-    fillRequired();
+    await fillRequired();
+    await goTo('VUK vergi profili');
     fireEvent.click(input('vukAcik'));
     await waitFor(() => expect(input('vukAciklama')).toBeTruthy(), T);
     type('vukAciklama', 'Taşıtlar');
@@ -193,16 +203,13 @@ describe('Yeni edinim standart tanımı', { timeout: 30000 }, () => {
     expect(Object.keys(body).filter((key) => key.startsWith('vuk'))).toEqual([]);
   });
 
-  it('Kaydet ve yeni creates and stays on an empty form', async () => {
+  it('commands are Kaydet and Yeni only (no Kaydet ve yeni); Yeni opens an empty acquisition page', async () => {
     await openNew();
-    fillRequired();
-    // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
-    await waitFor(() => expect(posts()).toHaveLength(1), T);
-    await waitFor(() => expect(input('kod').value).toBe(''), T);
-    // Kayıt anahtarlı kartlar varsayılanlarına döner (girişe özel "koru" düzeneği yok): tarih bugün, ömür 60, kalıntı 0.
-    expect(input('ad').value).toBe('');
-    expect(input('omur').value).toBe('60');
-    expect(navigations.filter((request) => request.page === 'fixed-assets')).toEqual([]);
+    expect(command('save-and-new')).toBeNull();
+    await ready('new');
+    fireEvent.click(command('new')!);
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toMatchObject({ page: 'fixed-asset-create' });
+    expect(posts()).toEqual([]);
   });
 });
