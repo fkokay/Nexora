@@ -64,16 +64,16 @@ const h = salesHarness(KEY, api, catalog, respond);
 beforeEach(() => { api.mockReset(); localStorage.clear(); h.listen(); });
 afterEach(() => { h.reset(); cleanup(); });
 
+// The window (items, Faturalaştır) opens from İşlemler → Faturalaştır; Aç and Yeni go to the Belge page.
 const openDelivery = async (code: string) => {
   await h.selectRow(code);
-  await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
-  fireEvent.click(h.command('open'));
+  fireEvent.click(await h.menuItem(/Faturalaştır/));
   return h.dialog(new RegExp(`Satış irsaliyesi · ${code}`));
 };
 
 describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v1 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 1, stage: 'preview' });
+  it('is a v2 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
@@ -95,16 +95,17 @@ describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(query(h.lastGet('/api/sales/deliveries/all').url).get('unbilledOnly')).toBe('true'), T);
   });
 
-  it('a standalone row does not open here: Aç is disabled and İşlemler offers the legacy screen', async () => {
+  it('Yeni and Aç open the Belge page for any row (standalone included); the old screen button is gone', async () => {
     h.setup();
     await h.selectRow('SI-3');
-    await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).toBe('true'), T);
-    const standalone = await h.menuAfter('/api/sales/deliveries/all');
-    expect(standalone.some((item) => item.startsWith('Eski ekranda aç'))).toBe(true);
-    expect(standalone).not.toContain('İptal et');
-    fireEvent.click(await h.menuItem(/Eski ekranda aç/));
+    await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
+    fireEvent.click(h.command('open'));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-delivery-create', params: { customerId: C1 } });
+    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-delivery-document', params: { id: D3 } });
+    fireEvent.click(h.command('new'));
+    await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
+    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-delivery-document', params: {} });
+    expect(h.menuItems().some((item) => item.startsWith('Eski ekranda aç'))).toBe(false);
     expect(h.gets(`/api/sales/deliveries/${D3}`)).toEqual([]);
   });
 
@@ -129,7 +130,6 @@ describe('Satış İrsaliyeleri standart tanımı', { timeout: 30000 }, () => {
   it('İptal et is offered only to an admin, and the row invoice link shows only with an invoice', async () => {
     h.setup('TenantUser');
     await h.selectRow('IRS-1');
-    await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
     expect(h.menuItems()).not.toContain('İptal et');
     cleanup();
     h.setup();

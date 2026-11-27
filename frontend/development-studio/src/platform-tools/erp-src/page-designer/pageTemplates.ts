@@ -24,14 +24,18 @@ export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : undefined;
 }
 
-/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış siparişi ve satış teklifi. */
-export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" }] as const;
+/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış siparişi, teklifi, faturası ve irsaliyesi. */
+export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" }, { code: "satis.fatura", label: "Satış faturası" }, { code: "satis.irsaliye", label: "Satış irsaliyesi" }] as const;
 
 /** Modelin yeni sayfadaki varsayılan başlık alanları ve satır kolonları (sunucu kodları modele göre denetler). */
 const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[] }> = {
   "satis.siparis": { fields: ["code", "customerId", "orderDate", "requestedDeliveryDate"],
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] },
   "satis.teklif": { fields: ["code", "customerId", "quoteDate", "validUntil"],
+    columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal"] },
+  "satis.irsaliye": { fields: ["code", "customerId", "deliveryDate", "warehouseId"],
+    columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "lineTotal"] },
+  "satis.fatura": { fields: ["code", "customerId", "invoiceDate", "warehouseId", "invoiceType"],
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal"] },
 };
 

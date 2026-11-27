@@ -4355,7 +4355,7 @@ salesDeliveries.MapDelete("/{id:guid}", async (Guid id, ClaimsPrincipal principa
     await transaction.CommitAsync(ct);
     return Results.NoContent();
 });
-salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, DocumentTransitionBody? body = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var identity = await db.SalesDeliveries.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
@@ -4404,6 +4404,7 @@ salesDeliveries.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princ
     }
     delivery.Status = SalesDeliveryStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-delivery.voided", Resource = delivery.Code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesDelivery, delivery.Id, "iptal", "İrsaliye iptal edildi", "core", "done", body?.Reason, GetUserId(principal));
     await db.SaveChangesAsync();
     if (order is not null)
     {
@@ -4551,6 +4552,7 @@ salesDeliveries.MapPost("/{id:guid}/invoice", async (Guid id, ClaimsPrincipal pr
         EntryDate = invoice.InvoiceDate, Direction = CustomerLedgerDirection.Debit, Amount = totals.GrandTotal,
         CurrencyCode = invoice.CurrencyCode, Description = $"Satış faturası {code}" });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-invoice.posted", Resource = code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesInvoice, invoice.Id, "kes", "Fatura kesildi (irsaliyeden)", "core", "done", null, GetUserId(principal));
     await db.SaveChangesAsync();
     SalesInvoiceCustomFieldSupport.AddValues(db, tenantId, invoice.Id, customFields.Values, GetUserId(principal));
     if (customFields.Values.Count > 0) await db.SaveChangesAsync();
@@ -4907,6 +4909,7 @@ salesInvoices.MapPost("/", async (StandaloneSalesInvoiceWriteRequest request, Cl
         CurrencyCode = invoice.CurrencyCode, Description = $"Satış faturası {code}" });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-delivery.posted", Resource = deliveryCode });
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-invoice.posted", Resource = code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesInvoice, invoice.Id, "kes", "Fatura kesildi", "core", "done", null, GetUserId(principal), request.RequestId);
     await db.SaveChangesAsync(ct);
     SalesInvoiceCustomFieldSupport.AddValues(db, tenantId, invoice.Id, customFields.Values, GetUserId(principal));
     if (customFields.Values.Count > 0) await db.SaveChangesAsync(ct);
@@ -5312,7 +5315,7 @@ salesInvoices.MapPost("/{id:guid}/returns", async (Guid id, SalesReturnWriteRequ
         invoice.Id, invoice.Code, warehouse.Id, warehouse.Name, salesReturn.ReturnDate, salesReturn.Status, salesReturn.GrandTotal,
         salesReturn.Lines.Count, salesReturn.CreatedAt, returnLines));
 });
-salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, DocumentTransitionBody? body = null) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
@@ -5342,6 +5345,7 @@ salesInvoices.MapPost("/{id:guid}/void", async (Guid id, ClaimsPrincipal princip
     }
     invoice.Status = SalesInvoiceStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-invoice.voided", Resource = invoice.Code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesInvoice, invoice.Id, "iptal", "Fatura iptal edildi", "core", "done", body?.Reason, GetUserId(principal));
     await db.SaveChangesAsync();
     if (invoice.OrderId is { } invoicedOrderId
         && await db.SalesOrders.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == invoicedOrderId) is { } invoicedOrder)

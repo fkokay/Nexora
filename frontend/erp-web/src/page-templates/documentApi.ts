@@ -2,7 +2,11 @@
 // Belge modeline özgü her şey (uç kökü, kayıt anahtarı, başlık alanları, gövdeler) `DocumentBinding` kayıtlarındadır.
 import { api } from "../erpApi";
 
-export type DocumentField = { code: string; label: string; type: string; required: boolean; optionsOperation: string | null; readOnly: boolean };
+export type DocumentField = {
+  code: string; label: string; type: string; required: boolean; optionsOperation: string | null; readOnly: boolean;
+  /** `select` alanının sabit seçenekleri. */
+  options?: { value: string; label: string }[] | null;
+};
 export type DocumentLineColumn = {
   code: string; label: string; type: string; required: boolean; calculated: boolean; optionsOperation: string | null; visibleFrom: string | null;
 };
@@ -43,9 +47,11 @@ export type RawDocument = {
 /** Belgenin modelden bağımsız satırı (sipariş ya da teklif satırı). */
 export type DocLine = {
   lineNumber: number; stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number; unitPrice: number;
-  discountPercent: number; vatPercent: number; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
+  discountPercent: number | null; vatPercent: number | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
   deliveredQuantity?: number; enteredCurrencyCode?: string | null; enteredUnitPrice?: number | null; enteredUnitCode?: string | null;
   isVatIncluded?: boolean; exchangeRate?: number; salesRequestLineNumber?: number | null;
+  /** İrsaliye satırı: fiyat isteğe bağlıdır (bedelsiz ya da fiyatsız satır); izleme ve raf bilgisi Belge'de görünmez, kayıtta geri gönderilir. */
+  isFreeOfCharge?: boolean; trackingCode?: string | null; expiryDate?: string | null; storageLocationId?: string | null;
 };
 /** Belgenin modelden bağımsız kaydı. `values`: tarih ve metin başlık alanları (modelin alan koduyla). */
 export type DocView = {
@@ -65,6 +71,8 @@ export type OrderPreview = {
 export type PreviewLineRequest = {
   rowKey: string; stockItemId: string; quantity: number; unitPrice: number; discountPercent: number; vatPercent: number;
   unitCode?: string; currencyCode?: string; isVatIncluded?: boolean;
+  /** İrsaliye satırı: bedelsiz işareti ve geri gönderilen izleme / raf bilgisi. */
+  isFreeOfCharge?: boolean; trackingCode?: string; expiryDate?: string; storageLocationId?: string;
   /** Dövizli satırın kayıtlı kuru: kayıt ve hesap bugünkü kuru yeniden aramasın diye geri gönderilir. */
   exchangeRateToQuoteCurrency?: number;
   /** Satış talebinden gelen teklif satırının talep satırı numarası (hücre olarak çizilmez; kayıtta geri gönderilir). */
@@ -77,6 +85,8 @@ export type LookupRow = { id: string; code?: string; name?: string; fullName?: s
 /** Başlıktan bağın gövdelerine giden değerler. */
 export type HeaderValues = {
   code: string; customerId: string; salespersonEmployeeId: string; currencyCode: string; values: Record<string, string>; prospectCustomerName: string;
+  /** Kayıt isteğinin tekrar deneme anahtarı (yalnız tek yazmayla kesilen belgeler kullanır). */
+  requestId: string;
 };
 
 /**
@@ -85,8 +95,18 @@ export type HeaderValues = {
  */
 export type DocumentBinding = {
   code: string; noun: string; newTitle: string;
+  /** Yeni belgede kaydetme düğmesinin adı (varsayılan "Kaydet") ve kayıttan sonraki ileti: tek yazmayla kesilen belgelerde (fatura) kayıt taslak değil belgenin kendisidir. */
+  saveLabel?: string; savedMessage?: string;
+  /** Kaydın yazıldığı uç kökü (varsayılan `base`): irsaliye belgesi `/api/sales/deliveries` okur, `/api/sales/standalone-deliveries` yazar. */
+  writeBase?: string;
+  /** Geçişin uç kökü (varsayılan `base`). */
+  transitionBases?: Record<string, string>;
+  /** false ise belgenin özel alanı yoktur (`{base}/custom-fields` okunmaz). */
+  customFields?: boolean;
+  /** Satırda fiyat isteğe bağlıdır (bedelsiz ya da fiyatsız satır gönderilir). */
+  unpricedLines?: boolean;
   /** Sunucu yanıtındaki kayıt anahtarı. */
-  entity: "order" | "quote";
+  entity: "order" | "quote" | "invoice" | "delivery";
   /** Belgenin uç kökü: `{base}/{id}/document`, `{base}/preview`, `{base}/custom-fields`, kayıt `POST/PUT {base}`. */
   base: string;
   transitionRoutes: Record<string, string>;
@@ -135,8 +155,44 @@ const QUOTE_BINDING: DocumentBinding = {
     salespersonEmployeeId: h.salespersonEmployeeId || null, customFields, lines }),
 };
 
+const INVOICE_BINDING: DocumentBinding = {
+  code: "satis.fatura", noun: "fatura", newTitle: "Yeni fatura", entity: "invoice", base: "/api/sales/invoices",
+  saveLabel: "Faturayı kes", savedMessage: "Fatura kesildi.",
+  transitionRoutes: { iptal: "void" }, maxLines: 200,
+  dateFields: ["invoiceDate"], textFields: ["eDocumentScenario", "eDocumentTypeCode", "eDocumentRecipientAlias", "notes", "invoiceType", "accountingProfileCode", "warehouseId"],
+  newValues: () => ({ invoiceDate: today(), warehouseId: "", warehouseIdLabel: "", invoiceType: "Wholesale", accountingProfileCode: "", accountingProfileCodeLabel: "",
+    eDocumentScenario: "", eDocumentTypeCode: "", eDocumentRecipientAlias: "", notes: "" }),
+  valuesOf: (e) => ({ invoiceDate: str(e.invoiceDate) || today(), warehouseId: str(e.warehouseId), warehouseIdLabel: str(e.warehouseName),
+    invoiceType: str(e.invoiceType) || "Wholesale", accountingProfileCode: str(e.accountingProfileCode), accountingProfileCodeLabel: str(e.accountingProfileCode),
+    eDocumentScenario: str(e.eDocumentScenario), eDocumentTypeCode: str(e.eDocumentTypeCode), eDocumentRecipientAlias: str(e.eDocumentRecipientAlias), notes: str(e.notes) }),
+  previewBody: (h, lines) => h.customerId
+    ? { customerId: h.customerId, invoiceDate: h.values.invoiceDate, warehouseId: h.values.warehouseId || undefined,
+      accountingProfileCode: h.values.accountingProfileCode || undefined, invoiceType: h.values.invoiceType || "Wholesale", lines } : null,
+  // Fatura kesilince değişmez; kayıt tek yazmadır (fatura + irsaliye). e-Arşiv ayrıntıları Belge'de yoktur, gönderilmez.
+  writeBody: (h, lines, customFields) => {
+    const eDocument = { scenario: h.values.eDocumentScenario || null, typeCode: h.values.eDocumentTypeCode || null, recipientAlias: h.values.eDocumentRecipientAlias || null };
+    return {
+      requestId: h.requestId, customerId: h.customerId, warehouseId: h.values.warehouseId, invoiceDate: h.values.invoiceDate,
+      invoiceType: h.values.invoiceType || "Wholesale", accountingProfileCode: h.values.accountingProfileCode || null,
+      eDocument: Object.values(eDocument).some(Boolean) ? eDocument : null, notes: h.values.notes || null, customFields, lines };
+  },
+};
+
+const DELIVERY_BINDING: DocumentBinding = {
+  code: "satis.irsaliye", noun: "irsaliye", newTitle: "Yeni irsaliye", entity: "delivery", base: "/api/sales/deliveries", writeBase: "/api/sales/standalone-deliveries",
+  transitionRoutes: { sevket: "post", iptal: "void" }, transitionBases: { sevket: "/api/sales/standalone-deliveries" },
+  customFields: false, unpricedLines: true, maxLines: 200,
+  dateFields: ["deliveryDate"], textFields: ["code"],
+  newValues: () => ({ code: `IRS-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${new Date().toISOString().slice(11, 16).replace(":", "")}`, deliveryDate: today(),
+    warehouseId: "", warehouseIdLabel: "" }),
+  valuesOf: (e) => ({ code: str(e.code), deliveryDate: str(e.deliveryDate) || today(), warehouseId: str(e.warehouseId), warehouseIdLabel: str(e.warehouseName) }),
+  // İrsaliyenin hesap ucu yoktur: tutarlar kaydedilmiş fiyatlardan gelir, düzenlerken kayıttan sonra yenilenir.
+  previewBody: () => null,
+  writeBody: (h, lines) => ({ requestId: h.requestId, code: h.values.code, customerId: h.customerId, warehouseId: h.values.warehouseId, deliveryDate: h.values.deliveryDate, lines }),
+};
+
 /** Bağı olan belge modelleri; bilinmeyen kod için null döner (çağıran hata gösterir, sipariş bağına düşmez). */
-export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING };
+export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING, [INVOICE_BINDING.code]: INVOICE_BINDING, [DELIVERY_BINDING.code]: DELIVERY_BINDING };
 export const bindingOf = (code: string): DocumentBinding | null => DOCUMENT_BINDINGS[code] ?? null;
 
 type RawLine = Record<string, unknown> & { lineNumber: number };
@@ -161,11 +217,15 @@ export function normalizeDocument(binding: DocumentBinding, raw: RawDocument): B
   };
 }
 
+const PROFILE_OPERATION = "satinalma.faturaGirisi.mevzuatProfilleri";
+
 /** Seçim alanlarının liste uçları (modelin `optionsOperation` kodları). */
 export const OPTION_ROUTES: Record<string, string> = {
   "cari.listele": "/api/customers",
   "stok.kart.listele": "/api/stock/items",
   "ik.personel.listele": "/api/hr/employees",
+  "depo.listele": "/api/warehouses",
+  "satinalma.faturaGirisi.mevzuatProfilleri": "/api/finance/general-ledger/rule-profiles",
 };
 
 export const loadDocumentModel = (code: string, token?: string) => api<DocumentModel>(`/api/document-models/${encodeURIComponent(code)}`, token);
@@ -173,7 +233,8 @@ export const loadDocument = async (binding: DocumentBinding, id: string, token?:
   normalizeDocument(binding, await api<RawDocument>(`${binding.base}/${encodeURIComponent(id)}/document`, token));
 export const loadSampleDocument = async (binding: DocumentBinding, state: string, token?: string) =>
   normalizeDocument(binding, await api<RawDocument>(`/api/document-models/${encodeURIComponent(binding.code)}/sample?state=${encodeURIComponent(state)}`, token));
-export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) => api<CustomFieldDefinition[]>(`${binding.base}/custom-fields`, token);
+export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) =>
+  binding.customFields === false ? Promise.resolve([] as CustomFieldDefinition[]) : api<CustomFieldDefinition[]>(`${binding.base}/custom-fields`, token);
 
 export const fillLine = (code: string, field: string, value: string, token?: string) =>
   api<{ values: Record<string, unknown> }>(`/api/document-models/${encodeURIComponent(code)}/fill`, token,
@@ -183,18 +244,25 @@ export const previewDocument = (binding: DocumentBinding, body: Record<string, u
   api<OrderPreview>(`${binding.base}/preview`, token, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
 
 export const saveDocument = (binding: DocumentBinding, id: string | null, body: Record<string, unknown>, token?: string) =>
-  api<{ id: string }>(id ? `${binding.base}/${encodeURIComponent(id)}` : binding.base, token,
+  api<{ id: string }>(id ? `${binding.writeBase ?? binding.base}/${encodeURIComponent(id)}` : binding.writeBase ?? binding.base, token,
     { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) =>
-  api<unknown>(`${binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
+  api<unknown>(`${binding.transitionBases?.[code] ?? binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason }) });
 
 export async function searchOptions(operation: string, text: string, token?: string): Promise<LookupRow[]> {
   const route = OPTION_ROUTES[operation];
   if (!route) return [];
   const result = await api<{ items?: LookupRow[] } | LookupRow[]>(`${route}?q=${encodeURIComponent(text)}&pageSize=20`, token);
-  return Array.isArray(result) ? result : result.items ?? [];
+  const rows = Array.isArray(result) ? result : result.items ?? [];
+  // Vergi profili kodla seçilir (sunucu profili `accountingProfileCode` ile arar) ve liste süzülmeden gelir.
+  if (operation === PROFILE_OPERATION) {
+    const needle = text.trim().toLocaleLowerCase("tr-TR");
+    return (rows as unknown as { profileCode: string; name: string }[]).filter((r) => !needle || `${r.profileCode} ${r.name}`.toLocaleLowerCase("tr-TR").includes(needle))
+      .map((r) => ({ id: r.profileCode, code: r.profileCode, name: r.name }));
+  }
+  return rows;
 }
 
 export const lookupLabel = (row: LookupRow) => [row.code, row.name ?? row.fullName].filter(Boolean).join(" · ");

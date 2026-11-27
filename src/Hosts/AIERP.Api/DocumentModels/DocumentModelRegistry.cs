@@ -7,6 +7,8 @@ internal static class DocumentModelRegistry
     {
         SalesOrderDocumentModel.Code => SalesOrderDocumentModel.Model,
         SalesQuoteDocumentModel.Code => SalesQuoteDocumentModel.Model,
+        SalesInvoiceDocumentModel.Code => SalesInvoiceDocumentModel.Model,
+        SalesDeliveryDocumentModel.Code => SalesDeliveryDocumentModel.Model,
         _ => null
     };
 }

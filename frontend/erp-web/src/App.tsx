@@ -691,6 +691,8 @@ function AppContent() {
       "sales-order-create": "Yeni Sipariş",
       "sales-order-document": "Sipariş Belgesi",
       "sales-quote-document": "Teklif Belgesi",
+      "sales-invoice-document": "Fatura Belgesi",
+      "sales-delivery-document": "İrsaliye Belgesi",
       "sales-purchase-order-create": "Yeni satınalma siparişi",
       "sales-invoices": "Satış Faturaları",
       "sales-invoice-create": "Yeni Fatura",
