@@ -44,7 +44,12 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
     private static object G(string id, string type, object[] children, object? props = null) => new { id, type, name = id, props = props ?? new { }, children };
     private static object Table() => C("tablo", "dataTable", new { query = "liste" });
 
-    private static string Standard(string key) => SystemPageStandards.All[key].DefinitionJson;
+    /// <summary>The four standards moved to the List template (5b-2 dalga 1) are read from their pre-conversion fixtures.</summary>
+    private static readonly HashSet<string> Templated = ["sales-orders", "sales-invoices", "inventory-cost", "inventory-tracking"];
+
+    private static string Standard(string key) => Templated.Contains(key)
+        ? File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TemplatedStandardsFixtures", key + "-before.json"))
+        : SystemPageStandards.All[key].DefinitionJson;
 
     private static JsonObject Find(string json, string id)
     {

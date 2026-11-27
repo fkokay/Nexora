@@ -20,7 +20,8 @@ describe("Stok Değerleme standardı tasarımcıda", () => {
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const key of Object.keys(component.props)) expect(managedKeys.has(key), `${component.id}.${key}`).toBe(true);
+      // Kalıplı standartta 'slot' kalıp yerleşimidir (kalıp panelleri yönetir), ham alan değildir.
+      for (const key of Object.keys(component.props)) expect(managedKeys.has(key) || (!!standard.definition.template && key === "slot"), `${component.id}.${key}`).toBe(true);
     }
   });
   for (const queryEditable of [false, true]) it(`uzlaştırma özellik ve çocuk silmez (sorgu düzenleme: ${queryEditable})`, () => {

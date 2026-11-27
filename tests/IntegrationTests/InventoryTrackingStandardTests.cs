@@ -11,10 +11,11 @@ public sealed class InventoryTrackingStandardTests
     private const string Key = "inventory-tracking";
 
     [Fact]
-    public void Header_is_preview_version_1()
+    public void Header_is_preview_version_2()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(1, standard.Version);
+        // v2: Liste kalıbına taşındı (5b-2 dalga 1); öğeler v1'de kalır.
+        Assert.Equal(2, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Lot / Seri İzleme", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
@@ -48,8 +49,8 @@ public sealed class InventoryTrackingStandardTests
     {
         var props = Props("liste");
         Assert.Equal(("bakiye", "server", 50), ((string)props["query"]!, (string)props["paging"]!, (int)props["pageSize"]!));
-        Assert.Equal(8, (int)props["width"]!);
-        Assert.Equal(4, (int)Props("detayKarti")["width"]!);
+        // Liste kalıbı: genişlik yok; liste 'list', detay kartı 'detail' yerinde (eski 8/4 yerleşimi).
+        Assert.Equal(("list", "detail"), ((string)props["slot"]!, (string)Props("detayKarti")["slot"]!));
         Assert.Equal("Aktif lot veya seri bakiyesi bulunamadı.", (string)props["emptyText"]!);
         var expected = new Dictionary<string, string>
         {

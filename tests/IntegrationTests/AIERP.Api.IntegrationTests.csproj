@@ -32,6 +32,7 @@
     <None Include="Fixtures\Belge\*.json" Link="BelgeFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\FreeBody\*.json" Link="FreeBodyFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\TemplateDialogs\*.json" Link="TemplateDialogsFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\TemplatedStandards\*.json" Link="TemplatedStandardsFixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\SystemPageCopies\*.json" Link="SystemPageCopies\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\conditions.vectors.json" Link="PageConditionVectors.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\frontend\erp-web\src\custom-page\gridColumns.vectors.json" Link="GridColumnVectors.json" CopyToOutputDirectory="PreserveNewest" />

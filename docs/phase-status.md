@@ -1,4 +1,16 @@
 # Master Prompt Phase Status
+### 2026-11-27 5b-2 dalga 1: 4 standart kalıba taşındı
+
+Branch `claude/standart-tasima-1`; not merged. No migration.
+
+- `sales-orders` (v6), `sales-invoices` (v3), `inventory-cost` (v2), `inventory-tracking` (v2): the embedded `definition` is the converter's List-template output (`PageTemplateMigration.Classify`, run once from the pre-conversion definitions kept in `tests/IntegrationTests/Fixtures/TemplatedStandards/<key>-before.json`); title, items, screen views and updates unchanged, `version` +1, `stage` unchanged. `TemplatedStandardsTests` checks the four load in `SystemPageStandards` as `list` template pages and every restricted version validates.
+- Required updates (`sales-orders` `zincir`/`rozet`/`etiket`) still apply to templateless firm copies; the components they add now carry an inert `slot` (ignored on templateless pages) — tests compare without `slot`/`width`.
+- ERP standard tests for the four now render the template shell: the sales harness finds commands in the shell's "İşlemler" toolbar; inventory-tracking's 8/4 width pins became list/detail slot checks. Studio standard tests accept `slot` on templated standards.
+
+Verified (InMemory): integration filter PageTemplate|SystemPage|Sales|Inventory|TemplatedStandards 1015 passed, 7 skipped (SQL acceptance), 0 failed; erp-web standard tests for the four + sales-quotes/deliveries + legacyUnchanged 43/43, `npm run build`; development-studio standard/dialog tests touching these keys 46/46, `npm run build`.
+
+Not verified: full unit/integration/frontend suites (CI); browser pass; live. Firm copies (ScreenKey rows) of these standards are **not** migrated: the runner's system-page skip is unchanged (user decision pending: reset copies to standard). Templateless copies get no "Yeni" offers from these templated standards (`SystemPageMerge.NewItems` template guard).
+
 ### 2026-11-27 5b-2 adım 2 — Pencere ve grup
 
 Plan `docs/superpowers/plans/2026-11-27-pencere-grup-5b2b.md`, spec `docs/superpowers/specs/2026-11-27-pencere-grup-5b2b-design.md`, mockup 12. Branch `claude/kalip-pencere-grup`; not merged. No migration.
