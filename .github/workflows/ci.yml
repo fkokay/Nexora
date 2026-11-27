@@ -15,10 +15,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dotnet-test:
-    name: .NET tests
+  # .NET tests are sharded to shorten feedback time. Every test runs exactly once:
+  #   unit   -> tests/UnitTests project (all tests)
+  #   integ1 -> IntegrationTests classes whose name starts with T, G, L, O or W
+  #   integ2 -> IntegrationTests classes whose name starts with A-F, H, I, M or R (listed explicitly)
+  #   integ3 -> the COMPLEMENT of integ1 + integ2 (`!~` terms joined with `&`), so any class
+  #             that is not matched by the explicit prefix lists (new letters, other namespaces)
+  #             still runs here and can never be missed.
+  # Balance (approx. [Fact]/[Theory] counts): by listed tests: integ1 709, integ2 820, integ3 773 (2302 total).
+  # If a shard grows, move letters between integ1 and integ2 only; integ3 stays the complement.
+  dotnet-tests:
+    name: .NET tests (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: unit
+            project: tests/UnitTests/AIERP.Platform.UnitTests
+            filter: ""
+          - shard: integration-1
+            project: tests/IntegrationTests
+            filter: "FullyQualifiedName~AIERP.Api.IntegrationTests.T|FullyQualifiedName~AIERP.Api.IntegrationTests.G|FullyQualifiedName~AIERP.Api.IntegrationTests.L|FullyQualifiedName~AIERP.Api.IntegrationTests.O|FullyQualifiedName~AIERP.Api.IntegrationTests.W"
+          - shard: integration-2
+            project: tests/IntegrationTests
+            filter: "FullyQualifiedName~AIERP.Api.IntegrationTests.A|FullyQualifiedName~AIERP.Api.IntegrationTests.B|FullyQualifiedName~AIERP.Api.IntegrationTests.C|FullyQualifiedName~AIERP.Api.IntegrationTests.D|FullyQualifiedName~AIERP.Api.IntegrationTests.E|FullyQualifiedName~AIERP.Api.IntegrationTests.F|FullyQualifiedName~AIERP.Api.IntegrationTests.H|FullyQualifiedName~AIERP.Api.IntegrationTests.I|FullyQualifiedName~AIERP.Api.IntegrationTests.M|FullyQualifiedName~AIERP.Api.IntegrationTests.R"
+          - shard: integration-3
+            project: tests/IntegrationTests
+            filter: "FullyQualifiedName!~AIERP.Api.IntegrationTests.T&FullyQualifiedName!~AIERP.Api.IntegrationTests.G&FullyQualifiedName!~AIERP.Api.IntegrationTests.L&FullyQualifiedName!~AIERP.Api.IntegrationTests.O&FullyQualifiedName!~AIERP.Api.IntegrationTests.W&FullyQualifiedName!~AIERP.Api.IntegrationTests.A&FullyQualifiedName!~AIERP.Api.IntegrationTests.B&FullyQualifiedName!~AIERP.Api.IntegrationTests.C&FullyQualifiedName!~AIERP.Api.IntegrationTests.D&FullyQualifiedName!~AIERP.Api.IntegrationTests.E&FullyQualifiedName!~AIERP.Api.IntegrationTests.F&FullyQualifiedName!~AIERP.Api.IntegrationTests.H&FullyQualifiedName!~AIERP.Api.IntegrationTests.I&FullyQualifiedName!~AIERP.Api.IntegrationTests.M&FullyQualifiedName!~AIERP.Api.IntegrationTests.R"
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
@@ -26,8 +51,29 @@ jobs:
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.0.0
         with:
           dotnet-version: 10.0.402
-      - name: Test solution
-        run: dotnet test AIERP.slnx --configuration Release --verbosity minimal -m:1
+      - name: Test shard
+        env:
+          TEST_PROJECT: ${{ matrix.project }}
+          TEST_FILTER: ${{ matrix.filter }}
+        run: |
+          args=(test "$TEST_PROJECT" --configuration Release --verbosity minimal -m:1)
+          if [ -n "$TEST_FILTER" ]; then args+=(--filter "$TEST_FILTER"); fi
+          dotnet "${args[@]}"
+
+  # Summary check that keeps the historical ".NET tests" name: succeeds only if all shards succeeded.
+  dotnet-test:
+    name: .NET tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: dotnet-tests
+    if: ${{ always() }}
+    steps:
+      - name: Require all shards to pass
+        env:
+          RESULT: ${{ needs.dotnet-tests.result }}
+        run: |
+          echo "Shard result: $RESULT"
+          test "$RESULT" = "success"
 
   frontend-build:
     name: Frontend build (${{ matrix.app }})
