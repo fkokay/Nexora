@@ -1740,6 +1740,16 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanan (yerel):** Beş standart yüklenir, şemadan ve her sürüm kısıtlamasından geçer; ilgili .NET testleri (etkilenen sınıflar), tam ERP ve Studio vitest paketleri ve iki arayüzün `npm run build`'i geçti (Studio paketinde `tests/*.mjs` dosyalarının vitest'te toplanması ve yük altında zaman aşımına uğrayan bir pencere testi bu işten bağımsızdır). `legacyUnchanged` anlık görüntüleri artık cari standartlarının eski (dondurulmuş) kopyalarından çizilir.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
 
+## İK ve Dış Ticaret: 2. dalga, üç standart kalıba çizildi
+
+- **Ne değişti:** `hr-leave-requests`, `foreign-trade` (Liste) ve `foreign-trade-case` (Kayıt kartı) sürüm 2 olarak elle kalıba yazıldı; kalıba yeni özellik eklenmedi. Tasarım: `docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md`.
+  - `hr-leave-requests`: Onayla / Reddet / İptal et tek kez, seçili talebin kart grubunda; komut çubuğunda yalnız İzin talebi ve Excel. İkinci Reddet düğmesi ve `reddetPanel` sorgusu kalktı. Durum (varsayılan Bekliyor), tür, personel ve tarih aralığı üstte tek süzgeç kartında.
+  - `foreign-trade`: arama, yön ve aşama süzgeç alanında; dört gösterge (toplam, sevkte, ulaştı, kapandı); aşama düğmeleri `visibleWhen` ile aşamada tek görünür; sevk, gümrük, varış ve stok belgesi pencereleri aynı. Eski ekran, detay paneli, çipler ve özet metin kalktı.
+  - `foreign-trade-case`: üç sekme (Dosya, Değer ve planlama, Referanslar ve not), tek özet ve iki "sipariş yok" uyarısı yerine tek koşullu uyarı.
+- **Basitleştirmeler:** "Açık" göstergesi yerine "Sevkte" kondu (özet sorgusu açık sayısını vermiyor, kalıpta toplama yok). Aşama rozetleri kayıt kartında yedi ayrı rozet olarak kaldı (özet aşama etiketini eşleyemiyor). Reddet için ayrı pencere yerine mevcut gerekçe sorusu korundu. Personel seçicinin gizli durum ve sayfa boyutu girdileri korundu (sorgu sabit değer bağlayamıyor).
+- **Doğrulanan:** standartlar yüklenir ve şemadan geçer; İK ve Dış Ticaret .NET testleri, ERP ve Studio vitest, iki arayüzün derlemesi.
+- **Doğrulanmayan:** canlıda görsel kontrol ve dar ekran düzeni; firma kopyalarının standarda sıfırlanması bu işin dışındadır.
+
 
 ### 2026-11-28 satın alma yeniden tasarım, 1. dalga: üç standart kalıba çizildi
 

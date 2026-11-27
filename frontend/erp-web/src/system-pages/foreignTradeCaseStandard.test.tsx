@@ -79,7 +79,7 @@ function setup(params: Record<string, string> = {}) {
 }
 
 const T = { timeout: 10000 };
-const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+const bar = () => screen.getByRole('toolbar', { name: /^İşlemler/ });
 const command = (name: string) => bar().querySelector<HTMLElement>(`[data-command="${name}"]`);
 const ready = (name: string) => waitFor(() => expect(command(name)?.getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -102,6 +102,8 @@ const openCard = async () => {
   setup({ id: F1 });
   await waitFor(() => expect(input('referans').value).toBe('IMP-2026-001'), T);
 };
+// Sekmeler: Dosya (varsayılan), Değer ve planlama, Referanslar ve not; yalnız seçili sekmenin alanları çizilir.
+const goTo = (name: string) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
 const fillRoute = () => {
   type('cikisUlkesi', 'de');
   type('varisUlkesi', 'tr');
@@ -137,8 +139,7 @@ describe('Dış ticaret dosyası standart tanımı', { timeout: 30000 }, () => {
   it('new without a direction parameter is an export with the sales order lookup; no card read', async () => {
     await openNew();
     expect(input('yon').value).toBe('Export');
-    await waitFor(() => expect(text()).toContain('İhracat dosyası oluştur'), T);
-    expect(text()).toContain('Sipariş, firma veritabanında doğrulanır ve referans değişiklikleri denetlenir.');
+    await waitFor(() => expect(text()).toContain('Dış ticaret dosyası'), T);
     expect(calls.filter((call) => call.url.startsWith(`/api/foreign-trade/cases/`))).toEqual([]);
     expect(screen.queryByRole('combobox', { name: /Bağlı satın alma siparişi/ })).toBeNull();
     expect(await screen.findByRole('combobox', { name: /Bağlı satış siparişi/ }, T)).toBeTruthy();
@@ -148,13 +149,13 @@ describe('Dış ticaret dosyası standart tanımı', { timeout: 30000 }, () => {
   it('new import: direction param, purchase order lookup, empty declared value and dotted HS code; back to the list', async () => {
     await openNew({ direction: 'Import' });
     expect(input('yon').value).toBe('Import');
-    await waitFor(() => expect(text()).toContain('İthalat dosyası oluştur'), T);
     await pickOrder(/Bağlı satın alma siparişi/, /^PO-001 · Berlin Makine GmbH/);
     type('referans', 'imp-2026-001');
     fillRoute();
     fireEvent.change(input('incoterms'), { target: { value: 'FOB' } });
     type('hsKodu', '8443.32');
     type('tasima', 'Sea');
+    goTo('Değer ve planlama');
     type('planlananSevk', '2026-12-01');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(posts()).toHaveLength(1), T);
@@ -178,6 +179,7 @@ describe('Dış ticaret dosyası standart tanımı', { timeout: 30000 }, () => {
     type('referans', 'EXP-1');
     type('cikisUlkesi', 'TR');
     type('varisUlkesi', 'DE');
+    goTo('Değer ve planlama');
     type('beyanDegeri', '99000');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(posts()).toHaveLength(1), T);
@@ -195,26 +197,26 @@ describe('Dış ticaret dosyası standart tanımı', { timeout: 30000 }, () => {
     expect(posts()).toEqual([]);
   });
 
-  it('new: an empty option list shows the legacy hint of the active direction', async () => {
+  it('new: an empty option list of the active direction shows the single order hint', async () => {
     importOrders = [];
     await openNew({ direction: 'Import' });
-    await waitFor(() => expect(text()).toContain('İthalat dosyası için seçilebilir satın alma siparişi bulunamadı.'), T);
-    expect(text()).not.toContain('İhracat dosyası için seçilebilir satış siparişi bulunamadı.');
+    await waitFor(() => expect(text()).toContain('Seçilebilir sipariş bulunamadı.'), T);
     fireEvent.change(input('yon'), { target: { value: 'Export' } });
-    await waitFor(() => expect(text()).not.toContain('İthalat dosyası için seçilebilir satın alma siparişi bulunamadı.'), T);
+    await waitFor(() => expect(text()).not.toContain('Seçilebilir sipariş bulunamadı.'), T);
   });
 
   it('edit: loads via getir, keeps direction and order read-only and PUTs the source-backed body', async () => {
     await openCard();
-    await waitFor(() => expect(text()).toContain('İthalat dosyasını düzenle'), T);
-    expect(text()).toContain('PO-001 · Berlin Makine GmbH (değiştirilemez)');
+    await waitFor(() => expect(text()).toContain('PO-001 · Berlin Makine GmbH (değiştirilemez)'), T);
     expect(screen.getAllByText('Taslak').length).toBeGreaterThan(0);
     expect(input('yon').disabled).toBe(true);
     expect(screen.queryByRole('combobox', { name: /Bağlı satın alma siparişi/ })).toBeNull();
     expect(input('cikisUlkesi').value).toBe('DE');
     expect(input('tasima').value).toBe('Sea');
+    goTo('Değer ve planlama');
     expect(input('beyanDegeri').value).toBe('125000');
     await ready('save');
+    goTo('Referanslar ve not');
     type('tasiyiciReferansi', 'MSKU-9');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(puts()).toHaveLength(1), T);
