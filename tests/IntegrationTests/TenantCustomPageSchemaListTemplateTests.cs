@@ -119,7 +119,7 @@ public sealed class TenantCustomPageSchemaListTemplateTests
     {
         object Panel(string id) => new { id, type = "contextPanel", name = id, props = new { slot = "detail", table = "t1", fields = new[] { "x=X" } } };
         Accepted(Page(Template, [List(), Panel("p1")]));
-        Rejected(Page(Template, [List(), Panel("p1"), Panel("p2")]), "en fazla bir detay paneli");
+        Rejected(Page(Template, [List(), Panel("p1"), Panel("p2")]), "Liste kalıbında detay yerinde en fazla bir bileşen (detay paneli ya da kart) olabilir.");
     }
 
     [Fact]

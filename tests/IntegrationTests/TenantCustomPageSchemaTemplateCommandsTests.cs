@@ -156,8 +156,8 @@ public sealed class TenantCustomPageSchemaTemplateCommandsTests
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
         Rejected(Page("list", [Bar(new { newButton = "yeniTeklif" }), ListTable(), Button("yeniTeklif", slot: "below")]),
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
-        // Nested in a card.
-        var card = new { id = "kart", type = "card", name = "kart", props = new { slot = "above" }, children = new[] { new { id = "yeniTeklif", type = "button", name = "yeniTeklif", props = new { label = "Teklif", actionType = "erpPage", pageKey = "sales-quotes" } } } };
+        // Nested in a card (a Liste detail card group: groups elsewhere are refused earlier by the group rule).
+        var card = new { id = "kart", type = "card", name = "kart", props = new { slot = "detail" }, children = new[] { new { id = "yeniTeklif", type = "button", name = "yeniTeklif", props = new { label = "Teklif", actionType = "erpPage", pageKey = "sales-quotes" } } } };
         Rejected(Page("list", [Bar(new { openButton = "yeniTeklif" }), ListTable(), card]), "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");
         Rejected(Page("record", [Bar(new { saveQuery = "kaydet", afterSaveButton = "yeniTeklif" }), .. RecordBody(), Button("yeniTeklif", slot: "above")]),
             "Komutların bağladığı düğme 'actions' yerinde olmalı: yeniTeklif.");

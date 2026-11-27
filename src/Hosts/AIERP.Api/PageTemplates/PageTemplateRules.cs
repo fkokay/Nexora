@@ -107,20 +107,103 @@ internal static class PageTemplateRules
         return BarButtons(bar).FirstOrDefault(id => !placed.Contains(id)) is { } wrong ? KomutDugmesi(wrong) : null;
     }
 
+    /// <summary>The slot of a templated page's top-level windows (5b-2 adım 2): legacy <c>dialog</c> components, settings unchanged.</summary>
+    internal const string DialogsSlot = "dialogs";
+
+    /// <summary>The slot of a window's contents: the components its <c>contains</c> and its own <c>tabs</c> point at.</summary>
+    internal const string DialogSlot = "dialog";
+
+    /// <summary>The component types a window may hold (top-level, in the <c>dialog</c> slot).</summary>
+    internal static readonly IReadOnlySet<string> DialogPartTypes = new HashSet<string>(StringComparer.Ordinal)
+    { "recordHeader", "section", "card", "formCard", "input", "text", "alert", "metric", "button", "dataTable", "tabs" };
+
+    /// <summary>The component types a one-level group (<c>section</c>/<c>card</c> + <c>children</c>) may hold.</summary>
+    internal static readonly IReadOnlySet<string> GroupChildTypes = new HashSet<string>(StringComparer.Ordinal)
+    { "badge", "heading", "text", "metric", "alert", "button", "formCard", "dataTable", "contextPanel", "tabs" };
+
+    internal const string PencereYeri = "Kalıplı sayfada pencere (dialog) yalnız üst düzeyde, 'dialogs' yerinde durur.";
+    internal const string PencereBelge = "Belge kalıbında pencere (dialog) kullanılamaz.";
+    internal const string PencereSunum = "Kalıplı sayfada pencere yalnız 'dialog' sunumuyla ve sm, md, lg ya da xl boyutunda olur.";
+    internal static string PencereIcerigi(string id) => $"Pencerenin içeriği tam bir pencereye ait olmalı ve 'dialog' yerinde durmalı: {id}.";
+    internal static string PencereTuru(string type) => $"{type} pencerenin içinde kullanılamaz.";
+    internal const string PencereOzet = "Bir pencerede en fazla bir kayıt özeti (recordHeader) olabilir.";
+    internal const string PencereSekme = "Bir pencerede en fazla bir sekme bileşeni (tabs) olabilir.";
+    internal const string GrupYeri = "İç içe bileşenler (children) yalnız pencerenin içindeki ya da Liste detayındaki bölüm ve kartta olabilir.";
+    internal const string GrupIcIce = "Grubun içine grup ya da pencere konamaz.";
+    internal static string GrupTuru(string type) => $"{type} grubun içinde kullanılamaz.";
+    internal const string TekDetay = "Liste kalıbında detay yerinde en fazla bir bileşen (detay paneli ya da kart) olabilir.";
+
+    /// <summary>
+    /// Window ownership, independent of slots: component id → window id for every id a top-level <c>dialog</c>'s <c>contains</c>
+    /// lists, plus the ids the tabs inside that window (a contained <c>tabs</c>, or a <c>tabs</c> child of a contained group) point at.
+    /// An id two windows claim is left out.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> DialogOwners(JsonElement components) => DialogOwners(components, out _);
+
+    /// <inheritdoc cref="DialogOwners(JsonElement)"/>
+    /// <param name="error"><see cref="PencereIcerigi"/> of the first id two windows claim, else null.</param>
+    internal static IReadOnlyDictionary<string, string> DialogOwners(JsonElement components, out string? error)
+    {
+        error = null;
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (components.ValueKind != JsonValueKind.Array) return owners;
+        var byId = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var component in components.EnumerateArray())
+            if (component.ValueKind == JsonValueKind.Object && Id(component) is { } id) byId.TryAdd(id, component);
+
+        var shared = new List<string>();
+        foreach (var dialog in components.EnumerateArray().Where(x => TypeOf(x) == "dialog"))
+        {
+            if (Id(dialog) is not { } dialogId) continue;
+            var owned = new List<string>();
+            foreach (var id in StringArray(dialog, "contains"))
+            {
+                owned.Add(id);
+                if (!byId.TryGetValue(id, out var part)) continue;
+                if (TypeOf(part) == "tabs") owned.AddRange(TabIds(part));
+                foreach (var child in Children(part).Where(x => TypeOf(x) == "tabs")) owned.AddRange(TabIds(child));
+            }
+            foreach (var id in owned.Distinct(StringComparer.Ordinal))
+                if (!owners.TryAdd(id, dialogId) && owners[id] != dialogId && !shared.Contains(id)) shared.Add(id);
+        }
+        foreach (var id in shared) owners.Remove(id);
+        if (shared.Count > 0) error = PencereIcerigi(shared[0]);
+        return owners;
+    }
+
+    private static string? TypeOf(JsonElement component) =>
+        component.ValueKind == JsonValueKind.Object && component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String ? type.GetString() : null;
+
+    private static IEnumerable<JsonElement> Children(JsonElement component) =>
+        component.ValueKind == JsonValueKind.Object && component.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array
+            ? children.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.Object).ToArray()
+            : [];
+
+    private static bool HasChildren(JsonElement component) =>
+        component.ValueKind == JsonValueKind.Object && component.TryGetProperty("children", out var children)
+        && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() > 0;
+
+    /// <summary>The ids a tabs component's <c>Etiket=id1,id2</c> items point at.</summary>
+    private static IEnumerable<string> TabIds(JsonElement tabs) =>
+        StringArray(tabs, "tabs").SelectMany(item => item.Split('=', 2) is [_, var ids] && ids.Length > 0 ? ids.Split(',') : []);
+
     internal static readonly IReadOnlySet<string> Slots = new HashSet<string>(StringComparer.Ordinal)
-    { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", CommandsSlot };
+    { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
 
     internal static readonly IReadOnlySet<string> RecordSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", CommandsSlot };
+    { "summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
 
     internal static readonly IReadOnlySet<string> FreeSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "actions", "tabs", "block", "item", CommandsSlot };
+    { "actions", "tabs", "block", "item", CommandsSlot, DialogsSlot, DialogSlot };
 
     private static readonly Dictionary<string, string> SlotTypes = new(StringComparer.Ordinal)
     {
         ["indicators"] = "metric", ["filters"] = "filterBar", ["list"] = "dataTable", ["actions"] = "button",
-        ["rowActions"] = "button", ["detail"] = "contextPanel", [CommandsSlot] = "actionBar"
+        ["rowActions"] = "button", [CommandsSlot] = "actionBar"
     };
+
+    /// <summary>Liste's detail: one context panel or one card group.</summary>
+    private static readonly string[] DetailTypes = ["contextPanel", "card"];
 
     private static readonly Dictionary<string, string> RecordSlotTypes = new(StringComparer.Ordinal)
     {
@@ -202,11 +285,14 @@ internal static class PageTemplateRules
     private static string? ValidateList(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedList;
-        if (Place(components, Slots, out var placed) is { } placeError) return placeError;
+        if (PlaceWithDialogs(components, Slots, "list", out var placed) is { } placeError) return placeError;
 
         foreach (var (_, slot, type) in placed)
+        {
             if (SlotTypes.TryGetValue(slot, out var expected) && type != expected) return WrongPart(slot, type, expected);
-        if (placed.Count(x => x.Slot == "detail") > 1) return "Kalıplı sayfada en fazla bir detay paneli (contextPanel) olabilir.";
+            if (slot == "detail" && !DetailTypes.Contains(type)) return WrongPart(slot, type, string.Join(", ", DetailTypes));
+        }
+        if (placed.Count(x => x.Slot == "detail") > 1) return TekDetay;
 
         var lists = placed.Where(x => x.Slot == "list").ToArray();
         if (lists.Length != 1) return NeedList;
@@ -228,7 +314,7 @@ internal static class PageTemplateRules
     private static string? ValidateRecord(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedSummary;
-        if (Place(components, RecordSlots, out var placed) is { } placeError) return placeError;
+        if (PlaceWithDialogs(components, RecordSlots, "record", out var placed) is { } placeError) return placeError;
 
         foreach (var (_, slot, type) in placed)
             if (RecordSlotTypes.TryGetValue(slot, out var expected) && type != expected) return WrongPart(slot, type, expected);
@@ -287,6 +373,7 @@ internal static class PageTemplateRules
     private static string? ValidateBelge(JsonElement root, JsonElement components)
     {
         if (components.ValueKind == JsonValueKind.Array && components.EnumerateArray().Any(HasActionBar)) return BelgeKomut;
+        if (components.ValueKind == JsonValueKind.Array && components.EnumerateArray().Any(HasDialog)) return PencereBelge;
         if (DocumentModelRegistry.Find(DocumentCode(root)) is not { } model) return UnknownDocument;
         if (components.ValueKind != JsonValueKind.Array) return Need("documentFields");
         if (Place(components, BelgeSlots, out var placed) is { } placeError) return placeError;
@@ -311,6 +398,8 @@ internal static class PageTemplateRules
         component.ValueKind == JsonValueKind.Object
         && (component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "actionBar"
             || component.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array && children.EnumerateArray().Any(HasActionBar));
+
+    private static bool HasDialog(JsonElement component) => TypeOf(component) == "dialog" || Children(component).Any(HasDialog);
 
     private static string Need(string part) => $"Belge kalıbında tam bir '{part}' bileşeni olmalı.";
 
@@ -376,13 +465,15 @@ internal static class PageTemplateRules
     private static string? ValidateFree(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedBlock;
+        // Groups live only in a window's contents (slot dialog); PlaceWithDialogs checks them there.
         foreach (var component in components.EnumerateArray())
-            if (component.ValueKind == JsonValueKind.Object && component.TryGetProperty("children", out var children)
-                && children.ValueKind == JsonValueKind.Array && children.GetArrayLength() > 0) return FreeNoChildren;
-        if (Place(components, FreeSlots, out var placed) is { } placeError) return placeError;
+            if (HasChildren(component) && !(component.TryGetProperty("props", out var childProps) && StringProp(childProps, "slot") == DialogSlot))
+                return FreeNoChildren;
+        if (PlaceWithDialogs(components, FreeSlots, "free", out var placed) is { } placeError) return placeError;
 
         foreach (var (component, slot, type) in placed)
         {
+            if (slot is DialogsSlot or DialogSlot) continue;
             // A developer component (code + catalogComponent) may be an item; inline code may not.
             if (slot == "item" && type == "code")
             {
@@ -459,6 +550,54 @@ internal static class PageTemplateRules
         foreach (var (component, _, _) in placed)
             if (Scan(component, topLevel: true) is { } scanError) return scanError;
         if (placed.Count(x => x.Type == "actionBar") > 1) return KomutYeri;
+        return null;
+    }
+
+    /// <summary>
+    /// <see cref="Place"/> for Liste, Kayıt kartı and Serbest, then the window and group rules: a <c>dialog</c> only in <c>dialogs</c>
+    /// with the <c>dialog</c> presentation and an sm–xl size; every window content (<see cref="DialogOwners"/>) in the <c>dialog</c> slot
+    /// and nothing else there; at most one summary and one tabs per window; groups only in window contents and Liste's detail, one level.
+    /// </summary>
+    private static string? PlaceWithDialogs(JsonElement components, IReadOnlySet<string> slots, string template,
+        out List<(JsonElement Component, string Slot, string Type)> placed)
+    {
+        if (Place(components, slots, out placed) is { } placeError) return placeError;
+        foreach (var (component, slot, type) in placed)
+        {
+            if (type == "dialog" && slot != DialogsSlot) return PencereYeri;
+            if (slot == DialogsSlot && type != "dialog") return WrongPart(slot, type, "dialog");
+            if (type == "dialog" && component.TryGetProperty("props", out var props)
+                && (props.TryGetProperty("presentation", out _) && StringProp(props, "presentation") != "dialog"
+                    || props.TryGetProperty("size", out _) && StringProp(props, "size") is not ("sm" or "md" or "lg" or "xl")))
+                return PencereSunum;
+        }
+
+        var owners = DialogOwners(components, out var sharedError);
+        if (sharedError is not null) return sharedError;
+        foreach (var (component, slot, type) in placed)
+        {
+            var id = Id(component) ?? "";
+            if (owners.ContainsKey(id) != (slot == DialogSlot)) return PencereIcerigi(id);
+            if (slot == DialogSlot && !DialogPartTypes.Contains(type)) return PencereTuru(type);
+        }
+        foreach (var window in owners.GroupBy(x => x.Value, x => x.Key))
+        {
+            var parts = placed.Where(x => window.Contains(Id(x.Component) ?? "")).ToArray();
+            if (parts.Count(x => x.Type == "recordHeader") > 1) return PencereOzet;
+            if (parts.Count(x => x.Type == "tabs") + parts.SelectMany(x => Children(x.Component)).Count(x => TypeOf(x) == "tabs") > 1) return PencereSekme;
+        }
+
+        foreach (var (component, slot, _) in placed)
+        {
+            if (!HasChildren(component)) continue;
+            if (!(slot == DialogSlot || template == "list" && slot == "detail")) return template == "free" ? FreeNoChildren : GrupYeri;
+            foreach (var child in Children(component))
+            {
+                var childType = TypeOf(child) ?? "";
+                if (childType is "section" or "card" or "dialog" || child.TryGetProperty("children", out _)) return GrupIcIce;
+                if (!GroupChildTypes.Contains(childType)) return GrupTuru(childType);
+            }
+        }
         return null;
     }
 
