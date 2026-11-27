@@ -595,10 +595,12 @@ internal static class PageTemplateRules
             if (parts.Count(x => x.Type == "tabs") + parts.SelectMany(x => Children(x.Component)).Count(x => TypeOf(x) == "tabs") > 1) return PencereSekme;
         }
 
-        foreach (var (component, slot, _) in placed)
+        foreach (var (component, slot, type) in placed)
         {
             if (!HasChildren(component)) continue;
             if (!(slot == DialogSlot || template == "list" && slot == "detail")) return template == "free" ? FreeNoChildren : GrupYeri;
+            // Only a section or a card is a group (the base schema refuses others too; this keeps the rules complete on their own).
+            if (type is not ("section" or "card")) return GrupYeri;
             foreach (var child in Children(component))
             {
                 var childType = TypeOf(child) ?? "";

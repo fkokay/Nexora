@@ -214,6 +214,26 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
         Rejected(Page("list", [ListTable(), G("grup", "section", "below", [Badge()])]), GrupYeri);
         Rejected(Page("record", [.. RecordBody(), G("grup", "card", "above", [Badge()])]), GrupYeri);
         Rejected(Page("free", [FreeBlock(), G("grup", "card", "item", [Badge()])]), FreeNoChildren);
+        // Only a section or a card is a group: another type with children is refused in the dialog contents and the Liste detail too.
+        // The base schema validator refuses it first with its own message; the template rules refuse it on their own as well.
+        string? TemplateError(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            return PageTemplateRules.ValidateTemplate(doc.RootElement, doc.RootElement.GetProperty("components"), doc.RootElement.GetProperty("queries"));
+        }
+        string[] notGroups =
+        [
+            Page("list", [ListTable(), Dialog(["metin"]), G("metin", "text", "dialog", [Badge()], new { text = "Metin" })]),
+            Page("record", [.. RecordBody(), Dialog(["tablo2"]), G("tablo2", "dataTable", "dialog", [Badge()], new { query = "kalemler" })]),
+            Page("free", [FreeBlock(), Dialog(["metin"]), G("metin", "text", "dialog", [Badge()], new { text = "Metin" })]),
+            Page("list", [ListTable(), G("panel", "contextPanel", "detail", [Badge()], new { table = "tablo", fields = new[] { "x=X" } })]),
+        ];
+        foreach (var json in notGroups)
+        {
+            Assert.Equal(GrupYeri, TemplateError(json));
+            Rejected(json, "Yalnızca section/card bileşenleri alt bileşen alabilir.");
+        }
+        Assert.Null(TemplateError(Page("list", [ListTable(), Dialog(["grup"]), G("grup", "card", "dialog", [Badge()])])));
         // Nested group or dialog in a group.
         Rejected(Page("list", [ListTable(), Dialog(["grup"]), G("grup", "section", "dialog", [C("ic", "section", null, new { title = "İç" })])]), GrupIcIce);
         Rejected(Page("list", [ListTable(), Dialog(["grup"]), G("grup", "section", "dialog", [G("ic", "card", null, [Badge()])])]), GrupIcIce);
