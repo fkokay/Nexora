@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AIERP.Platform.Infrastructure;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Xunit;
 
@@ -151,7 +152,7 @@ public sealed class TenantCustomPageCollectionParameterTests
     };
 
     /// <summary>Creates and publishes (AdminsOnly) a page with the SQL read q1 and the create query bound to a variant list.</summary>
-    private static async Task PublishCollectionPageAsync(HttpClient client)
+    private static async Task PublishCollectionPageAsync(WebApplication app, HttpClient client)
     {
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, CustomPageQueryEndpointsIntegrationTests.Admin, "TenantAdmin");
         var definition = new
@@ -160,7 +161,7 @@ public sealed class TenantCustomPageCollectionParameterTests
             queries = new[] { SqlRead(), Create(Param("variants", "{{varyant.satirlar}}", "list")) },
             components = CardInputs.Append(VariantGrid).ToArray()
         };
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = PageCode, name = "Stok kartı", definition });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, PageCode, "Stok kartı", definition);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{PageCode}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
@@ -173,7 +174,7 @@ public sealed class TenantCustomPageCollectionParameterTests
         var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: false);
         await using var app = await CustomPageQueryEndpointsIntegrationTests.StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishCollectionPageAsync(client);
+        await PublishCollectionPageAsync(app, client);
 
         var run = await client.PostAsJsonAsync($"/api/custom-pages/{PageCode}/queries/olustur/run",
             new { parameters = new { code = "A", name = "B", variants = new[] { new { code = "A-1", name = "B 1" } } } });
@@ -189,7 +190,7 @@ public sealed class TenantCustomPageCollectionParameterTests
         var factory = new CustomPageQueryEndpointsIntegrationTests.RecordingQueryConnectionFactory(unavailable: true);
         await using var app = await CustomPageQueryEndpointsIntegrationTests.StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishCollectionPageAsync(client);
+        await PublishCollectionPageAsync(app, client);
 
         var published = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{PageCode}/published");
         Assert.Contains("varyant.satirlar", published.GetProperty("definitionJson").GetString(), StringComparison.Ordinal);

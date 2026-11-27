@@ -181,7 +181,7 @@ internal sealed record MigrationReportPage(string Code, string Name, bool Publis
 internal sealed record MigrationReportStandard(string ScreenKey, int Version, string? Target, IReadOnlyList<string> Reasons);
 internal sealed record MigrationReportSummary(IReadOnlyDictionary<string, int> ByTarget, IReadOnlyDictionary<string, int> StandardsByTarget,
     IReadOnlyList<MigrationReportTenantCount> ByTenant, IReadOnlyList<MigrationReportReason> TopReasons);
-internal sealed record MigrationReportTenantCount(Guid TenantId, string Name, int List, int Free, int None);
+internal sealed record MigrationReportTenantCount(Guid TenantId, string Name, int List, int Record, int Free, int None);
 internal sealed record MigrationReportReason(string Reason, int Count);
 
 /// <summary>
@@ -208,6 +208,8 @@ internal sealed partial class PageTemplateMigrationRunner(
     private const string OpenDraftReason = PageTemplateMigration.OpenDraftReason;
     internal const string SystemPageReason = "Sistem sayfası; standartlar ayrı geçirilir.";
     internal const string DraftRowReason = "Taslak; toplu geçiş yalnız yayındaki tanımı taşır.";
+    /// <summary>Run does not write a Kayıt kartı target yet (the report still shows it); verify fails such a pair.</summary>
+    internal const string RecordRunClosedReason = "Kayıt kartına taşıma henüz açık değil.";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -266,20 +268,20 @@ internal sealed partial class PageTemplateMigrationRunner(
     private static string? EquivalenceText(MigrationResult result) =>
         result.EquivalenceFailure is { } failure ? $"eşdeğerlik denetimi başarısız: {failure}" : result.ConvertedJson is not null ? "geçti" : null;
 
-    private static string TargetKey(string? target) => target is "list" or "free" ? target : "none";
+    private static string TargetKey(string? target) => target is "list" or "record" or "free" ? target : "none";
 
     private static MigrationReportSummary Summarize(IReadOnlyList<MigrationReportTenant> tenants, IReadOnlyList<MigrationReportStandard> standards)
     {
         static Dictionary<string, int> Count(IEnumerable<string?> targets)
         {
-            var counts = new Dictionary<string, int>(StringComparer.Ordinal) { ["list"] = 0, ["free"] = 0, ["none"] = 0 };
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal) { ["list"] = 0, ["record"] = 0, ["free"] = 0, ["none"] = 0 };
             foreach (var target in targets) counts[TargetKey(target)]++;
             return counts;
         }
         var byTenant = tenants.Select(t =>
         {
             var counts = Count(t.Pages.Select(x => x.Target));
-            return new MigrationReportTenantCount(t.TenantId, t.Name, counts["list"], counts["free"], counts["none"]);
+            return new MigrationReportTenantCount(t.TenantId, t.Name, counts["list"], counts["record"], counts["free"], counts["none"]);
         }).ToList();
         var topReasons = tenants.SelectMany(x => x.Pages).SelectMany(x => x.Reasons).Concat(standards.SelectMany(x => x.Reasons))
             .GroupBy(x => x, StringComparer.Ordinal).Select(x => new MigrationReportReason(x.Key, x.Count()))
@@ -287,7 +289,7 @@ internal sealed partial class PageTemplateMigrationRunner(
         return new MigrationReportSummary(Count(tenants.SelectMany(x => x.Pages).Select(x => x.Target)), Count(standards.Select(x => x.Target)), byTenant, topReasons);
     }
 
-    private static string TargetLabel(string? target) => target switch { "list" => "Liste", "free" => "Serbest", _ => "—" };
+    private static string TargetLabel(string? target) => target switch { "list" => "Liste", "record" => "Kayıt kartı", "free" => "Serbest", _ => "—" };
     private static string Cell(string? value) => string.IsNullOrEmpty(value) ? "—" : value.Replace("\r", " ").Replace("\n", " ").Replace("|", "\\|");
 
     private static string Markdown(MigrationReport report)
@@ -296,10 +298,12 @@ internal sealed partial class PageTemplateMigrationRunner(
         md.AppendLine("# Kalıp geçişi kuru çalıştırma raporu").AppendLine();
         md.AppendLine($"Oluşturulma: {report.GeneratedAt:yyyy-MM-dd HH:mm:ss} UTC. Rapor yalnız sayfa kodu, adı ve yapı bilgisini içerir; SQL metni, sorgu sonucu ya da kullanıcı verisi içermez.").AppendLine();
         md.AppendLine("## Özet").AppendLine();
-        md.AppendLine("| Firma | Liste | Serbest | — |").AppendLine("|---|---:|---:|---:|");
-        foreach (var t in report.Summary.ByTenant) md.AppendLine($"| {Cell(t.Name)} ({t.TenantId.ToString("N")[..8]}) | {t.List} | {t.Free} | {t.None} |");
-        md.AppendLine($"| **Toplam** | {report.Summary.ByTarget["list"]} | {report.Summary.ByTarget["free"]} | {report.Summary.ByTarget["none"]} |");
-        md.AppendLine($"| Standartlar | {report.Summary.StandardsByTarget["list"]} | {report.Summary.StandardsByTarget["free"]} | {report.Summary.StandardsByTarget["none"]} |").AppendLine();
+        md.AppendLine("| Firma | Liste | Kayıt kartı | Serbest | — |").AppendLine("|---|---:|---:|---:|---:|");
+        foreach (var t in report.Summary.ByTenant) md.AppendLine($"| {Cell(t.Name)} ({t.TenantId.ToString("N")[..8]}) | {t.List} | {t.Record} | {t.Free} | {t.None} |");
+        string Totals(IReadOnlyDictionary<string, int> x) => $"{x["list"]} | {x["record"]} | {x["free"]} | {x["none"]}";
+        md.AppendLine($"| **Toplam** | {Totals(report.Summary.ByTarget)} |");
+        md.AppendLine($"| Standartlar | {Totals(report.Summary.StandardsByTarget)} |").AppendLine();
+        md.AppendLine($"Kayıt kartı hedefli sayfalar raporda gösterilir; taşıma (run) onları atlar: {RecordRunClosedReason}").AppendLine();
         md.AppendLine("### En sık 10 neden").AppendLine();
         md.AppendLine("| Neden | Sayı |").AppendLine("|---|---:|");
         foreach (var r in report.Summary.TopReasons) md.AppendLine($"| {Cell(r.Reason)} | {r.Count} |");

@@ -1,12 +1,16 @@
 import { useEffect, useState, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "../catalogClient";
 import { RECORD_SOURCE_HINT } from "../pageTemplates";
+import type { ConditionPath } from "../ConditionBuilder";
+import { CommandsSection, type CommandsPage } from "./CommandsSection";
+import { saveSteps } from "./commandsModel";
 import { ComponentPanel } from "./ComponentPanel";
+import { fieldTokens, type FieldToken } from "./consultantText";
 import { labelMap, stringList, MAX_LIST_COLUMNS, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import {
-  addExtraAction, addLines, chooseRecordSource, deleteAction, extraActions, fieldKey, fieldLocks, fieldRemovalBlocked, linesSourceUsable,
+  addExtraAction, addLines, chooseRecordSource, extraActions, fieldKey, fieldLocks, fieldRemovalBlocked, linesSourceUsable,
   missingRecordColumns, recordActionUsable, recordKey, recordQuery, recordSourceUsable, recordTabs, removeBlock, removeExtraAction, removeField,
-  removeSection, saveActions, setDeleteAction, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle,
+  removeSection, saveActions, setFieldProps, setLinesProps, setNoteText, setSaveActions, setSectionColumns, setSectionTitle,
   sectionRemovalBlocked, setSummary, MAX_SUMMARY_SUBTITLE, MAX_SUMMARY_VALUES,
 } from "./recordModel";
 import { recordSelectionOf, type RecordSelection } from "./templateGuards";
@@ -31,7 +35,11 @@ export type RecordPanelProps = {
   visibility?: (componentId: string) => ReactNode;
   /** Kartın üstüne / altına konabilecek ek alan türleri ve ekleme (Liste'deki ek alan yolu). */
   extraTypes?: ExtraAreaType[]; onAddExtra?: (type: string) => void;
+  /** Komutlar bölümü: "Hangi ekran" seçiminin sayfaları, onay metninin alanları (verilmezse kaydın kolonları), kural kurucunun alanları. */
+  pages?: CommandsPage[]; tokens?: FieldToken[]; paths?: ConditionPath[]; pageNames?: string[];
 };
+
+export const RECORD_SAVE_IN_COMMANDS = "Bu kartın Kaydet'i Komutlar'dadır; adımları Komutlar › Kaydet'te düzenlenir.";
 
 export const RECORD_LOCK_NOTE = "Kilitli olanları yazılımcı belirledi; danışman yalnız kuralı sıkılaştırabilir.";
 export const RECORD_COLUMNS_NOTE = "Dar alanda en çok 2, telefonda 1 kolon olur. Uzun metin ve satır tablosu her zaman tam genişliktir.";
@@ -154,10 +162,12 @@ function PagePanel(props: RecordPanelProps) {
   </>;
 
   const saved = saveActions(def);
-  const removed = deleteAction(def);
+  // Kaydet Komutlar'daysa (dönüştürülmüş kart) Kaydet düğmesi kurulamaz: kartta iki Kaydet olamaz.
+  const saveOwner = saveSteps(def).owner;
+  const barSaves = saveOwner === "bar";
   const actionChoice = (label: string, kind: CatalogAction["kind"], current: string | null, empty: string, pick: (action: CatalogAction | null) => void, blocked: string | null = null) =>
     <><label className="cpanel-row">{label}
-      <select aria-label={label} value={current ?? ""} disabled={disabled || !key || blocked !== null} title={blocked ?? undefined} onChange={(event) => pick(byCode(event.target.value))}>
+      <select aria-label={label} value={current ?? ""} disabled={disabled || !key || blocked !== null || barSaves} title={blocked ?? undefined} onChange={(event) => pick(byCode(event.target.value))}>
         <option value="">{empty}</option>
         {actions.filter((action) => action.kind === kind).map((action) => {
           const usable = action.code === current ? { usable: true as const } : recordActionUsable(def, action);
@@ -188,8 +198,8 @@ function PagePanel(props: RecordPanelProps) {
     <div className="cpanel-sub" data-part="save"><h4>Kaydet düğmesi</h4>
       {actionChoice("Yeni kayıtta", "insert", saved.insert, "—", (action) => change(setSaveActions(def, action, byCode(saved.update))), saveBlocked(saved.insert, saved.update, "Var olan kayıtta"))}
       {actionChoice("Var olan kayıtta", "update", saved.update, "—", (action) => change(setSaveActions(def, byCode(saved.insert), action)), saveBlocked(saved.update, saved.insert, "Yeni kayıtta"))}
-      {actionChoice("Sil düğmesi", "delete", removed, "Gösterme", (action) => change(setDeleteAction(def, action)))}
-      {key && !saved.insert && !saved.update && <p className="cpanel-warn" role="status">Kaydet düğmesi bir eyleme bağlı değil; kart kaydedilemez.</p>}
+      {barSaves ? <p className="cpanel-note">{RECORD_SAVE_IN_COMMANDS}</p>
+        : key && saveOwner === null && <p className="cpanel-warn" role="status">Kaydet düğmesi bir eyleme bağlı değil; kart kaydedilemez.</p>}
       <p className="cpanel-note">Eylemin her bilgisi aynı adlı alandan alınır. Bilgisi kartta olmayan eylem seçilemez.</p>
     </div>
     <div className="cpanel-sub" data-part="summary"><h4>Öne çıkan değerler</h4>
@@ -235,6 +245,8 @@ function PagePanel(props: RecordPanelProps) {
 
   return <ComponentPanel nameLabel="Ad" name={props.name ?? ""} onRename={(value) => props.onRename?.(value.slice(0, MAX_PAGE_NAME))} nameReadOnly={!props.onRename || disabled} namePlaceholder="Sayfa adı"
     whatTitle="Hangi kayıt gösterilsin?" basicsTitle={null} actionsTitle="Ek eylemler" what={what} basics={basics} actions={actionsPart} appearance={appearance}>
+    <CommandsSection def={def} template="record" catalog={catalog} pages={props.pages ?? []} tokens={props.tokens ?? fieldTokens(def, catalog)}
+      paths={props.paths} pageNames={props.pageNames} disabled={disabled} onChange={change}/>
     <div className="cpanel-ask"><b>Aradığın alan ya da eylem yok mu?</b> <AskLink onAskDeveloper={props.onAskDeveloper}/></div>
   </ComponentPanel>;
 }

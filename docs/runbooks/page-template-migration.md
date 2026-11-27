@@ -86,6 +86,8 @@ docker --context $ctx cp ${api}:/tmp/tpl-report-$stamp ./tpl-report-$stamp
 
 **Amaç:** Kullanıcının neyin taşınacağını, neyin taşınmayacağını görmesi.
 
+**Neden metinleri (5b-2 adım 1, 2026-11-27):** "Form alanları (Kayıt kartı adayı)." ve çubuğun ayarlarını tek tek reddeden "… ayarı kalıplarda yok." (`hiddenCommands`, `commandWhen`…) nedenleri kalktı: üst düzey işlem çubuğu artık kalıbın `commands` yerine taşınır ve form sayfaları Kayıt kartına denenir. Eklenenler: "İşlem çubuğunun <ayar> ayarının kalıpta karşılığı yok." (`barLook`, `formDialog`, `exportCsv`, `visibleWhen`, `disabledWhen`, `margin`, Yeni/Aç penceresi…); "Yazdır görünür ama bağlı değil; kalıpta görünen Yazdır yazdırır."; Kayıt kartı için "Kayıt kartı tam bir kayıt özeti (recordHeader) ister.", "Kayıt kartının bölümleri sayfa parametresiyle okunan bir kayda bağlı değil.", "Kayıt kartında her alan bir bölümde olmalı: <id>.", "Kayıt kartında bölümlerin arasına yalnız açıklama (text) konabilir: <id>.", "Kayıt kartında başlıkta kayıt sayısı yok.", "Veri listesinin satır eylemleri kayıt kartında yok.", "Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir."; taşımada "Kayıt kartına taşıma henüz açık değil.". "İşlem çubuğu kalıplarda yok." yalnız iç içe ya da ikinci bir çubuk için kalır.
+
 **Yapılacak:** Markdown raporu kullanıcıya göster. Şunları ayrıca belirt: kaç sayfa taşınabilir, en sık nedenler, "eşdeğerlik denetimi başarısız" satırları.
 
 **Başarı:** Kullanıcı hedef firmaları ve sayfa sayılarını gördüğünü söyler. Bu adım canlıda yazma izni **vermez**.
@@ -158,7 +160,7 @@ docker --context $ctx cp ${api}:/tmp/tpl-run-$stamp ./tpl-run-$stamp
 
 Komut hedefleri yazar ve yalnız hepsi `[PROVA KOPYASI]` ise ve `--expect-databases` ile birebir aynıysa devam eder. **Ekrana yazılan adlar `_TplRehearsal` ile bitmiyorsa ya da komut 2 koduyla durduysa DUR.**
 
-**Başarı:** Ekrana yazılan hedef adları yalnız `AIERPTenant_<guid:N>_TplRehearsal` kopyalarıdır ve "Hedefler --expect-databases ile aynı." satırı görünür. Taşınan sayfa sayısı rapordaki "Liste + Serbest" toplamıyla uyuşur. Atlanan sayfalar nedenleriyle listelenir. Kopyada her taşınan sayfa için iki sürüm oluşur: `BeforeTemplateMigration` ve `TemplateMigrated` (aynı `MigrationBatch`). Çıkış kodu 0'dır.
+**Başarı:** Ekrana yazılan hedef adları yalnız `AIERPTenant_<guid:N>_TplRehearsal` kopyalarıdır ve "Hedefler --expect-databases ile aynı." satırı görünür. Taşınan sayfa sayısı rapordaki "Liste + Serbest" toplamıyla uyuşur; raporun "Kayıt kartı" sütunundaki sayfalar taşınmaz, "Kayıt kartına taşıma henüz açık değil." nedeniyle atlanır (hata sayılmaz, çıkış kodunu değiştirmez). Atlanan sayfalar nedenleriyle listelenir. Kopyada her taşınan sayfa için iki sürüm oluşur: `BeforeTemplateMigration` ve `TemplateMigrated` (aynı `MigrationBatch`). Çıkış kodu 0'dır.
 
 **Hata olursa:** Dur. Canlı veriye hiç dokunulmadı; kopyayı silip yeniden geri yüklemek serbesttir (adım 8). Hata ayrıntısını sakla ve kullanıcıya göster.
 

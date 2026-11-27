@@ -95,7 +95,7 @@ public sealed class TenantCustomPageSchemaListTemplateTests
     public void ActionBar_is_rejected_on_template_page()
     {
         var bar = new { id = "ab", type = "actionBar", name = "ab", props = new { slot = "actions", exportTable = "t1" } };
-        Rejected(Page(Template, [List(), bar]), "Kalıplı sayfada işlem çubuğu bileşeni kullanılmaz; düğmeler 'actions' yerine konur.");
+        Rejected(Page(Template, [List(), bar]), "Kalıplı sayfada işlem çubuğu yalnız üst düzeyde, 'commands' yerinde ve bir kez kullanılır; düğmeler 'actions' yerine konur.");
     }
 
     [Fact]

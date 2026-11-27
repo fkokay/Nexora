@@ -402,6 +402,21 @@ public sealed class SystemPageEndpointsIntegrationTests
     }
 
     [Fact]
+    public async Task System_page_draft_is_unaffected()
+    {
+        // The "new page needs a template" rule is for /api/custom-pages/drafts only; a templateless standard still opens a draft.
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, Admin, "TenantAdmin");
+
+        var response = await client.PostAsync($"/api/system-pages/{ScreenKey}/draft", null);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var draft = await response.Content.ReadFromJsonAsync<JsonElement>();
+        using var definition = JsonDocument.Parse(draft.GetProperty("definitionJson").GetString()!);
+        Assert.Null(PageTemplateRules.TemplateName(definition.RootElement));
+    }
+
+    [Fact]
     public async Task Open_draft_with_default_layout_reports_only_unmapped_fields()
     {
         await using var app = await StartApplicationAsync();

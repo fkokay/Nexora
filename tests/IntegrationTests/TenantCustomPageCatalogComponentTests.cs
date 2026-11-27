@@ -67,15 +67,15 @@ public sealed class TenantCustomPageCatalogComponentTests
 
     private static JsonElement Element(string json) => JsonDocument.Parse(json).RootElement;
 
-    private static Task<HttpResponseMessage> CreateDraft(HttpClient client, string definition, string code = "satis-sayfasi") =>
-        client.PostAsJsonAsync("/api/custom-pages/drafts", new { code, name = "Satış sayfası", definition = Element(definition) });
+    private static Task<HttpResponseMessage> CreateDraft(WebApplication app, HttpClient client, string definition, string code = "satis-sayfasi") =>
+        TemplatelessPageSeed.PostDraftAsync(app.Services, client, code, "Satış sayfası", Element(definition));
 
     private static async Task<string?> ErrorAsync(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString();
 
-    private static async Task AssertRejected(HttpClient client, string definition, string expected)
+    private static async Task AssertRejected(WebApplication app, HttpClient client, string definition, string expected)
     {
-        var response = await CreateDraft(client, definition);
+        var response = await CreateDraft(app, client, definition);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(expected, await ErrorAsync(response));
     }
@@ -89,7 +89,7 @@ public sealed class TenantCustomPageCatalogComponentTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
 
-        var created = await CreateDraft(client, Page(Settings(), nested: true));
+        var created = await CreateDraft(app, client, Page(Settings(), nested: true));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         // No settings at all is fine too (the defaults apply).
@@ -113,13 +113,13 @@ public sealed class TenantCustomPageCatalogComponentTests
         var inline = Page(new { css = ".a { color: red; }", javascript = "bridge.ready();" });
 
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraft(client, inline)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraft(app, client, inline)).StatusCode);
         // A stale TenantAdmin claim without the membership is not enough.
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraft(client, inline)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraft(app, client, inline)).StatusCode);
 
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Created, (await CreateDraft(client, inline)).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await CreateDraft(app, client, inline)).StatusCode);
     }
 
     [Fact]
@@ -131,9 +131,9 @@ public sealed class TenantCustomPageCatalogComponentTests
         foreach (var (user, role) in new[] { (Admin, "TenantAdmin"), (Ayse, "TenantUser") })
         {
             CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, user, role);
-            await AssertRejected(client, Page(new { catalogComponent = "satisGrafigi", css = ".a { color: red; }" }), message);
-            await AssertRejected(client, Page(new { catalogComponent = "satisGrafigi", javascript = "alert(1);" }), message);
-            await AssertRejected(client, Page(new { catalogComponent = "satisGrafigi", javascript = "" }, nested: true), message);
+            await AssertRejected(app, client, Page(new { catalogComponent = "satisGrafigi", css = ".a { color: red; }" }), message);
+            await AssertRejected(app, client, Page(new { catalogComponent = "satisGrafigi", javascript = "alert(1);" }), message);
+            await AssertRejected(app, client, Page(new { catalogComponent = "satisGrafigi", javascript = "" }, nested: true), message);
         }
     }
 
@@ -144,19 +144,19 @@ public sealed class TenantCustomPageCatalogComponentTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
 
-        await AssertRejected(client, Page(new { catalogComponent = "Satis-grafigi" }), "Katalog bileşeni kodu harf ile başlamalı; harf ve rakamlardan oluşmalı.");
-        await AssertRejected(client, Page(new { catalogComponent = 5 }), "Katalog bileşeni kodu harf ile başlamalı; harf ve rakamlardan oluşmalı.");
+        await AssertRejected(app, client, Page(new { catalogComponent = "Satis-grafigi" }), "Katalog bileşeni kodu harf ile başlamalı; harf ve rakamlardan oluşmalı.");
+        await AssertRejected(app, client, Page(new { catalogComponent = 5 }), "Katalog bileşeni kodu harf ile başlamalı; harf ve rakamlardan oluşmalı.");
         // Settings without a component, settings that are not an object or hold a non-scalar value.
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(new { componentSettings = new { baslik = "x" } }))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(new { catalogComponent = "satisGrafigi", componentSettings = new[] { "x" } }))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(Settings(new { baslik = new { ic = 1 } })))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(Settings(new { baslik = (string?)null })))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(new { componentSettings = new { baslik = "x" } }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(new { catalogComponent = "satisGrafigi", componentSettings = new[] { "x" } }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(Settings(new { baslik = new { ic = 1 } })))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(Settings(new { baslik = (string?)null })))).StatusCode);
         // Only the code component may reference a catalog component.
         var onText = JsonSerializer.Serialize(new { schemaVersion = 2, components = new[] { new { id = "t1", type = "text", props = new { text = "a", catalogComponent = "satisGrafigi" } } } });
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, onText)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, onText)).StatusCode);
         // Not in schema v1.
         var v1 = JsonSerializer.Serialize(new { schemaVersion = 1, components = new[] { CodeComponent(new { catalogComponent = "satisGrafigi" }) } });
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, v1)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, v1)).StatusCode);
     }
 
     [Fact]
@@ -166,12 +166,12 @@ public sealed class TenantCustomPageCatalogComponentTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
 
-        await AssertRejected(client, Page(Settings(new { yok = 1 })), "Bileşen ayarı 'yok' bileşende tanımlı değil.");
-        await AssertRejected(client, Page(Settings(new { adet = "3" })), "Bileşen ayarı 'adet' için değer türü uygun değil.");
-        await AssertRejected(client, Page(Settings(new { baslik = 3 })), "Bileşen ayarı 'baslik' için değer türü uygun değil.");
-        await AssertRejected(client, Page(Settings(new { goster = "true" })), "Bileşen ayarı 'goster' için değer türü uygun değil.");
-        await AssertRejected(client, Page(Settings(new { tur = "pasta" })), "Bileşen ayarı 'tur' için değer türü uygun değil.");
-        Assert.Equal(HttpStatusCode.Created, (await CreateDraft(client, Page(Settings(new { adet = 2.5, tur = "sutun" })))).StatusCode);
+        await AssertRejected(app, client, Page(Settings(new { yok = 1 })), "Bileşen ayarı 'yok' bileşende tanımlı değil.");
+        await AssertRejected(app, client, Page(Settings(new { adet = "3" })), "Bileşen ayarı 'adet' için değer türü uygun değil.");
+        await AssertRejected(app, client, Page(Settings(new { baslik = 3 })), "Bileşen ayarı 'baslik' için değer türü uygun değil.");
+        await AssertRejected(app, client, Page(Settings(new { goster = "true" })), "Bileşen ayarı 'goster' için değer türü uygun değil.");
+        await AssertRejected(app, client, Page(Settings(new { tur = "pasta" })), "Bileşen ayarı 'tur' için değer türü uygun değil.");
+        Assert.Equal(HttpStatusCode.Created, (await CreateDraft(app, client, Page(Settings(new { adet = 2.5, tur = "sutun" })))).StatusCode);
     }
 
     [Fact]
@@ -181,15 +181,15 @@ public sealed class TenantCustomPageCatalogComponentTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
         // The error names the component, so the designer can tell which one to replace or remove.
-        await AssertRejected(client, Page(new { catalogComponent = "yokBilesen" }, nested: true), "Seçilen bileşen etkin katalogda yok: yokBilesen.");
+        await AssertRejected(app, client, Page(new { catalogComponent = "yokBilesen" }, nested: true), "Seçilen bileşen etkin katalogda yok: yokBilesen.");
         // Case matters: codes are compared ordinally.
-        await AssertRejected(client, Page(new { catalogComponent = "satisgrafigi" }), "Seçilen bileşen etkin katalogda yok: satisgrafigi.");
+        await AssertRejected(app, client, Page(new { catalogComponent = "satisgrafigi" }), "Seçilen bileşen etkin katalogda yok: satisgrafigi.");
 
         // Without any active catalog nothing can be referenced.
         await using var empty = await StartApplicationAsync(activeBundle: null);
         using var other = empty.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(other, Ayse, "TenantUser");
-        await AssertRejected(other, Page(new { catalogComponent = "satisGrafigi" }), "Seçilen bileşen etkin katalogda yok: satisGrafigi.");
+        await AssertRejected(empty, other, Page(new { catalogComponent = "satisGrafigi" }), "Seçilen bileşen etkin katalogda yok: satisGrafigi.");
     }
 
     [Theory]
@@ -202,7 +202,7 @@ public sealed class TenantCustomPageCatalogComponentTests
         using var client = app.GetTestClient();
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Ayse, "TenantUser");
 
-        var response = await CreateDraft(client, definition);
+        var response = await CreateDraft(app, client, definition);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(TenantCustomPageQueries.DuplicateKeyError, await ErrorAsync(response));
@@ -216,9 +216,9 @@ public sealed class TenantCustomPageCatalogComponentTests
         CustomPageQueryEndpointsIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
 
         // componentDefaults, catalogMissing and the resolved height are written by the server only.
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(new { catalogComponent = "satisGrafigi", componentDefaults = new { baslik = "x" } }))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(new { catalogComponent = "satisGrafigi", catalogMissing = true }))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(client, Page(new { catalogComponent = "satisGrafigi", height = 300 }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(new { catalogComponent = "satisGrafigi", componentDefaults = new { baslik = "x" } }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(new { catalogComponent = "satisGrafigi", catalogMissing = true }))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await CreateDraft(app, client, Page(new { catalogComponent = "satisGrafigi", height = 300 }))).StatusCode);
     }
 
     // ---- Read ----

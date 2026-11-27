@@ -8,25 +8,124 @@ using AIERP.Api.DocumentModels;
 /// </summary>
 internal static class PageTemplateRules
 {
+    /// <summary>The slot of a templated page's only action bar (5b-2a): the commands (Yeni, Düzenle, Kaydet, Sil…) the shell draws.</summary>
+    internal const string CommandsSlot = "commands";
+
+    /// <summary>
+    /// The action bar settings a list, record or free page's <c>commands</c> bar may carry: the legacy bar's settings that have a
+    /// meaning in the template shell, with the same names, values and validation. Everything else (<c>barLook</c>, <c>formDialog</c>,
+    /// <c>printEnabled</c>, <c>exportCsv</c>, <c>visibleWhen</c>, <c>disabledWhen</c>…) is rejected with <see cref="KomutAyari"/>.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> TemplateBarProps = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "hiddenCommands", "commandWhen", "newAction", "newPageCode", "newTarget", "newInputs", "newButton", "openAction", "openPageCode",
+        "openTarget", "openTable", "openParams", "openButton", "saveQuery", "saveSequence", "sequenceWhen", "stopOnError", "afterSaveAction",
+        "afterSavePageCode", "afterSaveTarget", "afterSaveRefresh", "afterSaveButton", "saveAndNew", "deleteQuery", "deleteConfirmText",
+        "exportTable", "titleCount", "focusInput", "moreButtons", "slot"
+    };
+
+    /// <summary>The bar settings that name a button the commands run (the button lives in <c>actions</c> and is not drawn there again).</summary>
+    internal static readonly string[] BarButtonProps = ["moreButtons", "newButton", "openButton", "afterSaveButton"];
+
+    internal const string KomutYeri = "Kalıplı sayfada işlem çubuğu yalnız üst düzeyde, 'commands' yerinde ve bir kez kullanılır; düğmeler 'actions' yerine konur.";
+    internal static string KomutAyari(string key) => $"Kalıplı sayfanın komutlarında '{key}' kullanılamaz.";
+    internal static string KomutDugmesi(string id) => $"Komutların bağladığı düğme 'actions' yerinde olmalı: {id}.";
+    internal const string IkiKaydet = "Kayıt kartında Kaydet ya Komutlar'da ya da Kaydet düğmesinde tanımlanır; ikisi birden olamaz.";
+    internal const string IkiSil = "Kayıt kartında Sil ya Komutlar'da ya da Sil düğmesinde tanımlanır; ikisi birden olamaz.";
+    internal const string KayitSayisi = "Kayıt kartında başlıkta kayıt sayısı (titleCount) kullanılmaz.";
+    internal const string BelgeKomut = "Belge kalıbında komutlar belge modelinden gelir; işlem çubuğu (actionBar) kullanılamaz.";
+    internal const string YeniSayfaKalipli = "Yeni sayfa bir kalıpla (Liste, Kayıt kartı, Belge ya da Serbest) oluşturulmalıdır.";
+
+    /// <summary>The id of the top-level action bar in the <c>commands</c> slot, or null.</summary>
+    internal static string? CommandBarId(JsonElement components) => CommandBar(components) is { } bar ? Id(bar) : null;
+
+    private static JsonElement? CommandBar(JsonElement components)
+    {
+        if (components.ValueKind != JsonValueKind.Array) return null;
+        foreach (var component in components.EnumerateArray())
+            if (IsCommandBar(component)) return component;
+        return null;
+    }
+
+    private static bool IsCommandBar(JsonElement component) =>
+        component.ValueKind == JsonValueKind.Object
+        && component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "actionBar"
+        && component.TryGetProperty("props", out var props) && StringProp(props, "slot") == CommandsSlot;
+
+    /// <summary>The bar's button ids, in the order of <see cref="BarButtonProps"/>.</summary>
+    private static IEnumerable<string> BarButtons(JsonElement bar)
+    {
+        var props = bar.GetProperty("props");
+        foreach (var key in BarButtonProps)
+        {
+            if (!props.TryGetProperty(key, out var value)) continue;
+            if (value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } one) yield return one;
+            else if (value.ValueKind == JsonValueKind.Array)
+                foreach (var item in value.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } id) yield return id;
+        }
+    }
+
+    /// <summary>The ids of the buttons the commands bar runs (<see cref="BarButtonProps"/>); empty without a commands bar.</summary>
+    internal static IReadOnlySet<string> BarButtonIds(JsonElement components) =>
+        CommandBar(components) is { } bar ? BarButtons(bar).ToHashSet(StringComparer.Ordinal) : new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The buttons the commands bar draws itself (not as page buttons): <see cref="BarButtonIds"/>, except the "⋯" menu buttons
+    /// (<c>moreButtons</c>) while "more" is in <c>hiddenCommands</c> — then the shell draws them as page buttons.
+    /// </summary>
+    internal static IReadOnlySet<string> BarDrawnButtonIds(JsonElement components)
+    {
+        if (CommandBar(components) is not { } bar) return new HashSet<string>(StringComparer.Ordinal);
+        var ids = BarButtons(bar).ToHashSet(StringComparer.Ordinal);
+        var props = bar.GetProperty("props");
+        if (props.TryGetProperty("hiddenCommands", out var hidden) && hidden.ValueKind == JsonValueKind.Array
+            && hidden.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String && x.GetString() == "more")
+            && props.TryGetProperty("moreButtons", out var more) && more.ValueKind == JsonValueKind.Array)
+        {
+            var otherKeys = BarButtonProps.Where(x => x != "moreButtons").ToArray();
+            var stillRun = otherKeys.Where(key => props.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+                .Select(key => props.GetProperty(key).GetString()).ToHashSet(StringComparer.Ordinal);
+            foreach (var item in more.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String && !stillRun.Contains(item.GetString())) ids.Remove(item.GetString()!);
+        }
+        return ids;
+    }
+
+    /// <summary>
+    /// Every button the commands bar runs is a top-level component in the <c>actions</c> slot — on Liste also <c>rowActions</c>
+    /// (rows draw from there; the shell removes the bar's buttons from the page) — null when valid. Called once the component
+    /// loop resolved the references (they exist and are buttons).
+    /// </summary>
+    internal static string? ValidateBarButtons(JsonElement components, string? template = null)
+    {
+        if (CommandBar(components) is not { } bar) return null;
+        var allowed = template == "list" ? new[] { "actions", "rowActions" } : ["actions"];
+        var placed = components.EnumerateArray()
+            .Where(x => x.ValueKind == JsonValueKind.Object && x.TryGetProperty("props", out var p) && allowed.Contains(StringProp(p, "slot")))
+            .Select(Id).ToHashSet(StringComparer.Ordinal);
+        return BarButtons(bar).FirstOrDefault(id => !placed.Contains(id)) is { } wrong ? KomutDugmesi(wrong) : null;
+    }
+
     internal static readonly IReadOnlySet<string> Slots = new HashSet<string>(StringComparer.Ordinal)
-    { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below" };
+    { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", CommandsSlot };
 
     internal static readonly IReadOnlySet<string> RecordSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below" };
+    { "summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", CommandsSlot };
 
     internal static readonly IReadOnlySet<string> FreeSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "actions", "tabs", "block", "item" };
+    { "actions", "tabs", "block", "item", CommandsSlot };
 
     private static readonly Dictionary<string, string> SlotTypes = new(StringComparer.Ordinal)
     {
         ["indicators"] = "metric", ["filters"] = "filterBar", ["list"] = "dataTable", ["actions"] = "button",
-        ["rowActions"] = "button", ["detail"] = "contextPanel"
+        ["rowActions"] = "button", ["detail"] = "contextPanel", [CommandsSlot] = "actionBar"
     };
 
     private static readonly Dictionary<string, string> RecordSlotTypes = new(StringComparer.Ordinal)
     {
         ["summary"] = "recordHeader", ["actions"] = "button", ["tabs"] = "tabs", ["section"] = "formCard",
-        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text"
+        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text", [CommandsSlot] = "actionBar"
     };
 
     internal static readonly IReadOnlySet<string> BelgeSlots = new HashSet<string>(StringComparer.Ordinal)
@@ -43,7 +142,7 @@ internal static class PageTemplateRules
 
     private static readonly Dictionary<string, string> FreeSlotTypes = new(StringComparer.Ordinal)
     {
-        ["actions"] = "button", ["tabs"] = "tabs", ["block"] = "section", ["item"] = string.Join(", ", FreeItemTypes)
+        ["actions"] = "button", ["tabs"] = "tabs", ["block"] = "section", ["item"] = string.Join(", ", FreeItemTypes), [CommandsSlot] = "actionBar"
     };
 
     private const string UnknownTemplate = "Kalıp yalnız \"list\", \"record\", \"belge\" ya da \"free\" olabilir.";
@@ -69,7 +168,6 @@ internal static class PageTemplateRules
     private const string BlockOutsideTab = "Kayıt kartında her bölüm, tablo ve açıklama tam bir sekmede yer almalı.";
     private const string FieldOutsideSection = "Kayıt kartında her alan tam bir bölüme ait olmalı.";
     private const string NoWidth = "Kalıplı sayfada genişlik ayarı kullanılmaz.";
-    private const string NoActionBar = "Kalıplı sayfada işlem çubuğu bileşeni kullanılmaz; düğmeler 'actions' yerine konur.";
     private const string NoSpacer = "Kalıplı sayfada boşluk ve ayırıcı bileşenleri kullanılmaz.";
 
     /// <summary>
@@ -95,7 +193,7 @@ internal static class PageTemplateRules
     internal static string? ValidateTemplate(JsonElement root, JsonElement components, JsonElement queries) => TemplateName(root) switch
     {
         "list" => ValidateList(components, queries),
-        "record" => ValidateRecord(components),
+        "record" => ValidateRecord(components, queries),
         "belge" => ValidateBelge(root, components),
         "free" => ValidateFree(components, queries),
         _ => UnknownTemplate
@@ -127,7 +225,7 @@ internal static class PageTemplateRules
     /// Kayıt kartı: one summary, one tabs component listing every section, lines table and note exactly once, and every field in
     /// exactly one section's <c>inputs</c>. Tab and section ownership themselves are the schema's usual tabs/formCard rules.
     /// </summary>
-    private static string? ValidateRecord(JsonElement components)
+    private static string? ValidateRecord(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedSummary;
         if (Place(components, RecordSlots, out var placed) is { } placeError) return placeError;
@@ -147,8 +245,39 @@ internal static class PageTemplateRules
         var sectionInputs = placed.Where(x => x.Slot == "section").SelectMany(x => StringArray(x.Component, "inputs")).ToList();
         foreach (var (component, _, _) in placed.Where(x => x.Slot == "field"))
             if (sectionInputs.Count(x => x == Id(component)) != 1) return FieldOutsideSection;
+        return ValidateRecordCommands(components, placed, queries);
+    }
+
+    /// <summary>
+    /// Kayıt kartı commands: Kaydet is either the bar's (<c>saveQuery</c>/<c>saveSequence</c>) or the record's sequence button, Sil
+    /// either the bar's <c>deleteQuery</c> or the record's delete-query button, never both; no <c>titleCount</c>. Buttons the bar runs
+    /// (its "⋯" menu and command buttons) are not the record's Kaydet / Sil.
+    /// </summary>
+    private static string? ValidateRecordCommands(JsonElement components, List<(JsonElement Component, string Slot, string Type)> placed, JsonElement queries)
+    {
+        if (CommandBar(components) is not { } bar) return null;
+        var props = bar.GetProperty("props");
+        if (props.TryGetProperty("titleCount", out _)) return KayitSayisi;
+        var owned = BarButtonIds(components);
+        var buttons = placed.Where(x => x.Slot == "actions" && x.Type == "button" && !owned.Contains(Id(x.Component) ?? ""))
+            .Select(x => x.Component.TryGetProperty("props", out var p) ? p : default).ToArray();
+        // The bar owns Kaydet / Sil only with a non-empty value (the schema rejects empty ones before this rule runs).
+        if ((StringProp(props, "saveQuery") is { Length: > 0 } || NonEmptyArray(props, "saveSequence"))
+            && buttons.Any(x => StringProp(x, "actionType") == "sequence")) return IkiKaydet;
+        if (StringProp(props, "deleteQuery") is { Length: > 0 }
+            && buttons.Any(x => StringProp(x, "actionType") == "query" && QueryKind(queries, StringProp(x, "queryId")) == "delete")) return IkiSil;
         return null;
     }
+
+    private static bool NonEmptyArray(JsonElement element, string key) =>
+        element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Array && value.GetArrayLength() > 0;
+
+    private static string? StringProp(JsonElement element, string key) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static string? QueryKind(JsonElement queries, string? queryId) =>
+        queryId is null || queries.ValueKind != JsonValueKind.Array ? null
+        : queries.EnumerateArray().Where(x => StringProp(x, "id") == queryId).Select(x => StringProp(x, "kind")).FirstOrDefault();
 
     /// <summary>
     /// Belge: a known document; exactly one documentFields, documentLines and documentSummary, each in its own slot; their codes come
@@ -157,6 +286,7 @@ internal static class PageTemplateRules
     /// </summary>
     private static string? ValidateBelge(JsonElement root, JsonElement components)
     {
+        if (components.ValueKind == JsonValueKind.Array && components.EnumerateArray().Any(HasActionBar)) return BelgeKomut;
         if (DocumentModelRegistry.Find(DocumentCode(root)) is not { } model) return UnknownDocument;
         if (components.ValueKind != JsonValueKind.Array) return Need("documentFields");
         if (Place(components, BelgeSlots, out var placed) is { } placeError) return placeError;
@@ -176,6 +306,11 @@ internal static class PageTemplateRules
         return Codes(fields, "fields", model.Fields.Select(x => (x.Code, x.Label, x.Required)).ToList(), "alanı")
             ?? Codes(lines, "columns", model.LineColumns.Select(x => (x.Code, x.Label, x.Required)).ToList(), "kolonu");
     }
+
+    private static bool HasActionBar(JsonElement component) =>
+        component.ValueKind == JsonValueKind.Object
+        && (component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "actionBar"
+            || component.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array && children.EnumerateArray().Any(HasActionBar));
 
     private static string Need(string part) => $"Belge kalıbında tam bir '{part}' bileşeni olmalı.";
 
@@ -260,7 +395,10 @@ internal static class PageTemplateRules
         var blocks = placed.Where(x => x.Slot == "block").ToArray();
         if (blocks.Length == 0) return NeedBlock;
         if (blocks.Length > 20) return FreeTooManyBlocks;
-        if (placed.Count(x => x.Slot == "actions") > 8) return FreeTooManyActions;
+        // Buttons the commands bar runs are drawn by its commands and "⋯" menu, not as page buttons; with "⋯" hidden the menu
+        // buttons are page buttons again and count.
+        var owned = BarDrawnButtonIds(components);
+        if (placed.Count(x => x.Slot == "actions" && !owned.Contains(Id(x.Component) ?? "")) > 8) return FreeTooManyActions;
         var tabs = placed.Where(x => x.Slot == "tabs").ToArray();
         if (tabs.Length > 1) return TooManyTabs;
 
@@ -319,7 +457,8 @@ internal static class PageTemplateRules
         }
 
         foreach (var (component, _, _) in placed)
-            if (Scan(component) is { } scanError) return scanError;
+            if (Scan(component, topLevel: true) is { } scanError) return scanError;
+        if (placed.Count(x => x.Type == "actionBar") > 1) return KomutYeri;
         return null;
     }
 
@@ -335,14 +474,17 @@ internal static class PageTemplateRules
             ? value.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToArray()
             : [];
 
-    /// <summary>Forbidden things anywhere in the component tree: width settings and action bar, spacer, divider.</summary>
-    private static string? Scan(JsonElement component)
+    /// <summary>
+    /// Forbidden things anywhere in the component tree: width settings, spacer, divider, and an action bar anywhere but a top-level
+    /// component in the <c>commands</c> slot.
+    /// </summary>
+    private static string? Scan(JsonElement component, bool topLevel = false)
     {
         if (component.ValueKind != JsonValueKind.Object) return null;
         if (component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String)
             switch (type.GetString())
             {
-                case "actionBar": return NoActionBar;
+                case "actionBar" when !(topLevel && IsCommandBar(component)): return KomutYeri;
                 case "spacer" or "divider": return NoSpacer;
             }
         if (component.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object

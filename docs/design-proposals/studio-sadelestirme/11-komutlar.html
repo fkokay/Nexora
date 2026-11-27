@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Komutlar ve Kayıt kartı (taslak 11)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--dev:#0f766e;--dev-soft:#e6f6f3;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--dan-soft:#fdecea;--sug:#9a3412;--sug-soft:#ffedd5}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none;padding:20px 16px 40px} .view.on{display:block}
+  .sp{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.sm{padding:3px 8px;font-size:12px}
+  .sug{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:1px 7px;border-radius:99px;background:var(--sug-soft);color:var(--sug);vertical-align:middle;text-transform:uppercase}
+  .code{font-family:Consolas,monospace;font-size:11.5px;background:#f1effa;border-radius:4px;padding:0 4px;color:#4c3fa0}
+  .expl{max-width:980px;margin:10px auto 0;color:#3b3850;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .expl ul{margin:4px 0 0;padding-left:18px}
+  .expl b{color:var(--text)}
+  .ctrl{max-width:980px;margin:0 auto 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .ctrl .lbl{color:var(--muted);font-size:12px}
+  .opt{color:var(--muted);font-size:11.5px;margin-top:4px;line-height:1.5}
+  .src{font-size:11.5px;color:var(--dev);background:var(--dev-soft);border-radius:6px;padding:5px 8px;margin-top:6px;line-height:1.45}
+  .chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px;background:#fff}
+  .chip.add{color:var(--accent)}
+  .chip.tok{background:var(--accent-soft);border-color:#d9d3f3;color:var(--accent)}
+  /* ---- ERP sayfası ---- */
+  .erp{background:#fff;border:1px solid var(--line);border-radius:12px;max-width:980px;margin:0 auto;padding:16px 20px;position:relative;transition:max-width .25s}
+  .erp.narrow{max-width:380px;padding:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:10px}
+  .ttlrow{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .ttl{font-size:19px;font-weight:700}
+  .cnt{color:var(--muted);font-size:13px} .cnt b{color:var(--text)}
+  .rh{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .av{width:42px;height:42px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+  .rh .t{font-size:18px;font-weight:700} .rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}
+  .kv span{display:block;color:var(--muted);font-size:11.5px} .kv b{font-size:15px}
+  .erp.narrow .kv{margin-left:54px}
+  .bar{display:flex;gap:6px;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px;position:relative}
+  .bar .l,.bar .r{display:flex;gap:6px;align-items:center}
+  .bar .r{margin-left:auto}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap;cursor:pointer;position:relative;font:inherit;color:inherit}
+  .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .b.dan{color:var(--dan)}
+  .b.dis{opacity:.45;cursor:not-allowed}
+  .b.new{outline:2px dashed #f59e0b;outline-offset:2px}
+  .b[data-tip]:hover:after,.b[data-tip]:focus-visible:after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:0;background:#1d1b2a;color:#fff;font-size:11.5px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:5;font-weight:400}
+  .search{flex:0 1 240px;border:1px solid var(--line);border-radius:7px;padding:5px 9px;color:var(--muted);display:flex;gap:6px;align-items:center;min-width:120px}
+  .search.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);color:var(--text)}
+  .menu{position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(30,20,80,.12);padding:6px;min-width:250px;z-index:6}
+  .menu .mi{display:flex;justify-content:space-between;gap:12px;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .menu .mi:hover{background:#f6f5fa}
+  .menu .mi.dan{color:var(--dan)}
+  .menu .mh{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px 2px}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+  kbd{font:11px Consolas,monospace;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;background:#faf9fd}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+  .tab{padding:8px 12px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+  .tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .grid{display:grid;gap:10px 14px;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .erp.narrow .grid{grid-template-columns:1fr}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:7px 9px;background:#fff;min-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .f .in.ro{background:#f6f5fa;color:var(--muted)}
+  .foot{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;border-top:1px solid var(--line);margin-top:12px;padding-top:8px;flex-wrap:wrap;gap:6px}
+  .hiddenlist{margin-top:6px;font-size:11.5px;color:var(--muted)}
+  .hiddenlist s{color:#a8a3bf}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:520px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)} .tbl .n{text-align:right}
+  .tbl tr.sel td{background:var(--accent-soft)}
+  .tbl tbody tr{cursor:pointer}
+  /* onay penceresi */
+  .back{position:absolute;inset:0;background:rgba(29,27,42,.28);border-radius:12px;display:grid;place-items:center;z-index:9}
+  .dlg{background:#fff;border-radius:12px;padding:18px 20px;max-width:380px;box-shadow:0 20px 50px rgba(30,20,80,.2)}
+  .dlg h3{margin:0 0 6px;font-size:15px}
+  .dlg .row{justify-content:flex-end;gap:8px;margin-top:14px}
+  .btn.dan{background:var(--dan);border-color:var(--dan);color:#fff}
+  /* ---- Studio ---- */
+  .side{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;max-width:1240px;margin:0 auto;align-items:start}
+  .stop{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:10px}
+  .stop h1{font-size:14px;margin:0}
+  .pill{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+  .canvasbg{padding:16px;border-radius:12px;background-image:radial-gradient(#dcd9e6 1px,transparent 1px);background-size:16px 16px;border:1px solid var(--line)}
+  .canvasbg .erp{max-width:none}
+  .canvasbg .bar.selbar{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+  .insp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;max-height:calc(100vh - 140px);overflow:auto}
+  .insp h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .part{border-top:1px solid var(--line);padding:10px 0}
+  .part.col{color:var(--muted)}
+  .part.col summary{color:var(--text)}
+  .q{font-weight:600;margin:8px 0 6px}
+  input.txt,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;background:#fff}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;gap:8px}
+  .row select{width:58%}
+  .tg{width:34px;height:20px;border-radius:99px;background:#d8d5e3;position:relative;cursor:pointer;flex:none;display:inline-block}
+  .tg:after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s}
+  .tg.on{background:var(--accent)} .tg.on:after{left:16px}
+  details{padding:0}
+  details summary{cursor:pointer;font-weight:600;list-style:none} details summary::-webkit-details-marker{display:none}
+  details summary:before{content:"▸ ";color:var(--muted)} details[open] summary:before{content:"▾ "}
+  .cmd{border:1px solid var(--line);border-radius:9px;margin-bottom:6px;background:#fff}
+  .cmd.off{background:#faf9fd}
+  .cmd.off .nm{color:#a8a3bf;text-decoration:line-through}
+  .cmdh{display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer}
+  .eye{border:0;background:none;cursor:pointer;font-size:14px;width:22px;padding:0;color:var(--muted)}
+  .nm{font-weight:600}
+  .key{font:11px Consolas,monospace;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  .sum{display:block;color:var(--muted);font-size:11.5px;font-weight:400;margin-top:1px}
+  .when{font-size:10.5px;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:1px 7px}
+  .chev{margin-left:auto;color:var(--muted)}
+  .cmdd{border-top:1px solid var(--line);padding:8px 10px 10px;display:none}
+  .cmd.open .cmdd{display:block}
+  .cond{display:grid;grid-template-columns:34px 1fr 1fr 1fr 18px;gap:4px;align-items:center;margin-top:6px}
+  .cond select,.cond input{padding:4px 6px;font-size:12px}
+  .cond .x{color:var(--muted);cursor:pointer}
+  .csum{display:block;color:var(--muted);font-size:11.5px;margin-top:4px}
+  .steps .st{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-bottom:4px}
+  .steps .st b{width:16px}
+  .steps .st select{width:auto;flex:none;padding:3px 6px;font-size:12px;margin-left:auto}
+  .lnk{color:var(--accent);cursor:pointer;font-size:12px}
+  .grp{border-left:3px solid var(--accent-soft);padding-left:8px;margin:8px 0}
+  /* ---- yeni sayfa penceresi ---- */
+  .modal{max-width:640px;margin:10px auto 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 12px 40px rgba(30,20,80,.08)}
+  .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .modal header b{font-size:16px}
+  .tpls{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .tpl{border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;text-align:left;background:#fff;font:inherit}
+  .tpl:hover{border-color:var(--accent)}
+  .tpl .pv{height:54px;border-radius:7px;background:linear-gradient(180deg,#f1effa 0 12px,#fff 12px);border:1px solid var(--line);margin-bottom:8px}
+  .tpl small{display:block;color:var(--muted);margin-top:2px;line-height:1.4}
+  .tpl.gone{border-style:dashed;opacity:.55;cursor:not-allowed;grid-column:1/-1;position:relative}
+  .tpl.gone b{text-decoration:line-through}
+  .pages{max-width:640px;margin:16px auto 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+  .pg{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .pg:first-of-type{border-top:0}
+  .badge{font-size:11px;border-radius:99px;padding:1px 8px;background:var(--accent-soft);color:var(--accent)}
+  .badge.legacy{background:#f1f0f5;color:var(--muted)}
+  /* ---- ne değişmez ---- */
+  .keep{max-width:980px;margin:0 auto;background:var(--ok-soft);border:1px solid #bfe3c9;border-radius:12px;padding:14px 18px;color:#14532d;line-height:1.6}
+  .keep h3{margin:0 0 6px;font-size:15px}
+  .keep ul{margin:0;padding-left:18px}
+  .change{max-width:980px;margin:12px auto 0;background:var(--warn-soft);border:1px solid #f1d3a6;border-radius:12px;padding:12px 18px;color:#7c2d12;line-height:1.6}
+  .map{max-width:980px;margin:14px auto 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+  .map table{width:100%;border-collapse:collapse}
+  .map th,.map td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;font-size:12px;vertical-align:top}
+  .map th{color:var(--muted);background:#faf9fd}
+  .map td:first-child{white-space:nowrap}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 11 — Komutlar + Kayıt kartı (5b-2, adım 1).</b> Eski sayfaların <span class="code">actionBar</span>'ı (standart komut çubuğu) kalıplara gelir: hangi standart komut görünür, ne zaman görünür, ne yapar. Çubuğu kalıbın kabuğu çizer (ana düğme solda, normal düğmeler arada, Sil en sağda, sığmayan "⋯" içine). Komutlar ERP'nin ortak komut sistemine kaydolur: kısayollar, F1 yardımı ve gizli komutun kısayolunun çalışmaması bugünkü gibi kalır. Turuncu <span class="sug">öneri</span> etiketi, kodda henüz karşılığı olmayan ve bu taslakla önerilen şeyleri gösterir.</div>
+<div class="views"><span class="lbl">Görünüm</span><div class="seg" id="viewSeg">
+  <button class="on" data-v="rec">1 · ERP: Cari kartı</button><button data-v="list">2 · ERP: Cari hesaplar</button><button data-v="panel">3 · Studio: Komutlar paneli</button><button data-v="newpage">4 · Studio: Yeni sayfa</button><button data-v="keep">5 · Ne değişmez</button></div></div>
+
+<!-- ========== 1. ERP Kayıt kartı ========== -->
+<div class="view on" id="v-rec">
+  <div class="ctrl"><span class="lbl">Kayıt</span><div class="seg" id="recMode"><button data-m="new">Yeni kayıt</button><button class="on" data-m="edit">Var olan kayıt</button></div>
+    <span class="lbl">Genişlik</span><div class="seg" id="recWidth"><button class="on" data-w="wide">Masaüstü</button><button data-w="narrow">Telefon</button></div>
+    <label class="lbl"><input type="checkbox" id="recDel"> Sil'i göster <span class="sug">örnek</span></label></div>
+  <div class="erp" id="recErp"></div>
+  <div class="expl">
+    <b>Ne görülüyor.</b> Cari kartı standardı (<span class="code">customer-create</span>) kalıplı halde. Çubuk kabuğun kuralıyla dizilir: <b>Kaydet</b> ana düğme olarak en solda, ardından standart komutlar bugünkü sırayla (Kaydet ve yeni → Yeni → Yenile) ve sayfanın ek eylemleri, <b>Sil</b> en sağda.
+    <ul>
+      <li><b>Gizli komut çizilmez:</b> standart Düzenle, Sil, Filtre, Yazdır ve Excel'i gizliyor (<span class="code">hiddenCommands</span>). Bunlar çubukta yok, kısayolları (Ctrl+Del, Ctrl+P…) bir şey yapmaz; Ctrl+P tarayıcının yazdırmasını da açmaz.</li>
+      <li><b>Koşullu komut:</b> "Kaydet ve yeni" yalnız yeni kayıtta görünür (<span class="code">commandWhen: saveNew = kayıt kimliği boş</span>). Üstten "Yeni kayıt / Var olan kayıt" arasında geçince düğme gelir ya da gider (taslakta kesik turuncu çerçeveyle işaretli).</li>
+      <li><b>Kısayollar:</b> bugünkü ERP gibi düğmenin üstünde rozet yok; fareyle üstüne gelince ya da klavyeyle odaklanınca ipucu çıkar ("Kaydet · Ctrl+S"). F2 Yeni, Ctrl+F2 Kaydet ve yeni, F5 Yenile, F1 kısayol yardımı. Kalıp kabuğu bugün ipucu göstermiyor; ipucunun kabuğa gelmesi <span class="sug">öneri</span>.</li>
+      <li><b>"⋯":</b> Telefon genişliğinde ana düğme dışındakiler "⋯" menüsüne girer. Menünün altında sayfanın "Diğer" düğmeleri (<span class="code">moreButtons</span>, eskiden İşlemler / Alt+İ) de durur; iki menünün tek menüde birleşmesi <span class="sug">öneri</span>.</li>
+      <li><b>Silme onayı:</b> Cari kartında Sil standartta gizli; onay penceresini göstermek için "Sil'i göster" işaretlenebilir. Onay başlığı sayfanın onay metninden gelir; metin yoksa "Kayıt silinsin mi?". Yeni kayıtta Sil hiç çizilmez (kalıbın bugünkü kuralı).</li>
+      <li><b>Kayıttan sonra:</b> standart, kayıttan sonra Cari hesaplar ekranına aynı sekmede dönüp onu yeniliyor (<span class="code">afterSave*</span>). Bu ayar varsa kalıbın kendi kuralının (yeniden yükle / açan sekmeye dön) önüne geçer.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ========== 2. ERP Liste ========== -->
+<div class="view" id="v-list">
+  <div class="ctrl"><span class="lbl">Genişlik</span><div class="seg" id="listWidth"><button class="on" data-w="wide">Masaüstü</button><button data-w="narrow">Telefon</button></div>
+    <span class="lbl">Bir satıra tıklayınca Düzenle, Görüntüle ve Sil etkinleşir. Filtre düğmesi ya da Ctrl+F arama kutusuna odaklanır.</span></div>
+  <div class="erp" id="listErp"></div>
+  <div class="expl">
+    <b>Ne görülüyor.</b> Cari hesaplar standardı (<span class="code">customers</span>) Liste kalıbında.
+    <ul>
+      <li><b>Başlık satırı:</b> "Cari hesaplar" ve yanında kayıt sayısı. Sayı standarttaki bağlamadan gelir (<span class="code">titleCount = {{cariler.meta.totalCount}}</span>, sunucudaki toplam). Liste kalıbı bugün görünen satır sayısını kendisi gösteriyor; ayar varsa onun sayısı geçerli olur.</li>
+      <li><b>Yeni</b> ana düğmedir ve Cari kartını açar. Standartta hedef <b>yeni sekme</b> (<span class="code">newTarget: newTab</span>); aynı sekme de seçilebilir. <b>Düzenle</b> (Enter, çift tıklama) seçili satırı <span class="code">customerId</span> ile aynı kartta açar; <b>Görüntüle</b> (Shift+Enter) aynı kartı salt okunur açar. Satır seçili değilken ikisi soluktur: "Önce bir kayıt seçin".</li>
+      <li><b>Excel</b> (Ctrl+E) "liste" tablosunun görünen satırlarını indirir; CSV menüdedir.</li>
+      <li><b>Filtre</b> (Ctrl+F) arama kutusuna odaklanır (<span class="code">focusInput: suzgec</span>). Bu ayar sayfa açılışında değil, Filtre komutunda odaklanır.</li>
+      <li><b>Sil</b> en sağda; onay metni seçili satırdan doldurulur: "C-1001 · Akdeniz Gıda A.Ş. cari kartı silinsin mi?".</li>
+      <li>Kaydet ve Yazdır standartta gizli. "⋯" içinde dokuz ek düğme (Yeni teklif, Yeni sipariş… Hareketler) ve "CSV olarak dışa aktar" var.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ========== 3. Studio Komutlar paneli ========== -->
+<div class="view" id="v-panel">
+  <div class="side">
+    <div>
+      <div class="stop"><b>←</b><h1 id="pTitle">Cari kartı</h1><span class="pill" id="pPill">Kayıt kartı</span><span class="sp"></span>
+        <div class="seg" id="pKind"><button class="on" data-k="rec">Kayıt kartı</button><button data-k="list">Liste</button></div>
+        <button class="btn primary sm">Yayınla</button></div>
+      <div class="canvasbg"><div class="erp" id="pCanvas"></div></div>
+      <div class="expl" style="max-width:none">
+        <b>Ne görülüyor.</b> Danışman tuvalde boş bir yere (ya da çubuğa) tıklayınca sağda <b>sayfanın paneli</b> açılır. Bugünkü bölümler (Ad, Hangi kayıt, Kaydet düğmesi, Öne çıkan değerler, Ek eylemler) yerinde kalır; altına <b>Komutlar</b> bölümü eklenir. Panel değişince tuvaldeki çubuk hemen değişir.
+        <ul>
+          <li>Her standart komut bir satırdır: <b>göz</b> göster/gizle, ad, kısayol ve tek satırlık özet. Satıra tıklayınca ayarları açılır, aynı anda bir satır açıktır. Studio'nun eski Komutlar sekmesindeki satırlarla aynı düzen.</li>
+          <li><b>Ne zaman görünsün:</b> "Her zaman / Koşula göre" seçimi ve tasarımcının kural kurucusu ("Eğer [alan] [işleç] [değer]"). Kod yazmak gerekmez, ama kural kurucunun "Kod olarak yaz" seçeneği kalır. Kayıt kartında "Yalnız yeni kayıtta / Yalnız var olan kayıtta" kısa seçimleri <span class="sug">öneri</span>.</li>
+          <li>Seyrek kullanılan ayarlar her komutun <b>Gelişmiş</b> bölümündedir; danışman çoğu zaman onları görmez.</li>
+          <li>Üstteki "Liste" seçimi, Cari hesaplar sayfasındaki satırları gösterir (Düzenle, Görüntüle, Filtre, Excel, başlıkta kayıt sayısı).</li>
+        </ul>
+      </div>
+    </div>
+    <div class="insp" id="insp"></div>
+  </div>
+</div>
+
+<!-- ========== 4. Yeni sayfa ========== -->
+<div class="view" id="v-newpage">
+  <div class="modal">
+    <header><b>Yeni özel sayfa</b><span style="color:var(--muted);cursor:pointer">✕</span></header>
+    <div class="q" style="margin-top:0">Sayfa kalıbı</div>
+    <div class="tpls">
+      <button class="tpl"><div class="pv"></div><b>Liste</b><small>Kayıtları aramak, süzmek ve seçmek için.</small></button>
+      <button class="tpl"><div class="pv"></div><b>Kayıt kartı</b><small>Tek bir kaydı görmek ve düzenlemek için.</small></button>
+      <button class="tpl"><div class="pv"></div><b>Belge</b><small>Satış siparişi gibi satırlı belgeler; hesap ve durumlar modülden gelir.</small></button>
+      <button class="tpl"><div class="pv"></div><b>Serbest</b><small>Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin.</small></button>
+      <div class="tpl gone"><b>Eski tasarımcı (kalıpsız)</b><small>Bu seçim kaldırılır. Yeni sayfa yalnız bir kalıpla başlar.</small></div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn">Vazgeç</button></div>
+  </div>
+  <div class="pages">
+    <div class="q" style="margin-top:0">Sayfalar</div>
+    <div class="pg"><b>Cari hesaplar</b><span class="badge">Liste</span><span class="sp"></span><button class="btn sm">Düzenle</button></div>
+    <div class="pg"><b>Masraf merkezleri</b><span class="badge">Kayıt kartı</span><span class="sp"></span><button class="btn sm">Düzenle</button></div>
+    <div class="pg"><b>Bölge panosu (eski)</b><span class="badge legacy">Kalıpsız</span><span class="sp"></span><button class="btn sm">Düzenle</button></div>
+    <div class="opt">Kalıpsız sayfa bugünkü tasarımcıda açılır ve düzenlenir. Boş bir kalıpsız sayfadaki "Şablonla başla" penceresi de kalır. Kalıpsız sayfa çoğaltılınca kopyası da kalıpsız olur; bu, "yeni sayfa" sayılmaz <span class="sug">öneri</span>.</div>
+  </div>
+  <div class="expl" style="max-width:640px">
+    <b>Ne görülüyor.</b> 5b-2'nin kararı: adım 1'den sonra yeni sayfa yalnız Liste, Kayıt kartı, Belge ya da Serbest kalıbıyla oluşturulur. Penceredeki son, kesik çizgili "Eski tasarımcı (kalıpsız)" kartı kalkar. Sunucu da kalıpsız yeni sayfa kaydını reddeder. Var olan kalıpsız sayfalar (standartların firma kopyaları dahil) düzenlenmeye devam eder; onları taşıma dalgaları kalıba geçirir.
+  </div>
+</div>
+
+<!-- ========== 5. Ne değişmez ========== -->
+<div class="view" id="v-keep">
+  <div class="keep"><h3>Ne değişmez</h3><ul>
+    <li><b>Kısayollar:</b> F2 Yeni, Enter Düzenle, Shift+Enter Görüntüle, Ctrl+S Kaydet, Ctrl+F2 Kaydet ve yeni, Ctrl+Del Sil, F5 Yenile, Ctrl+F Filtre, Ctrl+P Yazdır, Ctrl+E Excel, Alt+İ menü, F1 yardım. Metin yazarken ve açık pencerede çalışmama kuralları da aynı.</li>
+    <li><b>Ortak komut sistemi:</b> kalıplı sayfa komutlarını eski çubuk gibi <span class="code">usePageCommands</span> ile kaydeder. Kaynak önceliği (açık form &gt; sayfa &gt; liste &gt; tablo), kayıt defterinin eklediği komutlar (ör. Görüntüle) ve gizli komutun kısayolunun engellenmesi aynen sürer.</li>
+    <li><b>Her ayarın davranışı:</b> kaydetme sırası, adım koşulları ve "hata olursa dur"; Yeni/Düzenle hedefi ve sekmesi; kayıttan sonra gidilen ekran ve yenileme; silme sorgusu ve onay metni; dışa aktarılan tablo ve CSV; başlıktaki kayıt sayısı; Filtre odağı; "Diğer" menüsü; yetki ve "nedenli soluk düğme" kuralları. Ayar yoksa kalıbın bugünkü kuralları (Kaydet/Sil, kayıttan sonra) varsayılan kalır.</li>
+    <li><b>Dönüştürücü:</b> bir <span class="code">actionBar</span> ayarını birebir eşleyemezse sayfayı taşımaz ve gerekçesini yazar.</li>
+  </ul></div>
+  <div class="change"><b>Yalnız görünüş değişebilir:</b> düğmelerin sırası ve yeri. Eski çubukta sıra sabitti (Yeni · Düzenle · Görüntüle · Kaydet · Sil | Yenile · Filtre | Yazdır · Excel). Kalıpta ana düğme en solda, Sil en sağda; sığmayanlar "⋯" içinde. Eski çubuğun dar ekranda düğmeleri simgeye çevirmesi yerine kabuğun "⋯" menüsü kullanılır.</div>
+  <div class="map"><div class="q" style="margin-top:0">Eski ayar → paneldeki yeri</div>
+    <table><thead><tr><th>actionBar ayarı (standart sayısı)</th><th>Komutlar panelinde</th></tr></thead><tbody>
+      <tr><td><span class="code">hiddenCommands</span> (46)</td><td>Satırdaki göz</td></tr>
+      <tr><td><span class="code">commandWhen</span> (14)</td><td>Satır › Ne zaman görünsün</td></tr>
+      <tr><td><span class="code">newAction / newPageCode / newTarget</span> (17/14/14)</td><td>Yeni › Ne yapsın, Hangi ekran, Nerede</td></tr>
+      <tr><td><span class="code">newInputs</span> (3), <span class="code">newButton</span> (22)</td><td>Yeni › Gelişmiş: temizlenecek alanlar · eski düğme bağı (taşıma sırasında "Ekran aç"a çevrilir, çevrilemiyorsa sayfa taşınmaz)</td></tr>
+      <tr><td><span class="code">openAction / openPageCode / openTarget / openTable / openParams</span>, <span class="code">openButton</span> (20)</td><td>Düzenle › Hangi ekran, Nerede · Gelişmiş: hangi liste, gönderilen bilgiler</td></tr>
+      <tr><td><span class="code">saveSequence / sequenceWhen / stopOnError</span> (10), <span class="code">saveQuery</span> (6)</td><td>Kaydet › Kaydetme adımları (tek adım = tek sorgu), adım koşulu, Hata olursa dur</td></tr>
+      <tr><td><span class="code">afterSaveAction / afterSavePageCode / afterSaveTarget / afterSaveRefresh</span> (11/9), <span class="code">afterSaveButton</span> (5)</td><td>Kaydet › Kaydettikten sonra</td></tr>
+      <tr><td><span class="code">saveAndNew</span> (5)</td><td>Kaydet ve yeni satırının gözü</td></tr>
+      <tr><td><span class="code">deleteQuery / deleteConfirmText</span> (7)</td><td>Sil › Silme eylemi, Onay metni</td></tr>
+      <tr><td><span class="code">exportTable</span> (37)</td><td>Excel › Hangi liste</td></tr>
+      <tr><td><span class="code">titleCount</span> (36)</td><td>Komutlar altı › Başlıkta kayıt sayısı</td></tr>
+      <tr><td><span class="code">focusInput</span> (31)</td><td>Filtre › Odaklanacak alan</td></tr>
+      <tr><td><span class="code">moreButtons</span> (33)</td><td>"⋯" menüsü › Diğer düğmeler</td></tr>
+      <tr><td><span class="code">barLook, formDialog, printEnabled, exportCsv</span> (standartlarda 0)</td><td>Bu adımda yok. Firma sayfasında varsa sayfa taşınmaz <span class="sug">öneri</span></td></tr>
+    </tbody></table></div>
+</div>
+
+<script>
+const S={view:"rec",recMode:"edit",recWidth:"wide",recDel:false,recMenu:false,recConfirm:false,
+  listWidth:"wide",listSel:-1,listFocus:false,listMenu:false,listConfirm:false,
+  pKind:"rec",openCmd:"saveNew",
+  cmds:{rec:{new:{on:1},save:{on:1},saveNew:{on:1,when:"new"},delete:{on:0},refresh:{on:1},print:{on:0}},
+        list:{new:{on:1},open:{on:1},save:{on:0},delete:{on:1},refresh:{on:1},filter:{on:1},print:{on:0},export:{on:1}}},
+  newTarget:{rec:"same",list:"newTab"},afterSave:"page",afterRefresh:true,stop:true,titleCount:true};
+const ROWS=[["CR-1001","Akdeniz Gıda A.Ş.","Müşteri","Antalya","48.250,00"],["CR-1002","Ege Tekstil Ltd.","Tedarikçi","İzmir","-12.400,00"],["CR-1003","Marmara Lojistik","Müşteri","Kocaeli","5.900,00"],["CR-1004","Karadeniz Fındık Koop.","Müşteri","Giresun","0,00"]];
+const MORE=["Yeni teklif","Yeni sipariş","Yeni irsaliye","Yeni fatura","Faturalar","Adresler","Pasife al","Etkinleştir","Hareketler"];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* kabuk: primary solda, normal arada, danger sağda; dar ekranda primary dışı "⋯" içine */
+function shellBar(actions,{narrow,search,menuOpen,more,menuKey}){
+  const pri=actions.filter(a=>a.kind==="primary"),nor=actions.filter(a=>a.kind==="normal"),dan=actions.filter(a=>a.kind==="danger");
+  const shownN=narrow?[]:nor,shownD=narrow?[]:dan,over=narrow?[...nor,...dan]:[];
+  const btn=a=>`<button class="b${a.kind==="primary"?" pri":a.kind==="danger"?" dan":""}${a.dis?" dis":""}${a.isNew?" new":""}" data-act="${a.id}" data-tip="${esc((a.dis||a.label)+(a.key?" · "+a.key:""))}">${a.label}</button>`;
+  const hasMenu=over.length||more.length;
+  const menu=menuOpen&&hasMenu?`<div class="menu">${over.map(a=>`<div class="mi${a.kind==="danger"?" dan":""}" data-act="${a.id}"><span>${a.label}</span>${a.key?`<kbd>${a.key}</kbd>`:""}</div>`).join("")}
+    ${over.length&&more.length?"<hr>":""}${more.length?`<div class="mh">Diğer <span class="sug">öneri: tek menü</span></div>`+more.map(m=>`<div class="mi"><span>${m}</span></div>`).join(""):""}</div>`:"";
+  return `<div class="bar"><div class="l">${[...pri,...shownN].map(btn).join("")}</div>${search||""}<div class="r">${hasMenu?`<span style="position:relative"><button class="b" data-menu="${menuKey}" data-tip="Diğer işlemler · Alt+İ">⋯</button>${menu}</span>`:""}${shownD.map(btn).join("")}</div></div>`;
+}
+function confirmBox(text,key){return `<div class="back"><div class="dlg"><h3>${esc(text)}</h3><div class="opt">Bu işlem geri alınamaz.</div><div class="row" style="display:flex"><button class="btn" data-close="${key}">Vazgeç</button><button class="btn dan" data-close="${key}">Sil</button></div></div></div>`;}
+
+function recActions(isNew,cfg,showDel){
+  const a=[];
+  if(cfg.save.on)a.push({id:"save",label:"Kaydet",kind:"primary",key:"Ctrl+S"});
+  if(cfg.saveNew.on&&(cfg.saveNew.when!=="new"||isNew))a.push({id:"saveNew",label:"Kaydet ve yeni",kind:"normal",key:"Ctrl+F2",isNew:isNew&&S.view==="rec"});
+  if(cfg.new.on)a.push({id:"new",label:"Yeni",kind:"normal",key:"F2"});
+  if(cfg.refresh.on)a.push({id:"refresh",label:"Yenile",kind:"normal",key:"F5"});
+  if(cfg.print.on)a.push({id:"print",label:"Yazdır",kind:"normal",key:"Ctrl+P"});
+  a.push({id:"ekstre",label:"Ekstre al",kind:"normal",key:""});
+  if(showDel&&!isNew)a.push({id:"delete",label:"Sil",kind:"danger",key:"Ctrl+Del"});
+  return a;
+}
+function recCard(isNew,narrow,cfg,showDel,menuOpen,menuKey){
+  const v=(x)=>isNew?"":x;
+  const hidden=["Düzenle",...(showDel&&!isNew?[]:["Sil"]),"Filtre",...(cfg.print.on?[]:["Yazdır"]),"Excel",...(cfg.new.on?[]:["Yeni"]),...(cfg.refresh.on?[]:["Yenile"])].map(n=>[n]);
+  if(cfg.saveNew.on&&cfg.saveNew.when==="new"&&!isNew)hidden.push(["Kaydet ve yeni (koşulu yanlış)"]);
+  return `<div class="crumb">Ana sayfa › Cari › ${isNew?"Yeni cari":"CR-1001"}</div>
+   <div class="rh"><div class="av">${isNew?"+":"AG"}</div><div><div class="t">${isNew?"Yeni cari":"Akdeniz Gıda A.Ş."}</div><div class="s">${isNew?"Kaydedilmedi":"CR-1001 · Antalya · Müşteri"}</div></div>${isNew?"":'<div class="kv"><div><span>Bakiye</span><b>48.250 ₺</b></div><div><span>Vade</span><b>30 gün</b></div></div>'}</div>
+   ${shellBar(recActions(isNew,cfg,showDel),{narrow,menuOpen,more:[],menuKey})}
+   <div class="tabs"><div class="tab on">Genel</div><div class="tab">İletişim</div><div class="tab">Ticari</div></div>
+   <div class="grid"><div class="f"><label>Cari kodu</label><div class="in ro">${isNew?"(otomatik)":"CR-1001"}</div></div><div class="f"><label>Unvan *</label><div class="in">${v("Akdeniz Gıda A.Ş.")}</div></div><div class="f"><label>Cari türü</label><div class="in">${v("Müşteri")}</div></div></div>
+   <div class="foot"><span>${isNew?"Yeni kayıt":"Son değişiklik: 24.11.2026 · Ayşe Yılmaz"}</span><span>F1 kısayollar</span></div>
+   <div class="hiddenlist">Çizilmeyen (gizli) komutlar: ${hidden.map(([n])=>`<s>${n}</s>`).join(" · ")}</div>`;
+}
+function renderRec(){
+  const el=document.getElementById("recErp"),isNew=S.recMode==="new",narrow=S.recWidth==="narrow";
+  el.className="erp"+(narrow?" narrow":"");
+  el.innerHTML=recCard(isNew,narrow,S.cmds.rec,S.recDel,S.recMenu,"rec")+(S.recConfirm?confirmBox("CR-1001 · Akdeniz Gıda A.Ş. cari kartı silinsin mi?","rec"):"");
+}
+function listActions(cfg,sel){
+  const need=sel<0?"Önce bir kayıt seçin":"";
+  const a=[];
+  if(cfg.new.on)a.push({id:"new",label:"Yeni",kind:"primary",key:"F2"});
+  if(cfg.open.on){a.push({id:"open",label:"Düzenle",kind:"normal",key:"Enter",dis:need});a.push({id:"view",label:"Görüntüle",kind:"normal",key:"Shift+Enter",dis:need});}
+  if(cfg.refresh.on)a.push({id:"refresh",label:"Yenile",kind:"normal",key:"F5"});
+  if(cfg.filter.on)a.push({id:"filter",label:"Filtre",kind:"normal",key:"Ctrl+F"});
+  if(cfg.print.on)a.push({id:"print",label:"Yazdır",kind:"normal",key:"Ctrl+P"});
+  if(cfg.export.on)a.push({id:"export",label:"Excel",kind:"normal",key:"Ctrl+E"});
+  if(cfg.delete.on)a.push({id:"delete",label:"Sil",kind:"danger",key:"Ctrl+Del",dis:need});
+  return a;
+}
+function listPage(narrow,cfg,sel,focus,menuOpen,menuKey,showCount){
+  const more=[...MORE,...(cfg.export.on?["CSV olarak dışa aktar"]:[])];
+  const search=`<div class="search${focus?" focus":""}">⌕ <span>${focus?"Ara…|":"Ara"}</span></div>`;
+  return `<div class="ttlrow"><div class="ttl">Cari hesaplar</div>${showCount?'<span class="cnt"><b>1.248</b> kayıt</span>':""}</div>
+   ${shellBar(listActions(cfg,sel),{narrow,search,menuOpen,more,menuKey})}
+   <div class="tbl"><table><thead><tr><th>Kod</th><th>Unvan</th><th>Tür</th><th>Şehir</th><th class="n">Bakiye</th></tr></thead><tbody>
+   ${ROWS.map((r,i)=>`<tr class="${i===sel?"sel":""}" data-row="${i}">${r.map((c,j)=>`<td class="${j===4?"n":""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+   <div class="foot"><span>1–4 / 1.248</span><span>F1 kısayollar</span></div>
+   <div class="hiddenlist">Çizilmeyen (gizli) komutlar: ${[["Kaydet","save"],["Yazdır","print"]].filter(([,id])=>!cfg[id].on).map(([n])=>`<s>${n}</s>`).join(" · ")||"—"}</div>`;
+}
+function renderList(){
+  const el=document.getElementById("listErp"),narrow=S.listWidth==="narrow";
+  el.className="erp"+(narrow?" narrow":"");
+  const r=ROWS[S.listSel]||ROWS[0];
+  el.innerHTML=listPage(narrow,S.cmds.list,S.listSel,S.listFocus,S.listMenu,"list",true)+(S.listConfirm?confirmBox(`${r[0]} · ${r[1]} cari kartı silinsin mi?`,"list"):"");
+}
+
+/* ---- Studio paneli ---- */
+const DEFS={
+ rec:[["new","Yeni","F2"],["save","Kaydet","Ctrl+S"],["saveNew","Kaydet ve yeni","Ctrl+F2"],["delete","Sil","Ctrl+Del"],["refresh","Yenile","F5"],["print","Yazdır","Ctrl+P"]],
+ list:[["new","Yeni","F2"],["open","Düzenle · Görüntüle","Enter"],["save","Kaydet","Ctrl+S"],["delete","Sil","Ctrl+Del"],["refresh","Yenile","F5"],["filter","Filtre","Ctrl+F"],["print","Yazdır","Ctrl+P"],["export","Excel","Ctrl+E"]]};
+const tg=(on,attr)=>`<span class="tg${on?" on":""}" ${attr}></span>`;
+function whenPart(k,id){
+  const c=S.cmds[k][id],w=c.when||"always";
+  const opts=k==="rec"?[["always","Her zaman"],["new","Yalnız yeni kayıtta"],["edit","Yalnız var olan kayıtta"],["cond","Koşula göre"]]:[["always","Her zaman"],["cond","Koşula göre"]];
+  return `<div class="q">Ne zaman görünsün?</div><div class="seg">${opts.map(([v,l])=>`<button class="${w===v?"on":""}" data-when="${id}" data-w="${v}">${l}</button>`).join("")}</div>
+   ${k==="rec"&&(w==="new"||w==="edit")?`<div class="opt"><span class="sug">öneri</span> kısa seçim; arkada kural kurucunun yazdığı koşulla aynıdır (<span class="code">kart.rows[0].id ${w==="new"?"==":"!="} null</span>).</div>`:""}
+   ${w==="cond"?`<div class="cond"><span class="opt" style="margin:0">Eğer</span><select><option>Cari türü</option><option>Kullanıcı rolü</option></select><select><option>eşittir</option><option>boş</option></select><input value="Tedarikçi"><span class="x">×</span></div>
+     <div><span class="lnk">+ Kural ekle</span> · <span class="lnk">Kod olarak yaz</span></div><span class="csum">Cari türü eşittir Tedarikçi ise komut çubukta görünür.</span>`:""}`;
+}
+function targetSeg(key){return `<div class="row">Nerede <div class="seg">${[["same","Bu sekmede"],["newTab","Yeni sekmede"]].map(([v,l])=>`<button class="${S.newTarget[key]===v?"on":""}" data-tgt="${key}" data-v="${v}">${l}</button>`).join("")}</div></div>`;}
+function detail(k,id){
+  const adv=(inner)=>`<details style="margin-top:8px"><summary>Gelişmiş</summary><div class="grp">${inner}</div></details>`;
+  switch(id){
+  case "new":return `<div class="q">Ne yapsın?</div><div class="seg"><button>Formu temizle</button><button class="on">Ekran aç</button></div>
+    <div class="row">Hangi ekran <select><option>Cari kartı</option><option>Cari hesaplar</option></select></div>${targetSeg(k)}
+    ${adv(`<div class="row">Temizlenecek alanlar <span><span class="chip">Unvan</span><span class="chip add">+ Alan</span></span></div><div class="opt">Yalnız "Formu temizle"de kullanılır.</div>`)}`;
+  case "save":return k==="list"?`<div class="opt">Liste sayfası kaydetmez; Kaydet çubukta yoktur.</div>`:`<div class="q">Kaydetme sırası</div>
+    <div class="steps">
+     <div class="st"><b>1.</b>Cari ekle<select><option>Yeni kayıtta</option><option>Her zaman</option><option>Koşula göre…</option></select></div>
+     <div class="st"><b>2.</b>Cari güncelle<select><option>Var olan kayıtta</option><option>Her zaman</option></select></div>
+     <div class="st"><b>3.</b>Özel alanları kaydet<select><option>Var olan kayıtta</option><option>Her zaman</option></select></div></div>
+    <span class="lnk">+ Adım ekle</span>
+    <div class="row">Bir adım hata verirse dur ${tg(S.stop,'data-flag="stop"')}</div>
+    <div class="src">Adımlar yazılımcının hazırladığı eylemlerdir; yetki ve onay sorusu ondan gelir. 1. ve 2. adım "Kaydet düğmesi"ndeki seçimle aynıdır.</div>
+    <div class="q">Kaydettikten sonra</div>
+    <div class="seg"><button class="${S.afterSave==="card"?"on":""}" data-after="card">Kartın kuralı</button><button class="${S.afterSave==="page"?"on":""}" data-after="page">Ekran aç</button></div>
+    ${S.afterSave==="card"?`<div class="opt">Var olan kayıt yeniden yüklenir, kartta kalınır. Yeni kayıtta kart, kartı açan sekmeye döner; açan yoksa form temizlenir.</div>`
+      :`<div class="row">Hangi ekran <select><option>Cari hesaplar</option><option>Cari kartı</option></select></div>
+        <div class="row">Nerede <div class="seg"><button class="on">Bu sekmede</button><button>Yeni sekmede</button></div></div>
+        <div class="row">Açılan ekranı yenile ${tg(S.afterRefresh,'data-flag="afterRefresh"')}</div>`}`;
+  case "saveNew":return `<div class="opt">Kaydeder; başarılı olursa "Kaydettikten sonra" yerine Yeni'yi çalıştırır. Kaydet ya da Yeni gizliyse bu da gizlidir.</div>`;
+  case "delete":return `<div class="row">Silme eylemi <select><option>Cari sil</option><option>—</option></select></div>
+    <div class="q">Onay metni</div><div class="txt" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;line-height:1.9"><span class="chip tok">{Cari kodu}</span> · <span class="chip tok">{Unvan}</span> cari kartı silinsin mi?</div>
+    <div class="opt">Boşsa "Kayıt silinsin mi?" sorulur. ${k==="list"?"Alanlar seçili satırdan doldurulur.":"Yeni kayıtta Sil gösterilmez."}</div>`;
+  case "open":return `<div class="row">Hangi ekran <select><option>Cari kartı</option></select></div>
+    <div class="row">Nerede <div class="seg"><button>Bu sekmede</button><button class="on">Yeni sekmede</button></div></div>
+    <div class="opt">Görüntüle aynı ekranı salt okunur açar; Düzenle gizlenince o da gizlenir.</div>
+    ${adv(`<div class="row">Hangi liste <select><option>Cariler</option></select></div><div class="row">Gönderilen bilgi <span class="chip">customerId = {Kimlik}</span></div>`)}`;
+  case "filter":return `<div class="row">Odaklanacak alan <select><option>Arama kutusu</option><option>Cari türü</option></select></div><div class="opt">Filtre (Ctrl+F) bu alana odaklanır.</div>`;
+  case "export":return `<div class="row">Hangi liste <select><option>Cariler</option></select></div><div class="opt">Görünen satırlar Excel olarak iner; "CSV olarak dışa aktar" menüdedir.</div>`;
+  case "print":return `<div class="opt">Sayfayı yazdırır. Standartların hepsinde gizli.</div>`;
+  case "refresh":return `<div class="opt">Sayfanın sorgularını yeniden çalıştırır. Ayarı yok.</div>`;
+  }return "";
+}
+function summary(k,id){
+  const c=S.cmds[k][id];if(!c.on)return "Çubukta gizli · kısayolu çalışmaz";
+  const m={new:`Cari kartını açar · ${S.newTarget[k]==="same"?"bu sekmede":"yeni sekmede"}`,save:k==="list"?"—":`3 adım · ${S.afterSave==="card"?"kartın kuralı":"sonra Cari hesaplar"}`,saveNew:"Kaydeder, yeni kayda başlar",
+    delete:"Cari sil · onay metni var",open:"Cari kartını açar · yeni sekmede",refresh:"Sayfayı yeniler",filter:"Arama kutusuna odaklanır",export:"Cariler listesi",print:"Sayfayı yazdırır"};
+  return m[id];
+}
+function renderPanel(){
+  const k=S.pKind;
+  document.getElementById("pTitle").textContent=k==="rec"?"Cari kartı":"Cari hesaplar";
+  document.getElementById("pPill").textContent=k==="rec"?"Kayıt kartı":"Liste";
+  const cv=document.getElementById("pCanvas");
+  cv.innerHTML=k==="rec"?recCard(false,false,S.cmds.rec,!!S.cmds.rec.delete.on,false,"p"):listPage(false,S.cmds.list,-1,false,false,"p",S.titleCount);
+  const bar=cv.querySelector(".bar");if(bar)bar.classList.add("selbar");
+  const rows=DEFS[k].map(([id,label,key])=>{const c=S.cmds[k][id],open=S.openCmd===id;
+    const whenChip=c.when&&c.when!=="always"?`<span class="when">${c.when==="new"?"yeni kayıtta":c.when==="edit"?"var olan kayıtta":"koşul"}</span>`:"";
+    return `<div class="cmd${c.on?"":" off"}${open?" open":""}"><div class="cmdh" data-open="${id}"><button class="eye" data-eye="${id}" title="${c.on?"Gizle":"Göster"}">${c.on?"👁":"⦸"}</button>
+      <div><span class="nm">${label}</span> <span class="key">${key}</span> ${whenChip}<span class="sum">${summary(k,id)}</span></div><span class="chev">${open?"▾":"▸"}</span></div>
+      <div class="cmdd">${c.on?whenPart(k,id)+'<div style="margin-top:8px"></div>'+detail(k,id):'<div class="opt">Gizli komutun ayarları korunur; göz açılınca geri gelir.</div>'}</div></div>`;}).join("");
+  document.getElementById("insp").innerHTML=`<h4>Sayfa · ${k==="rec"?"Kayıt kartı":"Liste"}</h4>
+   <details class="part col"><summary>Ad</summary><input class="txt" value="${k==="rec"?"Cari kartı":"Cari hesaplar"}" style="margin-top:6px"></details>
+   ${k==="rec"?`<details class="part col"><summary>Hangi kayıt gösterilsin?</summary><div class="opt">Cari kartı veri kaynağı</div></details>
+   <details class="part col"><summary>Kaydet düğmesi</summary><div class="row">Yeni kayıtta <select><option>Cari ekle</option></select></div><div class="row">Var olan kayıtta <select><option>Cari güncelle</option></select></div><div class="opt">Bugünkü bölüm. Sil eylemi Komutlar › Sil'e taşınır <span class="sug">öneri</span>.</div></details>
+   <details class="part col"><summary>Öne çıkan değerler</summary><div class="opt">Unvan · Cari kodu · Bakiye</div></details>
+   <details class="part col"><summary>Ek eylemler</summary><span class="chip">Ekstre al</span><div class="opt">Kaydet ile Sil arasında durur.</div></details>`
+   :`<details class="part col"><summary>Liste</summary><div class="opt">Cariler veri kaynağı · 5 kolon</div></details>`}
+   <div class="part"><div class="q" style="margin-top:0;display:flex;justify-content:space-between">Komutlar <span class="opt" style="margin:0">göz = çubukta göster</span></div>
+    ${rows}
+    <div class="cmd"><div class="cmdh"><span class="eye">⋯</span><div><span class="nm">Diğer menüsü</span> <span class="key">Alt+İ</span><span class="sum">${k==="list"?"9 düğme · Yeni teklif, Yeni sipariş…":"Boş · menü çizilmez"}</span></div><span class="chev">▸</span></div></div>
+    ${k==="list"?`<div class="row" style="margin-top:6px">Başlıkta kayıt sayısı ${tg(S.titleCount,'data-flag="titleCount"')}</div>
+      <details><summary style="font-weight:400;font-size:12px;color:var(--muted)">Gelişmiş</summary><div class="grp"><div class="row">Sayı <select><option>Sunucudaki toplam (cariler)</option><option>Görünen satırlar</option></select></div></div></details>`:""}
+    <div class="opt">Komutların yeri kabuk kuralıyla belirlenir: ana düğme solda, Sil en sağda. Danışman sırayı değiştirmez.</div>
+   </div>
+   <div class="part"><div class="opt" style="margin:0"><b>Açılışta odak</b> <span class="sug">öneri</span> · eski çubukta "açılışta odak" yok; odak alanı yalnız Filtre'nin (Ctrl+F) hedefi. Ayrı bir açılış odağı istenirse yeni özellik olur ve 5b-2'nin hedef dışına düşer.</div></div>`;
+}
+function render(){renderRec();renderList();renderPanel();}
+
+document.addEventListener("click",e=>{const t=e.target;let c;
+  if(c=t.closest("#viewSeg button")){S.view=c.dataset.v;document.querySelectorAll("#viewSeg button").forEach(b=>b.classList.toggle("on",b===c));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+S.view));render();return;}
+  if(c=t.closest("#recMode button")){S.recMode=c.dataset.m;document.querySelectorAll("#recMode button").forEach(b=>b.classList.toggle("on",b===c));S.recMenu=false;renderRec();return;}
+  if(c=t.closest("#recWidth button")){S.recWidth=c.dataset.w;document.querySelectorAll("#recWidth button").forEach(b=>b.classList.toggle("on",b===c));S.recMenu=false;renderRec();return;}
+  if(c=t.closest("#listWidth button")){S.listWidth=c.dataset.w;document.querySelectorAll("#listWidth button").forEach(b=>b.classList.toggle("on",b===c));S.listMenu=false;renderList();return;}
+  if(c=t.closest("#pKind button")){S.pKind=c.dataset.k;S.openCmd=null;document.querySelectorAll("#pKind button").forEach(b=>b.classList.toggle("on",b===c));renderPanel();return;}
+  if(c=t.closest("[data-menu]")){if(c.dataset.menu==="rec"){S.recMenu=!S.recMenu;renderRec();}else if(c.dataset.menu==="list"){S.listMenu=!S.listMenu;renderList();}return;}
+  if(c=t.closest("[data-close]")){if(c.dataset.close==="rec"){S.recConfirm=false;renderRec();}else{S.listConfirm=false;renderList();}return;}
+  if(c=t.closest("#recErp [data-act]")){if(c.dataset.act==="delete"){S.recConfirm=true;S.recMenu=false;renderRec();}return;}
+  if(c=t.closest("#listErp [data-row]")){S.listSel=+c.dataset.row;S.listFocus=false;renderList();return;}
+  if(c=t.closest("#listErp [data-act]")){if(c.classList.contains("dis"))return;const a=c.dataset.act;S.listMenu=false;
+    if(a==="filter")S.listFocus=true;if(a==="delete")S.listConfirm=true;renderList();return;}
+  if(c=t.closest("[data-eye]")){const c2=S.cmds[S.pKind][c.dataset.eye];c2.on=c2.on?0:1;renderPanel();e.stopPropagation();return;}
+  if(c=t.closest("[data-open]")){S.openCmd=S.openCmd===c.dataset.open?null:c.dataset.open;renderPanel();return;}
+  if(c=t.closest("[data-when]")){S.cmds[S.pKind][c.dataset.when].when=c.dataset.w;renderPanel();return;}
+  if(c=t.closest("[data-tgt]")){S.newTarget[c.dataset.tgt]=c.dataset.v;renderPanel();return;}
+  if(c=t.closest("[data-after]")){S.afterSave=c.dataset.after;renderPanel();return;}
+  if(c=t.closest("[data-flag]")){const f=c.dataset.flag;S[f]=!S[f];renderPanel();return;}
+  if(S.recMenu&&!t.closest(".menu")){S.recMenu=false;renderRec();}
+  if(S.listMenu&&!t.closest(".menu")){S.listMenu=false;renderList();}
+});
+document.getElementById("recDel").addEventListener("change",e=>{S.recDel=e.target.checked;renderRec();});
+document.addEventListener("keydown",e=>{
+  if(S.view==="list"&&e.ctrlKey&&(e.key==="f"||e.key==="F")){e.preventDefault();S.listFocus=true;renderList();}
+  if(e.key==="Escape"){S.recConfirm=S.listConfirm=S.recMenu=S.listMenu=false;render();}
+});
+render();
+</script>
+</body>
+</html>

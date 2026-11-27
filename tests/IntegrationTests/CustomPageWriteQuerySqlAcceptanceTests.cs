@@ -55,7 +55,7 @@ public sealed class CustomPageWriteQuerySqlAcceptanceTests
         await using var database = await WriteTenantDatabase.CreateAsync();
         await using var app = await CustomPageWriteQueryIntegrationTests.StartApplicationAsync(database.Factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/adDegistir/run",
             new { parameters = new { ad = "Yeni Ad", kod = "CUST-1" } });
@@ -74,7 +74,7 @@ public sealed class CustomPageWriteQuerySqlAcceptanceTests
         await using var database = await WriteTenantDatabase.CreateAsync();
         await using var app = await CustomPageWriteQueryIntegrationTests.StartApplicationAsync(database.Factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/kodlariBirlestir/run",
             new { parameters = new { kod = "AYNI" } });
@@ -89,10 +89,10 @@ public sealed class CustomPageWriteQuerySqlAcceptanceTests
         Assert.Contains("AYNI", audit.ParametersJson);
     }
 
-    private static async Task PublishAsync(HttpClient client)
+    private static async Task PublishAsync(WebApplication app, HttpClient client)
     {
         CustomPageWriteQueryIntegrationTests.SetIdentity(client, Admin, "TenantAdmin");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Müşteri düzelt", definition = Definition() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Müşteri düzelt", Definition());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);

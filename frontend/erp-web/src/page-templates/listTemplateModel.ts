@@ -36,3 +36,11 @@ export function layoutListTemplate<C extends Component>(components: C[]): ListLa
 export function templateLevel(layout: ListLayout<Component>): 1 | 2 {
   return layout.above.length > 0 || layout.below.length > 0 ? 2 : 1;
 }
+
+/**
+ * Kalıplı sayfanın komut çubuğu: `commands` yerindeki üst düzey tek `actionBar` (Liste, Kayıt kartı, Serbest). Yerleşime girmez;
+ * kabuk komutları kayıt defterinden çizer. Yoksa `null`: sayfa bugünkü gibi çizilir ve komut kaydetmez.
+ */
+export function commandsBarOf<C extends Component>(components: C[]): C | null {
+  return components.find((component) => component.type === "actionBar" && slotOf(component) === "commands") ?? null;
+}

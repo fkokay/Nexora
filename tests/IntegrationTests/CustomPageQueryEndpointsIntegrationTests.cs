@@ -49,7 +49,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: false);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client, accessForAyse: true);
+        await PublishAsync(app, client, accessForAyse: true);
 
         SetIdentity(client, Mehmet, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", ValidRun);
@@ -65,7 +65,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: false);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client, accessForAyse: true);
+        await PublishAsync(app, client, accessForAyse: true);
         // An open draft adds q2; it must not be runnable through the published endpoint.
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsJsonAsync("/api/custom-pages/drafts",
             new { code = Code, name = "Pano v2", definition = Definition(Query("q1", "liste"), Query("q2", "taslak")) })).StatusCode);
@@ -84,7 +84,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: false);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client, accessForAyse: true);
+        await PublishAsync(app, client, accessForAyse: true);
         SetIdentity(client, Ayse, "TenantUser");
 
         async Task<string?> Run(object body)
@@ -107,7 +107,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: true);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client, accessForAyse: true);
+        await PublishAsync(app, client, accessForAyse: true);
         SetIdentity(client, Ayse, "TenantUser");
 
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/q1/run", new { parameters = new { kod = (string?)null, adet = "5" } });
@@ -125,7 +125,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: true);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        var publishedId = await PublishAsync(client, accessForAyse: true);
+        var publishedId = await PublishAsync(app, client, accessForAyse: true);
         var draft = await client.PostAsJsonAsync("/api/custom-pages/drafts",
             new { code = Code, name = "Pano v2", definition = Definition(Query("q1", "liste"), Query("q2", "taslak")) });
         var draftId = (await draft.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
@@ -154,7 +154,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
         var factory = new RecordingQueryConnectionFactory(unavailable: false);
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        var publishedId = await PublishAsync(client, accessForAyse: true);
+        var publishedId = await PublishAsync(app, client, accessForAyse: true);
         var draftId = (await (await client.PostAsJsonAsync("/api/custom-pages/drafts",
             new { code = Code, name = "Pano v2", definition = Definition(Query("q1", "liste")) })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
@@ -225,7 +225,7 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
                 parameters = new object[] { new { name = "q", binding = "{{arama.value}}", type = "text" } } } },
             components = new object[] { new { id = "c1", type = "input", name = "arama", props = new { inputType = "text" } } }
         };
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Stok", definition });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Stok", definition);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
@@ -242,10 +242,10 @@ public sealed class CustomPageQueryEndpointsIntegrationTests
     }
 
     /// <summary>Publishes a page with query q1 as admin; optionally grants Ayse View. Leaves the admin identity set.</summary>
-    private static async Task<Guid> PublishAsync(HttpClient client, bool accessForAyse)
+    private static async Task<Guid> PublishAsync(WebApplication app, HttpClient client, bool accessForAyse)
     {
         SetIdentity(client, Admin, "TenantAdmin");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Pano", definition = Definition(Query("q1", "liste")) });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Pano", Definition(Query("q1", "liste")));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         object access = accessForAyse

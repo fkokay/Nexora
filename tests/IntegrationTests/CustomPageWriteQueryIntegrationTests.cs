@@ -74,7 +74,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new TenantQueryUnavailableException("Sorgu veritabanı erişimi bu firma için hazır değil."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/guncelle/run", WriteBody);
@@ -92,7 +92,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new TenantQueryUnavailableException("Sorgu veritabanı erişimi bu firma için hazır değil."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/ekle/run", WriteBody);
@@ -112,7 +112,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => CreateSqlException(2627, "Yinelenen anahtar."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/ekle/run", WriteBody);
@@ -138,7 +138,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new InvalidOperationException("Bu testte bağlantı açılmamalı."));
         await using var app = await StartApplicationAsync(factory, new FailingWriteAuditInterceptor(EntityState.Added));
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/ekle/run", WriteBody);
@@ -155,7 +155,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => CreateSqlException(2627, "Yinelenen anahtar."));
         await using var app = await StartApplicationAsync(factory, new FailingWriteAuditInterceptor(EntityState.Modified));
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var response = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/ekle/run", WriteBody);
@@ -175,7 +175,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new TenantQueryUnavailableException("Sorgu veritabanı erişimi bu firma için hazır değil."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         var spoofed = await client.PostAsJsonAsync($"/api/custom-pages/{Code}/queries/kaydet/run",
@@ -207,7 +207,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new TenantQueryUnavailableException("Sorgu veritabanı erişimi bu firma için hazır değil."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         var longText = string.Concat(Enumerable.Repeat("Çağrı ışığı göğüs ", 300))[..CustomPageQueryParameters.MaxTextLength];
         SetIdentity(client, Ayse, "TenantUser");
@@ -236,7 +236,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new TenantQueryUnavailableException("Sorgu veritabanı erişimi bu firma için hazır değil."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        await PublishAsync(client);
+        await PublishAsync(app, client);
 
         SetIdentity(client, Ayse, "TenantUser");
         for (var index = 0; index < CustomPageWriteRateLimiter.PermitsPerMinute; index++)
@@ -259,7 +259,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Not", definition = Definition() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Not", Definition());
         var draftId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
         foreach (var body in new object[] { WriteBody, new { parameters = new { kod = "C-1", metin = "x" }, confirmWrite = false } })
@@ -289,7 +289,7 @@ public sealed class CustomPageWriteQueryIntegrationTests
         var factory = new FakeWriteConnectionFactory(_ => new InvalidOperationException("Bu testte bağlantı açılmamalı."));
         await using var app = await StartApplicationAsync(factory);
         using var client = app.GetTestClient();
-        var publishedId = await PublishAsync(client);
+        var publishedId = await PublishAsync(app, client);
 
         static void AssertRights(JsonElement page, bool view, bool insert, bool update, bool delete)
         {
@@ -315,10 +315,10 @@ public sealed class CustomPageWriteQueryIntegrationTests
     }
 
     /// <summary>Publishes the page as admin and grants Ayse View + Insert only. Leaves the admin identity set.</summary>
-    private static async Task<Guid> PublishAsync(HttpClient client)
+    private static async Task<Guid> PublishAsync(WebApplication app, HttpClient client)
     {
         SetIdentity(client, Admin, "TenantAdmin");
-        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = Code, name = "Not", definition = Definition() });
+        var created = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, Code, "Not", Definition());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{Code}/access",

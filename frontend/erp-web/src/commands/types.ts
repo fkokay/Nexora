@@ -74,6 +74,11 @@ export type PageCommands = Partial<Record<StandardCommandId, CommandSpec>> & {
   moreHidden?: boolean;
   /** The page's bar look (from the effective `page` source only); absent = today's look. */
   look?: BarLook;
+  /**
+   * The page's template shell (PageShell) draws this view's bar from the registry; the shared ActionBar draws nothing
+   * here and leaves F1 help and Alt+İ (see `claimMoreMenu`) to the shell. From the effective `page` source only.
+   */
+  shell?: boolean;
 };
 
 /**

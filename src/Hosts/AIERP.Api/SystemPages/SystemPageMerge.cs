@@ -58,9 +58,12 @@ internal static class SystemPageMerge
     /// <summary>
     /// Items with <c>since &gt; baseVersion</c> whose id is absent from <paramref name="designJson"/> (top-level component ids,
     /// query ids), in the standard's item order. <c>Requires</c> lists only the direct requirements that are also absent.
+    /// Empty when the standard and the design use different templates (one templateless and the other templated, or two
+    /// different templates): a component of one does not fit the other's slots.
     /// </summary>
     public static IReadOnlyList<SystemPageNewItem> NewItems(SystemPageStandard standard, string designJson, int baseVersion)
     {
+        if (TemplateNameOf(standard.DefinitionJson) != TemplateNameOf(designJson)) return [];
         var present = PresentKeys(designJson);
         var standardDefinition = JsonNode.Parse(standard.DefinitionJson)!.AsObject();
         var result = new List<SystemPageNewItem>();
@@ -76,6 +79,12 @@ internal static class SystemPageMerge
                 item.Requires.Where(x => !present.Contains(x)).ToArray()));
         }
         return result;
+    }
+
+    private static string? TemplateNameOf(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return PageTemplateRules.TemplateName(document.RootElement);
     }
 
     private static HashSet<string> PresentKeys(string designJson)

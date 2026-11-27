@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, type ReactNode } from "react";
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
-import { PageShell, type ShellAction } from "./PageShell";
+import { PageShell, type ShellAction, type ShellCommandsProps } from "./PageShell";
 import { sectionColumns, useBoxWidth } from "./RecordTemplate";
 import { freeFullRow, type FreeLayout } from "./freeTemplateModel";
 import type { Component } from "./listTemplateModel";
@@ -53,15 +53,19 @@ export function FreeSection<C extends Component>({ block, title, members, render
  * `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir). Sekmeli sayfada sekme bileşeni çizilir: bölümleri
  * kendi panellerinde taşır, sekme seçimi `tabParam` ve tuvalin `showTab`'ıyla çalışır. Basamak her zaman 3.
  */
-export function FreeTemplate<C extends Component>({ layout, render, title, crumbs, actions, notices }: {
+export function FreeTemplate<C extends Component>({ layout, render, title, crumbs, actions, notices, count, commands }: {
   layout: FreeLayout<C>; render: (component: C) => ReactNode; title: string; crumbs: string[];
   actions: ShellAction[]; notices?: ReactNode;
+  /** Başlıktaki kayıt sayısı (komut çubuğunun `titleCount`'u); yoksa gösterilmez. */
+  count?: number | null;
+  /** Sayfanın komut çubuğu varken kabuğun "⋯" menüsü (bkz. `ShellCommandsProps`). */
+  commands?: ShellCommandsProps;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useBoxWidth(ref);
   const narrow = width !== null && width <= FREE_NARROW;
   return <div className="free-template" data-level={3}>
-    <PageShell title={title} crumbs={crumbs} actions={actions}>
+    <PageShell title={title} crumbs={crumbs} count={count} actions={actions} {...commands}>
       {notices}
       <div ref={ref} className="free-template-body">
         <FreeNarrowContext.Provider value={narrow}>

@@ -1,7 +1,7 @@
 import { useContext, useRef, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { CanvasAnchorContext } from "../designer-canvas/anchorContext";
-import { PageShell, type ShellAction } from "./PageShell";
+import { PageShell, type ShellAction, type ShellCommandsProps } from "./PageShell";
 import { ListModeContext, ShellSearchContext, useListMode } from "./listResponsive";
 import { templateLevel, type Component, type ListLayout } from "./listTemplateModel";
 
@@ -25,9 +25,11 @@ export function ShellSearch({ inputId, placeholder, hint, value, onSearch }: {
  * Detay paneli satır seçilince sağda açılır; tuvalde seçilebilsin diye orada her zaman görünür. Kalıbın kendi genişliği
  * 720 px'in altındaysa (liste kutusu değil, panelle birlikte ölçülen `.list-template-main`) panel listenin altına iner.
  */
-export function ListTemplate<C extends Component>({ layout, render, title, count, actions, search, detailOpen, notices }: {
+export function ListTemplate<C extends Component>({ layout, render, title, count, actions, search, detailOpen, notices, commands }: {
   layout: ListLayout<C>; render: (component: C) => ReactNode; title: string; count: number | null;
   actions: ShellAction[]; search?: ReactNode; detailOpen: boolean; notices?: ReactNode;
+  /** Sayfanın komut çubuğu varken kabuğun "⋯" menüsü (bkz. `ShellCommandsProps`). */
+  commands?: ShellCommandsProps;
 }) {
   const canvas = useContext(CanvasAnchorContext);
   const listRef = useRef<HTMLDivElement>(null);
@@ -44,7 +46,7 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
   const filters = layout.filters && visible([layout.filters]).length > 0 ? layout.filters : null;
   const detail = layout.detail && visible([layout.detail]).length > 0 ? layout.detail : null;
   return <div className="list-template" data-level={templateLevel(layout)}>
-    <PageShell title={title} crumbs={[]} count={count} actions={actions} search={search ?? undefined}>
+    <PageShell title={title} crumbs={[]} count={count} actions={actions} search={search ?? undefined} {...commands}>
       {notices}
       {above.length > 0 && <div className="list-template-above">{above.map(render)}</div>}
       {indicators.length > 0 && <div className="list-template-indicators">{indicators.map(render)}</div>}

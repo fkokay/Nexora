@@ -53,7 +53,7 @@ function mount(def: ModelDefinition, selection: RecordSelection, onChange: (def:
 describe("RecordPanel", () => {
   it("page panel renders parts in mockup order without tablist", () => {
     const html = render(built, { kind: "page" });
-    inOrder(html, ["Hangi kayıt gösterilsin?", "Cari kartı", "Kaydet düğmesi", "Yeni kayıtta", "Var olan kayıtta", "Sil düğmesi",
+    inOrder(html, ["Hangi kayıt gösterilsin?", "Cari kartı", "Kaydet düğmesi", "Yeni kayıtta", "Var olan kayıtta",
       "Öne çıkan değerler", "Başlık", "Alt satır", "Değerler", "En çok 3 değer.", "Ek eylemler", "Görünüm", "Kartın üstüne / altına ek alan", "Yazılımcıdan iste →"]);
     expect(html).toContain('aria-label="Ad"');
     expect(html).toContain("Yazılımcının hazırladığı · kayıt <b>cari kodu</b> ile okunur.");

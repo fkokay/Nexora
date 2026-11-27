@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import { readPageTemplate } from "../pageTemplates";
+import type { ConditionPath } from "../ConditionBuilder";
+import { LIST_SOURCE_HINT, readPageTemplate } from "../pageTemplates";
+import { CommandsSection, type CommandsPage } from "./CommandsSection";
+import { COMMANDS_SLOT } from "./commandsModel";
+import { DraftInput } from "./DraftInput";
 import { ButtonsPanel } from "./ButtonsPanel";
 import { ComponentPanel } from "./ComponentPanel";
 import { consultantKindOf } from "./consultantPalette";
@@ -7,12 +11,12 @@ import { DeveloperComponentPanel } from "./DeveloperComponentPanel";
 import { FreePanel, freeSelectionOf, type FreePanelProps, type FreeSelection } from "./FreePanel";
 import { blockOf, freeBlocks, freeTabs, isFreeItem, moveItem, moveItemToBlock, removeItem } from "./freeModel";
 import { FreeTablePanel } from "./FreeTablePanel";
-import type { FieldToken } from "./consultantText";
+import { fieldTokens, type FieldToken } from "./consultantText";
 import { IndicatorPanel } from "./IndicatorPanel";
 import { ImagePanel } from "./ImagePanel";
 import { InfoBoxPanel } from "./InfoBoxPanel";
 import { ListPanel, type ListPanelProps } from "./ListPanel";
-import type { ModelComponent, ModelDefinition } from "./listPanelModel";
+import { listDataSourceCode, stringList, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import { RecordPanel, recordSelectionOf, type RecordPanelProps } from "./RecordPanel";
 import { BelgePanel, type BelgePanelProps } from "./BelgePanel";
 import { TextPanel } from "./TextPanel";
@@ -25,6 +29,30 @@ const RECORD_SLOT_LABELS: Record<string, string> = { above: "Kartın üstü", be
 const BELGE_SLOT_LABELS: Record<string, string> = { above: "Belgenin üstü", below: "Belgenin altı" };
 const BELGE_FOCUS: Record<string, BelgePanelProps["focus"]> = { documentFields: "fields", documentLines: "lines", documentSummary: "summary" };
 export const TEMPLATE_CANVAS_FALLBACK = "Bu ekran ERP önizlemesi açılınca görünür.";
+
+/** Kalıplı sayfanın Komutlar çubuğu mu (`commands` yerindeki `actionBar`): tuvalde çubuğa tıklamak sayfayı seçer. */
+export const isCommandsBar = (component: ModelComponent | null | undefined) =>
+  component?.type === "actionBar" && component.props.slot === COMMANDS_SLOT;
+
+/** Sayfa panelinin bilgileri (Liste kalıbında seçim yokken ya da Komutlar çubuğu seçiliyken). */
+export type TemplatePageProps = { name: string; onRename?: (name: string) => void; pages: CommandsPage[]; paths?: ConditionPath[]; pageNames?: string[] };
+
+/** Liste kalıbının sayfa paneli (taslak 11): Ad, listenin kaynağı ve kolon sayısı, Komutlar. */
+function ListPagePanel({ list, page, tokens, disabled }: { list: Omit<ListPanelProps, "listId">; page: TemplatePageProps; tokens: FieldToken[]; disabled?: boolean }) {
+  const def = list.definition;
+  const table = def.components.find((component) => component.type === "dataTable" && component.props.slot === "list");
+  const code = table ? listDataSourceCode(def, table.id) : undefined;
+  const source = code ? list.catalog?.dataSources.find((item) => item.code === code) : undefined;
+  const columns = stringList(table?.props.columns).length;
+  const off = disabled || list.disabled;
+  return <div className="cpanel cpanel-list-page">
+    <div className="cpanel-head"><DraftInput head label="Ad" value={page.name} disabled={off} readOnly={!page.onRename} onCommit={(value) => page.onRename?.(value)}/></div>
+    <section className="cpanel-sec" data-part="what"><h4>Liste</h4>
+      <p className="cpanel-note">{source ? `${source.label} veri kaynağı · ${columns} kolon` : code ? `${code} · Katalogda yok` : LIST_SOURCE_HINT}</p></section>
+    <CommandsSection def={def} template="list" catalog={list.catalog} pages={page.pages} tokens={tokens.length > 0 ? tokens : fieldTokens(def, list.catalog)}
+      paths={page.paths} pageNames={page.pageNames} disabled={off} onChange={list.onChange}/>
+  </div>;
+}
 
 /** Kalıplı sayfa paneli yalnız kalıplı sayfanın üst düzey bileşenlerinde açılır; kalıpsız sayfada bugünkü sekmeli panel kalır. */
 export function usesTemplateInspector(def: Pick<ModelDefinition, "template" | "components">, componentId: string): boolean {
@@ -89,7 +117,7 @@ function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
   const off = disabled || free.disabled;
   const selection: FreeSelection | null = freeSelectionOf(free.def, component?.id ?? null);
   const pageOrBlock: FreeSelection | null = selection
-    ?? (component && (component.type === "tabs" || (component.type === "button" && component.props.slot === "actions")) ? { kind: "page" } : null);
+    ?? (component && (component.type === "tabs" || isCommandsBar(component) || (component.type === "button" && component.props.slot === "actions")) ? { kind: "page" } : null);
   if (pageOrBlock || !component) {
     const shown: FreeSelection = pageOrBlock ?? { kind: "page" };
     return <FreePanel {...free} selection={shown} disabled={off} visibility={shown.kind === "block" ? free.visibility?.(shown.id) : undefined}/>;
@@ -124,13 +152,15 @@ function FreeInspector({ component, legacy, list, free, tokens, disabled }: {
  * Bileşen adı bağlamalarda kullanıldığından danışman panellerinde salt okunurdur. Ek alanlarda (`above` / `below`) Ad
  * bölümünün altında "Yeri" seçimi vardır; Gösterge yerini kendi panelinde seçer.
  */
-export function TemplateInspector({ component, legacy, list, record, free, belge, tokens, disabled, onLeave, onPlace }: {
+export function TemplateInspector({ component, legacy, list, record, free, belge, page, tokens, disabled, onLeave, onPlace }: {
   component: ModelComponent | null; legacy: ReactNode; list: Omit<ListPanelProps, "listId"> | null;
   record?: Omit<RecordPanelProps, "selection"> | null;
   /** Serbest gövdede panelin bilgileri; verilirse bütün seçimler serbest gövdenin panellerine gider. */
   free?: FreeInspectorProps | null;
   /** Belge sayfası: sayfa ve belge parçaları (alanlar, satırlar, toplamlar) Belge panelinde açılır; ek alanlar bugünkü yoldadır. */
   belge?: Omit<BelgePanelProps, "focus"> | null;
+  /** Liste kalıbında sayfa paneli (seçim yokken ya da Komutlar çubuğu seçiliyken): Ad, liste, Komutlar. */
+  page?: TemplatePageProps | null;
   /** Metindeki `{Alan}` ifadeleri ve "Kayıttaki resim" için listenin kolonları (`fieldTokens`). */
   tokens: FieldToken[]; disabled?: boolean;
   onLeave?: ListPanelProps["onLeave"]; onPlace: (slot: "above" | "below") => void;
@@ -145,6 +175,8 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
     if (!component || BELGE_FOCUS[component.type] || (slot === "actions" && component.type === "button"))
       return <BelgePanel {...belge} focus={component ? BELGE_FOCUS[component.type] ?? null : null} disabled={disabled || belge.disabled}/>;
   }
+  if (page && list && readPageTemplate(list.definition.template)?.name === "list" && (!component || isCommandsBar(component)))
+    return <ListPagePanel list={list} page={page} tokens={tokens} disabled={disabled}/>;
   if (!component) return null;
   const labels = record ? { ...SLOT_LABELS, ...RECORD_SLOT_LABELS } : belge ? { ...SLOT_LABELS, ...BELGE_SLOT_LABELS } : SLOT_LABELS;
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";

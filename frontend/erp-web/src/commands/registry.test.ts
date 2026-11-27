@@ -454,4 +454,64 @@ describe('command registry', () => {
       expect(r.getActive()!.look).toEqual({ align: 'center', size: 'lg' });
     });
   });
+  describe('views (template shell)', () => {
+    it('getView merges sources of a background view', () => {
+      const r = createCommandRegistry();
+      const aSave = vi.fn();
+      const bNew = vi.fn();
+      const bFilter = vi.fn();
+      const bExport = vi.fn();
+      const gridFilter = vi.fn();
+      r.register('a', 'page', { save: { run: aSave } });
+      r.register('b', 'grid', { export: { run: bExport }, filter: { run: gridFilter } });
+      r.register('b', 'list', { filter: { run: bFilter } });
+      r.register('b', 'page', { new: { run: bNew }, more: [{ id: 'x', label: 'X' }] });
+      r.setActiveView('a');
+      const b = r.getView('b')!;
+      expect(b.new?.run).toBe(bNew);
+      expect(b.filter?.run).toBe(bFilter);
+      expect(b.export?.run).toBe(bExport);
+      expect(b.save).toBeUndefined();
+      expect(b.more).toEqual([{ id: 'x', label: 'X' }]);
+      // Same snapshot until something changes; the active view is unaffected.
+      expect(r.getView('b')).toBe(b);
+      expect(r.getActive()?.save?.run).toBe(aSave);
+      expect(r.getView('a')?.save?.run).toBe(aSave);
+      expect(r.getView('missing')).toBeUndefined();
+      const removeList = r.register('b', 'list', { refresh: { run: vi.fn() } });
+      expect(r.getView('b')).not.toBe(b);
+      removeList();
+      expect(r.getView('b')?.filter?.run).toBe(bFilter);
+    });
+
+    it('shell flag comes only from the page source', () => {
+      const r = createCommandRegistry();
+      r.register('v', 'list', { refresh: { run: vi.fn() }, shell: true });
+      r.register('v', 'grid', { export: { run: vi.fn() }, shell: true });
+      r.register('w', 'page', { refresh: { run: vi.fn() }, shell: true });
+      r.setActiveView('v');
+      expect(r.getActive()!.shell).toBeUndefined();
+      expect(r.getView('w')!.shell).toBe(true);
+      r.setActiveView('w');
+      expect(r.getActive()!.shell).toBe(true);
+      expect(r.getView('v')!.shell).toBeUndefined();
+    });
+
+    it('a view claims its ⋯ menu; the first live claim of that view is returned', () => {
+      const r = createCommandRegistry();
+      const a = vi.fn();
+      const a2 = vi.fn();
+      const b = vi.fn();
+      const releaseA = r.claimMoreMenu('a', a);
+      r.claimMoreMenu('a', a2);
+      r.claimMoreMenu('b', b);
+      expect(r.moreMenuClaim('a')).toBe(a);
+      expect(r.moreMenuClaim('b')).toBe(b);
+      expect(r.moreMenuClaim(undefined)).toBeUndefined();
+      expect(r.moreMenuClaim('c')).toBeUndefined();
+      releaseA();
+      releaseA();
+      expect(r.moreMenuClaim('a')).toBe(a2);
+    });
+  });
 });

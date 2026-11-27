@@ -27,9 +27,9 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
-        var firstId = await CreateAndPublishAsync(client, "asset-dashboard", "Pano 1");
-        var secondId = await CreateAndPublishAsync(client, "asset-dashboard", "Pano 2");
-        var draftId = await CreateDraftAsync(client, "other-page", "Taslak");
+        var firstId = await CreateAndPublishAsync(app, client, "asset-dashboard", "Pano 1");
+        var secondId = await CreateAndPublishAsync(app, client, "asset-dashboard", "Pano 2");
+        var draftId = await CreateDraftAsync(app, client, "other-page", "Taslak");
 
         var result = await client.GetFromJsonAsync<JsonElement>("/api/custom-pages/publications?take=100");
         var pending = result.GetProperty("pending").EnumerateArray().ToList();
@@ -53,7 +53,7 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
-        var pageId = await CreateAndPublishAsync(client, "asset-dashboard", "Pano");
+        var pageId = await CreateAndPublishAsync(app, client, "asset-dashboard", "Pano");
 
         async Task<List<JsonElement>> HistoryAsync() =>
             (await client.GetFromJsonAsync<JsonElement>("/api/custom-pages/publications?take=100")).GetProperty("history").EnumerateArray().ToList();
@@ -90,8 +90,8 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
-        await CreateAndPublishAsync(client, "asset-dashboard", "Pano");
-        await CreateDraftAsync(client, "other-page", "Taslak");
+        await CreateAndPublishAsync(app, client, "asset-dashboard", "Pano");
+        await CreateDraftAsync(app, client, "other-page", "Taslak");
 
         SetIdentity(client, TenantB, UserA, "TenantAdmin");
         var result = await client.GetFromJsonAsync<JsonElement>("/api/custom-pages/publications");
@@ -116,8 +116,8 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
-        var pageId = await CreateAndPublishAsync(client, "asset-dashboard", "Pano");
-        await CreateDraftAsync(client, "asset-dashboard", "Yeni taslak");
+        var pageId = await CreateAndPublishAsync(app, client, "asset-dashboard", "Pano");
+        await CreateDraftAsync(app, client, "asset-dashboard", "Yeni taslak");
         var history = await client.GetFromJsonAsync<JsonElement[]>($"/api/custom-pages/{pageId}/history");
         var revisionId = history!.First(x => x.GetProperty("changeKind").GetString() == "Published").GetProperty("id").GetGuid();
 
@@ -127,22 +127,18 @@ public sealed class TenantCustomPagePublicationsIntegrationTests
         Assert.False(string.IsNullOrWhiteSpace(body.RootElement.GetProperty("error").GetString()));
     }
 
-    private static async Task<Guid> CreateDraftAsync(HttpClient client, string code, string name)
+    private static async Task<Guid> CreateDraftAsync(WebApplication app, HttpClient client, string code, string name)
     {
-        var response = await client.PostAsJsonAsync("/api/custom-pages/drafts", new
-        {
-            code,
-            name,
-            definition = new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = name } } } }
-        });
+        var response = await TemplatelessPageSeed.PostDraftAsync(app.Services, client, code, name,
+            new { schemaVersion = 1, components = new[] { new { id = "heading_1", type = "heading", props = new { title = name } } } });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         return doc.RootElement.GetProperty("id").GetGuid();
     }
 
-    private static async Task<Guid> CreateAndPublishAsync(HttpClient client, string code, string name)
+    private static async Task<Guid> CreateAndPublishAsync(WebApplication app, HttpClient client, string code, string name)
     {
-        var id = await CreateDraftAsync(client, code, name);
+        var id = await CreateDraftAsync(app, client, code, name);
         var publish = await client.PostAsJsonAsync($"/api/custom-pages/{id}/publish", new { expectedRevision = 1 });
         Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
         await Task.Delay(5); // keep CreatedAt strictly ordered

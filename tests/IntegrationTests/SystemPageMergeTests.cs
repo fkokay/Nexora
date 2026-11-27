@@ -181,4 +181,71 @@ public sealed class SystemPageMergeTests
     {
         Assert.Empty(SystemPageMerge.NewItems(Versioned(), DesignJson([], []), baseVersion: 3));
     }
+
+    /// <summary>A "list" template standard at version 2 whose commands bar runs a v1 and a v2 button.</summary>
+    private static SystemPageStandard TemplatedList()
+    {
+        var definition = """
+        {"schemaVersion":2,"template":{"name":"list"},
+         "components":[
+           {"id":"komutlar","type":"actionBar","name":"komutlar","props":{"slot":"commands","moreButtons":["yeniTeklif","yeniFatura"],"exportTable":"tablo"}},
+           {"id":"tablo","type":"dataTable","name":"tablo","props":{"slot":"list","query":"liste"}},
+           {"id":"yeniTeklif","type":"button","name":"yeniTeklif","props":{"slot":"actions","label":"Yeni teklif","actionType":"erpPage","pageKey":"sales-invoices"}},
+           {"id":"yeniFatura","type":"button","name":"yeniFatura","props":{"slot":"actions","label":"Yeni fatura","actionType":"erpPage","pageKey":"sales-invoices"}}],
+         "queries":[{"id":"liste","name":"liste","kind":"read","sql":"SELECT 1 AS x","parameters":[],"runOn":"load"}]}
+        """;
+        return new SystemPageStandard(ViewKey, "Liste", null, "Stok & Depo", 2, "preview",
+            [
+                new SystemPageItem("component:komutlar", "component", "komutlar", 1, "Komutlar", []),
+                new SystemPageItem("component:tablo", "component", "tablo", 1, "Liste", ["query:liste"]),
+                new SystemPageItem("query:liste", "query", "liste", 1, "Listele", []),
+                new SystemPageItem("component:yeniTeklif", "component", "yeniTeklif", 1, "Yeni teklif", []),
+                new SystemPageItem("component:yeniFatura", "component", "yeniFatura", 2, "Yeni fatura", [])
+            ],
+            [], definition);
+    }
+
+    private static string WithTemplate(string designJson, string? template)
+    {
+        var json = JsonNode.Parse(designJson)!.AsObject();
+        json.Remove("template");
+        if (template is not null) json["template"] = new JsonObject { ["name"] = template };
+        return json.ToJsonString();
+    }
+
+    [Fact]
+    public void No_items_offered_from_templated_standard_to_templateless_copy()
+    {
+        var design = WithTemplate(SystemPageStandards.Restrict(TemplatedList(), 1), null);
+        Assert.Empty(SystemPageMerge.NewItems(TemplatedList(), design, baseVersion: 1));
+    }
+
+    [Fact]
+    public void No_items_offered_from_templateless_standard_to_templated_copy()
+    {
+        var design = WithTemplate(DesignJson(["depoListesi"], ["depolar"]), "list");
+        Assert.Empty(SystemPageMerge.NewItems(Versioned(), design, baseVersion: 1));
+        // A different template is a mismatch too.
+        var record = WithTemplate(SystemPageStandards.Restrict(TemplatedList(), 1), "record");
+        Assert.Empty(SystemPageMerge.NewItems(TemplatedList(), record, baseVersion: 1));
+    }
+
+    [Fact]
+    public void Items_offered_between_same_template()
+    {
+        var design = SystemPageStandards.Restrict(TemplatedList(), 1);
+        var items = SystemPageMerge.NewItems(TemplatedList(), design, baseVersion: 1);
+        Assert.Equal(new[] { "component:yeniFatura" }, items.Select(x => x.Key));
+    }
+
+    [Fact]
+    public void Restrict_strips_removed_ids_from_commands_bar()
+    {
+        var restricted = SystemPageStandards.Restrict(TemplatedList(), 1);
+        var bar = JsonNode.Parse(restricted)!["components"]!.AsArray().Single(x => x!["id"]!.GetValue<string>() == "komutlar")!;
+        Assert.Equal(new[] { "yeniTeklif" }, bar["props"]!["moreButtons"]!.AsArray().Select(x => x!.GetValue<string>()));
+        Assert.Equal("commands", bar["props"]!["slot"]!.GetValue<string>());
+        Assert.True(TenantCustomPageSchema.Validate(restricted, out var error), error);
+        Assert.True(TenantCustomPageSchema.Validate(TemplatedList().DefinitionJson, out var fullError), fullError);
+    }
 }

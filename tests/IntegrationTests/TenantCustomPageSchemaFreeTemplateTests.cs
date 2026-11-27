@@ -222,7 +222,7 @@ public sealed class TenantCustomPageSchemaFreeTemplateTests
     {
         Rejected(Page(Template, [Block("b1", ["t1"]), Item("t1", extra: new { width = 6 })]), "Kalıplı sayfada genişlik ayarı kullanılmaz.");
         var bar = new { id = "ab", type = "actionBar", name = "ab", props = new { slot = "actions" } };
-        Rejected(Page(Template, [Block("b1"), bar]), "Kalıplı sayfada işlem çubuğu bileşeni kullanılmaz; düğmeler 'actions' yerine konur.");
+        Rejected(Page(Template, [Block("b1"), bar]), "Kalıplı sayfada işlem çubuğu yalnız üst düzeyde, 'commands' yerinde ve bir kez kullanılır; düğmeler 'actions' yerine konur.");
         foreach (var type in new[] { "spacer", "divider" })
             Rejected(Page(Template, [Block("b1", ["x1"]), new { id = "x1", type, props = new { slot = "item" } }]), "Kalıplı sayfada boşluk ve ayırıcı bileşenleri kullanılmaz.");
     }

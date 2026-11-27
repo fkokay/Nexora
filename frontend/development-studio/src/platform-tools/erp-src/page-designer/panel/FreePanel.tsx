@@ -1,6 +1,9 @@
 import { useState, type ReactNode } from "react";
 import type { ActiveCatalog, CatalogAction } from "../catalogClient";
+import type { ConditionPath } from "../ConditionBuilder";
 import { AppearanceSection } from "./AppearanceSection";
+import { CommandsSection, type CommandsPage } from "./CommandsSection";
+import type { FieldToken } from "./consultantText";
 import { DraftInput } from "./DraftInput";
 import { LegacySettings } from "./ComponentPanel";
 import "./component-panel.css";
@@ -26,6 +29,8 @@ export type FreePanelProps = {
   visibility?: ReactNode;
   /** Sayfanın adı (Sayfa panelinin "Ad"ı); `onRename` verilmezse salt okunur. */
   name?: string; onRename?: (name: string) => void;
+  /** Komutlar bölümü: "Hangi ekran" seçiminin sayfaları, metindeki alanlar, kural kurucunun alanları. */
+  pages?: CommandsPage[]; tokens?: FieldToken[]; paths?: ConditionPath[]; pageNames?: string[];
 };
 
 export const FREE_PAGE_LEVEL_NOTE = "Serbest gövde · 3. basamak";
@@ -124,6 +129,8 @@ function PagePanel(props: FreePanelProps) {
       <div className="cpanel-dev">{FREE_ACTIONS_DEV_NOTE}</div>
       <p className="cpanel-note">{FREE_ACTIONS_NOTE}</p>
     </section>
+    <CommandsSection def={def} template="free" catalog={catalog} pages={props.pages ?? []} tokens={props.tokens ?? []} paths={props.paths}
+      pageNames={props.pageNames} disabled={disabled} onChange={change}/>
   </div>;
 }
 

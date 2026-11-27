@@ -53,7 +53,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
 
         // Control: the permissive authorizer lets a tenant user manage pages without queries.
         SetIdentity(client, Ayse, "TenantUser");
-        var staticDraft = await CreateDraftAsync(client, "static-page", StaticDefinition());
+        var staticDraft = await CreateDraftAsync(app, client, "static-page", StaticDefinition());
         Assert.Equal(HttpStatusCode.Created, staticDraft.StatusCode);
         var staticId = await IdOf(staticDraft);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{staticId}",
@@ -61,10 +61,10 @@ public sealed class CustomPageQueryRulesIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{staticId}/publish", new { expectedRevision = 2 })).StatusCode);
 
         // 1) create
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "user-query-page", QueryDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "user-query-page", QueryDefinition())).StatusCode);
 
         SetIdentity(client, Admin, "TenantAdmin");
-        var adminDraft = await CreateDraftAsync(client, "query-page", QueryDefinition());
+        var adminDraft = await CreateDraftAsync(app, client, "query-page", QueryDefinition());
         Assert.Equal(HttpStatusCode.Created, adminDraft.StatusCode);
         var draftId = await IdOf(adminDraft);
 
@@ -76,7 +76,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
             new { expectedRevision = 1, name = "Sorgulu", definition = StaticDefinition() })).StatusCode);
         // ... and a tenant user cannot add queries to a static draft.
         SetIdentity(client, Ayse, "TenantUser");
-        var secondStatic = await IdOf(await CreateDraftAsync(client, "static-two", StaticDefinition()));
+        var secondStatic = await IdOf(await CreateDraftAsync(app, client, "static-two", StaticDefinition()));
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/custom-pages/{secondStatic}",
             new { expectedRevision = 1, name = "Sabit", definition = QueryDefinition() })).StatusCode);
 
@@ -103,7 +103,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
 
         // Admin: a page whose revision 1 is static and revision 2 adds queries, then published.
         SetIdentity(client, Admin, "TenantAdmin");
-        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", StaticDefinition()));
+        var pageId = await IdOf(await CreateDraftAsync(app, client, "query-page", StaticDefinition()));
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{pageId}",
             new { expectedRevision = 1, name = "Sorgulu", definition = QueryDefinition() })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/query-page/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
@@ -113,14 +113,14 @@ public sealed class CustomPageQueryRulesIntegrationTests
 
         // 1) drafts: a static draft for the code of a published query page.
         SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "query-page", StaticDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "query-page", StaticDefinition())).StatusCode);
 
         // 2) restore: the restored revision is static, but the stored row has queries.
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/custom-pages/{pageId}/restore/{staticRevisionId}", null)).StatusCode);
 
         // 3) publish: the draft is static (created by the admin), but it would replace a published query page.
         SetIdentity(client, Admin, "TenantAdmin");
-        var staticDraft = await CreateDraftAsync(client, "query-page", StaticDefinition());
+        var staticDraft = await CreateDraftAsync(app, client, "query-page", StaticDefinition());
         Assert.Equal(HttpStatusCode.Created, staticDraft.StatusCode);
         var staticDraftId = await IdOf(staticDraft);
         SetIdentity(client, Ayse, "TenantUser");
@@ -133,7 +133,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
 
         // The admin can do all of these.
         SetIdentity(client, Admin, "TenantAdmin");
-        var adminDraft = await CreateDraftAsync(client, "query-page", StaticDefinition());
+        var adminDraft = await CreateDraftAsync(app, client, "query-page", StaticDefinition());
         Assert.Equal(HttpStatusCode.Created, adminDraft.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{await IdOf(adminDraft)}/publish", new { expectedRevision = 1 })).StatusCode);
         Assert.Equal(HttpStatusCode.Created, (await client.PostAsync($"/api/custom-pages/{pageId}/restore/{staticRevisionId}", null)).StatusCode);
@@ -145,7 +145,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+        var pageId = await IdOf(await CreateDraftAsync(app, client, "query-page", QueryDefinition()));
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/query-page/access", new { mode = "AllUsers", expectedRevision = 0 })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{pageId}/publish", new { expectedRevision = 1 })).StatusCode);
 
@@ -162,7 +162,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         using var client = app.GetTestClient();
         // Ayse's membership is TenantUser; a stale TenantAdmin role claim is not enough.
         SetIdentity(client, Ayse, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "stale-admin", QueryDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "stale-admin", QueryDefinition())).StatusCode);
     }
 
     internal static object OperationDefinition() => new
@@ -190,7 +190,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         using var client = app.GetTestClient();
         // A designer with customization rights may write read-only operation pages: they carry no SQL and run with the user's own token.
         SetIdentity(client, Ayse, "TenantUser");
-        var created = await CreateDraftAsync(client, "op-page", OperationDefinition());
+        var created = await CreateDraftAsync(app, client, "op-page", OperationDefinition());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var draftId = await IdOf(created);
         Assert.Contains("stok.kart.listele", (await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{draftId}")).GetProperty("definitionJson").GetString());
@@ -205,7 +205,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 })).StatusCode);
 
         // Adding SQL to the page is still admin-only.
-        var sqlDraft = await CreateDraftAsync(client, "op-page", QueryDefinition());
+        var sqlDraft = await CreateDraftAsync(app, client, "op-page", QueryDefinition());
         Assert.Equal(HttpStatusCode.Forbidden, sqlDraft.StatusCode);
     }
 
@@ -230,13 +230,13 @@ public sealed class CustomPageQueryRulesIntegrationTests
         using var client = app.GetTestClient();
         // A non-admin designer cannot add a write ERP operation to a page, even with customization rights.
         SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", WriteOperationDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "op-write", WriteOperationDefinition())).StatusCode);
         // A stale TenantAdmin role claim without an admin membership is not enough either.
         SetIdentity(client, Ayse, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", WriteOperationDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "op-write", WriteOperationDefinition())).StatusCode);
 
         SetIdentity(client, Admin, "TenantAdmin");
-        var created = await CreateDraftAsync(client, "op-write", WriteOperationDefinition());
+        var created = await CreateDraftAsync(app, client, "op-write", WriteOperationDefinition());
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var draftId = await IdOf(created);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/custom-pages/op-write/access", new { mode = "AdminsOnly", expectedRevision = 0 })).StatusCode);
@@ -250,7 +250,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
 
         // Replacing the published write-operation page, even with a read-only draft, stays admin-only.
         SetIdentity(client, Ayse, "TenantUser");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "op-write", OperationDefinition())).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "op-write", OperationDefinition())).StatusCode);
     }
 
     internal static object CodeDefinition(string javascript, bool nested = true)
@@ -272,14 +272,14 @@ public sealed class CustomPageQueryRulesIntegrationTests
         using var client = app.GetTestClient();
         SetIdentity(client, Ayse, "TenantUser");
         // Nested or top level, a code component with JavaScript needs a verified TenantAdmin.
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("document.body.dataset.x = '1';"))).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);", nested: false))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "code-page", CodeDefinition("document.body.dataset.x = '1';"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "code-page", CodeDefinition("console.log(1);", nested: false))).StatusCode);
         SetIdentity(client, Ayse, "TenantAdmin");
-        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await CreateDraftAsync(app, client, "code-page", CodeDefinition("console.log(1);"))).StatusCode);
 
         // Without JavaScript (blank, or CSS only) a designer keeps the previous behavior.
         SetIdentity(client, Ayse, "TenantUser");
-        var blank = await CreateDraftAsync(client, "css-page", CodeDefinition("   "));
+        var blank = await CreateDraftAsync(app, client, "css-page", CodeDefinition("   "));
         Assert.Equal(HttpStatusCode.Created, blank.StatusCode);
         var blankId = await IdOf(blank);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/custom-pages/{blankId}",
@@ -290,7 +290,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/custom-pages/{blankId}/publish", new { expectedRevision = 2 })).StatusCode);
 
         SetIdentity(client, Admin, "TenantAdmin");
-        var created = await CreateDraftAsync(client, "code-page", CodeDefinition("console.log(1);"));
+        var created = await CreateDraftAsync(app, client, "code-page", CodeDefinition("console.log(1);"));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var draftId = await IdOf(created);
         SetIdentity(client, Ayse, "TenantUser");
@@ -305,7 +305,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var draftId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+        var draftId = await IdOf(await CreateDraftAsync(app, client, "query-page", QueryDefinition()));
 
         var blocked = await client.PostAsJsonAsync($"/api/custom-pages/{draftId}/publish", new { expectedRevision = 1 });
         Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
@@ -321,7 +321,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+        var pageId = await IdOf(await CreateDraftAsync(app, client, "query-page", QueryDefinition()));
 
         // Ayse is a TenantUser; a stale TenantAdmin claim without an admin membership is not enough either.
         foreach (var role in new[] { "TenantUser", "TenantAdmin" })
@@ -349,7 +349,7 @@ public sealed class CustomPageQueryRulesIntegrationTests
         await using var app = await StartApplicationAsync();
         using var client = app.GetTestClient();
         SetIdentity(client, Admin, "TenantAdmin");
-        var pageId = await IdOf(await CreateDraftAsync(client, "query-page", QueryDefinition()));
+        var pageId = await IdOf(await CreateDraftAsync(app, client, "query-page", QueryDefinition()));
 
         var detail = await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{pageId}");
         Assert.Contains("SELECT Code, Name FROM CustomerAccounts", detail.GetProperty("definitionJson").GetString(), StringComparison.Ordinal);
@@ -357,12 +357,12 @@ public sealed class CustomPageQueryRulesIntegrationTests
         Assert.All(history, revision => Assert.Contains("SELECT Code, Name FROM CustomerAccounts", revision.GetProperty("definitionJson").GetString(), StringComparison.Ordinal));
         // Static pages are returned unchanged to everyone.
         SetIdentity(client, Ayse, "TenantUser");
-        var staticId = await IdOf(await CreateDraftAsync(client, "static-page", StaticDefinition()));
+        var staticId = await IdOf(await CreateDraftAsync(app, client, "static-page", StaticDefinition()));
         Assert.Contains("Sabit", (await client.GetFromJsonAsync<JsonElement>($"/api/custom-pages/{staticId}")).GetProperty("definitionJson").GetString());
     }
 
-    private static Task<HttpResponseMessage> CreateDraftAsync(HttpClient client, string code, object definition) =>
-        client.PostAsJsonAsync("/api/custom-pages/drafts", new { code, name = code, definition });
+    private static Task<HttpResponseMessage> CreateDraftAsync(WebApplication app, HttpClient client, string code, object definition) =>
+        TemplatelessPageSeed.PostDraftAsync(app.Services, client, code, code, definition);
 
     private static async Task<Guid> IdOf(HttpResponseMessage response) =>
         (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();

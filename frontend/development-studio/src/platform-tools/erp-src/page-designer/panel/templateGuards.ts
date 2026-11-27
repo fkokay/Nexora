@@ -30,6 +30,22 @@ const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "fil
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
+/** Komutlar'ın yeri (5b-2a Karar 1): bütün kalıplarda tanınır; yalnız üst düzey `actionBar` konur, sayfada bir kez. */
+const COMMANDS_SLOT = "commands";
+/**
+ * Komutlar çubuğu: `commands` yerindeki ilk `actionBar`. Yoksa yeri olmayan ilk `actionBar` (eski yollardan gelen) bu yere alınır.
+ * Çubuk ne taşınır ne de (Serbest gövdede) bir bölüme konur; ikincisi kalıbın genel kuralına düşer (sunucu reddeder).
+ */
+function commandsBarId(def: ModelDefinition): string | undefined {
+  const bars = def.components.filter((component) => component.type === "actionBar");
+  return (bars.find((component) => component.props.slot === COMMANDS_SLOT) ?? bars.find((component) => typeof component.props.slot !== "string" || component.props.slot === ""))?.id;
+}
+/** Komutlar çubuğunu `commands` yerine koyar (gerekirse); öteki bileşenlere dokunmaz. */
+function placeCommandsBar(component: ModelComponent, barId: string | undefined): ModelComponent | null {
+  if (component.id !== barId) return null;
+  return component.props.slot === COMMANDS_SLOT ? component : { ...component, props: { ...component.props, slot: COMMANDS_SLOT } };
+}
+
 function stripWidth(component: ModelComponent): ModelComponent {
   let next = component;
   if ("width" in component.props || "widthWhen" in component.props) {
@@ -56,9 +72,12 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   const slotTypes = template.name === "record" ? RECORD_SLOT_TYPES : template.name === "belge" ? BELGE_SLOT_TYPES : SLOT_TYPES;
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
     ? [...ids(component.props.rowActions), ...(typeof component.props.rowOpenAction === "string" ? [component.props.rowOpenAction] : [])] : []));
+  const barId = commandsBarId(def);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
+    const bar = placeCommandsBar(next, barId);
+    if (bar) { if (bar !== component) changed = true; return bar; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
     const fits = slots.has(slot) && (!slotTypes[slot] || slotTypes[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" && rowButtons.has(next.id) ? "rowActions" : "below" } };
@@ -69,9 +88,12 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
 }
 
 function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
+  const barId = commandsBarId(def);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
+    const bar = placeCommandsBar(next, barId);
+    if (bar) { if (bar !== component) changed = true; return bar; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
     const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" ? "actions" : "item" } };

@@ -76,9 +76,18 @@ export function salesHarness(key: string, api: Mock, catalog: Catalog, respond: 
     fireEvent.click(command('more'));
     return screen.findByRole('menuitem', { name }, T);
   };
-  /** Liste satırını tek tıkla seçer (detay sorguları seçili satıra bağlıdır). */
+  /**
+   * Liste satırını tek tıkla seçer (detay sorguları seçili satıra bağlıdır). Yavaş makinede tıklama, liste yeniden çizilirken
+   * eski satıra düşebilir; satır seçili görünene kadar bekler, seçili değilse yeniden tıklar (seçili satıra tıklamak seçimi kaldırır).
+   */
   const selectRow = async (code: string) => {
-    fireEvent.click(await screen.findByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T));
+    const cell = () => screen.getByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' });
+    await screen.findByText(code, { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
+    await waitFor(() => {
+      const row = cell().closest('tr');
+      if (!row?.classList.contains('is-selected')) fireEvent.click(cell());
+      expect(cell().closest('tr')?.classList.contains('is-selected')).toBe(true);
+    }, T);
   };
   const dialog = (name: RegExp) => screen.findByRole('dialog', { name }, T);
   /** Onay penceresinin onay düğmesi (son düğme). */

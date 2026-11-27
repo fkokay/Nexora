@@ -1179,6 +1179,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [definition, setDefinition] = useState<PageDefinition>(emptyDefinition);
   const [savedSnapshot, setSavedSnapshot] = useState(() => snapshotOf("", "", emptyDefinition));
   const [creating, setCreating] = useState(false);
+  const [newCancelled, setNewCancelled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1570,7 +1571,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     finally { setSaving(false); }
   };
   const startNew = () => {
-    setCurrent(null); setCreating(true); setHistory([]); setError(""); setSelectedComponentId(null); setRightMode("inspector");
+    setNewCancelled(false); setCurrent(null); setCreating(true); setHistory([]); setError(""); setSelectedComponentId(null); setRightMode("inspector");
     loadEditor("", "", "", emptyDefinition);
     setNewPageDialog("create");
   };
@@ -1609,19 +1610,16 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
       // Kayıt kartı kaynak seçilmeden kaydedilemez (sunucu reddeder): kaynağı panelinden seçilsin diye özet seçilir.
       setNewPageDialog(null); setSelectedComponentId("ozet"); setRightMode("inspector"); setError("");
       setNotice("Kayıt kartı kalıbıyla yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Önce hangi kaydın gösterileceğini seçin.");
-      return;
     }
-    const template = templates.find((item) => item.id === result.templateId) ?? templates[0];
-    const built = template.build();
-    setName(result.name); setCode(result.code);
-    if (built.description) setDescription(built.description);
-    if (built.components.length > 0) commit((value) => ({ ...value, components: built.components }));
-    setNewPageDialog(null); setSelectedComponentId(null); setError("");
-    setNotice("Yeni sayfa taslağı hazır; yayımlanana kadar kullanıcılar görmez. Bileşenleri düzenleyip taslağı kaydedin.");
+    // 5b-2: yeni sayfa yalnız kalıpla açılır; kalıpsız yeni sayfa kurulmaz (sunucu da reddeder).
   };
+  // Yeni sayfa penceresinden vazgeçilince kalıpsız tuval bırakılmaz (sunucu kalıpsız yeni sayfayı reddeder, "Şablonla başla"
+  // eski bileşen şablonlarını sunardı): sayfa listesine dönülür; liste yoksa kalıp seçimi yeniden açılabilen bir durum kartı çizilir.
   const cancelNewPage = () => {
     setNewPageDialog(null);
-    if (creating && !current && definition.components.length === 0 && onBack) onBack();
+    if (!creating || current || readPageTemplate(definitionRef.current.template)) return;
+    if (onBack) { onBack(); return; }
+    setCreating(false); setNewCancelled(true);
   };
   const applyTemplate = (template: Template) => {
     // Bileşen ön ayarı kalıplı sayfanın yerleşimini (slot'ları) bozar; kalıplı sayfada uygulanmaz.
@@ -2250,6 +2248,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     && definitionRef.current.components.some((component) => component.id === id && component.props.slot === "list");
   const removeComponent = (id: string) => {
     if (isTemplateList(id)) return;
+    // Kalıplı sayfanın Komutlar çubuğu genel yolla silinmez: komutlar Komutlar bölümünde gizlenir (ayarları korunur).
+    const target = definitionRef.current.components.find((component) => component.id === id);
+    if (readPageTemplate(definitionRef.current.template) && target?.type === "actionBar" && target.props.slot === "commands") return;
     // Kayıt kartının parçaları modelin kuralıyla silinir (eyleme bağlı alan silinmez; özet, sekmeler ve eylem düğmeleri hiç).
     const record = recordRemoval(definitionRef.current as unknown as ModelDefinition, id);
     if (record.kind === "none") return;
@@ -3393,7 +3394,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return <main className="pd-shell pd-shell-state">
       <div className="pd-state-card">
         <span><LayoutTemplate size={26}/></span>
-        {error ? <><b>Sayfa açılamadı</b><p role="alert">{error}</p></>
+        {newCancelled && !error ? <><b>Yeni sayfa oluşturulmadı</b><p>Yeni sayfa bir kalıpla başlar.</p>
+          <button type="button" onClick={startNew}><LayoutTemplate size={15}/>Kalıp seç</button></>
+          : error ? <><b>Sayfa açılamadı</b><p role="alert">{error}</p></>
           : notFound ? <><b>Sayfa bulunamadı</b><p>Sayfa silinmiş ya da erişiminiz kaldırılmış olabilir.</p></>
           : noCreate ? <><b>Yeni sayfa oluşturma yetkiniz yok</b><p>Tenant yöneticinizden Sayfa tasarımcısı oluşturma iznini açmasını isteyin.</p></>
           : <><b>Sayfa açılıyor…</b><p>Bileşenler ve veri kaynakları yükleniyor.</p></>}
@@ -3931,7 +3934,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const freeTabTarget = isFreePage && erpCanvas ? freeModel.freeSelectionTab(definition as unknown as ModelDefinition, selectedComponentId) : null;
   const freeTabRequest = freeTabTarget ? { ...freeTabTarget, key: selectedComponentId ?? "" } : null;
   // Serbest gövdenin paneli (TemplateInspector `free`): sayfa, bölüm, bileşen ve Liste aynı tanımı ve zenginleştirilmiş kataloğu görür.
+  // Komutlar bölümü: "Hangi ekran" seçimi tenant sayfalarından (bu sayfa hariç), kural kurucu tasarımcının bağlama önerilerinden.
+  const commandPages = [...pages.filter((page) => !page.screenKey && page.code !== code).map((page) => ({ code: page.code, name: page.name })),
+    ...erpScreens.map((screen) => ({ code: `@${screen.key}`, name: screen.label }))];
+  const commandPaths = bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
+  const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition) };
   const freePanel = isFreePage ? {
+    ...commandProps,
     def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
     onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
     onSelect: (selection: FreeSelection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id),
@@ -3941,7 +3950,14 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         disabled={!canEdit} onSet={(key, value) => setOptionalProp(id, key, value)}/> : null;
     },
   } : null;
+  // Liste kalıbının sayfa paneli (seçim yokken ya da Komutlar çubuğu seçiliyken): Ad, liste, Komutlar.
+  const isListPage = pageTemplate?.name === "list";
+  const listPage = isListPage ? { name, onRename: setName, ...commandProps } : null;
+  const listPageList = isListPage ? { definition: definition as unknown as ModelDefinition, catalog: activeCatalog.catalog, catalogStatus: activeCatalog.status,
+    operationOf: (operation: string | null) => operation ? findOperation(erpCatalog, operation) : undefined, operationsStatus: erpCatalog.status, isTenantAdmin: isAdmin,
+    disabled: !canEdit, onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition) } : null;
   const recordPanel = isRecordPage ? {
+    ...commandProps,
     def: recordDef, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,
     onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
     onSelect: (selection: RecordSelection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id),
@@ -4677,7 +4693,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
         // Danışman panelleri (alt proje 5a) Liste kalıbında Metin, Bilgi kutusu, Gösterge, Görsel ve eylem düğmeleri için açılır.
         const modelDefinition = definition as unknown as ModelDefinition;
         if (!usesTemplateInspector(modelDefinition, selected.id)) return legacyInspector;
-        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel} free={freePanel} belge={belgePanel}
+        return <TemplateInspector component={selected} legacy={legacyInspector} disabled={!canEdit} record={recordPanel} free={freePanel} belge={belgePanel} page={listPage}
           tokens={fieldTokens(modelDefinition, activeCatalog.catalog)}
           onPlace={(slot) => patchComponent(selected.id, { slot })}
           onLeave={(event) => { if (dirty && !window.confirm("Kaydedilmemiş değişiklikler var. Taleplerim ekranına geçilsin mi? Değişiklikler kaybolur.")) event.preventDefault(); }}
@@ -4691,9 +4707,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
           {recordPanel ? <TemplateInspector component={null} legacy={null} list={null} record={recordPanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
             : belgePanel ? <TemplateInspector component={null} legacy={null} list={null} belge={belgePanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
             : freePanel ? <TemplateInspector component={null} legacy={null} list={null} free={freePanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>
+            : listPageList ? <TemplateInspector component={null} legacy={null} list={listPageList} page={listPage} tokens={fieldTokens(definition as unknown as ModelDefinition, activeCatalog.catalog)} disabled={!canEdit} onPlace={() => {}}/>
             : <div className="pd-right-head"><Settings2 size={16}/><div><b>Sayfa ayarları</b><small>Bir bileşeni düzenlemek için tuvalde seçin.</small></div></div>}
           <fieldset className="pd-fieldset" disabled={!canEdit}>
-            {!recordPanel && !freePanel && !belgePanel && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
+            {!recordPanel && !freePanel && !belgePanel && !listPageList && <label className="pd-field">Sayfa adı<input maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Satış özeti"/></label>}
             {systemScreenKey
               ? <label className="pd-field">Sayfa kodu<small>Sistem sayfasının kodu ekrana bağlıdır; değiştirilemez.</small><input value={`@${systemScreenKey}`} readOnly aria-readonly="true"/></label>
               : <label className="pd-field">Sayfa kodu<small>{current ? "Kaydedildikten sonra değiştirilemez." : "Adres olarak kullanılır: küçük harf, rakam, - ve _."}</small><input maxLength={40} value={code} onChange={(event) => setCode(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "-"))} placeholder="satis-ozeti" disabled={!!current}/></label>}

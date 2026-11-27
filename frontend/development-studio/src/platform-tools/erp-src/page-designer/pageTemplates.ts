@@ -2,8 +2,6 @@ import type { ActiveCatalog } from "./catalogClient";
 // Sayfa kalıbı (pageTemplate): sayfanın kökündeki `template: { name: "list" }`. Bileşen ön ayarlarıyla (CustomPagesPage `templates`) karıştırılmamalıdır.
 export type PageTemplate = { name: "list" } | { name: "record" } | { name: "free" } | { name: "belge"; document: string };
 export type PageTemplateChoice = { id: "list" | "record" | "belge" | "free"; label: string; description: string };
-/** Karar 1: kalıpsız (eski tasarımcı) sayfayı kuran seçim, pencerede en sonda. */
-export type LegacyTemplateChoice = { id: "legacy"; label: string; description: string };
 
 export const PAGE_TEMPLATE_CHOICES: PageTemplateChoice[] = [
   { id: "list", label: "Liste", description: "Kayıtları aramak, süzmek ve seçmek için." },
@@ -11,8 +9,6 @@ export const PAGE_TEMPLATE_CHOICES: PageTemplateChoice[] = [
   { id: "belge", label: "Belge", description: "Satış siparişi gibi satırlı belgeler; hesap ve durumlar modülden gelir." },
   { id: "free", label: "Serbest", description: "Kalıba uymayan sayfalar: panolar, özet ekranları. Sekmeler ve bölümler sizin." },
 ];
-/** Karar 1'in son seçimi: NewPageDialog `[...PAGE_TEMPLATE_CHOICES, LEGACY_TEMPLATE_CHOICE]` gösterir, bu en sonda ve kesik çizgili. */
-export const LEGACY_TEMPLATE_CHOICE: LegacyTemplateChoice = { id: "legacy", label: "Eski tasarımcı (kalıpsız)", description: "Sistem ekranlarına benzeyen gelişmiş sayfalar için." };
 
 type TemplatedDefinition = { schemaVersion: 2; template?: PageTemplate; queries: unknown[]; components: unknown[] };
 type DefinitionLike = { template?: unknown; components?: unknown };
@@ -59,9 +55,10 @@ export function newFreeTemplateDefinition(): TemplatedDefinition {
 /** Yeni serbest sayfanın bölümü (`newFreeTemplateDefinition`). */
 export const NEW_FREE_BLOCK_ID = "bolum";
 
-/** Yeni sayfa penceresindeki seçimin kuracağı tanım; "Eski tasarımcı" için null (bugünkü kalıpsız sayfa, bileşen ön ayarıyla). */
-export function newPageDefinitionFor(choice: PageTemplateChoice["id"] | LegacyTemplateChoice["id"]): TemplatedDefinition | null {
-  return choice === "list" ? newListTemplateDefinition() : choice === "record" ? newRecordTemplateDefinition() : choice === "free" ? newFreeTemplateDefinition() : null;
+/** Yeni sayfa penceresindeki seçimin kuracağı tanım (5b-2: yeni sayfa yalnız dört kalıptan biriyle açılır). */
+export function newPageDefinitionFor(choice: PageTemplateChoice["id"]): TemplatedDefinition {
+  return choice === "list" ? newListTemplateDefinition() : choice === "record" ? newRecordTemplateDefinition() : choice === "free" ? newFreeTemplateDefinition()
+    : newBelgeTemplateDefinition();
 }
 
 export const RECORD_SOURCE_HINT = "Önce hangi kaydın gösterileceğini seçin.";

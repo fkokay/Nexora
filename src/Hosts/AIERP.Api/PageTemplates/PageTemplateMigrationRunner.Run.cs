@@ -77,6 +77,8 @@ internal sealed partial class PageTemplateMigrationRunner
             // The classifier's reasons already carry the equivalence text; keep all of them.
             if (result.EquivalenceFailure is { } failure)
                 return new MigrationPageOutcome(tenant, code, false, result.Target, result.Reasons.Count > 0 ? result.Reasons : [$"eşdeğerlik denetimi başarısız: {failure}"]);
+            // Kayıt kartı is classified (and reported) but not written yet: an honest skip, not a failure.
+            if (result.Target == "record") return Skip(tenant, code, RecordRunClosedReason, "record");
             if (result.Target is not ("list" or "free") || result.ConvertedJson is null)
                 return new MigrationPageOutcome(tenant, code, false, null, result.Reasons.Count > 0 ? result.Reasons : ["Sayfa bir kalıba eşlenemedi."]);
             var converted = result.ConvertedJson;
@@ -178,7 +180,8 @@ internal sealed partial class PageTemplateMigrationRunner
     /// <summary>
     /// Read-only check of a batch over the stored pairs: every <c>TemplateMigrated</c> revision must follow its
     /// <c>BeforeTemplateMigration</c> revision (revision − 1), declare the list or free template and pass the behaviour
-    /// equivalence check against it. Writes nothing; a failed pair sets <see cref="MigrationPageOutcome.Failed"/>.
+    /// equivalence check against it. A Kayıt kartı pair fails with <see cref="RecordRunClosedReason"/>: run never writes one.
+    /// Writes nothing; a failed pair sets <see cref="MigrationPageOutcome.Failed"/>.
     /// </summary>
     internal async Task<MigrationRunResult> VerifyAsync(PageTemplateMigrationOptions options, CancellationToken ct)
     {
@@ -205,7 +208,8 @@ internal sealed partial class PageTemplateMigrationRunner
                 else
                 {
                     target = DeclaredTemplate(migrated.DefinitionJson);
-                    if (target is not ("list" or "free")) reasons.Add("Taşınmış tanım Liste ya da Serbest kalıbını taşımıyor.");
+                    if (target == "record") reasons.Add(RecordRunClosedReason);
+                    else if (target is not ("list" or "free")) reasons.Add("Taşınmış tanım Liste ya da Serbest kalıbını taşımıyor.");
                     if (equivalence(before.DefinitionJson, migrated.DefinitionJson) is { } difference) reasons.Add($"eşdeğerlik denetimi başarısız: {difference}");
                 }
                 outcomes.Add(new MigrationPageOutcome(tenant.TenantId, code, reasons.Count == 0, target, reasons, Failed: reasons.Count > 0));

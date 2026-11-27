@@ -284,14 +284,24 @@ export function ActionBar({ locale }: { locale: Locale }) {
   useLayoutEffect(() => registry.attachActionBar(), [registry]);
   // No İşlemler when the page removed it (`moreHidden`) or registered no items: no menu, Alt+İ does nothing,
   // and an open menu closes.
-  const moreHidden = !!commands?.moreHidden || !commands?.more?.length;
+  // A shell view (`shell`): the template shell draws the bar, so the shared one has no İşlemler either.
+  const shell = !!commands?.shell;
+  const moreHidden = shell || !!commands?.moreHidden || !commands?.more?.length;
   const moreHiddenRef = useRef(moreHidden);
   moreHiddenRef.current = moreHidden;
   useEffect(() => { if (moreHidden) setMenuOpen(false); }, [moreHidden]);
 
   useEffect(() => {
     const disposers = [
-      registry.registerGlobal({ id: 'action-bar.more', shortcut: MORE_MENU_SHORTCUT, allowWhileTyping: true, run: () => { if (!moreHiddenRef.current) setMenuOpen((open) => !open); } }),
+      registry.registerGlobal({
+        id: 'action-bar.more', shortcut: MORE_MENU_SHORTCUT, allowWhileTyping: true,
+        // A template shell of the active view owns the ⋯ menu (claimMoreMenu); only otherwise the bar's İşlemler opens.
+        run: () => {
+          const claim = registry.moreMenuClaim(registry.getActiveView());
+          if (claim) claim();
+          else if (!moreHiddenRef.current) setMenuOpen((open) => !open);
+        },
+      }),
       registry.registerGlobal({ id: 'action-bar.help', shortcut: 'F1', allowWhileTyping: true, run: () => setHelpOpen(true) }),
     ];
     return () => disposers.forEach((dispose) => dispose());
@@ -324,6 +334,8 @@ export function ActionBar({ locale }: { locale: Locale }) {
       {helpOpen && <ShortcutHelpDialog locale={locale} onClose={closeHelp} />}
     </div>
   );
+  // A shell view: no bar and no portal; F1 help stays (Alt+İ goes to the shell's claim above).
+  if (shell) return helpOpen ? <ShortcutHelpDialog locale={locale} onClose={closeHelp} /> : null;
   // One instance: it moves into the active page's slot (under the title) when there is one.
   return slotTarget ? createPortal(bar, slotTarget) : bar;
 }
