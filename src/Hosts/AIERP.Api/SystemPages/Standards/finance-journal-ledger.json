@@ -191,7 +191,6 @@
         "props": {
           "newButton": "yeniFisDugmesi",
           "openButton": "acDugmesi",
-          "moreButtons": [],
           "exportTable": "liste",
           "hiddenCommands": [
             "save",
@@ -236,7 +235,6 @@
           "title": "Fiş sayısı",
           "value": "{{fisler.meta.totalCount}}",
           "format": "number",
-          "width": 4,
           "icon": "files",
           "description": "süzgece göre",
           "slot": "indicators"
@@ -248,7 +246,6 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 12,
           "search": true,
           "searchPlaceholder": "Fi? no veya a??klama ara",
           "searchColumns": [
@@ -271,7 +268,6 @@
           "query": "fisler",
           "paging": "server",
           "pageSize": 50,
-          "width": 12,
           "columns": [
             "code",
             "entryDate",
@@ -412,7 +408,6 @@
         "props": {
           "title": "Satırlar",
           "query": "satirlar",
-          "width": 12,
           "columns": [
             "lineNumber",
             "accountCode",

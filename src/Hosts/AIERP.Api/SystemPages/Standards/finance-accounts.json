@@ -441,7 +441,6 @@
           "title": "Toplam bakiye",
           "value": "{{ozet.rows[0].totalBalance}}",
           "format": "money",
-          "width": 4,
           "icon": "wallet",
           "description": "{{ozet.rows[0].currencyCode}} · tüm kasa hesapları",
           "visibleWhen": "liste.seciliSatir.id == null && ozet.rows[0].currencyCount <= 1",
@@ -456,7 +455,6 @@
           "title": "Toplam bakiye",
           "value": "—",
           "format": "text",
-          "width": 4,
           "icon": "coins",
           "description": "birden çok para birimi ({{ozet.rows[0].currencyCount}})",
           "visibleWhen": "liste.seciliSatir.id == null && ozet.rows[0].currencyCount > 1",
@@ -471,7 +469,6 @@
           "title": "Aktif hesap",
           "value": "{{ozet.rows[0].activeCount}}",
           "format": "number",
-          "width": 4,
           "icon": "check",
           "variant": "success",
           "description": "{{ozet.rows[0].accountCount}} hesaptan · {{ozet.rows[0].inactiveCount}} pasif",
@@ -485,7 +482,6 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 12,
           "search": true,
           "searchPlaceholder": "Kod, hesap veya döviz ara",
           "searchColumns": [
@@ -506,7 +502,6 @@
         "props": {
           "title": "Kasa hesapları",
           "query": "hesaplar",
-          "width": 12,
           "columns": [
             "code",
             "name",
@@ -607,9 +602,7 @@
             "Hareket=number"
           ],
           "fieldUnits": [
-            "Güncel bakiye={{ekstre.meta.currencyCode}}",
-            "Giriş · bu sayfa={{ekstre.meta.currencyCode}}",
-            "Çıkış · bu sayfa={{ekstre.meta.currencyCode}}"
+            "Bakiye={{ekstre.meta.currencyCode}}"
           ],
           "slot": "dialog"
         }
@@ -985,8 +978,8 @@
           "inputType": "number",
           "label": "Kur",
           "required": true,
-          "min": 1e-08,
-          "step": 1e-08,
+          "min": 1e-8,
+          "step": 1e-8,
           "defaultValue": "1",
           "slot": "dialog"
         }

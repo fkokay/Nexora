@@ -180,7 +180,6 @@
           "title": "Dönem borç",
           "value": "{{mizan.meta.totalDebit}}",
           "format": "money",
-          "width": 4,
           "icon": "trending-up",
           "description": "genel toplam",
           "slot": "indicators"
@@ -194,7 +193,6 @@
           "title": "Dönem alacak",
           "value": "{{mizan.meta.totalCredit}}",
           "format": "money",
-          "width": 4,
           "icon": "trending-down",
           "description": "genel toplam",
           "slot": "indicators"
@@ -208,7 +206,6 @@
           "title": "Durum",
           "value": "Mizan dengede",
           "format": "text",
-          "width": 4,
           "icon": "check",
           "variant": "success",
           "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
@@ -224,7 +221,6 @@
           "title": "Durum",
           "value": "Dengede değil",
           "format": "text",
-          "width": 4,
           "icon": "alert",
           "variant": "danger",
           "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
@@ -239,7 +235,6 @@
         "props": {
           "title": "IFRS eşlemesi eksik",
           "variant": "warning",
-          "width": 12,
           "text": "{{mizan.meta.unmappedAccountCount}} hareketli hesapta IFRS eşlemesi eksik. Profil tamamlanmadan rapor eksiksiz değildir.",
           "visibleWhen": "mizan.meta.isComplete == false",
           "slot": "above"
@@ -251,7 +246,6 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 12,
           "search": true,
           "searchPlaceholder": "Kod veya hesap ara",
           "searchColumns": [
@@ -271,7 +265,6 @@
         "props": {
           "title": "Mizan",
           "query": "mizan",
-          "width": 12,
           "columns": [
             "code",
             "name",
@@ -390,7 +383,6 @@
           "query": "muavin",
           "paging": "server",
           "pageSize": 50,
-          "width": 12,
           "columns": [
             "entryDate",
             "journalEntryCode",
