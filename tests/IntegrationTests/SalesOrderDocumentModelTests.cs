@@ -21,11 +21,11 @@ public sealed class SalesOrderDocumentModelTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var model = await SalesOrderApiFactory.ReadJsonAsync(response);
-        Assert.Equal(["Draft", "PendingApproval", "Open", "Fulfilled", "Invoiced", "Cancelled"],
+        Assert.Equal<IEnumerable<string?>>(["Draft", "PendingApproval", "Open", "Fulfilled", "Invoiced", "Cancelled"],
             model.GetProperty("states").EnumerateArray().Select(x => x.GetProperty("code").GetString()).ToArray());
         Assert.Equal("Onaylı", model.GetProperty("states")[2].GetProperty("label").GetString());
         Assert.True(model.GetProperty("states")[5].GetProperty("terminal").GetBoolean());
-        Assert.Equal(["onayla", "onayiGeriAl", "iptal"],
+        Assert.Equal<IEnumerable<string?>>(["onayla", "onayiGeriAl", "iptal"],
             model.GetProperty("transitions").EnumerateArray().Select(x => x.GetProperty("code").GetString()).ToArray());
         Assert.Equal("satis.siparis.hesapla", model.GetProperty("calculateOperation").GetString());
         var columns = model.GetProperty("lineColumns").EnumerateArray().ToDictionary(x => x.GetProperty("code").GetString()!, x => x.GetProperty("calculated").GetBoolean());
@@ -81,7 +81,8 @@ public sealed class SalesOrderDocumentModelTests
 
         using var response = await client.GetAsync($"/api/sales/orders/{orderId}/document");
 
-        Assert.Equal(expected, (await SalesOrderApiFactory.ReadJsonAsync(response)).GetProperty("allowedTransitions").EnumerateArray()
+        var document = await SalesOrderApiFactory.ReadJsonAsync(response);
+        Assert.Equal<IEnumerable<string?>>(expected, document.GetProperty("allowedTransitions").EnumerateArray()
             .Select(x => x.GetString()).ToArray());
     }
 
@@ -199,7 +200,7 @@ public sealed class SalesOrderDocumentModelTests
 
         var model = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync("/api/document-models/satis.siparis"));
 
-        Assert.Equal(["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"],
+        Assert.Equal<IEnumerable<string?>>(["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"],
             model.GetProperty("fills").GetProperty("stockItemId").EnumerateArray().Select(x => x.GetString()).ToArray());
         var fields = model.GetProperty("fields").EnumerateArray().ToDictionary(x => x.GetProperty("code").GetString()!, x => x.GetProperty("readOnly").GetBoolean());
         Assert.True(fields["code"]);
@@ -227,7 +228,7 @@ public sealed class SalesOrderDocumentModelTests
         var document = await SalesOrderApiFactory.ReadJsonAsync(response);
         Assert.Equal(state, document.GetProperty("order").GetProperty("status").GetString());
         Assert.True(document.GetProperty("order").GetProperty("lines").GetArrayLength() >= 2);
-        Assert.Equal(transitions, document.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(transitions, document.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()).ToArray());
         var amounts = document.GetProperty("amounts");
         Assert.Equal(2, amounts.GetProperty("vat").GetArrayLength());
         Assert.Equal(amounts.GetProperty("grandTotal").GetDecimal(),

@@ -46,7 +46,7 @@ public sealed class SystemPageEndpointsIntegrationTests
         Assert.Equal("Stok & Depo", empty.GetProperty("module").GetString());
         Assert.Equal(2, empty.GetProperty("version").GetInt32());
         Assert.Equal("preview", empty.GetProperty("stage").GetString());
-        Assert.Equal([ScreenKey], empty.GetProperty("screenViewKeys").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>([ScreenKey], empty.GetProperty("screenViewKeys").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("draftId").ValueKind);
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("publishedId").ValueKind);
         Assert.Equal(JsonValueKind.Null, empty.GetProperty("standardVersion").ValueKind);
@@ -391,7 +391,7 @@ public sealed class SystemPageEndpointsIntegrationTests
         Assert.Equal(1, draft.GetProperty("revision").GetInt32());
         Assert.False(draft.GetProperty("isPublished").GetBoolean());
         Assert.Equal(["code", "isActive"], TableColumns(draft.GetProperty("definitionJson").GetString()!));
-        Assert.Equal([SystemPageMerge.UnmappedFieldNote("Açıklama"), SystemPageMerge.LayoutNotImportedNote],
+        Assert.Equal<IEnumerable<string?>>([SystemPageMerge.UnmappedFieldNote("Açıklama"), SystemPageMerge.LayoutNotImportedNote],
             draft.GetProperty("importNotes").EnumerateArray().Select(x => x.GetString()));
 
         await using var scope = app.Services.CreateAsyncScope();
@@ -427,7 +427,7 @@ public sealed class SystemPageEndpointsIntegrationTests
         var draft = await (await client.PostAsync($"/api/system-pages/{ScreenKey}/draft", null)).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(["code", "isActive"], TableColumns(draft.GetProperty("definitionJson").GetString()!));
         // Visibility alone is not a layout change; the hidden unmapped field is still reported.
-        Assert.Equal([SystemPageMerge.UnmappedFieldNote("Açıklama")], draft.GetProperty("importNotes").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>([SystemPageMerge.UnmappedFieldNote("Açıklama")], draft.GetProperty("importNotes").EnumerateArray().Select(x => x.GetString()));
     }
 
     [Fact]
@@ -590,12 +590,12 @@ public sealed class SystemPageEndpointsIntegrationTests
         var items = result.GetProperty("items").EnumerateArray().ToArray();
         // component:depoListesi (since 1, deleted) is never re-offered; query:depolar comes only as the requirement
         // of an offered item, so Studio's "Ekle" can add it.
-        Assert.Equal(["component:depoNotu", "component:ikinciTablo", "query:depolar"], items.Select(x => x.GetProperty("key").GetString()));
+        Assert.Equal<IEnumerable<string?>>(["component:depoNotu", "component:ikinciTablo", "query:depolar"], items.Select(x => x.GetProperty("key").GetString()));
         var note = items[0];
         Assert.Equal(("component", "Depo notu", 2), (note.GetProperty("kind").GetString(), note.GetProperty("label").GetString(), note.GetProperty("since").GetInt32()));
         Assert.Equal("depoNotu", note.GetProperty("definition").GetProperty("id").GetString());
         Assert.Empty(note.GetProperty("requires").EnumerateArray());
-        Assert.Equal(["query:depolar"], items[1].GetProperty("requires").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(["query:depolar"], items[1].GetProperty("requires").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(("query", 1), (items[2].GetProperty("kind").GetString(), items[2].GetProperty("since").GetInt32()));
         Assert.Equal("depo.listele", items[2].GetProperty("definition").GetProperty("operation").GetString());
         // The catalog counts only the offered items, not the requirement brought along.

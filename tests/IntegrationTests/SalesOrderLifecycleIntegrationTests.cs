@@ -108,6 +108,6 @@ public sealed class SalesOrderLifecycleIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var codes = (await SalesOrderApiFactory.ReadJsonAsync(response)).GetProperty("items").EnumerateArray()
             .Select(x => x.GetProperty("code").GetString()).ToArray();
-        Assert.Equal(["SO-OPEN"], codes);
+        Assert.Equal<IEnumerable<string?>>(["SO-OPEN"], codes);
     }
 }

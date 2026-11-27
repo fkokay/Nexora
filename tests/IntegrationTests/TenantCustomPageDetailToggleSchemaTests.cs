@@ -149,6 +149,6 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
         Assert.Equal(6, components["suzgec"].GetProperty("props").GetProperty("width").GetInt32());
         var selections = components["suzgecSecimleri"].GetProperty("props");
         Assert.Equal(6, selections.GetProperty("width").GetInt32());
-        Assert.Equal(new[] { "yonSecimi", "durumSecimi" }, selections.GetProperty("inputs").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "yonSecimi", "durumSecimi" }, selections.GetProperty("inputs").EnumerateArray().Select(x => x.GetString()));
     }
 }

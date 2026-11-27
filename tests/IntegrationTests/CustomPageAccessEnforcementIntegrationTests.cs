@@ -87,11 +87,11 @@ public sealed class CustomPageAccessEnforcementIntegrationTests
 
         SetIdentity(client, Mehmet, "TenantUser");
         var mehmetMenu = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-menus/") ?? [];
-        Assert.Equal(["reports"], mehmetMenu.Select(x => x.GetProperty("targetPage").GetString()));
+        Assert.Equal<IEnumerable<string?>>(["reports"], mehmetMenu.Select(x => x.GetProperty("targetPage").GetString()));
 
         SetIdentity(client, Ayse, "TenantUser");
         var ayseMenu = await client.GetFromJsonAsync<JsonElement[]>("/api/custom-menus/") ?? [];
-        Assert.Equal([$"custom-page:{Code}", "reports"], ayseMenu.Select(x => x.GetProperty("targetPage").GetString()));
+        Assert.Equal<IEnumerable<string?>>([$"custom-page:{Code}", "reports"], ayseMenu.Select(x => x.GetProperty("targetPage").GetString()));
     }
 
     [Fact]

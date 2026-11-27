@@ -48,7 +48,7 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
             .Single(item => item.GetProperty("name").GetString() == toolName);
         Assert.True(tool.GetProperty("strict").GetBoolean());
         Assert.False(tool.GetProperty("parameters").GetProperty("additionalProperties").GetBoolean());
-        Assert.Equal(new[] { "from", "to" }, tool.GetProperty("parameters").GetProperty("required").EnumerateArray()
+        Assert.Equal<IEnumerable<string?>>(new[] { "from", "to" }, tool.GetProperty("parameters").GetProperty("required").EnumerateArray()
             .Select(item => item.GetString()).ToArray());
         var systemInstructions = bodies[0].RootElement.GetProperty("input")[0].GetProperty("content").GetString();
         Assert.Contains("Use search_payroll_compensation", systemInstructions, StringComparison.Ordinal);
@@ -90,7 +90,7 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         var declaration = requestBodies[0].RootElement.GetProperty("tools").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == "search_payroll_compensation");
         Assert.True(declaration.GetProperty("strict").GetBoolean());
-        Assert.Equal(new[] { "term", "from", "to" }, declaration.GetProperty("parameters").GetProperty("required")
+        Assert.Equal<IEnumerable<string?>>(new[] { "term", "from", "to" }, declaration.GetProperty("parameters").GetProperty("required")
             .EnumerateArray().Select(item => item.GetString()).ToArray());
         var handedOff = requestBodies[1].RootElement.GetProperty("input").EnumerateArray()
             .Single(item => item.TryGetProperty("type", out var type) && type.GetString() == "function_call_output")
@@ -145,7 +145,7 @@ public sealed class ERPAssistantOrchestrationEvaluationTests
         using var result = JsonDocument.Parse(serialized);
 
         Assert.Equal("salesOrders", result.RootElement.GetProperty("source").GetString());
-        Assert.Equal(new[] { "orderCode", "status" }, result.RootElement.GetProperty("columns").EnumerateArray()
+        Assert.Equal<IEnumerable<string?>>(new[] { "orderCode", "status" }, result.RootElement.GetProperty("columns").EnumerateArray()
             .Select(column => column.GetProperty("code").GetString()).ToArray());
         Assert.Equal("count", result.RootElement.GetProperty("aggregates")[0].GetProperty("code").GetString());
         Assert.DoesNotContain("bankStatements", serialized, StringComparison.Ordinal);
