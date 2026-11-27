@@ -1,6 +1,6 @@
 # 5b-2 adım 2: Pencere ve grup (tasarım)
 
-Durum: taslak, kullanıcı onayı bekliyor. Tarih: 2026-11-27. Üst belge: `2026-11-27-kalip-buyutme-5b2-design.md` §5.1 madde 2. Taslak: `docs/design-proposals/studio-sadelestirme/12-pencere-grup.html`.
+Durum: onaylı (2026-11-27); uygulandı, dal `claude/kalip-pencere-grup` (birleşmedi). Getiri 4 standart (finance-ledger-chart kapsam dışı). Tarih: 2026-11-27. Üst belge: `2026-11-27-kalip-buyutme-5b2-design.md` §5.1 madde 2. Taslak: `docs/design-proposals/studio-sadelestirme/12-pencere-grup.html`.
 
 ## 1. Amaç
 

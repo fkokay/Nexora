@@ -1,4 +1,17 @@
 # Master Prompt Phase Status
+### 2026-11-27 5b-2 adım 2 — Pencere ve grup
+
+Plan `docs/superpowers/plans/2026-11-27-pencere-grup-5b2b.md`, spec `docs/superpowers/specs/2026-11-27-pencere-grup-5b2b-design.md`, mockup 12. Branch `claude/kalip-pencere-grup`; not merged. No migration.
+
+- **Format:** a List, Record card or Free page may carry legacy `dialog` components in slot `dialogs` (same settings; only `presentation: "dialog"` and sizes sm/md/lg/xl); their contents sit in slot `dialog`. Dialog ownership = `contains` ∪ ids the dialog's `tabs` point at ∪ inputs of formCards that are dialog content; an id belongs to at most one dialog and never appears outside it. One-level groups (`section`/`card` + `children`) are allowed only inside dialogs and as a card in the List `detail` slot (contextPanel or card, at most one). Belge carries no dialogs. Error texts in `PageTemplateRules` (PencereYeri, PencereBelge, PencereSunum, PencereIcerigi, PencereTuru, PencereOzet, PencereSekme, GrupYeri, GrupIcIce, GrupTuru, TekDetay).
+- **ERP:** template shells draw `dialogs` (closed until opened; open/save/closeOnSave/resetOnOpen/refreshQueries/openParam run through the existing runtime); fixed skeleton inside a templated dialog (summary first, content in order, tabs last, the dialog's own buttons in the footer left of Vazgeç/Kaydet) and in groups (badges first, buttons last); width settings are not applied. A List detail card shows without a row selection (like the legacy page). Canvas message `showDialog` opens a dialog in the designer.
+- **Studio:** "Pencereler" section (title, size, save action and label, close on save, reset on open, refresh list, content order, openers, add/remove), group panel (title, description, "Ne zaman görünsün", members), guards keep dialog slots and groups in place.
+- **Converter:** dialogs → `dialogs`, contents → `dialog`, group child widths removed, a selection-bound card → List `detail`, an unowned hidden input → List `above`. `BehaviorEquivalence` unchanged. The 50 embedded standards: **4 convert** to List (sales-orders, sales-invoices, inventory-cost, inventory-tracking), up from 0; finance-ledger-chart stays refused ("formCard bu kalıpta yok."; detail-card tabs point at top-level forms — out of scope).
+
+Verified (InMemory, integrated branch at 82fd3989): unit 1260/1260; integration 2208 passed, 66 skipped (SQL acceptance), 11 failed under machine load with 3–8 min timeouts in unrelated areas — the same 11 rerun alone passed (16/16 rows); erp-web `npm test` 2324/2324 and build; development-studio `npm test` 1200/1200 and build. Final-review fix wave results: see below.
+
+Not verified: browser pass of ERP/Studio against a real backend; live dry-run report after deploy; no standard JSON or tenant page migrated yet (separate PR + rehearsal + user approval); SQL Server path. Deploy precondition: confirm no live templated tenant page has `children` outside `dialog`/`detail` (those are now refused on save).
+
 ### 2026-11-27 5b-2 adım 1 — Komutlar + Kayıt kartına eşleme
 
 Plan `docs/superpowers/plans/2026-11-27-komutlar-kayit-karti-5b2a.md`, spec `docs/superpowers/specs/2026-11-27-kalip-buyutme-5b2-design.md` §5.2. Merged as PR #190 (8c2ed6c6) and live since 2026-11-27 (platform-api, erp-web, development-studio from 8c2ed6c6). No migration.
