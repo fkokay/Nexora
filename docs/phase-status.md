@@ -1745,6 +1745,28 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Ne değişti:** Üçüncü ve dördüncü belge modeli. `satis.fatura`: yeni belge Taslak açılır, "Faturayı kes" mevcut `POST /api/sales/invoices` yazmasıdır (fatura + irsaliye + stok çıkışı tek yazma; tekrar deneme anahtarı içerik değişince yenilenir), kesilmiş fatura değişmez, tek geçiş İptal et (`/void`, gerekçe işlem günlüğüne yazılır). Alanlar: fatura no, müşteri, tarih, depo, fatura türü (yeni `select` alan türü), vergi profili, e-belge senaryosu/tür kodu/alıcı etiketi, not; özel alanlar Belge'nin genel bölümünde. `satis.irsaliye`: siparişsiz irsaliye taslağı standalone uçlarla kaydedilir (PUT dahil; bedelsiz satır, izleme kodu, son kullanma ve raf geri gönderilir), Sevk et mevcut `/post`; siparişli ve faturalı irsaliyeler salt okunur açılır, siparişli ve faturasız olan İptal edilebilir. `sales-invoices` (v4) ve `sales-deliveries` (v2, Liste kalıbına taşındı) Yeni/Aç düğmelerini Belge'ye yönlendirir; fatura penceresi satır eylemi "Tahsilat ve iadeler", irsaliye penceresi Faturalaştır olarak kalır (özel alan bloğu pencere parçası olarak sekmede). Fatura ve irsaliye işlem günlüğü fatura kesme/iptal ve sevk/iptal adımlarında yazılır. Şema değişikliği yok.
 - **Kalıpta karşılığı olmayıp bırakılanlar:** e-Arşiv ayrıntıları (ödeme aracısı, aracı firma, taşıyıcı; yeni faturada gönderilmez, eski ekranda kalır), tevkifat satırları (toplamda görünür, ayrı satır yok), e-belge gönderildi durumu (API'de yok), yazdır/PDF, tahsilat ve iade (liste penceresi), irsaliyede lot/seri tahsisi (izlemeli stok Sevk et'te sunucu hatası verir), irsaliyede hesap ucu (tutarlar kayıttan sonra görünür), siparişten irsaliye oluşturma ve irsaliyeden faturalaştırma (belgeden belge), siparişsiz irsaliyenin iptali (API'de yok), sipariş müşteri/depo ön dolumu ve cariden "Yeni fatura" (hâlâ `sales-invoice-create`).
 - **Doğrulanmayan:** Gerçek SQL Server'a karşı fatura kesme/iptal ve irsaliye PUT/post akışı (kilitli sorgular InMemory'de çalışmaz; yalnız okuma, yetki ve örnek uçları sınandı); tarayıcıda görsel deneme; Studio tuvali.
+## İK ve Dış Ticaret: 2. dalga, üç standart kalıba çizildi
+
+- **Ne değişti:** `hr-leave-requests`, `foreign-trade` (Liste) ve `foreign-trade-case` (Kayıt kartı) sürüm 2 olarak elle kalıba yazıldı; kalıba yeni özellik eklenmedi. Tasarım: `docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md`.
+  - `hr-leave-requests`: Onayla / Reddet / İptal et tek kez, seçili talebin kart grubunda; komut çubuğunda yalnız İzin talebi ve Excel. İkinci Reddet düğmesi ve `reddetPanel` sorgusu kalktı. Durum (varsayılan Bekliyor), tür, personel ve tarih aralığı üstte tek süzgeç kartında.
+  - `foreign-trade`: arama, yön ve aşama süzgeç alanında; dört gösterge (toplam, sevkte, ulaştı, kapandı); aşama düğmeleri `visibleWhen` ile aşamada tek görünür; sevk, gümrük, varış ve stok belgesi pencereleri aynı. Eski ekran, detay paneli, çipler ve özet metin kalktı.
+  - `foreign-trade-case`: üç sekme (Dosya, Değer ve planlama, Referanslar ve not), tek özet ve iki "sipariş yok" uyarısı yerine tek koşullu uyarı.
+- **Basitleştirmeler:** "Açık" göstergesi yerine "Sevkte" kondu (özet sorgusu açık sayısını vermiyor, kalıpta toplama yok). Aşama rozetleri kayıt kartında yedi ayrı rozet olarak kaldı (özet aşama etiketini eşleyemiyor). Reddet için ayrı pencere yerine mevcut gerekçe sorusu korundu. Personel seçicinin gizli durum ve sayfa boyutu girdileri korundu (sorgu sabit değer bağlayamıyor).
+- **Doğrulanan:** standartlar yüklenir ve şemadan geçer; İK ve Dış Ticaret .NET testleri, ERP ve Studio vitest, iki arayüzün derlemesi.
+- **Doğrulanmayan:** canlıda görsel kontrol ve dar ekran düzeni; firma kopyalarının standarda sıfırlanması bu işin dışındadır.
+
+
+### 2026-11-28 satın alma yeniden tasarım, 1. dalga: üç standart kalıba çizildi
+
+- **Ne değişti:** `sales-purchase-quotes` v2, `sales-purchase-receipts` v2 ve `sales-purchase-invoices` v3 el ile Liste kalıbına çizildi: gösterge, süzgeç (arama + durum), tablo, yanda detay kartı, Aç penceresi (sekmeli), satır eylemleri. Sorgular ve yazmalar (mal kabul iptali, ödeme ekle / iptal, fatura iptali) aynı kaldı.
+- **Sadeleşenler:**
+  - Teklifler: "Talepsiz teklif" kalktı; satırlar Aç penceresinde.
+  - Mal kabuller: "Siparişsiz mal kabul" ve "Eski ekranda aç" kalktı (siparişsiz ve izlemeli kabul pencere satır tablosu gelince kalıpla yapılacak); "Fatura bekleyen" göstergesi ve "Faturalanmamış" süzgeci yok (liste satırında fatura bilgisi yok).
+  - Faturalar: iade penceresi kalktı, "İade oluştur" İade ekranına gider; "Eski ekranda aç" kalktı; tedarikçi çipi sayfa parametresi uyarısına ve süzgeç alanına indi.
+- **Atlanan:** `sales-purchase-returns` ve `sales-purchase-delivery-notes`: yeni iade / yeni irsaliye pencereleri düzenlenebilir satır tablosu ister, kalıp penceresinde yok.
+- **Doğrulanan (yerel):** Standartlar yüklenir ve şemadan geçer; ilgili .NET ve vitest testleri ile iki arayüzün derlemesi (CI sonucu PR'da).
+- **Doğrulanmayan:** Canlıda firma kopyasıyla ve tarayıcıda görsel deneme; eski firma kopyalarının sıfırlanması bu işte yok.
+
 
 ### 2026-11-28 belge modeli `satis.teklif` ve Teklifler ekranı (yeni belge modelleri için örnek iş)
 
@@ -1752,6 +1774,7 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Kalıpta karşılığı olmayıp bırakılanlar:** Yeni revizyon, Sipariş oluştur (belgeden belge; listede satır eylemi olarak var), Yazdır/PDF, teklif iptali (API'de yok), Kurallar ve onay (yalnız sipariş). Teklif özel alanları Belge'nin genel özel alan bölümünde görünür. Kayıtsız alıcılı teklif Belge'de açılır ve kaydedilir (alıcı adı korunur) ama alıcı Belge'den cariye çevrilemez.
 - **Doğrulanan (yerel):** Teklif model, belge görünümü, geçiş izinleri, işlem günlüğü, örnek, doldurma, yetki yolu ve standart testleri (.NET); ERP Belge kalıbı teklif testleri (kayıtta not, teslimat koşulu, kur, talep satırı ve özel alan geri gönderimi dahil) ve sipariş testleri değişmeden geçti; Studio varsayılan belge testi.
 - **Doğrulanmayan:** Gerçek SQL Server'a karşı teklif PUT/geçiş akışı (InMemory'de PUT kilidi çalışmaz); tarayıcıda görsel deneme; Studio tuvalinde teklif önizlemesi.
+
 ### 2026-11-28 finans ve duran varlık yeniden tasarım, 2. dalga: üç standart kalıba çizildi
 
 - **Ne değişti:** `finance-ledger-chart` v2 (Liste + kart grubu + üç pencere), `fixed-assets` v2 (Liste + kart grubu + iki pencere) ve `fixed-asset-create` v2 (Kayıt kartı, üç sekme) standartları el ile kalıplı sayfa olarak yeniden yazıldı (tasarım: `docs/superpowers/specs/2026-11-28-finans-muhasebe-varlik-yeniden-tasarim-design.md`). Sorgular ve işlemler aynı kaldı; yalnız düzen ve pencereler değişti.

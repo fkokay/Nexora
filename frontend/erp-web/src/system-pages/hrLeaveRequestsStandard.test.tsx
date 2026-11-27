@@ -40,6 +40,9 @@ const lists = () => h.gets('/api/hr/leave-requests');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const dialog = () => screen.getByRole('dialog', { name: 'İzin talebi' });
 const creates = () => h.writes().filter((call) => call.url === '/api/hr/leave-requests');
+// Onayla / Reddet… / İptal et seçili talebin kart grubundaki düğmelerdir (komut çubuğunda yinelenmez).
+const cardButton = (name: RegExp) => screen.findByRole('button', { name }, T);
+const isDisabled = (element: HTMLElement) => element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true';
 const pick = async (element: HTMLInputElement, option: string) => {
   fireEvent.click(element);
   fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
@@ -96,7 +99,7 @@ describe('İzin talepleri standart tanımı', { timeout: 30000 }, () => {
   it('Onayla posts {approve:true, rowVersion} for the selected row', async () => {
     h.setup(respond);
     await h.select('Ayşe Yılmaz');
-    fireEvent.click(await h.menuItem(/^Onayla/));
+    fireEvent.click(await cardButton(/^Onayla/));
     await waitFor(() => expect(h.writes()).toHaveLength(1), T);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/hr/leave-requests/${L1}/review` });
     expect(h.bodyOf(h.writes()[0])).toEqual({ approve: true, rowVersion: 'rv-1' });
@@ -105,7 +108,7 @@ describe('İzin talepleri standart tanımı', { timeout: 30000 }, () => {
   it('Reddet asks for an optional note, then posts {approve:false, note, rowVersion}', async () => {
     h.setup(respond);
     await h.select('Ayşe Yılmaz');
-    fireEvent.click(await h.menuItem(/^Reddet/));
+    fireEvent.click(await cardButton(/^Reddet/));
     const prompt = await screen.findByRole('alertdialog', {}, T);
     expect(prompt.textContent).toContain('Ret notu');
     expect(h.writes()).toEqual([]);
@@ -119,26 +122,30 @@ describe('İzin talepleri standart tanımı', { timeout: 30000 }, () => {
   it('Onayla / Reddet are disabled with the reason when canReview is false; İptal et shows only for canCancel', async () => {
     h.setup(respond);
     await h.select('Mehmet Kaya');
-    const approve = await h.menuItem(/^Onayla/);
-    expect(approve.getAttribute('aria-disabled')).toBe('true');
+    const approve = await cardButton(/^Onayla/);
+    expect(isDisabled(approve)).toBe(true);
     expect(approve.outerHTML).toContain('Başka bir yönetici onaylamalı');
-    const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
-    expect(names.some((name) => name.startsWith('İptal et'))).toBe(true);
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-    fireEvent.click(await h.menuItem(/^İptal et/));
+    expect(isDisabled(await cardButton(/^Reddet/))).toBe(true);
+    fireEvent.click(await cardButton(/^İptal et/));
     await waitFor(() => expect(h.writes()).toHaveLength(1), T);
     expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/hr/leave-requests/${L2}/cancel` });
     expect(h.bodyOf(h.writes()[0])).toEqual({ rowVersion: 'rv-2' });
   });
 
+  it('there is one Onayla and one Reddet button; the command bar has no duplicates', async () => {
+    h.setup(respond);
+    await h.select('Ayşe Yılmaz');
+    await cardButton(/^Onayla/);
+    expect(screen.getAllByRole('button', { name: /^Onayla/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^Reddet/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Eski ekranda aç/ })).toBeNull();
+  });
+
   it('an approved request offers neither Onayla nor İptal et', async () => {
     h.setup(respond);
     await h.select('Can Öz');
-    fireEvent.click(h.command('more'));
-    await screen.findAllByRole('menuitem', {}, T);
-    const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
-    expect(names.some((name) => name.startsWith('Onayla'))).toBe(false);
-    expect(names.some((name) => name.startsWith('İptal et'))).toBe(false);
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(document.body.textContent).toContain('Onaylandı'), T);
+    expect(screen.queryByRole('button', { name: /^Onayla/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^İptal et/ })).toBeNull();
   });
 });

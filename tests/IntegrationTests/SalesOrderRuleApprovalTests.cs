@@ -176,7 +176,7 @@ public sealed class SalesOrderRuleApprovalTests
         Assert.Equal(HttpStatusCode.Conflict, first.StatusCode);
         var body = await SalesOrderApiFactory.ReadJsonAsync(first);
         Assert.Equal("needsConfirmation", body.GetProperty("code").GetString());
-        Assert.Equal(["Tutar yüksek."], body.GetProperty("warnings").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(["Tutar yüksek."], body.GetProperty("warnings").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(SalesOrderStatus.Draft, await StatusAsync(w));
 
         using var second = await ApproveAsync(client, w.OrderId, acknowledge: true);
@@ -251,9 +251,9 @@ public sealed class SalesOrderRuleApprovalTests
         var forSaver = await SalesOrderApiFactory.ReadJsonAsync(await w.As(w.Seed.UserId, "TenantUser").GetAsync($"/api/sales/orders/{w.OrderId}/document"));
 
         Assert.True(forMehmet.GetProperty("approval").GetProperty("canDecide").GetBoolean());
-        Assert.Equal(["Mehmet Demir"], forMehmet.GetProperty("approval").GetProperty("approvers").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(["Mehmet Demir"], forMehmet.GetProperty("approval").GetProperty("approvers").EnumerateArray().Select(x => x.GetString()));
         Assert.False(forSaver.GetProperty("approval").GetProperty("canDecide").GetBoolean());
-        Assert.Equal(["iptal"], forSaver.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(["iptal"], forSaver.GetProperty("allowedTransitions").EnumerateArray().Select(x => x.GetString()));
     }
 
     [Fact]

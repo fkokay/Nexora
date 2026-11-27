@@ -238,8 +238,8 @@ public sealed class ErpOperationCatalogTests
         var variant = Assert.Single(page.GetProperty("routeVariants").EnumerateArray());
         Assert.Equal("warehouseId", variant.GetProperty("when").GetString());
         Assert.Equal("/api/warehouses/{warehouseId}/balances/page", variant.GetProperty("route").GetString());
-        Assert.Equal(new[] { "balance", "stockItem" }, page.GetProperty("result").GetProperty("flatten").EnumerateArray().Select(x => x.GetString()));
-        Assert.Equal(new[] { "page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity", "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "balance", "stockItem" }, page.GetProperty("result").GetProperty("flatten").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "page", "pageSize", "totalCount", "belowMinimumCount", "pageValuationAmountBase", "pageAvailableQuantity", "pageUnitCode", "pageAvailableCount", "pageUnvaluedCount", "baseCurrencyCode" },
             page.GetProperty("result").GetProperty("metaPaths").EnumerateArray().Select(x => x.GetString()));
         Assert.Equal(JsonValueKind.Null, page.GetProperty("bodyMap").ValueKind);
         Assert.True(page.GetProperty("allowed").GetBoolean());

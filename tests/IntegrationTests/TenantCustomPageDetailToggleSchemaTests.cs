@@ -71,12 +71,11 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             "'detayPaneli' birden fazla sekmede veya yerleşimde kullanılamaz");
     }
 
-    // crm-opportunities, customers (Satış & cari 1. dalga), fixed-assets (Finans 2. dalga) ve inventory-stock (Stok & Depo 1. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
+    // crm-opportunities, customers (Satış & cari 1. dalga), fixed-assets (Finans 2. dalga) ve inventory-stock (Stok & Depo 1. dalga) ve sales-purchase-quotes / -receipts / -invoices (Satın alma 1. dalga), foreign-trade ve hr-leave-requests (İK ve Dış Ticaret 2. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
     private static readonly string[] ToggleStandards =
     [
-        "foreign-trade", "hr-leave-requests",
-        "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts", "sales-purchase-invoices",
-        "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-requests",
+        "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts",
+        "sales-purchase-returns", "sales-purchasing", "sales-requests",
     ];
 
     private static JsonElement Definition(string screenKey) =>
@@ -140,15 +139,5 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             }
             Assert.True(widths.Sum() <= 12, $"{key}: filter row widths {string.Join(" + ", widths)} exceed 12");
         }
-    }
-
-    [Fact]
-    public void Foreign_trade_filter_row_is_search_six_and_both_selections_six()
-    {
-        var components = Definition("foreign-trade").GetProperty("components").EnumerateArray().ToDictionary(x => x.GetProperty("id").GetString()!);
-        Assert.Equal(6, components["suzgec"].GetProperty("props").GetProperty("width").GetInt32());
-        var selections = components["suzgecSecimleri"].GetProperty("props");
-        Assert.Equal(6, selections.GetProperty("width").GetInt32());
-        Assert.Equal(new[] { "yonSecimi", "durumSecimi" }, selections.GetProperty("inputs").EnumerateArray().Select(x => x.GetString()));
     }
 }
