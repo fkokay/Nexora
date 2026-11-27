@@ -395,14 +395,25 @@ internal static class SystemPageStandards
         {
             var type = component["type"] is JsonValue typeValue && typeValue.TryGetValue<string>(out var text) ? text : "";
             if (type == "tabs" && props["tabs"] is JsonArray tabs)
-                for (var i = 0; i < tabs.Count; i++)
+                for (var i = tabs.Count - 1; i >= 0; i--)
                 {
                     if (tabs[i] is not JsonValue tab || !tab.TryGetValue<string>(out var item) || item.Split('=', 2) is not [var label, var ids]) continue;
-                    tabs[i] = label + "=" + string.Join(",", ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !removed.Contains(x)));
+                    var kept = ids.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !removed.Contains(x)).ToArray();
+                    // A tab whose every block was added in a later version (e.g. "Özel alanlar") goes away with them.
+                    if (kept.Length == 0 && ids.Length > 0) tabs.RemoveAt(i);
+                    else tabs[i] = label + "=" + string.Join(",", kept);
                 }
             if (type == "actionBar")
             {
                 foreach (var key in new[] { "newInputs", "moreButtons" }) StripList(props, key, removed, dropWhenEmpty: true);
+                // Save steps added in a later version leave the older sequence (with their "step=condition" entries).
+                StripList(props, "saveSequence", removed, dropWhenEmpty: true);
+                if (props["sequenceWhen"] is JsonArray whens)
+                {
+                    foreach (var entry in whens.ToArray())
+                        if (entry is JsonValue value && value.TryGetValue<string>(out var when) && removed.Contains(when.Split('=', 2)[0])) whens.Remove(entry);
+                    if (whens.Count == 0) props.Remove("sequenceWhen");
+                }
                 foreach (var key in new[] { "focusInput", "exportTable", "saveQuery", "deleteQuery", "formDialog", "newButton", "openButton", "afterSaveButton" })
                     if (props[key] is JsonValue value && value.TryGetValue<string>(out var id) && removed.Contains(id)) props.Remove(key);
                 // Flat Yeni / Aç commands lose their choice with the component they use (Aç's list takes its page group along).

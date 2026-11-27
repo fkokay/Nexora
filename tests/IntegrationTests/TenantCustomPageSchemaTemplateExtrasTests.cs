@@ -19,29 +19,41 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
 
     private static object P(string name, string binding, string type) => new { name, binding, type };
 
-    private static object[] Queries(bool bindBlock = true, bool bindGrid = true) =>
+    /// <summary>The page's queries: the block's value source and save query exist only with a block, the lot/serial save only with the grid.</summary>
+    private static object[] Queries(bool block, bool grid) =>
     [
         new { id = "liste", name = "liste", kind = "read", sql = "SELECT 1 AS x", parameters = Array.Empty<object>(), runOn = "load" },
-        new { id = "ozelTanimlar", name = "ozelTanimlar", kind = "read", operation = "cari.ozelAlanTanimlari", parameters = Array.Empty<object>(), runOn = "load" },
-        new { id = "ozelKaydet", name = "ozelKaydet", kind = "update", operation = "cari.ozelAlanKaydet", runOn = "manual",
-              parameters = new[] { P("id", "{{liste.rows[0].x}}", "guid"), P("values", bindBlock ? "{{ozelAlanlar.degerler}}" : "{{baska.degerler}}", "map") } },
-        new { id = "hareketEkle", name = "hareketEkle", kind = "insert", operation = "stok.hareket.ekle", runOn = "manual",
-              parameters = new[]
-              {
-                  P("warehouseId", "{{liste.rows[0].x}}", "guid"), P("stockItemId", "{{liste.rows[0].x}}", "guid"), P("entryDate", "{{tarih.value}}", "date"),
-                  P("direction", "{{yon.value}}", "text"), P("quantity", "{{miktar.value}}", "decimal"), P("description", "{{aciklama.value}}", "text"),
-                  P("tracking", bindGrid ? "{{izlemeSatirlari.satirlar}}" : "{{baska.satirlar}}", "list")
-              } },
-        new { id = "duz", name = "duz", kind = "insert", sql = "INSERT INTO Notlar (Metin) VALUES ('x')", parameters = Array.Empty<object>(), runOn = "manual" }
+        new { id = "duz", name = "duz", kind = "insert", sql = "INSERT INTO Notlar (Metin) VALUES ('x')", parameters = Array.Empty<object>(), runOn = "manual" },
+        .. block ? new object[]
+        {
+            new { id = "ozelTanimlar", name = "ozelTanimlar", kind = "read", operation = "cari.ozelAlanTanimlari", parameters = Array.Empty<object>(), runOn = "load" },
+            new { id = "ozelDegerler", name = "ozelDegerler", kind = "read", operation = "cari.ozelAlanDegerleri", runOn = "load", parameters = new[] { P("id", "{{liste.rows[0].x}}", "guid") } },
+            new { id = "ozelKaydet", name = "ozelKaydet", kind = "update", operation = "cari.ozelAlanKaydet", runOn = "manual",
+                  parameters = new[] { P("id", "{{liste.rows[0].x}}", "guid"), P("values", "{{ozelAlanlar.degerler}}", "map") } }
+        } : Array.Empty<object>(),
+        .. grid ? new object[]
+        {
+            new { id = "hareketEkle", name = "hareketEkle", kind = "insert", operation = "stok.hareket.ekle", runOn = "manual",
+                  parameters = new[]
+                  {
+                      P("warehouseId", "{{liste.rows[0].x}}", "guid"), P("stockItemId", "{{liste.rows[0].x}}", "guid"), P("entryDate", "{{tarih.value}}", "date"),
+                      P("direction", "{{yon.value}}", "text"), P("quantity", "{{miktar.value}}", "decimal"), P("description", "{{aciklama.value}}", "text"),
+                      P("tracking", "{{izlemeSatirlari.satirlar}}", "list")
+                  } }
+        } : Array.Empty<object>()
     ];
 
-    private static string Page(string template, object[] components, object[]? queries = null) => JsonSerializer.Serialize(new Dictionary<string, object?>
+    private static string Page(string template, object[] components, bool? block = null, bool? grid = null)
     {
-        ["schemaVersion"] = 2,
-        ["template"] = new { name = template },
-        ["queries"] = queries ?? Queries(),
-        ["components"] = components
-    });
+        var components_ = JsonSerializer.Serialize(components);
+        return JsonSerializer.Serialize(new Dictionary<string, object?>
+        {
+            ["schemaVersion"] = 2,
+            ["template"] = new { name = template },
+            ["queries"] = Queries(block ?? components_.Contains("\"id\":\"ozelAlanlar\""), grid ?? components_.Contains("\"id\":\"izlemeSatirlari\"")),
+            ["components"] = components
+        });
+    }
 
     private static Dictionary<string, object?> Props(string? slot, object? extra)
     {
@@ -56,7 +68,7 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
 
     private static object C(string id, string type, string? slot, object? extra = null) => new { id, type, name = id, props = Props(slot, extra) };
     private static object Block(string id = "ozelAlanlar", string slot = "customFields", object? extra = null) =>
-        C(id, "customFieldsBlock", slot, Merge(new { title = "Özel alanlar", definitionsQuery = "ozelTanimlar" }, extra));
+        C(id, "customFieldsBlock", slot, Merge(new { title = "Özel alanlar", definitionsQuery = "ozelTanimlar", valuesQuery = "ozelDegerler" }, extra));
     private static object Grid(string slot = "dialog", object? extra = null, string id = "izlemeSatirlari") =>
         C(id, "editableGrid", slot, Merge(new
         {
@@ -118,13 +130,12 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
         Rejected(Page("record", Record([Block(), Block("ozelAlanlar2"), Bar()], tab: "Genel=b1,ozelAlanlar,ozelAlanlar2")), OzelAlanIki);
         Rejected(Page("record", Record([Block(), Bar(new { saveSequence = new[] { "duz" } })])), BlokKayit("ozelAlanlar"));
         Rejected(Page("record", Record([Block()])), BlokKayit("ozelAlanlar"));
-        Rejected(Page("record", Record([Block(), Bar()]), Queries(bindBlock: false)), BlokKayit("ozelAlanlar"));
     }
 
     [Fact]
     public void Customfields_slot_holds_only_the_block_and_other_templates_refuse_it()
     {
-        Rejected(Page("record", Record([C("not", "text", "customFields", new { text = "x" })])), "'customFields' yerine 'text' bileşeni konamaz; bu yere yalnız 'customFieldsBlock' konabilir.");
+        Rejected(Page("record", Record([C("not", "text", "customFields", new { text = "x" })], tab: "Genel=b1")), "'customFields' yerine 'text' bileşeni konamaz; bu yere yalnız 'customFieldsBlock' konabilir.");
         Rejected(Page("list", ListPage([Block()])), OzelAlanYeri);
         Rejected(Page("list", ListPage([Block(slot: "below")])), OzelAlanYeri);
     }
@@ -150,9 +161,10 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
 
     // ---- Satır tablosu ----
 
-    private static string GridWindow(object? grid = null, object? windowExtra = null, bool bind = true) =>
-        Page("list", ListPage([Window(["yon", "tarih", "miktar", "aciklama", "izlemeSatirlari"], windowExtra ?? new { saveQuery = "hareketEkle" }),
-            .. WindowInputs(), grid ?? Grid()]), Queries(bindGrid: bind));
+    /// <summary>A window with the lot/serial grid; <paramref name="plain"/> saves with a query that binds nothing (and drops the lot/serial query).</summary>
+    private static string GridWindow(object? grid = null, object? windowExtra = null, bool plain = false) =>
+        Page("list", ListPage([Window(["yon", "tarih", "miktar", "aciklama", "izlemeSatirlari"], windowExtra ?? new { saveQuery = plain ? "duz" : "hareketEkle" }),
+            .. WindowInputs(), grid ?? Grid()]), block: false, grid: !plain);
 
     [Fact]
     public void Window_accepts_the_lot_serial_grid() => Accepted(GridWindow());
@@ -160,29 +172,29 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     [Fact]
     public void Grid_only_in_a_window_and_one_per_window()
     {
-        Rejected(Page("list", ListPage([Grid(slot: "below")])), SatirYeri);
-        Rejected(Page("record", Record([Grid(slot: "below"), Bar()])), SatirYeri);
-        Rejected(Page("free", [C("bolum", "section", "block", new { title = "B", members = new[] { "izlemeSatirlari" } }), Grid(slot: "item")]), SatirYeri);
+        Rejected(Page("list", ListPage([Grid(slot: "below")]), block: false, grid: false), SatirYeri);
+        Rejected(Page("record", Record([Grid(slot: "below"), Bar(new { saveSequence = new[] { "duz" } })], tab: "Genel=b1"), block: false, grid: false), SatirYeri);
+        Rejected(Page("free", [C("bolum", "section", "block", new { title = "B", members = new[] { "izlemeSatirlari" } }), Grid(slot: "item")], block: false, grid: false), SatirYeri);
         var group = new { id = "grup", type = "section", name = "grup", props = Props("dialog", null), children = new[] { Grid("x", null, "icTablo") } };
-        Rejected(Page("list", ListPage([Window(["grup"], new { saveQuery = "hareketEkle" }), group])), SatirYeri);
-        Rejected(Page("list", ListPage([Window(["izlemeSatirlari", "ikinci"], new { saveQuery = "hareketEkle" }), Grid(), Grid(id: "ikinci")])), SatirIki);
+        Rejected(Page("list", ListPage([Window(["grup"], new { saveQuery = "duz" }), group]), block: false, grid: false), SatirYeri);
+        Rejected(Page("list", ListPage([Window(["izlemeSatirlari", "ikinci"], new { saveQuery = "duz" }), Grid(), Grid(id: "ikinci")]), block: false, grid: false), SatirIki);
     }
 
     [Fact]
     public void Grid_in_a_window_follows_the_small_set()
     {
-        Rejected(GridWindow(Grid(extra: new { gridMode = "stage", sourceQuery = "liste" })), SatirKip);
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|lookup:liste:x:x" } })), "Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: kod.");
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|text|readOnly" } })), "'readOnly' pencerede satır tablosunda kullanılamaz.");
-        Rejected(GridWindow(Grid(extra: new { fixedRowLabel = "Satır" })), "'fixedRowLabel' pencerede satır tablosunda kullanılamaz.");
-        Rejected(GridWindow(Grid(extra: new { totals = new[] { "quantity" } })), "'totals' pencerede satır tablosunda kullanılamaz.");
-        Rejected(GridWindow(Grid(extra: new { maxRows = 201 })), SatirSinir);
+        Rejected(GridWindow(Grid(extra: new { gridMode = "stage", sourceQuery = "liste" }), plain: true), SatirKip);
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|lookup:liste:x:x" } }), plain: true), "Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: kod.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|text|readOnly" } }), plain: true), "'readOnly' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { fixedRowLabel = "Satır" }), plain: true), "'fixedRowLabel' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { totals = new[] { "quantity" } }), plain: true), "'totals' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { maxRows = 201 }), plain: true), SatirSinir);
     }
 
     [Fact]
     public void Grid_window_needs_a_save_action_that_binds_the_rows()
     {
-        Rejected(GridWindow(windowExtra: new { size = "lg" }), SatirEylem);
-        Rejected(GridWindow(bind: false), SatirKayit("izlemeSatirlari"));
+        Rejected(GridWindow(windowExtra: new { size = "lg" }, plain: true), SatirEylem);
+        Rejected(GridWindow(windowExtra: new { saveQuery = "duz" }), SatirKayit("izlemeSatirlari"));
     }
 }

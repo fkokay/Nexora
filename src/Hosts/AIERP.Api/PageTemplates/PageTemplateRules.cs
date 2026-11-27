@@ -139,6 +139,7 @@ internal static class PageTemplateRules
     internal const string SatirKip = "Pencerede satır tablosu yalnız 'list' kipinde kullanılabilir.";
     internal static string SatirSutunu(string column) => $"Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: {column}.";
     internal static string SatirAyari(string key) => $"'{key}' pencerede satır tablosunda kullanılamaz.";
+    internal const string SatirSutunSayisi = "Pencerede satır tablosu en fazla 8 sütun alır.";
     internal const string SatirSinir = "Pencerede satır tablosu için 'maxRows' 1–200 olmalıdır.";
     internal static string SatirKayit(string name) => $"Satır tablosunun satırları kaydedilmiyor: pencerenin kayıt adımlarından birinde '{{{{{name}.satirlar}}}}' bağlanmalı.";
     internal const string SatirEylem = "Satır tablosu olan pencerenin bir kayıt eylemi olmalı.";
@@ -432,13 +433,17 @@ internal static class PageTemplateRules
         if (!grid.TryGetProperty("props", out var props) || props.ValueKind != JsonValueKind.Object) return null;
         if (StringProp(props, "gridMode") != "list") return SatirKip;
         if (props.TryGetProperty("gridColumns", out var columns) && columns.ValueKind == JsonValueKind.Array)
+        {
+            if (columns.GetArrayLength() is < 1 or > 8) return SatirSutunSayisi;
             foreach (var item in columns.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String))
             {
                 var parts = item.GetString()!.Split('|');
                 if (parts.Length >= 3 && (parts[2].StartsWith("lookup:", StringComparison.Ordinal) || parts[2].StartsWith("calc:", StringComparison.Ordinal)))
                     return SatirSutunu(parts[0]);
-                if (parts.Length == 4 && parts[3].Split(',').Contains("readOnly")) return SatirAyari("readOnly");
+                if (parts.Length == 4 && parts[3].Split(',').FirstOrDefault(x => x == "readOnly" || x.StartsWith("step:", StringComparison.Ordinal)) is { } rule)
+                    return SatirAyari(rule == "readOnly" ? rule : "step");
             }
+        }
         foreach (var prop in props.EnumerateObject())
             if (!WindowGridProps.Contains(prop.Name)) return SatirAyari(prop.Name);
         var max = props.TryGetProperty("maxRows", out var maxRows) && maxRows.ValueKind == JsonValueKind.Number && maxRows.TryGetInt32(out var value) ? value : 0;

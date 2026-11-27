@@ -46,4 +46,28 @@ describe('kalıplı sayfada özel alan bloğu ve satır tablosu', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Özel alanlar/ }));
     expect(await screen.findByLabelText(/Renk kodu/, undefined, T)).toBeTruthy();
   });
+
+  it('draws the row table and the custom fields block inside a templated window and adds rows', async () => {
+    const queries = [
+      { id: 'liste', name: 'liste', kind: 'read', runOn: 'load', sql: 'SELECT 1 AS x', parameters: [] },
+      { id: 'tanim', name: 'tanim', kind: 'read', runOn: 'load', sql: 'SELECT 1', parameters: [] },
+      { id: 'kaydet', name: 'kaydet', kind: 'insert', runOn: 'manual', sql: 'INSERT INTO N (A) VALUES (1)', parameters: [] },
+    ];
+    definition = { schemaVersion: 2, template: { name: 'list' }, queries, components: [
+      { id: 'liste_t', type: 'dataTable', name: 'liste', props: { slot: 'list', query: 'liste', title: 'Liste', columns: ['x'] } },
+      { id: 'ac', type: 'button', props: { slot: 'actions', text: 'Hareket', actionType: 'openDialog', dialogId: 'pencere' } },
+      { id: 'pencere', type: 'dialog', props: { slot: 'dialogs', presentation: 'dialog', size: 'lg', title: 'Hareket', contains: ['izleme', 'ozel'], saveQuery: 'kaydet' } },
+      { id: 'izleme', type: 'editableGrid', name: 'izleme', props: { slot: 'dialog', gridMode: 'list', title: 'Lot / seri satırları', maxRows: 200,
+        gridColumns: ['trackingCode|Lot / seri kodu|text|required,unique', 'quantity|Miktar|number|required,min:0.0001'] } },
+      { id: 'ozel', type: 'customFieldsBlock', name: 'ozel', props: { slot: 'dialog', title: 'Özel alanlar', definitionsQuery: 'tanim' } },
+    ] };
+    render(<TenantCustomPage code="p" token="t" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Hareket' }, T));
+    const dialog = await screen.findByRole('dialog', undefined, T);
+    expect(await screen.findByText('Lot / seri satırları', undefined, T)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Satır ekle' }));
+    expect(await screen.findByLabelText(/Lot \/ seri kodu \(satır 1\)/, undefined, T)).toBeTruthy();
+    expect(await screen.findByLabelText(/Renk kodu/, undefined, T)).toBeTruthy();
+    expect(dialog.contains(screen.getByLabelText(/Renk kodu/))).toBe(true);
+  });
 });

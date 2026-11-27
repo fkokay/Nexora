@@ -188,11 +188,19 @@ export function bindToSave(def: ModelDefinition, dialogId: string | null, name: 
   const { ownerId, steps } = saveScope(def, dialogId);
   if (!ownerId) return def;
   const type = wantedType(segment);
+  // Yalnız bağlanmamış ya da artık var olmayan bir bloğa / tabloya bağlı parametre alınır: canlı bir bloğun bağlaması bozulmaz.
+  const target = normalize(bindingOf(name, segment));
+  const free = (parameter: { type: string; binding: string }) => {
+    if (parameter.type !== type) return false;
+    const match = /^\{\{([A-Za-z_][A-Za-z0-9_]*)\.(degerler|satirlar)\}\}$/.exec(normalize(parameter.binding));
+    if (!match) return normalize(parameter.binding) === "";
+    return normalize(parameter.binding) === target || !def.components.some((component) => (component.name ?? component.id) === match[1]);
+  };
   const candidates = [...steps.map((id) => def.queries.find((query) => query.id === id)), ...def.queries.filter((query) => !steps.includes(query.id))]
-    .filter((query): query is NonNullable<typeof query> => !!query && query.kind !== "read" && query.parameters.some((parameter) => parameter.type === type));
+    .filter((query): query is NonNullable<typeof query> => !!query && query.kind !== "read" && query.parameters.some(free));
   const query = candidates[0];
   if (!query) return def;
-  const parameter = query.parameters.find((item) => item.type === type)!;
+  const parameter = query.parameters.find(free)!;
   let next: ModelDefinition = { ...def, queries: def.queries.map((item) => item !== query ? item : {
     ...item, parameters: item.parameters.map((p) => p === parameter ? { ...p, binding: bindingOf(name, segment) } : p) }) };
   if (!steps.includes(query.id)) {
