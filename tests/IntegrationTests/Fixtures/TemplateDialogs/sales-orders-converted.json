@@ -14,6 +14,7 @@
         "exportTable": "liste",
         "titleCount": "{{siparisler.meta.totalCount}}",
         "moreButtons": [
+          "belgedeAcDugmesi",
           "duzenleDugmesi",
           "irsaliyeOlusturDugmesi",
           "onaylaDugmesi",
@@ -58,6 +59,22 @@
         "disabledWhen": "liste.seciliSatir.id == null",
         "disabledReason": "Önce bir kayıt seçin",
         "slot": "rowActions"
+      }
+    },
+    {
+      "id": "belgedeAcDugmesi",
+      "type": "button",
+      "name": "belgedeAcDugmesi",
+      "props": {
+        "text": "Belgede aç",
+        "actionType": "erpPage",
+        "pageKey": "sales-order-document",
+        "target": "newTab",
+        "params": [
+          "id={{liste.seciliSatir.id}}"
+        ],
+        "visibleWhen": "liste.seciliSatir.id != null",
+        "slot": "actions"
       }
     },
     {
@@ -248,13 +265,18 @@
           "grandTotal=currencyCode"
         ],
         "valueLabels": [
-          "status:Open=Açık",
-          "status:Fulfilled=Tamamlandı",
+          "status:Draft=Taslak",
+          "status:PendingApproval=Onay bekliyor",
+          "status:Open=Onaylı",
+          "status:Fulfilled=Sevk edildi",
+          "status:Invoiced=Faturalandı",
           "status:Cancelled=İptal"
         ],
         "toneMap": [
-          "Açık=warning",
-          "Tamamlandı=success",
+          "Onay bekliyor=warning",
+          "Onaylı=warning",
+          "Sevk edildi=success",
+          "Faturalandı=success",
           "İptal=info"
         ],
         "rowOpenAction": "acDugmesi",
