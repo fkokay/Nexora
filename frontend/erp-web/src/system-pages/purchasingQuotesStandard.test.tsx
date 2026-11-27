@@ -36,7 +36,7 @@ describe('Tedarikçi teklifleri standart tanımı', { timeout: 30000 }, () => {
     expect(h.standard).toMatchObject({ screenKey: KEY, version: 2, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
-    expect((h.standard.definition.queries as { kind: string }[]).filter((item) => item.kind !== 'read')).toEqual([]);
+    expect((h.standard.definition.queries as unknown as { kind: string }[]).filter((item) => item.kind !== 'read')).toEqual([]);
     expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
   });
 
