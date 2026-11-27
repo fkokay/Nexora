@@ -1,0 +1,76 @@
+{
+  "screenKey": "sales-order-document",
+  "title": "Satış siparişi (belge)",
+  "description": "Belge kalıbıyla satış siparişi (id): durum zinciri, Kaydet ve geçişler, başlık alanları, stok seçince dolan satırlar, sunucu hesabından tutarlar, KDV dökümü ve işlem günlüğü. Hesap ve durumlar modülden gelir; ayar yoktur.",
+  "module": "Satış & cari",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık alanları (sipariş no, cari, sipariş ve teslim tarihi, plasiyer)"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Satırlar (stok, miktar, birim, fiyat, iskonto, KDV, kullanılabilir, tutar, sevk)"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Toplamlar, KDV dökümü ve işlem günlüğü"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "satis.siparis"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "customerId",
+            "orderDate",
+            "requestedDeliveryDate",
+            "salespersonEmployeeId"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "stockItemId",
+            "quantity",
+            "unitCode",
+            "unitPrice",
+            "discountPercent",
+            "vatPercent",
+            "availableQuantity",
+            "lineTotal",
+            "deliveredQuantity"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": true,
+          "activity": true
+        }
+      }
+    ]
+  }
+}

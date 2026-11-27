@@ -4,7 +4,8 @@ import type { ModuleMenuSelection } from "./ModuleMarketplacePage";
 import type * as AppTypes from "./erp-types";
 import type { SystemPageMap } from "./system-pages/useSystemPageMap";
 import { canBeSystemPage, canBeSystemPageAlias } from "./system-pages/systemPageKeys";
-import { usePageParams } from "./pageNavigation";
+import { requestClosePage, setPageParams, usePageParams } from "./pageNavigation";
+import { useEffect } from "react";
 import { LegacyScreenBar } from "./system-pages/LegacyScreenBar";
 import { systemPreviewFor } from "./workspace-storage";
 
@@ -427,6 +428,7 @@ function LegacyPageRouter({
   if (page === "sales-orders") return <SalesOrdersPage {...salesPageProps} />;
   if (page === "sales-order-create")
     return <SalesOrdersPage {...salesPageProps} createOrderPage />;
+  if (page === "sales-order-document") return <LegacyOrderDocument onNavigate={onNavigate} />;
   if (page === "sales-invoice-create")
     return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate />;
   if (page === "sales-invoices")
@@ -659,4 +661,19 @@ function LegacyPageRouter({
       </div>
     </>
   );
+}
+
+/**
+ * Belge sipariş kartı (sales-order-document) bu firmada sistem sayfası olarak açık değilse: siparişin eski kartı açılır. Kimlik varsa
+ * sipariş listesinde o siparişin ayrıntısı (`orderId`), yoksa eski Yeni sipariş ekranı; bu sekme kapanır.
+ */
+function LegacyOrderDocument({ onNavigate }: { onNavigate: (page: string, label?: string) => void }) {
+  const params = usePageParams("sales-order-document");
+  const id = params.id ?? "";
+  useEffect(() => {
+    if (id) setPageParams("sales-orders", { orderId: id });
+    onNavigate(id ? "sales-orders" : "sales-order-create");
+    requestClosePage("sales-order-document");
+  }, [id, onNavigate]);
+  return <div className="panel page-loading" role="status">Sipariş eski kartta açılıyor…</div>;
 }

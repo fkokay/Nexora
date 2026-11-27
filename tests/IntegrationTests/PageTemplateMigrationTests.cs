@@ -340,10 +340,10 @@ public sealed class PageTemplateMigrationTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void All_50_standards_classify_without_exception_and_none_reports_action_bar_or_form_reason()
+    public void All_51_standards_classify_without_exception_and_none_reports_action_bar_or_form_reason()
     {
         var standards = SystemPageStandards.All.Values.OrderBy(x => x.ScreenKey, StringComparer.Ordinal).ToArray();
-        Assert.Equal(50, standards.Length);
+        Assert.Equal(51, standards.Length);
         var results = standards.Select(x => (x.ScreenKey, Result: PageTemplateMigration.Classify(x.DefinitionJson, hasOpenDraft: false))).ToArray();
         foreach (var (key, result) in results)
         {

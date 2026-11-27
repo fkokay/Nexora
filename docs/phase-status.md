@@ -1650,3 +1650,8 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
   - ERP: Belge kalıbı ve eski sipariş ekranında onay bekleyen sipariş, Onayla/Reddet, uyarı onayı. Studio: Kurallar ekranı.
 - **Doğrulanmayan:** Migration'lar hiçbir uzak ortamda uygulanmadı; canlı Studio'da Kurallar ekranı ve gerçek kullanıcılarla onay akışı denenmedi.
 - **Bilinen sınır:** Kural yazma izni temel kural düzeneğiyle TenantUser'a da açılır (yönetici Deny ile kapatabilir); ERP API Studio rolünü görmez.
+
+### 2026-11-27 belge kuralları (alt proje 6): Belge sipariş kartı standardı
+
+- **Doğrulanan (yerel):** `sales-order-document` standardı geçerli bir belge sayfasıdır ve §2 ayarlarını taşımaz; `sales-orders` v4 "Belgede aç" düğmesini önerir; ERP'de anahtar kayıtlı (başlık, modül menüsü, sistem sayfası listesi); ekran açık değilse siparişin eski kartına dönüş testli.
+- **Doğrulanmayan:** Canlıda standardın etkinleştirilmesi ve gerçek kullanıcıyla açılışı.
