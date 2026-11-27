@@ -80,7 +80,9 @@ export function setCustomFieldsProps(def: ModelDefinition, id: string, patch: Cu
   return patchProps(def, id, props);
 }
 
-export type GridPatch = { title?: string; description?: string; addLabel?: string; minRows?: number | null; maxRows?: number; disabledWhen?: string | null };
+export type GridPatch = { title?: string; description?: string; addLabel?: string; minRows?: number | null; maxRows?: number; disabledWhen?: string | null;
+  /** Satırları sayfanın bir okuma sorgusundan dolduran sorgu kimliği (aynı kodlu sütunlar dolar); null kaldırır. */
+  fillQuery?: string | null };
 export function setWindowGridProps(def: ModelDefinition, id: string, patch: GridPatch): ModelDefinition {
   const grid = def.components.find((component) => component.id === id && component.type === "editableGrid");
   if (!grid) return def;
@@ -91,6 +93,7 @@ export function setWindowGridProps(def: ModelDefinition, id: string, patch: Grid
   if (patch.maxRows !== undefined) props.maxRows = Math.max(1, Math.min(MAX_WINDOW_GRID_ROWS, Math.trunc(patch.maxRows) || 1));
   if (patch.minRows !== undefined) props.minRows = patch.minRows === null ? undefined : Math.max(0, Math.min(100, Math.trunc(patch.minRows) || 0));
   if (patch.disabledWhen !== undefined) props.disabledWhen = patch.disabledWhen ?? undefined;
+  if (patch.fillQuery !== undefined) props.fillQuery = patch.fillQuery ?? undefined;
   const next = patchProps(def, id, props);
   // minRows en çok maxRows kadar olabilir (sunucu şeması).
   const placed = next.components.find((component) => component.id === id)!;
@@ -100,23 +103,40 @@ export function setWindowGridProps(def: ModelDefinition, id: string, patch: Grid
 
 // ---------- satır tablosu sütunları (kod|Etiket|tür|kurallar) ----------
 
-export type GridColumnType = "text" | "number" | "date" | "checkbox";
-export const GRID_COLUMN_TYPES: [GridColumnType, string][] = [["text", "Metin"], ["number", "Sayı"], ["date", "Tarih"], ["checkbox", "Onay kutusu"]];
-export type GridColumn = { code: string; label: string; type: GridColumnType; required: boolean; unique: boolean; maxLength?: number; min?: number; max?: number; upperCase?: boolean };
+export type GridColumnType = "text" | "number" | "date" | "checkbox" | "lookup";
+export const GRID_COLUMN_TYPES: [GridColumnType, string][] = [["text", "Metin"], ["number", "Sayı"], ["date", "Tarih"], ["checkbox", "Onay kutusu"], ["lookup", "Seçim (arama)"]];
+/** Seçim sütununun seçenek kaynağı: sayfadaki okuma sorgusu, değer ve etiket sütunları. */
+export type GridLookup = { query: string; value: string; label: string };
+export type GridColumn = {
+  code: string; label: string; type: GridColumnType; required: boolean; unique: boolean; readOnly?: boolean; lookup?: GridLookup;
+  maxLength?: number; min?: number; max?: number; upperCase?: boolean;
+};
 
-/** Pencere satır tablosunun biçimi: seçim, hesap ve readOnly sütunları ayrıştırılmaz (null). */
+const LOOKUP_QUERY = /^[A-Za-z0-9_-]{1,64}$/;
+const LOOKUP_COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+
+/** Pencere satır tablosunun biçimi: hesap (calc) sütunları ve adım (step) kuralı ayrıştırılmaz (null). */
 export function parseGridColumn(item: string): GridColumn | null {
   const parts = item.split("|");
   if (parts.length < 3 || parts.length > 4) return null;
-  const [code, label, type] = parts;
-  if (type !== "text" && type !== "number" && type !== "date" && type !== "checkbox") return null;
-  const column: GridColumn = { code, label, type, required: false, unique: false };
+  const [code, label, rawType] = parts;
+  let type: GridColumnType;
+  let lookup: GridLookup | undefined;
+  if (rawType.startsWith("lookup:")) {
+    const [query, value, shown, ...rest] = rawType.slice("lookup:".length).split(":");
+    if (rest.length > 0 || !LOOKUP_QUERY.test(query ?? "") || !LOOKUP_COLUMN.test(value ?? "") || !LOOKUP_COLUMN.test(shown ?? "")) return null;
+    type = "lookup"; lookup = { query, value, label: shown };
+  } else if (rawType === "text" || rawType === "number" || rawType === "date" || rawType === "checkbox") type = rawType;
+  else return null;
+  const column: GridColumn = { code, label, type, required: false, unique: false, ...(lookup ? { lookup } : {}) };
   for (const token of (parts[3] ?? "").split(",").filter(Boolean)) {
     const at = token.indexOf(":");
     const name = at < 0 ? token : token.slice(0, at);
     const value = at < 0 ? "" : token.slice(at + 1);
     if (name === "required") column.required = true;
     else if (name === "unique") column.unique = true;
+    else if (name === "readOnly") column.readOnly = true;
+    else if (type === "lookup") return null;
     else if (name === "upperCase") column.upperCase = true;
     else if (name === "maxLength" && Number.isFinite(Number(value))) column.maxLength = Number(value);
     else if (name === "min" && Number.isFinite(Number(value))) column.min = Number(value);
@@ -126,12 +146,13 @@ export function parseGridColumn(item: string): GridColumn | null {
   return column;
 }
 export function formatGridColumn(column: GridColumn): string {
-  const rules = [column.required && "required", column.unique && "unique",
+  const rules = [column.required && "required", column.unique && "unique", column.readOnly && "readOnly",
     column.type === "text" && column.upperCase && "upperCase",
     column.type === "text" && column.maxLength !== undefined && `maxLength:${column.maxLength}`,
     column.type === "number" && column.min !== undefined && `min:${column.min}`,
     column.type === "number" && column.max !== undefined && `max:${column.max}`].filter(Boolean);
-  return `${column.code}|${column.label}|${column.type}${rules.length > 0 ? `|${rules.join(",")}` : ""}`;
+  const type = column.type === "lookup" && column.lookup ? `lookup:${column.lookup.query}:${column.lookup.value}:${column.lookup.label}` : column.type;
+  return `${column.code}|${column.label}|${type}${rules.length > 0 ? `|${rules.join(",")}` : ""}`;
 }
 export const gridColumnsOf = (grid: ModelComponent): GridColumn[] => strings(grid.props.gridColumns).flatMap((item) => parseGridColumn(item) ?? []);
 
@@ -139,7 +160,8 @@ export const gridColumnsOf = (grid: ModelComponent): GridColumn[] => strings(gri
 export function setGridColumns(def: ModelDefinition, id: string, columns: GridColumn[]): ModelDefinition {
   const codes = new Set(columns.map((column) => column.code));
   if (columns.length < 1 || columns.length > MAX_WINDOW_GRID_COLUMNS || codes.size !== columns.length
-    || columns.some((column) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(column.code) || column.label.trim() === "" || column.label.length > 60)) return def;
+    || columns.some((column) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(column.code) || column.label.trim() === "" || column.label.length > 60
+      || column.type === "lookup" && !(column.lookup && LOOKUP_QUERY.test(column.lookup.query) && LOOKUP_COLUMN.test(column.lookup.value) && LOOKUP_COLUMN.test(column.lookup.label)))) return def;
   return patchProps(def, id, { gridColumns: columns.map(formatGridColumn) });
 }
 export function addGridColumn(def: ModelDefinition, id: string): ModelDefinition {

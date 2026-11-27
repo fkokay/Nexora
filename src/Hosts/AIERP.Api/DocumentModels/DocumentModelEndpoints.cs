@@ -36,9 +36,11 @@ internal static class DocumentModelEndpoints
                 var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesQuoteDocumentModel.Code, id, ct);
                 var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
                     quote.CustomerId, SalesQuoteDocumentModel.Candidates(quote.Status, quote.HasSalesOrder), ct);
+                var creations = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
+                    quote.CustomerId, SalesQuoteDocumentModel.CreationCandidates(quote.Status, quote.HasSalesOrder), ct);
                 return Results.Ok(new SalesQuoteDocumentView(quote,
                     new DocumentAmounts(quote.CurrencyCode, quote.Subtotal, quote.DiscountTotal, quote.TaxTotal, quote.GrandTotal, vat.OrderBy(x => x.Rate).ToList()),
-                    allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft));
+                    allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft, creations));
             });
 
         app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()

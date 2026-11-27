@@ -184,11 +184,23 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     public void Grid_in_a_window_follows_the_small_set()
     {
         Rejected(GridWindow(Grid(extra: new { gridMode = "stage", sourceQuery = "liste" }), plain: true), SatirKip);
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|lookup:liste:x:x" } }), plain: true), "Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: kod.");
-        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|text|readOnly" } }), plain: true), "'readOnly' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|calc:liste:x" } }), plain: true), "Pencerede satır tablosu yalnız metin, sayı, tarih, onay kutusu ve seçim (lookup) sütunlarını alır: kod.");
+        Rejected(GridWindow(Grid(extra: new { gridColumns = new[] { "kod|Kod|number|step:0.5" } }), plain: true), "'step' pencerede satır tablosunda kullanılamaz.");
+        Rejected(GridWindow(Grid(extra: new { formulas = new { a = "b" } }), plain: true), "'formulas' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { fixedRowLabel = "Satır" }), plain: true), "'fixedRowLabel' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { totals = new[] { "quantity" } }), plain: true), "'totals' pencerede satır tablosunda kullanılamaz.");
         Rejected(GridWindow(Grid(extra: new { maxRows = 201 }), plain: true), SatirSinir);
+    }
+
+    [Fact]
+    public void Grid_in_a_window_accepts_lookup_readOnly_columns_and_fill_from_a_read_query()
+    {
+        Accepted(GridWindow(Grid(extra: new
+        {
+            gridColumns = new[] { "stockItemId|Stok|lookup:liste:x:x:x|required", "lineNo|Kalem|text|readOnly", "quantity|Miktar|number|min:0" },
+            fillQuery = "liste", fillColumns = new Dictionary<string, string> { ["stockItemId"] = "x", ["quantity"] = "x" }, skipWhenZero = "quantity",
+            columnStaticOptions = new[] { "stockItemId=a=Varsayılan" }
+        })));
     }
 
     [Fact]

@@ -8,9 +8,11 @@ export type DocumentLineColumn = {
 };
 export type DocumentState = { code: string; label: string; terminal: boolean };
 export type DocumentTransition = { code: string; label: string; from: string[]; to: string; operation: string; requiresReason: boolean };
+/** "Belgeden belge": sonraki belgeyi bu belgeden yaratıp açan eylem (durum geçişi değildir). `target`: yaratılan belgenin modeli. */
+export type DocumentCreation = { code: string; label: string; from: string[]; operation: string; target: string };
 export type DocumentModel = {
   code: string; label: string; fields: DocumentField[]; lineColumns: DocumentLineColumn[]; states: DocumentState[];
-  transitions: DocumentTransition[]; fills: Record<string, string[]>;
+  transitions: DocumentTransition[]; fills: Record<string, string[]>; creations?: DocumentCreation[] | null;
 };
 
 export type OrderLine = {
@@ -38,6 +40,7 @@ export type SalesOrderDocument = {
 /** Sunucunun belge yanıtı: kayıt `order` ya da `quote` anahtarında gelir (modele göre); {@link normalizeDocument} ortak biçime çevirir. */
 export type RawDocument = {
   amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean; approval?: DocumentApproval | null;
+  allowedCreations?: string[] | null;
 } & Record<string, unknown>;
 
 /** Belgenin modelden bağımsız satırı (sipariş ya da teklif satırı). */
@@ -55,6 +58,8 @@ export type DocView = {
 };
 export type BelgeDocument = {
   doc: DocView; amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean; approval: DocumentApproval | null;
+  /** Bu belgeden şimdi yaratılabilen sonraki belgeler (modelin `creations` kodları). */
+  allowedCreations: string[];
 };
 
 export type PreviewLine = { rowKey: string | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number };
@@ -90,6 +95,10 @@ export type DocumentBinding = {
   /** Belgenin uç kökü: `{base}/{id}/document`, `{base}/preview`, `{base}/custom-fields`, kayıt `POST/PUT {base}`. */
   base: string;
   transitionRoutes: Record<string, string>;
+  /** "Belgeden belge" eylemlerinin uçları: `{base}/{id}/{route}` (POST); yanıt yaratılan belgenin kaydıdır (`id`). */
+  creationRoutes: Record<string, string>;
+  /** Belgeyi gösteren sistem sayfasının anahtarı (belgeden belge yeni belgeyi bu sayfada açar). */
+  pageKey: string;
   maxLines: number;
   /** Başlıkta düzenlenen tarih ve metin alanlarının kodları. */
   dateFields: string[]; textFields: string[];
@@ -106,7 +115,7 @@ const str = (value: unknown) => (typeof value === "string" ? value : "");
 
 const ORDER_BINDING: DocumentBinding = {
   code: "satis.siparis", noun: "sipariş", newTitle: "Yeni sipariş", entity: "order", base: "/api/sales/orders",
-  transitionRoutes: { onayla: "approve", onayiGeriAl: "unapprove", iptal: "cancel" }, maxLines: 200,
+  transitionRoutes: { onayla: "approve", onayiGeriAl: "unapprove", iptal: "cancel" }, creationRoutes: {}, pageKey: "sales-order-document", maxLines: 200,
   dateFields: ["orderDate", "requestedDeliveryDate"], textFields: [],
   newValues: () => ({ orderDate: today(), requestedDeliveryDate: "" }),
   valuesOf: (e) => ({ orderDate: str(e.orderDate) || today(), requestedDeliveryDate: str(e.requestedDeliveryDate) }),
@@ -119,7 +128,8 @@ const ORDER_BINDING: DocumentBinding = {
 
 const QUOTE_BINDING: DocumentBinding = {
   code: "satis.teklif", noun: "teklif", newTitle: "Yeni teklif", entity: "quote", base: "/api/sales/quotes",
-  transitionRoutes: { ilet: "send", kabulEt: "accept", reddet: "reject" }, maxLines: 100,
+  transitionRoutes: { ilet: "send", kabulEt: "accept", reddet: "reject" }, creationRoutes: { siparisOlustur: "convert-to-order" },
+  pageKey: "sales-quote-document", maxLines: 100,
   dateFields: ["quoteDate", "validUntil"], textFields: ["deliveryTerms", "notes"],
   newValues: () => ({ quoteDate: today(), validUntil: inDays(30), deliveryTerms: "", notes: "" }),
   valuesOf: (e) => ({ quoteDate: str(e.quoteDate) || today(), validUntil: str(e.validUntil) || inDays(30), deliveryTerms: str(e.deliveryTerms), notes: str(e.notes) }),
@@ -157,7 +167,7 @@ export function normalizeDocument(binding: DocumentBinding, raw: RawDocument): B
       customFields: (entity.customFields as CustomFieldValue[] | null | undefined) ?? [], lines,
     },
     amounts: raw.amounts, allowedTransitions: raw.allowedTransitions, activity: raw.activity, activityStartedLate: raw.activityStartedLate,
-    approval: raw.approval ?? null,
+    approval: raw.approval ?? null, allowedCreations: raw.allowedCreations ?? [],
   };
 }
 
@@ -189,6 +199,11 @@ export const saveDocument = (binding: DocumentBinding, id: string | null, body: 
 export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) =>
   api<unknown>(`${binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason }) });
+
+/** Belgeden belge: modelin eylemini çağırır (var olan ERP işlemi); yaratılan belgenin kimliğini döner. */
+export const runCreation = (binding: DocumentBinding, id: string, code: string, token?: string) =>
+  api<{ id: string }>(`${binding.base}/${encodeURIComponent(id)}/${binding.creationRoutes[code] ?? code}`, token,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID() }) });
 
 export async function searchOptions(operation: string, text: string, token?: string): Promise<LookupRow[]> {
   const route = OPTION_ROUTES[operation];
