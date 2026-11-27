@@ -71,10 +71,10 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             "'detayPaneli' birden fazla sekmede veya yerleşimde kullanılamaz");
     }
 
-    // crm-opportunities, customers (Satış & cari 1. dalga) ve inventory-stock (Stok & Depo 1. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
+    // crm-opportunities, customers (Satış & cari 1. dalga), fixed-assets (Finans 2. dalga) ve inventory-stock (Stok & Depo 1. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
     private static readonly string[] ToggleStandards =
     [
-        "fixed-assets", "foreign-trade", "hr-leave-requests",
+        "foreign-trade", "hr-leave-requests",
         "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts", "sales-purchase-invoices",
         "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-quotes", "sales-requests",
     ];

@@ -239,13 +239,14 @@ public sealed class FixedAssetSystemPagesTests
     // ---- Standards ----
 
     [Theory]
-    [InlineData("fixed-assets", "Duran Varlıklar")]
-    [InlineData("fixed-asset-create", "Yeni edinim")]
-    [InlineData("fixed-asset-card", "Kıymet kartı")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    [InlineData("fixed-assets", "Duran Varlıklar", 2, "list")]
+    [InlineData("fixed-asset-create", "Yeni edinim", 2, "record")]
+    [InlineData("fixed-asset-card", "Kıymet kartı", 1, null)]
+    public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version, string? template)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Duran Varlık"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((version, "preview", title, "Duran Varlık"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal(template, (string?)Definition(key)["template"]?["name"]);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.Contains(key, StandardMenuEndpoints.PageKeys);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
@@ -271,11 +272,14 @@ public sealed class FixedAssetSystemPagesTests
         Assert.Equal(("@fixed-asset-create", "{{kiymetler.meta.totalCount}}"), ((string)bar["newPageCode"]!, (string)bar["titleCount"]!));
         Assert.Equal(new[] { "assetId={{liste.seciliSatir.id}}" }, Strings(Props(key, "acDugmesi")["params"]));
         Assert.Equal("@fixed-asset-card", (string)Props(key, "acDugmesi")["pageCode"]!);
-        Assert.Equal("Kıymet silinemez; İşlemler'den elden çıkarın.", (string)Props(key, "silDugmesi")["disabledReason"]!);
-        Assert.Equal(("{{suzgec.q}}", "{{durumSecimi.value}}"), (Binding(key, "kiymetler", "q"), Binding(key, "kiymetler", "status")));
+        // Liste kalıbı: Sil ve "Eski ekranda aç" yok (kıymet silinmez, elden çıkarılır); işlemler kart grubunda ve pencerelerde.
+        Assert.DoesNotContain(Definition(key)["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! is "silDugmesi" or "eskiEkranDugmesi");
+        Assert.Equal("@fixed-asset-card", (string)Props(key, "detayAc")["pageCode"]!);
+        Assert.Equal(("amortismanPenceresi", "eldenCikarmaPenceresi"), ((string)Props(key, "detayAmortisman")["dialogId"]!, (string)Props(key, "detayEldenCikar")["dialogId"]!));
+        Assert.Equal(("{{suzgec.q}}", "{{suzgec.status}}"), (Binding(key, "kiymetler", "q"), Binding(key, "kiymetler", "status")));
         Assert.Equal(("{{suzgec.q}}", null), (Binding(key, "ozet", "q"), Binding(key, "ozet", "status")));
         Assert.Equal("{{liste.seciliSatir.id}}", Binding(key, "kiymet", "id"));
-        Assert.True((bool)Props(key, "zimmetleDugmesi")["legacyScreen"]!);
+        Assert.True((bool)Props(key, "detayZimmetle")["legacyScreen"]!);
         AssertWrites(key, "{{liste.seciliSatir.id}}");
     }
 
@@ -294,7 +298,8 @@ public sealed class FixedAssetSystemPagesTests
         Assert.Equal("vukAcik.value == true", (string)Props(key, "vukKarti")["visibleWhen"]!);
         Assert.Equal("label", (string)Props(key, "fatura")["optionLabelColumn"]!);
         var bar = Props(key, "komutlar");
-        Assert.Equal(("olustur", true, "@fixed-assets"), ((string)bar["saveQuery"]!, (bool)bar["saveAndNew"]!, (string)bar["afterSavePageCode"]!));
+        Assert.Equal(("olustur", "@fixed-assets"), ((string)bar["saveQuery"]!, (string)bar["afterSavePageCode"]!));
+        Assert.False(bar.ContainsKey("saveAndNew"));
     }
 
     [Fact]
@@ -458,7 +463,11 @@ public sealed class FixedAssetSystemPagesTests
     private static JsonObject Definition(string key) => JsonNode.Parse(SystemPageStandards.All[key].DefinitionJson)!.AsObject();
 
     private static JsonObject Props(string key, string id) =>
-        Definition(key)["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == id)["props"]!.AsObject();
+        Flatten(Definition(key)["components"]!.AsArray().OfType<JsonObject>()).Single(x => (string)x["id"]! == id)["props"]!.AsObject();
+
+    /// <summary>Top-level components and the children of Liste's kart grubu.</summary>
+    private static IEnumerable<JsonObject> Flatten(IEnumerable<JsonObject> components) =>
+        components.SelectMany(x => new[] { x }.Concat(x["children"] is JsonArray kids ? Flatten(kids.OfType<JsonObject>()) : []));
 
     private static string? Binding(string key, string queryId, string parameter) =>
         (string?)Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == queryId)["parameters"]!.AsArray()
