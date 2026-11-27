@@ -163,6 +163,7 @@
         "component:aliciEtiketi",
         "component:eBelgeSenaryosu",
         "component:eBelgeTuru",
+        "component:faturaAlanlari",
         "component:faturaNotu",
         "component:faturaTuru",
         "query:faturaAlanTanimlari",
@@ -244,6 +245,13 @@
         "component:faturaNotu",
         "component:faturaTuru",
         "component:liste"
+      ]
+    },
+    "component:faturaAlanlari": {
+      "since": 1,
+      "label": "Fatura özel alanları",
+      "requires": [
+        "query:faturaAlanTanimlari"
       ]
     }
   },
