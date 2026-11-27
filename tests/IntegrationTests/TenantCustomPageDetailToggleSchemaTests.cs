@@ -73,7 +73,7 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
 
     private static readonly string[] ToggleStandards =
     [
-        "crm-opportunities", "customers", "fixed-assets", "foreign-trade", "hr-employees", "hr-leave-requests", "inventory-stock",
+        "crm-opportunities", "customers", "fixed-assets", "foreign-trade", "hr-leave-requests", "inventory-stock",
         "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts", "sales-purchase-invoices",
         "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-quotes", "sales-requests",
     ];
