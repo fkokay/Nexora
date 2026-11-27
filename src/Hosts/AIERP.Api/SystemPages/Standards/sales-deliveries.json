@@ -385,7 +385,6 @@
           "query": "irsaliyeler",
           "countWhen": "irsaliyeler.satir.status == 'Posted' && irsaliyeler.satir.hasSalesInvoice == false",
           "format": "number",
-          "width": 3,
           "icon": "alert",
           "variant": "warning",
           "description": "bu sayfa · tıklayınca süzer",
@@ -403,7 +402,6 @@
           "query": "irsaliyeler",
           "countWhen": "irsaliyeler.satir.status == 'Voided'",
           "format": "number",
-          "width": 3,
           "icon": "ban",
           "description": "bu sayfa",
           "slot": "indicators"
@@ -415,7 +413,6 @@
         "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 4,
           "search": true,
           "searchPlaceholder": "İrsaliye, sipariş veya müşteri ara",
           "searchParam": "q",
@@ -429,7 +426,6 @@
         "props": {
           "title": "Süzgeçler",
           "layout": "inline",
-          "width": 8,
           "inputs": [
             "durumSecimi",
             "faturaSecimi"
@@ -472,7 +468,6 @@
         "type": "filterChips",
         "name": "secimCipleri",
         "props": {
-          "width": 12,
           "inputs": [
             "durumSecimi",
             "faturaSecimi"
@@ -489,7 +484,6 @@
           "query": "irsaliyeler",
           "paging": "server",
           "pageSize": 25,
-          "width": 12,
           "columns": [
             "code",
             "kind",
@@ -627,7 +621,6 @@
         "type": "section",
         "name": "irsaliyeDurumu",
         "props": {
-          "width": 12,
           "slot": "dialog"
         },
         "children": [
@@ -762,7 +755,6 @@
         "props": {
           "title": "İrsaliye kalemleri",
           "query": "kalemler",
-          "width": 12,
           "showGridSearch": false,
           "showColumnFilters": false,
           "showColumnChooser": false,
@@ -827,7 +819,6 @@
         "type": "section",
         "name": "faturaBolumu",
         "props": {
-          "width": 12,
           "title": "Fatura",
           "description": "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun. Fatura fiyatları irsaliye satırlarından (fiyatı olmayan eski satırlarda sipariş satırlarından) alınır; zorunlu fatura özel alanlarını tamamlayın.",
           "slot": "dialog"
