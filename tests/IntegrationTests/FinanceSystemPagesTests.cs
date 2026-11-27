@@ -462,7 +462,6 @@ public sealed class FinanceSystemPagesTests
     [InlineData("finance-banks", "Bankalar", "Finans")]
     [InlineData("finance-account-create", "Kasa/Banka kartı", "Finans")]
     [InlineData("finance-trial-balance", "Mizan", "Finans")]
-    [InlineData("finance-ledger-chart", "Hesap Planı", "Genel Muhasebe")]
     [InlineData("finance-journal-ledger", "Yevmiye Defterleri", "Genel Muhasebe")]
     [InlineData("finance-journal-vouchers", "Yevmiye Fişi", "Genel Muhasebe")]
     public void Standard_is_preview_version_1_and_uses_finance_operations(string key, string title, string module)
@@ -474,6 +473,33 @@ public sealed class FinanceSystemPagesTests
         Assert.All(standard.Items, x => Assert.True(x.Since <= standard.Version && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True(name.StartsWith("finans.", StringComparison.Ordinal) && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
+    }
+
+    [Fact]
+    public void Ledger_chart_is_a_list_with_a_card_group_and_windows_for_create_edit_and_ledger()
+    {
+        const string key = "finance-ledger-chart";
+        var standard = SystemPageStandards.All[key];
+        Assert.Equal((2, "preview", "Hesap Planı", "Genel Muhasebe"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
+        Assert.Equal("list", (string)Definition(key)["template"]!["name"]!);
+        var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().ToDictionary(x => (string)x["id"]!, x => (string)x["operation"]!);
+        Assert.All(operations.Values, name => Assert.True(name.StartsWith("finans.", StringComparison.Ordinal) && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
+        // Workflow: reads vs writes (TenantAdmin writes), create and update are separate window saves.
+        Assert.Equal(new[] { "hesap", "hesaplar", "muavin", "tekDuzen" },
+            Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Where(x => (string)x["kind"]! == "read").Select(x => (string)x["id"]!).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "aktifEt", "guncelle", "hesapSil", "olustur", "pasifeAl", "tekDuzenUygula" },
+            Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Where(x => (string)x["kind"]! != "read").Select(x => (string)x["id"]!).Order(StringComparer.Ordinal).ToArray());
+        var components = Definition(key)["components"]!.AsArray().OfType<JsonObject>().ToDictionary(x => (string)x["id"]!);
+        Assert.Equal(("olustur", "guncelle"), ((string)components["yeniHesapPenceresi"]["props"]!["saveQuery"]!, (string)components["duzenlePenceresi"]["props"]!["saveQuery"]!));
+        Assert.Equal("yeniHesapDugmesi", (string)components["komutlar"]["props"]!["newButton"]!);
+        Assert.Equal("{{yeniKod.value}}", Binding(key, "olustur", "code"));
+        Assert.Equal(("{{kod.value}}", "{{hesap.rows[0].id}}"), (Binding(key, "guncelle", "code"), Binding(key, "guncelle", "id")));
+        var card = components["detayKarti"]["children"]!.AsArray().OfType<JsonObject>().ToDictionary(x => (string)x["id"]!);
+        Assert.All(new[] { "duzenleDugmesi", "muavinDugmesi", "pasifeAlDugmesi", "etkinlestirDugmesi", "silDugmesi" }, id => Assert.Contains(id, card.Keys));
+        Assert.Contains("TenantAdmin", (string)card["pasifeAlDugmesi"]["props"]!["visibleWhen"]!);
+        Assert.Contains("hasMovements == true", (string)card["silDugmesi"]["props"]!["disabledWhen"]!);
+        Assert.Equal("muavinPenceresi", (string)card["muavinDugmesi"]["props"]!["dialogId"]!);
     }
 
     [Fact]

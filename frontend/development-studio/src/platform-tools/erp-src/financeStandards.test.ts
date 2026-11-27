@@ -47,7 +47,7 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const prop of Object.keys(component.props)) if (prop !== "slot") expect(managedKeys.has(prop), `${component.id}.${prop}`).toBe(true);
+      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop) || (!!standard.definition.template && prop === "slot"), `${component.id}.${prop}`).toBe(true);
     }
   });
   for (const queryEditable of [false, true]) it(`uzlaştırma özellik silmez ve değiştirmez (sorgu düzenleme: ${queryEditable})`, () => {

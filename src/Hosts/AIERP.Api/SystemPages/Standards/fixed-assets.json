@@ -1,215 +1,908 @@
 {
-  "screenKey": "fixed-assets", "title": "Duran Varlıklar",
-  "description": "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin.", "module": "Duran Varlık",
-  "version": 1, "stage": "preview",
+  "screenKey": "fixed-assets",
+  "title": "Duran Varlıklar",
+  "description": "Edinim, amortisman, zimmet ve elden çıkarmaları tek kıymet kaydından yönetin.",
+  "module": "Duran Varlık",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:suzgec", "component:liste", "component:acDugmesi", "component:silDugmesi", "component:amortismanDugmesi", "component:eldenCikarDugmesi", "component:zimmetleDugmesi", "component:eskiEkranDugmesi", "query:kiymetler"]},
-    "component:maliyetGostergesi": {"since": 1, "label": "Edinim maliyeti göstergesi", "requires": ["query:ozet"]},
-    "component:birikmisGostergesi": {"since": 1, "label": "Birikmiş amortisman göstergesi", "requires": ["query:ozet"]},
-    "component:netDefterGostergesi": {"since": 1, "label": "Net defter değeri göstergesi", "requires": ["query:ozet"]},
-    "component:buAyGostergesi": {"since": 1, "label": "Bu ay amortisman göstergesi", "requires": ["query:ozet"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:detayPaneli": {"since": 1, "label": "Detay paneli anahtarı"},
-    "component:secimCipleri": {"since": 1, "label": "Durum seçimi çipleri", "requires": ["component:durumSecimi"]},
-    "component:liste": {"since": 1, "label": "Kıymet listesi", "requires": ["component:detayPaneli", "component:acDugmesi", "query:kiymetler"]},
-    "component:acDugmesi": {"since": 1, "label": "Satırı aç (kıymet kartı)", "requires": ["component:liste"]},
-    "component:detayKarti": {"since": 1, "label": "Detay paneli", "requires": ["component:detayPaneli", "component:liste", "query:kiymet"]},
-    "component:silDugmesi": {"since": 1, "label": "Sil (her zaman pasif)"},
-    "component:amortismanDugmesi": {"since": 1, "label": "Amortismanı kaydet komutu", "requires": ["component:liste", "component:amortismanPenceresi"]},
-    "component:eldenCikarDugmesi": {"since": 1, "label": "Elden çıkar komutu", "requires": ["component:liste", "component:eldenCikarmaPenceresi"]},
-    "component:zimmetleDugmesi": {"since": 1, "label": "Zimmetle komutu (eski ekran)", "requires": ["component:liste"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Eski ekranda aç komutu"},
-    "component:amortismanPenceresi": {"since": 1, "label": "Amortismanı kaydet penceresi", "requires": ["component:amortismanDonemi", "component:amortismanTutari", "component:amortismanNotu", "component:amortismanUyarisi", "component:amortismanKaydetDugmesi", "query:plan"]},
-    "component:amortismanDonemi": {"since": 1, "label": "Amortisman: kaydedilecek dönem", "requires": ["query:plan"]},
-    "component:amortismanTutari": {"since": 1, "label": "Amortisman: tutar", "requires": ["query:plan"]},
-    "component:amortismanNotu": {"since": 1, "label": "Amortisman: kural notu"},
-    "component:amortismanUyarisi": {"since": 1, "label": "Amortisman: geri alınamaz uyarısı"},
-    "component:amortismanKaydetDugmesi": {"since": 1, "label": "Amortisman: kaydet düğmesi", "requires": ["component:liste", "query:plan", "query:amortismanKaydet", "query:kiymetler", "query:ozet", "query:kiymet"]},
-    "component:eldenCikarmaPenceresi": {"since": 1, "label": "Elden çıkarma penceresi", "requires": ["component:cikarmaKarti", "component:cikarmaAnahtari", "component:cikarmaNotu", "component:cikarmaUyarisi", "component:cikarmaKaydet"]},
-    "component:cikarmaKarti": {"since": 1, "label": "Elden çıkarma: alanlar", "requires": ["component:cikarmaTarihi", "component:cikarmaTahsilati", "component:cikarmaAciklamasi"]},
-    "component:cikarmaTarihi": {"since": 1, "label": "Alan: Elden çıkarma tarihi"},
-    "component:cikarmaTahsilati": {"since": 1, "label": "Alan: Tahsilat"},
-    "component:cikarmaAciklamasi": {"since": 1, "label": "Alan: Açıklama"},
-    "component:cikarmaAnahtari": {"since": 1, "label": "Elden çıkarma işlem anahtarı (gizli)"},
-    "component:cikarmaNotu": {"since": 1, "label": "Elden çıkarma: kural notu"},
-    "component:cikarmaUyarisi": {"since": 1, "label": "Elden çıkarma: geri alınamaz uyarısı"},
-    "component:cikarmaKaydet": {"since": 1, "label": "Elden çıkarma: kaydet düğmesi", "requires": ["component:liste", "query:eldenCikar", "query:kiymetler", "query:ozet", "query:kiymet", "query:plan"]},
-    "query:kiymetler": {"since": 1, "label": "Duran varlıkları listele", "requires": ["component:suzgec", "component:durumSecimi", "component:liste"]},
-    "query:ozet": {"since": 1, "label": "Duran varlık özeti", "requires": ["component:suzgec"]},
-    "query:kiymet": {"since": 1, "label": "Seçili kıymet", "requires": ["component:liste"]},
-    "query:plan": {"since": 1, "label": "Seçili kıymetin amortisman planı", "requires": ["component:liste"]},
-    "query:amortismanKaydet": {"since": 1, "label": "Amortismanı kaydet", "requires": ["component:liste", "query:plan"]},
-    "query:eldenCikar": {"since": 1, "label": "Elden çıkar", "requires": ["component:liste", "component:cikarmaTarihi", "component:cikarmaTahsilati", "component:cikarmaAciklamasi", "component:cikarmaAnahtari"]}
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu (Yeni edinim, Aç, Excel)",
+      "requires": [
+        "component:suzgec",
+        "component:liste",
+        "query:kiymetler",
+        "component:acDugmesi"
+      ]
+    },
+    "component:maliyetGostergesi": {
+      "since": 1,
+      "label": "Edinim maliyeti göstergesi",
+      "requires": [
+        "query:ozet"
+      ]
+    },
+    "component:birikmisGostergesi": {
+      "since": 1,
+      "label": "Birikmiş amortisman göstergesi",
+      "requires": [
+        "query:ozet"
+      ]
+    },
+    "component:netDefterGostergesi": {
+      "since": 1,
+      "label": "Net defter değeri göstergesi",
+      "requires": [
+        "query:ozet"
+      ]
+    },
+    "component:buAyGostergesi": {
+      "since": 1,
+      "label": "Bu ay amortisman göstergesi",
+      "requires": [
+        "query:ozet"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama, durum)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Kıymet listesi",
+      "requires": [
+        "query:kiymetler",
+        "component:acDugmesi"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "Satırı aç (kıymet kartı)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:detayKarti": {
+      "since": 1,
+      "label": "Kart grubu (seçili kıymet)",
+      "requires": [
+        "component:liste",
+        "query:kiymet",
+        "component:amortismanPenceresi",
+        "component:eldenCikarmaPenceresi"
+      ]
+    },
+    "component:amortismanPenceresi": {
+      "since": 1,
+      "label": "Amortismanı kaydet penceresi",
+      "requires": [
+        "component:liste",
+        "component:amortismanDonemi",
+        "component:amortismanTutari",
+        "component:amortismanNotu",
+        "component:amortismanUyarisi",
+        "component:amortismanKaydetDugmesi",
+        "query:kiymetler",
+        "query:ozet",
+        "query:kiymet",
+        "query:plan"
+      ]
+    },
+    "component:amortismanDonemi": {
+      "since": 1,
+      "label": "Amortisman: kaydedilecek dönem",
+      "requires": [
+        "query:plan"
+      ]
+    },
+    "component:amortismanTutari": {
+      "since": 1,
+      "label": "Amortisman: tutar",
+      "requires": [
+        "query:plan"
+      ]
+    },
+    "component:amortismanNotu": {
+      "since": 1,
+      "label": "Amortisman: kural notu"
+    },
+    "component:amortismanUyarisi": {
+      "since": 1,
+      "label": "Amortisman: geri alınamaz uyarısı"
+    },
+    "component:amortismanKaydetDugmesi": {
+      "since": 1,
+      "label": "Amortisman: kaydet düğmesi",
+      "requires": [
+        "query:amortismanKaydet",
+        "query:kiymetler",
+        "query:ozet",
+        "query:kiymet",
+        "query:plan",
+        "component:liste"
+      ]
+    },
+    "component:eldenCikarmaPenceresi": {
+      "since": 1,
+      "label": "Elden çıkarma penceresi",
+      "requires": [
+        "component:liste",
+        "component:cikarmaKarti",
+        "component:cikarmaAnahtari",
+        "component:cikarmaNotu",
+        "component:cikarmaUyarisi",
+        "component:cikarmaKaydet",
+        "query:kiymetler",
+        "query:ozet",
+        "query:kiymet",
+        "query:plan"
+      ]
+    },
+    "component:cikarmaKarti": {
+      "since": 1,
+      "label": "Elden çıkarma: alanlar",
+      "requires": [
+        "component:cikarmaTarihi",
+        "component:cikarmaTahsilati",
+        "component:cikarmaAciklamasi"
+      ]
+    },
+    "component:cikarmaTarihi": {
+      "since": 1,
+      "label": "Alan: Elden çıkarma tarihi"
+    },
+    "component:cikarmaTahsilati": {
+      "since": 1,
+      "label": "Alan: Tahsilat"
+    },
+    "component:cikarmaAciklamasi": {
+      "since": 1,
+      "label": "Alan: Açıklama"
+    },
+    "component:cikarmaAnahtari": {
+      "since": 1,
+      "label": "Elden çıkarma işlem anahtarı (gizli)"
+    },
+    "component:cikarmaNotu": {
+      "since": 1,
+      "label": "Elden çıkarma: kural notu"
+    },
+    "component:cikarmaUyarisi": {
+      "since": 1,
+      "label": "Elden çıkarma: geri alınamaz uyarısı"
+    },
+    "component:cikarmaKaydet": {
+      "since": 1,
+      "label": "Elden çıkarma: kaydet düğmesi",
+      "requires": [
+        "query:eldenCikar",
+        "query:kiymetler",
+        "query:ozet",
+        "query:kiymet",
+        "query:plan",
+        "component:liste"
+      ]
+    },
+    "query:kiymetler": {
+      "since": 1,
+      "label": "Duran varlıkları listele",
+      "requires": [
+        "component:suzgec",
+        "component:liste"
+      ]
+    },
+    "query:ozet": {
+      "since": 1,
+      "label": "Duran varlık özeti",
+      "requires": [
+        "component:suzgec"
+      ]
+    },
+    "query:kiymet": {
+      "since": 1,
+      "label": "Seçili kıymet",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:plan": {
+      "since": 1,
+      "label": "Seçili kıymetin amortisman planı",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:amortismanKaydet": {
+      "since": 1,
+      "label": "Amortismanı kaydet",
+      "requires": [
+        "component:liste",
+        "query:plan"
+      ]
+    },
+    "query:eldenCikar": {
+      "since": 1,
+      "label": "Elden çıkar",
+      "requires": [
+        "component:liste",
+        "component:cikarmaTarihi",
+        "component:cikarmaTahsilati",
+        "component:cikarmaAciklamasi",
+        "component:cikarmaAnahtari"
+      ]
+    }
   },
-  "screenViews": [ { "key": "fixed-assets", "component": "liste",
-                     "fields": { "assetCode": "assetCode", "name": "name", "category": "category", "acquisitionDate": "acquisitionDate",
-                                 "inServiceDate": "inServiceDate", "acquisitionCostBase": "acquisitionCostBase", "residualValueBase": "residualValueBase",
-                                 "usefulLifeMonths": "usefulLifeMonths", "accumulatedDepreciationBase": "accumulatedDepreciationBase",
-                                 "remainingBookValueBase": "remainingBookValueBase", "vukTaxYear": "vukTaxYear",
-                                 "vukDepreciationLowerLimitTry": "vukDepreciationLowerLimitTry", "vukCommuniqueNumber": "vukCommuniqueNumber",
-                                 "status": "status" } } ],
+  "screenViews": [
+    {
+      "key": "fixed-assets",
+      "component": "liste",
+      "fields": {
+        "assetCode": "assetCode",
+        "name": "name",
+        "category": "category",
+        "acquisitionDate": "acquisitionDate",
+        "inServiceDate": "inServiceDate",
+        "acquisitionCostBase": "acquisitionCostBase",
+        "residualValueBase": "residualValueBase",
+        "usefulLifeMonths": "usefulLifeMonths",
+        "accumulatedDepreciationBase": "accumulatedDepreciationBase",
+        "remainingBookValueBase": "remainingBookValueBase",
+        "vukTaxYear": "vukTaxYear",
+        "vukDepreciationLowerLimitTry": "vukDepreciationLowerLimitTry",
+        "vukCommuniqueNumber": "vukCommuniqueNumber",
+        "status": "status"
+      }
+    }
+  ],
   "definition": {
     "schemaVersion": 2,
+    "template": {
+      "name": "list"
+    },
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
-        "props": { "focusInput": "suzgec", "exportTable": "liste", "titleCount": "{{kiymetler.meta.totalCount}}",
-                   "newAction": "page", "newPageCode": "@fixed-asset-create", "newTarget": "newTab",
-                   "openButton": "acDugmesi",
-                   "moreButtons": ["amortismanDugmesi", "zimmetleDugmesi", "eldenCikarDugmesi", "silDugmesi", "eskiEkranDugmesi"],
-                   "hiddenCommands": ["save", "delete", "print"] } },
-
-      { "id": "maliyetGostergesi", "type": "metric", "name": "maliyetGostergesi",
-        "props": { "title": "Edinim maliyeti", "value": "{{ozet.rows[0].acquisitionCostBase}}", "format": "money", "width": 3, "icon": "banknote",
-                   "description": "tüm kıymetler" } },
-      { "id": "birikmisGostergesi", "type": "metric", "name": "birikmisGostergesi",
-        "props": { "title": "Birikmiş amortisman", "value": "{{ozet.rows[0].accumulatedDepreciationBase}}", "format": "money", "width": 3, "icon": "layers",
-                   "description": "tüm kıymetler" } },
-      { "id": "netDefterGostergesi", "type": "metric", "name": "netDefterGostergesi",
-        "props": { "title": "Net defter değeri", "value": "{{ozet.rows[0].netBookValueBase}}", "format": "money", "width": 3, "icon": "wallet",
-                   "variant": "success", "description": "maliyet − birikmiş" } },
-      { "id": "buAyGostergesi", "type": "metric", "name": "buAyGostergesi",
-        "props": { "title": "Bu ay amortisman", "value": "{{ozet.rows[0].currentMonthDepreciationEstimateBase}}", "format": "money", "width": 3,
-                   "icon": "trending-down", "description": "doğrusal tahmin · etkin kıymetler" } },
-
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
-        "props": { "table": "liste", "width": 8, "search": true, "searchPlaceholder": "Kod, ad veya kategori (en az 2 harf)", "searchParam": "q" } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 4, "inputs": ["durumSecimi"] } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
-        "props": { "inputType": "select", "label": "Durum", "staticOptions": ["=Tümü", "Active=Etkin", "Disposed=Elden çıkarılan"] } },
-      { "id": "detayPaneli", "type": "input", "name": "detayPaneli",
-        "props": { "inputType": "checkbox", "label": "Detay paneli", "icon": "panel", "defaultWhen": "sayfa.genis == true" } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
-        "props": { "width": 12, "inputs": ["durumSecimi"] } },
-
-      { "id": "liste", "type": "dataTable", "name": "liste",
-        "props": { "title": "Duran varlıklar", "query": "kiymetler", "paging": "server", "pageSize": 25, "width": 12,
-                   "widthWhen": "8=detayPaneli.value == true && liste.seciliSatir.id != null",
-                   "detailToggleInput": "detayPaneli",
-                   "columns": ["assetCode", "name", "inServiceDate", "acquisitionCostBase", "remainingBookValueBase", "status"],
-                   "columnLabels": ["assetCode=Kod", "name=Kıymet", "category=Kategori", "acquisitionDate=Edinim tarihi", "inServiceDate=Kullanıma giriş",
-                                    "acquisitionCostBase=Maliyet", "residualValueBase=Kalıntı değer", "usefulLifeMonths=Faydalı ömür (ay)",
-                                    "accumulatedDepreciationBase=Birikmiş amortisman", "remainingBookValueBase=Net defter", "vukTaxYear=VUK yılı",
-                                    "vukDepreciationLowerLimitTry=VUK alt sınırı (TL)", "vukCommuniqueNumber=VUK tebliği", "status=Durum"],
-                   "columnFormats": ["assetCode=code", "acquisitionDate=date", "inServiceDate=date", "acquisitionCostBase=money", "residualValueBase=money",
-                                     "usefulLifeMonths=number", "accumulatedDepreciationBase=money", "remainingBookValueBase=money",
-                                     "vukDepreciationLowerLimitTry=money", "status=status"],
-                   "valueLabels": ["status:Active=Etkin", "status:Disposed=Elden çıkarıldı"],
-                   "toneMap": ["Etkin=success", "Elden çıkarıldı=info"],
-                   "rowOpenAction": "acDugmesi",
-                   "emptyText": "Henüz kıymet kaydı yok. Yeni edinim ile ilk kaydı oluşturun." } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
-        "props": { "text": "Aç", "icon": "open", "actionType": "page", "pageCode": "@fixed-asset-card", "target": "newTab",
-                   "params": ["assetId={{liste.seciliSatir.id}}"], "visibleWhen": "liste.seciliSatir.id != null" } },
-
-      { "id": "detayKarti", "type": "card", "name": "detayKarti",
-        "props": { "variant": "panel", "title": "{{liste.seciliSatir.name}}", "description": "{{liste.seciliSatir.assetCode}} · {{liste.seciliSatir.category}}",
-                   "closeInput": "detayPaneli", "width": 4,
-                   "visibleWhen": "detayPaneli.value == true && liste.seciliSatir.id != null" },
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "focusInput": "suzgec",
+          "exportTable": "liste",
+          "titleCount": "{{kiymetler.meta.totalCount}}",
+          "newAction": "page",
+          "newPageCode": "@fixed-asset-create",
+          "newTarget": "newTab",
+          "openButton": "acDugmesi",
+          "hiddenCommands": [
+            "save",
+            "delete",
+            "print"
+          ],
+          "slot": "commands"
+        }
+      },
+      {
+        "id": "maliyetGostergesi",
+        "type": "metric",
+        "name": "maliyetGostergesi",
+        "props": {
+          "title": "Edinim maliyeti",
+          "value": "{{ozet.rows[0].acquisitionCostBase}}",
+          "format": "money",
+          "icon": "banknote",
+          "description": "tüm kıymetler",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "birikmisGostergesi",
+        "type": "metric",
+        "name": "birikmisGostergesi",
+        "props": {
+          "title": "Birikmiş amortisman",
+          "value": "{{ozet.rows[0].accumulatedDepreciationBase}}",
+          "format": "money",
+          "icon": "layers",
+          "description": "tüm kıymetler",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "netDefterGostergesi",
+        "type": "metric",
+        "name": "netDefterGostergesi",
+        "props": {
+          "title": "Net defter değeri",
+          "value": "{{ozet.rows[0].netBookValueBase}}",
+          "format": "money",
+          "icon": "wallet",
+          "variant": "success",
+          "description": "maliyet − birikmiş",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "buAyGostergesi",
+        "type": "metric",
+        "name": "buAyGostergesi",
+        "props": {
+          "title": "Bu ay amortisman",
+          "value": "{{ozet.rows[0].currentMonthDepreciationEstimateBase}}",
+          "format": "money",
+          "icon": "trending-down",
+          "description": "doğrusal tahmin · etkin kıymetler",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
+        "props": {
+          "table": "liste",
+          "search": true,
+          "searchPlaceholder": "Kod, ad veya kategori (en az 2 harf)",
+          "searchParam": "q",
+          "filters": [
+            "status|select|row|status|Durum"
+          ],
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
+        "props": {
+          "title": "Duran varlıklar",
+          "query": "kiymetler",
+          "paging": "server",
+          "pageSize": 25,
+          "columns": [
+            "assetCode",
+            "name",
+            "inServiceDate",
+            "acquisitionCostBase",
+            "remainingBookValueBase",
+            "status"
+          ],
+          "columnLabels": [
+            "assetCode=Kod",
+            "name=Kıymet",
+            "category=Kategori",
+            "acquisitionDate=Edinim tarihi",
+            "inServiceDate=Kullanıma giriş",
+            "acquisitionCostBase=Maliyet",
+            "residualValueBase=Kalıntı değer",
+            "usefulLifeMonths=Faydalı ömür (ay)",
+            "accumulatedDepreciationBase=Birikmiş amortisman",
+            "remainingBookValueBase=Net defter",
+            "vukTaxYear=VUK yılı",
+            "vukDepreciationLowerLimitTry=VUK alt sınırı (TL)",
+            "vukCommuniqueNumber=VUK tebliği",
+            "status=Durum"
+          ],
+          "columnFormats": [
+            "assetCode=code",
+            "acquisitionDate=date",
+            "inServiceDate=date",
+            "acquisitionCostBase=money",
+            "residualValueBase=money",
+            "usefulLifeMonths=number",
+            "accumulatedDepreciationBase=money",
+            "remainingBookValueBase=money",
+            "vukDepreciationLowerLimitTry=money",
+            "status=status",
+            "monthlyDepreciationBase=money"
+          ],
+          "valueLabels": [
+            "status:Active=Etkin",
+            "status:Disposed=Elden çıkarıldı"
+          ],
+          "toneMap": [
+            "Etkin=success",
+            "Elden çıkarıldı=info"
+          ],
+          "rowOpenAction": "acDugmesi",
+          "emptyText": "Henüz kıymet kaydı yok. Yeni edinim ile ilk kaydı oluşturun.",
+          "slot": "list"
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
+        "props": {
+          "text": "Aç",
+          "icon": "open",
+          "actionType": "page",
+          "pageCode": "@fixed-asset-card",
+          "target": "newTab",
+          "params": [
+            "assetId={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.id != null",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "detayKarti",
+        "type": "card",
+        "name": "detayKarti",
+        "props": {
+          "variant": "panel",
+          "title": "{{liste.seciliSatir.name}}",
+          "description": "{{liste.seciliSatir.assetCode}} · {{liste.seciliSatir.category}}",
+          "slot": "detail"
+        },
         "children": [
-          { "id": "detayEtkin", "type": "badge", "name": "detayEtkin",
-            "props": { "text": "Etkin", "variant": "success", "visibleWhen": "liste.seciliSatir.status == 'Active'" } },
-          { "id": "detayCikarildi", "type": "badge", "name": "detayCikarildi",
-            "props": { "text": "Elden çıkarıldı", "variant": "info", "visibleWhen": "liste.seciliSatir.status == 'Disposed'" } },
-          { "id": "detayOzeti", "type": "recordHeader", "name": "detayOzeti",
-            "props": { "icon": "building", "title": "{{liste.seciliSatir.assetCode}}",
-                       "subtitle": "{{liste.seciliSatir.depreciatedMonths}} / {{liste.seciliSatir.usefulLifeMonths}} ay",
-                       "fields": ["Maliyet={{liste.seciliSatir.acquisitionCostBase}}", "Aylık amortisman={{liste.seciliSatir.monthlyDepreciationBase}}",
-                                  "Net defter={{liste.seciliSatir.remainingBookValueBase}}", "Zimmet={{kiymet.rows[0].currentAssignee}}",
-                                  "Bağlı fatura={{kiymet.rows[0].purchaseInvoiceCode}}"],
-                       "fieldFormats": ["Maliyet=money", "Aylık amortisman=money", "Net defter=money"] } },
-          { "id": "detayAc", "type": "button", "name": "detayAc",
-            "props": { "text": "Kıymet kartını aç", "icon": "open", "actionType": "page", "pageCode": "@fixed-asset-card", "target": "newTab",
-                       "params": ["assetId={{liste.seciliSatir.id}}"] } },
-          { "id": "detayIpucu", "type": "text", "name": "detayIpucu",
-            "props": { "text": "Enter kıymet kartını açar · işlemler İşlemler'de (Alt+İ)." } }
-        ] },
-
-      { "id": "silDugmesi", "type": "button", "name": "silDugmesi",
-        "props": { "text": "Sil", "actionType": "erpPage", "pageKey": "fixed-assets", "legacyScreen": true,
-                   "disabledWhen": "true", "disabledReason": "Kıymet silinemez; İşlemler'den elden çıkarın." } },
-      { "id": "amortismanDugmesi", "type": "button", "name": "amortismanDugmesi",
-        "props": { "text": "Amortismanı kaydet", "actionType": "openDialog", "dialogId": "amortismanPenceresi",
-                   "visibleWhen": "liste.seciliSatir.status == 'Active'" } },
-      { "id": "eldenCikarDugmesi", "type": "button", "name": "eldenCikarDugmesi",
-        "props": { "text": "Elden çıkar", "actionType": "openDialog", "dialogId": "eldenCikarmaPenceresi",
-                   "visibleWhen": "liste.seciliSatir.status == 'Active'" } },
-      { "id": "zimmetleDugmesi", "type": "button", "name": "zimmetleDugmesi",
-        "props": { "text": "Zimmetle (eski ekranda)", "actionType": "erpPage", "pageKey": "fixed-assets", "target": "sameTab", "legacyScreen": true,
-                   "visibleWhen": "liste.seciliSatir.status == 'Active'" } },
-      { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": { "text": "Eski ekranda aç", "actionType": "erpPage", "pageKey": "fixed-assets", "target": "sameTab", "legacyScreen": true } },
-
-      { "id": "amortismanPenceresi", "type": "dialog", "name": "amortismanPenceresi",
-        "props": { "presentation": "dialog", "size": "md", "title": "Amortismanı kaydet · {{liste.seciliSatir.assetCode}}",
-                   "contains": ["amortismanDonemi", "amortismanTutari", "amortismanNotu", "amortismanUyarisi", "amortismanKaydetDugmesi"],
-                   "refreshQueries": ["kiymetler", "ozet", "kiymet", "plan"] } },
-      { "id": "amortismanDonemi", "type": "metric", "name": "amortismanDonemi",
-        "props": { "title": "Kaydedilecek dönem", "value": "{{plan.meta.nextPeriodStart}}", "format": "date", "width": 6, "icon": "calendar",
-                   "description": "yalnız sıradaki dönem yazılabilir" } },
-      { "id": "amortismanTutari", "type": "metric", "name": "amortismanTutari",
-        "props": { "title": "Tutar", "value": "{{plan.meta.nextAmountBase}}", "format": "money", "width": 6, "icon": "banknote" } },
-      { "id": "amortismanNotu", "type": "text", "name": "amortismanNotu",
-        "props": { "text": "Dönemler sırayla kaydedilir; yalnız sıradaki dönem yazılabilir. Kayıt için hesap eşleştirmeleri gerekir. Kapalı döneme fiş yazılmaz." } },
-      { "id": "amortismanUyarisi", "type": "alert", "name": "amortismanUyarisi",
-        "props": { "variant": "warning", "width": 12, "text": "Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz." } },
-      { "id": "amortismanKaydetDugmesi", "type": "button", "name": "amortismanKaydetDugmesi",
-        "props": { "text": "Amortismanı kaydet", "actionType": "query", "queryId": "amortismanKaydet", "confirmEnabled": true,
-                   "confirmText": "Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz.",
-                   "successMessage": "Amortisman kaydedildi; yevmiye fişi oluşturuldu.", "refreshQueries": ["kiymetler", "ozet", "kiymet", "plan"],
-                   "disabledWhen": "liste.seciliSatir.status != 'Active' || plan.meta.nextPeriodStart == null",
-                   "disabledReason": "Kaydedilecek dönem yok: kıymet etkin değil, bu aya kadar bütün dönemler kaydedildi ya da amortisman tamamlandı." } },
-
-      { "id": "eldenCikarmaPenceresi", "type": "dialog", "name": "eldenCikarmaPenceresi",
-        "props": { "presentation": "dialog", "size": "md", "title": "Elden çıkarma kaydı · {{liste.seciliSatir.assetCode}}",
-                   "contains": ["cikarmaKarti", "cikarmaAnahtari", "cikarmaNotu", "cikarmaUyarisi", "cikarmaKaydet"],
-                   "resetOnOpen": true, "refreshQueries": ["kiymetler", "ozet", "kiymet", "plan"] } },
-      { "id": "cikarmaKarti", "type": "formCard", "name": "cikarmaKarti",
-        "props": { "title": "Elden çıkarma", "columns": 2, "inputs": ["cikarmaTarihi", "cikarmaTahsilati", "cikarmaAciklamasi"] } },
-      { "id": "cikarmaTarihi", "type": "input", "name": "cikarmaTarihi",
-        "props": { "inputType": "date", "label": "Elden çıkarma tarihi", "required": true, "defaultValue": "{{bugun}}" } },
-      { "id": "cikarmaTahsilati", "type": "input", "name": "cikarmaTahsilati",
-        "props": { "inputType": "number", "label": "Tahsilat (baz para birimi)", "required": true, "min": 0, "step": 0.01, "defaultValue": "0" } },
-      { "id": "cikarmaAciklamasi", "type": "input", "name": "cikarmaAciklamasi",
-        "props": { "inputType": "text", "label": "Açıklama", "required": true, "maxLength": 500, "placeholder": "Satış, hurdaya ayırma… (en fazla 500)" } },
-      { "id": "cikarmaAnahtari", "type": "input", "name": "cikarmaAnahtari",
-        "props": { "inputType": "text", "label": "İşlem anahtarı", "hidden": true, "autoId": true } },
-      { "id": "cikarmaNotu", "type": "text", "name": "cikarmaNotu",
-        "props": { "text": "Defter değeri önceki son tam aya kadar hesaplanır; eksik amortisman aynı fişe yazılır. Açık zimmet kendiliğinden kapanır. Tekrar gönderim ikinci fiş yazmaz." } },
-      { "id": "cikarmaUyarisi", "type": "alert", "name": "cikarmaUyarisi",
-        "props": { "variant": "warning", "width": 12, "text": "Kıymet kalıcı olarak elden çıkarılır. Yevmiye fişi yazılır; arayüzden geri alınamaz." } },
-      { "id": "cikarmaKaydet", "type": "button", "name": "cikarmaKaydet",
-        "props": { "text": "Elden çıkarmayı kaydet", "actionType": "query", "queryId": "eldenCikar", "confirmEnabled": true,
-                   "confirmText": "Kıymet kalıcı olarak elden çıkarılır. Yevmiye fişi yazılır; arayüzden geri alınamaz.",
-                   "successMessage": "Kıymet elden çıkarıldı; elden çıkarma yevmiye fişi oluşturuldu.", "refreshQueries": ["kiymetler", "ozet", "kiymet", "plan"],
-                   "disabledWhen": "liste.seciliSatir.status != 'Active'", "disabledReason": "Yalnız etkin kıymet elden çıkarılabilir." } }
+          {
+            "id": "detayBos",
+            "type": "text",
+            "name": "detayBos",
+            "props": {
+              "text": "Bir kıymet seçin; ayrıntıları burada görün.",
+              "visibleWhen": "liste.seciliSatir.id == null"
+            }
+          },
+          {
+            "id": "detayEtkin",
+            "type": "badge",
+            "name": "detayEtkin",
+            "props": {
+              "text": "Etkin",
+              "variant": "success",
+              "visibleWhen": "liste.seciliSatir.status == 'Active'"
+            }
+          },
+          {
+            "id": "detayCikarildi",
+            "type": "badge",
+            "name": "detayCikarildi",
+            "props": {
+              "text": "Elden çıkarıldı",
+              "variant": "info",
+              "visibleWhen": "liste.seciliSatir.status == 'Disposed'"
+            }
+          },
+          {
+            "id": "detayBilgi",
+            "type": "contextPanel",
+            "name": "detayBilgi",
+            "props": {
+              "table": "liste",
+              "visibleWhen": "liste.seciliSatir.id != null",
+              "fields": [
+                "acquisitionCostBase=Maliyet",
+                "monthlyDepreciationBase=Aylık amortisman",
+                "remainingBookValueBase=Net defter"
+              ]
+            }
+          },
+          {
+            "id": "detayZimmet",
+            "type": "text",
+            "name": "detayZimmet",
+            "props": {
+              "title": "Zimmet",
+              "text": "{{kiymet.rows[0].currentAssignee}}",
+              "visibleWhen": "liste.seciliSatir.id != null && kiymet.rows[0].currentAssignee != null"
+            }
+          },
+          {
+            "id": "detayFatura",
+            "type": "text",
+            "name": "detayFatura",
+            "props": {
+              "title": "Bağlı fatura",
+              "text": "{{kiymet.rows[0].purchaseInvoiceCode}}",
+              "visibleWhen": "liste.seciliSatir.id != null && kiymet.rows[0].purchaseInvoiceCode != null"
+            }
+          },
+          {
+            "id": "detayAc",
+            "type": "button",
+            "name": "detayAc",
+            "props": {
+              "text": "Kıymet kartını aç",
+              "icon": "open",
+              "actionType": "page",
+              "pageCode": "@fixed-asset-card",
+              "target": "newTab",
+              "params": [
+                "assetId={{liste.seciliSatir.id}}"
+              ],
+              "visibleWhen": "liste.seciliSatir.id != null"
+            }
+          },
+          {
+            "id": "detayAmortisman",
+            "type": "button",
+            "name": "detayAmortisman",
+            "props": {
+              "text": "Amortismanı kaydet",
+              "actionType": "openDialog",
+              "dialogId": "amortismanPenceresi",
+              "visibleWhen": "liste.seciliSatir.status == 'Active'"
+            }
+          },
+          {
+            "id": "detayEldenCikar",
+            "type": "button",
+            "name": "detayEldenCikar",
+            "props": {
+              "text": "Elden çıkar",
+              "actionType": "openDialog",
+              "dialogId": "eldenCikarmaPenceresi",
+              "visibleWhen": "liste.seciliSatir.status == 'Active'"
+            }
+          },
+          {
+            "id": "detayZimmetle",
+            "type": "button",
+            "name": "detayZimmetle",
+            "props": {
+              "text": "Zimmetle",
+              "actionType": "erpPage",
+              "pageKey": "fixed-assets",
+              "target": "sameTab",
+              "legacyScreen": true,
+              "visibleWhen": "liste.seciliSatir.status == 'Active'"
+            }
+          }
+        ]
+      },
+      {
+        "id": "amortismanPenceresi",
+        "type": "dialog",
+        "name": "amortismanPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Amortismanı kaydet · {{liste.seciliSatir.assetCode}}",
+          "contains": [
+            "amortismanDonemi",
+            "amortismanTutari",
+            "amortismanNotu",
+            "amortismanUyarisi",
+            "amortismanKaydetDugmesi"
+          ],
+          "refreshQueries": [
+            "kiymetler",
+            "ozet",
+            "kiymet",
+            "plan"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "amortismanDonemi",
+        "type": "metric",
+        "name": "amortismanDonemi",
+        "props": {
+          "title": "Kaydedilecek dönem",
+          "value": "{{plan.meta.nextPeriodStart}}",
+          "format": "date",
+          "icon": "calendar",
+          "description": "yalnız sıradaki dönem yazılabilir",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "amortismanTutari",
+        "type": "metric",
+        "name": "amortismanTutari",
+        "props": {
+          "title": "Tutar",
+          "value": "{{plan.meta.nextAmountBase}}",
+          "format": "money",
+          "icon": "banknote",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "amortismanNotu",
+        "type": "text",
+        "name": "amortismanNotu",
+        "props": {
+          "text": "Dönemler sırayla kaydedilir; yalnız sıradaki dönem yazılabilir. Kayıt için hesap eşleştirmeleri gerekir. Kapalı döneme fiş yazılmaz.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "amortismanUyarisi",
+        "type": "alert",
+        "name": "amortismanUyarisi",
+        "props": {
+          "variant": "warning",
+          "text": "Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "amortismanKaydetDugmesi",
+        "type": "button",
+        "name": "amortismanKaydetDugmesi",
+        "props": {
+          "text": "Amortismanı kaydet",
+          "actionType": "query",
+          "queryId": "amortismanKaydet",
+          "confirmEnabled": true,
+          "confirmText": "Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz.",
+          "successMessage": "Amortisman kaydedildi; yevmiye fişi oluşturuldu.",
+          "refreshQueries": [
+            "kiymetler",
+            "ozet",
+            "kiymet",
+            "plan"
+          ],
+          "disabledWhen": "liste.seciliSatir.status != 'Active' || plan.meta.nextPeriodStart == null",
+          "disabledReason": "Kaydedilecek dönem yok: kıymet etkin değil, bu aya kadar bütün dönemler kaydedildi ya da amortisman tamamlandı.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "eldenCikarmaPenceresi",
+        "type": "dialog",
+        "name": "eldenCikarmaPenceresi",
+        "props": {
+          "presentation": "dialog",
+          "size": "md",
+          "title": "Elden çıkarma kaydı · {{liste.seciliSatir.assetCode}}",
+          "contains": [
+            "cikarmaKarti",
+            "cikarmaAnahtari",
+            "cikarmaNotu",
+            "cikarmaUyarisi",
+            "cikarmaKaydet"
+          ],
+          "resetOnOpen": true,
+          "refreshQueries": [
+            "kiymetler",
+            "ozet",
+            "kiymet",
+            "plan"
+          ],
+          "slot": "dialogs"
+        }
+      },
+      {
+        "id": "cikarmaKarti",
+        "type": "formCard",
+        "name": "cikarmaKarti",
+        "props": {
+          "title": "Elden çıkarma",
+          "columns": 2,
+          "inputs": [
+            "cikarmaTarihi",
+            "cikarmaTahsilati",
+            "cikarmaAciklamasi"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaTarihi",
+        "type": "input",
+        "name": "cikarmaTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Elden çıkarma tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaTahsilati",
+        "type": "input",
+        "name": "cikarmaTahsilati",
+        "props": {
+          "inputType": "number",
+          "label": "Tahsilat (baz para birimi)",
+          "required": true,
+          "min": 0,
+          "step": 0.01,
+          "defaultValue": "0",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaAciklamasi",
+        "type": "input",
+        "name": "cikarmaAciklamasi",
+        "props": {
+          "inputType": "text",
+          "label": "Açıklama",
+          "required": true,
+          "maxLength": 500,
+          "placeholder": "Satış, hurdaya ayırma… (en fazla 500)",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaAnahtari",
+        "type": "input",
+        "name": "cikarmaAnahtari",
+        "props": {
+          "inputType": "text",
+          "label": "İşlem anahtarı",
+          "hidden": true,
+          "autoId": true,
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaNotu",
+        "type": "text",
+        "name": "cikarmaNotu",
+        "props": {
+          "text": "Defter değeri önceki son tam aya kadar hesaplanır; eksik amortisman aynı fişe yazılır. Açık zimmet kendiliğinden kapanır. Tekrar gönderim ikinci fiş yazmaz.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaUyarisi",
+        "type": "alert",
+        "name": "cikarmaUyarisi",
+        "props": {
+          "variant": "warning",
+          "text": "Kıymet kalıcı olarak elden çıkarılır. Yevmiye fişi yazılır; arayüzden geri alınamaz.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "cikarmaKaydet",
+        "type": "button",
+        "name": "cikarmaKaydet",
+        "props": {
+          "text": "Elden çıkarmayı kaydet",
+          "actionType": "query",
+          "queryId": "eldenCikar",
+          "confirmEnabled": true,
+          "confirmText": "Kıymet kalıcı olarak elden çıkarılır. Yevmiye fişi yazılır; arayüzden geri alınamaz.",
+          "successMessage": "Kıymet elden çıkarıldı; elden çıkarma yevmiye fişi oluşturuldu.",
+          "refreshQueries": [
+            "kiymetler",
+            "ozet",
+            "kiymet",
+            "plan"
+          ],
+          "disabledWhen": "liste.seciliSatir.status != 'Active'",
+          "disabledReason": "Yalnız etkin kıymet elden çıkarılabilir.",
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      { "id": "kiymetler", "name": "kiymetler", "kind": "read", "operation": "duranVarlik.kiymet.listele", "runOn": "load",
+      {
+        "id": "kiymetler",
+        "name": "kiymetler",
+        "kind": "read",
+        "operation": "duranVarlik.kiymet.listele",
+        "runOn": "load",
         "parameters": [
-          { "name": "q", "binding": "{{suzgec.q}}", "type": "text" },
-          { "name": "status", "binding": "{{durumSecimi.value}}", "type": "text" },
-          { "name": "page", "binding": "{{liste.sayfa}}", "type": "int" },
-          { "name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int" } ] },
-      { "id": "ozet", "name": "ozet", "kind": "read", "operation": "duranVarlik.kiymet.ozet", "runOn": "load",
-        "parameters": [ { "name": "q", "binding": "{{suzgec.q}}", "type": "text" } ] },
-      { "id": "kiymet", "name": "kiymet", "kind": "read", "operation": "duranVarlik.kiymet.getir", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "plan", "name": "plan", "kind": "read", "operation": "duranVarlik.amortisman.plani", "runOn": "load",
-        "parameters": [ { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" } ] },
-      { "id": "amortismanKaydet", "name": "amortismanKaydet", "kind": "insert", "operation": "duranVarlik.amortisman.kaydet", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{suzgec.status}}",
+            "type": "text"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "ozet",
+        "name": "ozet",
+        "kind": "read",
+        "operation": "duranVarlik.kiymet.ozet",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "periodStart", "binding": "{{plan.meta.nextPeriodStart}}", "type": "date" } ] },
-      { "id": "eldenCikar", "name": "eldenCikar", "kind": "insert", "operation": "duranVarlik.eldenCikarma.kaydet", "runOn": "manual",
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "kiymet",
+        "name": "kiymet",
+        "kind": "read",
+        "operation": "duranVarlik.kiymet.getir",
+        "runOn": "load",
         "parameters": [
-          { "name": "id", "binding": "{{liste.seciliSatir.id}}", "type": "guid" },
-          { "name": "disposalDate", "binding": "{{cikarmaTarihi.value}}", "type": "date" },
-          { "name": "proceedsBase", "binding": "{{cikarmaTahsilati.value}}", "type": "decimal" },
-          { "name": "reason", "binding": "{{cikarmaAciklamasi.value}}", "type": "text" },
-          { "name": "idempotencyKey", "binding": "{{cikarmaAnahtari.value}}", "type": "guid" } ] }
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "plan",
+        "name": "plan",
+        "kind": "read",
+        "operation": "duranVarlik.amortisman.plani",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "amortismanKaydet",
+        "name": "amortismanKaydet",
+        "kind": "insert",
+        "operation": "duranVarlik.amortisman.kaydet",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "periodStart",
+            "binding": "{{plan.meta.nextPeriodStart}}",
+            "type": "date"
+          }
+        ]
+      },
+      {
+        "id": "eldenCikar",
+        "name": "eldenCikar",
+        "kind": "insert",
+        "operation": "duranVarlik.eldenCikarma.kaydet",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.id}}",
+            "type": "guid"
+          },
+          {
+            "name": "disposalDate",
+            "binding": "{{cikarmaTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "proceedsBase",
+            "binding": "{{cikarmaTahsilati.value}}",
+            "type": "decimal"
+          },
+          {
+            "name": "reason",
+            "binding": "{{cikarmaAciklamasi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "idempotencyKey",
+            "binding": "{{cikarmaAnahtari.value}}",
+            "type": "guid"
+          }
+        ]
+      }
     ]
   }
 }
