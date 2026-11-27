@@ -92,35 +92,40 @@
       "since": 1,
       "label": "Fiş başlığı",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:fisSatirTablosu": {
       "since": 1,
       "label": "Fiş satırları",
       "requires": [
-        "query:satirlar"
+        "query:satirlar",
+        "component:fisPenceresi"
       ]
     },
     "component:zincirNotu": {
       "since": 1,
       "label": "Fiş zinciri: ters çevrildi",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:tersNotu": {
       "since": 1,
       "label": "Fiş zinciri: ters kayıt fişi",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "component:kaynakNotu": {
       "since": 1,
       "label": "Kaynak belge notu",
       "requires": [
-        "query:fis"
+        "query:fis",
+        "component:fisPenceresi"
       ]
     },
     "query:fisler": {

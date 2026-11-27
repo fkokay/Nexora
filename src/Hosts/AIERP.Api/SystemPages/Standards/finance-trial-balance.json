@@ -96,19 +96,24 @@
         "component:baslangic",
         "component:bitis",
         "component:liste",
-        "query:muavin"
+        "query:muavin",
+        "component:muavinPenceresi"
       ]
     },
     "component:muavinTablosu": {
       "since": 1,
       "label": "Muavin tablosu",
       "requires": [
-        "query:muavin"
+        "query:muavin",
+        "component:muavinPenceresi"
       ]
     },
     "component:muavinNotu": {
       "since": 1,
-      "label": "Muavin notu"
+      "label": "Muavin notu",
+      "requires": [
+        "component:muavinPenceresi"
+      ]
     },
     "query:mizan": {
       "since": 1,
