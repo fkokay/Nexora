@@ -68,7 +68,7 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
     private static object Header(string id = "ozet") => C(id, "recordHeader", "dialog", new { title = "Sipariş" });
 
     /// <summary>The sales-orders shape: header, status group, actions group and tabs pointing at a table and a conditional group.</summary>
-    private static object[] SalesOrdersDialog() =>
+    private static object[] SalesOrdersDialog(string inputSlot = "dialog") =>
     [
         Dialog(["ozet", "durum", "islemler", "sekmeler"]),
         Header(),
@@ -79,8 +79,8 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
         G("teslimBolumu", "section", "dialog",
             [C("teslimFormu", "formCard", null, new { inputs = new[] { "teslimTarihi" } }), C("teslimKaydet", "button", null, new { label = "Kaydet", actionType = "query", queryId = "teslimSorgusu" })],
             new { title = "Teslim tarihi", visibleWhen = "liste.rows[0].x == 1" }),
-        // An input a dialog form card owns is not dialog content (contains ∪ dialog tabs); on Liste it stays below the body.
-        C("teslimTarihi", "input", "below", new { label = "Teslim tarihi", inputType = "date" })
+        // The inputs of a form card in the window (here a group child) are window content too.
+        C("teslimTarihi", "input", inputSlot, new { label = "Teslim tarihi", inputType = "date" })
     ];
 
     private static object[] RecordBody() =>
@@ -104,6 +104,29 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
     [Fact]
     public void List_with_dialog_in_dialogs_and_contents_in_dialog_is_valid() =>
         Accepted(Page("list", [OpenButton(), ListTable(), .. SalesOrdersDialog()]));
+
+    [Fact]
+    public void Dialog_form_card_inputs_are_dialog_content()
+    {
+        // sales-orders: the group child form card's input outside the 'dialog' slot.
+        Rejected(Page("list", [OpenButton(), ListTable(), .. SalesOrdersDialog(inputSlot: "below")]), PencereIcerigi("teslimTarihi"));
+        // finance-banks form window: a contained form card with its inputs, a request id input and a note.
+        object[] FormWindow(string inputSlot) =>
+        [
+            Dialog(["hareketKarti", "istekKimligi", "not"], extra: new { size = "md", saveQuery = "teslimSorgusu" }),
+            C("hareketKarti", "formCard", "dialog", new { inputs = new[] { "yon", "tarih", "tutar", "referans", "aciklama", "nakitAkisi" } }),
+            C("yon", "input", inputSlot, new { label = "Yön", inputType = "text" }),
+            C("tarih", "input", "dialog", new { label = "Tarih", inputType = "date" }),
+            C("tutar", "input", "dialog", new { label = "Tutar", inputType = "number" }),
+            C("referans", "input", "dialog", new { label = "Referans", inputType = "text" }),
+            C("aciklama", "input", "dialog", new { label = "Açıklama", inputType = "text" }),
+            C("nakitAkisi", "input", "dialog", new { label = "Nakit akışı", inputType = "text" }),
+            C("istekKimligi", "input", "dialog", new { label = "İstek", inputType = "text" }),
+            Text("not")
+        ];
+        Accepted(Page("list", [OpenButton(), ListTable(), .. FormWindow("dialog")]));
+        Rejected(Page("list", [OpenButton(), ListTable(), .. FormWindow("above")]), PencereIcerigi("yon"));
+    }
 
     [Fact]
     public void Record_and_free_accept_dialogs()
@@ -159,7 +182,7 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
     {
         using var document = JsonDocument.Parse(Page("list", [ListTable(), .. SalesOrdersDialog()]));
         var owners = PageTemplateRules.DialogOwners(document.RootElement.GetProperty("components"));
-        Assert.Equal(["durum", "islemler", "kalemTablosu", "ozet", "sekmeler", "teslimBolumu"], owners.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["durum", "islemler", "kalemTablosu", "ozet", "sekmeler", "teslimBolumu", "teslimTarihi"], owners.Keys.Order(StringComparer.Ordinal));
         Assert.All(owners.Values, x => Assert.Equal("pencere", x));
 
         using var shared = JsonDocument.Parse(Page("list", [Dialog(["x", "y"]), Dialog(["x"], id: "ikinci"), Text("x"), Text("y")]));

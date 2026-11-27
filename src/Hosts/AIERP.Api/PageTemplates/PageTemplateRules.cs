@@ -135,7 +135,8 @@ internal static class PageTemplateRules
 
     /// <summary>
     /// Window ownership, independent of slots: component id → window id for every id a top-level <c>dialog</c>'s <c>contains</c>
-    /// lists, plus the ids the tabs inside that window (a contained <c>tabs</c>, or a <c>tabs</c> child of a contained group) point at.
+    /// lists, plus the ids the tabs inside that window (a contained <c>tabs</c>, or a <c>tabs</c> child of a contained group) point at,
+    /// plus the <c>inputs</c> of every form card among those (or a form card child of such a group).
     /// An id two windows claim is left out.
     /// </summary>
     internal static IReadOnlyDictionary<string, string> DialogOwners(JsonElement components) => DialogOwners(components, out _);
@@ -162,6 +163,13 @@ internal static class PageTemplateRules
                 if (!byId.TryGetValue(id, out var part)) continue;
                 if (TypeOf(part) == "tabs") owned.AddRange(TabIds(part));
                 foreach (var child in Children(part).Where(x => TypeOf(x) == "tabs")) owned.AddRange(TabIds(child));
+            }
+            // The inputs of every form card in the window (a content form card or a form card child of a content group).
+            foreach (var id in owned.ToArray())
+            {
+                if (!byId.TryGetValue(id, out var part)) continue;
+                foreach (var card in Children(part).Prepend(part).Where(x => TypeOf(x) == "formCard"))
+                    owned.AddRange(StringArray(card, "inputs"));
             }
             foreach (var id in owned.Distinct(StringComparer.Ordinal))
                 if (!owners.TryAdd(id, dialogId) && owners[id] != dialogId && !shared.Contains(id)) shared.Add(id);
