@@ -1,10 +1,11 @@
+# syntax=docker/dockerfile:1
 FROM node:22-alpine AS build
 ARG VITE_PLATFORM_URL
 ENV VITE_PLATFORM_URL=${VITE_PLATFORM_URL}
 WORKDIR /workspace
 COPY frontend/development-studio/package.json frontend/development-studio/package-lock.json ./frontend/development-studio/
 WORKDIR /workspace/frontend/development-studio
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 WORKDIR /workspace
 COPY frontend/development-studio ./frontend/development-studio
 RUN npm --prefix frontend/development-studio run build

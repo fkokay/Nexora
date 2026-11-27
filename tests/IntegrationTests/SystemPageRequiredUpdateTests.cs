@@ -49,7 +49,7 @@ public sealed class SystemPageRequiredUpdateTests
             Find(definition, "duzenleDugmesi")!["props"]!["visibleWhen"]!.GetValue<string>());
         foreach (var id in new[] { "onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi", "rozetTaslak", "rozetAcik",
                      "rozetTamam", "rozetFaturalandi", "liste" })
-            Assert.True(JsonNode.DeepEquals(Find(standard, id), Find(definition, id)), id);
+            Assert.True(JsonNode.DeepEquals(Unplaced(Find(standard, id)), Unplaced(Find(definition, id))), id);
         foreach (var id in new[] { "onayla", "onayiGeriAl", "iptal" })
             Assert.True(JsonNode.DeepEquals(Query(standard, id), Query(definition, id)), id);
         Assert.Equal(["Draft=Taslak", "PendingApproval=Onay bekliyor", "Open=Onaylı", "Fulfilled=Sevk edildi", "Invoiced=Faturalandı", "Cancelled=İptal"],
@@ -85,12 +85,12 @@ public sealed class SystemPageRequiredUpdateTests
             Assert.Equal(4, await db.TenantCustomPageRevisions.CountAsync(x => x.CustomPageId == pageId));
         }
 
-        // The added items are no longer offered as "Yeni"; the v4 item still is.
+        // "Yeni" offers for the copy.
         using var admin = Client(app, Admin, "TenantAdmin");
         var offered = (await admin.GetFromJsonAsync<JsonElement>("/api/system-pages/sales-orders/new-items")).GetProperty("items")
             .EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
-        Assert.Empty(offered.Intersect(ChainItems));
-        Assert.Contains("component:belgedeAcDugmesi", offered);
+        // The standard is now templated: a templateless copy is offered no "Yeni" items (SystemPageMerge.NewItems).
+        Assert.Empty(offered);
     }
 
     [Fact]
@@ -109,12 +109,12 @@ public sealed class SystemPageRequiredUpdateTests
         Assert.Equal("liste.seciliSatir.status == 'Open' && liste.seciliSatir.customerId != null",
             Find(definition, "duzenleDugmesi")!["props"]!["visibleWhen"]!.GetValue<string>());
         // The badge and label updates touch other parts and still apply.
-        Assert.True(JsonNode.DeepEquals(Find(Standard("sales-orders"), "liste"), Find(definition, "liste")));
-        Assert.True(JsonNode.DeepEquals(Find(Standard("sales-orders"), "rozetTaslak"), Find(definition, "rozetTaslak")));
+        Assert.True(JsonNode.DeepEquals(Unplaced(Find(Standard("sales-orders"), "liste")), Unplaced(Find(definition, "liste"))));
+        Assert.True(JsonNode.DeepEquals(Unplaced(Find(Standard("sales-orders"), "rozetTaslak")), Unplaced(Find(definition, "rozetTaslak"))));
         Assert.Equal("Onaylı", Find(definition, "rozetAcik")!["props"]!["text"]!.GetValue<string>());
         var offered = (await client.GetFromJsonAsync<JsonElement>("/api/system-pages/sales-orders/new-items")).GetProperty("items")
             .EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
-        Assert.Subset(offered.ToHashSet(), ChainItems.ToHashSet());
+        Assert.Empty(offered); // templated standard → nothing offered to a templateless copy
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         Assert.Equal(["CreatedFromStandard", "Update:rozet", "Update:etiket"], await db.TenantCustomPageRevisions.AsNoTracking()
@@ -205,7 +205,7 @@ public sealed class SystemPageRequiredUpdateTests
         var definition = await PublishedDefinitionAsync(client, "sales-orders");
 
         // v3 has the transition commands; only the v5 label update applies.
-        Assert.True(JsonNode.DeepEquals(Find(Standard("sales-orders"), "liste"), Find(definition, "liste")));
+        Assert.True(JsonNode.DeepEquals(Unplaced(Find(Standard("sales-orders"), "liste")), Unplaced(Find(definition, "liste"))));
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         Assert.Equal(["CreatedFromStandard", "Update:etiket"], await db.TenantCustomPageRevisions.AsNoTracking()
@@ -289,6 +289,18 @@ public sealed class SystemPageRequiredUpdateTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("override", body.GetProperty("source").GetString());
         return JsonNode.Parse(body.GetProperty("definitionJson").GetString()!)!;
+    }
+
+    /// <summary>
+    /// A component without its placement: the sales-orders standard is a List template page (5b-2 dalga 1), so its components carry
+    /// <c>slot</c> and no <c>width</c>, while the firm copies are templateless (their own <c>width</c>, <c>slot</c> is inert there).
+    /// The updates never set either; everything else is compared.
+    /// </summary>
+    private static JsonNode? Unplaced(JsonNode? component)
+    {
+        if (component?.DeepClone() is not JsonObject clone) return null;
+        if (clone["props"] is JsonObject props) { props.Remove("slot"); props.Remove("width"); }
+        return clone;
     }
 
     internal static JsonNode? Find(JsonNode definition, string id) => FindIn(definition["components"] as JsonArray, id);
