@@ -12,7 +12,7 @@ import standard6 from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/
 // Finans / Genel Muhasebe standartları (src/Hosts/AIERP.Api/SystemPages/Standards/finance-*.json): tasarımcıda tanınmayan tür/özellik
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
-type Standard = { definition: { queries: { id: string; name: string }[]; components: Component[] } };
+type Standard = { definition: { template?: unknown; queries: { id: string; name: string }[]; components: Component[] } };
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
 const standards: [string, Standard][] = ([
   ["finance-accounts", standard0], ["finance-banks", standard1], ["finance-account-create", standard2], ["finance-trial-balance", standard3],
@@ -30,7 +30,7 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop), `${component.id}.${prop}`).toBe(true);
+      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop) || (!!standard.definition.template && prop === "slot"), `${component.id}.${prop}`).toBe(true);
     }
   });
   for (const queryEditable of [false, true]) it(`uzlaştırma özellik silmez ve değiştirmez (sorgu düzenleme: ${queryEditable})`, () => {
