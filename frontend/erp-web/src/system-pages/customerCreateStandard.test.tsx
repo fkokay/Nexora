@@ -24,6 +24,7 @@ const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts
 
 const C1 = '22222222-0000-0000-0000-000000000001';
 const NEW = '22222222-0000-0000-0000-0000000000aa';
+const A1 = '44444444-0000-0000-0000-0000000000a1';
 const jwt = (role: string) => `x.${btoa(JSON.stringify({ sub: 'u1', role })).replace(/=+$/, '')}.y`;
 
 const card = (extra: Record<string, unknown> = {}) => ({
@@ -56,12 +57,17 @@ function respond(url: string, method: string): unknown {
     if (path === '/api/customers/custom-fields') return [];
     if (path === `/api/customers/${C1}`) return card(cardExtra);
     if (path === `/api/customers/${C1}/custom-fields`) return [];
+    if (path === `/api/customers/${C1}/balance`) {
+      return { currencyCode: 'TRY', balance: 186242, balanceSide: 'Debit', riskLimit: 250000, balanceAmount: 186242, balanceSideCode: 'B', limitUsagePercent: 74.5 };
+    }
     if (path === `/api/customers/${C1}/addresses`) {
-      return [{ id: 'a1', kind: 'General', label: 'Merkez', addressLine: 'Feritpaşa Mah.', city: 'Konya', district: 'Selçuklu', postalCode: '42000', countryCode: 'TR', isDefault: true, isActive: true, latitude: null, longitude: null }];
+      return [{ id: A1, kind: 'General', label: 'Merkez', addressLine: 'Feritpaşa Mah.', city: 'Konya', district: 'Selçuklu', postalCode: '42000', countryCode: 'TR', isDefault: true, isActive: true, latitude: null, longitude: null }];
     }
   } else {
     if (path === '/api/customers' && method === 'POST') return { ...card(), id: NEW };
     if (path === `/api/customers/${C1}` && method === 'PUT') return card();
+    if (path === `/api/customers/${C1}/addresses/${A1}` && method === 'PUT') return {};
+    if (path === `/api/customers/${C1}/addresses` && method === 'POST') return {};
     if (path === `/api/customers/${C1}/custom-fields` && method === 'PUT') return [];
   }
   throw new Error(`unexpected ${method} ${url}`);
@@ -94,7 +100,11 @@ function setup(customerId?: string) {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+// Kayıt kartı kalıbı: komutlar kabuğun "İşlemler" çubuğundadır; "⋯" = "Diğer işlemler".
+const command = (id: string) => {
+  const shell = screen.getByRole('toolbar', { name: 'İşlemler' });
+  return (id === 'more' ? within(shell).queryByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`))!;
+};
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const posts = () => writes().filter((call) => call.method === 'POST' && call.url === '/api/customers');
@@ -107,7 +117,7 @@ const pick = async (id: string, option: string) => {
   fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
 };
 const settle = (ms = 50) => new Promise((done) => setTimeout(done, ms));
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
+const title = () => document.querySelector('.page-shell-sr-title, .tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const tab = (name: string) => screen.queryByRole('tab', { name: new RegExp(`^${name}`) });
 const openNew = async () => {
   setup();
@@ -119,9 +129,13 @@ const openCard = async () => {
   await waitFor(() => expect(input('unvan').value).toBe('FATİH KOKAY'), T);
   await ready('save');
 };
+// Sekmeler: Genel (varsayılan), İletişim ve adres, Finans ve vergi, Adresler; yalnız seçili sekmenin alanları çizilir.
+const goTo = (name: string) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
 const fillNew = (code: string, name: string) => {
+  goTo('Genel');
   type('kod', code);
   type('unvan', name);
+  goTo('Finans ve vergi');
   type('doviz', 'try');
   // Vade zorunludur (sunucu varsayılanı 0'a bırakılmaz).
   type('vadeGunu', '30');
@@ -165,12 +179,14 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(title()).toBe('Yeni cari kart');
     expect(calls.filter((call) => call.url.startsWith(`/api/customers/${C1}`))).toEqual([]);
     fireEvent.click(tab('Adresler')!);
-    expect(await screen.findByText(/Adresler cari kart kaydedildikten sonra eklenir/, {}, T)).toBeTruthy();
+    // Kayıt kartı kalıbı: yeni kayıtta adres tablosu yerine "kaydedilince görünür" notu çizilir.
+    expect(await screen.findByText('Kayıt kaydedilince burada görünür.', {}, T)).toBeTruthy();
   });
 
   it('new card with a primary address posts one request with the nested address and returns to the list', async () => {
     await openNew();
     fillNew('c-2001', 'Yeni Cari');
+    goTo('İletişim ve adres');
     await pick('il', 'Konya');
     type('adresSatiri', 'Feritpaşa Mah.');
     type('adresEtiketi', 'Merkez');
@@ -188,6 +204,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
 
   it('il and ilçe are searchable lists: districts follow the province, a foreign city can be typed', async () => {
     await openNew();
+    goTo('İletişim ve adres');
     await pick('il', 'Konya');
     await waitFor(() => expect(calls.some((call) => call.url.includes('/api/location-definitions/districts') && call.url.includes('provinceName=Konya'))).toBe(true), T);
     await pick('ilce', 'Selçuklu');
@@ -220,6 +237,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
       fieldErrors: { 'address.addressLine': ['Adres satırı zorunludur ve en fazla 400 karakter olabilir.'], taxNumber: ['Vergi numarası geçersiz.'] } }];
     await openNew();
     fillNew('c-2003', 'Hatalı');
+    goTo('İletişim ve adres');
     await pick('il', 'Konya');
     type('adresEtiketi', 'Merkez');
     type('adresSatiri', 'x');
@@ -228,7 +246,8 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     const addressError = await screen.findByText('Adres satırı zorunludur ve en fazla 400 karakter olabilir.', {}, T);
     expect(addressError.closest('.tenant-page-input')).toBe(input('adresSatiri').closest('.tenant-page-input'));
     expect(input('adresSatiri').closest('.tenant-page-input')?.classList.contains('is-invalid')).toBe(true);
-    fireEvent.click(tab('Vergi ve E-Fatura')!);
+    // Vergi numarası Genel sekmesindedir (kimlik + vergi ve e-Fatura).
+    fireEvent.click(tab('Genel')!);
     const taxError = await screen.findByText('Vergi numarası geçersiz.', {}, T);
     expect(taxError.closest('.tenant-page-input')).toBe(input('vergiNo').closest('.tenant-page-input'));
     expect(navigations).toEqual([]);
@@ -238,7 +257,7 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     fillNew('c-3001', 'Birinci');
     // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
+    fireEvent.click(await waitFor(() => { const button = command('save-and-new'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(input('unvan').value).toBe('');
@@ -252,8 +271,10 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
   it('edit: loads the card, PUTs it with rowVersion and the primary address, then saves custom fields', async () => {
     await openCard();
     await waitFor(() => expect(title()).toBe('FATİH KOKAY'), T);
+    goTo('İletişim ve adres');
     expect(input('il').value).toBe('Konya');
     type('unvan', 'FATİH KOKAY LTD.');
+    goTo('İletişim ve adres');
     await pick('ilce', 'Meram');
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes().length).toBeGreaterThanOrEqual(1), T);
@@ -264,21 +285,25 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(body.address).toEqual({ countryCode: 'TR', city: 'Konya', district: 'Meram', postalCode: '42000', addressLine: 'Feritpaşa Mah.', label: 'Merkez', kind: 'General', isDefault: true });
     expect(Object.keys(body).filter((key) => key.includes('.'))).toEqual([]);
     expect(posts()).toEqual([]);
-    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/customers/${C1}`, `PUT /api/customers/${C1}/custom-fields`]);
+    // Özel alanlar sekmesi kalıpta karşılıksız: kayıt dizisi yalnız kartı yazar (özel alan değerleri yazılmaz).
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/customers/${C1}`]);
   });
 
   it('new card starts with TRY and 0 (emptyDefault) and saves them untouched; Kaydet ve yeni returns to them', async () => {
     await openNew();
+    goTo('Finans ve vergi');
     expect(input('doviz').value).toBe('TRY');
     expect(input('vadeGunu').value).toBe('0');
+    goTo('Genel');
     type('kod', 'c-4001');
     type('unvan', 'Varsayılanlı');
     // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
+    fireEvent.click(await waitFor(() => { const button = command('save-and-new'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     expect(JSON.parse(posts()[0].body!)).toMatchObject({ code: 'C-4001', currencyCode: 'TRY', paymentTermDays: 0 });
     expect(screen.queryByText('Bu alan zorunludur')).toBeNull();
     await waitFor(() => expect(input('kod').value).toBe(''), T);
+    goTo('Finans ve vergi');
     expect(input('doviz').value).toBe('TRY');
     expect(input('vadeGunu').value).toBe('0');
   });
@@ -286,19 +311,27 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
   it('edit: stored currency and a stored 0 term win over emptyDefault; the summary drops empty parts', async () => {
     cardExtra = { currencyCode: 'EUR', paymentTermDays: 0, taxNumber: null };
     await openCard();
+    goTo('Finans ve vergi');
     expect(input('doviz').value).toBe('EUR');
     expect(input('vadeGunu').value).toBe('0');
-    // Grup ve vergi numarası yok: parçaları etiketleri ve ayraçlarıyla düşer; 0 vade boş değildir.
-    expect(document.querySelector('.tenant-page-text')?.textContent).toBe('C-1001 · Vade 0 gün · EUR');
+    // Kayıt özeti: kod, bakiye (cari.bakiye), vade (0 boş değildir); vergi numarası yok → "—".
+    const summaryField = (label: string) => within(document.querySelector<HTMLElement>('.tenant-page-record-header')!).getByText(label).nextElementSibling?.textContent;
+    await waitFor(() => expect(summaryField('Bakiye')).toBe('186.242,00 TRY B'), T);
+    expect(document.querySelector('.tenant-page-record-header')?.textContent).toContain('C-1001');
+    expect([summaryField('Vade (gün)'), summaryField('Vergi no')]).toEqual(['0', '—']);
     fireEvent.click(command('save'));
     await waitFor(() => expect(writes().some((call) => call.method === 'PUT' && call.url === `/api/customers/${C1}`)).toBe(true), T);
     expect(JSON.parse(writes().find((call) => call.method === 'PUT' && call.url === `/api/customers/${C1}`)!.body!)).toMatchObject({ currencyCode: 'EUR', paymentTermDays: 0 });
   });
 
-  it('edit: the summary shows every filled part', async () => {
-    cardExtra = { groupName: 'Bayiler' };
+  it('edit: the summary shows the name, code, balance with its side, term and tax number', async () => {
     await openCard();
-    await waitFor(() => expect(document.querySelector('.tenant-page-text')?.textContent).toBe('C-1001 · Bayiler · Vade 30 gün · TRY · Vergi no 1234567890'), T);
+    const summary = () => document.querySelector('.tenant-page-record-header') as HTMLElement;
+    await waitFor(() => expect(summary().textContent).toContain('C-1001'), T);
+    const summaryField = (label: string) => within(summary()).getByText(label).nextElementSibling?.textContent;
+    await waitFor(() => expect(summaryField('Bakiye')).toBe('186.242,00 TRY B'), T);
+    expect([summaryField('Vade (gün)'), summaryField('Vergi no')]).toEqual(['30', '1234567890']);
+    expect(within(summary()).getByText('FATİH KOKAY')).toBeTruthy();
   });
 
   it('the workspace tab and breadcrumb title follow the record-naming page title only', async () => {
@@ -312,6 +345,38 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(title()).toBe('Yeni cari kart');
     await settle();
     expect(workspacePageTitles()[KEY]).toBeUndefined();
+  });
+
+  it('Adresler tab: Pasife al is a row action (not a toolbar button) and PUTs the address after a confirmation', async () => {
+    setup(C1);
+    setPageParams(KEY, { customerId: C1, tab: 'Adresler' });
+    const addressCell = await screen.findByText('Feritpaşa Mah.', { selector: '.tenant-page-data-grid td' }, T);
+    await ready('save');
+    // Satır düğmeleri çubukta ve sayfada gevşek düğme olarak çizilmez; yalnız satırda.
+    const toolbar = screen.getByRole('toolbar', { name: 'İşlemler' });
+    expect(within(toolbar).queryByRole('button', { name: /Pasife al|Etkinleştir/ })).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Pasife al' })).toHaveLength(1);
+    fireEvent.click(within(addressCell.closest('tr') as HTMLElement).getByRole('button', { name: 'Pasife al' }));
+    const dialog = await screen.findByRole('alertdialog', {}, T);
+    expect(writes()).toEqual([]);
+    fireEvent.click(within(dialog).getAllByRole('button').at(-1)!);
+    await waitFor(() => expect(writes().filter((call) => call.method === 'PUT' && call.url === `/api/customers/${C1}/addresses/${A1}`)).toHaveLength(1), T);
+  });
+
+  it('Yeni adres opens the address window (no map fields) and POSTs the new address', async () => {
+    setup(C1);
+    setPageParams(KEY, { customerId: C1, tab: 'Adresler' });
+    await screen.findByText('Feritpaşa Mah.', { selector: '.tenant-page-data-grid td' }, T);
+    fireEvent.click(screen.getByRole('button', { name: 'Yeni adres' }));
+    const dialog = await screen.findByRole('dialog', {}, T);
+    expect(within(dialog).queryByText(/Harita konumu/)).toBeNull();
+    expect(within(dialog).getAllByText('Adres etiketi').length).toBeGreaterThan(0);
+    type('yeniAdresEtiketi', 'Depo');
+    type('yeniAdresSatiri', 'Sanayi Cad. 5');
+    await pick('yeniAdresIl', 'Konya');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Adres ekle' }));
+    await waitFor(() => expect(writes().filter((call) => call.method === 'POST' && call.url === `/api/customers/${C1}/addresses`)).toHaveLength(1), T);
+    expect(JSON.parse(writes().find((call) => call.method === 'POST')!.body!)).toMatchObject({ label: 'Depo', addressLine: 'Sanayi Cad. 5', city: 'Konya', countryCode: 'TR', kind: 'General' });
   });
 
   it('edit: no Kaydet ve yeni, and the Adresler tab lists the addresses', async () => {

@@ -83,17 +83,17 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+// Liste kalıbı: komutlar kabuğun "İşlemler" çubuğundadır; "⋯" = "Diğer işlemler".
+const command = (id: string) => {
+  const shell = screen.getByRole('toolbar', { name: 'İşlemler' });
+  return (id === 'more' ? within(shell).getByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`))!;
+};
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 const cell = (text: string) => screen.findByText(text, { selector: '.tenant-page-data-grid td' }, T);
 const rowOf = (text: string) => screen.getByText(text, { selector: '.tenant-page-data-grid td' }).closest('tr')!;
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name });
-};
 const menuNames = async () => {
   fireEvent.click(command('more'));
   await screen.findAllByRole('menuitem', {}, T);
@@ -144,10 +144,11 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     expect(within(rowOf('Depo otomasyonu')).getByText('FRS-001')).toBeTruthy();
   });
 
-  it('shows the other-currency hint only when the summary has other currencies', async () => {
+  it('the open value is one indicator: the other-currency count adds no extra hint', async () => {
     summary = { ...baseSummary(), otherCurrencyCount: 2 };
     setup();
-    await waitFor(() => expect(document.body.textContent).toContain('+ 2 dövizde'), T);
+    await waitFor(() => expect(document.body.textContent).toContain('tüm kayıtlar · TRY'), T);
+    expect(document.body.textContent).not.toContain('dövizde');
   });
 
   it('the stage selection filters the list with the stage parameter', async () => {
@@ -176,20 +177,25 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
 
     await select('Yıllık bakım');
     await waitFor(() => expect(command('open').getAttribute('aria-disabled')).toBe('true'), T);
-    expect(command('open').closest('[data-command]')?.outerHTML ?? '').toContain('Kapanmış fırsat düzenlenemez');
+    // Pasif komutun nedeni üzerine gelince ipucu olarak çıkar.
+    fireEvent.mouseEnter(command('open'));
+    expect((await screen.findByRole('tooltip', {}, T)).textContent).toContain('Kapanmış fırsat düzenlenemez');
   });
 
-  it('İşlemler offers only the next stage for the selected row', async () => {
+  // Aşama düğmeleri satır eylemidir: her satır yalnız sıradaki aşamayı ve (açıksa) Kaybedildi'yi çizer.
+  const rowButtons = (text: string) => within(rowOf(text)).queryAllByRole('button').map((button) => button.textContent?.trim() ?? '');
+  const rowButton = (text: string, name: RegExp) => within(rowOf(text)).getByRole('button', { name });
+
+  it('each row offers only its next stage and Kaybedildi; closed rows offer none', async () => {
     setup();
-    await select('Depo otomasyonu');
-    let names = await menuNames();
-    expect(names.some((name) => name.includes('Aşamayı ilerlet: Nitelikli'))).toBe(true);
-    expect(names.some((name) => name.includes('Aşamayı ilerlet: Teklif'))).toBe(false);
-    expect(names.some((name) => name.includes('Kaybedildi olarak işaretle'))).toBe(true);
-    await select('Yıllık bakım');
-    names = await menuNames();
-    expect(names.some((name) => name.startsWith('Aşamayı ilerlet'))).toBe(false);
-    expect(names.some((name) => name.includes('Kaybedildi olarak işaretle'))).toBe(false);
+    await cell('Depo otomasyonu');
+    expect(rowButtons('Depo otomasyonu')).toEqual(expect.arrayContaining(['Nitelikliye taşı', 'Kaybedildi']));
+    expect(rowButtons('Depo otomasyonu')).not.toContain('Teklife taşı');
+    expect(rowButtons('Soğuk zincir')).toEqual(expect.arrayContaining(['Kazanıldı', 'Kaybedildi']));
+    expect(rowButtons('Yıllık bakım')).toEqual([]);
+    expect(rowButtons('Filo yenileme')).toEqual([]);
+    // Aşama düğmeleri çubuğun "⋯" menüsünde değil satırdadır.
+    expect((await menuNames()).some((name) => /taşı|Kaybedildi/.test(name))).toBe(false);
   });
 
   it('Aşamayı ilerlet posts the fixed stage body and refreshes the list and the summary', async () => {
@@ -197,7 +203,7 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     await select('Depo otomasyonu');
     await waitFor(() => expect(gets('/api/crm/opportunities/summary')).toHaveLength(1), T);
     const lists = gets('/api/crm/opportunities').length;
-    fireEvent.click(await menuItem(/Aşamayı ilerlet: Nitelikli/));
+    fireEvent.click(rowButton('Depo otomasyonu', /^Nitelikliye taşı/));
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: `/api/crm/opportunities/${O1}/stage` });
     expect(JSON.parse(writes()[0].body!)).toEqual({ stage: 'Qualified' });
@@ -209,16 +215,16 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
 
   it('Kazanıldı is disabled without a customer', async () => {
     setup();
-    await select('Soğuk zincir');
-    const item = await menuItem(/Aşamayı ilerlet: Kazanıldı/);
-    expect(item.getAttribute('aria-disabled')).toBe('true');
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await cell('Soğuk zincir');
+    const item = rowButton('Soğuk zincir', /^Kazanıldı/) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toContain('önce bir müşteri carisi bağlayın');
   });
 
   it('Kaybedildi asks first, then posts the Lost stage', async () => {
     setup();
-    await select('Soğuk zincir');
-    fireEvent.click(await menuItem(/Kaybedildi olarak işaretle/));
+    await cell('Soğuk zincir');
+    fireEvent.click(rowButton('Soğuk zincir', /^Kaybedildi/));
     const dialog = await screen.findByRole('alertdialog', {}, T);
     expect(dialog.textContent).toContain('Soğuk zincir');
     expect(writes()).toEqual([]);
@@ -242,12 +248,13 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()[0]).toMatchObject({ method: 'DELETE', url: `/api/crm/opportunities/${O1}` });
   });
 
-  it('detail panel: key values, local follow-up time, steps for open and a note for lost opportunities', async () => {
+  it('detail card: key values, local follow-up time, stage path for open and a note for lost opportunities', async () => {
     setup();
+    await cell('Depo otomasyonu');
+    // Liste kalıbı: detay kartı seçim olmadan da yerinde (boş durum metniyle); panel düğmesi yok.
+    expect(screen.queryByRole('button', { name: 'Detay paneli' })).toBeNull();
+    expect(document.body.textContent).toContain('Bir fırsat seçin; ayrıntıları burada görün.');
     await select('Depo otomasyonu');
-    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
-    const panel = screen.getByRole('button', { name: 'Detay paneli' });
-    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     await waitFor(() => expect(document.body.textContent).toContain('Kazanma olasılığı'), T);
     const text = () => document.body.textContent ?? '';
     expect(text()).toContain('Sonraki takip');
@@ -256,6 +263,6 @@ describe('CRM Fırsatları standart tanımı', { timeout: 30000 }, () => {
     expect(text()).not.toContain('Kaybedildi · aşama geçmişi tutulmuyor');
     await select('Filo yenileme');
     await waitFor(() => expect(text()).toContain('Kaybedildi · aşama geçmişi tutulmuyor'), T);
-    expect(text()).toContain('Kapandı');
+
   });
 });

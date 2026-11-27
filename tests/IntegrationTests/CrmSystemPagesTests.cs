@@ -262,14 +262,16 @@ public sealed class CrmSystemPagesTests
     // ---- Standards ----
 
     [Theory]
-    [InlineData("crm-opportunities", "CRM Fırsatları")]
-    [InlineData("crm-opportunity-create", "Fırsat kartı")]
-    public void Standard_is_preview_version_1_and_uses_catalog_operations(string key, string title)
+    // Satış & cari 1. dalga: crm-opportunities (Liste) ve crm-opportunity-create (Kayıt kartı) v2.
+    [InlineData("crm-opportunities", "CRM Fırsatları", "list")]
+    [InlineData("crm-opportunity-create", "Fırsat kartı", "record")]
+    public void Standard_is_preview_version_2_and_uses_catalog_operations(string key, string title, string template)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal((2, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        Assert.Equal(template, (string)Definition(key)["template"]!["name"]!);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
-        Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True(x.Since is >= 1 and <= 2 && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True((name.StartsWith("crm.firsat.", StringComparison.Ordinal) || name == "cari.listele")
             && ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
@@ -290,6 +292,15 @@ public sealed class CrmSystemPagesTests
         Assert.Equal("{{firsatlar.meta.totalCount}}", (string)Props("crm-opportunities", "komutlar")["titleCount"]!);
         Assert.Equal(("sil", "acDugmesi"), ((string)Props("crm-opportunities", "komutlar")["deleteQuery"]!, (string)Props("crm-opportunities", "komutlar")["openButton"]!));
         Assert.Equal("Kapanmış fırsat düzenlenemez", (string)Props("crm-opportunities", "acDugmesi")["disabledReason"]!);
+        // Liste kalıbı: aşama düğmeleri satır eylemi (duruma göre yalnız sıradaki görünür), çubukta "⋯" menüsü yok; tek açık değer göstergesi.
+        Assert.Equal(("commands", "rowActions", "detail"), ((string)Props("crm-opportunities", "komutlar")["slot"]!, (string)Props("crm-opportunities", "acDugmesi")["slot"]!,
+            (string)Props("crm-opportunities", "detayKarti")["slot"]!));
+        Assert.False(Props("crm-opportunities", "komutlar").ContainsKey("moreButtons"));
+        Assert.Equal(new[] { "nitelikliDugmesi", "teklifDugmesi", "muzakereDugmesi", "kazanildiDugmesi", "kaybedildiDugmesi" }, Strings(props["rowActions"]));
+        Assert.Equal(new[] { "liste.seciliSatir.stage == 'Prospecting'", "liste.seciliSatir.stage == 'Qualified'", "liste.seciliSatir.stage == 'Proposal'",
+            "liste.seciliSatir.stage == 'Negotiation'" },
+            new[] { "nitelikliDugmesi", "teklifDugmesi", "muzakereDugmesi", "kazanildiDugmesi" }.Select(x => (string)Props("crm-opportunities", x)["visibleWhen"]!));
+        Assert.DoesNotContain(Definition("crm-opportunities")["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "degerCokDovizGostergesi" or "detayPaneli");
         Assert.Equal("{{ozet.rows[0].overdueCount}}", (string)Props("crm-opportunities", "takipGostergesi")["value"]!);
         Assert.Equal("{{suzgec.q}}", Binding("crm-opportunities", "ozet", "q"));
         Assert.Equal("{{suzgec.q}}", Binding("crm-opportunities", "firsatlar", "q"));
@@ -306,6 +317,9 @@ public sealed class CrmSystemPagesTests
     {
         const string key = "crm-opportunity-create";
         Assert.Equal("{{sayfa.parametre.opportunityId}}", Binding(key, "kart", "id"));
+        Assert.Equal("record", (string)Definition(key)["template"]!["name"]!);
+        Assert.Equal(("summary", "tabs"), ((string)Props(key, "kartOzeti")["slot"]!, (string)Props(key, "sekmeler")["slot"]!));
+        Assert.Equal(new[] { "Fırsat=firsatKarti,zorunluNotu", "Tahmin ve takip=tahminKarti,ipucu", "Not=notKarti" }, Strings(Props(key, "sekmeler")["tabs"]));
         // The picker reads only active Müşteri / Müşteri & Tedarikçi cari cards; bindings are paths, so the literals sit in hidden inputs.
         Assert.Equal("{{musteriTuru.value}}", Binding(key, "musteriler", "type"));
         Assert.Equal(("Customer,Both", true), ((string)Props(key, "musteriTuru")["defaultValue"]!, (bool)Props(key, "musteriTuru")["hidden"]!));
@@ -316,12 +330,15 @@ public sealed class CrmSystemPagesTests
             var parameter = Parameter(Definition(key), query, "nextActivityAt");
             Assert.Equal(("{{takip.value}}", "datetime"), ((string)parameter["binding"]!, (string)parameter["type"]!));
         }
-        Assert.Equal(("{{dovizYeni.value}}", "{{doviz.value}}"), (Binding(key, "olustur", "currencyCode"), Binding(key, "guncelle", "currencyCode")));
-        Assert.Equal(("{{olasilikYeni.value}}", "{{olasilik.value}}"), (Binding(key, "olustur", "probabilityPercent"), Binding(key, "guncelle", "probabilityPercent")));
-        Assert.Equal(("TRY", "10"), ((string)Props(key, "dovizYeni")["defaultValue"]!, (string)Props(key, "olasilikYeni")["defaultValue"]!));
+        // Yeni ve düzenle için ikili Para birimi ve Olasılık alanları tek alana indi (yeni kartta varsayılan TRY / 10).
+        Assert.Equal(("{{doviz.value}}", "{{doviz.value}}"), (Binding(key, "olustur", "currencyCode"), Binding(key, "guncelle", "currencyCode")));
+        Assert.Equal(("{{olasilik.value}}", "{{olasilik.value}}"), (Binding(key, "olustur", "probabilityPercent"), Binding(key, "guncelle", "probabilityPercent")));
+        Assert.Equal(("TRY", "10"), ((string)Props(key, "doviz")["emptyDefault"]!, (string)Props(key, "olasilik")["emptyDefault"]!));
+        Assert.DoesNotContain(Definition(key)["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "dovizYeni" or "olasilikYeni");
+        // Kapanmış fırsatta alanlar kilitli.
+        Assert.Equal("kart.rows[0].stage == 'Won' || kart.rows[0].stage == 'Lost'", (string)Props(key, "ad")["disabledWhen"]!);
         // Olasılık kısayolları alanın kendi hazır değerleridir (presets); not çok satırlı, kod yeni kartta boş bırakılabilir.
-        foreach (var input in new[] { "olasilikYeni", "olasilik" })
-            Assert.Equal(new[] { "10=%10", "25=%25", "50=%50", "75=%75", "90=%90" }, Strings(Props(key, input)["presets"]));
+        Assert.Equal(new[] { "10=%10", "25=%25", "50=%50", "75=%75", "90=%90" }, Strings(Props(key, "olasilik")["presets"]));
         Assert.True((bool)Props(key, "not")["multiline"]!);
         Assert.Equal("kart.rows[0].id != null", (string)Props(key, "kod")["requiredWhen"]!);
         var bar = Props(key, "komutlar");

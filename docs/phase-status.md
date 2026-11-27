@@ -1688,3 +1688,17 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Bilinen sınır:**
   - Güncellemeden önce açılmış ve elle değiştirilmiş bir taslak yayımlanırsa güncelleme geri alınmış olur ve yeniden uygulanmaz.
   - Kartın "iptaller hariç" açıklaması taslakları ve onay bekleyenleri söylemez.
+
+
+### 2026-11-28 satış ve cari yeniden tasarım, 1. dalga: beş standart kalıba çizildi
+
+- **Ne değişti:** `customers` v3, `customer-ledger` v3, `crm-opportunities` v2 (Liste) ve `customer-create` v2, `crm-opportunity-create` v2 (Kayıt kartı) standartları el ile kalıplı sayfa olarak yeniden yazıldı (tasarım: `docs/superpowers/specs/2026-11-28-satis-cari-yeniden-tasarim-design.md`, çizim: taslak 13). Yeni kalıp özelliği eklenmedi; belge modeli yok. Sorgular ve yazma akışları (oluştur, güncelle, pasife al, aşama ilerlet, sil, adres ekle/pasife al/etkinleştir) aynı kaldı.
+- **Sadeleşenler:**
+  - `customers`: "Adresler" ve "Satış faturaları" düğmeleri kalktı, detay panel anahtarı yerine yanda hep açık kart var, harita metni kalktı.
+  - `customer-ledger`: Bu ay / Son 3 ay / Yıl başından düğmeleri kalktı, üç gösterge (borç, alacak, dönem sonu bakiye) geldi.
+  - `crm-opportunities`: aşama düğmeleri satır eylemi (yalnız sıradaki aşama ve Kaybedildi görünür), çok dövizli değer göstergesi tek göstergeye indi, aşama adımları (steps) kart içinde yol metni oldu.
+  - `crm-opportunity-create`: yeni/düzenle için ikili Para birimi ve Olasılık alanları tek alan; kapanmış fırsatta alanlar kilitli; aşama rozetleri hâlâ altı koşullu rozettir (tek rozet için aşama etiket sütunu yok); müşteri seçicinin cari tür/durum süzgeci gizli girişlerde kaldı.
+  - `customer-create`: harita enlem/boylam alanları kalktı, iki başlık tek özet oldu (sayfa başlığı başlıkları sekme adı için kaldı), e-Fatura eksik bilgi uyarısı sekmede açıklama metni oldu, "Yeni adres" düğmesi işlem çubuğunun yanındaki sayfa düğmesi.
+- **Karşılıksız kalan:** Kayıt kartında özel alan bloğu olmadığı için `customer-create`'te "Özel alanlar" sekmesi ve özel alan kaydı (`cari.ozelAlanKaydet`, `customFields`) düştü; cari özel alan değerleri bu kartta düzenlenmez. Cari kartı oluşturma API'si zorunlu cari özel alanını zorunlu tutar (`missingRequired`): zorunlu cari özel alanı tanımlı bir firma bu ekrandan yeni cari oluşturamaz. Kalıba özel alan bloğu eklenince geri gelir (tasarım "Kalıplarda eksik" madde 1).
+- **Doğrulanan (yerel):** Beş standart yüklenir, şemadan ve her sürüm kısıtlamasından geçer; ilgili .NET testleri (etkilenen sınıflar), tam ERP ve Studio vitest paketleri ve iki arayüzün `npm run build`'i geçti (Studio paketinde `tests/*.mjs` dosyalarının vitest'te toplanması ve yük altında zaman aşımına uğrayan bir pencere testi bu işten bağımsızdır). `legacyUnchanged` anlık görüntüleri artık cari standartlarının eski (dondurulmuş) kopyalarından çizilir.
+- **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
