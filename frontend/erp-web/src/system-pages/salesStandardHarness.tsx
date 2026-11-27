@@ -53,7 +53,15 @@ export function salesHarness(key: string, api: Mock, catalog: Catalog, respond: 
     );
   };
 
-  const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+  /**
+   * Komut düğmesi: kalıplı (Liste) standartta kabuğun "İşlemler" çubuğundan ("⋯" = "Diğer işlemler"), kalıpsız standartta
+   * ortak "İşlemler çubuğu"ndan. Kabuklu görünümde ortak çubuk hiç çizilmez.
+   */
+  const command = (id: string) => {
+    const shell = screen.queryByRole('toolbar', { name: 'İşlemler' });
+    if (shell) return (id === 'more' ? within(shell).getByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`))!;
+    return screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+  };
   const gets = (path: string) => state.calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
   const writes = () => state.calls.filter((call) => call.method !== 'GET');
   const lastGet = (path: string) => gets(path).at(-1)!;

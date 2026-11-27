@@ -11,10 +11,11 @@ public sealed class InventoryCostStandardTests
     private const string Key = "inventory-cost";
 
     [Fact]
-    public void Header_is_preview_version_1_without_screen_views()
+    public void Header_is_preview_version_2_without_screen_views()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal(1, standard.Version);
+        // v2: Liste kalıbına taşındı (5b-2 dalga 1); öğeler v1'de kalır.
+        Assert.Equal(2, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Stok Değerleme", standard.Title);
         Assert.Equal("Ek maliyetleri, stok değerlemelerini ve alternatif birimleri yönetin.", standard.Description);

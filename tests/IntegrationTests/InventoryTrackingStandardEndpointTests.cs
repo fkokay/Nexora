@@ -60,7 +60,7 @@ public sealed class InventoryTrackingStandardEndpointTests
             var page = await client.GetFromJsonAsync<JsonElement>($"/api/system-pages/{ScreenKey}/published");
             Assert.Equal("@" + ScreenKey, page.GetProperty("code").GetString());
             Assert.Equal("Lot / Seri İzleme", page.GetProperty("name").GetString());
-            Assert.Equal(1, page.GetProperty("standardVersion").GetInt32());
+            Assert.Equal(2, page.GetProperty("standardVersion").GetInt32());
             var definitionJson = page.GetProperty("definitionJson").GetString()!;
             Assert.True(JsonNode.DeepEquals(JsonNode.Parse(SystemPageStandards.All[ScreenKey].DefinitionJson), JsonNode.Parse(definitionJson)));
             Assert.DoesNotContain("\"sql\"", definitionJson);
