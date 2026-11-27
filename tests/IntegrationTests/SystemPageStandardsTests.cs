@@ -122,7 +122,8 @@ public sealed class SystemPageStandardsTests
         Assert.Null(actionBar["props"]!["moreButtons"]);
         Assert.Equal("depoListesi", (string)actionBar["props"]!["exportTable"]!);
         var tabs = v1["components"]!.AsArray().Single(x => (string)x!["id"]! == "sekmeler")!["props"]!["tabs"]!.AsArray();
-        Assert.Equal(new[] { "Liste=depoListesi", "Diğer=" }, tabs.Select(x => (string)x!));
+        // A tab left with no block (all of them added in a later version) goes away with them.
+        Assert.Equal(new[] { "Liste=depoListesi" }, tabs.Select(x => (string)x!));
         Assert.Single(v1["queries"]!.AsArray());
         Assert.Equal(4, JsonNode.Parse(SystemPageStandards.Restrict(standard, 2))!["components"]!.AsArray().Count);
     }
