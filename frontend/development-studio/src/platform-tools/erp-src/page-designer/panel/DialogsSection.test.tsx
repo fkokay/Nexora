@@ -74,8 +74,10 @@ describe("DialogsSection (taslak 12)", () => {
     act(() => rowOf(host, "Satış siparişi").click());
     expect(onShowDialog).toHaveBeenLastCalledWith("siparisPenceresi");
     const text = host.textContent!;
-    for (const label of ["Pencere ayarları", "Başlık", "Boyut", "Kaydet eylemi", "Kaydedince kapat", "Açılışta alanları temizle", "Kayıttan sonra yenilenecek veriler", "İçerik (sırası)"])
+    for (const label of ["Pencere ayarları", "Başlık", "Boyut", "Kaydet eylemi", "Açılışta alanları temizle", "Kayıttan sonra yenilenecek veriler", "İçerik (sırası)"])
       expect(text).toContain(label);
+    // Görünüm penceresinde Kaydet düğmesi yok: "Kaydedince kapat" da gösterilmez (yalnız form penceresinde).
+    expect(text).not.toContain("Kaydedince kapat");
     const sizes = [...byLabel<HTMLElement>(host, "Boyut").querySelectorAll("button")].map((button) => button.textContent);
     expect(sizes).toEqual(["Küçük", "Orta", "Büyük", "Çok büyük"]);
     expect(text).not.toContain("Tam ekran");
@@ -179,6 +181,7 @@ describe("DialogsSection (taslak 12)", () => {
     expect("saveLabel" in dialog()).toBe(false);
     setValue(byLabel<HTMLSelectElement>(host, "Kaydet eylemi"), "");
     expect(host.textContent).not.toContain("Kaydet düğmesinin etiketi");
+    expect(host.textContent).not.toContain("Kaydedince kapat");
   });
 
   it("Kaydet eylemi Yok also clears the save label and Kaydedince kapat", () => {

@@ -128,8 +128,8 @@ function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, o
       </select></label>
     {(saveQuery !== "" || sequence.length > 0) && <DraftInput label="Kaydet düğmesinin etiketi" value={text(props.saveLabel)} maxLength={MAX_SAVE_LABEL}
       disabled={disabled} onCommit={(value) => patch({ saveLabel: sanitizeSafeValue(value, false).slice(0, MAX_SAVE_LABEL).trim() || undefined })}/>}
-    <label className="cpanel-row">Kaydedince kapat<input type="checkbox" aria-label="Kaydedince kapat" checked={props.closeOnSave !== false} disabled={disabled}
-      onChange={(event) => patch({ closeOnSave: event.target.checked ? undefined : false })}/></label>
+    {(saveQuery !== "" || sequence.length > 0) && <label className="cpanel-row">Kaydedince kapat<input type="checkbox" aria-label="Kaydedince kapat" checked={props.closeOnSave !== false} disabled={disabled}
+      onChange={(event) => patch({ closeOnSave: event.target.checked ? undefined : false })}/></label>}
     <label className="cpanel-row">Açılışta alanları temizle<input type="checkbox" aria-label="Açılışta alanları temizle" checked={props.resetOnOpen !== false} disabled={disabled}
       onChange={(event) => patch({ resetOnOpen: event.target.checked ? undefined : false })}/></label>
     <div className="cpanel-q">Kayıttan sonra yenilenecek veriler</div>
