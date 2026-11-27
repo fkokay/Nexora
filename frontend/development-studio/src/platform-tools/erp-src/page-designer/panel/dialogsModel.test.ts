@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDialog, addToGroup, DIALOG_PART_TYPES, dialogOwners, dialogsOf, GROUP_CHILD_TYPES, groupAddableTypes, isGroup, moveInGroup, removeDialog, removeFromGroup, setDialogContents,
+  addDialog, addToGroup, DIALOG_PART_TYPES, dialogOwners, dialogsOf, GROUP_CHILD_TYPES, dialogOpeners, groupAddableTypes, isGroup, moveInGroup, removeDialog, removeFromGroup, setDialogContents,
 } from "./dialogsModel";
 import type { ModelComponent } from "./listPanelModel";
 
@@ -113,5 +113,23 @@ describe("dialogsModel", () => {
     expect(added("dataTable")).toEqual({ type: "dataTable", props: { title: "Tablo", query: "kalemler" } });
     expect(added("dataTable", [])).toBeNull();
     for (const type of ["formCard", "tabs", "contextPanel"]) expect(added(type)).toBeNull();
+  });
+
+  it("new ids do not collide with query ids or names", () => {
+    const queries = [{ id: "pencere", name: "pencereMetni", kind: "read" as const, parameters: [], runOn: "load" as const },
+      { id: "q2", name: "badge", kind: "read" as const, parameters: [], runOn: "load" as const }];
+    const { components, dialogId } = addDialog(salesOrders(), queries);
+    const textId = (components.find((item) => item.id === dialogId)!.props.contains as string[])[0];
+    for (const id of [dialogId, textId]) expect(["pencere", "pencereMetni"]).not.toContain(id);
+    const kids = addToGroup(salesOrders(), "durum", "badge", queries).find((item) => item.id === "durum")!.children as ModelComponent[];
+    expect(kids[2].id).not.toBe("badge");
+  });
+
+  it("dialogOpeners lists bound buttons (command name), and openParam links", () => {
+    const components = [...salesOrders(), c("komutlar", "actionBar", { slot: "commands", openButton: "acDugmesi" }),
+      c("grup", "card", { slot: "dialog" }, [c("icDugme", "button", { text: "Tekrar aç", actionType: "openDialog", dialogId: "pencere" })])];
+    const def = { schemaVersion: 2 as const, queries: [], components };
+    expect(dialogOpeners(def, "pencere")).toEqual(["Görüntüle (komut)", "Tekrar aç", "sayfa bağlantısı orderId"]);
+    expect(dialogOpeners(def, "yok")).toEqual([]);
   });
 });

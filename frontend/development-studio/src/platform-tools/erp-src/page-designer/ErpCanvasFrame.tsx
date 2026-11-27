@@ -40,6 +40,7 @@ type Props = {
 };
 
 const READY_TIMEOUT_MS = 10_000;
+const DIALOG_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const AUTH_RESEND_MS = 1_000;
 const FALLBACK_MESSAGE = "ERP önizlemesine bağlanılamadı, yerleşik önizleme gösteriliyor.";
 const DEVICE_WIDTH = { desktop: "100%", tablet: "768px", mobile: "375px" } as const;
@@ -145,7 +146,8 @@ export default function ErpCanvasFrame(props: Props) {
   }, [tabRequestKey, showTab, platformOrigin, target.previewId, target.systemScreenKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hedef değişince (yukarıdaki sıfırlama) açık pencere yeniden istenir; kapalıdan kapalıya mesaj yollanmaz.
-  const dialogRequest = props.dialogRequest ?? null;
+  // Kimlik desenine uymayan pencere istenmez (protokol onu reddeder); tuval hata atmaz.
+  const dialogRequest = props.dialogRequest && DIALOG_ID.test(props.dialogRequest) ? props.dialogRequest : null;
   useEffect(() => {
     if (dialogRequest === shownDialog.current) return;
     shownDialog.current = dialogRequest;

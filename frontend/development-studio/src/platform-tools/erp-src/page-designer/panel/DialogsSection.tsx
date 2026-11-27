@@ -5,8 +5,7 @@ import { sizeOf, TEMPLATE_DIALOG_SIZES } from "../DialogLookFields";
 import { sanitizeSafeValue } from "../DesignLanguageFields";
 import { iterationOf } from "../erpOperations";
 import type { PageQuery } from "../QueriesPanel";
-import { commandsBar } from "./commandsModel";
-import { addDialog, dialogsOf, removeDialog, setDialogContents } from "./dialogsModel";
+import { addDialog, dialogOpeners, dialogsOf, removeDialog, setDialogContents } from "./dialogsModel";
 import { DraftInput } from "./DraftInput";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import "./component-panel.css";
@@ -40,18 +39,6 @@ const dialogTitle = (dialog: ModelComponent) => text(dialog.props.title) || dial
 const componentLabel = (component: ModelComponent | undefined, id: string) =>
   component ? text(component.props.title) || text(component.props.text) || text(component.props.label) || component.name || id : id;
 
-/** Pencereyi açan düğmeler: `dialogId` ile bağlı düğmeler (Komutlar'a bağlıysa komutun adıyla) ve satır açma düğmesi bu pencereyi açan listenin `openParam`'ı. */
-export function dialogOpeners(def: ModelDefinition, dialogId: string): string[] {
-  const all = def.components.flatMap((component) => [component, ...(Array.isArray(component.children) ? component.children as ModelComponent[] : [])]);
-  const opens = (component: ModelComponent | undefined) => component?.type === "button" && component.props.actionType === "openDialog" && component.props.dialogId === dialogId;
-  const bar = commandsBar(def);
-  const commandOf = (id: string) => bar?.props.openButton === id ? "Görüntüle" : bar?.props.newButton === id ? "Yeni" : null;
-  const buttons = all.filter(opens).map((button) => { const command = commandOf(button.id); return command ? `${command} (komut)` : text(button.props.text) || button.name || button.id; });
-  const links = def.components.filter((component) => component.type === "dataTable" && text(component.props.openParam) !== ""
-    && opens(all.find((item) => item.id === component.props.rowOpenAction))).map((table) => `sayfa bağlantısı ${text(table.props.openParam)}`);
-  return [...new Set([...buttons, ...links])];
-}
-
 /**
  * Kalıplı sayfanın Pencereler bölümü (taslak 12): her pencere bir satır (başlık, boyut, görünüm / form); satır seçilince tuvalde
  * açılır ve ayarları görünür. İçerik yalnız sıralanır; pencerenin iskeleti ERP'de sabittir. Bütün yazımlar `dialogsModel`'den ya da
@@ -74,12 +61,12 @@ export function DialogsSection(props: DialogsSectionProps) {
   return <section className="cpanel-sec" data-part="dialogs"><h4>Pencereler</h4>
     <div className="cpanel-chips" role="list" aria-label="Pencereler">{dialogs.map((dialog) => {
       const on = dialog.id === selected?.id;
-      return <button type="button" role="listitem" key={dialog.id} data-part="dialog-row" className={`cpanel-chip${on ? " on" : ""}`} aria-pressed={on}
-        onClick={() => select(on ? null : dialog.id)}>{dialogTitle(dialog)}<small>{` ${sizeLabel(dialog.props.size)} · ${isForm(dialog) ? "form" : "görünüm"}`}</small></button>;
+      return <div role="listitem" key={dialog.id}><button type="button" data-part="dialog-row" className={`cpanel-chip${on ? " on" : ""}`} aria-pressed={on}
+        onClick={() => select(on ? null : dialog.id)}>{dialogTitle(dialog)}<small>{` ${sizeLabel(dialog.props.size)} · ${isForm(dialog) ? "form" : "görünüm"}`}</small></button></div>;
     })}</div>
     <button type="button" className="cpanel-btn" disabled={disabled} onClick={() => {
       if (disabled) return;
-      const added = addDialog(def.components);
+      const added = addDialog(def.components, def.queries);
       props.onChange({ ...def, components: added.components });
       select(added.dialogId);
     }}>+ Pencere ekle</button>
@@ -130,8 +117,9 @@ function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, o
       <select aria-label="Kaydet eylemi" value={sequence.length > 0 ? "__sequence" : saveQuery} disabled={disabled} onChange={(event) => {
         const value = event.target.value;
         if (value === "__sequence") return;
+        // "Yok": görünüm penceresinde Kaydet düğmesi yok; etiketi ve "Kaydedince kapat" da kalkar.
         patch(value ? { saveQuery: value, saveSequence: undefined, sequenceWhen: undefined, stopOnError: undefined }
-          : { saveQuery: undefined, saveSequence: undefined, sequenceWhen: undefined, stopOnError: undefined });
+          : { saveQuery: undefined, saveSequence: undefined, sequenceWhen: undefined, stopOnError: undefined, saveLabel: undefined, closeOnSave: undefined });
       }}>
         <option value="">{NO_SAVE}</option>
         {sequence.length > 0 && <option value="__sequence">{SEQUENCE}</option>}

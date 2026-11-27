@@ -260,6 +260,12 @@ describe("ErpCanvasFrame", () => {
       expect(post.mock.calls.some(([message]) => (message as { type?: string }).type === "showDialog")).toBe(false);
     });
 
+    it("geçersiz pencere kimliği hata atmaz ve ERP'ye gitmez", () => {
+      const { rerender, props, post } = setup();
+      expect(() => rerender(<ErpCanvasFrame {...props} dialogRequest="a b#tab1" />)).not.toThrow();
+      expect(post.mock.calls.some(([message]) => (message as { type?: string }).type === "showDialog")).toBe(false);
+    });
+
     it("ERP yeniden yerleşince (pencere daraldı) kaplama son kutularla çizilir", () => {
       const seen: { id: string; x: number; y: number }[][] = [];
       const { send } = setup({ overlay: (frame: { blocks: { id: string; x: number; y: number }[] }) => { seen.push(frame.blocks.map(({ id, x, y }) => ({ id, x, y }))); return null; } });

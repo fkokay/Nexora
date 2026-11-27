@@ -3,7 +3,7 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { newRecordTemplateDefinition, newListTemplateDefinition } from "../pageTemplates";
+import { newFreeTemplateDefinition, newRecordTemplateDefinition, newListTemplateDefinition } from "../pageTemplates";
 import { moveInGroup, removeFromGroup } from "./dialogsModel";
 import { GROUP_NOTE, GroupPanel } from "./GroupPanel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
@@ -94,5 +94,19 @@ describe("GroupPanel (taslak 12)", () => {
         list={{ definition: def, catalog: null, catalogStatus: "ready", onChange: () => {} } as never}/>);
       expect(html).toContain(GROUP_NOTE);
     }
+  });
+
+  it("TemplateInspector opens the group panel on a free page's window with its visibility editor; a disabled list makes it read-only", () => {
+    const def = page(newFreeTemplateDefinition() as unknown as ModelDefinition);
+    const component = def.components.find((item) => item.id === "durum")!;
+    const free = { def, catalog: null, onChange: () => {}, onSelect: () => {}, visibility: (id: string) => <i className="kosul">{`koşul ${id}`}</i> };
+    const html = renderToString(<TemplateInspector component={component} legacy={null} tokens={[]} onPlace={() => {}} free={free}
+      list={{ definition: def, catalog: null, catalogStatus: "ready", onChange: () => {} } as never}/>);
+    expect(html).toContain(GROUP_NOTE);
+    expect(html).toContain("koşul durum");
+    const listPage = page();
+    const locked = renderToString(<TemplateInspector component={listPage.components.find((item) => item.id === "durum")!} legacy={null} tokens={[]} onPlace={() => {}}
+      list={{ definition: listPage, catalog: null, catalogStatus: "ready", disabled: true, onChange: () => {} } as never}/>);
+    expect(locked).toMatch(/<select[^>]*aria-label="Üye ekle"[^>]*disabled/);
   });
 });

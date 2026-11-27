@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } from "./page-designer/catalogClient";
+import { CANVAS_PROTOCOL, CANVAS_VERSION } from "./page-designer/erpCanvasProtocol";
 import { newRecordTemplateDefinition } from "./page-designer/pageTemplates";
 import type { ModelDefinition } from "./page-designer/panel/listPanelModel";
 import { chooseRecordSource, fieldKey, removeField } from "./page-designer/panel/recordModel";
@@ -114,4 +115,31 @@ describe("CustomPagesPage on a record card", () => {
     const missing = await open();
     expect(missing.querySelector(".custom-page-code-placeholder")?.textContent).toContain("Bu bileşen katalogda yok.");
   });
+
+  it("Delete on window content removes it and the window's contains drops it", async () => {
+    catalogComponents.definition = { ...start, components: [...start.components,
+      { id: "pencere", type: "dialog", name: "pencere", props: { slot: "dialogs", presentation: "dialog", title: "Not penceresi", contains: ["pencereNotu", "pencereUyari"] } },
+      { id: "pencereNotu", type: "text", name: "pencereNotu", props: { slot: "dialog", text: "Pencere notu" } },
+      { id: "pencereUyari", type: "alert", name: "pencereUyari", props: { slot: "dialog", text: "Dikkat" } }] };
+    // Kayıt kartında bileşen ERP tuvalinden seçilir: pencere notunun kutusuna tıklanır.
+    const { default: CustomPagesPage } = await import("./CustomPagesPage");
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    mounted.push({ root, host });
+    await act(async () => root.render(<CustomPagesPage token="t" role="TenantAdmin" initialPageId="p1" platformOrigin="http://erp.test"
+      tenant={{ id: "11111111-1111-1111-1111-111111111111", name: "A", slug: "a", role: "TenantAdmin" }}/>));
+    await flush();
+    const frame = host.querySelector<HTMLIFrameElement>("iframe.pd-erp-canvas-frame")!;
+    await act(async () => {
+      for (const data of [{ nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: "ready", revision: 0 },
+        { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: "layout", revision: 1, height: 400, blocks: [{ id: "pencereNotu", x: 0, y: 0, width: 600, height: 90 }] }])
+        window.dispatchEvent(new MessageEvent("message", { origin: "http://erp.test", source: frame.contentWindow, data }));
+    });
+    await act(async () => host.querySelector(".pd-erp-canvas-overlay")!.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 10, clientY: 10 })));
+    await key({ key: "Delete" });
+    const def = await saveNow();
+    expect(def.components.some((component) => component.id === "pencereNotu")).toBe(false);
+    expect(def.components.find((component) => component.id === "pencere")!.props.contains).toEqual(["pencereUyari"]);
+  }, 30_000);
 });

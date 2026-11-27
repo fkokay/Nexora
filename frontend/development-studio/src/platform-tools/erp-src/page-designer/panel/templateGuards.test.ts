@@ -3,7 +3,7 @@ import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } f
 import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField, sectionRemovalBlocked } from "./recordModel";
-import { BELGE_TEMPLATE_SLOTS, ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, RECORD_TEMPLATE_SLOTS, TEMPLATE_SLOTS, isFreeItemType, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
+import { BELGE_TEMPLATE_SLOTS, ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, RECORD_TEMPLATE_SLOTS, TEMPLATE_SLOTS, dialogRemoval, isFreeItemType, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
   const base = newListTemplateDefinition() as unknown as ModelDefinition;
@@ -296,4 +296,34 @@ describe("dialogs and groups (5b-2 adım 2)", () => {
     expect([...TEMPLATE_SLOTS].filter((slot) => slot.startsWith("dialog")).sort()).toEqual(["dialog", "dialogs"]);
     expect([...RECORD_TEMPLATE_SLOTS].filter((slot) => slot.startsWith("dialog")).sort()).toEqual(["dialog", "dialogs"]);
   });
+
+describe("generic delete and duplicate on window parts (5b-2 adım 2)", () => {
+  const c = (id: string, type: string, props: ModelDefinition["components"][number]["props"] = {}) => ({ id, type, name: id, props });
+  const withDialogs = (base: ModelDefinition, opener: boolean): ModelDefinition => ({ ...base, components: [...base.components,
+    c("pencere", "dialog", { slot: "dialogs", presentation: "dialog", title: "P", contains: ["pMetin"] }), c("pMetin", "text", { slot: "dialog", text: "x" }),
+    ...(opener ? [c("pAc", "button", { slot: (base.template as { name: string } | undefined)?.name === "free" ? "actions" : "below", text: "Aç", actionType: "openDialog", dialogId: "pencere" })] : [])] });
+
+  it("record card: window parts are not card parts (generic delete / duplicate)", () => {
+    const def = withDialogs(newRecordTemplateDefinition() as unknown as ModelDefinition, false);
+    expect(recordSelectionOf(def, "pMetin")).toBeNull();
+    expect(recordSelectionOf(def, "pencere")).toBeNull();
+    expect(recordRemoval(def, "pMetin")).toEqual({ kind: "generic" });
+    expect(templateDuplicateBlocked(def, "pMetin")).toBe(false);
+  });
+
+  it.each([["list", newListTemplateDefinition], ["record", newRecordTemplateDefinition], ["free", newFreeTemplateDefinition]] as const)(
+    "a window a button opens is not deleted; one without openers goes with its own content (%s)", (_name, base) => {
+      const opened = withDialogs(base() as unknown as ModelDefinition, true);
+      expect(dialogRemoval(opened, "pencere")).toEqual({ kind: "none" });
+      const free = withDialogs(base() as unknown as ModelDefinition, false);
+      const removed = dialogRemoval(free, "pencere");
+      expect(removed.kind).toBe("removed");
+      expect((removed as { def: ModelDefinition }).def.components.map((item) => item.id)).toEqual((base() as unknown as ModelDefinition).components.map((item) => item.id));
+      expect(dialogRemoval(free, "pMetin")).toEqual({ kind: "generic" });
+    });
+  it("pages without a template use the generic path", () => {
+    const def = page([c("pencere", "dialog", { contains: [] })], false);
+    expect(dialogRemoval(def, "pencere")).toEqual({ kind: "generic" });
+  });
+});
 });

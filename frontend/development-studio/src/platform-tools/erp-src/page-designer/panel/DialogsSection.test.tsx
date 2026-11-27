@@ -180,4 +180,31 @@ describe("DialogsSection (taslak 12)", () => {
     setValue(byLabel<HTMLSelectElement>(host, "Kaydet eylemi"), "");
     expect(host.textContent).not.toContain("Kaydet düğmesinin etiketi");
   });
+
+  it("Kaydet eylemi Yok also clears the save label and Kaydedince kapat", () => {
+    const onChange = vi.fn();
+    const initial = page();
+    initial.components = initial.components.map((item) => item.id === "notPenceresi" ? { ...item, props: { ...item.props, saveLabel: "Kaydet", closeOnSave: false } } : item);
+    const host = mount(initial, { onChange });
+    act(() => rowOf(host, "Not").click());
+    setValue(byLabel<HTMLSelectElement>(host, "Kaydet eylemi"), "");
+    const props = (onChange.mock.lastCall![0] as ModelDefinition).components.find((item) => item.id === "notPenceresi")!.props;
+    for (const key of ["saveQuery", "saveLabel", "closeOnSave"]) expect(key in props).toBe(false);
+  });
+
+  it("rows are list items holding a button", () => {
+    const host = mount();
+    const items = [...host.querySelectorAll("[aria-label='Pencereler'] > [role='listitem']")];
+    expect(items).toHaveLength(2);
+    expect(items.every((item) => item.tagName === "DIV" && item.querySelector("button[data-part='dialog-row']"))).toBe(true);
+  });
+
+  it("+ Pencere ekle avoids query ids", () => {
+    const onChange = vi.fn();
+    const initial = { ...page(), queries: [...page().queries, q("pencere", "read")] };
+    const host = mount(initial, { onChange });
+    act(() => [...host.querySelectorAll("button")].find((button) => button.textContent === "+ Pencere ekle")!.click());
+    const added = (onChange.mock.lastCall![0] as ModelDefinition).components.filter((item) => item.type === "dialog").at(-1)!;
+    expect(added.id).not.toBe("pencere");
+  });
 });

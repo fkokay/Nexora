@@ -3,6 +3,7 @@
 // pencereye ait. Grup `section` / `card` + `children`, tek kat. Bütün işlevler bileşen dizisini değiştirmeden yenisini döndürür;
 // değişiklik yoksa aynı dizi döner.
 import type { PageQuery } from "../QueriesPanel";
+import { commandsBar } from "./commandsModel";
 import { freeId, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 
 export const DIALOGS_SLOT = "dialogs";
@@ -63,12 +64,31 @@ export function dialogOwners(components: Components): Map<string, string> {
   return owners;
 }
 
-const asDef = (components: Components): ModelDefinition => ({ schemaVersion: 2, queries: [], components });
+/** Yeni kimlikler sayfanın bileşen ve sorgu kimlikleri / adlarıyla çakışmasın diye sorgular da verilir. */
+const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+/**
+ * Pencereyi açanlar: `dialogId` ile bağlı düğmeler (üst düzey ya da grup çocuğu; Komutlar'a bağlıysa komutun adıyla) ve satır açma
+ * düğmesi bu pencereyi açan listenin `openParam`'ı (`sayfa bağlantısı <param>`). Açanı olan pencere silinmez (sunucu, var olmayan
+ * pencereyi açan düğmeyi reddeder).
+ */
+export function dialogOpeners(def: ModelDefinition, dialogId: string): string[] {
+  const all = def.components.flatMap((component) => [component, ...childrenOf(component)]);
+  const opens = (component: ModelComponent | undefined) => component?.type === "button" && component.props.actionType === "openDialog" && component.props.dialogId === dialogId;
+  const bar = commandsBar(def);
+  const commandOf = (id: string) => bar?.props.openButton === id ? "Görüntüle" : bar?.props.newButton === id ? "Yeni" : null;
+  const buttons = all.filter(opens).map((button) => { const command = commandOf(button.id); return command ? `${command} (komut)` : text(button.props.text) || button.name || button.id; });
+  const links = def.components.filter((component) => component.type === "dataTable" && text(component.props.openParam) !== ""
+    && opens(all.find((item) => item.id === component.props.rowOpenAction))).map((table) => `sayfa bağlantısı ${text(table.props.openParam)}`);
+  return [...new Set([...buttons, ...links])];
+}
+
+const asDef = (components: Components, queries: PageQuery[]): ModelDefinition => ({ schemaVersion: 2, queries, components });
 
 /** Boş bir görünüm penceresi ve içindeki tek metin; sayfanın sonuna eklenir. */
-export function addDialog(components: Components): { components: Components; dialogId: string } {
-  const dialogId = freeId(asDef(components), "pencere");
-  const textId = freeId(asDef(components), "pencereMetni", new Set([dialogId.toLowerCase()]));
+export function addDialog(components: Components, queries: PageQuery[] = []): { components: Components; dialogId: string } {
+  const dialogId = freeId(asDef(components, queries), "pencere");
+  const textId = freeId(asDef(components, queries), "pencereMetni", new Set([dialogId.toLowerCase()]));
   const dialog: ModelComponent = { id: dialogId, type: "dialog", name: dialogId,
     props: { slot: DIALOGS_SLOT, presentation: "dialog", size: "lg", title: "Yeni pencere", contains: [textId] } };
   const text: ModelComponent = { id: textId, type: "text", name: textId, props: { slot: DIALOG_SLOT, text: "Pencere içeriği" } };
@@ -133,7 +153,7 @@ export function addToGroup(components: Components, groupId: string, type: string
   const props = GROUP_CHILD_TYPES.has(type) ? childProps(type, queries) : null;
   if (!props) return components;
   return withChildren(components, groupId, (children) => {
-    const id = freeId(asDef(components), type);
+    const id = freeId(asDef(components, queries), type);
     return [...children, { id, type, name: id, props }];
   });
 }

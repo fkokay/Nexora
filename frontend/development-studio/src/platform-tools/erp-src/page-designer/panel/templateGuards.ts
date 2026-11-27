@@ -6,7 +6,7 @@ import {
   freeBlocks, freeTabs, isFreeBlock, isFreeItem, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, removeBlock as removeFreeBlock, removeItem as removeFreeItem,
   removePageAction, setFreeTabs,
 } from "./freeModel";
-import { DIALOG_SLOT, DIALOGS_SLOT, dialogOwners } from "./dialogsModel";
+import { DIALOG_SLOT, DIALOGS_SLOT, dialogOpeners, dialogOwners, removeDialog } from "./dialogsModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
@@ -197,7 +197,8 @@ export function recordSelectionOf(def: ModelDefinition, componentId: string | nu
   const component = componentId ? def.components.find((item) => item.id === componentId) : undefined;
   if (!component) return { kind: "page" };
   const slot = typeof component.props.slot === "string" ? component.props.slot : "";
-  if (slot === "above" || slot === "below") return null;
+  // Ek alanlar ve pencere parçaları (5b-2 adım 2) kartın parçası değildir: genel silme / kopyalama yolu ve genel panel.
+  if (slot === "above" || slot === "below" || slot === DIALOG_SLOT || slot === DIALOGS_SLOT) return null;
   if (slot === "section" && component.type === "formCard") return { kind: "section", id: component.id };
   if (slot === "field" && component.type === "input") return { kind: "field", id: component.id };
   if (slot === "lines" && component.type === "dataTable") return { kind: "lines", id: component.id };
@@ -229,6 +230,19 @@ export function recordRemoval<D extends ModelDefinition>(def: D, id: string): Re
     return reason ? { kind: "blocked", reason } : { kind: "removed", def: removeSection(def, id) };
   }
   return { kind: "removed", def: removeBlock(def, id) };
+}
+
+/**
+ * Kalıplı sayfada pencerenin silinmesi (Delete tuşu, çöp düğmeleri): açanı olan pencere silinmez (Pencereler bölümündeki Kaldır
+ * gibi; sunucu var olmayan pencereyi açan düğmeyi reddeder), öteki pencere yalnız kendine ait içeriğiyle silinir. Pencere değilse
+ * ya da sayfa kalıpsızsa genel yol.
+ */
+export function dialogRemoval<D extends ModelDefinition>(def: D, id: string): RecordRemoval<D> {
+  if (!readPageTemplate(def.template)) return { kind: "generic" };
+  const component = def.components.find((item) => item.id === id);
+  if (component?.type !== "dialog") return { kind: "generic" };
+  if (dialogOpeners(def, id).length > 0) return { kind: "none" };
+  return { kind: "removed", def: { ...def, components: removeDialog(def.components, id) } };
 }
 
 /**

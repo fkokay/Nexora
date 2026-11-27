@@ -63,7 +63,7 @@ import { stringList, withOperationParameters, type ModelComponent, type ModelDef
 import { addField, addLines, addNote, linesSourceUsable, recordPartTab, recordQuery, recordTabs, MAX_SECTION_FIELDS } from "./page-designer/panel/recordModel";
 import type { RecordSelection } from "./page-designer/panel/RecordPanel";
 import { RecordFieldList, type RecordBlockKind } from "./page-designer/panel/RecordFieldList";
-import { ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
+import { dialogRemoval, ensureTemplateSlots, freeRemoval, recordRemoval, recordSelectionOf, templateDuplicateBlocked } from "./page-designer/panel/templateGuards";
 import type { FreeSelection } from "./page-designer/panel/FreePanel";
 import { RecordCanvasOverlay } from "./page-designer/recordCanvasOverlay";
 import { FreeCanvasOverlay } from "./page-designer/freeCanvasOverlay";
@@ -2254,6 +2254,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     // Kalıplı sayfanın Komutlar çubuğu genel yolla silinmez: komutlar Komutlar bölümünde gizlenir (ayarları korunur).
     const target = definitionRef.current.components.find((component) => component.id === id);
     if (readPageTemplate(definitionRef.current.template) && target?.type === "actionBar" && target.props.slot === "commands") return;
+    // Kalıplı sayfanın penceresi: açanı varsa silinmez, yoksa yalnız kendi içeriğiyle silinir (Pencereler › Kaldır ile aynı kural).
+    const dialog = dialogRemoval(definitionRef.current as unknown as ModelDefinition, id);
+    if (dialog.kind === "none") return;
+    if (dialog.kind === "removed") { commit(() => dialog.def as unknown as PageDefinition); setSelectedComponentId((value) => value === id ? null : value); setCanvasDialog((value) => value === id ? null : value); return; }
     // Kayıt kartının parçaları modelin kuralıyla silinir (eyleme bağlı alan silinmez; özet, sekmeler ve eylem düğmeleri hiç).
     const record = recordRemoval(definitionRef.current as unknown as ModelDefinition, id);
     if (record.kind === "none") return;
@@ -3943,7 +3947,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const commandPaths = bindingSuggestions.map((item) => ({ path: item.path, label: `${item.path}${item.detail ? ` · ${item.detail}` : ""}`, group: item.group }));
   // Pencereler bölümü (Liste, Kayıt kartı, Serbest): seçilen pencere tuvalde açılır.
   const commandProps = { pages: commandPages, paths: commandPaths, pageNames: pageNamesOf(definition), shownDialog: canvasDialog, onShowDialog: setCanvasDialog };
-  const canvasDialogShown = canvasDialog && definition.components.some((component) => component.id === canvasDialog && component.type === "dialog") ? canvasDialog : null;
+  const canvasDialogShown = canvasDialog && /^[A-Za-z0-9_-]{1,64}$/.test(canvasDialog) && definition.components.some((component) => component.id === canvasDialog && component.type === "dialog") ? canvasDialog : null;
   const freePanel = isFreePage ? {
     ...commandProps,
     def: definition as unknown as ModelDefinition, catalog: recordCatalog, catalogStatus: activeCatalog.status, disabled: !canEdit, name, onRename: setName,

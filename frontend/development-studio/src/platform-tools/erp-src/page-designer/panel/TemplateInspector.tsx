@@ -179,7 +179,7 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
     const def = free?.def ?? record?.def ?? belge?.def ?? list?.definition;
     const onChange = free?.onChange ?? record?.onChange ?? belge?.onChange ?? list?.onChange;
     if (def && onChange) return <GroupPanel def={def} groupId={component.id} onChange={onChange}
-      disabled={disabled || free?.disabled || record?.disabled || belge?.disabled}
+      disabled={disabled || free?.disabled || record?.disabled || belge?.disabled || list?.disabled}
       visibility={free?.visibility?.(component.id) ?? record?.visibility?.(component.id) ?? list?.visibility}/>;
   }
   if (free && !inDialog) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
