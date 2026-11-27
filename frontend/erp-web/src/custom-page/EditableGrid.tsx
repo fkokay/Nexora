@@ -26,9 +26,9 @@ function sourceCell(row: Record<string, unknown>, code: string): string {
  * Düzenlenebilir tablo (`editableGrid`): gerçek bir `<table>`. `stage` kipinde kaynak satırlar salt okunurdur (silinmek
  * üzere işaretlenir, "Geri al" ile geri alınır), yeni satırlar düzenlenir; `list`/`matrix` kiplerinde tüm satırlar düzenlenir.
  */
-export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
+export function EditableGrid({ id, title, description, mode, columns, state, sourceRows, rowKey, dispatch, errors, fixedRowLabel, addLabel, maxRows,
   disabled, disabledReason, loading, error, matrixPreviewCount, style, pickerFor, pickerLabel, totals = {}, calcText, lockedFor }: {
-  id: string; title: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
+  id: string; title: string; /** Başlığın altındaki açıklama (kalıplı pencerede satır tablosu); boşsa çizilmez. */ description?: string; mode: "stage" | "list" | "matrix"; columns: GridColumn[];
   state: GridState; sourceRows: Record<string, unknown>[]; rowKey: string; dispatch: (action: GridAction) => void;
   errors: Record<string, Record<string, string>>; fixedRowLabel: string; addLabel: string; maxRows: number;
   disabled: boolean; disabledReason: string; loading: boolean; error?: string; matrixPreviewCount?: number; style: CSSProperties;
@@ -87,6 +87,7 @@ export function EditableGrid({ id, title, mode, columns, state, sourceRows, rowK
   const tableError = errors[""]?.[""];
   return <section className={`tenant-page-block tenant-page-grid${disabled ? " is-disabled" : ""}`} style={style} data-grid={id}>
     {title && <h3>{title}</h3>}
+    {description && <p className="tenant-page-text">{description}</p>}
     {disabled && disabledReason && <p className="tenant-page-disabled-reason">{disabledReason}</p>}
     {loading ? <div className="tenant-report-state" role="status">Yükleniyor…</div>
       : error ? <div className="tenant-custom-page-error tenant-page-query-error" role="alert"><AlertCircle size={16} /><span>{error}</span></div>

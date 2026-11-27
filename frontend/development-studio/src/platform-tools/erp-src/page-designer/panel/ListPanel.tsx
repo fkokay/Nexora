@@ -37,6 +37,8 @@ export type ListPanelProps = {
   onChange: (next: ModelDefinition) => void;
   /** "Ne zaman görünsün?" alanı (tasarımcının koşul düzenleyicisi); verilmezse yalnız "Her zaman" gösterilir. */
   visibility?: ReactNode;
+  /** Özel alan bloğu ve pencere satır tablosu için "Ne zaman salt okunur" seçicisi (tasarımcıdan gelir). */
+  readOnlyWhen?: ReactNode;
   /** "Yazılımcıdan iste →" tıklanınca (ör. kaydedilmemiş değişiklik onayı; `preventDefault` geçişi durdurur). */
   onLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
 };

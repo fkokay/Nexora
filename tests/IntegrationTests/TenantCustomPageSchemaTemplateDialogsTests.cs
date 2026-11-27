@@ -193,10 +193,8 @@ public sealed class TenantCustomPageSchemaTemplateDialogsTests
     }
 
     [Fact]
-    public void Dialog_with_editableGrid_steps_or_two_summaries_is_rejected()
+    public void Dialog_with_steps_or_two_summaries_is_rejected()
     {
-        var grid = C("izgara", "editableGrid", "dialog", new { title = "Kalemler", gridMode = "list", gridColumns = new[] { "ad|Ad|text" } });
-        Rejected(Page("list", [ListTable(), Dialog(["izgara"]), grid]), PencereTuru("editableGrid"));
         var steps = C("adimlar", "steps", "dialog", new { steps = new[] { "Bir", "İki" }, activeWhen = new[] { "liste.rows[0].x == 1", "liste.rows[0].x == 2" } });
         Rejected(Page("list", [ListTable(), Dialog(["adimlar"]), steps]), PencereTuru("steps"));
         Rejected(Page("list", [ListTable(), Dialog(["ozet", "ozet2"]), Header(), Header("ozet2")]), PencereOzet);
