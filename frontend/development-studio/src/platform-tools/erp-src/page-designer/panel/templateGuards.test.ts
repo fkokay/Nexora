@@ -3,7 +3,7 @@ import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } f
 import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { ModelDefinition } from "./listPanelModel";
 import { addNote, chooseRecordSource, fieldKey, fieldRemovalBlocked, removeBlock, removeField, sectionRemovalBlocked } from "./recordModel";
-import { ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, isFreeItemType, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
+import { BELGE_TEMPLATE_SLOTS, ensureTemplateSlots, FREE_ITEM_TYPES, FREE_TEMPLATE_SLOTS, RECORD_TEMPLATE_SLOTS, TEMPLATE_SLOTS, isFreeItemType, recordRemoval, templateDuplicateBlocked } from "./templateGuards";
 
 const page = (components: ModelDefinition["components"], template = true): ModelDefinition => {
   const base = newListTemplateDefinition() as unknown as ModelDefinition;
@@ -60,7 +60,7 @@ describe("free template guards", () => {
   const membersOf = (def: ModelDefinition, id: string) => def.components.find((c) => c.id === id)!.props.members;
 
   it("FREE_TEMPLATE_SLOTS", () => {
-    expect([...FREE_TEMPLATE_SLOTS].sort()).toEqual(["actions", "block", "item", "tabs"]);
+    expect([...FREE_TEMPLATE_SLOTS].sort()).toEqual(["actions", "block", "dialog", "dialogs", "item", "tabs"]);
   });
 
   it("only a catalog code is a free item; inline code is not (server rule)", () => {
@@ -241,5 +241,59 @@ describe("commands slot (5b-2a)", () => {
   it("does not take a non-bar component into the commands slot", () => {
     const def = page([list, { id: "yazi", type: "text", props: { slot: "commands" } }]);
     expect(ensureTemplateSlots(def).components.find((c) => c.id === "yazi")!.props.slot).toBe("below");
+  });
+});
+
+describe("dialogs and groups (5b-2 adım 2)", () => {
+  const c = (id: string, type: string, props: ModelDefinition["components"][number]["props"] = {}, children?: ModelDefinition["components"]) =>
+    ({ id, type, name: id, props, ...(children ? { children } : {}) });
+  const parts = () => [
+    c("pencere", "dialog", { slot: "dialogs", presentation: "dialog", size: "xl", title: "Sipariş", contains: ["pOzet", "durum", "pSekmeler"] }),
+    c("pOzet", "recordHeader", { slot: "dialog" }),
+    c("durum", "section", { slot: "dialog", visibleWhen: "x == 1" }, [c("rozet", "badge", { text: "Taslak", width: 6 }), c("dugme", "button", { text: "Yenile" })]),
+    c("pSekmeler", "tabs", { slot: "dialog", tabs: ["Bilgiler=teslim"] }),
+    c("teslim", "section", { slot: "dialog" }, [c("form", "formCard", { inputs: ["tarih"] })]),
+    c("tarih", "input", { slot: "dialog", inputType: "date" }),
+  ];
+  const byId = (def: ModelDefinition, id: string) => def.components.find((item) => item.id === id)!;
+  const templates = [
+    ["list", () => ({ ...(newListTemplateDefinition() as unknown as ModelDefinition) })],
+    ["record", () => newRecordTemplateDefinition() as unknown as ModelDefinition],
+    ["free", () => newFreeTemplateDefinition() as unknown as ModelDefinition],
+  ] as const;
+
+  it.each(templates)("leaves dialogs, dialog contents and group children in place (%s)", (_name, base) => {
+    const start = base();
+    const def: ModelDefinition = { ...start, components: [...start.components, ...parts()] };
+    const fixed = ensureTemplateSlots(def);
+    for (const id of ["pencere", "pOzet", "durum", "pSekmeler", "teslim", "tarih"]) expect(byId(fixed, id).props.slot).toBe(byId(def, id).props.slot);
+    // Grup çocukları taşınmaz; yalnız genişlik atılır.
+    expect(byId(fixed, "durum").children).toEqual([c("rozet", "badge", { text: "Taslak" }), c("dugme", "button", { text: "Yenile" })]);
+    expect(byId(fixed, "durum").props.visibleWhen).toBe("x == 1");
+    // Pencere içeriği Serbest gövdede bir bölüme girmez.
+    expect(fixed.components.some((item) => Array.isArray(item.props.members) && item.props.members.some((id) => ["pOzet", "durum", "tarih"].includes(id)))).toBe(false);
+    expect(ensureTemplateSlots(fixed)).toBe(fixed);
+  });
+
+  it.each(templates)("puts a slotless dialog into dialogs and its contents into dialog (%s)", (_name, base) => {
+    const start = base();
+    const def: ModelDefinition = { ...start, components: [...start.components,
+      c("pencere", "dialog", { presentation: "dialog", contains: ["metin"] }), c("metin", "text", { text: "İçerik" }), c("serbest", "text", { slot: "dialog", text: "Sahipsiz" })] };
+    const fixed = ensureTemplateSlots(def);
+    expect(byId(fixed, "pencere").props.slot).toBe("dialogs");
+    expect(byId(fixed, "metin").props.slot).toBe("dialog");
+    // Hiçbir pencereye ait olmayan `dialog` yerindeki bileşen kalıbın ek yerine düşer.
+    expect(byId(fixed, "serbest").props.slot).toBe(_name === "free" ? "item" : "below");
+  });
+
+  it("a list detail card group stays in detail", () => {
+    const def = page([list, c("detayKart", "card", { slot: "detail", title: "Seçili" }, [c("kod", "text", { text: "{{liste.seciliSatir.code}}" })])]);
+    expect(ensureTemplateSlots(def)).toBe(def);
+  });
+
+  it("belge has no dialogs slot", () => {
+    expect(BELGE_TEMPLATE_SLOTS.has("dialogs")).toBe(false);
+    expect([...TEMPLATE_SLOTS].filter((slot) => slot.startsWith("dialog")).sort()).toEqual(["dialog", "dialogs"]);
+    expect([...RECORD_TEMPLATE_SLOTS].filter((slot) => slot.startsWith("dialog")).sort()).toEqual(["dialog", "dialogs"]);
   });
 });

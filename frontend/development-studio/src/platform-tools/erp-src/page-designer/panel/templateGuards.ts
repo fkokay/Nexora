@@ -6,15 +6,16 @@ import {
   freeBlocks, freeTabs, isFreeBlock, isFreeItem, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, removeBlock as removeFreeBlock, removeItem as removeFreeItem,
   removePageAction, setFreeTabs,
 } from "./freeModel";
+import { DIALOG_SLOT, DIALOGS_SLOT, dialogOwners } from "./dialogsModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
-export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below"]);
-export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below"]);
+export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
+export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
 const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
 export const BELGE_TEMPLATE_SLOTS = new Set(["fields", "lines", "summary", "actions", "above", "below"]);
 const BELGE_SLOT_TYPES: Record<string, string> = { fields: "documentFields", lines: "documentLines", summary: "documentSummary", actions: "button" };
-export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item"]);
+export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item", DIALOGS_SLOT, DIALOG_SLOT]);
 /** Serbest gövdede `item` yerine konabilen tipler (sunucu: PageTemplateRules); `code` yalnız katalog bileşeniyle (`isFreeItemType`). */
 export const FREE_ITEM_TYPES = new Set(["heading", "text", "label", "section", "alert", "card", "list", "metric", "progress", "badge", "image", "dataTable"]);
 /** Serbest gövde öğesi olabilir mi: `FREE_ITEM_TYPES` ya da katalog bileşenine başvuran `code` (satır içi kodlu `code` olamaz; sunucu da reddeder). */
@@ -27,6 +28,21 @@ export function isFreeItemType(component: ModelComponent): boolean {
 }
 const FREE_SLOT_TYPES: Record<string, string> = { actions: "button", tabs: "tabs", block: "section" };
 const SLOT_TYPES: Record<string, string> = { indicators: "metric", filters: "filterBar", list: "dataTable", actions: "button", rowActions: "button", detail: "contextPanel" };
+/** Liste `detail` yerinde detay paneli ya da kart grubu durur (5b-2 adım 2). */
+const slotTypeFits = (slotTypes: Record<string, string>, slot: string, type: string) =>
+  !slotTypes[slot] || slotTypes[slot] === type || (slotTypes === SLOT_TYPES && slot === "detail" && type === "card");
+
+/**
+ * Pencerenin yeri (5b-2 adım 2; Belge'de yok): pencere `dialogs`'ta, bir pencereye ait içerik `dialog`'da durur (yeri olmayan ya da
+ * başka yerdeki pencere / içerik oraya alınır). Hiçbir pencereye ait olmayan `dialog` bileşeni kalıbın genel kuralına düşer.
+ * Pencere ve içeriği taşınmaz, grup çocuklarına dokunulmaz; dönen değer bileşenin yeri ya da kalıbın kuralı için null.
+ */
+function dialogSlotOf(component: ModelComponent, owners: Map<string, string>): string | null {
+  if (component.type === "dialog") return DIALOGS_SLOT;
+  if (owners.has(component.id)) return DIALOG_SLOT;
+  return null;
+}
+const placeIn = (component: ModelComponent, slot: string) => component.props.slot === slot ? component : { ...component, props: { ...component.props, slot } };
 
 const ids = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
@@ -73,13 +89,16 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
   const rowButtons = new Set(def.components.flatMap((component) => component.type === "dataTable"
     ? [...ids(component.props.rowActions), ...(typeof component.props.rowOpenAction === "string" ? [component.props.rowOpenAction] : [])] : []));
   const barId = commandsBarId(def);
+  const owners = dialogOwners(def.components);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const bar = placeCommandsBar(next, barId);
     if (bar) { if (bar !== component) changed = true; return bar; }
+    const dialogSlot = template.name === "belge" ? null : dialogSlotOf(next, owners);
+    if (dialogSlot) { next = placeIn(next, dialogSlot); if (next !== component) changed = true; return next; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = slots.has(slot) && (!slotTypes[slot] || slotTypes[slot] === next.type);
+    const fits = slots.has(slot) && slot !== DIALOG_SLOT && slot !== DIALOGS_SLOT && slotTypeFits(slotTypes, slot, next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" && rowButtons.has(next.id) ? "rowActions" : "below" } };
     if (next !== component) changed = true;
     return next;
@@ -89,13 +108,16 @@ export function ensureTemplateSlots<D extends ModelDefinition>(def: D): D {
 
 function ensureFreeSlots<D extends ModelDefinition>(def: D): D {
   const barId = commandsBarId(def);
+  const owners = dialogOwners(def.components);
   let changed = false;
   const components = def.components.map((component) => {
     let next = stripWidth(component);
     const bar = placeCommandsBar(next, barId);
     if (bar) { if (bar !== component) changed = true; return bar; }
+    const dialogSlot = dialogSlotOf(next, owners);
+    if (dialogSlot) { next = placeIn(next, dialogSlot); if (next !== component) changed = true; return next; }
     const slot = typeof next.props.slot === "string" ? next.props.slot : "";
-    const fits = FREE_TEMPLATE_SLOTS.has(slot) && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
+    const fits = FREE_TEMPLATE_SLOTS.has(slot) && slot !== DIALOG_SLOT && slot !== DIALOGS_SLOT && (slot === "item" ? isFreeItemType(next) : FREE_SLOT_TYPES[slot] === next.type);
     if (!fits) next = { ...next, props: { ...next.props, slot: next.type === "button" ? "actions" : "item" } };
     if (next !== component) changed = true;
     return next;
