@@ -97,7 +97,7 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (name: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${name}"]`)!;
+const command = (name: string) => screen.getByRole('toolbar', { name: /^İşlemler/ }).querySelector<HTMLElement>(`[data-command="${name}"]`)!;
 const ready = (name: string) => waitFor(() => expect(command(name).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -105,7 +105,8 @@ const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 const input = (name: string) => document.getElementById(`page-input-${name}`) as HTMLInputElement;
 const cell = (text: string) => screen.findByText(text, { selector: '.tenant-page-data-grid td' }, T);
 const rowOf = (text: string) => screen.getAllByText(text, { selector: '.tenant-page-data-grid td' })[0].closest('tr')!;
-const openMenu = () => fireEvent.click(command('more'));
+const toolbar = () => screen.getByRole('toolbar', { name: /^İşlemler/ });
+const openMenu = () => fireEvent.click(toolbar().querySelector<HTMLElement>('[data-command="more"]') ?? within(toolbar()).getByRole('button', { name: 'Diğer işlemler' }));
 const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 const menuItem = async (name: RegExp) => {
   openMenu();
@@ -118,33 +119,38 @@ const select = async (code: string, n: number) => {
     || rowOf(code).getAttribute('aria-current') === 'true').toBe(true), T);
   await waitFor(() => expect(gets(`/api/foreign-trade/cases/${id(n)}`).length).toBeGreaterThan(0), T);
 };
+/** Menüyü açıp kapatmak DOM'u değiştirir; waitFor'un gözlemcisi bunu yeniden tetikler. Bu yüzden aralıklı yoklanır. */
+const poll = async (check: () => void) => {
+  const end = Date.now() + 10000;
+  for (;;) {
+    try { check(); return; } catch (error) {
+      if (Date.now() > end) throw error;
+      await new Promise((done) => setTimeout(done, 100));
+    }
+  }
+};
 /** Menü öğesi görünür ve istenen durumda olana kadar menüyü yeniden açar (seçili kayıt yüklenince değişir). */
 const itemWhen = async (name: RegExp, enabled: boolean) => {
   let item: HTMLElement | null = null;
-  await waitFor(() => {
+  await poll(() => {
     closeMenu();
     openMenu();
     item = screen.queryByRole('menuitem', { name });
     expect(item).toBeTruthy();
-    expect(item!.getAttribute('aria-disabled') === 'true').toBe(!enabled);
-  }, T);
+    expect(item!.hasAttribute('disabled') || item!.getAttribute('aria-disabled') === 'true').toBe(!enabled);
+  });
   return item! as HTMLElement;
 };
 const enabledItem = (name: RegExp) => itemWhen(name, true);
 const disabledItem = (name: RegExp) => itemWhen(name, false);
 /** Menü adlarını, koşul sağlanana kadar yeniden okur. */
-const namesWhen = (check: (names: string[]) => void) => waitFor(() => {
+const namesWhen = (check: (names: string[]) => void) => poll(() => {
   closeMenu();
   openMenu();
   const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
   closeMenu();
   check(names);
-}, T);
-/** Detay paneli tablonun araç çubuğundaki basılı/bırakılmış düğmedir (taslak 21). */
-const panelOn = () => {
-  const panel = screen.getByRole('button', { name: 'Detay paneli' });
-  if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
-};
+});
 const text = () => document.body.textContent ?? '';
 
 beforeEach(() => {
@@ -171,7 +177,10 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     expect(query(list[0].url).get('page')).toBe('1');
     expect(query(list[0].url).get('pageSize')).toBe('50');
     await waitFor(() => expect(gets('/api/foreign-trade/cases/summary')).toHaveLength(1), T);
-    await waitFor(() => expect(text()).toContain('Tümü 9 · İthalat 4 · İhracat 5 · Taslak 1 · Planlandı 2'), T);
+    // Özet metin dört göstergeye bölündü: toplam, sevkte, ulaştı (kapatılacak), kapandı.
+    await waitFor(() => expect(text()).toContain('Toplam dosya'), T);
+    for (const title of ['Sevkte', 'Ulaştı (kapatılacak)', 'Kapandı']) expect(text()).toContain(title);
+    expect(text()).not.toContain('Tümü 9 · İthalat 4');
     const draft = rowOf('EXP-001');
     expect(within(draft).getByText('İhracat')).toBeTruthy();
     expect(within(draft).getByText('Taslak')).toBeTruthy();
@@ -187,11 +196,12 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     await cell('EXP-001');
     await waitFor(() => expect(gets('/api/foreign-trade/cases/summary')).toHaveLength(1), T);
     let before = gets('/api/foreign-trade/cases').length;
-    fireEvent.change(input('yonSecimi'), { target: { value: 'Import' } });
+    const filters = screen.getByRole('region', { name: 'Süzgeçler' });
+    fireEvent.change(within(filters).getByLabelText('Yön') as HTMLSelectElement, { target: { value: 'Import' } });
     await waitFor(() => expect(gets('/api/foreign-trade/cases').length).toBeGreaterThan(before), T);
     expect(query(gets('/api/foreign-trade/cases').at(-1)!.url).get('direction')).toBe('Import');
     before = gets('/api/foreign-trade/cases').length;
-    fireEvent.change(input('durumSecimi'), { target: { value: 'Shipped' } });
+    fireEvent.change(within(filters).getByLabelText('Aşama') as HTMLSelectElement, { target: { value: 'Shipped' } });
     await waitFor(() => expect(gets('/api/foreign-trade/cases').length).toBeGreaterThan(before), T);
     const last = query(gets('/api/foreign-trade/cases').at(-1)!.url);
     expect(last.get('direction')).toBe('Import');
@@ -207,22 +217,16 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     await waitFor(() => expect(gets('/api/foreign-trade/cases/summary').some((call) => query(call.url).get('q') === 'MSKU')).toBe(true), T);
   });
 
-  it('Yeni carries the direction selection; İthalat/İhracat dosyası use a fixed direction', async () => {
+  it('İthalat dosyası and İhracat dosyası open the case card with a fixed direction', async () => {
     setup();
     await cell('EXP-001');
     await ready('new');
     fireEvent.click(command('new'));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0].page).toBe('foreign-trade-case');
-    expect(navigations[0].params?.direction ?? '').toBe('');
-    fireEvent.change(input('yonSecimi'), { target: { value: 'Import' } });
-    await waitFor(() => expect(input('yonSecimi').value).toBe('Import'), T);
-    fireEvent.click(command('new'));
-    await waitFor(() => expect(navigations).toHaveLength(2), T);
-    expect(navigations[1]).toMatchObject({ page: 'foreign-trade-case', params: { direction: 'Import' } });
+    expect(navigations[0]).toMatchObject({ page: 'foreign-trade-case', params: { direction: 'Import' } });
     fireEvent.click(await menuItem(/İhracat dosyası/));
-    await waitFor(() => expect(navigations).toHaveLength(3), T);
-    expect(navigations[2]).toMatchObject({ page: 'foreign-trade-case', params: { direction: 'Export' } });
+    await waitFor(() => expect(navigations).toHaveLength(2), T);
+    expect(navigations[1]).toMatchObject({ page: 'foreign-trade-case', params: { direction: 'Export' } });
   });
 
   it('Aç and a row double click open the card with id; a shipped case cannot be opened', async () => {
@@ -239,8 +243,9 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
 
     await select('EXP-004', 4);
     await waitFor(() => expect(command('open').getAttribute('aria-disabled')).toBe('true'), T);
-    expect(command('open').outerHTML).toContain('Yalnız Taslak ve Planlandı dosyalar düzenlenebilir');
-    expect(screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector('[data-command="delete"]')).toBeNull();
+    fireEvent.mouseEnter(command('open'));
+    await screen.findByText(/Yalnız Taslak ve Planlandı dosyalar düzenlenebilir/, {}, T);
+    expect(screen.getByRole('toolbar', { name: /^İşlemler/ }).querySelector('[data-command="delete"]')).toBeNull();
   });
 
   it('İşlemler offers only the stage step of the selected case', async () => {
@@ -262,7 +267,7 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     });
     await select('EXP-009', 9);
     await namesWhen((names) => {
-      expect(names.some((name) => name.includes('İthalat dosyası'))).toBe(true);
+      expect(names.some((name) => name.includes('İhracat dosyası'))).toBe(true);
       expect(names.some((name) => /aşamasına geçir|Varışı kaydet|^Kapat|İptal et|Stok belgesi/.test(name))).toBe(false);
     });
   });
@@ -289,7 +294,6 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     const item = await disabledItem(/Sevkte aşamasına geçir/);
     expect(item.getAttribute('title')).toContain('Önce dosyayı açıp planlanan sevk tarihi, beyan değeri ve Incoterms girin');
     closeMenu();
-    panelOn();
     await waitFor(() => expect(text()).toContain('Sevke geçmek için gerekli'), T);
   });
 
@@ -323,7 +327,6 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     const item = await disabledItem(/Gümrükte aşamasına geçir/);
     expect(item.getAttribute('title')).toContain('Önce kayıtlı teslimat belgesini bu dosyaya bağlayın');
     closeMenu();
-    panelOn();
     await waitFor(() => expect(text()).toContain('Gümrüğe geçmek için gerekli'), T);
 
     await select('IMP-005', 5);
@@ -355,7 +358,6 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     const item = await disabledItem(/^Kapat$/);
     expect(item.getAttribute('title')).toContain('Kapatmak için gerçek varış tarihi ve ithalatta bağlı mal kabul belgesi gerekir');
     closeMenu();
-    panelOn();
     await waitFor(() => expect(text()).toContain('Kapatmak için gerekli'), T);
 
     // Bağlı mal kabul var ama gerçek varış tarihi yok: yine kapatılamaz (|| / && önceliği).
@@ -413,17 +415,16 @@ describe('Dış Ticaret Dosyaları standart tanımı', { timeout: 30000 }, () =>
     expect(JSON.parse(writes()[0].body!)).toEqual({ status: 'Cancelled' });
   });
 
-  it('detail panel: hidden until a row is selected, steps and details, cancelled note, legal note', async () => {
+  it('detail card: placeholder until a row is selected, then stage badge, details, cancelled note, legal note', async () => {
     setup();
     await cell('EXP-001');
-    panelOn();
-    // Panel on, nothing selected: no placeholder card; the list keeps the full width.
-    expect(text()).not.toContain('listeden bir dosya seçin');
+    expect(text()).toContain('Bir dosya seçin; özetini burada görün.');
     await select('IMP-005', 5);
-    await waitFor(() => expect(text()).toContain('Seçili dosya · İthalat'), T);
-    expect(text()).toContain('Sevkte · sıradaki: Gümrükte');
+    await waitFor(() => expect(text()).toContain('Sevkte · sıradaki: Gümrükte'), T);
+    expect(text()).not.toContain('Bir dosya seçin; özetini burada görün.');
     expect(text()).toContain('PO-001 · Berlin Makine GmbH');
-    expect(text()).toContain('DE → TR · FOB');
+    expect(text()).toContain('DE → TR');
+    expect(text()).toContain('FOB');
     expect(text()).toContain('26TR34001');
     expect(text()).toContain('Bağlanmadı');
     expect(text()).toContain('İç operasyon kaydıdır; resmî gümrük beyannamesi değildir.');
