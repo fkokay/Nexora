@@ -68,7 +68,7 @@ export function createHarness(key: string, catalog: { operations: { name: string
   const gets = (path: string) => state.calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
   const writes = () => state.calls.filter((call) => call.method !== 'GET');
   const bodyOf = (call: Call) => JSON.parse(call.body ?? 'null') as Record<string, unknown>;
-  const toolbar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+  const toolbar = () => screen.getByRole('toolbar', { name: /^İşlemler/ });
   const command = (id: string) => toolbar().querySelector<HTMLElement>(`[data-command="${id}"]`)!;
   const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
   /** The first grid cell (or cell part) showing `text`; a RegExp also finds a value combined with another in one cell. */
@@ -76,7 +76,7 @@ export function createHarness(key: string, catalog: { operations: { name: string
   const row = async (text: string | RegExp) => (await cell(text)).closest('tr') as HTMLElement;
   const select = async (text: string | RegExp) => { fireEvent.click(await cell(text)); };
   const menuItem = async (name: RegExp) => {
-    fireEvent.click(command('more'));
+    fireEvent.click(toolbar().querySelector<HTMLElement>('[data-command="more"]') ?? within(toolbar()).getByRole('button', { name: 'Diğer işlemler' }));
     return screen.findByRole('menuitem', { name }, T);
   };
   const settle = (ms = 50) => act(() => new Promise((done) => setTimeout(done, ms)));
