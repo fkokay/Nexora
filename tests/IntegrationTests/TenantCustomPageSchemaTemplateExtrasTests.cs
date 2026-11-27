@@ -155,7 +155,7 @@ public sealed class TenantCustomPageSchemaTemplateExtrasTests
     public void Block_cannot_be_a_group_child_or_in_free_body()
     {
         var group = new { id = "grup", type = "section", name = "grup", props = Props("dialog", null), children = new[] { Block("icBlok", "x") } };
-        Rejected(Page("list", ListPage([Window(["grup"], new { saveQuery = "duz" }), group])), "customFieldsBlock grubun içinde kullanılamaz.");
+        Rejected(Page("list", ListPage([Window(["grup"], new { saveQuery = "duz" }), group]), block: true), "customFieldsBlock grubun içinde kullanılamaz.");
         Rejected(Page("free", [C("bolum", "section", "block", new { title = "B", members = new[] { "ozelAlanlar" } }), Block(slot: "item")]), OzelAlanYeri);
     }
 
