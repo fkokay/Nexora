@@ -144,3 +144,53 @@ describe('kalıplı pencere ve grup iskeleti', () => {
     expect(within(group).getByText('Grup metni').style.gridColumn).toBe('span 6');
   });
 });
+
+describe('Liste kalıbının detay kartı ve gizli girişleri', () => {
+  const listOnly = (extra: unknown[]) => ({ schemaVersion: 2, template: { name: 'list' }, queries, components: [components[0], ...extra] });
+  async function show(page: unknown) {
+    definition = page;
+    const view = render(<CommandProvider>
+      <ActionBar locale="tr" />
+      <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage code="p" token="t" /></KeepAliveViews>
+    </CommandProvider>);
+    await screen.findByText('S-1', { selector: 'td, td *' }, T);
+    return view.container;
+  }
+  // inventory-tracking biçimi: kart seçimsiz de görünür; boş durum metni seçim yokken, seçili satırın alanı seçilince.
+  const card = { id: 'detayKarti', type: 'card', props: { slot: 'detail', variant: 'panel', title: '{{liste.seciliSatir.code}}' }, children: [
+    { id: 'detayBos', type: 'text', props: { text: 'Bir lot veya seri seçin; ayrıntıları burada görün.', visibleWhen: 'liste.seciliSatir.code == null' } },
+    { id: 'detayKod', type: 'text', props: { text: 'Seçili: {{liste.seciliSatir.code}}', visibleWhen: 'liste.seciliSatir.code != null' } },
+  ] };
+
+  it('a detail card is shown without a row selection (its empty state child too)', async () => {
+    const container = await show(listOnly([card]));
+    const detail = () => container.querySelector<HTMLElement>('.list-template-detail');
+    await waitFor(() => expect(detail()).not.toBeNull(), T);
+    expect(within(detail()!).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy();
+    expect(container.querySelector('.list-template-main')!.classList.contains('has-detail')).toBe(true);
+    fireEvent.click(screen.getByText('S-1', { selector: 'td, td *' }).closest('tr')!);
+    await waitFor(() => expect(within(detail()!).getByText('Seçili: S-1')).toBeTruthy(), T);
+    expect(within(detail()!).queryByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeNull();
+  });
+
+  it('a detail panel still opens only with a row selection', async () => {
+    const panel = { id: 'panel', type: 'contextPanel', props: { slot: 'detail', table: 'liste_t', fields: ['code=Kod'] } };
+    const container = await show(listOnly([panel]));
+    expect(container.querySelector('.list-template-detail')).toBeNull();
+    fireEvent.click(screen.getByText('S-1', { selector: 'td, td *' }).closest('tr')!);
+    await waitFor(() => expect(container.querySelector('.list-template-detail')).not.toBeNull(), T);
+  });
+
+  it('above / below holding only hidden inputs draw no wrapper and keep level 1', async () => {
+    const hidden = (id: string, slot: string) => ({ id, type: 'input', name: id, props: { slot, hidden: true, inputType: 'number', defaultValue: '50' } });
+    const container = await show(listOnly([hidden('sevkSayfaBoyutu', 'below'), hidden('ustGizli', 'above')]));
+    expect(container.querySelector('.list-template-below')).toBeNull();
+    expect(container.querySelector('.list-template-above')).toBeNull();
+    expect(container.querySelector('.list-template')!.getAttribute('data-level')).toBe('1');
+    // Görünür bir bileşen sarmalayıcıyı ve 2. basamağı geri getirir.
+    cleanup();
+    const shown = await show(listOnly([hidden('sevkSayfaBoyutu', 'below'), { id: 'not', type: 'text', props: { slot: 'below', text: 'Alt not' } }]));
+    expect(within(shown.querySelector<HTMLElement>('.list-template-below')!).getByText('Alt not')).toBeTruthy();
+    expect(shown.querySelector('.list-template')!.getAttribute('data-level')).toBe('2');
+  });
+});

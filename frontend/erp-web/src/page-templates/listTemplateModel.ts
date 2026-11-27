@@ -36,9 +36,14 @@ export function layoutListTemplate<C extends Component>(components: C[]): ListLa
   };
 }
 
-/** Basamak saklanmaz: `above` ya da `below` yerinde bileşen varsa 2, yoksa 1. */
+/** Gizli giriş (`input` + `hidden: true`): hiçbir şey çizmez, yalnız değeri kapsamda tutar (ör. sales-orders `sevkSayfaBoyutu`). */
+export const isHiddenInput = (component: Component) => component.type === 'input' && component.props?.hidden === true;
+/** Yalnız gizli girişlerden oluşmayan, yani ekranda bir şey çizen bileşen listesi mi. */
+export const drawsSomething = (components: Component[]) => components.some((component) => !isHiddenInput(component));
+
+/** Basamak saklanmaz: `above` ya da `below` yerinde (gizli giriş dışında) bileşen varsa 2, yoksa 1. */
 export function templateLevel(layout: ListLayout<Component>): 1 | 2 {
-  return layout.above.length > 0 || layout.below.length > 0 ? 2 : 1;
+  return drawsSomething(layout.above) || drawsSomething(layout.below) ? 2 : 1;
 }
 
 /**
