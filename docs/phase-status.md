@@ -11,7 +11,7 @@ Plan `docs/superpowers/plans/2026-11-27-komutlar-kayit-karti-5b2a.md`, spec `doc
 
 Verified (InMemory tests, worktree `wkb-fa` of the branch): integration filter `PageTemplate|BehaviorEquivalence|CustomPage|SystemPage` 1067 passed, 6 skipped (SQL acceptance), 0 failed of 1073; unit tests 1260/1260. The 50 embedded standards still convert **none** (`—=50`, Record card 0); top reasons now: Pencere 26, iç içe bileşenler 26, koşula bağlı genişlik 17, düzenlenebilir satır tablosu 15, filterChips 12, sihirbaz 9, fillQuery 8, kayıt özeti 7, fillColumns 7, customFieldsBlock 6. "İşlem çubuğu kalıplarda yok", "Form alanları" and the per-setting `hiddenCommands`/`commandWhen` reasons are gone from the standards.
 
-Not verified: the live dry-run report was not re-run; no standard or tenant page was migrated; Record card migration (run) is not open; ERP/Studio browser pass against a real backend; SQL Server path (InMemory only); Belge has no commands. This wave did not re-run the frontends' `npm test`/`npm run build` (other agents' scope).
+Not verified: the live dry-run report was not re-run; no standard or tenant page was migrated; Record card migration (run) is not open; ERP/Studio browser pass against a real backend; SQL Server path (InMemory only); Belge has no commands. On the integrated branch: `dotnet test AIERP.slnx` unit 1260/1260 and integration 2188 passed, 66 skipped, 0 failed; erp-web `npm test` 2303/2303 and `npm run build` passed; development-studio `npm test` 1148/1148 and `npm run build` passed.
 
 ### 2026-11-27 Page template migration, part 1 (5b-1)
 
