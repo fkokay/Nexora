@@ -54,7 +54,7 @@ public sealed class SalesDocumentCalculatorGoldenTests
             (preview.Subtotal, preview.DiscountTotal, preview.TaxableTotal, preview.TaxTotal, preview.WithholdingTotal, preview.GrossTotal, preview.GrandTotal));
         Assert.Equal([("VAT", 20m, 42750.00m, 8550.00m), ("VAT", 10m, 12000.00m, 1200.00m)],
             preview.Taxes.Select(x => (x.Code, x.Rate, x.TaxableAmount, x.Amount)).ToArray());
-        Assert.Equal(["a", "b"], preview.Lines.Select(x => x.RowKey).ToArray());
+        Assert.Equal<IEnumerable<string?>>(["a", "b"], preview.Lines.Select(x => x.RowKey).ToArray());
         Assert.Equal(51300.00m, preview.Lines[0].LineTotal);
     }
 

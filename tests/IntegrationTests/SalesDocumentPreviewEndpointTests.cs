@@ -55,7 +55,7 @@ public sealed class SalesDocumentPreviewEndpointTests
         Assert.Equal("TRY", preview.GetProperty("currencyCode").GetString());
         Assert.Equal("TR-TEST", preview.GetProperty("accountingProfileCode").GetString());
         var lines = preview.GetProperty("lines").EnumerateArray().ToArray();
-        Assert.Equal(["r1", "r2"], lines.Select(x => x.GetProperty("rowKey").GetString()));
+        Assert.Equal<IEnumerable<string?>>(["r1", "r2"], lines.Select(x => x.GetProperty("rowKey").GetString()));
         // r1: 1000 + VAT 200 + ÖTV 100 − tevkifat 50; r2: 50 − 5 = 45, VAT 4.50, ÖTV 4.50, tevkifat 2.25.
         Assert.Equal(1250.00m, lines[0].GetProperty("lineTotal").GetDecimal());
         Assert.Equal(51.75m, lines[1].GetProperty("lineTotal").GetDecimal());

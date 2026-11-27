@@ -766,7 +766,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(2.5m, lines[0].GetProperty("grossRequirement").GetDecimal());
         Assert.Equal(.5m, lines[0].GetProperty("reserved").GetDecimal());
         Assert.Contains(lines[0].GetProperty("sources").EnumerateArray().Select(x => x.GetString()), x => x!.StartsWith("Satış MRP-SALES", StringComparison.Ordinal));
-        Assert.Equal(new[] { "Üret", "Üret", "Satın al" }, lines.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "Üret", "Üret", "Satın al" }, lines.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
         var planId = json.RootElement.GetProperty("planId").GetGuid();
         var history = await client.GetFromJsonAsync<JsonElement[]>("/api/manufacturing/mrp/plans");
         Assert.Contains(history!, x => x.GetProperty("id").GetGuid() == planId);
@@ -803,7 +803,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         using var planJson = JsonDocument.Parse(await planResponse.Content.ReadAsStringAsync());
         var planId = planJson.RootElement.GetProperty("planId").GetGuid();
         var recommendations = planJson.RootElement.GetProperty("lines").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "Üret", "Satın al" }, recommendations.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "Üret", "Satın al" }, recommendations.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
 
         var conversion = await client.PostAsJsonAsync($"/api/manufacturing/mrp/plans/{planId}/convert", new
         {
@@ -813,7 +813,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         Assert.Equal(HttpStatusCode.OK, conversion.StatusCode);
         using var conversionJson = JsonDocument.Parse(await conversion.Content.ReadAsStringAsync());
         Assert.Equal(2, conversionJson.RootElement.GetProperty("convertedLineCount").GetInt32());
-        Assert.Equal(new[] { "ManufacturingOrder", "PurchaseRequest" }, conversionJson.RootElement.GetProperty("created").EnumerateArray().Select(x => x.GetProperty("resourceType").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "ManufacturingOrder", "PurchaseRequest" }, conversionJson.RootElement.GetProperty("created").EnumerateArray().Select(x => x.GetProperty("resourceType").GetString()).ToArray());
         var convertedOrderId = conversionJson.RootElement.GetProperty("created")[0].GetProperty("resourceId").GetGuid();
         var convertedOrders = await client.GetFromJsonAsync<JsonElement[]>("/api/manufacturing/orders/");
         var convertedOrderLine = Assert.Single(convertedOrders!.Single(x => x.GetProperty("id").GetGuid() == convertedOrderId).GetProperty("lines").EnumerateArray());
@@ -890,7 +890,7 @@ public sealed class ManufacturingEndpointsIntegrationTests
         using var planJson = JsonDocument.Parse(await planResponse.Content.ReadAsStringAsync());
         var planId = planJson.RootElement.GetProperty("planId").GetGuid();
         var recommendations = planJson.RootElement.GetProperty("lines").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "Üret", "Satın al" }, recommendations.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "Üret", "Satın al" }, recommendations.Select(x => x.GetProperty("recommendation").GetString()).ToArray());
         Assert.Equal(4m, recommendations[1].GetProperty("netRequirement").GetDecimal());
 
         var conversionResponse = await client.PostAsJsonAsync($"/api/manufacturing/mrp/plans/{planId}/convert", new
