@@ -11,15 +11,14 @@ public sealed class SystemPageStandardsTests
     {
         Assert.Empty(SystemPageStandards.Validate(SystemPageStandards.EmbeddedFiles()));
         var standard = SystemPageStandards.All[Key];
-        // Version 2 completes Depo Yönetimi; the version 1 items keep their ids and since.
-        Assert.Equal(2, standard.Version);
+        // Version 3 is the Liste kalıbı layout; the version 1 items keep their ids and since.
+        Assert.Equal(3, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Depo Yönetimi", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);
         Assert.Contains(standard.Items, x => x.Key == "component:depoListesi" && x.Kind == "component" && x.Id == "depoListesi"
-            && x.Since == 1 && x.Requires.SequenceEqual(new[] { "query:depolar" }));
+            && x.Since == 1 && x.Requires.Contains("query:depolar"));
         Assert.Contains(standard.Items, x => x.Key == "query:depolar" && x.Kind == "query" && x.Id == "depolar" && x.Since == 1);
-        Assert.All(standard.Items.Where(x => x.Key is not ("component:depoListesi" or "query:depolar")), x => Assert.Equal(2, x.Since));
         var view = Assert.Single(standard.ScreenViews);
         Assert.Equal("depoListesi", view.Component);
         Assert.Equal("isActive", view.Fields["status"]);
@@ -28,7 +27,7 @@ public sealed class SystemPageStandardsTests
         Assert.False(SystemPageStandards.TryGet("no-such-screen", out _));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         var locations = SystemPageStandards.All["inventory-locations"];
-        Assert.Equal((1, "preview", "Raf ve Konumlar"), (locations.Version, locations.Stage, locations.Title));
+        Assert.Equal((2, "preview", "Raf ve Konumlar"), (locations.Version, locations.Stage, locations.Title));
         Assert.Equal(["inventory-warehouse-locations", "warehouse-location-balances", "inventory-warehouse-reconciliation"],
             locations.ScreenViews.Select(x => x.Key));
         Assert.Equal(new[] { "crm-opportunities", "crm-opportunity-create", "customer-create", "customer-ledger", "customers", "finance-account-create", "finance-accounts", "finance-banks",

@@ -1519,7 +1519,7 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       if (!runtime || !component.name) return null;
       const grid = runtime.gridFor(component);
       const disabled = componentDisabled(component, runtime);
-      return <EditableGrid key={component.id} {...grid} title={title} style={style} disabled={disabled}
+      return <EditableGrid key={component.id} {...grid} title={title} description={runtime.unplaced ? description : ""} style={style} disabled={disabled}
         disabledReason={disabled ? disabledReasonOf(component, props, runtime) || BUTTON_UNAVAILABLE : ""}
         fixedRowLabel={textValue(props.fixedRowLabel).trim()} addLabel={textValue(props.addLabel).trim() || "Satır ekle"} />;
     }
