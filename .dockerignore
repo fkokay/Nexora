@@ -16,3 +16,7 @@
 .codex-ai-service-deploy-context/
 .codex-build/
 deploy/docker/sandbox-package-cache/
+.claude/
+.superpowers/
+**/test-results/
+**/playwright-report/
