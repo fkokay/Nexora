@@ -94,6 +94,22 @@ describe("dialogsModel", () => {
     expect(addToGroup(start, "ozet", "badge")).toBe(start);
   });
 
+  it("removeFromGroup also removes what the window owned only through the removed form card or tabs", () => {
+    const start = salesOrders();
+    // teslimBolumu'nun formu teslimTarihi'ni taşır: form çıkınca giriş de gider (yoksa `below`'a düşerdi).
+    const noForm = removeFromGroup(start, "teslimBolumu", "teslimFormu");
+    expect(noForm.map((item) => item.id)).toEqual(start.map((item) => item.id).filter((id) => id !== "teslimTarihi"));
+    expect((noForm.find((item) => item.id === "teslimBolumu")!.children as ModelComponent[]).map((item) => item.id)).toEqual(["teslimKaydet"]);
+    expect(dialogOwners(noForm).size).toBe(dialogOwners(start).size - 1);
+    // Grubun sekmeleri: işaret ettikleri gider; başka yerden de sahiplenilen kalır.
+    const tabbed = [c("p", "dialog", { contains: ["g", "m2"] }), c("g", "card", { slot: "dialog" }, [c("t", "tabs", { tabs: ["A=m1,m2"] }), c("r", "badge", { text: "x" })]),
+      c("m1", "metric", { slot: "dialog" }), c("m2", "metric", { slot: "dialog" })];
+    expect(removeFromGroup(tabbed, "g", "t").map((item) => item.id)).toEqual(["p", "g", "m2"]);
+    // Pencere dışındaki grup (Liste detay kartı) değişmez kurallıdır.
+    const detail = [c("d", "card", { slot: "detail" }, [c("f", "formCard", { inputs: ["i"] })]), c("i", "input", { slot: "below" })];
+    expect(removeFromGroup(detail, "d", "f").map((item) => item.id)).toEqual(["d", "i"]);
+  });
+
   it("+ ekle creates only server-valid members: standalone types, a table bound to the first read query; never empty form/tabs/detail panel", () => {
     const start = salesOrders();
     const read = [{ id: "kalemler", name: "kalemler", kind: "read" as const, parameters: [], runOn: "load" as const },

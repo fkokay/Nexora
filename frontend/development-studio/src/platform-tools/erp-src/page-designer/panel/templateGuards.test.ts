@@ -308,8 +308,44 @@ describe("generic delete and duplicate on window parts (5b-2 adım 2)", () => {
     expect(recordSelectionOf(def, "pMetin")).toBeNull();
     expect(recordSelectionOf(def, "pencere")).toBeNull();
     expect(recordRemoval(def, "pMetin")).toEqual({ kind: "generic" });
-    expect(templateDuplicateBlocked(def, "pMetin")).toBe(false);
   });
+
+  it.each([["list", newListTemplateDefinition], ["record", newRecordTemplateDefinition]] as const)(
+    "Ctrl+D on a window or its content does nothing (%s): the copy would claim the content twice or be left unowned", (_name, base) => {
+      const def = withDialogs(base() as unknown as ModelDefinition, false);
+      expect(templateDuplicateBlocked(def, "pencere")).toBe(true);
+      expect(templateDuplicateBlocked(def, "pMetin")).toBe(true);
+      expect(templateDuplicateBlocked({ ...def, components: [...def.components, c("ek", "text", { slot: "below", text: "y" })] }, "ek")).toBe(false);
+    });
+
+  const formWindow = (base: ModelDefinition): ModelDefinition => ({ ...base, components: [...base.components,
+    c("pencere", "dialog", { slot: "dialogs", presentation: "dialog", title: "P", contains: ["form", "pSekmeler", "grup"] }),
+    c("form", "formCard", { slot: "dialog", inputs: ["g1", "ortak"] }),
+    c("pSekmeler", "tabs", { slot: "dialog", tabs: ["Bir=hedef", "İki=hedefGrup"] }),
+    c("hedef", "text", { slot: "dialog", text: "t" }),
+    { ...c("hedefGrup", "section", { slot: "dialog" }), children: [c("icForm", "formCard", { inputs: ["g2"] })] },
+    { ...c("grup", "card", { slot: "dialog" }), children: [c("grupForm", "formCard", { inputs: ["g3", "ortak"] })] },
+    c("g1", "input", { slot: "dialog" }), c("g2", "input", { slot: "dialog" }), c("g3", "input", { slot: "dialog" }), c("ortak", "input", { slot: "dialog" })] });
+  const idsOf = (removal: ReturnType<typeof dialogRemoval>) => (removal as { def: ModelDefinition }).def.components.map((item) => item.id);
+
+  it.each([["list", newListTemplateDefinition], ["record", newRecordTemplateDefinition], ["free", newFreeTemplateDefinition]] as const)(
+    "Delete on a window form card or tabs also removes the content only it owned, so nothing is left unowned (%s)", (_name, base) => {
+      const def = formWindow(base() as unknown as ModelDefinition);
+      const baseIds = (base() as unknown as ModelDefinition).components.map((item) => item.id);
+      // Form kartı: kendi girişi gider, öteki formun da listelediği giriş kalır.
+      const form = dialogRemoval(def, "form");
+      expect(form.kind).toBe("removed");
+      expect(idsOf(form)).toEqual([...baseIds, "pencere", "pSekmeler", "hedef", "hedefGrup", "grup", "g2", "g3", "ortak"]);
+      // Sekmeler: işaret ettikleri ve hedef grubun formunun girişi gider.
+      expect(idsOf(dialogRemoval(def, "pSekmeler"))).toEqual([...baseIds, "pencere", "form", "grup", "g1", "g3", "ortak"]);
+      // Grubun içindeki form kartı (iç içe bileşen): girişi gider, grup kalır.
+      const child = dialogRemoval(def, "grupForm");
+      expect(idsOf(child)).toEqual([...baseIds, "pencere", "form", "pSekmeler", "hedef", "hedefGrup", "grup", "g1", "g2", "ortak"]);
+      expect((child as { def: ModelDefinition }).def.components.find((item) => item.id === "grup")!.children).toEqual([]);
+      // Bir şey sahipsiz kalmıyorsa genel yol.
+      expect(dialogRemoval(def, "hedef")).toEqual({ kind: "generic" });
+      expect(dialogRemoval(def, "g1")).toEqual({ kind: "generic" });
+    });
 
   it.each([["list", newListTemplateDefinition], ["record", newRecordTemplateDefinition], ["free", newFreeTemplateDefinition]] as const)(
     "a window a button opens is not deleted; one without openers goes with its own content (%s)", (_name, base) => {

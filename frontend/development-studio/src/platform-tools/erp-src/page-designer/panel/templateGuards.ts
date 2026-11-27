@@ -6,7 +6,7 @@ import {
   freeBlocks, freeTabs, isFreeBlock, isFreeItem, MAX_BLOCK_MEMBERS, MAX_FREE_BLOCKS, newFreeBlock, removeBlock as removeFreeBlock, removeItem as removeFreeItem,
   removePageAction, setFreeTabs,
 } from "./freeModel";
-import { DIALOG_SLOT, DIALOGS_SLOT, dialogOpeners, dialogOwners, removeDialog } from "./dialogsModel";
+import { DIALOG_SLOT, DIALOGS_SLOT, dialogOpeners, dialogOwners, removeDialog, removeDialogPart } from "./dialogsModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
@@ -234,13 +234,17 @@ export function recordRemoval<D extends ModelDefinition>(def: D, id: string): Re
 
 /**
  * Kalıplı sayfada pencerenin silinmesi (Delete tuşu, çöp düğmeleri): açanı olan pencere silinmez (Pencereler bölümündeki Kaldır
- * gibi; sunucu var olmayan pencereyi açan düğmeyi reddeder), öteki pencere yalnız kendine ait içeriğiyle silinir. Pencere değilse
- * ya da sayfa kalıpsızsa genel yol.
+ * gibi; sunucu var olmayan pencereyi açan düğmeyi reddeder), öteki pencere yalnız kendine ait içeriğiyle silinir. Pencere
+ * içeriğindeki form kartı ya da sekmeler (üst düzey ya da grup çocuğu) yalnız kendi üzerinden sahiplenilenlerle silinir (yoksa
+ * onlar sahipsiz kalıp `below` / `item` yerine düşerdi). Öteki her şeyde ya da sayfa kalıpsızsa genel yol.
  */
 export function dialogRemoval<D extends ModelDefinition>(def: D, id: string): RecordRemoval<D> {
   if (!readPageTemplate(def.template)) return { kind: "generic" };
   const component = def.components.find((item) => item.id === id);
-  if (component?.type !== "dialog") return { kind: "generic" };
+  if (component?.type !== "dialog") {
+    const next = removeDialogPart(def.components, id);
+    return next ? { kind: "removed", def: { ...def, components: next } } : { kind: "generic" };
+  }
   if (dialogOpeners(def, id).length > 0) return { kind: "none" };
   return { kind: "removed", def: { ...def, components: removeDialog(def.components, id) } };
 }
@@ -269,14 +273,18 @@ export function freeRemoval<D extends ModelDefinition>(def: D, id: string): Reco
   return { kind: "removed", def: { ...def, components: def.components.filter((item) => item !== component) } };
 }
 
-/** Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi ve kayıt kartının her parçası. */
+/**
+ * Kalıplı sayfada kopyalanamayanlar: liste, detay paneli, listenin satır açma ("Aç") düğmesi, kayıt kartının her parçası, pencere ve
+ * pencere içeriği (kopya içeriği ikinci kez sahiplenir ya da sahipsiz kalıp `below`'a düşerdi; sunucu reddeder).
+ */
 export function templateDuplicateBlocked(def: ModelDefinition, id: string): boolean {
   const template = readPageTemplate(def.template);
   if (!template) return false;
   // Serbest gövdede kopya bölüm üyeliğini bozardı (kopya hiçbir bölümde olmaz ya da üyeleri iki bölümde olur); kopyalama kapalı.
   if (template.name === "free") return def.components.some((item) => item.id === id);
-  if (isRecordPart(def, id)) return true;
   const component = def.components.find((item) => item.id === id);
+  if (component && (component.type === "dialog" || component.props.slot === DIALOG_SLOT || component.props.slot === DIALOGS_SLOT)) return true;
+  if (isRecordPart(def, id)) return true;
   if (!component) return false;
   if (component.props.slot === "list" || component.props.slot === "detail") return true;
   return def.components.some((item) => item.type === "dataTable" && item.props.rowOpenAction === id);

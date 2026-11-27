@@ -64,7 +64,6 @@ export function dialogOwners(components: Components): Map<string, string> {
   return owners;
 }
 
-/** Yeni kimlikler sayfanın bileşen ve sorgu kimlikleri / adlarıyla çakışmasın diye sorgular da verilir. */
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
 /**
@@ -83,6 +82,7 @@ export function dialogOpeners(def: ModelDefinition, dialogId: string): string[] 
   return [...new Set([...buttons, ...links])];
 }
 
+/** Yeni kimlikler sayfanın bileşen ve sorgu kimlikleri / adlarıyla çakışmasın diye sorgular da verilir. */
 const asDef = (components: Components, queries: PageQuery[]): ModelDefinition => ({ schemaVersion: 2, queries, components });
 
 /** Boş bir görünüm penceresi ve içindeki tek metin; sayfanın sonuna eklenir. */
@@ -91,8 +91,8 @@ export function addDialog(components: Components, queries: PageQuery[] = []): { 
   const textId = freeId(asDef(components, queries), "pencereMetni", new Set([dialogId.toLowerCase()]));
   const dialog: ModelComponent = { id: dialogId, type: "dialog", name: dialogId,
     props: { slot: DIALOGS_SLOT, presentation: "dialog", size: "lg", title: "Yeni pencere", contains: [textId] } };
-  const text: ModelComponent = { id: textId, type: "text", name: textId, props: { slot: DIALOG_SLOT, text: "Pencere içeriği" } };
-  return { components: [...components, dialog, text], dialogId };
+  const content: ModelComponent = { id: textId, type: "text", name: textId, props: { slot: DIALOG_SLOT, text: "Pencere içeriği" } };
+  return { components: [...components, dialog, content], dialogId };
 }
 
 /** Pencereyi ve yalnız ona ait içeriği (sekmenin işaret ettikleri, form girişleri dahil) siler; başka pencereyle paylaşılanlar kalır. */
@@ -158,8 +158,35 @@ export function addToGroup(components: Components, groupId: string, type: string
   });
 }
 
+/**
+ * Bir parça kalkınca pencerenin yalnız o parça üzerinden sahiplendiklerini (sekmenin işaret ettikleri, form kartının girişleri)
+ * de siler: önce bir pencereye ait olup artık hiçbirine ait olmayan üst düzey bileşenler. Böylece hiçbir şey sahipsiz kalıp
+ * `below` / `item` yerine düşmez; başka bir yoldan (ikinci form, `contains`) sahiplenilen kalır.
+ */
+function dropOrphaned(before: Components, after: Components): Components {
+  const owned = dialogOwners(before);
+  const still = dialogOwners(after);
+  const orphaned = new Set([...owned.keys()].filter((id) => !still.has(id)));
+  return orphaned.size === 0 ? after : after.filter((component) => !orphaned.has(component.id));
+}
+
+/** Çocuğu gruptan çıkarır; pencerenin yalnız o çocuk (form kartı, sekmeler) üzerinden sahiplendikleri de gider. */
 export function removeFromGroup(components: Components, groupId: string, childId: string): Components {
-  return withChildren(components, groupId, (children) => children.some((child) => child.id === childId) ? children.filter((child) => child.id !== childId) : null);
+  const next = withChildren(components, groupId, (children) => children.some((child) => child.id === childId) ? children.filter((child) => child.id !== childId) : null);
+  return next === components ? components : dropOrphaned(components, next);
+}
+
+/**
+ * Pencere içeriğinin genel silinmesi (Delete tuşu, çöp düğmeleri): üst düzey parça ya da bir grubun çocuğu kalkar, pencerenin yalnız
+ * onun üzerinden sahiplendikleri de gider. Sahipsiz kalan bir şey yoksa null (genel silme yolu yeter).
+ */
+export function removeDialogPart(components: Components, id: string): Components | null {
+  const group = components.find((component) => isGroup(component) && childrenOf(component).some((child) => child.id === id));
+  const removed = group ? withChildren(components, group.id, (children) => children.filter((child) => child.id !== id))
+    : components.filter((component) => component.id !== id);
+  if (removed === components || removed.length === components.length && !group) return null;
+  const next = dropOrphaned(components, removed);
+  return next === removed ? null : next;
 }
 
 /** Çocuğu grupta bir yukarı (-1) ya da aşağı (1) taşır; sınırda değişmez. */
