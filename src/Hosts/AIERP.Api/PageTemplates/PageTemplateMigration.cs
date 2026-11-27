@@ -316,8 +316,9 @@ internal static class PageTemplateMigration
         && (children.OfType<JsonObject>().Any(x => TypeOf(x) == "contextPanel") || component.ToJsonString().Contains(".seciliSatir", StringComparison.Ordinal));
 
     /// <summary>
-    /// Liste gövdesinde kalan gizli giriş (<c>hidden: true</c>; R11): form kartı, sekme ya da pencere sahibi yok, hiç çizilmez,
-    /// yalnız sayfa durumudur. Görünür giriş Liste'de yine yoktur.
+    /// Liste gövdesinde kalan gizli giriş (R11): yalnız <c>input</c> türünü ve <c>hidden: true</c>'yu denetler; hiç çizilmez, yalnız
+    /// sayfa durumudur. Pencere sahipliğine burada bakılmaz (pencereye ait giriş <c>PlaceWindows</c> ile 'dialog' yerine alınır,
+    /// sahipliği <c>PageTemplateRules.PlaceWithDialogs</c> denetler). Görünür giriş Liste'de yine yoktur.
     /// </summary>
     private static bool IsHiddenInput(JsonObject component) =>
         TypeOf(component) == "input" && component["props"]?["hidden"] is JsonValue hidden && hidden.TryGetValue<bool>(out var on) && on;

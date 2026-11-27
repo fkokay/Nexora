@@ -72,7 +72,7 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
     [InlineData("sales-invoices")]
     [InlineData("inventory-cost")]
     [InlineData("inventory-tracking")]
-    public void Five_dialog_and_group_standards_convert_to_list(string key)
+    public void Four_dialog_and_group_standards_convert_to_list(string key)
     {
         var before = Standard(key);
         var result = PageTemplateMigration.Classify(before, hasOpenDraft: false);
@@ -137,7 +137,7 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         Assert.Equal("rowActions", (string?)Find(after, "irsaliyeFaturaAc")["props"]!["slot"]);
     }
 
-    /// <summary><see cref="Converted_dialog_keeps_settings_and_contents"/> on sales-invoices while sales-orders is blocked.</summary>
+    /// <summary><see cref="Converted_dialog_keeps_settings_and_contents"/> on sales-invoices (the second dialog standard).</summary>
     [Fact]
     public void Converted_invoice_dialog_keeps_settings_and_contents()
     {
@@ -227,7 +227,7 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         Assert.Null(BehaviorEquivalence.Check(before, childWidth));
     }
 
-    /// <summary><see cref="Equivalence_rejects_dialog_content_change"/> on sales-invoices while sales-orders is blocked.</summary>
+    /// <summary><see cref="Equivalence_rejects_dialog_content_change"/> on sales-invoices (the second dialog standard).</summary>
     [Fact]
     public void Equivalence_rejects_invoice_dialog_content_change()
     {
