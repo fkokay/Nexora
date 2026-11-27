@@ -56,9 +56,16 @@ jobs:
           TEST_PROJECT: ${{ matrix.project }}
           TEST_FILTER: ${{ matrix.filter }}
         run: |
-          args=(test "$TEST_PROJECT" --configuration Release --verbosity minimal -m:1)
+          args=(test "$TEST_PROJECT" --configuration Release --verbosity minimal -m:1 --logger "trx;LogFileName=r.trx" --results-directory "$RUNNER_TEMP/trx")
           if [ -n "$TEST_FILTER" ]; then args+=(--filter "$TEST_FILTER"); fi
           dotnet "${args[@]}"
+      - name: Upload trx
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trx-${{ matrix.shard }}
+          path: ${{ runner.temp }}/trx/*.trx
+          retention-days: 3
 
   # Summary check that keeps the historical ".NET tests" name: succeeds only if all shards succeeded.
   dotnet-test:
