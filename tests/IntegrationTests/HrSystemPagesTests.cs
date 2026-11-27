@@ -298,10 +298,12 @@ public sealed class HrSystemPagesTests
     [InlineData("hr-leave-requests", "İzin talepleri")]
     [InlineData("hr-attendance", "Puantaj")]
     [InlineData("hr-period-summary", "Dönem özeti")]
-    public void Standard_is_preview_version_1_and_uses_hr_operations(string key, string title)
+    public void Standard_is_preview_and_uses_hr_operations(string key, string title)
     {
         var standard = SystemPageStandards.All[key];
-        Assert.Equal((1, "preview", title, "İnsan Kaynakları"), (standard.Version, standard.Stage, standard.Title, standard.Module));
+        // Liste kalıbına taşınan üç ekran (2. sürüm); kalan ekranlar henüz kalıpsız (1. sürüm).
+        var version = key is "hr-employees" or "hr-attendance" or "hr-period-summary" ? 2 : 1;
+        Assert.Equal((version, "preview", title, "İnsan Kaynakları"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
         var queries = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().ToArray();
@@ -341,7 +343,7 @@ public sealed class HrSystemPagesTests
         Assert.Equal("kullanici.rol != 'TenantAdmin'", (string)Props("hr-employees", "yeniDugmesi")["disabledWhen"]!);
         Assert.Equal(new[] { "employeeId={{liste.seciliSatir.id}}" }, Strings(Props("hr-employees", "acDugmesi")["params"]));
         Assert.Equal("acDugmesi", (string)Props("hr-employees", "liste")["rowOpenAction"]!);
-        Assert.True((bool)Props("hr-employees", "eskiEkranDugmesi")["legacyScreen"]!);
+        Assert.Equal(("rowActions", "actions"), ((string)Props("hr-employees", "acDugmesi")["slot"]!, (string)Props("hr-employees", "yeniDugmesi")["slot"]!));
 
         const string card = "hr-employee-create";
         Assert.Equal("{{sayfa.parametre.employeeId}}", Binding(card, "kart", "id"));
@@ -388,6 +390,30 @@ public sealed class HrSystemPagesTests
         Assert.Equal(("ik.donemOzeti", "manual"), ((string)summary["operation"]!, (string)summary["runOn"]!));
         Assert.Equal("ozet", (string)Props("hr-period-summary", "calistirDugmesi")["queryId"]!);
         Assert.Equal("{{ozet.meta.employeesAtPeriodEnd}}", (string)Props("hr-period-summary", "personelGostergesi")["value"]!);
+    }
+
+
+    [Fact]
+    public void Employees_attendance_and_summary_use_the_list_template_without_legacy_screens()
+    {
+        foreach (var key in new[] { "hr-employees", "hr-attendance", "hr-period-summary" })
+        {
+            var definition = Definition(key);
+            Assert.Equal("list", (string)definition["template"]!["name"]!);
+            var components = definition["components"]!.AsArray().OfType<JsonObject>().ToArray();
+            Assert.All(components, x => Assert.False(string.IsNullOrEmpty((string?)x["props"]?["slot"]), (string)x["id"]!));
+            Assert.DoesNotContain(components, x => (string)x["id"]! is "eskiEkranDugmesi" or "secimCipleri" or "detayPaneli");
+        }
+        // Süzgeçler sunucuya gider: personel ve onay durumu süzgeç alanından, tarih aralığı ayrı kartın girdilerinden.
+        const string attendance = "hr-attendance";
+        Assert.Equal(("{{suzgec.employeeId}}", "{{suzgec.approvalStatus}}"), (Binding(attendance, "puantajlar", "employeeId"), Binding(attendance, "puantajlar", "approvalStatus")));
+        Assert.Equal(("{{baslangicSecimi.value}}", "{{bitisSecimi.value}}"), (Binding(attendance, "puantajlar", "from"), Binding(attendance, "puantajlar", "to")));
+        // İş akışı değişmez: okuma, kaydet/düzelt/onayla yazmaları ve her ikisi de pencerede ya da satır eyleminde.
+        var kinds = Definition(attendance)["queries"]!.AsArray().OfType<JsonObject>().ToDictionary(x => (string)x["id"]!, x => (string)x["kind"]!);
+        Assert.Equal(("insert", "update", "update"), (kinds["kaydet"], kinds["duzelt"], kinds["onayla"]));
+        Assert.Equal("read", kinds["puantajlar"]);
+        Assert.Equal(("{{liste.seciliSatir.rowVersion}}", "{{suzgec.status}}"), (Binding(attendance, "onayla", "rowVersion"), Binding("hr-employees", "personeller", "status")));
+        Assert.True(Definition("hr-period-summary")["queries"]!.AsArray().OfType<JsonObject>().All(x => (string)x["kind"]! == "read"));
     }
 
     [Fact]

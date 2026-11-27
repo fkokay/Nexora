@@ -115,7 +115,7 @@ internal static class PageTemplateRules
 
     /// <summary>The component types a window may hold (top-level, in the <c>dialog</c> slot).</summary>
     internal static readonly IReadOnlySet<string> DialogPartTypes = new HashSet<string>(StringComparer.Ordinal)
-    { "recordHeader", "section", "card", "formCard", "input", "text", "alert", "metric", "button", "dataTable", "tabs" };
+    { "recordHeader", "section", "card", "formCard", "input", "text", "alert", "metric", "button", "dataTable", "tabs", "customFieldsBlock", "editableGrid" };
 
     /// <summary>The component types a one-level group (<c>section</c>/<c>card</c> + <c>children</c>) may hold.</summary>
     internal static readonly IReadOnlySet<string> GroupChildTypes = new HashSet<string>(StringComparer.Ordinal)
@@ -131,6 +131,21 @@ internal static class PageTemplateRules
     internal const string GrupYeri = "İç içe bileşenler (children) yalnız pencerenin içindeki ya da Liste detayındaki bölüm ve kartta olabilir.";
     internal const string GrupIcIce = "Grubun içine grup ya da pencere konamaz.";
     internal static string GrupTuru(string type) => $"{type} grubun içinde kullanılamaz.";
+    internal const string OzelAlanYeri = "Özel alan bloğu yalnız Kayıt kartında 'customFields' yerinde ve pencerenin içinde durabilir.";
+    internal const string OzelAlanIki = "Bir sayfada ve bir pencerede en fazla bir özel alan bloğu olabilir.";
+    internal static string OzelAlanKayit(string name) => $"Özel alan bloğunun değerleri kaydedilmiyor: kayıt adımlarından birinde '{{{{{name}.degerler}}}}' bağlanmalı.";
+    internal const string SatirYeri = "Satır tablosu (editableGrid) yalnız pencerenin içinde kullanılabilir.";
+    internal const string SatirIki = "Bir pencerede en fazla bir satır tablosu olabilir.";
+    internal const string SatirKip = "Pencerede satır tablosu yalnız 'list' kipinde kullanılabilir.";
+    internal static string SatirSutunu(string column) => $"Pencerede satır tablosu yalnız metin, sayı, tarih ve onay kutusu sütunlarını alır: {column}.";
+    internal static string SatirAyari(string key) => $"'{key}' pencerede satır tablosunda kullanılamaz.";
+    internal const string SatirSutunSayisi = "Pencerede satır tablosu en fazla 8 sütun alır.";
+    internal const string SatirSinir = "Pencerede satır tablosu için 'maxRows' 1–200 olmalıdır.";
+    internal static string SatirKayit(string name) => $"Satır tablosunun satırları kaydedilmiyor: pencerenin kayıt adımlarından birinde '{{{{{name}.satirlar}}}}' bağlanmalı.";
+    internal const string SatirEylem = "Satır tablosu olan pencerenin bir kayıt eylemi olmalı.";
+    private const int MaxWindowGridRows = 200;
+    private static readonly HashSet<string> WindowGridProps = new(StringComparer.Ordinal)
+    { "slot", "gridMode", "title", "description", "gridColumns", "minRows", "maxRows", "addLabel", "disabledWhen", "disabledReason", "visibleWhen" };
     internal const string TekDetay = "Liste kalıbında detay yerinde en fazla bir bileşen (detay paneli ya da kart) olabilir.";
 
     /// <summary>
@@ -199,7 +214,10 @@ internal static class PageTemplateRules
     { "indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
 
     internal static readonly IReadOnlySet<string> RecordSlots = new HashSet<string>(StringComparer.Ordinal)
-    { "summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
+    { "summary", "actions", "tabs", "section", "field", "lines", "note", CustomFieldsSlot, "above", "below", CommandsSlot, DialogsSlot, DialogSlot };
+
+    /// <summary>The Kayıt kartı slot of its custom fields block (in exactly one tab).</summary>
+    internal const string CustomFieldsSlot = "customFields";
 
     internal static readonly IReadOnlySet<string> FreeSlots = new HashSet<string>(StringComparer.Ordinal)
     { "actions", "tabs", "block", "item", CommandsSlot, DialogsSlot, DialogSlot };
@@ -216,7 +234,7 @@ internal static class PageTemplateRules
     private static readonly Dictionary<string, string> RecordSlotTypes = new(StringComparer.Ordinal)
     {
         ["summary"] = "recordHeader", ["actions"] = "button", ["tabs"] = "tabs", ["section"] = "formCard",
-        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text", [CommandsSlot] = "actionBar"
+        ["field"] = "input", ["lines"] = "dataTable", ["note"] = "text", [CustomFieldsSlot] = "customFieldsBlock", [CommandsSlot] = "actionBar"
     };
 
     internal static readonly IReadOnlySet<string> BelgeSlots = new HashSet<string>(StringComparer.Ordinal)
@@ -293,7 +311,7 @@ internal static class PageTemplateRules
     private static string? ValidateList(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedList;
-        if (PlaceWithDialogs(components, Slots, "list", out var placed) is { } placeError) return placeError;
+        if (PlaceWithDialogs(components, Slots, "list", queries, out var placed) is { } placeError) return placeError;
 
         foreach (var (_, slot, type) in placed)
         {
@@ -322,7 +340,7 @@ internal static class PageTemplateRules
     private static string? ValidateRecord(JsonElement components, JsonElement queries)
     {
         if (components.ValueKind != JsonValueKind.Array) return NeedSummary;
-        if (PlaceWithDialogs(components, RecordSlots, "record", out var placed) is { } placeError) return placeError;
+        if (PlaceWithDialogs(components, RecordSlots, "record", queries, out var placed) is { } placeError) return placeError;
 
         foreach (var (_, slot, type) in placed)
             if (RecordSlotTypes.TryGetValue(slot, out var expected) && type != expected) return WrongPart(slot, type, expected);
@@ -333,13 +351,103 @@ internal static class PageTemplateRules
         var tabbed = StringArray(tabs[0].Component, "tabs")
             .SelectMany(item => item.Split('=', 2) is [_, var ids] && ids.Length > 0 ? ids.Split(',') : [])
             .ToList();
-        foreach (var (component, _, _) in placed.Where(x => x.Slot is "section" or "lines" or "note"))
+        if (placed.Count(x => x.Slot == CustomFieldsSlot) > 1) return OzelAlanIki;
+        foreach (var (component, _, _) in placed.Where(x => x.Slot is "section" or "lines" or "note" or CustomFieldsSlot))
             if (tabbed.Count(x => x == Id(component)) != 1) return BlockOutsideTab;
 
         var sectionInputs = placed.Where(x => x.Slot == "section").SelectMany(x => StringArray(x.Component, "inputs")).ToList();
         foreach (var (component, _, _) in placed.Where(x => x.Slot == "field"))
             if (sectionInputs.Count(x => x == Id(component)) != 1) return FieldOutsideSection;
-        return ValidateRecordCommands(components, placed, queries);
+        return ValidateRecordCommands(components, placed, queries) ?? ValidateRecordCustomFields(components, placed, queries);
+    }
+
+    /// <summary>The record's custom fields block needs a save step (the commands bar's, or a sequence button's) that binds its values.</summary>
+    private static string? ValidateRecordCustomFields(JsonElement components, List<(JsonElement Component, string Slot, string Type)> placed, JsonElement queries)
+    {
+        var blocks = placed.Where(x => x.Slot == CustomFieldsSlot).ToArray();
+        if (blocks.Length == 0) return null;
+        var steps = new List<string>();
+        if (CommandBar(components) is { } bar) steps.AddRange(SaveSteps(bar.GetProperty("props")));
+        foreach (var (component, slot, type) in placed)
+            if (slot == "actions" && type == "button" && component.TryGetProperty("props", out var buttonProps) && StringProp(buttonProps, "actionType") == "sequence")
+                steps.AddRange(SaveSteps(buttonProps));
+        var name = NameOf(blocks[0].Component);
+        return Binds(queries, steps, name, "degerler") ? null : OzelAlanKayit(name);
+    }
+
+    private static string NameOf(JsonElement component) => StringProp(component, "name") ?? Id(component) ?? "";
+
+    /// <summary>The ids of the write queries a <c>saveQuery</c> / <c>saveSequence</c> owner runs.</summary>
+    private static IEnumerable<string> SaveSteps(JsonElement props)
+    {
+        if (props.ValueKind != JsonValueKind.Object) return [];
+        var steps = new List<string>();
+        if (StringProp(props, "saveQuery") is { Length: > 0 } one) steps.Add(one);
+        if (props.TryGetProperty("saveSequence", out var sequence) && sequence.ValueKind == JsonValueKind.Array)
+            steps.AddRange(sequence.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!));
+        return steps;
+    }
+
+    /// <summary>True when one of the queries (by id) binds one of its parameters exactly to <c>{{name.segment}}</c>.</summary>
+    private static bool Binds(JsonElement queries, IEnumerable<string> queryIds, string name, string segment)
+    {
+        if (queries.ValueKind != JsonValueKind.Array) return false;
+        var ids = queryIds.ToHashSet(StringComparer.Ordinal);
+        foreach (var query in queries.EnumerateArray())
+        {
+            if (query.ValueKind != JsonValueKind.Object || StringProp(query, "id") is not { } id || !ids.Contains(id)) continue;
+            if (!query.TryGetProperty("parameters", out var parameters) || parameters.ValueKind != JsonValueKind.Array) continue;
+            foreach (var parameter in parameters.EnumerateArray())
+                if (StringProp(parameter, "binding") is { } binding && TenantCustomPageQueries.TryParseBinding(binding, out var path) && path == $"{name}.{segment}")
+                    return true;
+        }
+        return false;
+    }
+
+    /// <summary>The window's custom fields block and row table rules (at most one each; saved by the window's own save step).</summary>
+    private static string? ValidateWindowExtras(JsonElement dialog, (JsonElement Component, string Slot, string Type)[] parts, JsonElement queries)
+    {
+        var blocks = parts.Where(x => x.Type == "customFieldsBlock").ToArray();
+        var grids = parts.Where(x => x.Type == "editableGrid").ToArray();
+        if (blocks.Length > 1) return OzelAlanIki;
+        if (grids.Length > 1) return SatirIki;
+        var steps = dialog.TryGetProperty("props", out var dialogProps) ? SaveSteps(dialogProps).ToArray() : [];
+        if (blocks.Length == 1)
+        {
+            var name = NameOf(blocks[0].Component);
+            if (!Binds(queries, steps, name, "degerler")) return OzelAlanKayit(name);
+        }
+        if (grids.Length == 1)
+        {
+            if (WindowGridError(grids[0].Component) is { } gridError) return gridError;
+            if (steps.Length == 0) return SatirEylem;
+            var name = NameOf(grids[0].Component);
+            if (!Binds(queries, steps, name, "satirlar")) return SatirKayit(name);
+        }
+        return null;
+    }
+
+    /// <summary>The small row table set a window allows: list mode, text / number / date / checkbox columns, no engine settings.</summary>
+    private static string? WindowGridError(JsonElement grid)
+    {
+        if (!grid.TryGetProperty("props", out var props) || props.ValueKind != JsonValueKind.Object) return null;
+        if (StringProp(props, "gridMode") != "list") return SatirKip;
+        if (props.TryGetProperty("gridColumns", out var columns) && columns.ValueKind == JsonValueKind.Array)
+        {
+            if (columns.GetArrayLength() is < 1 or > 8) return SatirSutunSayisi;
+            foreach (var item in columns.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String))
+            {
+                var parts = item.GetString()!.Split('|');
+                if (parts.Length >= 3 && (parts[2].StartsWith("lookup:", StringComparison.Ordinal) || parts[2].StartsWith("calc:", StringComparison.Ordinal)))
+                    return SatirSutunu(parts[0]);
+                if (parts.Length == 4 && parts[3].Split(',').FirstOrDefault(x => x == "readOnly" || x.StartsWith("step:", StringComparison.Ordinal)) is { } rule)
+                    return SatirAyari(rule == "readOnly" ? rule : "step");
+            }
+        }
+        foreach (var prop in props.EnumerateObject())
+            if (!WindowGridProps.Contains(prop.Name)) return SatirAyari(prop.Name);
+        var max = props.TryGetProperty("maxRows", out var maxRows) && maxRows.ValueKind == JsonValueKind.Number && maxRows.TryGetInt32(out var value) ? value : 0;
+        return max is < 1 or > MaxWindowGridRows ? SatirSinir : null;
     }
 
     /// <summary>
@@ -432,6 +540,7 @@ internal static class PageTemplateRules
     {
         if (component.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String && type.GetString() == "editableGrid")
             return "Belge sayfasında 'editableGrid' kullanılamaz; satırlar ve hesap modelden gelir.";
+        if (TypeOf(component) == "customFieldsBlock") return OzelAlanYeri;
         if (component.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
             foreach (var child in children.EnumerateArray())
                 if (ScanBelge(child) is { } error) return error;
@@ -477,7 +586,7 @@ internal static class PageTemplateRules
         foreach (var component in components.EnumerateArray())
             if (HasChildren(component) && !(component.TryGetProperty("props", out var childProps) && StringProp(childProps, "slot") == DialogSlot))
                 return FreeNoChildren;
-        if (PlaceWithDialogs(components, FreeSlots, "free", out var placed) is { } placeError) return placeError;
+        if (PlaceWithDialogs(components, FreeSlots, "free", queries, out var placed) is { } placeError) return placeError;
 
         foreach (var (component, slot, type) in placed)
         {
@@ -550,8 +659,9 @@ internal static class PageTemplateRules
             if (component.ValueKind != JsonValueKind.Object) return MissingSlot;
             var slot = component.TryGetProperty("props", out var props) && props.ValueKind == JsonValueKind.Object
                 && props.TryGetProperty("slot", out var slotValue) && slotValue.ValueKind == JsonValueKind.String ? slotValue.GetString() : null;
-            if (slot is null || !slots.Contains(slot)) return MissingSlot;
             var type = component.TryGetProperty("type", out var typeValue) && typeValue.ValueKind == JsonValueKind.String ? typeValue.GetString() ?? "" : "";
+            if (type == "customFieldsBlock" && slot == CustomFieldsSlot && !slots.Contains(slot)) return OzelAlanYeri;
+            if (slot is null || !slots.Contains(slot)) return MissingSlot;
             placed.Add((component, slot, type));
         }
 
@@ -566,10 +676,16 @@ internal static class PageTemplateRules
     /// with the <c>dialog</c> presentation and an sm–xl size; every window content (<see cref="DialogOwners"/>) in the <c>dialog</c> slot
     /// and nothing else there; at most one summary and one tabs per window; groups only in window contents and Liste's detail, one level.
     /// </summary>
-    private static string? PlaceWithDialogs(JsonElement components, IReadOnlySet<string> slots, string template,
+    private static string? PlaceWithDialogs(JsonElement components, IReadOnlySet<string> slots, string template, JsonElement queries,
         out List<(JsonElement Component, string Slot, string Type)> placed)
     {
         if (Place(components, slots, out placed) is { } placeError) return placeError;
+        foreach (var (_, slot, type) in placed)
+        {
+            // The custom fields block lives in a record's customFields slot and in windows; the row table only in windows.
+            if (type == "editableGrid" && slot != DialogSlot) return SatirYeri;
+            if (type == "customFieldsBlock" && !(slot == DialogSlot || template == "record" && slot == CustomFieldsSlot)) return OzelAlanYeri;
+        }
         foreach (var (component, slot, type) in placed)
         {
             if (type == "dialog" && slot != DialogsSlot) return PencereYeri;
@@ -593,6 +709,8 @@ internal static class PageTemplateRules
             var parts = placed.Where(x => window.Contains(Id(x.Component) ?? "")).ToArray();
             if (parts.Count(x => x.Type == "recordHeader") > 1) return PencereOzet;
             if (parts.Count(x => x.Type == "tabs") + parts.SelectMany(x => Children(x.Component)).Count(x => TypeOf(x) == "tabs") > 1) return PencereSekme;
+            if (placed.FirstOrDefault(x => Id(x.Component) == window.Key) is { Component.ValueKind: JsonValueKind.Object } owner
+                && ValidateWindowExtras(owner.Component, parts, queries) is { } extrasError) return extrasError;
         }
 
         foreach (var (component, slot, type) in placed)
@@ -605,6 +723,7 @@ internal static class PageTemplateRules
             {
                 var childType = TypeOf(child) ?? "";
                 if (childType is "section" or "card" or "dialog" || child.TryGetProperty("children", out _)) return GrupIcIce;
+                if (childType == "editableGrid") return SatirYeri;
                 if (!GroupChildTypes.Contains(childType)) return GrupTuru(childType);
             }
         }

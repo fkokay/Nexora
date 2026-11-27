@@ -1,4 +1,16 @@
 # Master Prompt Phase Status
+### 2026-11-28 Stok & Depo dalga 1: 4 standart Liste kalıbına elle çizildi
+
+Branch `claude/stok-dalga1` (design: `docs/superpowers/specs/2026-11-28-stok-depo-yeniden-tasarim-design.md`, mockup 14); not merged. No migration, no new template feature, no new belge modeli.
+
+- `inventory-stock-movements` (v2), `inventory-warehouses` (v3), `inventory-locations` (v2), `inventory-stock` (v2): `definition` rewritten by hand as List template; ids that survive keep their `items` / `screenViews`, dropped components lost their `items`. All items stay `since: 1` (restricted versions validate on their own). Firm copies are not migrated here.
+- Movements: stock + depot are filter-bar selects (stock options = first page of `stok.bakiye.sayfa`; the `stockItemId` page parameter fills the filter, so "Hareketler ›" from the stock screen works for any card); indicators Mevcut / Stok değeri; row action **Ters kayıt** (reason prompt, runs in the row's warehouse). Date range filter not built (the operation has no date parameters; a template date filter would only filter the loaded page).
+- Warehouses: Yeni depo / Düzenle are two separate windows (one window cannot tell New from Edit: inputs default from the selected row); row actions Konumlar › / Pasife al / Etkinleştir; location count is a card metric (no count column on `WarehouseView`). Depot custom fields are gone (template windows have no custom-field block) — `depo.ozelAlanKaydet` etc. no longer used by the page.
+- Locations: depot filter first (default first depot, page parameter wins), indicators (konum, aktif, konumsuz kalan kart), Yeni konum / Düzenle windows (TenantAdmin), Pasife al row action, Bakiyeler and Konumlandırma denetimi as table windows. "Üst konum" column left out (view has only the parent id).
+- Stock: four indicators, one filter bar (arama, depo, pasifler, minimum altı toggle), card group on the right (no toggle, no depot distribution / last movements tables), conditional negative-stock notes, **Hareket gir** window (entry only) and **Hareketler ›** to the movements screen. Known loss: lot / serial tracked cards cannot be entered in the window (a list parameter binds only to an editable grid, which template windows do not have); the window shows a note.
+- Tests: new `InventoryWarehousesStandardTests` / `InventoryLocationsStandardTests`, adapted stock + movements C# tests, `SystemPageStandardsTests`, detail-toggle and filter-bar tests; ERP vitest for all four screens and the Studio movements test (template `slot` is not a managed key). Operations fixture of the movements screen gained `stok.hareket.tersKayit`.
+- **Verified (InMemory / jsdom):** see the PR for the counts of the run. **Not verified:** a real browser pass, SQL Server acceptance, firm copies on live (they keep the old layout until reset).
+
 ### 2026-11-27 5b-2 dalga 1: 4 standart kalıba taşındı
 
 Branch `claude/standart-tasima-1`; not merged. No migration.
@@ -1702,6 +1714,18 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
   - Güncellemeden önce açılmış ve elle değiştirilmiş bir taslak yayımlanırsa güncelleme geri alınmış olur ve yeniden uygulanmaz.
   - Kartın "iptaller hariç" açıklaması taslakları ve onay bekleyenleri söylemez.
 
+## İK ve Üretim: 1. dalga standartları Liste kalıbına taşındı
+
+- **Ne değişti:** `hr-employees`, `hr-attendance`, `hr-period-summary` ve `manufacturing-cost-variance` (hepsi sürüm 2) elle Liste kalıbına yazıldı. Tasarım: `docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md`. Kalıba yeni özellik eklenmedi.
+  - Kalkanlar: "Eski ekranda aç" düğmesi, "Detay paneli" anahtarı, süzgeç çipleri, kalıpsız genişlik ayarları. Kart grubu hep sağda.
+  - `hr-employees`: süzgeç alanı (arama, durum, departman), altı sütun, kimlik özeti ve İzin talepleri / Puantaj bağlantıları kart grubunda.
+  - `hr-attendance`: personel ve onay durumu süzgeç alanında, tarih aralığı üstte ayrı kartta. Puantaj kaydı penceresi artık kayıttan sonra kapanır. Onay ve düzeltme kuralları değişmedi.
+  - `hr-period-summary`: Çalıştır sayfa düğmesidir, rapor elle çalışır; "Puantaj kaydı" göstergesi kalktı (altı gösterge).
+  - `manufacturing-cost-variance`: tablo yedi sütuna indi, tam döküm seçili emrin kart grubunda.
+- **Basitleştirmeler:** Süzgeç alanı tarih için sunucuya giden değer taşıyamadığından tarih aralığı `above` yerinde ayrı bir form kartıdır (kalıba özellik eklenmedi). Personel seçicinin gizli sayfa boyutu girdisi korundu (liste işlemi zarfı yalnız sayfalı istekte döner).
+- **Doğrulanan:** standart yüklenir ve şemadan geçer; İK ve Üretim standart testleri ile ERP/Studio vitest ve iki arayüzün derlemesi (`scripts/Test-Affected.ps1`).
+- **Doğrulanmayan:** canlıda görsel kontrol ve tarayıcıda dar ekran düzeni yapılmadı; firma kopyalarının standarda sıfırlanması bu işin dışındadır.
+
 
 ### 2026-11-28 satış ve cari yeniden tasarım, 1. dalga: beş standart kalıba çizildi
 
@@ -1714,4 +1738,15 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
   - `customer-create`: harita enlem/boylam alanları kalktı, iki başlık tek özet oldu (sayfa başlığı başlıkları sekme adı için kaldı), e-Fatura eksik bilgi uyarısı sekmede açıklama metni oldu, "Yeni adres" düğmesi işlem çubuğunun yanındaki sayfa düğmesi.
 - **Karşılıksız kalan:** Kayıt kartında özel alan bloğu olmadığı için `customer-create`'te "Özel alanlar" sekmesi ve özel alan kaydı (`cari.ozelAlanKaydet`, `customFields`) düştü; cari özel alan değerleri bu kartta düzenlenmez. Cari kartı oluşturma API'si zorunlu cari özel alanını zorunlu tutar (`missingRequired`): zorunlu cari özel alanı tanımlı bir firma bu ekrandan yeni cari oluşturamaz. Kalıba özel alan bloğu eklenince geri gelir (tasarım "Kalıplarda eksik" madde 1).
 - **Doğrulanan (yerel):** Beş standart yüklenir, şemadan ve her sürüm kısıtlamasından geçer; ilgili .NET testleri (etkilenen sınıflar), tam ERP ve Studio vitest paketleri ve iki arayüzün `npm run build`'i geçti (Studio paketinde `tests/*.mjs` dosyalarının vitest'te toplanması ve yük altında zaman aşımına uğrayan bir pencere testi bu işten bağımsızdır). `legacyUnchanged` anlık görüntüleri artık cari standartlarının eski (dondurulmuş) kopyalarından çizilir.
+- **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
+
+### 2026-11-28 finans ve duran varlık yeniden tasarım, 2. dalga: üç standart kalıba çizildi
+
+- **Ne değişti:** `finance-ledger-chart` v2 (Liste + kart grubu + üç pencere), `fixed-assets` v2 (Liste + kart grubu + iki pencere) ve `fixed-asset-create` v2 (Kayıt kartı, üç sekme) standartları el ile kalıplı sayfa olarak yeniden yazıldı (tasarım: `docs/superpowers/specs/2026-11-28-finans-muhasebe-varlik-yeniden-tasarim-design.md`). Sorgular ve işlemler aynı kaldı; yalnız düzen ve pencereler değişti.
+- **Sadeleşenler:**
+  - `finance-ledger-chart`: yan karttaki üç gömülü form ve "yeni/düzenle" karışık Kaydet dizisi kalktı; "Yeni hesap" ve "Hesabı düzenle" kendi Kaydet'li pencereler (oluştur / güncelle ayrı sorgu, hareketli hesapta kod ve ad kilitli), Muavin penceresi aynı. Yönetici olmayan için ayrı salt okunur panel ve "Listeyi yenile" düğmesi kalktı; kart salt okunur, düzenleme düğmeleri yalnız TenantAdmin'e görünür.
+  - `fixed-assets`: "Detay paneli" anahtarı, süzgeç kartı ve durum çipleri kalktı (durum süzgeç alanında); Sil ve "Eski ekranda aç" kalktı; kart grubunda Kıymet kartını aç, Amortismanı kaydet, Elden çıkar (yalnız etkin kıymette) ve Zimmetle (eski ekrana gider).
+  - `fixed-asset-create`: bugünkü ~20 alan Kıymet / Maliyet ve muhasebe / VUK vergi profili sekmelerine bölündü; durum başlığı özet ve sekme adlarına indi, VUK onay uyarısı sekmede açıklama metni oldu; Kaydet ve yeni kalktı (Kaydet, Yeni).
+- **Karşılıksız kalan:** `fixed-asset-create` özetinde "Aylık amortisman" hesaplanan göstergesi yok (kalıpta özet alanları hesap ifadesi bilmiyor; maliyet ve ömür gösterilir). Kaydetten sonra kıymet kartı açılmıyor: kalıbın "kayıttan sonra" komutu sayfa parametresi taşımadığı için kayıt sonrası kıymet listesi açılır. `fixed-assets` durum süzgeci seçenekleri yüklü satırlardan gelir (sunucuya giden seçimli süzgeç).
+- **Doğrulanan (yerel):** Üç standart yüklenir ve şemadan geçer; ilgili .NET testleri (`FixedAssetSystemPagesTests`, `FinanceSystemPagesTests`, `SystemPageStandardsTests`) ile ERP ve Studio standart vitest dosyaları kalıba uyarlandı ve geçti.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.

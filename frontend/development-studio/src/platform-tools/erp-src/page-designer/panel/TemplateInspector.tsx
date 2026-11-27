@@ -21,6 +21,7 @@ import { InfoBoxPanel } from "./InfoBoxPanel";
 import { ListPanel, type ListPanelProps } from "./ListPanel";
 import { listDataSourceCode, stringList, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 import { RecordPanel, recordSelectionOf, type RecordPanelProps } from "./RecordPanel";
+import { CustomFieldsPanel, WindowGridPanel } from "./ExtrasPanels";
 import { BelgePanel, type BelgePanelProps } from "./BelgePanel";
 import { TextPanel } from "./TextPanel";
 
@@ -181,6 +182,17 @@ export function TemplateInspector({ component, legacy, list, record, free, belge
     if (def && onChange) return <GroupPanel def={def} groupId={component.id} onChange={onChange}
       disabled={disabled || free?.disabled || record?.disabled || belge?.disabled || list?.disabled}
       visibility={free?.visibility?.(component.id) ?? record?.visibility?.(component.id) ?? list?.visibility}/>;
+  }
+  // Pencere içindeki özel alan bloğu ve satır tablosu kendi panelinde açılır (spec 2026-11-28).
+  if (component && placed === DIALOG_SLOT && (component.type === "customFieldsBlock" || component.type === "editableGrid")) {
+    const def = free?.def ?? record?.def ?? belge?.def ?? list?.definition;
+    const onChange = free?.onChange ?? record?.onChange ?? belge?.onChange ?? list?.onChange;
+    if (def && onChange) {
+      const off = disabled || free?.disabled || record?.disabled || list?.disabled;
+      const visibility = free?.visibility?.(component.id) ?? record?.visibility?.(component.id) ?? list?.visibility;
+      const Panel = component.type === "customFieldsBlock" ? CustomFieldsPanel : WindowGridPanel;
+      return <Panel def={def} id={component.id} key={component.id} onChange={onChange} disabled={off} visibility={visibility} readOnlyWhen={list?.readOnlyWhen}/>;
+    }
   }
   if (free && !inDialog) return <FreeInspector component={component} legacy={legacy} list={list} free={free} tokens={tokens} disabled={disabled}/>;
   if (record && !inDialog) {

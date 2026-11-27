@@ -3971,6 +3971,8 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     onChange: (next: ModelDefinition) => commit(() => next as unknown as PageDefinition),
     onSelect: (selection: RecordSelection) => setSelectedComponentId(selection.kind === "page" ? null : selection.id),
     onAskDeveloper: askDeveloper,
+    readOnlyWhen: (id: string) => <ConditionBuilder key={`${id}-readonly`} prop="disabledWhen" value={(() => { const value = definition.components.find((item) => item.id === id)?.props.disabledWhen; return typeof value === "string" ? value : undefined; })()}
+      paths={commandPaths} pageNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => setOptionalProp(id, "disabledWhen", next)}/>,
     visibility: (id: string) => {
       const component = definition.components.find((item) => item.id === id);
       return component ? <VisibilityField key={`${id}-visibility`} props={component.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions}
@@ -4710,7 +4712,10 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
             operationOf: (operation) => operation ? findOperation(erpCatalog, operation) : undefined, operationsStatus: erpCatalog.status, isTenantAdmin: isAdmin,
             recordCount: typeof selected.props.query === "string" ? queryPreviews[selected.props.query]?.rowCount ?? null : null,
             onChange: (next) => commit(() => next as unknown as PageDefinition),
-            visibility: <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/> }}/>;
+            visibility: <VisibilityField key={`${selected.id}-visibility`} props={selected.props} pageNames={pageNamesOf(definition)} suggestions={bindingSuggestions} disabled={!canEdit} onSet={(key, value) => setOptionalProp(selected.id, key, value)}/>,
+            readOnlyWhen: selected.type === "customFieldsBlock" || selected.type === "editableGrid"
+              ? <ConditionBuilder key={`${selected.id}-readonly`} prop="disabledWhen" value={typeof selected.props.disabledWhen === "string" ? selected.props.disabledWhen : undefined}
+                  paths={commandPaths} pageNames={pageNamesOf(definition)} disabled={!canEdit} onChange={(next) => setOptionalProp(selected.id, "disabledWhen", next)}/> : undefined }}/>;
       })() : <div className="pd-right-body">
           {/* Kayıt kartında sayfanın panelini Kayıt paneli çizer (ad dahil); sayfa kodu, açıklama, erişim ve silme altında kalır. */}
           {recordPanel ? <TemplateInspector component={null} legacy={null} list={null} record={recordPanel} tokens={[]} disabled={!canEdit} onPlace={() => {}}/>

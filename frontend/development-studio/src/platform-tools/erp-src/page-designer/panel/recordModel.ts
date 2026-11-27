@@ -103,7 +103,8 @@ const isSection = (component: ModelComponent) => component.type === "formCard" &
 const isField = (component: ModelComponent) => component.type === "input" && slotOf(component) === "field";
 const isLines = (component: ModelComponent) => component.type === "dataTable" && slotOf(component) === "lines";
 const isNote = (component: ModelComponent) => component.type === "text" && slotOf(component) === "note";
-const isBlock = (component: ModelComponent) => isSection(component) || isLines(component) || isNote(component);
+const isCustomFields = (component: ModelComponent) => component.type === "customFieldsBlock" && slotOf(component) === "customFields";
+const isBlock = (component: ModelComponent) => isSection(component) || isLines(component) || isNote(component) || isCustomFields(component);
 
 /** Kayıt sorgusu: `kayit`, okuma, katalog veri kaynağına bağlı. */
 export function recordQuery(def: ModelDefinition): PageQuery | undefined {
@@ -708,6 +709,15 @@ export function addNote<D extends ModelDefinition>(def: D, tabIndex: number, ind
   if (!clean || !recordKey(def)) return def;
   const id = freeId(def, "aciklama");
   return addBlock(def, tabIndex, index, { id, type: "text", name: id, props: { slot: "note", text: clean } });
+}
+
+/** Özel alan bloğu: sayfada en çok bir, tam bir sekmede; tanım sorgusu panelden seçilir (sunucu: OzelAlan* kuralları). */
+export function addCustomFields<D extends ModelDefinition>(def: D, tabIndex: number): { def: D; blockId: string } {
+  if (def.components.some(isCustomFields)) return { def, blockId: "" };
+  const id = freeId(def, "ozelAlanlar");
+  const tabs = recordTabs(def);
+  const next = addBlock(def, tabIndex, tabs[tabIndex]?.ids.length ?? 0, { id, type: "customFieldsBlock", name: id, props: { slot: "customFields", title: "Özel alanlar", columns: 2 } });
+  return { def: next, blockId: next === def ? "" : id };
 }
 
 /** Bölümü, satır tablosunu ya da notu bir sekmeye (aynı sekmede başka sıraya) taşır. Hedef doluysa tanım değişmez. */

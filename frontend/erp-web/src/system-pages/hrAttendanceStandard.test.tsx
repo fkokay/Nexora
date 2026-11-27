@@ -5,6 +5,7 @@ import catalog from './hrAttendanceOperations.fixture.json';
 import { createHarness, T } from './purchasingStandardHarness';
 
 // "Puantaj" standart tanımı (hr-attendance.json): ay başından bugüne açılır; kayıt penceresi 480 / 0 dakikayla başlar,
+// Liste kalıbı: süzgeç alanında personel ve onay durumu sunucuya gider; tarih aralığı ayrı kartta.
 // düzeltme kaydı ik.puantaj.getir ile okuyup ik.puantaj.duzelt ile yazar (onay kalkar), onay dört göz kuralına bağlıdır.
 
 vi.mock('../erpApi', () => ({ api: vi.fn() }));
@@ -66,7 +67,7 @@ describe('Puantaj standart tanımı', { timeout: 30000 }, () => {
     expect(h.gets(`/api/hr/attendance/${A1}`)).toEqual([]);
   });
 
-  it('Puantaj kaydı: defaults 480 / 0 and today, empty personnel; the dialog stays open after a save', async () => {
+  it('Puantaj kaydı: defaults 480 / 0 and today, empty personnel; the dialog closes after a save', async () => {
     h.setup(respond);
     await h.cell('Ayşe Yılmaz');
     await h.ready('new');
@@ -81,8 +82,7 @@ describe('Puantaj standart tanımı', { timeout: 30000 }, () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(creates()).toHaveLength(1), T);
     expect(h.bodyOf(creates()[0])).toMatchObject({ employeeId: E1, workDate: today(), workedMinutes: 480, overtimeMinutes: 0 });
-    await h.settle(100);
-    expect(screen.queryByRole('dialog', { name: 'Puantaj kaydı' })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Puantaj kaydı' })).toBeNull(), T);
   });
 
   it('Düzelt reads the record, warns that it goes back to approval, and PUTs with the source rowVersion', async () => {
@@ -107,7 +107,7 @@ describe('Puantaj standart tanımı', { timeout: 30000 }, () => {
     h.setup(respond);
     await h.select('Mehmet Kaya');
     const disabled = await h.menuItem(/^Onayla/);
-    expect(disabled.getAttribute('aria-disabled')).toBe('true');
+    expect(disabled.hasAttribute('disabled') || disabled.getAttribute('aria-disabled') === 'true').toBe(true);
     expect(disabled.outerHTML).toContain('başka bir yönetici onaylamalı');
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     await h.select('Ayşe Yılmaz');

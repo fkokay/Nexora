@@ -285,8 +285,8 @@ describe('Cari kart standart tanımı', { timeout: 30000 }, () => {
     expect(body.address).toEqual({ countryCode: 'TR', city: 'Konya', district: 'Meram', postalCode: '42000', addressLine: 'Feritpaşa Mah.', label: 'Merkez', kind: 'General', isDefault: true });
     expect(Object.keys(body).filter((key) => key.includes('.'))).toEqual([]);
     expect(posts()).toEqual([]);
-    // Özel alanlar sekmesi kalıpta karşılıksız: kayıt dizisi yalnız kartı yazar (özel alan değerleri yazılmaz).
-    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/customers/${C1}`]);
+    // Özel alanlar sekmesi (v3): kayıt dizisi kartı yazar, ardından özel alan değerlerini ayrı adımda yazar.
+    expect(writes().map((call) => `${call.method} ${call.url}`)).toEqual([`PUT /api/customers/${C1}`, `PUT /api/customers/${C1}/custom-fields`]);
   });
 
   it('new card starts with TRY and 0 (emptyDefault) and saves them untouched; Kaydet ve yeni returns to them', async () => {
