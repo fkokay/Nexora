@@ -34,7 +34,7 @@ internal static class TemplatelessPageSeed
         var response = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code, name, description, definition });
         if (response.StatusCode != HttpStatusCode.BadRequest) return response;
         var body = await response.Content.ReadAsStringAsync();
-        if (!body.Contains(TenantCustomPageEndpoints.YeniSayfaKalipli, StringComparison.Ordinal)) return response;
+        if (!body.Contains(PageTemplateRules.YeniSayfaKalipli, StringComparison.Ordinal)) return response;
 
         var tenantId = Guid.Parse(client.DefaultRequestHeaders.GetValues("X-Test-Tenant").Single());
         var userId = Guid.Parse(client.DefaultRequestHeaders.GetValues("X-Test-User").Single());

@@ -12,8 +12,6 @@ internal static class TenantCustomPageEndpoints
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     /// <summary>Revisions that make a definition the published one ("Yayınlar"): a publish, a template migration and its rollback.</summary>
     private static readonly string[] PublicationKinds = ["Published", "TemplateMigrated", "TemplateMigrationRolledBack"];
-    /// <summary>A new page is created only with a template (5b-2 §5.5); existing templateless pages stay editable.</summary>
-    internal const string YeniSayfaKalipli = "Yeni sayfa bir kalıpla (Liste, Kayıt kartı, Belge ya da Serbest) oluşturulmalıdır.";
 
     public static void MapTenantCustomPageEndpoints(this WebApplication app)
     {
@@ -144,12 +142,13 @@ internal static class TenantCustomPageEndpoints
             if (!ValidMetadata(request.Code, request.Name, request.Description, request.Definition,
                     TenantCustomPageQueries.OperationNames([.. liveDefinitions]), catalog, out var json, out var error)) return Results.BadRequest(new { error });
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, [json!, .. liveDefinitions])) return Results.Forbid();
-            // 5b-2: a new page (no published page or open draft under this code; archived rows do not count) needs a template.
-            // Existing templateless pages keep their new drafts. Schema version 1 cannot carry a template, so it is new-page-rejected too.
-            if (liveDefinitions.Count == 0 && PageTemplateRules.TemplateName(request.Definition) is null)
-                return Results.BadRequest(new { error = YeniSayfaKalipli });
             if (await db.TenantCustomPages.AnyAsync(x => x.TenantId == tenant && x.Code == code && !x.IsPublished && !x.IsArchived, ct))
                 return Results.Conflict(new { error = "Bu sayfa kodu için açık taslak zaten var." });
+            // 5b-2: a templateless draft is accepted only for an existing templateless page: some live (published, not archived)
+            // definition of this code must itself be templateless. A code whose live page is templated, or a new code (archived rows
+            // do not count), needs a template. Schema version 1 cannot carry a template, so it is rejected the same way.
+            if (PageTemplateRules.TemplateName(request.Definition) is null && !liveDefinitions.Any(IsTemplateless))
+                return Results.BadRequest(new { error = PageTemplateRules.YeniSayfaKalipli });
             var now = DateTimeOffset.UtcNow;
             var page = new TenantCustomPage { TenantId = tenant, Code = code, Name = request.Name.Trim(), Description = CleanDescription(request.Description), DefinitionJson = json!, Revision = 1, CreatedByUserId = userId, UpdatedByUserId = userId, CreatedAt = now, UpdatedAt = now };
             db.TenantCustomPages.Add(page);
@@ -179,6 +178,12 @@ internal static class TenantCustomPageEndpoints
                     TenantCustomPageQueries.OperationNames(page.DefinitionJson, publishedDefinition), catalog, out var json, out var error, page.ScreenKey is not null)) return Results.BadRequest(new { error });
             // Both the stored draft and the incoming definition count: a non-admin may neither add nor remove queries.
             if (!await QueryPageWriteAllowedAsync(http, tenant, userId, role, ct, page.DefinitionJson, json!)) return Results.Forbid();
+            // 5b-2: a templated draft may not be turned into a templateless one unless the code's published page is itself
+            // templateless (an existing legacy page). Drafts that are already templateless (legacy drafts, restored revisions)
+            // stay editable; system rows follow their standard screen and are not new pages.
+            if (page.ScreenKey is null && PageTemplateRules.TemplateName(request.Definition) is null && !IsTemplateless(page.DefinitionJson)
+                && (publishedDefinition is null || !IsTemplateless(publishedDefinition)))
+                return Results.BadRequest(new { error = PageTemplateRules.YeniSayfaKalipli });
             page.Name = request!.Name.Trim(); page.Description = CleanDescription(request.Description); page.DefinitionJson = json!;
             if (request.StandardVersion is { } standardVersion) page.StandardVersion = standardVersion;
             page.Revision++; page.UpdatedByUserId = userId; page.UpdatedAt = DateTimeOffset.UtcNow;
@@ -348,6 +353,16 @@ internal static class TenantCustomPageEndpoints
     private static Task<CatalogBundle?> CatalogForAsync(TenantDbContext db, Guid tenant, JsonElement definition, CancellationToken ct) =>
         definition.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
             ? Task.FromResult<CatalogBundle?>(null) : CatalogForAsync(db, tenant, definition.GetRawText(), ct);
+    /// <summary>A stored definition without a well-formed template (legacy page). Unreadable JSON is not treated as templateless (fail closed).</summary>
+    private static bool IsTemplateless(string definitionJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(definitionJson);
+            return PageTemplateRules.TemplateName(document.RootElement) is null;
+        }
+        catch (JsonException) { return false; }
+    }
     internal static bool ValidCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= 40 && code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
     private static string? CleanDescription(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     /// <summary>The published custom forms a page definition references, embedded in runtime responses.</summary>

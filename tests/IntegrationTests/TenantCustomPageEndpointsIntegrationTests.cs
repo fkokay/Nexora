@@ -27,7 +27,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         using var client = app.GetTestClient();
         SetIdentity(client, TenantA, UserA, "TenantAdmin");
 
-        // A new page needs a template (5b-2); later drafts of the code may stay templateless.
+        // A new page needs a template (5b-2), and its later drafts cannot drop it (no templateless page of this code exists).
         var definition = Json(MinimalFreeDefinition);
         var createdResponse = await client.PostAsJsonAsync("/api/custom-pages/drafts", new
         {
@@ -60,7 +60,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
             expectedRevision = 1,
             name = "Varlık panosu v2",
             description = "Güncellendi",
-            definition = PageDefinition("Güncel başlık")
+            definition = FreeDefinition("Güncel başlık")
         });
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         using var updated = JsonDocument.Parse(await update.Content.ReadAsStringAsync());
@@ -83,7 +83,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         {
             code = "asset-dashboard",
             name = "Yeni pano",
-            definition = PageDefinition("Yeni sürüm")
+            definition = FreeDefinition("Yeni sürüm")
         });
         Assert.Equal(HttpStatusCode.Created, secondDraftResponse.StatusCode);
         using var secondDraft = JsonDocument.Parse(await secondDraftResponse.Content.ReadAsStringAsync());
@@ -132,7 +132,7 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         Assert.Equal(JsonValueKind.Null, legacy.GetProperty("templateLevel").ValueKind);
     }
 
-    private const string YeniSayfaKalipli = "Yeni sayfa bir kalıpla (Liste, Kayıt kartı, Belge ya da Serbest) oluşturulmalıdır.";
+    private const string YeniSayfaKalipli = PageTemplateRules.YeniSayfaKalipli;
     private const string TemplatelessV2 = """{"schemaVersion":2,"queries":[],"components":[{"id":"heading_1","type":"heading","props":{"title":"Eski"}}]}""";
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
@@ -233,9 +233,57 @@ public sealed class TenantCustomPageEndpointsIntegrationTests
         Assert.True(published.StatusCode == HttpStatusCode.OK, await published.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task Templateless_draft_of_a_code_whose_live_page_is_templated_is_rejected()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        await TemplatelessPageSeed.SeedDraftAsync(app.Services, TenantA, UserA, "kalipli", "Kalıplı", MinimalFreeDefinition, published: true);
+
+        await AssertNewPageRejectedAsync(await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "kalipli", name = "Kalıplı", definition = Json(TemplatelessV2) }));
+        Assert.Equal(1, await PageCountAsync(app));
+        // A templated new draft of the same code is still accepted.
+        var templated = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "kalipli", name = "Kalıplı", definition = Json(MinimalFreeDefinition) });
+        Assert.True(templated.StatusCode == HttpStatusCode.Created, await templated.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Templated_draft_cannot_be_put_back_to_templateless_without_a_templateless_published_page()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "yeni-sayfa", name = "Yeni", definition = Json(MinimalFreeDefinition) });
+        Assert.True(created.StatusCode == HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        await AssertNewPageRejectedAsync(await client.PutAsJsonAsync($"/api/custom-pages/{id}", new { expectedRevision = 1, name = "Yeni", definition = Json(TemplatelessV2) }));
+        // A templated edit is accepted.
+        var edited = await client.PutAsJsonAsync($"/api/custom-pages/{id}", new { expectedRevision = 1, name = "Yeni 2", definition = Json(MinimalFreeDefinition) });
+        Assert.True(edited.StatusCode == HttpStatusCode.OK, await edited.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Templated_draft_of_a_templateless_published_page_may_go_back_to_templateless()
+    {
+        await using var app = await StartApplicationAsync();
+        using var client = app.GetTestClient();
+        SetIdentity(client, TenantA, UserA, "TenantAdmin");
+        await TemplatelessPageSeed.SeedDraftAsync(app.Services, TenantA, UserA, "eski-pano", "Eski pano", TemplatelessV2, published: true);
+        var created = await client.PostAsJsonAsync("/api/custom-pages/drafts", new { code = "eski-pano", name = "Eski pano", definition = Json(MinimalFreeDefinition) });
+        Assert.True(created.StatusCode == HttpStatusCode.Created, await created.Content.ReadAsStringAsync());
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var back = await client.PutAsJsonAsync($"/api/custom-pages/{id}", new { expectedRevision = 1, name = "Eski pano", definition = Json(TemplatelessV2) });
+        Assert.True(back.StatusCode == HttpStatusCode.OK, await back.Content.ReadAsStringAsync());
+    }
+
     /// <summary>The smallest valid templated page: Serbest with one empty block.</summary>
     internal const string MinimalFreeDefinition =
         """{"schemaVersion":2,"template":{"name":"free"},"queries":[],"components":[{"id":"b1","type":"section","name":"b1","props":{"slot":"block","title":"Bölüm","columns":2,"members":[]}}]}""";
+
+    private static JsonElement FreeDefinition(string title) => Json(MinimalFreeDefinition.Replace("\"Bölüm\"", JsonSerializer.Serialize(title)));
 
     private static object PageDefinition(string title) => new
     {
