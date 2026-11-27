@@ -75,7 +75,7 @@ describe("dialogsModel", () => {
 
   it("group children: add / remove / move only the allowed types", () => {
     expect([...GROUP_CHILD_TYPES].sort()).toEqual(["alert", "badge", "button", "contextPanel", "dataTable", "formCard", "heading", "metric", "tabs", "text"]);
-    expect(DIALOG_PART_TYPES.has("editableGrid")).toBe(false);
+    expect(DIALOG_PART_TYPES.has("editableGrid") && DIALOG_PART_TYPES.has("customFieldsBlock")).toBe(true);
     const start = salesOrders();
     const group = () => start.find((item) => item.id === "durum")!;
     expect(isGroup(group())).toBe(true);

@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
-import { commandReason } from '../action-bar/commandReason';
 import { ActionBarSlotProvider } from '../action-bar/ActionBarSlot';
 import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
@@ -12,7 +11,7 @@ import TenantCustomPage from '../TenantCustomPage';
 import { OPEN_PAGE_EVENT, openWorkspacePage, type WorkspaceOpenRequest } from '../pageNavigation';
 import catalog from './inventoryStockOperations.fixture.json';
 
-// Stok Kartları standart tanımı (inventory-stock.json) gerçek çalışma zamanıyla çizilir; API sahte yanıtlar döner.
+// Stok Kartları standart tanımı (inventory-stock.json, sürüm 2, Liste kalıbı) gerçek çalışma zamanıyla çizilir; API sahte yanıtlar döner.
 // `inventoryStockOperations.fixture.json`, ErpOperationCatalog'un bu sayfanın kullandığı işlemlerinin anlık görüntüsüdür
 // (allowed: true); katalog değişirse yeniden üretilmelidir.
 
@@ -73,7 +72,7 @@ function respond(url: string, method: string): unknown {
   const [path] = url.split('?');
   if (method === 'GET') {
     if (path === '/api/warehouses/balances/page' || path === `/api/warehouses/${W}/balances/page`) {
-      const items = [balanceItem(card(S1, 'KLM', 'Kalem'), 5, 'Minimum altı'), balanceItem(card(S2, 'DFT', 'Defter'), 20, 'Yeterli')];
+      const items = [balanceItem(card(S1, 'KLM', 'Kalem'), 5, 'Minimum altı'), balanceItem(card(S2, 'DFT', 'Defter', { trackingMode: 'Lot' }), 20, 'Yeterli')];
       return {
         items, page: 1, pageSize: 25, totalCount: 2, belowMinimumCount: 1, pageValuationAmountBase: 1234.5, pageAvailableQuantity: 23,
         pageUnitCode: 'ADET', pageAvailableCount: 2, pageUnvaluedCount: 0, baseCurrencyCode: 'TRY',
@@ -118,8 +117,8 @@ function setup(role = 'TenantAdmin') {
     if (endpoint === '/api/system-pages/inventory-stock/published') {
       return {
         id: 'sp', code: '@inventory-stock', name: standard.title, description: null, revision: 1, forms: [],
-        rights: { view: true, insert: true, update: true, delete: true }, screenKey: 'inventory-stock', source: 'standard', standardVersion: 1,
-        definitionJson: JSON.stringify(definition),
+        rights: { view: true, insert: true, update: true, delete: true }, screenKey: 'inventory-stock', source: 'standard', standardVersion: 2,
+        definitionJson: JSON.stringify(standard.definition),
       };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations };
@@ -145,7 +144,7 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
@@ -153,9 +152,16 @@ const input = (id: string) => document.getElementById(`page-input-${id}`) as HTM
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
 const settle = (ms = 30) => new Promise((done) => setTimeout(done, ms));
 const listRow = (name: string) => screen.getByText(name, { selector: '.tenant-page-data-grid td' }).closest('tr') as HTMLElement;
+const detail = () => document.querySelector('.tenant-page-detail') as HTMLElement;
+/** Kabuğun "⋯" menüsündeki (Diğer) öğe. */
 const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
+  fireEvent.click(screen.getByRole('button', { name: 'Diğer işlemler' }));
   return screen.findByRole('menuitem', { name });
+};
+/** Pasif komutun nedeni: üzerine gelince görünen ipucu metni. */
+const commandReason = async (button: HTMLElement) => {
+  fireEvent.mouseEnter(button);
+  return (await screen.findByRole('tooltip', {}, T)).textContent ?? '';
 };
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 const selectCard = async (name = 'Kalem', id = S1) => {
@@ -170,26 +176,7 @@ const chooseWarehouse = async () => {
   fireEvent.change(warehouseSelect(), { target: { value: W } });
 };
 
-/**
- * Aynı sayfanın eski biçimi: Yeni ve Aç gizli "Sayfa aç" düğmelerine (newButton / openButton) bağlı. Eski kayıtlı tanımlar
- * aynen çalışmalıdır; düz özellikli standartla aynı gezinmeleri vermelidir.
- */
-function legacyDefinition(): Definition {
-  const legacy = structuredClone(standard.definition);
-  const bar = legacy.components.find((component) => component.type === 'actionBar')!;
-  const props = { ...bar.props };
-  for (const key of ['newAction', 'newPageCode', 'newTarget', 'openAction', 'openPageCode', 'openTarget', 'openTable', 'openParams']) delete props[key];
-  bar.props = { ...props, newButton: 'yeniDugme', openButton: 'acDugme' };
-  legacy.components.push(
-    { id: 'yeniDugme', type: 'button', props: { text: 'Yeni stok kartı', actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab' } },
-    { id: 'acDugme', type: 'button', props: { text: 'Stok kartını aç', actionType: 'page', pageCode: '@inventory-stock-create', target: 'newTab',
-      params: ['id={{liste.seciliSatir.stockItem.id}}'], visibleWhen: 'liste.seciliSatir.stockItem.id != null' } });
-  return legacy;
-}
-let definition: Definition = standard.definition;
-
 beforeEach(() => {
-  definition = standard.definition;
   calls = []; failures = []; valuesGate = null; operations = catalog.operations; navigations = []; api.mockReset();
   // Süzgeç alanı değerlerini sayfa başına tarayıcıda saklar; testler birbirine taşımasın.
   localStorage.clear();
@@ -202,9 +189,10 @@ afterEach(() => {
 });
 
 describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
-  it('uses only operations from the catalog fixture', () => {
+  it('uses only operations from the catalog fixture; history and reversal moved to the movements screen', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
+    expect(standard.definition.queries.some((item) => item.operation === 'stok.hareket.tersKayit' || item.operation === 'stok.hareket.listele')).toBe(false);
   });
 
   it('list requests balances page with filters and paging', async () => {
@@ -216,11 +204,11 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(query(first.url).get('q')).toBeNull();
     await chooseWarehouse();
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
-    // Seçili depo süzgeç çipinde adıyla görünür.
-    expect(screen.getByRole('group', { name: 'Etkin süzgeçler' }).textContent).toContain('Merkez');
     fireEvent.click(screen.getByLabelText('Pasif kartları da göster'));
     await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('includeInactive') === 'true')).toBe(true), T);
-    // Arama sunucuya q ile gider (sayfanın 1'e dönmesi genel olarak CustomPageTable.test.tsx'te sınanır).
+    // Minimum altı, süzgeç alanının aç/kapa süzgecidir ve sunucuya belowMinimumOnly olarak gider.
+    fireEvent.click(screen.getByLabelText('Minimum altı'));
+    await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('belowMinimumOnly') === 'true')).toBe(true), T);
     fireEvent.change(input('suzgec'), { target: { value: 'kal' } });
     await waitFor(() => expect(calls.some((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal')).toBe(true), T);
     const searched = calls.filter((call) => call.url.startsWith(`/api/warehouses/${W}/balances/page`) && query(call.url).get('q') === 'kal');
@@ -258,7 +246,7 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(input('suzgec').placeholder).toBe('Kod veya stok adıyla ara');
   });
 
-  it('metrics show formatted page meta and minimum filter toggles', async () => {
+  it('four indicators show the formatted page meta; the card-count indicator is gone', async () => {
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     const metric = (title: string) => screen.getByText(title, { selector: '.tenant-metric-label' }).closest('article') as HTMLElement;
@@ -266,113 +254,63 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(metric('Stok değeri').textContent).toContain('bu sayfa · TRY');
     expect(metric('Kullanılabilir').querySelector('strong')?.textContent).toBe('23');
     expect(metric('Kullanılabilir').textContent).toContain('bu sayfa · ADET');
-    expect(screen.queryByText('Kullanılabilir stoklu kart', { selector: '.tenant-metric-label' })).toBeNull();
+    expect(metric('Minimum altı').querySelector('strong')?.textContent).toBe('1');
     expect(metric('Maliyetsiz').querySelector('strong')?.textContent).toBe('0');
-    expect(screen.getByLabelText('Minimum altı 1')).toBeTruthy();
-    const minimum = metric('Minimum altı');
-    expect(minimum.querySelector('strong')?.textContent).toBe('1');
-    expect(minimum.getAttribute('aria-pressed')).toBe('false');
-    fireEvent.click(minimum);
-    await waitFor(() => expect((screen.getByLabelText('Minimum altı 1') as HTMLInputElement).checked).toBe(true), T);
-    await waitFor(() => expect(gets('/api/warehouses/balances/page').some((call) => query(call.url).get('belowMinimumOnly') === 'true')).toBe(true), T);
-    expect(metric('Minimum altı').getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(metric('Minimum altı'));
-    await waitFor(() => expect((screen.getByLabelText('Minimum altı 1') as HTMLInputElement).checked).toBe(false), T);
-    expect(metric('Minimum altı').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByText('Kullanılabilir stoklu kart', { selector: '.tenant-metric-label' })).toBeNull();
+    expect(document.querySelectorAll('.tenant-page-metric').length).toBe(4);
   });
 
-  it('legacy title row: breadcrumb, title and record count above the action bar, inside the page column', async () => {
-    const { container } = setup();
+  it('title row shows the record count; negative stock is one conditional note', async () => {
+    setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
-    const title = screen.getByRole('heading', { level: 1, name: 'Stok Kartları' });
-    const heading = title.closest('.list-v2-heading') as HTMLElement;
-    expect(heading).toBeTruthy();
+    const heading = screen.getByRole('heading', { level: 1, name: 'Stok Kartları' }).closest('.list-v2-heading') as HTMLElement;
     await waitFor(() => expect(heading.querySelector('.list-v2-count')?.textContent).toBe('2 kayıt'), T);
-    expect(container.querySelector('.tenant-custom-page-header, .tenant-custom-page-icon')).toBeNull();
-    // No description line (legacy shows none); it stays the title's tooltip.
-    expect(heading.querySelector('p')).toBeNull();
-    // The shared action bar moves into the slot right under the title, inside the page content column.
-    const bar = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
-    const slot = bar.closest('[data-nx-action-bar-slot]') as HTMLElement;
-    await waitFor(() => expect(bar.closest('[data-nx-action-bar-slot]')).toBeTruthy(), T);
-    expect(slot.closest('.tenant-custom-page-content')).toBeTruthy();
-    expect(heading.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(heading).getByRole('navigation', { name: 'Konum' }).textContent).toBe('Ana Sayfa › Stok Kartları');
+    expect(screen.getByText('Negatif stok koruması açık')).toBeTruthy();
+    expect(screen.queryByText('Negatif stoka izin veriliyor')).toBeNull();
   });
 
-  it('legacy look: toolbar row, full-width list with legacy headings and a right-side detail panel', async () => {
+  it('Liste layout: one filter bar, list with legacy headings, card group on the right without toggle or tabs', async () => {
     const { container } = setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
-    // One compact toolbar row (no card heading): the Süzgeç alanı (search, Depo, Pasif) and, right of it, Minimum altı. Detay
-    // paneli is the list toolbar's toggle (draft 21), so the filter row stays on one line (9 + 3).
     const toolbar = screen.getByRole('region', { name: 'Süzgeçler' });
-    expect(toolbar.classList.contains('tenant-page-filter-bar')).toBe(true);
-    expect(toolbar.classList.contains('is-inline')).toBe(true);
-    expect(toolbar.querySelector('h3')).toBeNull();
-    expect(toolbar.contains(input('suzgec'))).toBe(true);
     expect(within(toolbar).getByLabelText('Depo').tagName).toBe('SELECT');
     expect(within(toolbar).getByLabelText('Pasif kartları da göster')).toBeTruthy();
-    // Süzgeç alanı her zaman yeni bir satırda başlar.
-    expect(toolbar.style.gridColumn).toBe('1 / span 9');
-    const side = input('minimumAlti').closest('.tenant-page-form-card') as HTMLElement;
-    expect(side.classList.contains('is-inline')).toBe(true);
-    expect(side.querySelector('h3')).toBeNull();
-    expect(side.contains(input('minimumAlti'))).toBe(true);
-    expect(side.style.gridColumn).toBe('span 3');
-    expect(input('detayPaneli')).toBeNull();
-    expect(toolbar.compareDocumentPosition(side) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(container.querySelector('.tenant-page-table-search')).toBeNull();
+    expect(within(toolbar).getByLabelText('Minimum altı')).toBeTruthy();
     const list = container.querySelector('.tenant-page-data-grid') as HTMLElement;
-    expect(list.style.gridColumn).toBe('span 12');
-    // The toggle sits on the grid toolbar right after Sütunlar (pressed = open).
-    const detailToggle = within(list).getByRole('button', { name: 'Detay paneli' });
-    expect(detailToggle.closest('.advanced-grid-toolbar')).toBeTruthy();
-    expect(detailToggle.previousElementSibling?.querySelector('summary')?.textContent).toBe('Sütunlar');
+    expect(list.closest('.list-template-list')).not.toBeNull();
+    expect(within(list).queryByRole('button', { name: 'Detay paneli' })).toBeNull();
     expect(Array.from(list.querySelectorAll('th:not(.advanced-grid-select-cell)')).map((th) => th.textContent)).toEqual([
       'Stok kodu', 'Stok adı', 'Kategori', 'Depo bakiyesi', 'Rezerve', 'Kullanılabilir', 'Minimum', 'Stok değeri', 'Maliyetsiz miktar', 'Durum',
     ]);
     const cells = Array.from(listRow('Kalem').querySelectorAll('td:not(.advanced-grid-select-cell)')).map((td) => td.textContent);
     expect(cells).toEqual(['KLM', 'Kalem', 'Kırtasiye', '5 ADET', '1 ADET', '4 ADET', '10', '25,00 TRY', '0 ADET', 'Minimum altı']);
-    const strip = screen.getByText('Negatif stok koruması açık').closest('.tenant-page-status-strip') as HTMLElement;
-    expect(strip.classList.contains('tone-success')).toBe(true);
-    expect(strip.querySelector('.tenant-page-status-strip-mark svg')).toBeTruthy();
-    expect(strip.querySelector('.tenant-page-status-strip-badge')?.textContent).toBe('Etkin');
-    expect(screen.queryByText('Negatif stoka izin veriliyor')).toBeNull();
 
+    // Kart grubu hep sağda: seçim yokken boş durum, seçilince kart.
+    expect(detail().closest('.list-template-detail')).not.toBeNull();
+    expect(within(detail()).getByText('Bir stok kartı seçin; ayrıntıları burada görün.')).toBeTruthy();
     await selectCard();
-    // Legacy: on a narrow list area (here unmeasured) the panel stays closed until the toggle opens it, so the list keeps
-    // its full width and never scrolls sideways.
-    expect(list.style.gridColumn).toBe('span 12');
-    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
-    fireEvent.click(within(list).getByRole('button', { name: 'Detay paneli' }));
-    await waitFor(() => expect(list.style.gridColumn).toBe('span 8'), T);
-    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('true');
-    // Legacy InventoryStockDetailPanel: code, Aç and ×, the card name, status tag, then Özet / Depolar / Hareketler.
-    const panel = screen.getByRole('complementary', { name: 'Kalem' });
-    expect(panel.classList.contains('tenant-page-detail')).toBe(true);
-    expect(panel.style.gridColumn).toBe('span 4');
-    expect(panel.querySelector('.tenant-page-detail-top .nx-code')?.textContent).toBe('KLM');
-    expect(within(panel).getByRole('heading', { level: 3, name: 'Kalem' })).toBeTruthy();
-    expect(within(panel).getByRole('button', { name: 'Aç' })).toBeTruthy();
-    expect(panel.querySelector('.tenant-page-detail-labels')?.textContent).toBe('Minimum altı');
-    expect(within(panel).getAllByRole('tab').map((item) => item.textContent)).toEqual(['Özet', 'Depolar', 'Hareketler']);
-    const stats = Array.from(panel.querySelectorAll('.tenant-page-metric')).map((tile) => tile.querySelector('.tenant-metric-label')?.textContent);
-    expect(stats).toEqual(['Depo bakiyesi', 'Kullanılabilir', 'Rezerve', 'Minimum']);
-    const facts = Array.from(panel.querySelectorAll('.tenant-page-context-field')).map((field) => field.textContent);
-    expect(facts).toEqual(['Stok değeri25,00 TRY', 'Maliyetsiz miktar0 ADET', 'KategoriKırtasiye', 'BirimADET']);
-    expect(within(panel).getByRole('button', { name: 'Hareketler / ekle' })).toBeTruthy();
-    expect(panel.querySelector('.tenant-page-detail-foot')?.textContent).toContain('Devre dışı bırak');
-    fireEvent.click(within(panel).getByRole('tab', { name: 'Hareketler' }));
-    await waitFor(() => expect(panel.querySelector('.tenant-page-compact-items li')).toBeTruthy(), T);
-    const movementRow = panel.querySelector('.tenant-page-compact-items li') as HTMLElement;
-    expect(movementRow.querySelector('b')?.textContent).toBe('+5');
-    expect(movementRow.querySelector('b')?.className).toBe('tone-success');
+    expect(within(detail()).queryByText('Bir stok kartı seçin; ayrıntıları burada görün.')).toBeNull();
+    expect(detail().querySelector('.tenant-page-detail-top .nx-code')?.textContent).toBe('KLM');
+    expect(within(detail()).getByRole('heading', { level: 3, name: 'Kalem' })).toBeTruthy();
+    expect(within(detail()).queryAllByRole('tab')).toEqual([]);
+    const stats = Array.from(detail().querySelectorAll('.tenant-page-metric')).map((tile) => tile.querySelector('.tenant-metric-label')?.textContent);
+    expect(stats).toEqual(['Depo bakiyesi', 'Kullanılabilir']);
+    const facts = Array.from(detail().querySelectorAll('.tenant-page-context-field')).map((field) => field.textContent);
+    expect(facts).toEqual(['Rezerve1 ADET', 'Minimum10', 'Stok değeri25,00 TRY', 'Maliyetsiz miktar0 ADET', 'KategoriKırtasiye', 'BirimADET']);
+    // Depo dağılımı ve son hareketler tabloları karttan kalktı; hareketler ayrı ekranda.
+    expect(gets(`/api/stock/items/${S1}/balances`)).toEqual([]);
+    expect(calls.some((call) => call.url.includes('/transactions'))).toBe(false);
+    expect(within(detail()).getByRole('button', { name: 'Hareket gir' })).toBeTruthy();
+    expect(within(detail()).getByRole('button', { name: 'Hareketler ›' })).toBeTruthy();
+    expect(within(detail()).getByRole('button', { name: 'Devre dışı bırak' })).toBeTruthy();
+  });
 
-    // × (like turning the toggle off) gives the list its full width back.
-    fireEvent.click(within(panel).getByRole('button', { name: 'Detay panelini kapat' }));
-    await waitFor(() => expect(list.style.gridColumn).toBe('span 12'), T);
-    expect(screen.queryByRole('complementary', { name: 'Kalem' })).toBeNull();
-    expect(within(list).getByRole('button', { name: 'Detay paneli' }).getAttribute('aria-pressed')).toBe('false');
+  it('Hareketler › opens the movements screen with the card as page parameter', async () => {
+    setup();
+    await selectCard();
+    fireEvent.click(within(detail()).getByRole('button', { name: 'Hareketler ›' }));
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toMatchObject({ page: 'inventory-stock-movements', params: { stockItemId: S1 }, replace: false });
   });
 
   it('Sil names the selected stock card in the confirmation', async () => {
@@ -390,15 +328,12 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     setup('TenantUser');
     await selectCard();
     expect(command('delete').getAttribute('aria-disabled')).toBe('true');
-    expect(commandReason(command('delete'))).toBe('Bu işlem için yetkiniz yok');
+    expect(await commandReason(command('delete'))).toContain('Bu işlem için yetkiniz yok');
     // Kart formu ayrı ekrandadır (inventory-stock-create); birim kuralı orada sınanır.
     expect(command('open').getAttribute('aria-disabled')).not.toBe('true');
   });
 
-  // Düz özellikli standart ve eski gizli düğmeli tanım aynı gezinmeleri verir.
-  for (const [variant, make] of [['', () => standard.definition], [' (legacy newButton/openButton)', legacyDefinition]] as const) {
-  it(`yeni opens the card screen in its own tab${variant}`, async () => {
-    definition = make();
+  it('yeni opens the card screen in its own tab', async () => {
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
     await ready('new');
@@ -412,11 +347,10 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(writes()).toEqual([]);
   });
 
-  it(`aç opens the selected card on the card screen; Enter and double click too${variant}`, async () => {
-    definition = make();
+  it('aç opens the selected card on the card screen; Enter and double click too', async () => {
     setup();
     await screen.findByText('Kalem', { selector: '.tenant-page-data-grid td' }, T);
-    await waitFor(() => expect(commandReason(command('open'))).toBe('Önce bir kayıt seçin'), T);
+    expect(await commandReason(command('open'))).toContain('Önce bir kayıt seçin');
     expect(command('open').getAttribute('aria-disabled')).toBe('true');
     await selectCard();
     fireEvent.click(command('open'));
@@ -434,7 +368,6 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(listRow('Defter').getAttribute('aria-current')).toBe('true');
     expect(writes()).toEqual([]);
   });
-  }
 
   it('a save on the card screen refreshes the open list', async () => {
     setup();
@@ -452,11 +385,11 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(gets('/api/warehouses/balances/page').length).toBe(after);
   });
 
-  it('movement dialog posts movement and reversal sends reason', async () => {
+  it('Hareket gir needs a depot, then posts one movement from the window; history and reversal are not in it', async () => {
     setup();
     await selectCard();
-    const disabledItem = await menuItem(/Hareketler \/ ekle/);
-    expect(disabledItem.getAttribute('aria-disabled')).toBe('true');
+    const disabledItem = await menuItem(/Hareket gir/);
+    expect(disabledItem.hasAttribute('disabled')).toBe(true);
     expect(disabledItem.getAttribute('title') ?? disabledItem.textContent).toContain('Hareket için önce bir depo seçin.');
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     await chooseWarehouse();
@@ -464,35 +397,36 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
     await settle(100);
     expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
-    fireEvent.click(await menuItem(/Hareketler \/ ekle/));
-    const dialog = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
-    await within(dialog).findByText('Hareket 3', {}, T);
+    fireEvent.click(await menuItem(/Hareket gir/));
+    const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi · KLM · Merkez' }, T);
+    // Pencere yalnız giriş yapar: geçmiş tablosu, ters kayıt ve lot / seri ızgarası yok.
+    expect(within(dialog).queryByText('Hareket 3')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Ters kayıt' })).toBeNull();
+    expect(within(dialog).queryByText('Lot / seri takipli kart')).toBeNull();
     type('hareketMiktari', '3');
     type('hareketAciklamasi', 'Sayım farkı');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Hareketi kaydet' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0].url).toBe(`/api/warehouses/${W}/stock/${S1}/transactions`);
-    expect(JSON.parse(writes()[0].body!)).toMatchObject({ direction: 'Receipt', quantity: 3, description: 'Sayım farkı', tracking: [] });
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok hareketleri/ })).toBeNull(), T);
-
-    // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır, yeni hareket için yeniden seçmek gerekmez.
+    const body = JSON.parse(writes()[0].body!) as Record<string, unknown>;
+    expect(body).toMatchObject({ direction: 'Receipt', quantity: 3, description: 'Sayım farkı' });
+    expect(body.tracking).toBeUndefined();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Stok hareketi/ })).toBeNull(), T);
+    // Liste (bakiye) yenilenir; aynı kimlikli satır seçili kalır.
     await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`).length).toBeGreaterThan(1), T);
     await settle(100);
     expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
-    calls = [];
-    fireEvent.click(await menuItem(/Hareketler \/ ekle/));
-    const again = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
-    await within(again).findByText('Hareket 3', {}, T);
-    const reverseButton = (text: string) => within(within(again).getByText(text).closest('tr') as HTMLElement).getByRole('button', { name: 'Ters kayıt' });
-    expect(reverseButton('Hareket 3').hasAttribute('disabled')).toBe(true);
-    expect(reverseButton('Hareket 3').getAttribute('title')).toBe('Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.');
-    fireEvent.click(reverseButton('Hareket 1'));
-    const prompt = await screen.findByRole('alertdialog');
-    expect(within(prompt).getByText('Ters kayıt gerekçesi')).toBeTruthy();
-    fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: 'Yanlış miktar' } });
-    fireEvent.click(within(prompt).getByRole('button', { name: 'Ters kayıt' }));
-    await waitFor(() => expect(writes()).toHaveLength(1), T);
-    expect(writes()[0]).toEqual({ url: `/api/warehouses/${W}/stock/${S1}/transactions/${E1}/reverse`, method: 'POST', body: '{"reason":"Yanlış miktar"}' });
+    expect(calls.some((call) => call.url.includes('/reverse'))).toBe(false);
+  });
+
+  it('a lot / serial tracked card shows the note that its movement cannot be entered in this window', async () => {
+    setup();
+    await chooseWarehouse();
+    await waitFor(() => expect(gets(`/api/warehouses/${W}/balances/page`)).toHaveLength(1), T);
+    await selectCard('Defter', S2);
+    fireEvent.click(await menuItem(/Hareket gir/));
+    const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi · DFT · Merkez' }, T);
+    expect(within(dialog).getByText('Lot / seri takipli kart')).toBeTruthy();
   });
 
   it('deactivate confirms and shows server conflict text', async () => {
@@ -509,32 +443,4 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ rowVersion: 'rv-KLM', confirmation: true });
     await waitFor(() => expect(document.body.textContent).toContain('Bakiyesi sıfır olmayan stok kartı devre dışı bırakılamaz.'), T);
   });
-
-  it('reversal keeps the movement list usable', async () => {
-    setup();
-    await chooseWarehouse();
-    await selectCard();
-    fireEvent.click(await menuItem(/Hareketler \/ ekle/));
-    const dialog = await screen.findByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' }, T);
-    await within(dialog).findByText('Hareket 3', {}, T);
-    const reverse = async (text: string, reason: string) => {
-      fireEvent.click(within(within(dialog).getByText(text).closest('tr') as HTMLElement).getByRole('button', { name: 'Ters kayıt' }));
-      const prompt = await screen.findByRole('alertdialog');
-      fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: reason } });
-      fireEvent.click(within(prompt).getByRole('button', { name: 'Ters kayıt' }));
-    };
-    await reverse('Hareket 1', 'Birinci');
-    await waitFor(() => expect(writes()).toHaveLength(1), T);
-    await within(dialog).findByText(/^Ters kayıt oluşturuldu\./, {}, T);
-    await settle(100);
-    // İstemli satır işlemi yalnız refreshQueries'i yeniler; liste (bakiye) yenilenmez, seçim ve başlık korunur.
-    expect(screen.getByRole('dialog', { name: 'Stok hareketleri · KLM · Merkez' })).toBe(dialog);
-    await settle(100);
-    expect(listRow('Kalem').getAttribute('aria-current')).toBe('true');
-    expect(within(dialog).getByText('Hareket 2')).toBeTruthy();
-    await reverse('Hareket 2', 'İkinci');
-    await waitFor(() => expect(writes()).toHaveLength(2), T);
-    expect(writes()[1]).toEqual({ url: `/api/warehouses/${W}/stock/${S1}/transactions/${E2}/reverse`, method: 'POST', body: '{"reason":"İkinci"}' });
-  });
-
 });
