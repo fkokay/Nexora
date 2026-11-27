@@ -91,7 +91,11 @@ function setup(role = 'TenantAdmin', operations: unknown = catalog) {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+// Liste kalıbı: komutlar kabuğun "İşlemler" çubuğundadır; "⋯" = "Diğer işlemler".
+const command = (id: string) => {
+  const shell = screen.getByRole('toolbar', { name: 'İşlemler' });
+  return (id === 'more' ? within(shell).getByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`))!;
+};
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -102,6 +106,13 @@ const menuItem = async (name: RegExp) => {
   return screen.findByRole('menuitem', { name });
 };
 const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+const menuNames = async () => {
+  fireEvent.click(command('more'));
+  await screen.findAllByRole('menuitem', {}, T);
+  const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
+  closeMenu();
+  return names;
+};
 const select = async (name: string, id: string) => {
   fireEvent.click(await screen.findByText(name, { selector: '.tenant-page-data-grid td' }, T));
   await waitFor(() => expect(gets(`/api/customers/${id}`).length).toBeGreaterThan(0), T);
@@ -170,19 +181,22 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(navigations).toHaveLength(1), T);
     // "Yeni sipariş" sipariş kartının zorunlu tarihini de verir (orderDate = bugün, yerel tarih).
     expect(navigations[0]).toEqual({ page: 'sales-order-create', params: { customerId: C1, orderDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) }, replace: false, from: KEY });
-    fireEvent.click(await menuItem(/^Satış faturaları/));
-    await waitFor(() => expect(navigations).toHaveLength(2), T);
-    expect(navigations[1]).toEqual({ page: 'sales-invoices', params: { customerId: C1 }, replace: false, from: KEY });
+    // "Satış faturaları" ve "Adresler" düğmeleri kalktı (faturalar fatura listesinde cari süzgeciyle, adresler kartın Adresler sekmesinde).
+    const names = await menuNames();
+    expect(names.some((name) => /^Satış faturaları/.test(name))).toBe(false);
+    expect(names).not.toContain('Adresler');
     fireEvent.click(await menuItem(/Cari Hesap Hareketleri/));
-    await waitFor(() => expect(navigations).toHaveLength(3), T);
-    expect(navigations[2]).toEqual({ page: 'customer-ledger', params: { customerId: C1 }, replace: false, from: KEY });
+    await waitFor(() => expect(navigations).toHaveLength(2), T);
+    expect(navigations[1]).toEqual({ page: 'customer-ledger', params: { customerId: C1 }, replace: false, from: KEY });
   });
 
   it('sales document starts are disabled for a supplier', async () => {
     setup();
     await select('ÖRNEK TEKSTİL', C2);
     const item = await menuItem(/Yeni sipariş/);
-    expect(item.getAttribute('aria-disabled')).toBe('true');
+    // Kabuk menüsünde pasif öğe `disabled` olur; nedeni başlıkta (title) yazar.
+    expect(item.hasAttribute('disabled') || item.getAttribute('aria-disabled') === 'true').toBe(true);
+    expect(item.getAttribute('title') ?? '').toContain('yalnız müşteri ve bayi kartlarında');
     closeMenu();
   });
 
@@ -202,12 +216,18 @@ describe('Cari Hesaplar standart tanımı', { timeout: 30000 }, () => {
     expect(Object.keys(body).filter((key) => key.includes('.'))).toEqual([]);
   });
 
-  it('detail panel shows the balance with its B/A side, risk limit usage and the default address', async () => {
+  it('detail card (always beside the list): empty hint, then badges, balance with its B/A side, risk limit usage, tax no, term and the default address', async () => {
     setup();
+    await screen.findByText('FATİH KOKAY', { selector: '.tenant-page-data-grid td' }, T);
+    // Liste kalıbı: detay kartı seçim olmadan da yerinde; panel düğmesi yok.
+    expect(screen.queryByRole('button', { name: 'Detay paneli' })).toBeNull();
+    expect(document.querySelector('.list-template-detail')?.textContent).toContain('Bir cari seçin; ayrıntıları burada görün.');
     await select('FATİH KOKAY', C1);
-    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21).
-    fireEvent.click(screen.getByRole('button', { name: 'Detay paneli' }));
     await waitFor(() => expect(gets(`/api/customers/${C1}/balance`).length).toBeGreaterThan(0), T);
+    const info = () => document.querySelector('.list-template-detail')?.textContent ?? '';
+    await waitFor(() => expect(info()).toContain('1234567890'), T);
+    expect(info()).toContain('Vade (gün)');
+    expect(info()).toContain('0 332 000 00 00');
     // Detay panelindeki göstergenin açıklaması (small) CSS ile gizlidir: yön tutarın kendisinde (strong) görünür.
     await waitFor(() => expect([...document.querySelectorAll('.tenant-page-detail .tenant-page-metric strong')].map((node) => node.textContent))
       .toContain('186.242,00 TRY B'), T);

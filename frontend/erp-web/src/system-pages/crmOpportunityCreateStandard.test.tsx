@@ -76,7 +76,8 @@ function setup(opportunityId?: string) {
 }
 
 const T = { timeout: 10000 };
-const bar = () => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+// Kayıt kartı kalıbı: komutlar kabuğun "İşlemler" çubuğundadır.
+const bar = () => screen.getByRole('toolbar', { name: 'İşlemler' });
 const command = (id: string) => bar().querySelector<HTMLElement>(`[data-command="${id}"]`);
 const ready = (id: string) => waitFor(() => expect(command(id)?.getAttribute('aria-disabled')).not.toBe('true'), T);
 const writes = () => calls.filter((call) => call.method !== 'GET');
@@ -84,8 +85,10 @@ const posts = () => writes().filter((call) => call.method === 'POST' && call.url
 const puts = () => writes().filter((call) => call.method === 'PUT');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
+const title = () => document.querySelector('.page-shell-sr-title, .tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
+// Sekmeler: Fırsat (varsayılan), Tahmin ve takip, Not; yalnız seçili sekmenin alanları çizilir.
+const goTo = (name: string) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
 const openNew = async () => {
   setup();
   await waitFor(() => expect(input('kod')).toBeTruthy(), T);
@@ -124,8 +127,9 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     expect(title()).toBe('Yeni fırsat');
     expect(calls.filter((call) => call.url.startsWith(`/api/crm/opportunities/${O1}`))).toEqual([]);
-    expect(input('dovizYeni').value).toBe('TRY');
-    expect(input('olasilikYeni').value).toBe('10');
+    goTo('Tahmin ve takip');
+    expect(input('doviz').value).toBe('TRY');
+    expect(input('olasilik').value).toBe('10');
     expect(input('takip').type).toBe('datetime-local');
     await waitFor(() => expect(calls.some((call) => call.method === 'GET' && call.url.split('?')[0] === '/api/customers')).toBe(true), T);
     const lookup = calls.find((call) => call.method === 'GET' && call.url.split('?')[0] === '/api/customers')!;
@@ -135,10 +139,11 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
 
   it('new: Not is a multi-line field and a blank code is left to the server', async () => {
     await openNew();
-    expect(input('not').tagName).toBe('TEXTAREA');
     expect(input('kod').required).toBe(false);
     expect(input('kod').placeholder).toBe('Boşsa kayıtta otomatik verilir');
     type('ad', 'Kodsuz fırsat');
+    goTo('Not');
+    expect(input('not').tagName).toBe('TEXTAREA');
     type('not', 'Birinci satır\nİkinci satır');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(posts()).toHaveLength(1), T);
@@ -151,14 +156,15 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     await openNew();
     type('ad', 'Depo otomasyonu');
     type('kod', 'frs-2026-001');
+    goTo('Tahmin ve takip');
     type('tutar', '125000');
     type('kapanis', '2026-12-15');
     type('takip', '2026-11-24T14:00');
     // Hazır değerler alanın kendi grubunda: seçili olan basılı görünür.
     const presets = screen.getByRole('group', { name: 'Kazanma olasılığı (%): hazır değerler' });
-    expect(input('olasilikYeni').closest('.tenant-page-input')!.contains(presets)).toBe(true);
+    expect(input('olasilik').closest('.tenant-page-input')!.contains(presets)).toBe(true);
     fireEvent.click(within(presets).getByRole('button', { name: '%75' }));
-    await waitFor(() => expect(input('olasilikYeni').value).toBe('75'), T);
+    await waitFor(() => expect(input('olasilik').value).toBe('75'), T);
     expect(within(presets).getByRole('button', { name: '%75' }).getAttribute('aria-pressed')).toBe('true');
     expect(within(presets).getByRole('button', { name: '%10' }).getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(command('save')!);
@@ -186,7 +192,7 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     type('ad', 'Birinci');
     type('kod', 'FRS-A');
     // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
+    fireEvent.click(await waitFor(() => { const button = bar().querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(navigations.filter((request) => request.page === 'crm-opportunities')).toEqual([]);
@@ -201,13 +207,20 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
     await openCard();
     await waitFor(() => expect(title()).toBe('Depo otomasyonu'), T);
     expect(input('kod').value).toBe('FRS-001');
+    goTo('Tahmin ve takip');
     expect(input('doviz').value).toBe('TRY');
     expect(input('olasilik').value).toBe('50');
     expect(input('takip').value).toBe('2026-11-21T12:30');
-    expect(document.body.textContent).toContain('FRS-001 · Akdeniz Gıda');
+    // Kayıt özeti: ad, müşteri (alt satır), kod, tahmini tutar ve olasılık.
+    const summary = document.querySelector('.tenant-page-record-header') as HTMLElement;
+    expect(summary.textContent).toContain('Akdeniz Gıda');
+    expect(summary.textContent).toContain('FRS-001');
+    expect(summary.textContent).toContain('125.000,00');
     expect(screen.getAllByText('Teklif').length).toBeGreaterThan(0);
     await ready('save');
+    goTo('Fırsat');
     type('ad', 'Depo otomasyonu II');
+    goTo('Tahmin ve takip');
     fireEvent.click(screen.getByRole('button', { name: '%90' }));
     await waitFor(() => expect(input('olasilik').value).toBe('90'), T);
     fireEvent.click(command('save')!);
@@ -224,6 +237,7 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
   it('edit: a changed follow-up is converted from local time', async () => {
     await openCard();
     await ready('save');
+    goTo('Tahmin ve takip');
     type('takip', '2026-11-25T09:15');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(puts()).toHaveLength(1), T);
@@ -233,6 +247,7 @@ describe('Fırsat kartı standart tanımı', { timeout: 30000 }, () => {
   it('edit: a cleared follow-up writes null instead of keeping the stored time', async () => {
     await openCard();
     await ready('save');
+    goTo('Tahmin ve takip');
     type('takip', '');
     fireEvent.click(command('save')!);
     await waitFor(() => expect(puts()).toHaveLength(1), T);
