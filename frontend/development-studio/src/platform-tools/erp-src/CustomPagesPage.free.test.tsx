@@ -94,6 +94,24 @@ describe("CustomPagesPage on a free page with the ERP canvas", { timeout: 30_000
     expect(showTabs(spy)).toContainEqual(["t", 2]);
   });
 
+  it("selecting a window in Pencereler opens it on the canvas; deselecting closes it", async () => {
+    catalogState.definition = { ...start, components: [...start.components,
+      { id: "pencere", type: "dialog", props: { slot: "dialogs", presentation: "dialog", title: "Bilgi penceresi", contains: ["pencereMetni"] } },
+      { id: "pencereMetni", type: "text", props: { slot: "dialog", text: "İçerik" } }] };
+    const { host, frame } = await open();
+    const spy = vi.spyOn(frame.contentWindow!, "postMessage");
+    const dialogMessages = () => spy.mock.calls.map(([message]) => message as { type?: string; dialogId?: string | null })
+      .filter((message) => message.type === "showDialog").map((message) => message.dialogId);
+    const row = () => [...host.querySelectorAll<HTMLButtonElement>("[data-part='dialog-row']")].find((item) => item.textContent?.includes("Bilgi penceresi"));
+    expect(row()).toBeTruthy();
+    await act(async () => row()!.click());
+    await flush();
+    expect(dialogMessages()).toEqual(["pencere"]);
+    await act(async () => row()!.click());
+    await flush();
+    expect(dialogMessages()).toEqual(["pencere", null]);
+  });
+
   it("a Liste without a source pauses autosave and says why above the canvas", async () => {
     const { host } = await open();
     await act(async () => button(host, ".pd-palette-item", "Liste")!.click());

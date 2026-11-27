@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addDialog, addToGroup, DIALOG_PART_TYPES, dialogOwners, dialogsOf, GROUP_CHILD_TYPES, isGroup, moveInGroup, removeDialog, removeFromGroup, setDialogContents,
+  addDialog, addToGroup, DIALOG_PART_TYPES, dialogOwners, dialogsOf, GROUP_CHILD_TYPES, groupAddableTypes, isGroup, moveInGroup, removeDialog, removeFromGroup, setDialogContents,
 } from "./dialogsModel";
 import type { ModelComponent } from "./listPanelModel";
 
@@ -92,5 +92,26 @@ describe("dialogsModel", () => {
     const removed = removeFromGroup(added, "durum", kids[2].id);
     expect(removed).toEqual(start);
     expect(addToGroup(start, "ozet", "badge")).toBe(start);
+  });
+
+  it("+ ekle creates only server-valid members: standalone types, a table bound to the first read query; never empty form/tabs/detail panel", () => {
+    const start = salesOrders();
+    const read = [{ id: "kalemler", name: "kalemler", kind: "read" as const, parameters: [], runOn: "load" as const },
+      { id: "sevkler", name: "sevkler", kind: "read" as const, parameters: [], runOn: "load" as const }];
+    expect(groupAddableTypes([])).toEqual(["badge", "heading", "text", "metric", "alert", "button"]);
+    expect(groupAddableTypes(read)).toEqual(["badge", "heading", "text", "metric", "alert", "button", "dataTable"]);
+    const added = (type: string, queries = read) => {
+      const kids = addToGroup(start, "durum", type, queries).find((item) => item.id === "durum")!.children as ModelComponent[];
+      return kids.length > 2 ? { type: kids[2].type, props: kids[2].props } : null;
+    };
+    expect(added("badge")).toEqual({ type: "badge", props: { text: "Rozet" } });
+    expect(added("heading")).toEqual({ type: "heading", props: { text: "Başlık" } });
+    expect(added("text")).toEqual({ type: "text", props: { text: "Metin" } });
+    expect(added("metric")).toEqual({ type: "metric", props: { title: "Gösterge", value: "—" } });
+    expect(added("alert")).toEqual({ type: "alert", props: { text: "Uyarı" } });
+    expect(added("button")).toEqual({ type: "button", props: { text: "Düğme" } });
+    expect(added("dataTable")).toEqual({ type: "dataTable", props: { title: "Tablo", query: "kalemler" } });
+    expect(added("dataTable", [])).toBeNull();
+    for (const type of ["formCard", "tabs", "contextPanel"]) expect(added(type)).toBeNull();
   });
 });

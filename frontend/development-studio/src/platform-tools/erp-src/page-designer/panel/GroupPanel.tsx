@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { addToGroup, GROUP_CHILD_TYPES, isGroup, moveInGroup, removeFromGroup } from "./dialogsModel";
+import { addToGroup, groupAddableTypes, isGroup, moveInGroup, removeFromGroup } from "./dialogsModel";
 import { DraftInput } from "./DraftInput";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import "./component-panel.css";
 
 // Taslak 12 metinleri.
 export const GROUP_NOTE = "Grup içine eklenebilenler: rozet, başlık, metin, gösterge, uyarı, düğme, form, tablo, detay paneli, sekmeler.";
-/** "+ ekle" menüsünün türleri (sunucu: GroupChildTypes, aynı sırayla notta). */
+/** Grup üyesi türlerinin adları (sunucu: GroupChildTypes, aynı sırayla notta); menü yalnız `groupAddableTypes`'ı sunar. */
 const CHILD_LABELS: [string, string][] = [["badge", "Rozet"], ["heading", "Başlık"], ["text", "Metin"], ["metric", "Gösterge"], ["alert", "Uyarı"],
   ["button", "Düğme"], ["formCard", "Form"], ["dataTable", "Tablo"], ["contextPanel", "Detay paneli"], ["tabs", "Sekmeler"]];
 const MAX_TITLE = 120;
@@ -51,9 +51,9 @@ export function GroupPanel({ def, groupId, disabled, onChange, visibility }: {
           </span></li>;
       })}</ol>
       <select className="cpanel-add" aria-label="Üye ekle" value="" disabled={disabled}
-        onChange={(event) => { if (event.target.value) change(addToGroup(def.components, groupId, event.target.value)); }}>
+        onChange={(event) => { if (event.target.value) change(addToGroup(def.components, groupId, event.target.value, def.queries)); }}>
         <option value="">+ ekle</option>
-        {CHILD_LABELS.filter(([type]) => GROUP_CHILD_TYPES.has(type)).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
+        {CHILD_LABELS.filter(([type]) => groupAddableTypes(def.queries).includes(type)).map(([type, label]) => <option key={type} value={type}>{label}</option>)}
       </select>
       <p className="cpanel-note">{GROUP_NOTE}</p>
     </section>

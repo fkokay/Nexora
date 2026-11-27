@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { ActiveCatalog } from "../catalogClient";
 import { sizeOf, TEMPLATE_DIALOG_SIZES } from "../DialogLookFields";
+import { sanitizeSafeValue } from "../DesignLanguageFields";
 import { iterationOf } from "../erpOperations";
 import type { PageQuery } from "../QueriesPanel";
 import { commandsBar } from "./commandsModel";
@@ -25,6 +26,8 @@ export type DialogsSectionProps = {
 };
 
 const MAX_TITLE = 120;
+/** Sunucu: `saveLabel` en çok 40 karakter. */
+const MAX_SAVE_LABEL = 40;
 const MAX_REFRESH_QUERIES = 10;
 const NO_SAVE = "Yok (görünüm penceresi)";
 const SEQUENCE = "Kayıt dizisi";
@@ -135,6 +138,8 @@ function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, o
         {saveCandidates.map((query) => <option key={query.id} value={query.id}>{queryLabel(query)}</option>)}
         {saveQuery && !saveCandidates.some((query) => query.id === saveQuery) && <option value={saveQuery}>{saveQuery}</option>}
       </select></label>
+    {(saveQuery !== "" || sequence.length > 0) && <DraftInput label="Kaydet düğmesinin etiketi" value={text(props.saveLabel)} maxLength={MAX_SAVE_LABEL}
+      disabled={disabled} onCommit={(value) => patch({ saveLabel: sanitizeSafeValue(value, false).slice(0, MAX_SAVE_LABEL).trim() || undefined })}/>}
     <label className="cpanel-row">Kaydedince kapat<input type="checkbox" aria-label="Kaydedince kapat" checked={props.closeOnSave !== false} disabled={disabled}
       onChange={(event) => patch({ closeOnSave: event.target.checked ? undefined : false })}/></label>
     <label className="cpanel-row">Açılışta alanları temizle<input type="checkbox" aria-label="Açılışta alanları temizle" checked={props.resetOnOpen !== false} disabled={disabled}

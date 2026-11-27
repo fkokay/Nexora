@@ -2,6 +2,7 @@
 // DialogPartTypes, GroupChildTypes): pencere üst düzey `dialog` bileşeni, `dialogs` yerinde; içeriği `dialog` yerinde ve tam bir
 // pencereye ait. Grup `section` / `card` + `children`, tek kat. Bütün işlevler bileşen dizisini değiştirmeden yenisini döndürür;
 // değişiklik yoksa aynı dizi döner.
+import type { PageQuery } from "../QueriesPanel";
 import { freeId, type ModelComponent, type ModelDefinition } from "./listPanelModel";
 
 export const DIALOGS_SLOT = "dialogs";
@@ -98,11 +99,24 @@ export function setDialogContents(components: Components, dialogId: string, ids:
   return components.map((component) => component === dialog ? { ...component, props: { ...component.props, contains: next } } : component);
 }
 
-/** Yeni grup çocuğunun başlangıç ayarları. */
-const CHILD_DEFAULTS: Record<string, ModelComponent["props"]> = {
-  badge: { text: "Rozet" }, heading: { text: "Başlık" }, text: { text: "Metin" }, metric: { title: "Gösterge", value: "" }, alert: { text: "Uyarı" },
-  button: { text: "Düğme" }, formCard: { inputs: [] }, dataTable: {}, contextPanel: {}, tabs: { tabs: [] },
-};
+/**
+ * "+ ekle" ile kurulabilen üyeler ve başlangıç ayarları: yalnız kendi başına geçerli olanlar (sunucu doğrulayıcısı boş bağlamayı
+ * reddeder). Tablo sayfanın ilk okuma sorgusuna bağlanır, okuma sorgusu yoksa sunulmaz. Form (`inputs` ister), sekmeler (sekme
+ * öğeleri ister) ve detay paneli (`table` + `fields` ister) hiç kurulmaz: grupta zaten varsa sıralanır ve çıkarılır.
+ */
+const STANDALONE_CHILDREN: [string, ModelComponent["props"]][] = [
+  ["badge", { text: "Rozet" }], ["heading", { text: "Başlık" }], ["text", { text: "Metin" }], ["metric", { title: "Gösterge", value: "—" }],
+  ["alert", { text: "Uyarı" }], ["button", { text: "Düğme" }]];
+const firstReadQuery = (queries: PageQuery[]) => queries.find((query) => query.kind === "read");
+function childProps(type: string, queries: PageQuery[]): ModelComponent["props"] | null {
+  const standalone = STANDALONE_CHILDREN.find(([item]) => item === type);
+  if (standalone) return { ...standalone[1] };
+  const read = type === "dataTable" ? firstReadQuery(queries) : undefined;
+  return read ? { title: "Tablo", query: read.id } : null;
+}
+/** "+ ekle" menüsünün türleri, sırayla (sayfanın sorgularına göre). */
+export const groupAddableTypes = (queries: PageQuery[]): string[] =>
+  [...STANDALONE_CHILDREN.map(([type]) => type), ...(firstReadQuery(queries) ? ["dataTable"] : [])];
 
 const withChildren = (components: Components, groupId: string, change: (children: ModelComponent[]) => ModelComponent[] | null): Components => {
   const group = components.find((component) => component.id === groupId);
@@ -111,12 +125,16 @@ const withChildren = (components: Components, groupId: string, change: (children
   return next ? components.map((component) => component === group ? { ...component, children: next } : component) : components;
 };
 
-/** Gruba izinli türden boş bir çocuk ekler (sonuna); bölüm, kart, pencere ve öteki türler eklenmez. */
-export function addToGroup(components: Components, groupId: string, type: string): Components {
-  if (!GROUP_CHILD_TYPES.has(type)) return components;
+/**
+ * Gruba `groupAddableTypes` türünden geçerli bir çocuk ekler (sonuna); bölüm, kart, pencere, form, sekmeler, detay paneli ve
+ * (okuma sorgusu yoksa) tablo eklenmez.
+ */
+export function addToGroup(components: Components, groupId: string, type: string, queries: PageQuery[] = []): Components {
+  const props = GROUP_CHILD_TYPES.has(type) ? childProps(type, queries) : null;
+  if (!props) return components;
   return withChildren(components, groupId, (children) => {
     const id = freeId(asDef(components), type);
-    return [...children, { id, type, name: id, props: { ...CHILD_DEFAULTS[type] } }];
+    return [...children, { id, type, name: id, props }];
   });
 }
 

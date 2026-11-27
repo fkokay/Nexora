@@ -161,4 +161,23 @@ describe("DialogsSection (taslak 12)", () => {
     expect(def.components.map((item) => item.id)).toEqual(page().components.map((item) => item.id));
     expect(onShowDialog).toHaveBeenLastCalledWith(null);
   });
+
+  it("Kaydet düğmesinin etiketi is shown only with a Kaydet action and writes saveLabel (max 40)", () => {
+    const onChange = vi.fn();
+    const host = mount(page(), { onChange });
+    act(() => rowOf(host, "Satış siparişi").click());
+    expect(host.textContent).not.toContain("Kaydet düğmesinin etiketi");
+    act(() => rowOf(host, "Satış siparişi").click());
+    act(() => rowOf(host, "Not").click());
+    const label = [...host.querySelectorAll<HTMLLabelElement>("label")].find((item) => item.textContent?.startsWith("Kaydet düğmesinin etiketi"))!;
+    const input = label.querySelector("input")!;
+    expect(input.maxLength).toBe(40);
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Notu kaydet"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    const dialog = () => (onChange.mock.lastCall![0] as ModelDefinition).components.find((item) => item.id === "notPenceresi")!.props;
+    expect(dialog().saveLabel).toBe("Notu kaydet");
+    act(() => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, ""); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    expect("saveLabel" in dialog()).toBe(false);
+    setValue(byLabel<HTMLSelectElement>(host, "Kaydet eylemi"), "");
+    expect(host.textContent).not.toContain("Kaydet düğmesinin etiketi");
+  });
 });

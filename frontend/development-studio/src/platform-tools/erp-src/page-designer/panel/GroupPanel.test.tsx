@@ -52,10 +52,14 @@ describe("GroupPanel (taslak 12)", () => {
     expect(html).toContain("Siparişin işlemleri");
   });
 
-  it("+ ekle offers only the group child types (no section, card or dialog)", () => {
-    const host = mount(() => {});
-    const options = [...host.querySelectorAll<HTMLOptionElement>("select[aria-label='Üye ekle'] option")].filter((option) => option.value).map((option) => option.value);
-    expect(options).toEqual(["badge", "heading", "text", "metric", "alert", "button", "formCard", "dataTable", "contextPanel", "tabs"]);
+  it("+ ekle offers only members that are valid on their own (no section, card, dialog; no empty form, tabs or detail panel)", () => {
+    const options = (def: ModelDefinition) => {
+      const html = renderToString(<GroupPanel def={def} groupId="durum" onChange={() => {}}/>);
+      return [...html.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]);
+    };
+    expect(options(page())).toEqual(["badge", "heading", "text", "metric", "alert", "button"]);
+    const withRead = { ...page(), queries: [{ id: "siparis", name: "siparis", kind: "read" as const, parameters: [], runOn: "load" as const }] };
+    expect(options(withRead)).toEqual(["badge", "heading", "text", "metric", "alert", "button", "dataTable"]);
   });
 
   it("add, remove and move members through dialogsModel", () => {
