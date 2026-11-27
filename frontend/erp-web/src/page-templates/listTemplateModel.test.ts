@@ -30,4 +30,27 @@ describe('listTemplateModel', () => {
     expect(hasListSlot([c('m', 'metric', 'indicators'), c('t', 'dataTable', 'below')])).toBe(false);
     expect(() => layoutListTemplate([c('m', 'metric', 'indicators')])).toThrow('Liste kalıbında tam bir liste (dataTable) olmalı.');
   });
+
+  // Pencere içeriği (`contains`, pencerenin sekmesinin işaret ettikleri ve içerikteki formCard'ların girdileri) `dialog`
+  // yerindedir; hiçbir gövde yerine girmez, yalnız pencerenin içinde çizilir.
+  it('dialogs are laid out apart and dialog contents enter no body slot', () => {
+    const layout = layoutListTemplate([
+      c('t', 'dataTable', 'list'), c('p1', 'dialog', 'dialogs'), c('x', 'text', 'below'), c('p2', 'dialog', 'dialogs'),
+      { id: 'sek', type: 'tabs', props: { slot: 'dialog', tabs: ['Bilgi=tablo,bolum'] } },
+      c('ozet', 'recordHeader', 'dialog'), c('tablo', 'dataTable', 'dialog'), c('bolum', 'section', 'dialog'),
+      c('form', 'formCard', 'dialog'), c('girdi', 'input', 'dialog'), c('m', 'metric', 'dialog'), c('b', 'button', 'dialog'),
+      c('yanlis', 'text', 'dialogs'),
+    ]);
+    expect(layout.dialogs.map((x) => x.id)).toEqual(['p1', 'p2']);
+    const placed = [layout.list, layout.filters, layout.detail, ...layout.indicators, ...layout.actions, ...layout.rowActions, ...layout.above, ...layout.below]
+      .filter((x) => x !== null).map((x) => x!.id);
+    expect(placed).toEqual(['t', 'x']);
+  });
+
+  it('the list detail slot takes a context panel or a card group', () => {
+    expect(layoutListTemplate([c('t', 'dataTable', 'list'), c('k', 'card', 'detail')]).detail?.id).toBe('k');
+    expect(layoutListTemplate([c('t', 'dataTable', 'list'), c('d', 'contextPanel', 'detail')]).detail?.id).toBe('d');
+    expect(layoutListTemplate([c('t', 'dataTable', 'list'), c('s', 'section', 'detail')]).detail).toBeNull();
+    expect(layoutListTemplate([c('t', 'dataTable', 'list')]).dialogs).toEqual([]);
+  });
 });

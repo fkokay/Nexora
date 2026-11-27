@@ -92,6 +92,7 @@ export function RecordTemplate<C extends Component>({ layout, render, title, cru
       {notices}
       {layout.tabs && <div className="record-template-tabs">{render(layout.tabs)}</div>}
       {layout.below.length > 0 && <div className="record-template-below">{layout.below.map(render)}</div>}
+      {layout.dialogs.map(render)}
     </PageShell>
   </div>;
 }

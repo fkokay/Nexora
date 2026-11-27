@@ -6,6 +6,8 @@ export type RecordTab<C> = { label: string; blocks: C[] };
 
 export type RecordLayout<C extends Component = Component> = {
   summary: C | null; actions: C[]; tabs: C | null; tabList: RecordTab<C>[]; above: C[]; below: C[];
+  /** Pencereler (`dialogs` yerinde `dialog`); içerikleri (`dialog` yeri) hiçbir yerleşim dizisine girmez. */
+  dialogs: C[];
 };
 
 const slotOf = (component: Component) => (typeof component.props?.slot === "string" ? component.props.slot : "");
@@ -34,6 +36,7 @@ export function layoutRecordTemplate<C extends Component>(components: C[]): Reco
     tabs, tabList,
     above: of("above"),
     below: of("below"),
+    dialogs: of("dialogs", "dialog"),
   };
 }
 

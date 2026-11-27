@@ -3,6 +3,8 @@ export type Component = { id: string; type: string; name?: string; props?: Recor
 
 export type ListLayout<C extends Component = Component> = {
   indicators: C[]; filters: C | null; list: C; actions: C[]; rowActions: C[]; detail: C | null; above: C[]; below: C[];
+  /** Pencereler (`dialogs` yerinde `dialog`); içerikleri (`dialog` yeri) hiçbir yerleşim dizisine girmez, pencerenin içinde çizilir. */
+  dialogs: C[];
 };
 
 const slotOf = (component: Component) => (typeof component.props?.slot === "string" ? component.props.slot : "");
@@ -26,9 +28,11 @@ export function layoutListTemplate<C extends Component>(components: C[]): ListLa
     list,
     actions: of("actions", "button"),
     rowActions: of("rowActions", "button"),
-    detail: of("detail", "contextPanel")[0] ?? null,
+    // Detay yerinde detay paneli ya da (seçili satırı gösteren) kart grubu.
+    detail: components.find((component) => slotOf(component) === "detail" && (component.type === "contextPanel" || component.type === "card")) ?? null,
     above: of("above"),
     below: of("below"),
+    dialogs: of("dialogs", "dialog"),
   };
 }
 

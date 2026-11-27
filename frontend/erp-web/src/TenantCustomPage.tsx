@@ -1471,11 +1471,13 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
       const saveIds = steps.length > 0 ? steps : typeof props.saveQuery === "string" && props.saveQuery.trim() ? [props.saveQuery.trim()] : [];
       const saveQueries = saveIds.map((id) => runtime.queryById[id]);
       const canSave = !runtime.readOnly && saveQueries.length > 0 && saveQueries.every((query) => query && query.kind !== "read" && runtime.rights[query.kind] === true);
+      // Kayıt kartı kalıbındaki pencerenin içeriği kartın bölüm/satır/not kurallarıyla (yeni kayıt kipi dahil) çizilmez.
+      const inner: PageRuntime = runtime.record ? { ...runtime, record: undefined } : runtime;
       const renderOwned = (id: string) => {
         const owned = runtime.topLevelById[id];
         // Pencere yalnız üst düzey bileşen sahiplenir; pencere içinde pencere ve İşlem Çubuğu çizilmez.
         if (!owned || owned.type === "dialog" || owned.type === "actionBar") return null;
-        return renderComponent(owned, forms, token, pageCode, runtime);
+        return renderComponent(owned, forms, token, pageCode, inner);
       };
       // Kayıt penceresi açıkken (kısayollar pencere içinde çalışmaz) F2 İşlem Çubuğu'nun Yeni komutunu çalıştırır.
       const onNew = runtime.formDialog?.id === component.id ? () => { void runtime.newCommand.current?.(); } : undefined;

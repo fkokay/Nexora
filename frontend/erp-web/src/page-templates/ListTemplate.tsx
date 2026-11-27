@@ -24,6 +24,7 @@ export function ShellSearch({ inputId, placeholder, hint, value, onSearch }: {
  * çizen `render` sayfanın kendi çizicisidir (tuval işaretleri onunla gelir); burada yalnız yerleşim kurulur.
  * Detay paneli satır seçilince sağda açılır; tuvalde seçilebilsin diye orada her zaman görünür. Kalıbın kendi genişliği
  * 720 px'in altındaysa (liste kutusu değil, panelle birlikte ölçülen `.list-template-main`) panel listenin altına iner.
+ * Detay yeri kart grubu da olabilir (aynı yerde çizilir). Pencereler gövdenin sonunda çizilir; kapalı pencere bir şey çizmez.
  */
 export function ListTemplate<C extends Component>({ layout, render, title, count, actions, search, detailOpen, notices, commands }: {
   layout: ListLayout<C>; render: (component: C) => ReactNode; title: string; count: number | null;
@@ -56,6 +57,7 @@ export function ListTemplate<C extends Component>({ layout, render, title, count
         {showDetail && detail && <div className="list-template-detail">{render(detail)}</div>}
       </div>
       {below.length > 0 && <div className="list-template-below">{below.map(render)}</div>}
+      {layout.dialogs.map(render)}
     </PageShell>
   </div>;
 }

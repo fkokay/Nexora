@@ -44,4 +44,19 @@ describe('recordTemplateModel', () => {
     expect(recordKeyParam([c('s1', 'formCard', 'section')], [{ id: 'kart', parameters: [{ name: 'id', binding: '{{sayfa.parametre.k}}' }] }])).toBeNull();
     expect(recordKeyParam([c('s1', 'formCard', 'section', { recordKey: '{{kart.rows[0].id}}' })], [{ id: 'kart', parameters: [{ name: 'id', binding: '{{x.value}}' }] }])).toBeNull();
   });
+
+  it('dialogs are laid out apart and dialog contents enter no body slot', () => {
+    const layout = layoutRecordTemplate([
+      c('h', 'recordHeader', 'summary'), c('t', 'tabs', 'tabs', { tabs: ['Genel=s1'] }), c('s1', 'formCard', 'section'),
+      c('p', 'dialog', 'dialogs', { contains: ['ozet', 'sek'] }),
+      c('ozet', 'recordHeader', 'dialog'), c('sek', 'tabs', 'dialog', { tabs: ['Bilgi=tablo,form,not'] }),
+      c('tablo', 'dataTable', 'dialog'), c('form', 'formCard', 'dialog', { inputs: ['girdi'] }), c('girdi', 'input', 'dialog'),
+      c('not', 'text', 'dialog'), c('b', 'button', 'dialog'),
+    ]);
+    expect(layout.dialogs.map((x) => x.id)).toEqual(['p']);
+    expect(layout.summary?.id).toBe('h');
+    expect(layout.tabs?.id).toBe('t');
+    expect(layout.tabList.map((tab) => tab.blocks.map((x) => x.id))).toEqual([['s1']]);
+    expect([...layout.actions, ...layout.above, ...layout.below]).toEqual([]);
+  });
 });
