@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stok &amp; Depo — kalıplarla yeniden tasarım (taslak 14)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--dan-soft:#fdecea;--info:#1d4ed8;--info-soft:#e8efff;--sug:#9a3412;--sug-soft:#ffedd5}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none;padding:20px 16px 40px}.view.on{display:block}
+  .expl{max-width:1040px;margin:12px auto 0;color:#3b3850;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .expl ul{margin:4px 0 0;padding-left:18px}.expl b{color:var(--text)}
+  .code{font-family:Consolas,monospace;font-size:11.5px;background:#f1effa;border-radius:4px;padding:0 4px;color:#4c3fa0}
+  .sug{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--sug-soft);color:var(--sug);text-transform:uppercase;vertical-align:middle}
+  /* ERP sayfa + pencere */
+  .stage{position:relative;max-width:1040px;margin:0 auto;min-height:600px}
+  .erp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .dim:after{content:"";position:absolute;inset:0;background:rgba(29,27,42,.38);border-radius:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}.ttl span{color:var(--muted);font-size:13px;font-weight:400}
+  .bar{display:flex;gap:6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap;font:inherit;color:inherit}
+  .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}.b.dan{color:var(--dan)}.b.sm{padding:3px 8px;font-size:12px}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:480px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)}.tbl .n{text-align:right}.tbl tr.sel td{background:var(--accent-soft)}
+  .metrics{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .metric{flex:1 1 140px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.metric span{color:var(--muted);font-size:11.5px;display:block}.metric b{font-size:17px}
+  .win{position:absolute;left:50%;top:28px;transform:translateX(-50%);background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(20,10,60,.28);z-index:3;display:flex;flex-direction:column;max-height:calc(100% - 40px);width:calc(100% - 32px)}
+  .win.xl{max-width:920px}.win.md{max-width:560px}
+  .wh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .wh b{font-size:15px}.wh .x{margin-left:auto;color:var(--muted);font-size:18px;cursor:pointer}.wh .size{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 7px}
+  .wb{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .wb>*{flex:none}
+  .wf{display:flex;gap:6px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);background:#fcfbfe;border-radius:0 0 14px 14px}
+  .wf .r{margin-left:auto;display:flex;gap:6px}
+  .rh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .av{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .t{font-size:16px;font-weight:700}.rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}.kv span{display:block;color:var(--muted);font-size:11.5px}.kv b{font-size:14px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;position:relative}
+  .grp h4{margin:0 0 2px;font-size:13px}.grp .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .grp .badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .grp .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .grp.cond{border-style:dashed}
+  .when{position:absolute;right:10px;top:8px;font-size:10.5px;color:var(--muted);background:#f6f5fa;border-radius:99px;padding:1px 7px}
+  .bd{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px}
+  .bd.info{background:var(--info-soft);color:var(--info)}.bd.warn{background:var(--warn-soft);color:var(--warn)}.bd.ok{background:var(--ok-soft);color:var(--ok)}.bd.dan{background:var(--dan-soft);color:var(--dan)}
+  .chain{color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+  .tab{padding:7px 12px;color:var(--muted);border-bottom:2px solid transparent}.tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .inline{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;min-height:30px;min-width:150px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .txt{color:#4b4862;font-size:12px;line-height:1.5;background:#faf9fd;border-radius:8px;padding:8px 10px}
+  .split{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:14px}
+  .side{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fcfbfe}
+  .side h4{margin:0;font-size:14px}.side .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .kvs div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0;font-size:12px}.kvs span{color:var(--muted)}
+  /* Studio */
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;max-width:1100px;margin:0 auto}
+  .canvas{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:520px;position:relative}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .sec h5{margin:0 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:6px}
+  .row.on{border-color:var(--accent);background:var(--accent-soft)}
+  .row .m{color:var(--muted);font-size:11.5px}.row .sp{flex:1}
+  .fld{margin-bottom:8px}.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fld .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px}
+  .chk{display:flex;gap:6px;align-items:center;margin:4px 0}
+  .chips span{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px}
+  .add{color:var(--accent);font-size:12px;cursor:pointer}
+  .seg2{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg2 span{flex:1;text-align:center;padding:4px 0;font-size:12px;color:var(--muted)}.seg2 span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .ph{border:1px dashed #cfc8ef;border-radius:8px;padding:8px;color:var(--muted);font-size:12px;margin-bottom:8px;background:#fbfaff}
+  @media (max-width:760px){.split,.studio{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.kv{margin-left:52px}}
+</style>
+<style>
+  .chips2{display:flex;gap:6px;flex-wrap:wrap}
+  .step{border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--muted)}.step.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}.step.done{background:var(--ok-soft);color:var(--ok);border-color:#bfe3c9}
+  .tot{margin-left:auto;max-width:300px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .tot div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}.tot .g{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:14px;font-weight:700}
+  .page{max-width:1040px;margin:0 auto}
+  .sec-t{max-width:1040px;margin:18px auto 6px;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .stage.tight{min-height:560px}
+  .in.ph2{color:#9a98ab}
+  .tbl td.c{text-align:center}
+  .menu{display:inline-flex;gap:6px;flex-wrap:wrap}
+  @media (max-width:760px){.tot{max-width:none;margin-left:0}.win.xl{top:8px}.erp{padding:12px}}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 14 — Stok &amp; Depo, kalıplarla yeniden tasarım.</b> 6 sistem standardı doğrudan Liste / Kayıt kartı / Belge kalıbına çizildi; ekranlar bugünkünün birebir kopyası değildir, iş akışı (oluştur, pasife al, hareket gir, transfer, iptal / ters kayıt) korunur. Örnek veriler uydurmadır. Kalıba yeni eklenen ya da yeni belge modeli isteyen metinler <span class="sug">yeni</span> ile işaretli. Ayrıntı: <span class="code">docs/superpowers/specs/2026-11-28-stok-depo-yeniden-tasarim-design.md</span></div>
+<div class="views"><span class="lbl">Ekran:</span>
+  <div class="seg" id="seg">
+    <button class="on" data-v="v1">inventory-stock</button>
+    <button data-v="v2">inventory-stock-create</button>
+    <button data-v="v3">inventory-stock-movements</button>
+    <button data-v="v4">inventory-transfers</button>
+    <button data-v="v5">inventory-warehouses</button>
+    <button data-v="v6">inventory-locations</button>
+  </div>
+</div>
+
+<!-- 1 inventory-stock : Liste -->
+<section class="view on" id="v1"><div class="page">
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Stok Kartları</div>
+    <div class="ttl">Stok Kartları <span>· 1.284 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button><button class="b dan">Sil</button><button class="b">⋯</button></div>
+    <div class="metrics"><div class="metric"><span>Stok değeri · bu sayfa</span><b>2.418.600,00 ₺</b></div><div class="metric"><span>Kullanılabilir · bu sayfa</span><b>18.940 adet</b></div><div class="metric"><span>Minimum altı</span><b style="color:var(--dan)">23</b></div><div class="metric"><span>Maliyetsiz</span><b style="color:var(--warn)">4</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in">Zeytinyağı</div></div><div class="f"><label>Depo</label><div class="in">Merkez Depo</div></div><div class="chk"><input type="checkbox"> Pasifler</div><div class="chk"><input type="checkbox" checked> Minimum altı</div></div>
+    <div class="txt" style="margin-bottom:10px">Negatif stok koruması açık · hareketler sıralı kaydedilir · değer ağırlıklı ortalama. <span class="sug">yeni</span> tek koşullu satır</div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Stok adı</th><th>Depo</th><th class="n">Bakiye</th><th class="n">Kullanılabilir</th><th class="n">Min.</th><th>Durum</th></tr>
+        <tr class="sel"><td>STK-0101</td><td>Zeytinyağı 5 lt</td><td>Merkez</td><td class="n">120</td><td class="n">96</td><td class="n">150</td><td><span class="bd dan">Minimum altı</span></td></tr>
+        <tr><td>STK-0102</td><td>Zeytinyağı 1 lt</td><td>Merkez</td><td class="n">840</td><td class="n">840</td><td class="n">300</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>STK-0230</td><td>Cam şişe 1 lt</td><td>Merkez</td><td class="n">2.100</td><td class="n">1.900</td><td class="n">2.500</td><td><span class="bd dan">Minimum altı</span></td></tr>
+        <tr><td>STK-0307</td><td>Koli 12'li</td><td>Merkez</td><td class="n">0</td><td class="n">0</td><td class="n">100</td><td><span class="bd warn">Pasif</span></td></tr></table></div>
+      <div class="side"><h4>Zeytinyağı 5 lt</h4><div class="d">STK-0101 · Gıda / Yağ · adet</div>
+        <div class="kvs"><div><span>Depo bakiyesi</span>120 adet</div><div><span>Kullanılabilir</span>96 adet</div><div><span>Rezerve</span>24 adet</div><div><span>Minimum</span>150 adet</div><div><span>Stok değeri</span>38.400,00 ₺</div><div><span>Maliyetsiz miktar</span>0</div></div>
+        <div class="btns" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm">Hareket gir <span class="sug">yeni</span></button><button class="b sm">Hareketler ›</button><button class="b sm">Devre dışı bırak</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="expl"><b>inventory-stock → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> dört gösterge, süzgeç (arama, depo, pasifler, minimum altı), liste, Yeni/Aç/Sil/Excel, sağda tek kart grubu, Devre dışı bırak / Etkinleştir (duruma göre biri), hareket girme.</li>
+      <li><b>Sadeleşir:</b> "Kullanılabilir stoklu kart" göstergesi ve iki negatif stok uyarısı (tek koşullu satır) kalkar; depo dağılımı ve son hareketler tabloları kart grubundan çıkar (depo süzgeci ve Hareketler ekranı var); detay paneli aç/kapa düğmesi kalkar (kart grubu hep sağda, dar ekranda altta).</li>
+      <li><b>Hareket gir</b> penceresi yalnız giriş yapar (sonraki sayfa); geçmiş ve ters kayıt Hareketler ekranına taşınır.</li>
+    </ul></div>
+  <div class="sec-t">Hareket gir penceresi (Liste penceresi)</div>
+  <div class="stage tight" style="min-height:430px"><div class="erp dim" style="min-height:430px"></div>
+    <div class="win md"><div class="wh"><b>Stok hareketi · STK-0101 · Merkez Depo</b><span class="size">orta</span><span class="x">×</span></div>
+      <div class="wb"><div class="grid2">
+        <div class="f"><label>Yön</label><div class="in">Giriş</div></div><div class="f"><label>Tarih</label><div class="in">28.11.2026</div></div>
+        <div class="f"><label>Miktar</label><div class="in">60</div></div><div class="f"><label>Birim</label><div class="in">Ana birim (adet)</div></div>
+        <div class="f"><label>Depo konumu</label><div class="in">A-01-03 Raf</div></div><div class="f"><label>Birim maliyet</label><div class="in">320,00</div></div>
+        <div class="f"><label>Lot no <span class="sug">yeni</span></label><div class="in">L-2611-07</div></div><div class="f"><label>Son kullanma</label><div class="in">28.11.2027</div></div>
+      </div><div class="f"><label>Açıklama</label><div class="in">Üretimden sayım girişi</div></div></div>
+      <div class="wf"><span class="chain">Takipsiz kartta lot alanları görünmez.</span><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 2 inventory-stock-create : Kayıt kartı -->
+<section class="view" id="v2"><div class="page">
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Stok Kartları › STK-0101</div>
+    <div class="ttl">Stok kartı <span>· Kayıt kartı kalıbı</span></div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Yeni stok kartı</button><button class="b">Listeye dön</button></div>
+    <div class="rh" style="margin-bottom:12px"><div class="av">Z</div><div><div class="t">Zeytinyağı 5 lt</div><div class="s">STK-0101 · Gıda / Yağ · ana birim adet</div></div><span class="bd ok">Aktif</span><div class="kv"><div><span>Mevcut</span><b>120 adet</b></div><div><span>Kullanılabilir</span><b>96 adet</b></div></div></div>
+    <div class="tabs" style="margin-bottom:12px"><span class="tab on">Genel</span><span class="tab">Fiyat ve vergi</span><span class="tab">Lojistik ve muhasebe</span><span class="tab">Birimler</span><span class="tab">Varyantlar ve reçeteler</span><span class="tab">Özel alanlar <span class="sug">yeni</span></span></div>
+    <div class="grp" style="margin-bottom:10px"><h4>Kimlik</h4><div class="grid2" style="margin-top:8px">
+      <div class="f"><label>Stok kodu</label><div class="in">STK-0101</div></div><div class="f"><label>Stok adı</label><div class="in">Zeytinyağı 5 lt</div></div>
+      <div class="f"><label>Barkod</label><div class="in">8690000010101</div></div><div class="f"><label>Kategori</label><div class="in">Gıda / Yağ</div></div>
+      <div class="f"><label>Lot / seri takibi</label><div class="in">Lot</div></div><div class="f"><label>Ana birim</label><div class="in">adet</div></div></div></div>
+    <div class="grp"><h4>Stok yönetimi</h4><div class="grid2" style="margin-top:8px">
+      <div class="f"><label>Minimum stok</label><div class="in">150</div></div><div class="f"><label>Maksimum stok</label><div class="in">1.200</div></div>
+      <div class="f"><label>Yeniden sipariş noktası</label><div class="in">200</div></div><div class="f"><label>Emniyet stoku</label><div class="in">80</div></div>
+      <div class="f"><label>Tedarik süresi (gün)</label><div class="in">7</div></div><div class="f"><label>Üretim süresi (gün)</label><div class="in">3</div></div></div>
+      <div class="txt" style="margin-top:8px">Negatif stoka izin verilmez (sistem kuralı).</div></div>
+  </div>
+  <div class="expl"><b>inventory-stock-create → Kayıt kartı</b>
+    <ul>
+      <li><b>Kalır:</b> tüm alan grupları (kimlik, stok yönetimi, fiyat, vergi, lojistik, muhasebe), birim dönüşümü, reçeteler, Kaydet / Yeni / listeye dön. Yeni ve kayıtlı kart için iki başlık yerine tek özet.</li>
+      <li><b>Sadeleşir:</b> sekmeler 8'den 6'ya (Görsel Lojistik'e katılır, görsel önizleme kalkar; Varyantlar ve Reçeteler birleşir); yeni kartta varyant matrisi kalkar, varyantlar kayıttan sonra tabloda; birim ızgarası tablo + "Birim ekle" penceresi olur.</li>
+      <li><b>Eksik:</b> Özel alanlar sekmesi, Kayıt kartında özel alan bloğu gelene dek ertelenir <span class="sug">yeni</span>.</li>
+    </ul></div>
+  <div class="sec-t">Birimler sekmesi + Birim ekle penceresi</div>
+  <div class="stage tight" style="min-height:400px"><div class="erp dim" style="min-height:400px">
+    <div class="tabs" style="margin-bottom:10px"><span class="tab">Genel</span><span class="tab on">Birimler</span></div>
+    <div class="tbl"><table><tr><th>Birim</th><th class="n">Ana birim katsayısı</th><th></th></tr><tr><td>adet (ana)</td><td class="n">1</td><td></td></tr><tr><td>KOLİ</td><td class="n">4</td><td><button class="b sm dan">Sil</button></td></tr></table></div></div>
+    <div class="win md"><div class="wh"><b>Birim ekle</b><span class="size">küçük</span><span class="x">×</span></div>
+      <div class="wb"><div class="grid2"><div class="f"><label>Birim</label><div class="in">PALET</div></div><div class="f"><label>Ana birim katsayısı</label><div class="in">96</div></div></div><div class="txt">Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir.</div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 3 inventory-stock-movements : Liste -->
+<section class="view" id="v3"><div class="page">
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Stok Hareketleri</div>
+    <div class="ttl">Stok Hareketleri <span>· 42 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b">Yenile</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Stok</label><div class="in">STK-0101 · Zeytinyağı 5 lt</div></div><div class="f"><label>Depo</label><div class="in">Tüm depolar</div></div><div class="f"><label>Başlangıç <span class="sug">yeni</span></label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş <span class="sug">yeni</span></label><div class="in">28.11.2026</div></div></div>
+    <div class="metrics"><div class="metric"><span>Mevcut</span><b>120 adet</b></div><div class="metric"><span>Stok değeri</span><b>38.400,00 ₺</b></div></div>
+    <div class="tbl"><table><tr><th>Tarih</th><th>Yön</th><th class="n">Miktar</th><th>Depo</th><th>Konum</th><th>Lot / seri</th><th>Açıklama</th><th class="n">Birim maliyet</th><th></th></tr>
+      <tr><td>27.11.2026</td><td><span class="bd ok">Giriş</span></td><td class="n">60 adet</td><td>Merkez</td><td>A-01-03</td><td>L-2611-07</td><td>Üretimden giriş</td><td class="n">320,00</td><td><button class="b sm">Ters kayıt <span class="sug">yeni</span></button></td></tr>
+      <tr><td>25.11.2026</td><td><span class="bd dan">Çıkış</span></td><td class="n">24 adet</td><td>Merkez</td><td>A-01-03</td><td>L-2610-02</td><td>Satış irsaliyesi İRS-0418</td><td class="n">318,00</td><td><button class="b sm">Ters kayıt</button></td></tr>
+      <tr><td>20.11.2026</td><td><span class="bd info">Transfer giriş</span></td><td class="n">40 adet</td><td>Şube</td><td>—</td><td>—</td><td>TRF-0031</td><td class="n">318,00</td><td><button class="b sm" disabled style="opacity:.5">Ters kayıt</button> <span class="chain">transfer iptaliyle</span></td></tr></table></div>
+  </div>
+  <div class="expl"><b>inventory-stock-movements → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> stok ve depo süzgeci (stok kartından dolu gelir), mevcut/değer gösterge çifti, sunucu sayfalı tablo, Excel. Stok seçilmemişse tablo yerine ipucu.</li>
+      <li><b>Eklenir:</b> tarih aralığı süzgeci <span class="sug">yeni</span> ve satır eylemi <b>Ters kayıt</b> (gerekçe sorar); eski stok penceresindeki ters kayıt buraya gelir. Ters kaydı olan ya da transfere bağlı satırda düğme kapalı, nedeni yazılı.</li>
+      <li><b>Eksik (doğrulanacak):</b> süzgeçte arama seçicili stok alanı ve sayfa parametresiyle dolu gelme.</li>
+    </ul></div>
+</div></section>
+
+<!-- 4 inventory-transfers : Liste + Belge -->
+<section class="view" id="v4"><div class="page">
+  <div class="sec-t" style="margin-top:0">A. Liste</div>
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Depolar Arası Transferler</div>
+    <div class="ttl">Depolar arası transferler <span>· 31 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni transfer</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button></div>
+    <div class="metrics"><div class="metric"><span>Bu ay transfer</span><b>12</b></div><div class="metric"><span>İptal edilen</span><b>1</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in">TRF-</div></div><div class="f"><label>Durum</label><div class="in">Tümü</div></div><div class="f"><label>Tarih <span class="sug">yeni</span></label><div class="in">Bu ay</div></div></div>
+    <div class="tbl"><table><tr><th>Kod</th><th>Tarih</th><th>Kaynak depo</th><th>Hedef depo</th><th class="n">Kalem</th><th>Durum</th><th></th></tr>
+      <tr class="sel"><td>TRF-0031</td><td>20.11.2026</td><td>Merkez Depo</td><td>Şube Depo</td><td class="n">3</td><td><span class="bd ok">Kaydedildi</span></td><td><button class="b sm dan">İptal et</button></td></tr>
+      <tr><td>TRF-0030</td><td>14.11.2026</td><td>Merkez Depo</td><td>Hammadde Deposu</td><td class="n">1</td><td><span class="bd dan">İptal edildi</span></td><td></td></tr></table></div>
+  </div>
+  <div class="sec-t">B. Belge — <span class="code">stok.transfer</span> <span class="sug">yeni</span></div>
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Transferler › TRF-0032</div>
+    <div class="ttl">Transfer TRF-0032 <span>· Belge kalıbı</span> <span class="bd info">Yeni</span></div>
+    <div class="bar"><button class="b pri">Transferi kaydet</button><button class="b" disabled style="opacity:.5">İptal et</button><button class="b">Listeye dön</button></div>
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="f"><label>Kaynak depo</label><div class="in">Merkez Depo</div></div><div class="f"><label>Hedef depo</label><div class="in">Şube Depo</div></div>
+      <div class="f"><label>Transfer tarihi</label><div class="in">28.11.2026</div></div><div class="f"><label>Açıklama</label><div class="in">Aylık şube ikmali</div></div></div>
+    <div class="tbl"><table><tr><th>Stok kartı</th><th>Birim</th><th class="n">Miktar</th><th>Kaynak konum</th><th>Hedef konum</th><th class="n">Kaynak bakiye</th></tr>
+      <tr><td>STK-0102 · Zeytinyağı 1 lt</td><td>adet</td><td class="n">200</td><td>A-01-03</td><td>S-01</td><td class="n">840</td></tr>
+      <tr><td>STK-0230 · Cam şişe 1 lt</td><td>adet</td><td class="n">500</td><td>B-02-01</td><td>S-02</td><td class="n">2.100</td></tr>
+      <tr><td colspan="6" class="add" style="text-align:left">+ Kalem ekle</td></tr></table></div>
+    <div class="tot"><div><span>Kalem</span><b>2 / 100</b></div><div class="g"><span>Toplam miktar</span><b>700</b></div></div>
+  </div>
+  <div class="expl"><b>inventory-transfers → Liste + Belge <span class="code">stok.transfer</span> (yeni)</b>
+    <ul>
+      <li><b>Kalır:</b> tek işlemde düş/ekle, kaynak bakiyesinin kilit altında doğrulanması, 100 kalem sınırı, aynı stok bir kez, kaynak/hedef konum, iptal (bağlı ters hareketler).</li>
+      <li><b>Sadeleşir:</b> "Kalemler" penceresi kalkar (kalemler belgenin satırlarında); tekrar deneme kimliği alanı ve elle kalem sayacı notu kalkar (model üretir); "Yeni transfer" penceresi yerine belge sayfası.</li>
+      <li><b>Belge modeli:</b> durumlar Kaydedildi / İptal edildi (taslak yok); geçişler Transferi kaydet ve İptal et. Kaydedilmiş belge salt okunur.</li>
+    </ul></div>
+</div></section>
+
+<!-- 5 inventory-warehouses : Liste -->
+<section class="view" id="v5"><div class="page">
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Depo Yönetimi</div>
+    <div class="ttl">Depo Yönetimi <span>· 4 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni depo</button><button class="b">Düzenle</button><button class="b">Yenile</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in">Depo kodu veya adı</div></div><div class="f"><label>Durum</label><div class="in">Aktif</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Depo adı</th><th class="n">Konum</th><th>Durum</th><th></th></tr>
+        <tr class="sel"><td>MRK</td><td>Merkez Depo</td><td class="n">18</td><td><span class="bd ok">Aktif</span></td><td><button class="b sm">Konumlar ›</button> <button class="b sm">Pasife al</button></td></tr>
+        <tr><td>SUB</td><td>Şube Depo</td><td class="n">6</td><td><span class="bd ok">Aktif</span></td><td><button class="b sm">Konumlar ›</button> <button class="b sm">Pasife al</button></td></tr>
+        <tr><td>HAM</td><td>Hammadde Deposu</td><td class="n">0</td><td><span class="bd warn">Pasif</span></td><td><button class="b sm">Etkinleştir</button></td></tr></table></div>
+      <div class="side"><h4>Merkez Depo</h4><div class="d">MRK · Aktif</div>
+        <div class="kvs"><div><span>Kod</span>MRK</div><div><span>Ad</span>Merkez Depo</div><div><span>Konum sayısı</span>18</div><div><span>Not</span>Devre dışı depoda hareket girilemez.</div></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>inventory-warehouses → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> arama + durum süzgeci, tablo, Yeni/Düzenle, Pasife al / Etkinleştir (duruma göre biri), Excel, konumlara geçiş.</li>
+      <li><b>Sadeleşir:</b> sağ bölmedeki düzenlenebilir form <b>Depo penceresi</b> olur (Liste'de düzenlenebilir kart yok); konum listesi depo kartından kalkar (Raf ve Konumlar ekranı var).</li>
+      <li><b>Eksik:</b> depo özel alanları pencerede (özel alan bloğu) <span class="sug">yeni</span>.</li>
+    </ul></div>
+  <div class="sec-t">Depo penceresi</div>
+  <div class="stage tight" style="min-height:300px"><div class="erp dim" style="min-height:300px"></div>
+    <div class="win md"><div class="wh"><b>Depo · MRK</b><span class="size">küçük</span><span class="x">×</span></div>
+      <div class="wb"><div class="grid2"><div class="f"><label>Depo kodu</label><div class="in">MRK</div></div><div class="f"><label>Depo adı</label><div class="in">Merkez Depo</div></div></div><div class="ph">Özel alanlar — Kayıt kartı / pencere özel alan bloğu gelince <span class="sug">yeni</span></div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 6 inventory-locations : Liste -->
+<section class="view" id="v6"><div class="page">
+  <div class="erp">
+    <div class="crumb">Stok &amp; Depo › Raf ve Konumlar</div>
+    <div class="ttl">Raf ve Konumlar <span>· Merkez Depo · 18 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni konum</button><button class="b">Düzenle</button><button class="b">Bakiyeler</button><button class="b">Konumlandırma denetimi</button><button class="b">Excel</button></div>
+    <div class="metrics"><div class="metric"><span>Konum</span><b>18</b></div><div class="metric"><span>Aktif</span><b>16</b></div><div class="metric"><span>Konumsuz kalan kart</span><b style="color:var(--warn)">7</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Depo (zorunlu)</label><div class="in">Merkez Depo</div></div><div class="f"><label>Ara</label><div class="in">A-01</div></div><div class="f"><label>Durum</label><div class="in">Aktif</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Konum adı</th><th>Üst konum</th><th>Durum</th><th></th></tr>
+        <tr><td>A-01</td><td>A Koridoru 1. Raf</td><td>—</td><td><span class="bd ok">Aktif</span></td><td></td></tr>
+        <tr class="sel"><td>A-01-03</td><td>A-01 3. Bölme</td><td>A-01</td><td><span class="bd ok">Aktif</span></td><td><button class="b sm">Pasife al</button></td></tr>
+        <tr><td>B-02</td><td>B Koridoru 2. Raf</td><td>—</td><td><span class="bd warn">Pasif</span></td><td></td></tr></table></div>
+      <div class="side"><h4>A-01-03</h4><div class="d">A-01 3. Bölme · Merkez Depo</div>
+        <div class="kvs"><div><span>Üst konum</span>A-01</div><div><span>Durum</span>Aktif</div><div><span>Bakiyeli kart</span>5</div></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>inventory-locations → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> depo/arama/durum süzgeci (depo seçilmezse tablo yerine "Depo seçin" ipucu), konum tablosu, Yeni/Düzenle, Pasife al (yalnız TenantAdmin; kuralları sunucuda), bakiye ve denetim tabloları.</li>
+      <li><b>Sadeleşir:</b> bakiye ve konumlandırma denetimi sayfaya yığılmaz; ayrı tablo pencerelerinde açılır. Yeni/düzenle formu <b>Konum penceresi</b> olur (kod, ad, üst konum, aktif).</li>
+    </ul></div>
+  <div class="sec-t">Konumlandırma denetimi penceresi</div>
+  <div class="stage tight" style="min-height:360px"><div class="erp dim" style="min-height:360px"></div>
+    <div class="win xl"><div class="wh"><b>Konumlandırma denetimi · Merkez Depo</b><span class="size">geniş</span><span class="x">×</span></div>
+      <div class="wb"><div class="txt">Konumu boş eski hareketler burada görünür; geçmiş kayıtlara otomatik konum atanmaz.</div>
+        <div class="tbl"><table><tr><th>Stok kodu</th><th>Stok adı</th><th class="n">Depo bakiyesi</th><th class="n">Konumlandırılmış</th><th class="n">Konumu boş</th><th>Birim</th></tr>
+          <tr><td>STK-0101</td><td>Zeytinyağı 5 lt</td><td class="n">120</td><td class="n">96</td><td class="n">24</td><td>adet</td></tr>
+          <tr><td>STK-0230</td><td>Cam şişe 1 lt</td><td class="n">2.100</td><td class="n">2.100</td><td class="n">0</td><td>adet</td></tr></table></div></div>
+      <div class="wf"><div class="r"><button class="b">Kapat</button></div></div></div>
+  </div>
+</div></section>
+<script>
+  document.querySelectorAll('#seg button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('#seg button').forEach(function(x){x.classList.toggle('on',x===b)});
+      document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('on',v.id===b.dataset.v)});
+    });
+  });
+</script>
+</body>
+</html>

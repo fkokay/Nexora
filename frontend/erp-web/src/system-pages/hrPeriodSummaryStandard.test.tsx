@@ -56,7 +56,7 @@ describe('Dönem özeti standart tanımı', { timeout: 30000 }, () => {
     expect([query(runs()[0].url).get('from'), query(runs()[0].url).get('to')]).toEqual(['2026-10-01', '2026-10-31']);
     await waitFor(() => expect(document.body.textContent).toContain('Dönem sonu personel'), T);
     const text = () => document.body.textContent ?? '';
-    for (const label of ['Puantaj kaydı', 'Puantajı olan personel', 'Çalışılan (dk)', 'Fazla mesai (dk)', 'İzin talebi', 'Talep edilen gün']) {
+    for (const label of ['Puantajı olan personel', 'Çalışılan (dk)', 'Fazla mesai (dk)', 'İzin talebi', 'Talep edilen gün']) {
       expect(text()).toContain(label);
     }
     expect(text()).toContain('42');

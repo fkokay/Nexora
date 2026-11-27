@@ -51,11 +51,12 @@ describe('Personel standart tanımı', { timeout: 30000 }, () => {
     h.setup(respond);
     await h.cell('Ayşe Yılmaz');
     let before = lists().length;
-    fireEvent.change(document.getElementById('page-input-durumSecimi') as HTMLSelectElement, { target: { value: 'Terminated' } });
+    const filters = screen.getByRole('region', { name: 'Süzgeçler' });
+    fireEvent.change(within(filters).getByLabelText('Durum') as HTMLSelectElement, { target: { value: 'Terminated' } });
     await waitFor(() => expect(lists().length).toBeGreaterThan(before), T);
     expect(query(lists().at(-1)!.url).get('status')).toBe('Terminated');
     before = lists().length;
-    fireEvent.change(document.getElementById('page-input-departmanSecimi') as HTMLInputElement, { target: { value: 'Satış' } });
+    fireEvent.change(within(filters).getByLabelText('Departman') as HTMLInputElement, { target: { value: 'Satış' } });
     await waitFor(() => expect(query(lists().at(-1)!.url).get('department')).toBe('Satış'), T);
     expect(lists().length).toBeGreaterThan(before);
     expect(query(lists().at(-1)!.url).get('status')).toBe('Terminated');
@@ -78,7 +79,8 @@ describe('Personel standart tanımı', { timeout: 30000 }, () => {
     h.setup(respond, { role: 'TenantUser' });
     await h.cell('Ayşe Yılmaz');
     await waitFor(() => expect(h.command('new').getAttribute('aria-disabled')).toBe('true'), T);
-    expect(h.command('new').closest('[data-command]')?.outerHTML ?? '').toContain('yalnız firma yöneticisi');
+    fireEvent.mouseEnter(h.command('new'));
+    await screen.findByText(/yalnız firma yöneticisi/, {}, T);
   });
 
   it('a non-admin without a linked record sees the empty-list text', async () => {
@@ -90,9 +92,7 @@ describe('Personel standart tanımı', { timeout: 30000 }, () => {
   it('detail panel: key values and links to the leave and attendance pages with employeeId', async () => {
     h.setup(respond);
     await h.select('Ayşe Yılmaz');
-    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
-    const panel = screen.getByRole('button', { name: 'Detay paneli' });
-    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
+    // Kart grubu (Liste kalıbı) seçili satırla kendiliğinden dolar; açma düğmesi yoktur.
     await waitFor(() => expect(document.body.textContent).toContain('İş e-postası'), T);
     expect(document.body.textContent).toContain('p-0001@firma.com.tr');
     expect(document.body.textContent).toContain('İşe giriş');

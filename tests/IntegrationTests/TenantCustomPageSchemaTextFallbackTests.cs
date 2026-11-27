@@ -118,10 +118,12 @@ public sealed class TenantCustomPageSchemaTextFallbackTests
         var create = JsonNode.Parse(SystemPageStandards.All["customer-create"].DefinitionJson)!.AsObject();
         Assert.Equal(("{{kart.rows[0].currencyCode}}", "TRY"), ((string)Props(create, "doviz")["defaultValue"]!, (string)Props(create, "doviz")["emptyDefault"]!));
         Assert.Equal(("{{kart.rows[0].paymentTermDays}}", "0"), ((string)Props(create, "vadeGunu")["defaultValue"]!, (string)Props(create, "vadeGunu")["emptyDefault"]!));
+        // Kayıt kartı kalıbında özet bir kayıt özetidir (recordHeader): boş bağlamalı alt satır ve değerler kendiliğinden düşer / "—" olur.
         var summary = Props(create, "kartOzeti");
-        Assert.False(summary.ContainsKey("text"));
-        Assert.Equal(new[] { "{{kart.rows[0].code}}", "{{kart.rows[0].groupName}}", "Vade {{kart.rows[0].paymentTermDays}} gün", "{{kart.rows[0].currencyCode}}",
-            "Vergi no {{kart.rows[0].taxNumber}}" }, summary["parts"]!.AsArray().Select(x => (string)x!));
+        Assert.False(summary.ContainsKey("parts"));
+        Assert.Equal(("summary", "{{kart.rows[0].code}}"), ((string)summary["slot"]!, (string)summary["subtitle"]!));
+        Assert.Equal(new[] { "Bakiye={{bakiye.rows[0].balanceAmount}}", "Vade (gün)={{kart.rows[0].paymentTermDays}}", "Vergi no={{kart.rows[0].taxNumber}}" },
+            summary["fields"]!.AsArray().Select(x => (string)x!));
         var customers = JsonNode.Parse(SystemPageStandards.All["customers"].DefinitionJson)!.AsObject();
         Assert.Equal("{{liste.seciliSatir.code}} · {{liste.seciliSatir.name}} cari kartı silinsin mi?", (string)Props(customers, "komutlar")["deleteConfirmText"]!);
         foreach (var key in new[] { "customer-create", "customers", "finance-account-create", "sales-purchase-order-create" })
