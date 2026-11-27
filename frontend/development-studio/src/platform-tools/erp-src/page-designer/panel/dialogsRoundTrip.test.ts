@@ -1,8 +1,7 @@
 /// <reference types="node" />
 // Kalıplı sayfadaki pencere ve grup Studio modelinden (yükle → güvenlik ağı → uzlaştır → kaydet) değişmeden geçmeli.
 // Sunucu fikstürü: dönüştürücünün `sales-orders` çıktısı (PageTemplateMigration; tests/IntegrationTests/Fixtures/TemplateDialogs).
-import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { newListTemplateDefinition } from "../pageTemplates";
 import type { PageQuery } from "../QueriesPanel";
@@ -11,6 +10,11 @@ import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { ensureTemplateSlots } from "./templateGuards";
 
 const fixture = new URL("../../../../../../../tests/IntegrationTests/Fixtures/TemplateDialogs/sales-orders-converted.json", import.meta.url);
+// Sunucunun `sales-orders` için verdiği ERP işlem kataloğu (erp-web sistem sayfası fikstürü): sayfalı liste yalnız işlemi sayfalamayı
+// destekliyorsa korunur; boş ama hazır bir katalog "işlem yok" demektir ve uzlaştırma sayfalamayı haklı olarak siler.
+const operationsFixture = new URL("../../../../../../erp-web/src/system-pages/salesOrdersOperations.fixture.json", import.meta.url);
+type ErpCatalog = Parameters<Awaited<typeof import("../../CustomPagesPage")>["designerPersistence"]["wireDefinition"]>[1];
+const salesOrdersCatalog = (): ErpCatalog => ({ status: "ready", operations: (JSON.parse(readFileSync(operationsFixture, "utf8")) as { operations: unknown[] }).operations } as ErpCatalog);
 const c = (id: string, type: string, props: ModelComponent["props"] = {}, children?: ModelComponent[]): ModelComponent =>
   ({ id, type, name: id, props, ...(children ? { children } : {}) });
 const read = (id: string, name = id): PageQuery => ({ id, name, kind: "read", sql: `select 1 -- ${id}`, parameters: [], runOn: "load" });
@@ -35,12 +39,12 @@ const salesOrdersLike = (): ModelDefinition => ({ ...(newListTemplateDefinition(
     c("teslimTarihi", "input", { slot: "dialog", inputType: "date", label: "İstenen teslim tarihi" }),
   ] });
 
-async function roundTrip(def: ModelDefinition) {
+async function roundTrip(def: ModelDefinition, catalog: ErpCatalog = { status: "ready", operations: [] }) {
   const { designerInternals, designerPersistence } = await import("../../CustomPagesPage");
   type Def = Parameters<typeof designerPersistence.wireDefinition>[0];
   const loaded = ensureTemplateSlots(designerPersistence.normalizeDefinition(JSON.parse(JSON.stringify(def))) as unknown as ModelDefinition);
-  const reconciled = designerInternals.reconcileDefinition(loaded as unknown as Def, { catalog: { status: "ready", operations: [] }, previous: loaded as unknown as Def, queryEditable: true });
-  return JSON.parse(JSON.stringify(designerPersistence.wireDefinition(reconciled, { status: "ready", operations: [] })));
+  const reconciled = designerInternals.reconcileDefinition(loaded as unknown as Def, { catalog, previous: loaded as unknown as Def, queryEditable: true });
+  return JSON.parse(JSON.stringify(designerPersistence.wireDefinition(reconciled, catalog)));
 }
 
 // Tasarımcı modülü büyük: soğuk dinamik içe aktarma yüklü makinede 5 sn sınırını aşabilir.
@@ -51,11 +55,23 @@ describe("Dialogs and groups through the designer", { timeout: 30_000 }, () => {
     expect(await roundTrip(def)).toEqual(JSON.parse(JSON.stringify(def)));
   });
 
-  // Fikstürü sunucu tarafı (dönüştürücü) üretir; dallar birleşince dosya gelir ve test kendiliğinden çalışır.
-  it.skipIf(!existsSync(fileURLToPath(fixture)))("the converted sales-orders fixture comes back unchanged", async () => {
+  // Fikstürü sunucu tarafı (dönüştürücü, PageTemplateMigration) üretir.
+  it("the converted sales-orders fixture comes back unchanged", async () => {
     const raw = JSON.parse(readFileSync(fixture, "utf8")) as { definition?: ModelDefinition } & ModelDefinition;
     const def = raw.definition ?? raw;
     expect(def.template).toBeTruthy();
-    expect(await roundTrip(def)).toEqual(JSON.parse(JSON.stringify(def)));
+    expect(await roundTrip(def, salesOrdersCatalog())).toEqual(JSON.parse(JSON.stringify(def)));
+  });
+
+  // Sayfalama işlemin desteğine bağlıdır (Studio'nun var olan kuralı, kalıptan bağımsız): işlem listesi yüklenirken korunur,
+  // işlem katalogda yoksa silinir. Bu fikstürde liste `satis.siparis.listele` ile sunucu sayfalıdır.
+  it("server paging of the fixture's list follows the ERP operation catalog", async () => {
+    const raw = JSON.parse(readFileSync(fixture, "utf8")) as { definition?: ModelDefinition } & ModelDefinition;
+    const def = raw.definition ?? raw;
+    const list = (out: ModelDefinition) => out.components.find((item) => item.id === "liste")!.props;
+    expect(await roundTrip(def, { status: "loading" } as ErpCatalog)).toEqual(JSON.parse(JSON.stringify(def)));
+    const stripped = await roundTrip(def) as ModelDefinition;
+    expect(list(stripped).paging).toBeUndefined();
+    expect(list(def).paging).toBe("server");
   });
 });
