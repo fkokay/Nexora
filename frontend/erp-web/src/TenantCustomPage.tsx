@@ -75,7 +75,7 @@ import { isNavigationType, runNavigation } from "./custom-page/navigationActions
 import { OPEN_PAGE_EVENT, openerOf, openWorkspacePage, publishRecordsDeleted, requestClosePage, setPageParams, usePageParams, type PageParams, type WorkspaceOpenRequest } from "./pageNavigation";
 import { afterRecordDelete, afterRecordSave, RECORD_DELETED_NOTICE, RECORD_SAVED_NOTICE, type AfterSave } from "./page-templates/recordAfterSave";
 import { deletedRecordIds } from "./custom-page/deletedRecords";
-import { CanvasAnchorContext } from "./designer-canvas/anchorContext";
+import { CanvasAnchorContext, CanvasDialogContext } from "./designer-canvas/anchorContext";
 import { ANCHOR_ATTRIBUTE } from "./designer-canvas/canvasProtocol";
 import "./tenant-custom-page.css";
 import "./system-pages/system-pages.css";
@@ -2737,6 +2737,17 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
     setDialogs((previous) => ({ ...previous, [id]: true }));
   };
   const closeDialog = (id: string) => setDialogs((previous) => (previous[id] ? { ...previous, [id]: false } : previous));
+  // Tasarımcı tuvali (`showDialog`): istenen pencere açılır, diğer açık pencereler kapanır; `null` hepsini kapatır. Tanım
+  // yüklenince (ya da yeniden yüklemede) son istek yeniden uygulanır.
+  const canvasDialog = useContext(CanvasDialogContext);
+  const dialogRequestRef = useRef({ openDialog, closeDialog });
+  dialogRequestRef.current = { openDialog, closeDialog };
+  useEffect(() => {
+    if (!canvasDialog) return;
+    const { dialogId } = canvasDialog;
+    for (const id of Object.keys(dialogById)) if (id !== dialogId) dialogRequestRef.current.closeDialog(id);
+    if (dialogId && dialogById[dialogId]) dialogRequestRef.current.openDialog(dialogId, null);
+  }, [canvasDialog, dialogById]);
   /** Tabloların bekleyen satırları ve blokların yazılan değerleri (ve gösterilen iletileri) atılır. */
   const resetCollections = (ids: string[]) => {
     const names = ids.map((id) => flatById[id]).filter((component) => component && (component.type === "editableGrid" || component.type === "customFieldsBlock") && component.name)

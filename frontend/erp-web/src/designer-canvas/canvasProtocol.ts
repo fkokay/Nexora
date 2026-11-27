@@ -8,6 +8,8 @@ export type StudioToCanvas =
   | { nx: 'nexora-canvas'; v: 1; type: 'reload'; revision: number }
   /** Kayıt kartı: `tabsId` bileşeninin `index`. sekmesini gösterir (sekme düğmesi kutuları `"<tabsId>#tab<i>"`). */
   | { nx: 'nexora-canvas'; v: 1; type: 'showTab'; tabsId: string; index: number }
+  /** Kalıplı sayfa: `dialogId` penceresini açar (önceki açık pencere kapanır); `null` açık pencereyi kapatır. */
+  | { nx: 'nexora-canvas'; v: 1; type: 'showDialog'; dialogId: string | null }
   /** Belge kalıbı: tuvalde çizilen örnek belgenin durumu (ör. Draft, Open, Fulfilled). */
   | { nx: 'nexora-canvas'; v: 1; type: 'previewState'; state: string };
 export type CanvasToStudio =
@@ -39,6 +41,10 @@ export function parseStudioCanvasMessage(data: unknown): StudioToCanvas | null {
     if (typeof m.tabsId !== 'string' || !ID_PATTERN.test(m.tabsId)) return null;
     if (typeof m.index !== 'number' || !Number.isInteger(m.index) || m.index < 0 || m.index > MAX_TAB_INDEX) return null;
     return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'showTab', tabsId: m.tabsId, index: m.index };
+  }
+  if (m.type === 'showDialog') {
+    if (m.dialogId !== null && (typeof m.dialogId !== 'string' || !ID_PATTERN.test(m.dialogId))) return null;
+    return { nx: CANVAS_PROTOCOL, v: CANVAS_VERSION, type: 'showDialog', dialogId: m.dialogId };
   }
   if (m.type === 'previewState') {
     if (typeof m.state !== 'string' || !PREVIEW_STATE.test(m.state)) return null;

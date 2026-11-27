@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActionBar } from '../action-bar/ActionBar';
 import { CommandProvider } from '../commands/CommandProvider';
 import { ConfirmDialogHost } from '../confirmDialog';
+import { CanvasDialogContext, type CanvasDialogRequest } from '../designer-canvas/anchorContext';
 import { forgetOpener, setPageParams } from '../pageNavigation';
 import TenantCustomPage from '../TenantCustomPage';
 import { KeepAliveViews } from '../WorkspaceComponents';
@@ -149,6 +150,29 @@ describe('kalıplı sayfada pencereler', () => {
     const detail = await waitFor(() => { const element = document.querySelector('.list-template-detail'); expect(element).toBeTruthy(); return element as HTMLElement; }, T);
     expect(within(detail).getByText('Seçili sipariş')).toBeTruthy();
     expect(within(detail).getByText('Kod: S-2')).toBeTruthy();
+  });
+
+  it('the canvas showDialog request opens that dialog, closes the previous one, and null closes it', async () => {
+    definition = listPage();
+    const page = (request: CanvasDialogRequest | null) => <CommandProvider>
+      <CanvasDialogContext.Provider value={request}>
+        <KeepAliveViews activeKey="v" openKeys={['v']}><TenantCustomPage code="p" token="t" /></KeepAliveViews>
+      </CanvasDialogContext.Provider>
+    </CommandProvider>;
+    const { rerender } = render(page({ dialogId: 'siparisPenceresi', signal: 1 }));
+    let dialog = await screen.findByRole('dialog', undefined, T);
+    expect(within(dialog).getByText('Teslim bilgisi')).toBeTruthy();
+    rerender(page({ dialogId: 'notPenceresi', signal: 2 }));
+    await waitFor(() => expect(screen.getByRole('dialog').getAttribute('aria-labelledby')).toBe('page-dialog-notPenceresi-title'), T);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    // Kullanıcı tuvalde kapatır; aynı istek yeniden gelince pencere yine açılır.
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Vazgeç' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
+    rerender(page({ dialogId: 'notPenceresi', signal: 3 }));
+    dialog = await screen.findByRole('dialog', undefined, T);
+    expect(within(dialog).getByLabelText('Not')).toBeTruthy();
+    rerender(page({ dialogId: null, signal: 4 }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
   });
 
   it('record and free templates draw their dialogs too', async () => {

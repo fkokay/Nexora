@@ -45,6 +45,19 @@ describe('parseStudioCanvasMessage', () => {
       expect(parseStudioCanvasMessage({ nx: 'nexora-canvas', v: 1, type: 'previewState', state })).toBeNull();
   });
 
+  it('parseStudioCanvasMessage accepts showDialog with an id or null and rejects bad ids', () => {
+    const msg = { nx: 'nexora-canvas', v: 1, type: 'showDialog', dialogId: 'siparisPenceresi' };
+    expect(parseStudioCanvasMessage(msg)).toEqual(msg);
+    expect(parseStudioCanvasMessage({ ...msg, revision: 5, extra: 'x' })).toEqual(msg);
+    expect(parseStudioCanvasMessage({ ...msg, dialogId: null })).toEqual({ ...msg, dialogId: null });
+    for (const dialogId of ['', 'a b', 'a#tab1', 1, undefined, {}, 'x'.repeat(65)]) {
+      expect(parseStudioCanvasMessage({ ...msg, dialogId })).toBeNull();
+    }
+    const { dialogId: _dialogId, ...missing } = msg;
+    expect(parseStudioCanvasMessage(missing)).toBeNull();
+    expect(parseStudioCanvasMessage({ ...msg, v: 2 })).toBeNull();
+  });
+
   it('parseStudioCanvasMessage accepts showTab and rejects bad index', () => {
     const msg = { nx: 'nexora-canvas', v: 1, type: 'showTab', tabsId: 'sekmeler', index: 2 };
     expect(parseStudioCanvasMessage(msg)).toEqual(msg);

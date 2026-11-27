@@ -1,11 +1,11 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { useContext, useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CanvasAnchorContext } from './anchorContext';
+import { CanvasAnchorContext, CanvasDialogContext } from './anchorContext';
 import DesignerCanvasHost from './DesignerCanvasHost';
 
 const mounts = vi.hoisted(() => ({
-  count: 0, error: false, queryError: false, loading: false, tabs: false, setLoading: (_: boolean) => {},
+  count: 0, error: false, queryError: false, loading: false, tabs: false, dialog: false, setLoading: (_: boolean) => {},
   params: [] as Record<string, string>[],
 }));
 const apiMock = vi.hoisted(() => vi.fn());
@@ -17,10 +17,12 @@ vi.mock('../TenantCustomPage', async () => {
   const { pageParamsOf } = await import('../pageNavigation');
   return { default: function FakePage({ previewId }: { previewId: string }) {
     const anchored = useContext(CanvasAnchorContext);
+    const dialog = useContext(CanvasDialogContext);
     const [loading, setLoading] = useState(mounts.loading);
     mounts.setLoading = setLoading;
     // TenantCustomPage önizlemede parametreleri `custom-page-preview:<id>` sekme anahtarından okur.
     useEffect(() => { mounts.count += 1; mounts.params.push({ ...pageParamsOf(`custom-page-preview:${previewId}`) }); }, []);
+    if (mounts.dialog) return <output data-testid="dialog">{dialog ? `${dialog.dialogId ?? 'kapalı'}:${dialog.signal}` : 'yok'}</output>;
     if (mounts.tabs) return <PageTabs id="sekmeler" tabs={[{ label: 'Genel', ids: [] }, { label: 'Satırlar', ids: [] }]} defaultTab={0}
       renderOwned={() => null} errorCounts={[0, 0]} jumpTo={null} style={{}} />;
     if (loading) return <div className="tenant-custom-page-state" role="status">Sayfa yükleniyor…</div>;
@@ -65,6 +67,7 @@ beforeEach(() => {
   mounts.queryError = false;
   mounts.loading = false;
   mounts.tabs = false;
+  mounts.dialog = false;
   mounts.params = [];
   apiMock.mockReset();
   preview = async () => ({ definitionJson: JSON.stringify({ schemaVersion: 2, components: [] }) });
@@ -281,6 +284,30 @@ describe('DesignerCanvasHost', () => {
     act(() => resizeCallbacks.forEach((callback) => callback()));
     flushFrames();
     expect(lastOfType('layout')?.message.blocks[0].id).toBe('x');
+  });
+
+  it('showDialog hands the requested dialog to the page; null asks it to close', async () => {
+    mounts.dialog = true;
+    const { getByTestId } = renderHost();
+    await waitFor(() => expect(mounts.count).toBe(1));
+    expect(getByTestId('dialog').textContent).toBe('yok');
+    const send = (data: unknown, origin = STUDIO) => act(() => {
+      window.dispatchEvent(new MessageEvent('message', { origin, source: window.parent, data }));
+    });
+    send({ nx: 'nexora-canvas', v: 1, type: 'showDialog', dialogId: 'pen' }, 'https://evil.test');
+    expect(getByTestId('dialog').textContent).toBe('yok');
+    send({ nx: 'nexora-canvas', v: 1, type: 'showDialog', dialogId: 'pen' });
+    await waitFor(() => expect(getByTestId('dialog').textContent).toBe('pen:1'));
+    // Sayfayı yeniden yüklemez; istek yeniden yüklemeden sonra da korunur (pencere yeniden açılır).
+    expect(mounts.count).toBe(1);
+    send({ nx: 'nexora-canvas', v: 1, type: 'reload', revision: 5 });
+    await waitFor(() => expect(mounts.count).toBe(2));
+    expect(getByTestId('dialog').textContent).toBe('pen:1');
+    // Aynı pencere yeniden istenebilir (kullanıcı tuvalde kapattıktan sonra).
+    send({ nx: 'nexora-canvas', v: 1, type: 'showDialog', dialogId: 'pen' });
+    await waitFor(() => expect(getByTestId('dialog').textContent).toBe('pen:2'));
+    send({ nx: 'nexora-canvas', v: 1, type: 'showDialog', dialogId: null });
+    await waitFor(() => expect(getByTestId('dialog').textContent).toBe('kapalı:3'));
   });
 
   it('showTab switches the active tab', async () => {
