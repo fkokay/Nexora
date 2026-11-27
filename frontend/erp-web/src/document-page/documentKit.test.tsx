@@ -424,11 +424,14 @@ describe('Purchasing document on the restyled kit', () => {
 
     // The former header buttons are İşlemler items of the action bar (Faz 4).
     expect(within(head).queryByRole('button', { name: /Ödeme ekle/ })).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-command="more"]')).not.toBeNull());
     fireEvent.click(document.querySelector<HTMLElement>('[data-command="more"]')!);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Ödeme ekle' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Ödeme ekle' }));
     const drawer = await screen.findByRole('dialog', { name: 'Tedarikçi ödemesi' });
-    fireEvent.change(within(drawer).getByLabelText(/Tutar/), { target: { value: '500' } });
-    fireEvent.change(within(drawer).getByLabelText(/Banka hesabı/), { target: { value: 'a1' } });
+    fireEvent.change(await within(drawer).findByLabelText(/Tutar/), { target: { value: '500' } });
+    const accountSelect = await within(drawer).findByLabelText(/Banka hesabı/);
+    await waitFor(() => expect(within(accountSelect).queryByRole('option', { name: /BNK-01/ })).not.toBeNull());
+    fireEvent.change(accountSelect, { target: { value: 'a1' } });
     fireEvent.submit(drawer.querySelector('form')!);
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url === '/api/purchasing/invoices/pi1/payments')).toBe(true));
     const post = calls.find((c) => c.method === 'POST')!;
