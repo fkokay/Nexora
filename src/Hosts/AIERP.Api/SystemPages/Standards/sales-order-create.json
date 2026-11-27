@@ -219,6 +219,15 @@
       ]
     }
   },
+  "updates": [
+    { "id": "taslak", "label": "Yalnız taslak sipariş düzenlenir (Kaydet, satırlar, uyarı)", "below": 2,
+      "set": [
+        { "component": "komutlar", "prop": "commandWhen", "from": [["save=sayfa.parametre.orderId == null || siparis.rows[0].status == 'Open'"]] },
+        { "component": "kalemler", "prop": "disabledWhen", "from": ["sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'"] },
+        { "component": "kalemler", "prop": "disabledReason", "from": ["Yalnızca açık siparişler düzenlenebilir."] },
+        { "component": "duzenlemeUyarisi", "prop": "visibleWhen", "from": ["sayfa.parametre.orderId != null && siparis.rows[0].id != null && siparis.rows[0].status != 'Open'"] },
+        { "component": "duzenlemeUyarisi", "prop": "text", "from": ["Yalnızca sevkiyat, fatura veya rezervasyonu olmayan açık siparişler düzenlenebilir."] }] }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [

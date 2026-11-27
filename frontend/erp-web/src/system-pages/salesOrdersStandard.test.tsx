@@ -63,8 +63,8 @@ const openOrder = async (code: string) => {
 };
 
 describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
-  it('is a v3 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
+  it('is a v4 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 5, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
@@ -78,7 +78,7 @@ describe('Satış Siparişleri standart tanımı', { timeout: 30000 }, () => {
     const metric = (title: string) => screen.getAllByText(title).map((node) => node.closest('article')!).find(Boolean)!;
     await waitFor(() => expect(metric('Sevk bekleyen').textContent).toContain('1'), T);
     expect(metric('Sipariş tutarı').textContent).toContain('2.400');
-    expect(screen.getAllByText('Açık').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Onaylı').length).toBeGreaterThan(0);
   });
 
   it('opens the order from the orderId page param (openParam), even when it is not on the loaded page', async () => {

@@ -264,7 +264,7 @@ public sealed class SalesSystemPagesTests
     // Aşama B bumps sales-orders (the order card's Yeni / Düzenle params) and sales-invoices (Yeni stays legacy, P3) to version 2;
     // their buttons changed in place, so every item stays since 1.
     [InlineData("sales-quotes", "Satış Teklifleri", 1)]
-    [InlineData("sales-orders", "Satış Siparişleri", 3)]
+    [InlineData("sales-orders", "Satış Siparişleri", 5)]
     [InlineData("sales-deliveries", "Satış İrsaliyeleri", 1)]
     [InlineData("sales-invoices", "Satış Faturaları", 2)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
@@ -273,7 +273,7 @@ public sealed class SalesSystemPagesTests
         Assert.Equal((version, "preview", title, "Satış & cari"), (standard.Version, standard.Stage, standard.Title, standard.Module));
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         // sales-orders v3 adds the state chain commands (belge kuralları); everything else is v1.
-        Assert.All(standard.Items, x => Assert.True((x.Since == 1 || key == "sales-orders" && x.Since == 3) && x.Label.Length is > 0 and <= 80, x.Key));
+        Assert.All(standard.Items, x => Assert.True((x.Since == 1 || key == "sales-orders" && x.Since is 3 or 4) && x.Label.Length is > 0 and <= 80, x.Key));
         var operations = Definition(key)["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
         Assert.All(operations, name => Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated
             && (op.Module == "Satış" || name is "depo.listele" or "finans.hesap.listele"), name));

@@ -281,6 +281,11 @@ Sonuçları:
 - **ERP çizimi.** Taslak'ta ana düğme Kaydet, yanında Onayla (taslak 08); geçişler `allowedTransitions`'tan gelir. Satırlar bugünkü `EditableGrid` ile çizilir; hesap 400 ms sonra gönderilir, yeni değişiklik eski isteği iptal eder, eski yanıt yok sayılır. Firmanın sipariş özel alanları başlık alanlarının altında kendiliğinden görünür. Onaylı belgede teslim tarihi Belge'den değişmez (eski ekranda değişir).
 - **Studio paneli (taslak 09).** Panel, taslak 09'daki üç eki taşır: tuvalde "Önizlenen durum" seçici (Taslak / Onaylı / Sevk edildi; yalnız tuvalde), "KDV'yi orana göre dök" ve "İşlem günlüğü" anahtarları. Danışmanın Satış siparişi okuma izni yoksa panel "Bu belgenin modelini görmek için Satış siparişi okuma izni gerekir." der ve düzenlemeyi kapatır. Ek eylemler, yalnız belge kimliğini (`id`) isteyen tek kayıt katalog eylemleridir.
 
+### 5.6.1 Ertelenen standart tamamlandı (2026-11-27)
+
+- Yeni ekran anahtarı `sales-order-document` (standart v1, `template: belge`, aşama önizleme). `sales-orders` v4 "Belgede aç" düğmesini (`id`) önerir; firma kopyalarına "Yeni" öğe olarak sunulur.
+- Kullanıcı kararı: ekran firmada sistem sayfası olarak açık değilse "Belgede aç" siparişin eski kartını açar (kimlik varsa sipariş listesinde o siparişin ayrıntısı, yoksa eski Yeni sipariş ekranı). Etkinleştirme bugünkü standart düzeniyle olur.
+
 ### 5.7 PR 3'te alınan kararlar (2026-11-26, plan onayıyla)
 
 - **Saklama:** Kurallar birlikte yayımlandığı için sürüm kural başına değil küme başınadır: `TenantDocumentRuleSets` satırı (Taslak / Yayında / Arşiv), kurallar JSON dizisinde (kod, sıra, açık/kapalı, koşul, eylem, kişiler, mesaj).

@@ -1663,3 +1663,28 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
   - ERP: Belge kalıbı ve eski sipariş ekranında onay bekleyen sipariş, Onayla/Reddet, uyarı onayı. Studio: Kurallar ekranı.
 - **Doğrulanmayan:** Migration'lar hiçbir uzak ortamda uygulanmadı; canlı Studio'da Kurallar ekranı ve gerçek kullanıcılarla onay akışı denenmedi.
 - **Bilinen sınır:** Kural yazma izni temel kural düzeneğiyle TenantUser'a da açılır (yönetici Deny ile kapatabilir); ERP API Studio rolünü görmez.
+
+### 2026-11-27 belge kuralları (alt proje 6): Belge sipariş kartı standardı
+
+- **Doğrulanan (yerel):** `sales-order-document` standardı geçerli bir belge sayfasıdır ve §2 ayarlarını taşımaz; `sales-orders` v4 "Belgede aç" düğmesini önerir; ERP'de anahtar kayıtlı (başlık, modül menüsü, sistem sayfası listesi); ekran açık değilse siparişin eski kartına dönüş testli.
+- **Doğrulanmayan:** Canlıda standardın etkinleştirilmesi ve gerçek kullanıcıyla açılışı.
+
+### 2026-11-27 belge kuralları (alt proje 6): Firma kopyalarına zorunlu standart güncellemesi
+
+- **Sorun (canlı deneme):** Satış siparişleri ekranının firma kopyasında durum sütunu ham ya da eski etiketleri gösteriyordu ("Draft", "Açık"). İşlemler menüsünde Onayla, Onayı geri al ve İptal et yoktu; bunlar Studio'da yalnız "Yeni" öğe olarak öneriliyordu. Sipariş tutarı kartı eski ekranda taslakları da sayıyordu.
+- **Çözüm:**
+  - Standart zarfına `updates` eklendi. Bir güncelleme, eski sürümdeki bir kopyaya bir kez ve yalnız şu koşulla uygulanır: değiştirdiği parçalar (`set`) kopyada hâlâ eski değerdedir.
+  - Güncelleme sunucuda yazılır: yeni bir revizyon (`Update:<id>`, kullanıcı `Guid.Empty`) ve bir denetim kaydı (`system-page.standard-updated`). Yayımlı sayfa okunurken, taslak açılırken ve "Yeni" listesinde çalışır; yayımlı kopyaya ve açık taslağa ayrı ayrı uygulanır.
+  - Elle değiştirilmiş parça o güncellemeyi atlatır; öğeleri "Yeni" olarak önerilmeye devam eder. Sonradan silinen öğe geri gelmez, çünkü `set` parçaları artık eski değerde değildir. Şemadan geçmeyen sonuç yazılmaz. Yazma başarısız olursa kayıtlı sürüm sunulur.
+  - `sales-orders` v5 ile üç güncelleme geldi:
+    - `zincir`: geçiş komutları, ayrıca Düzenle ve Teslim yalnız taslakta;
+    - `rozet`: durum rozetleri;
+    - `etiket`: liste durum etiketleri. Etiketler standardın kendisinde de düzeltildi.
+  - `sales-order-create` ile `taslak` güncellemesi geldi: yalnız taslak düzenlenir. Eski ekranın Sipariş tutarı kartı, sunucu gibi yalnız onaylı, sevk edilmiş ve faturalanmış siparişleri sayar.
+- **Doğrulanan (yerel):** Gerçek eski standart tanımları (git geçmişinden v1 ve v2 kopyaları) ile uç testleri, ayrıştırıcı ret testleri ve ERP kart testi.
+- **Doğrulanmayan:**
+  - Eşzamanlı okuma için SQL Server kabul testi yazıldı (`Concurrent_readers_apply_required_updates_once`), ancak bu makinede bağlantı dizesi olmadığı için çalışmadı.
+  - Canlı firmanın kopyası görülmedi. Kopya Studio'da elle değiştirildiyse ilgili güncelleme atlanır.
+- **Bilinen sınır:**
+  - Güncellemeden önce açılmış ve elle değiştirilmiş bir taslak yayımlanırsa güncelleme geri alınmış olur ve yeniden uygulanmaz.
+  - Kartın "iptaller hariç" açıklaması taslakları ve onay bekleyenleri söylemez.

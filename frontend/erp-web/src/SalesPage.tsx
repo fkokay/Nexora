@@ -2216,7 +2216,8 @@ export function SalesPage({
           amountCard(
             "order-total",
             "Sipariş tutarı",
-            filteredOrders.filter((item) => item.status !== "Cancelled"),
+            // Committed orders only, as the server's page total (SalesOrderLifecycle.IsCommitted): no drafts, pending approvals or cancellations.
+            filteredOrders.filter((item) => item.status === "Open" || item.status === "Fulfilled" || item.status === "Invoiced"),
             <span>bu sayfa · iptaller hariç</span>,
           ),
           {

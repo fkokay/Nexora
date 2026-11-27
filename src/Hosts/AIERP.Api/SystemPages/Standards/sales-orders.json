@@ -1,7 +1,7 @@
 {
   "screenKey": "sales-orders", "title": "Satış Siparişleri",
   "description": "Bağımsız veya kabul edilen tekliflerden oluşan siparişleri ve sevkiyat süreçlerini yönetin.", "module": "Satış & cari",
-  "version": 3, "stage": "preview",
+  "version": 5, "stage": "preview",
   "items": {
     "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:duzenleDugmesi", "component:irsaliyeOlusturDugmesi", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:siparisSil", "query:siparisler"]},
     "component:yeniDugmesi": {"since": 1, "label": "Yeni sipariş komutu (tarih bugün)"},
@@ -11,6 +11,7 @@
     "component:onaylaDugmesi": {"since": 3, "label": "Onayla komutu (taslak sipariş)", "requires": ["component:liste", "query:onayla"]},
     "component:onayiGeriAlDugmesi": {"since": 3, "label": "Onayı geri al komutu (sevksiz onaylı sipariş)", "requires": ["component:liste", "query:onayiGeriAl"]},
     "component:iptalDugmesi": {"since": 3, "label": "İptal et komutu (gerekçeyle)", "requires": ["component:liste", "query:iptal"]},
+    "component:belgedeAcDugmesi": {"since": 4, "label": "Belgede aç komutu (Belge kalıbıyla sipariş kartı; etkin değilse eski kart)", "requires": ["component:liste"]},
     "component:tutarGostergesi": {"since": 1, "label": "Sipariş tutarı göstergesi (bu sayfa)", "requires": ["query:siparisler"]},
     "component:tutarKarisik": {"since": 1, "label": "Sipariş tutarı (birden çok para birimi)", "requires": ["query:siparisler"]},
     "component:sevkGostergesi": {"since": 1, "label": "Sevk bekleyen göstergesi", "requires": ["query:siparisler"]},
@@ -48,6 +49,23 @@
     {"key": "sales-orders", "component": "liste", "fields": {"code": "code", "quoteCode": "quoteCode", "customerName": "customerName", "orderDate": "orderDate", "lineCount": "lineCount", "grandTotal": "grandTotal", "status": "status"}},
     {"key": "sales-order-lines", "component": "kalemTablosu", "fields": {"stockCode": "stockCode", "stockName": "stockName", "quantity": "quantity", "deliveredQuantity": "deliveredQuantity", "remainingQuantity": "remainingQuantity", "reservedQuantity": "reservedQuantity", "unitPrice": "unitPrice", "lineTotal": "lineTotal"}}
   ],
+  "updates": [
+    { "id": "zincir", "label": "Onayla, Onayı geri al ve İptal et komutları; Düzenle yalnız taslakta", "below": 3,
+      "add": ["query:onayla", "query:onayiGeriAl", "query:iptal", "component:onaylaDugmesi", "component:onayiGeriAlDugmesi", "component:iptalDugmesi"],
+      "append": [{ "component": "komutlar", "prop": "moreButtons", "values": ["onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"] }],
+      "set": [
+        { "component": "duzenleDugmesi", "prop": "visibleWhen", "from": ["liste.seciliSatir.status == 'Open'"] },
+        { "component": "teslimBolumu", "prop": "visibleWhen", "from": ["siparis.rows[0].status == 'Open'"] }] },
+    { "id": "rozet", "label": "Sipariş durumu rozetleri (Taslak, Onaylı, Sevk edildi, Faturalandı)", "below": 3,
+      "children": [{ "parent": "siparisDurumu", "ids": ["rozetTaslak", "rozetFaturalandi"] }],
+      "set": [
+        { "component": "rozetAcik", "prop": "text", "from": ["Açık"] },
+        { "component": "rozetTamam", "prop": "text", "from": ["Tamamlandı"] }] },
+    { "id": "etiket", "label": "Liste durum etiketleri (Taslak, Onay bekliyor, Onaylı, Sevk edildi, Faturalandı)", "below": 5,
+      "set": [
+        { "component": "liste", "prop": "valueLabels", "from": [["status:Open=Açık", "status:Fulfilled=Tamamlandı", "status:Cancelled=İptal"]] },
+        { "component": "liste", "prop": "toneMap", "from": [["Açık=warning", "Tamamlandı=success", "İptal=info"]] }] }
+  ],
   "definition": {
     "schemaVersion": 2,
     "components": [
@@ -59,7 +77,7 @@
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{siparisler.meta.totalCount}}",
-          "moreButtons": ["duzenleDugmesi", "irsaliyeOlusturDugmesi", "onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"],
+          "moreButtons": ["belgedeAcDugmesi", "duzenleDugmesi", "irsaliyeOlusturDugmesi", "onaylaDugmesi", "onayiGeriAlDugmesi", "iptalDugmesi"],
           "commandWhen": ["delete=kullanici.rol == 'TenantAdmin' && liste.seciliSatir.id != null"],
           "hiddenCommands": ["save", "print"] } },
       { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi",
@@ -77,6 +95,14 @@
           "dialogId": "siparisPenceresi",
           "disabledWhen": "liste.seciliSatir.id == null",
           "disabledReason": "Önce bir kayıt seçin" } },
+      { "id": "belgedeAcDugmesi", "type": "button", "name": "belgedeAcDugmesi",
+        "props": {
+          "text": "Belgede aç",
+          "actionType": "erpPage",
+          "pageKey": "sales-order-document",
+          "target": "newTab",
+          "params": ["id={{liste.seciliSatir.id}}"],
+          "visibleWhen": "liste.seciliSatir.id != null" } },
       { "id": "duzenleDugmesi", "type": "button", "name": "duzenleDugmesi",
         "props": {
           "text": "Düzenle",
@@ -167,8 +193,8 @@
           "columnLabels": ["code=Sipariş no", "quoteCode=Kaynak teklif", "customerName=Müşteri", "orderDate=Sipariş tarihi", "requestedDeliveryDate=Teslim tarihi", "lineCount=Satır", "grandTotal=Genel toplam", "status=Durum", "currencyCode=Döviz", "createdAt=Oluşturulma"],
           "columnFormats": ["code=code", "orderDate=date", "requestedDeliveryDate=date", "lineCount=number", "grandTotal=money", "status=status", "createdAt=date"],
           "columnUnits": ["grandTotal=currencyCode"],
-          "valueLabels": ["status:Open=Açık", "status:Fulfilled=Tamamlandı", "status:Cancelled=İptal"],
-          "toneMap": ["Açık=warning", "Tamamlandı=success", "İptal=info"],
+          "valueLabels": ["status:Draft=Taslak", "status:PendingApproval=Onay bekliyor", "status:Open=Onaylı", "status:Fulfilled=Sevk edildi", "status:Invoiced=Faturalandı", "status:Cancelled=İptal"],
+          "toneMap": ["Onay bekliyor=warning", "Onaylı=warning", "Sevk edildi=success", "Faturalandı=success", "İptal=info"],
           "rowOpenAction": "acDugmesi",
           "openParam": "orderId",
           "emptyText": "Aramanızla eşleşen sipariş yok." } },
