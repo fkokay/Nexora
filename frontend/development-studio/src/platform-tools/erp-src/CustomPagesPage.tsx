@@ -1179,6 +1179,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
   const [definition, setDefinition] = useState<PageDefinition>(emptyDefinition);
   const [savedSnapshot, setSavedSnapshot] = useState(() => snapshotOf("", "", emptyDefinition));
   const [creating, setCreating] = useState(false);
+  const [newCancelled, setNewCancelled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1570,7 +1571,7 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     finally { setSaving(false); }
   };
   const startNew = () => {
-    setCurrent(null); setCreating(true); setHistory([]); setError(""); setSelectedComponentId(null); setRightMode("inspector");
+    setNewCancelled(false); setCurrent(null); setCreating(true); setHistory([]); setError(""); setSelectedComponentId(null); setRightMode("inspector");
     loadEditor("", "", "", emptyDefinition);
     setNewPageDialog("create");
   };
@@ -1612,9 +1613,13 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     }
     // 5b-2: yeni sayfa yalnız kalıpla açılır; kalıpsız yeni sayfa kurulmaz (sunucu da reddeder).
   };
+  // Yeni sayfa penceresinden vazgeçilince kalıpsız tuval bırakılmaz (sunucu kalıpsız yeni sayfayı reddeder, "Şablonla başla"
+  // eski bileşen şablonlarını sunardı): sayfa listesine dönülür; liste yoksa kalıp seçimi yeniden açılabilen bir durum kartı çizilir.
   const cancelNewPage = () => {
     setNewPageDialog(null);
-    if (creating && !current && definition.components.length === 0 && onBack) onBack();
+    if (!creating || current || readPageTemplate(definitionRef.current.template)) return;
+    if (onBack) { onBack(); return; }
+    setCreating(false); setNewCancelled(true);
   };
   const applyTemplate = (template: Template) => {
     // Bileşen ön ayarı kalıplı sayfanın yerleşimini (slot'ları) bozar; kalıplı sayfada uygulanmaz.
@@ -3389,7 +3394,9 @@ export default function CustomPagesPage({ token, role, platformOrigin, initialPa
     return <main className="pd-shell pd-shell-state">
       <div className="pd-state-card">
         <span><LayoutTemplate size={26}/></span>
-        {error ? <><b>Sayfa açılamadı</b><p role="alert">{error}</p></>
+        {newCancelled && !error ? <><b>Yeni sayfa oluşturulmadı</b><p>Yeni sayfa bir kalıpla başlar.</p>
+          <button type="button" onClick={startNew}><LayoutTemplate size={15}/>Kalıp seç</button></>
+          : error ? <><b>Sayfa açılamadı</b><p role="alert">{error}</p></>
           : notFound ? <><b>Sayfa bulunamadı</b><p>Sayfa silinmiş ya da erişiminiz kaldırılmış olabilir.</p></>
           : noCreate ? <><b>Yeni sayfa oluşturma yetkiniz yok</b><p>Tenant yöneticinizden Sayfa tasarımcısı oluşturma iznini açmasını isteyin.</p></>
           : <><b>Sayfa açılıyor…</b><p>Bileşenler ve veri kaynakları yükleniyor.</p></>}
