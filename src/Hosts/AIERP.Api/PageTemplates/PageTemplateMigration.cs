@@ -273,7 +273,7 @@ internal static class PageTemplateMigration
     {
         var all = root["components"]!.AsArray().OfType<JsonObject>().ToList();
         var components = PlaceWindows(all, owners);
-        if (components.FirstOrDefault(x => !ListTypes.Contains(TypeOf(x)) && !IsDetailCard(x)) is { } foreign) return new(null, MissingPart(TypeOf(foreign)));
+        if (components.FirstOrDefault(x => !ListTypes.Contains(TypeOf(x)) && !IsDetailCard(x) && !IsHiddenInput(x)) is { } foreign) return new(null, MissingPart(TypeOf(foreign)));
         var tables = components.Where(x => TypeOf(x) == "dataTable").ToList();
         if (tables.Count != 1) return new(null, ListNeedsOneTableReason);
         if (!IsReadTable(tables[0], root)) return new(null, NoReadTableReason);
@@ -292,6 +292,8 @@ internal static class PageTemplateMigration
                 "filterBar" => "filters",
                 "dataTable" => "list",
                 "contextPanel" or "card" => "detail",
+                // Gizli giriş (R11): hiç çizilmeyen sayfa durumu; 'above' yerinde de bir şey çizmez.
+                "input" => "above",
                 "actionBar" => PageTemplateRules.CommandsSlot,
                 // Satır düğmesi (çubuğun da çalıştırdığı olsa bile) 'rowActions'ta kalır: satırlar oradan çizer, Liste kuralı
                 // çubuğun düğmesini orada da kabul eder; kabuk çubuğa taşınan düğmeyi sayfadan kaldırır.
@@ -312,6 +314,13 @@ internal static class PageTemplateMigration
     private static bool IsDetailCard(JsonObject component) =>
         TypeOf(component) == "card" && component["children"] is JsonArray children && children.Count > 0
         && (children.OfType<JsonObject>().Any(x => TypeOf(x) == "contextPanel") || component.ToJsonString().Contains(".seciliSatir", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Liste gövdesinde kalan gizli giriş (<c>hidden: true</c>; R11): form kartı, sekme ya da pencere sahibi yok, hiç çizilmez,
+    /// yalnız sayfa durumudur. Görünür giriş Liste'de yine yoktur.
+    /// </summary>
+    private static bool IsHiddenInput(JsonObject component) =>
+        TypeOf(component) == "input" && component["props"]?["hidden"] is JsonValue hidden && hidden.TryGetValue<bool>(out var on) && on;
 
     /// <summary>Sayfadaki bütün veri listeleri (grup çocukları dahil).</summary>
     private static IEnumerable<JsonObject> AllTables(IEnumerable<JsonObject> components) =>

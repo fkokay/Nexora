@@ -97,6 +97,8 @@ docker --context $ctx cp ${api}:/tmp/tpl-report-$stamp ./tpl-report-$stamp
 | "Grubun içinde grup kalıplarda yok." | Grubun çocuğu bölüm, kart, pencere ya da kendi çocukları olan bir bileşen. |
 | "<tür> grubun içinde kalıplarda yok." | Grubun çocuğunda izinsiz bir tür (izinliler: `badge`, `heading`, `text`, `metric`, `alert`, `button`, `formCard`, `dataTable`, `contextPanel`, `tabs`). |
 
+Liste'de hiçbir form kartına, sekmeye ya da pencereye ait olmayan gizli giriş (`hidden: true`, yalnız sayfa durumu) `above` yerine gider; görünür sahipsiz giriş yine "input bu kalıpta yok." ile kalır. `finance-ledger-chart` bu adımda taşınmaz: detay kartının sekmesi üst düzey form kartlarını, girişlerini ve ikinci bir detay panelini gösterir, bunların Liste'de tanımlı yeri yok (raporda ilk neden "formCard bu kalıpta yok.").
+
 Pencere içeriği ve grubun yeri ayrıca kalıp doğrulamasından geçer; geçmezse neden "Dönüştürülen tanım doğrulanamadı: …" olarak yazılır (ör. grup Liste detayı ya da pencere dışında).
 
 **Yapılacak:** Markdown raporu kullanıcıya göster. Şunları ayrıca belirt: kaç sayfa taşınabilir, en sık nedenler, "eşdeğerlik denetimi başarısız" satırları.

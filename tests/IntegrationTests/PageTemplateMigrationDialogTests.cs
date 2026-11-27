@@ -23,12 +23,10 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
     private const string UpdateVariable = "UPDATE_TEMPLATE_DIALOG_FIXTURE";
 
     /// <summary>
-    /// Kalan engeller (Görev 2 raporu; kural gevşetilmedi, karar denetleyicide): <c>sales-orders</c>'ta hiçbir form kartına, sekmeye
-    /// ya da pencereye ait olmayan gizli giriş (<c>sevkSayfaBoyutu</c>) Liste gövdesinde kalır; <c>finance-ledger-chart</c>'ta detay
-    /// kartının sekmesinin gösterdiği form kartları, girişleri ve ikinci detay paneli (<c>salt</c>) Liste gövdesinde kalır.
+    /// R12: finance-ledger-chart bu adımın dışında. Detay kartının sekmesi üst düzey form kartlarını, girişlerini ve ikinci bir detay
+    /// panelini gösterir; bunlar için tanımlı bir Liste yeri yok. Sayfa taşınmaz; ilk neden rapora dürüst yansısın diye sabitlenir.
     /// </summary>
-    private const string SalesOrdersBlocked = "Görev 2: sevkSayfaBoyutu (gizli, sahipsiz giriş) Liste gövdesinde yer bulamıyor — 'input bu kalıpta yok.'; denetleyici kararı bekleniyor.";
-    private const string LedgerChartBlocked = "Görev 2: detay kartının sekmesindeki hesapFormu/girişler/salt Liste gövdesinde yer bulamıyor — 'formCard bu kalıpta yok.'; denetleyici kararı bekleniyor.";
+    private const string LedgerChartFirstReason = "formCard bu kalıpta yok.";
 
     private static readonly object[] Queries =
     [
@@ -70,11 +68,10 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("sales-orders", Skip = SalesOrdersBlocked)]
+    [InlineData("sales-orders")]
     [InlineData("sales-invoices")]
     [InlineData("inventory-cost")]
     [InlineData("inventory-tracking")]
-    [InlineData("finance-ledger-chart", Skip = LedgerChartBlocked)]
     public void Five_dialog_and_group_standards_convert_to_list(string key)
     {
         var before = Standard(key);
@@ -86,7 +83,33 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         Assert.True(TenantCustomPageSchema.Validate(result.ConvertedJson!, out var error), $"{key}: {error}");
     }
 
-    [Fact(Skip = SalesOrdersBlocked)]
+    [Fact]
+    public void Finance_ledger_chart_stays_refused_with_its_first_reason()
+    {
+        var result = PageTemplateMigration.Classify(Standard("finance-ledger-chart"), hasOpenDraft: false);
+        Assert.Null(result.Target);
+        Assert.Null(result.ConvertedJson);
+        Assert.Contains(LedgerChartFirstReason, result.Reasons);
+    }
+
+    /// <summary>R11: a hidden input no form card, tab or window owns is page state and goes to 'above'; a visible one is still refused.</summary>
+    [Fact]
+    public void Hidden_unowned_input_goes_above_and_visible_one_is_refused()
+    {
+        var hidden = Page([Table(), C("boyut", "input", new { label = "Boyut", inputType = "number", hidden = true, defaultValue = "100" })]);
+        Assert.True(TenantCustomPageSchema.Validate(hidden, out var hiddenError), hiddenError);
+        var result = PageTemplateMigration.Classify(hidden, hasOpenDraft: false);
+        Assert.True(result.Target == "list", string.Join(" | ", result.Reasons));
+        Assert.Equal("above", (string?)Find(result.ConvertedJson!, "boyut")["props"]!["slot"]);
+        Assert.Null(BehaviorEquivalence.Check(hidden, result.ConvertedJson!));
+
+        var visible = Page([Table(), C("boyut", "input", new { label = "Boyut", inputType = "number", defaultValue = "100" })]);
+        var refused = PageTemplateMigration.Classify(visible, hasOpenDraft: false);
+        Assert.NotEqual("list", refused.Target);
+        Assert.Contains("input bu kalıpta yok.", refused.Reasons);
+    }
+
+    [Fact]
     public void Converted_dialog_keeps_settings_and_contents()
     {
         var before = Standard("sales-orders");
@@ -109,6 +132,9 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         // Window contents reached through the window's tabs and a group child form card's inputs are window contents too.
         foreach (var id in new[] { "siparisBasligi", "siparisDurumu", "siparisIslemleri", "siparisSekmeleri", "kalemTablosu", "rezervasyonBolumu", "irsaliyeTablosu", "teslimTarihi", "rezervasyonDeposu", "rezervasyonKimligi" })
             Assert.Equal("dialog", (string?)Find(after, id)["props"]!["slot"]);
+        // R11: the unowned hidden input feeding the delivery history's page size is page state above the list.
+        Assert.Equal("above", (string?)Find(after, "sevkSayfaBoyutu")["props"]!["slot"]);
+        Assert.Equal("rowActions", (string?)Find(after, "irsaliyeFaturaAc")["props"]!["slot"]);
     }
 
     /// <summary><see cref="Converted_dialog_keeps_settings_and_contents"/> on sales-invoices while sales-orders is blocked.</summary>
@@ -175,7 +201,7 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         Assert.Contains(reason, result.Reasons);
     }
 
-    [Fact(Skip = SalesOrdersBlocked)]
+    [Fact]
     public void Equivalence_rejects_dialog_content_change()
     {
         var before = Standard("sales-orders");
@@ -257,7 +283,7 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
     /// The converted sales-orders standard the Studio frontend reads (Fixtures/TemplateDialogs). Regenerate with
     /// <c>UPDATE_TEMPLATE_DIALOG_FIXTURE=1</c>.
     /// </summary>
-    [Fact(Skip = SalesOrdersBlocked)]
+    [Fact]
     public void Sales_orders_converted_fixture_matches_converter_output()
     {
         var actual = JsonNode.Parse(Converted("sales-orders"))!;
