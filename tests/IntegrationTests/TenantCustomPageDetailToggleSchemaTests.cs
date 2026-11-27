@@ -71,12 +71,11 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             "'detayPaneli' birden fazla sekmede veya yerleşimde kullanılamaz");
     }
 
-    // crm-opportunities, customers, foreign-trade ve hr-leave-requests Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
+    // crm-opportunities, customers (Satış & cari 1. dalga), fixed-assets (Finans 2. dalga), inventory-stock (Stok & Depo 1. dalga), foreign-trade ve hr-leave-requests (İK ve Dış Ticaret 2. dalga) Liste kalıbına çizildi: detay kartı yanda hep açık, panel anahtarı yok.
     private static readonly string[] ToggleStandards =
     [
-        "fixed-assets", "inventory-stock",
         "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts", "sales-purchase-invoices",
-        "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-quotes", "sales-requests",
+        "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-requests",
     ];
 
     private static JsonElement Definition(string screenKey) =>
@@ -98,11 +97,11 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
             Assert.Equal("detayPaneli", list.GetProperty("detailToggleInput").GetString());
             var input = components.Single(x => x.GetProperty("id").GetString() == "detayPaneli").GetProperty("props");
             Assert.Equal(("checkbox", "Detay paneli"), (input.GetProperty("inputType").GetString(), input.GetProperty("label").GetString()));
-            // The old "Görünüm" card no longer holds the toggle (inventory-stock keeps it for the Minimum altı filter only).
+            // The old "Görünüm" card no longer holds the toggle.
             foreach (var card in components.Where(x => x.GetProperty("type").GetString() == "formCard"))
                 if (card.GetProperty("props").TryGetProperty("inputs", out var inputs))
                     Assert.DoesNotContain("detayPaneli", inputs.EnumerateArray().Select(x => x.GetString()));
-            Assert.Equal(key == "inventory-stock", components.Any(x => x.GetProperty("id").GetString() == "gorunumKarti"));
+            Assert.DoesNotContain(components, x => x.GetProperty("id").GetString() == "gorunumKarti");
             // Only the main list carries the toggle.
             Assert.Single(components, x => x.GetProperty("type").GetString() == "dataTable" && x.GetProperty("props").TryGetProperty("detailToggleInput", out _));
         }

@@ -7,6 +7,8 @@ import { iterationOf } from "../erpOperations";
 import type { PageQuery } from "../QueriesPanel";
 import { addDialog, dialogOpeners, dialogsOf, removeDialog, setDialogContents } from "./dialogsModel";
 import { DraftInput } from "./DraftInput";
+import { addWindowCustomFields, addWindowGrid } from "./extrasModel";
+import { windowHas } from "./ExtrasPanels";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import "./component-panel.css";
 
@@ -74,15 +76,17 @@ export function DialogsSection(props: DialogsSectionProps) {
       {openers.length > 0 && <p className="cpanel-note">{`Açan düğmeler: ${openers.join(", ")}`}</p>}
       {/* Açan düğmesi olan pencere kaldırılamaz: sunucu var olmayan pencereyi açan düğmeyi reddeder. */}
       <DialogSettings key={selected.id} def={def} dialog={selected} catalog={catalog} disabled={disabled} removable={openers.length === 0} onChange={changeComponents}
-        onRemove={() => { changeComponents(removeDialog(def.components, selected.id)); select(null); }}/>
+        onRemove={() => { changeComponents(removeDialog(def.components, selected.id)); select(null); }}
+        onSelectPart={(_id, next) => { if (!disabled) props.onChange(next); }}/>
     </>}
   </section>;
 }
 
-function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, onRemove }: {
+function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, onRemove, onSelectPart }: {
   def: ModelDefinition; dialog: ModelComponent; catalog: ActiveCatalog | null; disabled?: boolean; removable: boolean;
-  onChange: (components: ModelComponent[]) => void; onRemove: () => void;
+  onChange: (components: ModelComponent[]) => void; onRemove: () => void; onSelectPart?: (id: string, def: ModelDefinition) => void;
 }) {
+  const has = windowHas(def, dialog.id);
   const props = dialog.props;
   /** `undefined` değer ayarı siler (varsayılanlar yazılmaz; eski pencere ayarlarıyla aynı). */
   const patch = (values: Record<string, ModelComponent["props"][string] | undefined>) => {
@@ -153,6 +157,12 @@ function DialogSettings({ def, dialog, catalog, disabled, removable, onChange, o
           <button type="button" aria-label={`${label} aşağı`} disabled={disabled || index === contains.length - 1} onClick={() => move(index, 1)}>↓</button>
         </span></li>;
     })}</ol>
+    <div className="cpanel-chips" data-part="dialog-extras">
+      <button type="button" className="cpanel-btn" disabled={disabled || has.block} title={has.block ? "Pencerede en çok bir özel alan bloğu olabilir." : undefined}
+        onClick={() => { const added = addWindowCustomFields(def, dialog.id); if (added.blockId) onSelectPart?.(added.blockId, added.def); }}>+ Özel alan bloğu</button>
+      <button type="button" className="cpanel-btn" disabled={disabled || has.grid} title={has.grid ? "Pencerede en çok bir satır tablosu olabilir." : undefined}
+        onClick={() => { const added = addWindowGrid(def, dialog.id); if (added.gridId) onSelectPart?.(added.gridId, added.def); }}>+ Satır tablosu</button>
+    </div>
     <button type="button" className="cpanel-btn danger" disabled={disabled || !removable} onClick={onRemove}>Kaldır</button>
   </div>;
 }

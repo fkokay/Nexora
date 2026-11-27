@@ -11,8 +11,8 @@ import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { fieldRemovalBlocked, removeBlock, removeField, removeSection, sectionRemovalBlocked } from "./recordModel";
 
 export const TEMPLATE_SLOTS = new Set(["indicators", "filters", "list", "actions", "rowActions", "detail", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
-export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
-const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text" };
+export const RECORD_TEMPLATE_SLOTS = new Set(["summary", "actions", "tabs", "section", "field", "lines", "note", "customFields", "above", "below", DIALOGS_SLOT, DIALOG_SLOT]);
+const RECORD_SLOT_TYPES: Record<string, string> = { summary: "recordHeader", tabs: "tabs", actions: "button", section: "formCard", field: "input", lines: "dataTable", note: "text", customFields: "customFieldsBlock" };
 export const BELGE_TEMPLATE_SLOTS = new Set(["fields", "lines", "summary", "actions", "above", "below"]);
 const BELGE_SLOT_TYPES: Record<string, string> = { fields: "documentFields", lines: "documentLines", summary: "documentSummary", actions: "button" };
 export const FREE_TEMPLATE_SLOTS = new Set(["actions", "tabs", "block", "item", DIALOGS_SLOT, DIALOG_SLOT]);
@@ -190,7 +190,7 @@ function freeMembership<D extends ModelDefinition>(def: D): D {
   return unchanged && cleaned.length > 1 ? next : setFreeTabs(next, cleaned);
 }
 
-export type RecordSelection = { kind: "page" } | { kind: "section"; id: string } | { kind: "field"; id: string } | { kind: "lines"; id: string } | { kind: "note"; id: string };
+export type RecordSelection = { kind: "page" } | { kind: "section"; id: string } | { kind: "field"; id: string } | { kind: "lines"; id: string } | { kind: "note"; id: string } | { kind: "customFields"; id: string };
 
 /** Kayıt kartında seçili bileşenin panel seçimi: kartın parçaları kendi paneline, ek alanlar (`above`/`below`) null, öteki her şey sayfaya. */
 export function recordSelectionOf(def: ModelDefinition, componentId: string | null): RecordSelection | null {
@@ -203,6 +203,7 @@ export function recordSelectionOf(def: ModelDefinition, componentId: string | nu
   if (slot === "field" && component.type === "input") return { kind: "field", id: component.id };
   if (slot === "lines" && component.type === "dataTable") return { kind: "lines", id: component.id };
   if (slot === "note" && component.type === "text") return { kind: "note", id: component.id };
+  if (slot === "customFields" && component.type === "customFieldsBlock") return { kind: "customFields", id: component.id };
   return { kind: "page" };
 }
 

@@ -41,7 +41,7 @@ public sealed class WarehouseLocationScreenViewsIntegrationTests
             Assert.Contains(key, catalogs!.Select(item => item.GetProperty("key").GetString()));
             var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == key);
             var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-            Assert.Equal(keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+            Assert.Equal<IEnumerable<string?>>(keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
             if (key == "inventory-warehouse-locations")
                 Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 

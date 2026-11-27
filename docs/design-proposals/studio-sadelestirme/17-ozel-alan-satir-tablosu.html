@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Özel alan bloğu ve pencerede satır tablosu (taslak 17)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--dan-soft:#fdecea;--info:#1d4ed8;--info-soft:#e8efff;--sug:#9a3412;--sug-soft:#ffedd5}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none;padding:20px 16px 40px}.view.on{display:block}
+  .expl{max-width:1040px;margin:12px auto 0;color:#3b3850;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .expl ul{margin:4px 0 0;padding-left:18px}.expl b{color:var(--text)}
+  .code{font-family:Consolas,monospace;font-size:11.5px;background:#f1effa;border-radius:4px;padding:0 4px;color:#4c3fa0}
+  .sug{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--sug-soft);color:var(--sug);text-transform:uppercase;vertical-align:middle}
+  /* ERP sayfa + pencere */
+  .stage{position:relative;max-width:1040px;margin:0 auto;min-height:600px}
+  .erp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .dim:after{content:"";position:absolute;inset:0;background:rgba(29,27,42,.38);border-radius:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}.ttl span{color:var(--muted);font-size:13px;font-weight:400}
+  .bar{display:flex;gap:6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap;font:inherit;color:inherit}
+  .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}.b.dan{color:var(--dan)}.b.sm{padding:3px 8px;font-size:12px}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:480px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)}.tbl .n{text-align:right}.tbl tr.sel td{background:var(--accent-soft)}
+  .metrics{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .metric{flex:1 1 140px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.metric span{color:var(--muted);font-size:11.5px;display:block}.metric b{font-size:17px}
+  .win{position:absolute;left:50%;top:28px;transform:translateX(-50%);background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(20,10,60,.28);z-index:3;display:flex;flex-direction:column;max-height:calc(100% - 40px);width:calc(100% - 32px)}
+  .win.xl{max-width:920px}.win.md{max-width:560px}
+  .wh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .wh b{font-size:15px}.wh .x{margin-left:auto;color:var(--muted);font-size:18px;cursor:pointer}.wh .size{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 7px}
+  .wb{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .wb>*{flex:none}
+  .wf{display:flex;gap:6px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);background:#fcfbfe;border-radius:0 0 14px 14px}
+  .wf .r{margin-left:auto;display:flex;gap:6px}
+  .rh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .av{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .t{font-size:16px;font-weight:700}.rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}.kv span{display:block;color:var(--muted);font-size:11.5px}.kv b{font-size:14px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;position:relative}
+  .grp h4{margin:0 0 2px;font-size:13px}.grp .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .grp .badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .grp .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .grp.cond{border-style:dashed}
+  .when{position:absolute;right:10px;top:8px;font-size:10.5px;color:var(--muted);background:#f6f5fa;border-radius:99px;padding:1px 7px}
+  .bd{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px}
+  .bd.info{background:var(--info-soft);color:var(--info)}.bd.warn{background:var(--warn-soft);color:var(--warn)}.bd.ok{background:var(--ok-soft);color:var(--ok)}.bd.dan{background:var(--dan-soft);color:var(--dan)}
+  .chain{color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+  .tab{padding:7px 12px;color:var(--muted);border-bottom:2px solid transparent}.tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .inline{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;min-height:30px;min-width:150px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .txt{color:#4b4862;font-size:12px;line-height:1.5;background:#faf9fd;border-radius:8px;padding:8px 10px}
+  .split{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:14px}
+  .side{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fcfbfe}
+  .side h4{margin:0;font-size:14px}.side .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .kvs div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0;font-size:12px}.kvs span{color:var(--muted)}
+  /* Studio */
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;max-width:1100px;margin:0 auto}
+  .canvas{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:520px;position:relative}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .sec h5{margin:0 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:6px}
+  .row.on{border-color:var(--accent);background:var(--accent-soft)}
+  .row .m{color:var(--muted);font-size:11.5px}.row .sp{flex:1}
+  .fld{margin-bottom:8px}.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fld .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px}
+  .chk{display:flex;gap:6px;align-items:center;margin:4px 0}
+  .chips span{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px}
+  .add{color:var(--accent);font-size:12px;cursor:pointer}
+  .seg2{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg2 span{flex:1;text-align:center;padding:4px 0;font-size:12px;color:var(--muted)}.seg2 span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .ph{border:1px dashed #cfc8ef;border-radius:8px;padding:8px;color:var(--muted);font-size:12px;margin-bottom:8px;background:#fbfaff}
+  @media (max-width:760px){.split,.studio{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.kv{margin-left:52px}}
+  .inp-err{border-color:var(--dan)!important}.err{color:var(--dan);font-size:11.5px;margin-top:2px}
+  .req{color:var(--dan)}
+  .cf{border:1px solid var(--line);border-radius:10px;padding:10px 12px}.cf h4{margin:0 0 8px;font-size:13px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px}
+  .gt{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .gt .gh{padding:8px 12px;border-bottom:1px solid var(--line);background:#faf9fd}.gt .gh b{font-size:13px}.gt .gh div{color:var(--muted);font-size:12px}
+  .gt table{width:100%;border-collapse:collapse}.gt th,.gt td{padding:5px 8px;border-bottom:1px solid var(--line);font-size:12px;text-align:left;vertical-align:top}
+  .gt th{color:var(--muted);background:#fff}.gt td .in{border:1px solid var(--line);border-radius:6px;padding:4px 7px;min-height:26px;background:#fff}
+  .gt td.x{width:28px;color:var(--muted);text-align:center;cursor:pointer}
+  .gt .gf{padding:7px 12px;display:flex;gap:10px;align-items:center}
+  .tabs2{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  @media (max-width:760px){.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="note"><b>Taslak 17 — Özel alan bloğu ve pencerede satır tablosu.</b> Satış &amp; cari (cari kartı) ile Stok &amp; Depo (depo penceresi, lot/seri girişi) ekranlarının ortak ihtiyacı. Yeni metinler <span class="sug">yeni</span> rozetli. Tasarım onaylanmadan kod yazılmaz.</div>
+<div class="views"><span class="lbl">Görünüm:</span>
+  <div class="seg">
+    <button class="on" data-v="v1">1 · ERP cari kartı: Özel alanlar sekmesi</button>
+    <button data-v="v2">2 · ERP depo penceresi</button>
+    <button data-v="v3">3 · ERP lot/seri girişi penceresi</button>
+    <button data-v="v4">4 · Studio: Özel alan bloğu</button>
+    <button data-v="v5">5 · Studio: Pencerede satır tablosu</button>
+  </div>
+</div>
+
+<!-- 1 -->
+<section class="view on" id="v1">
+  <div class="stage" style="min-height:0"><div class="erp">
+    <div class="crumb">Satış › Cariler › CR-0042</div>
+    <div class="ttl">Cari kart</div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Yeni</button><button class="b">⋯</button></div>
+    <div class="rh" style="margin-bottom:12px"><div class="av">AC</div><div><div class="t">Acme Ticaret A.Ş.</div><div class="s">CR-0042 · Müşteri</div></div><div class="kv"><div><span>Bakiye</span><b>12.480,00 ₺</b></div><div><span>Risk limiti</span><b>50.000 ₺</b></div></div></div>
+    <div class="tabs2"><span class="tab">Genel</span><span class="tab">İletişim ve Adres</span><span class="tab on">Özel alanlar</span><span class="tab">Hareketler</span></div>
+    <div class="cf"><h4>Özel alanlar</h4>
+      <div class="grid2">
+        <div class="f"><label>Nakliye şekli</label><div class="in">Karayolu</div></div>
+        <div class="f"><label>Müşteri temsilcisi kodu <span class="req">*</span></label><div class="in inp-err">&nbsp;</div><div class="err">Bu alan zorunludur.</div></div>
+        <div class="f"><label>Kuruluş tarihi</label><div class="in">14.03.2011</div></div>
+        <div class="f"><label>Toplu fatura</label><div class="in">☑</div></div>
+      </div></div>
+  </div></div>
+  <div class="expl"><b>Kayıt kartında özel alan bloğu</b>
+    <ul>
+      <li>Blok, kartın <b>kendi sekmesinde</b> (ya da başka bir sekmede) bir bölüm gibi durur; sekme listesinde adıyla yazılır. Kartta en çok bir blok.</li>
+      <li>Alanlar firmanın tanımladığı özel alanlardan gelir (metin, sayı, tarih, onay kutusu); danışman alan eklemez. Kolon sayısı 1, 2 ya da 3; dar kutuda kendiliğinden azalır.</li>
+      <li>Kaydet bloğu da kaydeder; zorunlu boş alan kaydı durdurur: "Bu alan zorunludur.", hatalı sayıda "Geçerli bir sayı girin." (bugünkü metinler).</li>
+      <li>Yüklenirken "Yükleniyor…", tanım yoksa "Tanımlı özel alan yok.", okuma hatasında kırmızı hata kutusu (bugünkü).</li>
+      <li><span class="sug">yeni</span> Yeni kayıtta blok yine açıktır; değerler ana kayıt oluşunca aynı Kaydet'te yazılır.</li>
+    </ul></div>
+</section>
+
+<!-- 2 -->
+<section class="view" id="v2">
+  <div class="stage"><div class="erp dim" style="position:relative;min-height:420px">
+    <div class="crumb">Stok › Depolar</div><div class="ttl">Depolar <span>· 4 kayıt</span></div>
+    <div class="bar"><button class="b pri">Yeni</button><button class="b">Düzenle</button></div>
+    <div class="tbl"><table><tr><th>Kod</th><th>Ad</th><th>Durum</th></tr><tr class="sel"><td>MRK</td><td>Merkez Depo</td><td>Aktif</td></tr></table></div>
+    <div class="win md"><div class="wh"><b>Depo · MRK</b><span class="size">Orta</span><span class="x">×</span></div>
+      <div class="wb">
+        <div class="grid2"><div class="f"><label>Depo kodu <span class="req">*</span></label><div class="in">MRK</div></div><div class="f"><label>Depo adı <span class="req">*</span></label><div class="in">Merkez Depo</div></div></div>
+        <div class="cf"><h4>Depo Özel Alanları</h4><div class="grid2"><div class="f"><label>Soğuk zincir</label><div class="in">☑</div></div><div class="f"><label>Kapasite (palet)</label><div class="in">1200</div></div></div></div>
+        <div class="txt">Devre dışı depoda değerler kaydedilemez. <span class="sug">yeni</span> Devre dışı depoda blok salt okunur çizilir.</div>
+      </div>
+      <div class="wf"><span class="chain">Pencerenin Kaydet'i bloğu da kaydeder.</span><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div></div>
+  <div class="expl"><b>Pencerede özel alan bloğu</b>
+    <ul>
+      <li>Pencerenin içeriğinde, alanlardan sonra durur (en çok bir blok); pencerenin sekmesinde de olabilir. Grup (kart/bölüm) içine konmaz.</li>
+      <li>Pencerenin Kaydet'i bloğun değerlerini de yazar; "Açılışta alanları temizle" bloğun yazılan değerlerini de sıfırlar.</li>
+      <li>Koşullu salt okunur: bugünkü "devre dışı" koşulu (<span class="code">disabledWhen</span>) aynen çalışır.</li>
+    </ul></div>
+</section>
+
+<!-- 3 -->
+<section class="view" id="v3">
+  <div class="stage"><div class="erp dim" style="position:relative;min-height:540px">
+    <div class="crumb">Stok › Stok Kartları</div><div class="ttl">Stok Kartları</div>
+    <div class="bar"><button class="b pri">Yeni</button><button class="b">Stok girişi</button></div>
+    <div class="tbl"><table><tr><th>Kod</th><th>Ad</th><th>Takip</th></tr><tr class="sel"><td>STK-7</td><td>Süt tozu 1 kg</td><td>Lot</td></tr></table></div>
+    <div class="win xl" style="top:20px"><div class="wh"><b>Stok girişi · STK-7 Süt tozu 1 kg</b><span class="size">Çok büyük</span><span class="x">×</span></div>
+      <div class="wb">
+        <div class="grid3"><div class="f"><label>Depo <span class="req">*</span></label><div class="in">Merkez</div></div><div class="f"><label>Tarih <span class="req">*</span></label><div class="in">28.11.2026</div></div><div class="f"><label>Birim maliyet</label><div class="in">42,50</div></div></div>
+        <div class="gt"><div class="gh"><b>Lot / seri satırları</b><div>Seri numaralarında miktar 1 olmalı ve son kullanma tarihi boş kalmalıdır; lotlarda son kullanma tarihi zorunludur.</div></div>
+          <table><tr><th>Lot / seri kodu <span class="req">*</span></th><th>Miktar <span class="req">*</span></th><th>Son kullanma tarihi</th><th></th></tr>
+            <tr><td><div class="in">L-2611-07</div></td><td><div class="in">40</div></td><td><div class="in">28.11.2027</div></td><td class="x">✕</td></tr>
+            <tr><td><div class="in inp-err">L-2611-07</div><div class="err">Bu değer başka bir satırda da var.</div></td><td><div class="in inp-err">&nbsp;</div><div class="err">Bu alan zorunludur.</div></td><td><div class="in">&nbsp;</div></td><td class="x">✕</td></tr>
+          </table>
+          <div class="gf"><button class="b sm">Satır ekle</button><span class="chain">2 / 200 satır</span></div></div>
+        <div class="txt">Lot / seri toplamı ile hareket miktarının uyuşması bugünkü gibi sunucuda denetlenir; yeni bir pencere denetimi eklenmez.</div>
+      </div>
+      <div class="wf"><span class="chain">En az 1 kalem girin.</span><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div></div>
+  <div class="expl"><b>Pencerede satır tablosu (küçük küme)</b>
+    <ul>
+      <li>Tablo pencerenin içeriğinde, formdan sonra tek sütun genişliğinde durur; en çok bir tane. Üstte başlık ve açıklama, altta "Satır ekle" (adı değişebilir) ve satır sayacı; her satırda ✕ ile silme.</li>
+      <li>Sütunlar yalnız metin, sayı, tarih ve onay kutusu; zorunlu hücre boşsa "Bu alan zorunludur."; benzersiz sütunda tekrar "Bu değer başka bir satırda da var." En çok satır aşılınca "En fazla N satır eklenebilir.", az ise "En az N kalem girin." (hepsi bugünkü metinler).</li>
+      <li>Seçim kutusu sütunu, hesaplı sütun, formül, toplam satırı ve sorgudan doldurma yoktur; ihtiyaç doğarsa sonraki adım.</li>
+    </ul></div>
+</section>
+
+<!-- 4 -->
+<section class="view" id="v4">
+  <div class="studio">
+    <div class="canvas">
+      <div class="chain" style="margin-bottom:8px">Tuval · Cari kart · sekme <b>Özel alanlar</b></div>
+      <div class="tabs2"><span class="tab">Genel</span><span class="tab">İletişim ve Adres</span><span class="tab on">Özel alanlar</span></div>
+      <div class="row on"><span>▤ Özel alanlar</span><span class="sp"></span><span class="m">4 alan · 2 kolon</span></div>
+      <div class="cf" style="opacity:.85"><h4>Özel alanlar</h4><div class="grid2"><div class="f"><label>Nakliye şekli</label><div class="in"></div></div><div class="f"><label>Müşteri temsilcisi kodu *</label><div class="in"></div></div></div></div>
+      <div class="add" style="margin-top:8px">+ Bölüm ekle &nbsp;·&nbsp; + Özel alan bloğu ekle <span class="sug">yeni</span></div>
+    </div>
+    <div class="panel">
+      <div class="sec"><h5>Özel alan bloğu <span class="sug">yeni</span></h5>
+        <div class="fld"><label>Başlık</label><div class="in">Özel alanlar</div></div>
+        <div class="fld"><label>Alanların kaynağı</label><div class="in">Cari özel alanları ▾</div><div style="color:var(--muted);font-size:11.5px;margin-top:3px">Seçilince tanım ve değer sorguları kendiliğinden bağlanır.</div></div>
+        <div class="fld"><label>Kolon sayısı</label><div class="seg2"><span>1</span><span class="on">2</span><span>3</span></div></div>
+        <div class="fld"><label>Ne zaman salt okunur</label><div class="in" style="color:var(--muted)">Hiçbir zaman</div></div>
+        <div class="fld"><label>Ne zaman görünsün</label><div class="in" style="color:var(--muted)">Her zaman</div></div>
+        <div class="chk">✓ Kaydet bloğu da kaydeder <span style="color:var(--muted);font-size:11.5px">(kayıt adımı: ozelKaydet)</span></div>
+      </div>
+      <div class="sec"><h5>Uyarı</h5>
+        <div class="txt" style="background:var(--warn-soft);color:var(--warn)">Bu sayfada özel alan değerlerini kaydeden bir adım yok. Kayıt adımı eklenmeden sayfa kaydedilemez.</div>
+        <div class="add" style="margin-top:6px">Kayıt adımını ekle</div>
+      </div>
+      <div class="sec"><h5>Sınır</h5><div style="color:var(--muted);font-size:11.5px">Sayfada en çok bir özel alan bloğu; pencere açıksa pencerede de en çok bir blok.</div></div>
+    </div>
+  </div>
+  <div class="expl"><b>Studio</b>
+    <ul>
+      <li>Danışman alan tanımlamaz; bloğu koyar, başlık, kolon ve koşulu seçer. Kaynak seçimi ilgili modülün hazır tanım ve değer sorgularını bağlar.</li>
+      <li>Kayıt kartında blok bir sekmeye, pencerede pencerenin içeriğine eklenir; ikinci blok eklenemez ("+ Özel alan bloğu ekle" soluk kalır).</li>
+      <li>"Kayıt adımını ekle" kayıt sırasına özel alan adımını koyar (yeni kayıtta ana kayıttan sonra çalışır).</li>
+    </ul></div>
+</section>
+
+<!-- 5 -->
+<section class="view" id="v5">
+  <div class="studio">
+    <div class="canvas">
+      <div class="chain" style="margin-bottom:8px">Tuval · Stok Kartları · <b>Pencere: Stok girişi</b> açık</div>
+      <div class="win xl" style="position:relative;left:auto;top:auto;transform:none;width:100%;box-shadow:0 6px 24px rgba(20,10,60,.12)">
+        <div class="wh"><b>Stok girişi</b><span class="size">Çok büyük</span><span class="x">×</span></div>
+        <div class="wb">
+          <div class="ph">Form · hareketFormu</div>
+          <div class="row on"><span>▦ Satır tablosu · Lot / seri satırları</span><span class="sp"></span><span class="m">3 sütun · en çok 200 satır</span></div>
+          <div class="ph">Kayıt eylemi: hareketEkle</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="sec"><h5>Satır tablosu <span class="sug">yeni</span></h5>
+        <div class="fld"><label>Başlık</label><div class="in">Lot / seri satırları</div></div>
+        <div class="fld"><label>Açıklama</label><div class="in">Seri numaralarında miktar 1 olmalı…</div></div>
+        <div class="fld"><label>Ekle düğmesinin adı</label><div class="in">Satır ekle</div></div>
+        <div class="fld"><label>En az / en çok satır</label><div class="inline"><div class="in" style="min-width:60px;border:1px solid var(--line);border-radius:7px;padding:6px 9px">1</div><span>–</span><div class="in" style="min-width:60px;border:1px solid var(--line);border-radius:7px;padding:6px 9px">200</div></div></div>
+        <div class="fld"><label>Ne zaman salt okunur</label><div class="in" style="color:var(--muted)">Hiçbir zaman</div></div>
+      </div>
+      <div class="sec"><h5>Sütunlar <span class="sug">yeni</span></h5>
+        <div class="row"><span>Lot / seri kodu</span><span class="sp"></span><span class="m">Metin · zorunlu · benzersiz</span></div>
+        <div class="row"><span>Miktar</span><span class="sp"></span><span class="m">Sayı · zorunlu · en az 0,0001</span></div>
+        <div class="row"><span>Son kullanma tarihi</span><span class="sp"></span><span class="m">Tarih</span></div>
+        <div class="add">+ Sütun ekle (en çok 8)</div>
+        <div class="fld" style="margin-top:6px"><label>Sütun türü</label><div class="seg2"><span class="on">Metin</span><span>Sayı</span><span>Tarih</span><span>Onay</span></div></div>
+      </div>
+      <div class="sec"><h5>Kaydetme</h5>
+        <div class="chk">✓ Satırlar pencerenin kayıt eylemine bağlı <span style="color:var(--muted);font-size:11.5px">(tracking ← satırlar)</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="expl"><b>Studio</b>
+    <ul>
+      <li>Pencere içeriğine "+ Satır tablosu" eklenir (en çok bir). Panel yalnız izinli ayarları gösterir; seçim, hesap, toplam ve doldurma ayarları panelde hiç yoktur.</li>
+      <li>Satırların kayıt eylemine bağlı olması zorunludur; bağlı değilse panel uyarır ve "Bağla" ile kayıt eyleminin liste parametresine bağlar.</li>
+    </ul></div>
+</section>
+
+<script>
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===b.dataset.v));});
+</script>
+</body>
+</html>

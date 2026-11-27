@@ -1,7 +1,7 @@
 import { parseTabs } from "../custom-page/layoutRefs";
 import type { Component } from "./listTemplateModel";
 
-/** Kayıt kartının bir sekmesi: bölüm / satır tablosu / not blokları, sekmede listelendiği sırayla. */
+/** Kayıt kartının bir sekmesi: bölüm / satır tablosu / not / özel alan blokları, sekmede listelendiği sırayla. */
 export type RecordTab<C> = { label: string; blocks: C[] };
 
 export type RecordLayout<C extends Component = Component> = {
@@ -11,7 +11,7 @@ export type RecordLayout<C extends Component = Component> = {
 };
 
 const slotOf = (component: Component) => (typeof component.props?.slot === "string" ? component.props.slot : "");
-const BLOCK_TYPES: Record<string, string> = { section: "formCard", lines: "dataTable", note: "text" };
+const BLOCK_TYPES: Record<string, string> = { section: "formCard", lines: "dataTable", note: "text", customFields: "customFieldsBlock" };
 
 /** Kayıt kartının özeti (`summary` yerinde `recordHeader`) ya da sekmesi (`tabs` yerinde `tabs`) var mı; yoksa sayfa eski biçimde çizilir. */
 export function hasRecordSlot(components: Component[]): boolean {
