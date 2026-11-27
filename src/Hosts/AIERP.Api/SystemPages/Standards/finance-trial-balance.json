@@ -3,7 +3,7 @@
   "title": "Mizan",
   "description": "Dönem, standart (TDHP/IFRS), hesap düzeyi ve kapsamla mizan; genel toplam ve denge durumu sunucudan, muavin TDHP alt hesapta.",
   "module": "Finans",
-  "version": 1,
+  "version": 2,
   "stage": "preview",
   "items": {
     "component:komutlar": {
@@ -12,74 +12,6 @@
       "requires": [
         "component:liste",
         "query:mizan"
-      ]
-    },
-    "component:donemBilgisi": {
-      "since": 1,
-      "label": "Dönem ve standart özeti",
-      "requires": [
-        "component:baslangic",
-        "component:bitis",
-        "query:mizan"
-      ]
-    },
-    "component:parametreler": {
-      "since": 1,
-      "label": "Rapor parametreleri",
-      "requires": [
-        "component:baslangic",
-        "component:bitis",
-        "component:standart",
-        "component:duzey",
-        "component:yalnizHareketli"
-      ]
-    },
-    "component:baslangic": {
-      "since": 1,
-      "label": "Parametre: Başlangıç tarihi"
-    },
-    "component:bitis": {
-      "since": 1,
-      "label": "Parametre: Bitiş tarihi"
-    },
-    "component:standart": {
-      "since": 1,
-      "label": "Parametre: Muhasebe standardı"
-    },
-    "component:duzey": {
-      "since": 1,
-      "label": "Parametre: Hesap düzeyi",
-      "requires": [
-        "component:standart",
-        "query:mizan"
-      ]
-    },
-    "component:yalnizHareketli": {
-      "since": 1,
-      "label": "Parametre: Hesap kapsamı"
-    },
-    "component:buYil": {
-      "since": 1,
-      "label": "Dönem: Bu yıl",
-      "requires": [
-        "component:baslangic",
-        "component:bitis"
-      ]
-    },
-    "component:buAy": {
-      "since": 1,
-      "label": "Dönem: Bu ay",
-      "requires": [
-        "component:baslangic",
-        "component:bitis"
-      ]
-    },
-    "component:tarihUyarisi": {
-      "since": 1,
-      "label": "Tarih aralığı uyarısı",
-      "requires": [
-        "component:baslangic",
-        "component:bitis"
       ]
     },
     "component:donemBorcGostergesi": {
@@ -198,6 +130,26 @@
         "component:liste",
         "component:muavinTablosu"
       ]
+    },
+    "component:baslangic": {
+      "since": 2,
+      "label": "baslangic"
+    },
+    "component:bitis": {
+      "since": 2,
+      "label": "bitis"
+    },
+    "component:standart": {
+      "since": 2,
+      "label": "standart"
+    },
+    "component:duzey": {
+      "since": 2,
+      "label": "duzey"
+    },
+    "component:yalnizHareketli": {
+      "since": 2,
+      "label": "yalnizHareketli"
     }
   },
   "definition": {
@@ -209,137 +161,15 @@
         "name": "komutlar",
         "props": {
           "exportTable": "liste",
-          "titleCount": "{{mizan.satirSayisi}}",
-          "hiddenCommands": ["new", "open", "save", "delete", "filter", "print"]
-        }
-      },
-      {
-        "id": "donemBilgisi",
-        "type": "text",
-        "name": "donemBilgisi",
-        "props": {
-          "text": "{{baslangic.value}} – {{bitis.value}} · {{mizan.meta.basis}}"
-        }
-      },
-      {
-        "id": "parametreler",
-        "type": "formCard",
-        "name": "parametreler",
-        "props": {
-          "title": "Parametreler",
-          "layout": "inline",
-          "width": 12,
-          "inputs": [
-            "baslangic",
-            "bitis",
-            "standart",
-            "duzey",
-            "yalnizHareketli"
-          ]
-        }
-      },
-      {
-        "id": "baslangic",
-        "type": "input",
-        "name": "baslangic",
-        "props": {
-          "inputType": "date",
-          "label": "Başlangıç",
-          "required": true,
-          "defaultValue": "{{tarih.yilBasi}}"
-        }
-      },
-      {
-        "id": "bitis",
-        "type": "input",
-        "name": "bitis",
-        "props": {
-          "inputType": "date",
-          "label": "Bitiş",
-          "required": true,
-          "defaultValue": "{{bugun}}"
-        }
-      },
-      {
-        "id": "standart",
-        "type": "input",
-        "name": "standart",
-        "props": {
-          "inputType": "select",
-          "label": "Standart",
-          "required": true,
-          "staticOptions": [
-            "TDHP=TDHP",
-            "IFRS=IFRS"
+          "hiddenCommands": [
+            "new",
+            "open",
+            "save",
+            "delete",
+            "filter",
+            "print"
           ],
-          "defaultValue": "TDHP"
-        }
-      },
-      {
-        "id": "duzey",
-        "type": "input",
-        "name": "duzey",
-        "props": {
-          "inputType": "select",
-          "label": "Hesap düzeyi",
-          "required": true,
-          "staticOptions": [
-            "sub=Alt hesap",
-            "main=Ana hesap"
-          ],
-          "defaultValue": "sub",
-          "disabledWhen": "standart.value == 'IFRS'",
-          "disabledReason": "IFRS mizanında satırlar IFRS koduna göre birleşir; düzey seçilmez."
-        }
-      },
-      {
-        "id": "yalnizHareketli",
-        "type": "input",
-        "name": "yalnizHareketli",
-        "props": {
-          "inputType": "checkbox",
-          "label": "Yalnız hareketli hesaplar",
-          "defaultValue": "true"
-        }
-      },
-      {
-        "id": "buYil",
-        "type": "button",
-        "name": "buYil",
-        "props": {
-          "text": "Bu yıl",
-          "actionType": "setInput",
-          "width": 2,
-          "assignments": [
-            "baslangic={{tarih.yilBasi}}",
-            "bitis={{bugun}}"
-          ]
-        }
-      },
-      {
-        "id": "buAy",
-        "type": "button",
-        "name": "buAy",
-        "props": {
-          "text": "Bu ay",
-          "actionType": "setInput",
-          "width": 2,
-          "assignments": [
-            "baslangic={{tarih.ayBasi}}",
-            "bitis={{bugun}}"
-          ]
-        }
-      },
-      {
-        "id": "tarihUyarisi",
-        "type": "alert",
-        "name": "tarihUyarisi",
-        "props": {
-          "title": "Tarih aralığı geçersiz",
-          "variant": "danger",
-          "width": 12,
-          "text": "Bitiş tarihi başlangıç tarihinden önce olamaz.",
-          "visibleWhen": "bitis.value < baslangic.value"
+          "slot": "commands"
         }
       },
       {
@@ -352,7 +182,8 @@
           "format": "money",
           "width": 4,
           "icon": "trending-up",
-          "description": "genel toplam"
+          "description": "genel toplam",
+          "slot": "indicators"
         }
       },
       {
@@ -365,7 +196,8 @@
           "format": "money",
           "width": 4,
           "icon": "trending-down",
-          "description": "genel toplam"
+          "description": "genel toplam",
+          "slot": "indicators"
         }
       },
       {
@@ -380,7 +212,8 @@
           "icon": "check",
           "variant": "success",
           "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
-          "visibleWhen": "mizan.meta.isBalanced == true"
+          "visibleWhen": "mizan.meta.isBalanced == true",
+          "slot": "indicators"
         }
       },
       {
@@ -395,7 +228,8 @@
           "icon": "alert",
           "variant": "danger",
           "description": "{{mizan.meta.movedAccountCount}} hareketli hesap",
-          "visibleWhen": "mizan.meta.isBalanced == false"
+          "visibleWhen": "mizan.meta.isBalanced == false",
+          "slot": "indicators"
         }
       },
       {
@@ -407,7 +241,8 @@
           "variant": "warning",
           "width": 12,
           "text": "{{mizan.meta.unmappedAccountCount}} hareketli hesapta IFRS eşlemesi eksik. Profil tamamlanmadan rapor eksiksiz değildir.",
-          "visibleWhen": "mizan.meta.isComplete == false"
+          "visibleWhen": "mizan.meta.isComplete == false",
+          "slot": "above"
         }
       },
       {
@@ -424,8 +259,9 @@
             "name"
           ],
           "filters": [
-            "accountClass|select|row||Sınıf"
-          ]
+            "accountClass|select|row||S?n?f"
+          ],
+          "slot": "filters"
         }
       },
       {
@@ -478,8 +314,8 @@
           "rowActions": [
             "muavinDugmesi"
           ],
-          "rowOpenAction": "muavinDugmesi",
-          "emptyText": "Seçilen dönemde mizan satırı yok."
+          "emptyText": "Seçilen dönemde mizan satırı yok.",
+          "slot": "list"
         }
       },
       {
@@ -490,7 +326,8 @@
           "text": "Muavin",
           "actionType": "openDialog",
           "dialogId": "muavinPenceresi",
-          "visibleWhen": "mizan.meta.basis == 'TDHP' && mizan.meta.level == 'sub'"
+          "visibleWhen": "mizan.meta.basis == 'TDHP' && mizan.meta.level == 'sub'",
+          "slot": "rowActions"
         }
       },
       {
@@ -498,7 +335,8 @@
         "type": "text",
         "name": "altBilgi",
         "props": {
-          "text": "Genel toplam süzgeçten bağımsızdır. Satıra tıklayınca muavin açılır (yalnız TDHP, alt hesap düzeyinde). Sınıf ara toplamları bu sürümde yok."
+          "text": "Genel toplam süzgeçten bağımsızdır. Satıra tıklayınca muavin açılır (yalnız TDHP, alt hesap düzeyinde). Sınıf ara toplamları bu sürümde yok.",
+          "slot": "below"
         }
       },
       {
@@ -513,7 +351,8 @@
             "muavinOzeti",
             "muavinTablosu",
             "muavinNotu"
-          ]
+          ],
+          "slot": "dialogs"
         }
       },
       {
@@ -538,7 +377,8 @@
             "Dönem alacak=money",
             "Kapanış borç=money",
             "Kapanış alacak=money"
-          ]
+          ],
+          "slot": "dialog"
         }
       },
       {
@@ -580,7 +420,8 @@
           "showExport": false,
           "showPivot": false,
           "showCsv": false,
-          "showSelectedExport": false
+          "showSelectedExport": false,
+          "slot": "dialog"
         }
       },
       {
@@ -588,7 +429,77 @@
         "type": "text",
         "name": "muavinNotu",
         "props": {
-          "text": "Muavin bütün standartların fiş satırlarını listeler. Yürüyen bakiye bu sürümde gösterilmez."
+          "text": "Muavin bütün standartların fiş satırlarını listeler. Yürüyen bakiye bu sürümde gösterilmez.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "baslangic",
+        "type": "input",
+        "name": "baslangic",
+        "props": {
+          "inputType": "date",
+          "label": "Başlangıç",
+          "required": true,
+          "defaultValue": "{{tarih.yilBasi}}",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "bitis",
+        "type": "input",
+        "name": "bitis",
+        "props": {
+          "inputType": "date",
+          "label": "Bitiş",
+          "required": true,
+          "defaultValue": "{{bugun}}",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "standart",
+        "type": "input",
+        "name": "standart",
+        "props": {
+          "inputType": "select",
+          "label": "Standart",
+          "required": true,
+          "staticOptions": [
+            "TDHP=TDHP",
+            "IFRS=IFRS"
+          ],
+          "defaultValue": "TDHP",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "duzey",
+        "type": "input",
+        "name": "duzey",
+        "props": {
+          "inputType": "select",
+          "label": "Hesap düzeyi",
+          "required": true,
+          "staticOptions": [
+            "sub=Alt hesap",
+            "main=Ana hesap"
+          ],
+          "defaultValue": "sub",
+          "disabledWhen": "standart.value == 'IFRS'",
+          "disabledReason": "IFRS mizanında satırlar IFRS koduna göre birleşir; düzey seçilmez.",
+          "slot": "above"
+        }
+      },
+      {
+        "id": "yalnizHareketli",
+        "type": "input",
+        "name": "yalnizHareketli",
+        "props": {
+          "inputType": "checkbox",
+          "label": "Yalnız hareketli hesaplar",
+          "defaultValue": "true",
+          "slot": "above"
         }
       }
     ],
@@ -661,6 +572,9 @@
           }
         ]
       }
-    ]
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }

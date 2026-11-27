@@ -1,4 +1,13 @@
 # Master Prompt Phase Status
+### 2026-11-27 Finance wave 1 - four standards moved to List templates
+
+- `finance-accounts`, `finance-banks`, `finance-journal-ledger`, and `finance-trial-balance` are v2 List-template pages. Cash/bank use a selected-account summary card and statement dialog; the hidden account selector, step bar, and page-only statement totals were removed. Journal reversal actions moved to the selected row and voucher details open in a dialog; the page-only reversal metric and separate filter card were removed. Trial-balance parameters sit above the list and Muavin opens in a dialog; quick date buttons and the invalid-range alert were removed.
+- No new template feature or document model was added. Account custom fields were not required by this design.
+
+Verified: ERP finance Vitest files (26 tests), Development Studio finance standard test (32 tests), and Development Studio `npm run build`.
+`dotnet build tests/IntegrationTests` was attempted twice; both attempts failed during the Restore target with 0 warnings and 0 errors, before compilation. ERP `npm run build` did not complete: `tsc -b` produced no further output and the local Node process was absent, so the stalled build session was stopped.
+Not run: `dotnet test` (the shared test lock is managed by another process), full frontend suites, browser/live behavior, and SQL Server acceptance.
+
 ### 2026-11-27 5b-2 dalga 1: 4 standart kalıba taşındı
 
 Branch `claude/standart-tasima-1`; not merged. No migration.
