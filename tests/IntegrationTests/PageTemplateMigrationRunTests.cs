@@ -322,4 +322,83 @@ public sealed class PageTemplateMigrationRunTests
         public Task<bool> IsAllowedAsync(Guid tenantId, Guid userId, string role, ResolvedPlatformPermission permission, CancellationToken cancellationToken = default) =>
             Task.FromResult(true);
     }
+
+    // ---------------------------------------------------------------- Kayıt kartı hedefi (düzeltme dalgası A, I4)
+
+    private const string RecordPage = """{"schemaVersion":2,"queries":[],"components":[{"id":"ozet","type":"recordHeader","name":"ozet","props":{"title":"Kart"}}]}""";
+    private const string RecordRunClosed = "Kayıt kartına taşıma henüz açık değil.";
+
+    private static string WithTemplate(string json, string name)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        root["template"] = new System.Text.Json.Nodes.JsonObject { ["name"] = name };
+        return root.ToJsonString();
+    }
+
+    /// <summary>Kayıt özeti taşıyan sayfaya "record" der; ötekiler test sınıflandırıcısına gider.</summary>
+    private static PageTemplateMigrationRunner RecordRunner(Kit kit) => new(kit.Databases, (json, draft, catalog) =>
+        json.Contains("recordHeader", StringComparison.Ordinal) && !json.Contains("\"template\"", StringComparison.Ordinal)
+            ? new MigrationResult("record", [], WithTemplate(json, "record"), null, 0)
+            : Kit.Classify(json, draft, catalog), BehaviorEquivalence.Check, kit.Log);
+
+    [Fact]
+    public async Task Report_counts_record_target_in_its_own_column()
+    {
+        using var kit = new Kit();
+        await kit.SeedPublishedAsync(Kit.TenantA, "cari-kart", "Cari kartı", RecordPage);
+        await kit.SeedPublishedAsync(Kit.TenantA, "musteri-listesi", "Müşteri listesi", Kit.ListPage);
+
+        var report = await RecordRunner(kit).ReportAsync(kit.ReportOptions(), CancellationToken.None);
+
+        Assert.Equal(1, report.Summary.ByTarget["record"]);
+        Assert.Equal(1, report.Summary.ByTarget["list"]);
+        Assert.Equal(0, report.Summary.ByTarget["none"]);
+        Assert.True(report.Summary.StandardsByTarget.ContainsKey("record"));
+        var tenantA = Assert.Single(report.Summary.ByTenant, x => x.TenantId == Kit.TenantA);
+        Assert.Equal((1, 1, 0, 0), (tenantA.List, tenantA.Record, tenantA.Free, tenantA.None));
+        var markdown = await File.ReadAllTextAsync(Path.Combine(kit.OutDir, "rapor.md"));
+        Assert.Contains("| Firma | Liste | Kayıt kartı | Serbest | — |", markdown);
+        Assert.Contains("| cari-kart | Cari kartı | Yayın | Kayıt kartı |", markdown);
+    }
+
+    [Fact]
+    public async Task Run_skips_record_target_with_reason_and_writes_nothing()
+    {
+        using var kit = new Kit();
+        await kit.SeedPublishedAsync(Kit.TenantA, "cari-kart", "Cari kartı", RecordPage);
+        var before = await kit.CountsAsync();
+
+        var result = await RecordRunner(kit).RunAsync(kit.RunOptions(), CancellationToken.None);
+
+        var outcome = Assert.Single(result.Pages);
+        Assert.False(outcome.Applied);
+        Assert.False(outcome.Failed);
+        Assert.Equal("record", outcome.Target);
+        Assert.Equal([RecordRunClosed], outcome.Reasons);
+        Assert.Equal(before, await kit.CountsAsync());
+        Assert.Equal(RecordPage, await kit.PublishedDefinitionAsync(Kit.TenantA, "cari-kart"));
+        Assert.Equal(0, await RecordRunner(kit).ExecuteAsync(kit.RunOptions(), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Verify_fails_a_record_pair_with_the_same_reason()
+    {
+        using var kit = new Kit();
+        var pageId = await kit.SeedPublishedAsync(Kit.TenantA, "cari-kart", "Cari kartı", RecordPage);
+        await using (var db = kit.Open(Kit.TenantA))
+        {
+            db.TenantCustomPageRevisions.Add(new TenantCustomPageRevision { TenantId = Kit.TenantA, CustomPageId = pageId, Revision = 3, Code = "cari-kart", Name = "Cari kartı",
+                DefinitionJson = RecordPage, ChangeKind = PageTemplateMigrationRunner.BeforeKind, ChangedByUserId = Guid.Empty, MigrationBatch = "deneme-1" });
+            db.TenantCustomPageRevisions.Add(new TenantCustomPageRevision { TenantId = Kit.TenantA, CustomPageId = pageId, Revision = 4, Code = "cari-kart", Name = "Cari kartı",
+                DefinitionJson = WithTemplate(RecordPage, "record"), ChangeKind = PageTemplateMigrationRunner.MigratedKind, ChangedByUserId = Guid.Empty, MigrationBatch = "deneme-1" });
+            await db.SaveChangesAsync();
+        }
+
+        var result = await kit.RealRunner().VerifyAsync(kit.VerifyOptions(), CancellationToken.None);
+
+        var outcome = Assert.Single(result.Pages);
+        Assert.True(outcome.Failed);
+        Assert.Equal("record", outcome.Target);
+        Assert.Contains(RecordRunClosed, outcome.Reasons);
+    }
 }
