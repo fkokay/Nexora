@@ -1,4 +1,4 @@
-import { createElement, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createElement, Fragment, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
 import { DocumentTemplate } from "./page-templates/DocumentTemplate";
 import { BELGE_PARTS, layoutDocumentTemplate } from "./page-templates/documentTemplateModel";
@@ -10,6 +10,7 @@ import { hasRecordSlot, layoutRecordTemplate, recordKeyParam } from "./page-temp
 import { RecordLines, RecordSection, RecordTemplate } from "./page-templates/RecordTemplate";
 import { hasFreeSlot, layoutFreeTemplate } from "./page-templates/freeTemplateModel";
 import { FreeSection, FreeTemplate } from "./page-templates/FreeTemplate";
+import { orderDialogParts, orderGroupChildren } from "./page-templates/templateSkeleton";
 import { AlertCircle, AlertTriangle, Archive, CheckCircle2, Eye, Filter, Info, LayoutTemplate, Maximize2, PanelRight, Search, ShieldAlert, ShieldCheck, X, type LucideIcon } from "lucide-react";
 import { api } from "./erpApi";
 import TenantReportWidget from "./TenantReportWidget";
@@ -195,6 +196,11 @@ type PageRuntime = {
   dialogStatus: Record<string, ActionStatus | null>;
   dialogBusy: Record<string, boolean>;
   dialogOpener: (id: string) => HTMLElement | null;
+  /**
+   * Yalnız kalıplı sayfada (Liste / Kayıt kartı / Serbest yerleşimiyle çizilen): pencere içeriği (`dialog` yeri) ve grup
+   * çocukları. Bunlarda genişlik (`width`/`widthWhen`) uygulanmaz; pencere ve grup sabit iskeletle çizilir (taslak 12).
+   */
+  unplaced?: Set<string>;
   /** Pencerelerin ve satır işlemlerinin sahiplendiği bileşenler: üst düzeyde ayrıca çizilmez. */
   dialogOwned: Set<string>;
   rowOwned: Set<string>;
@@ -493,6 +499,9 @@ const withConditionalWidth = (style: CSSProperties, raw: unknown, scope: PageSco
   const match = /^([1-9]|1[0-2])=([\s\S]+)$/.exec(raw);
   return match && conditionHolds(match[2], scope, false) ? { ...style, gridColumn: `${String(style.gridColumn ?? "").startsWith("1 / ") ? "1 / " : ""}span ${match[1]}` } : style;
 };
+
+/** Kalıplı sayfanın pencere içeriği ve grup çocukları: sütun genişliği yazılmaz (iskelet yerleşimi). */
+const withoutWidth = ({ gridColumn: _gridColumn, ...style }: CSSProperties): CSSProperties => style;
 
 /** `valueLabels: ["kolon:değer=Etiket"]`: kolon başına ham değerin gösterilen etiketi (ör. "stockItem.trackingMode:None=Yok"). */
 const parseValueLabels =(value: unknown): Record<string, Record<string, string>> => {
@@ -1154,7 +1163,8 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
   // `visibleWhen` her şeyden önce uygulanır (formCard, sekmeler ve iç içe bileşenler dahil).
   if (!componentVisible(component, runtime)) return null;
   const props = runtime ? bindProps(component.props ?? {}, runtime.scope) : component.props ?? {};
-  const baseStyle = withConditionalWidth(visualStyle(component.type, props), component.props?.widthWhen, runtime?.scope);
+  const baseStyle = runtime?.unplaced?.has(component.id) ? withoutWidth(visualStyle(component.type, props))
+    : withConditionalWidth(visualStyle(component.type, props), component.props?.widthWhen, runtime?.scope);
   const alignable = component.type === "heading" || component.type === "text" || component.type === "label" || component.type === "section";
   const style: CSSProperties = alignable && props.textAlign === "center" ? { ...baseStyle, textAlign: "center" } : baseStyle;
   const title = textValue(props.title);
@@ -1291,6 +1301,20 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
     case "card": case "section": if (component.type === "section" && runtime?.free?.blockIds.has(component.id)) return runtime.free.block(component, title, (member) => renderComponent(member, forms, token, pageCode, runtime));
       if (component.type === "card" && props.variant === "panel") return <DetailPanel key={component.id} component={component} title={title} code={description} style={style}
       runtime={runtime} render={(child) => renderComponent(child, forms, token, pageCode, runtime)} closeInput={textValue(props.closeInput).trim()} />;
+      // Kalıplı sayfanın grubu (pencerede ya da Liste detayında): başlık ve açıklama, rozetler ilk satırda, sonra çocuklar
+      // kendi sırasıyla, düğmeler en altta bir satırda. Çizilmeyen (koşulu tutmayan) çocuklar için boş satır kalmaz.
+      if (runtime?.unplaced && (component.children ?? []).length > 0) {
+        const parts = orderGroupChildren(component.children ?? []);
+        const drawn = (items: ComponentDefinition[]) => items.map((child) => renderComponent(child, forms, token, pageCode, runtime)).filter((node) => node !== null && node !== undefined);
+        const badges = drawn(parts.badges);
+        const buttons = drawn(parts.buttons);
+        return <section key={component.id} className={`tenant-page-block tenant-page-${component.type} tenant-page-group`} style={style}>
+          {title && <h3>{title}</h3>}{description && <p>{description}</p>}
+          {badges.length > 0 && <div className="tenant-page-group-badges">{badges}</div>}
+          {drawn(parts.body)}
+          {buttons.length > 0 && <div className="tenant-page-group-buttons">{buttons}</div>}
+        </section>;
+      }
       {
         const boxItems = component.type === "card" ? boxItemList(props.items) : [];
         return <DismissibleBox key={component.id} dismissible={component.type === "card" && props.dismissible === true}>{(close) =>
@@ -1479,11 +1503,15 @@ function renderComponentBody(component: ComponentDefinition, forms: EmbeddedForm
         if (!owned || owned.type === "dialog" || owned.type === "actionBar") return null;
         return renderComponent(owned, forms, token, pageCode, inner);
       };
+      // Kalıplı sayfa: sabit iskelet (özet üstte, sekmeler sonda, pencerenin düğmeleri alt satırda Kaydet'in solunda).
+      const parts = runtime.unplaced ? orderDialogParts(ids, (id) => runtime.topLevelById[id]?.type) : null;
+      const footerStart = parts && parts.footer.length > 0 ? parts.footer.map((id) => <Fragment key={id}>{renderOwned(id)}</Fragment>) : undefined;
       // Kayıt penceresi açıkken (kısayollar pencere içinde çalışmaz) F2 İşlem Çubuğu'nun Yeni komutunu çalıştırır.
       const onNew = runtime.formDialog?.id === component.id ? () => { void runtime.newCommand.current?.(); } : undefined;
       return <PageDialog key={component.id} id={component.id} title={title || "Pencere"} presentation={props.presentation === "drawer" ? "drawer" : "dialog"}
         size={props.size === "sm" || props.size === "lg" || props.size === "xl" || props.size === "full" ? props.size : undefined} backdropClose={props.backdropClose === true}
-        open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={ids} onNew={onNew}
+        open={runtime.dialogs[component.id] === true} onClose={() => runtime.requestCloseDialog(component.id)} renderOwned={renderOwned} ids={parts ? parts.body : ids} onNew={onNew}
+        skeleton={parts !== null} footerStart={footerStart}
         save={canSave ? { label: textValue(props.saveLabel).trim() || "Kaydet", busy: runtime.dialogBusy[component.id] === true, run: () => runtime.saveDialog(component.id) } : undefined}
         status={runtime.dialogStatus[component.id] ?? null} returnFocus={runtime.dialogOpener(component.id)} />;
     }
@@ -3583,6 +3611,12 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   const freeLayout = isV2 && pageTemplate?.name === "free" && hasFreeSlot(components)
     ? layoutFreeTemplate(components.filter((component) => !ownedInputs.has(component.id) && !dialogOwned.has(component.id) && !rowOwned.has(component.id) && !headerOwned.has(component.id)))
     : null;
+  // Kalıplı sayfada pencere içeriği (`dialog` yeri) ve grup çocukları (pencerede ya da Liste detayında) genişlik taşımaz.
+  const unplaced = listLayout || recordLayout || freeLayout ? new Set(components.flatMap((component) => {
+    const slot = component.props?.slot;
+    const children = slot === "dialog" || slot === "detail" ? (component.children ?? []).map((child) => child.id) : [];
+    return slot === "dialog" ? [component.id, ...children] : children;
+  })) : undefined;
   const freeMembers = freeLayout ? new Map(freeLayout.blocks.map((entry) => [entry.block.id, entry.members])) : null;
   const freeBlocks: PageRuntime["free"] = freeMembers ? {
     blockIds: new Set(freeMembers.keys()),
@@ -3592,6 +3626,7 @@ function PageBody({ page, components, queryDefinitions, isV2, pageTemplate = nul
   const recordBlocks = recordLayout ? recordBlockRuntime(recordLayout, isNewRecord, queryDefinitions, (id) => states[queryNames[id]], page.name) : undefined;
   const runtime: PageRuntime | undefined = isV2 ? {
     shellSearch: listLayout?.filters ? new Set([listLayout.filters.id]) : undefined,
+    unplaced,
     record: recordBlocks,
     free: freeBlocks,
     scope, states, queryNames, inputValues, setInput, changeInput, inputOptions, lookupFor, tablePaging,

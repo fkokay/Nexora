@@ -19,7 +19,7 @@ function DialogSaveCommands({ save, root }: { save?: DialogSave; root: RefObject
   return null;
 }
 
-function OpenDialog({ id, title, presentation, size, backdropClose, onClose, renderOwned, ids, save, status, returnFocus, onNew }:Omit<PageDialogProps, "open">) {
+function OpenDialog({ id, title, presentation, size, backdropClose, onClose, renderOwned, ids, save, status, returnFocus, onNew, skeleton, footerStart }:Omit<PageDialogProps, "open">) {
   const ref = useRef<HTMLDivElement>(null);
   // Dışarı tıklama yalnız basma ve bırakma ikisi de arka planda olursa kapatır (pencere içinden sürükleyip dışarıda bırakmak kapatmaz).
   const backdropDown = useRef(false);
@@ -58,9 +58,10 @@ function OpenDialog({ id, title, presentation, size, backdropClose, onClose, ren
   return <div className="tenant-page-dialog-backdrop" onMouseDown={backdropClose ? onBackdropMouseDown : undefined} onClick={backdropClose ? onBackdropClick : undefined}>
     <div ref={ref} className={`tenant-page-dialog${presentation === "drawer" ? " is-drawer" : ""}`} data-size={sizeAttr} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={onKeyDown}>
       <header className="tenant-page-dialog-header"><h2 id={titleId}>{title}</h2></header>
-      <div className="tenant-page-dialog-body">{ids.map((owned) => <Fragment key={owned}>{renderOwned(owned)}</Fragment>)}</div>
+      <div className={`tenant-page-dialog-body${skeleton ? " is-skeleton" : ""}`}>{ids.map((owned) => <Fragment key={owned}>{renderOwned(owned)}</Fragment>)}</div>
       {status && <p className={`tenant-page-action-status is-${status.tone}`} role={status.tone === "error" ? "alert" : "status"}>{status.text}</p>}
       <footer className="tenant-page-dialog-footer">
+        {footerStart !== undefined && <div className="tenant-page-dialog-footer-start">{footerStart}</div>}
         {save ? <>
           <button type="button" className="tenant-page-button is-secondary" onClick={onClose}>Vazgeç</button>
           <button type="button" className="tenant-page-button" disabled={save.busy} onClick={save.run}>{save.busy ? BUSY_TEXT : save.label}</button>
@@ -81,6 +82,10 @@ type PageDialogProps = {
   save?: DialogSave; status: ActionStatus | null; returnFocus: HTMLElement | null;
   /** Kayıt penceresinde F2 (Yeni). */
   onNew?: () => void;
+  /** Kalıplı sayfanın pencere iskeleti: göstergeler bir satırda yan yana (`is-skeleton`). */
+  skeleton?: boolean;
+  /** Alt satırın solu (Kaydet / Vazgeç'in solunda): kalıplı sayfada pencerenin üst düzey düğmeleri. */
+  footerStart?: ReactNode;
 };
 
 /** Sayfa penceresi (`dialog`): görünüm içinde çizilir (portal yok); sahiplendiği bileşenler yalnız açıkken çizilir. */

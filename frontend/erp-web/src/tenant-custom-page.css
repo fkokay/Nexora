@@ -462,6 +462,14 @@ html:not([data-theme="dark"]) #root .app-shell .tenant-custom-page .tenant-page-
 #root .tenant-page-dialog-body .advanced-grid-table > tbody > tr > td.table-empty::first-line { color: var(--nx-text); font-weight: 600; }
 .tenant-page-dialog-body .tenant-report-state { white-space: pre-line; }
 .tenant-page-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--nx-line); }
+/* Kalıplı sayfanın pencere iskeleti (taslak 12): göstergeler bir satırda yan yana; pencerenin düğmeleri alt satırın solunda. */
+.tenant-page-dialog-body.is-skeleton > .tenant-page-metric { grid-column: span 3; }
+.tenant-page-dialog-footer-start { display: flex; flex-wrap: wrap; gap: 8px; margin-right: auto; }
+.tenant-page-dialog-footer-start .tenant-page-action { margin: 0; }
+/* Kalıplı sayfanın grubu: rozetler ilk satırda, düğmeler en altta bir satırda. */
+.tenant-page-group { display: flex; flex-direction: column; gap: 8px; }
+.tenant-page-group > h3, .tenant-page-group > p { margin: 0; }
+.tenant-page-group-badges, .tenant-page-group-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
 .tenant-page-dialog-footer .tenant-page-button.is-secondary { border-color: var(--nx-line); color: var(--nx-text); background: var(--nx-surface); }
 .tenant-page-dialog-footer .tenant-page-button.is-secondary:hover:not(:disabled) { border-color: var(--nx-primary); background: var(--nx-surface); }
 .tenant-page-image { box-sizing: border-box; margin: 0; overflow: hidden; border: 1px solid var(--custom-page-line); border-radius: var(--nx-radius-card); background: var(--custom-page-surface); }
