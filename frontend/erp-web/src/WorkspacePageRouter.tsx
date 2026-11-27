@@ -428,7 +428,12 @@ function LegacyPageRouter({
   if (page === "sales-orders") return <SalesOrdersPage {...salesPageProps} />;
   if (page === "sales-order-create")
     return <SalesOrdersPage {...salesPageProps} createOrderPage />;
-  if (page === "sales-order-document") return <LegacyOrderDocument onNavigate={onNavigate} />;
+  if (page === "sales-order-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-order-document" noun="Sipariş"
+      openKey="sales-orders" openParam="orderId" createKey="sales-order-create" />;
+  if (page === "sales-quote-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="sales-quote-document" noun="Teklif"
+      openKey="sales-quote-create" openParam="quoteId" createKey="sales-quote-create" />;
   if (page === "sales-invoice-create")
     return <SalesInvoicesPage {...salesPageProps} openInvoiceCreate />;
   if (page === "sales-invoices")
@@ -664,16 +669,19 @@ function LegacyPageRouter({
 }
 
 /**
- * Belge sipariş kartı (sales-order-document) bu firmada sistem sayfası olarak açık değilse: siparişin eski kartı açılır. Kimlik varsa
- * sipariş listesinde o siparişin ayrıntısı (`orderId`), yoksa eski Yeni sipariş ekranı; bu sekme kapanır.
+ * Belge kartı (sales-order-document, sales-quote-document) bu firmada sistem sayfası olarak açık değilse: belgenin eski kartı açılır.
+ * Kimlik varsa `openKey` ekranı `openParam` parametresiyle (sipariş: liste ayrıntısı, teklif: eski teklif kartı), yoksa eski Yeni ekranı
+ * (`createKey`); bu sekme kapanır. Eski ekran Belge sayfasına geri dönmez, bu yüzden döngü olmaz.
  */
-function LegacyOrderDocument({ onNavigate }: { onNavigate: (page: string, label?: string) => void }) {
-  const params = usePageParams("sales-order-document");
+function LegacyDocumentCard({ onNavigate, documentKey, noun, openKey, openParam, createKey }: {
+  onNavigate: (page: string, label?: string) => void; documentKey: string; noun: string; openKey: string; openParam: string; createKey: string;
+}) {
+  const params = usePageParams(documentKey);
   const id = params.id ?? "";
   useEffect(() => {
-    if (id) setPageParams("sales-orders", { orderId: id });
-    onNavigate(id ? "sales-orders" : "sales-order-create");
-    requestClosePage("sales-order-document");
-  }, [id, onNavigate]);
-  return <div className="panel page-loading" role="status">Sipariş eski kartta açılıyor…</div>;
+    if (id) setPageParams(openKey, { [openParam]: id });
+    onNavigate(id ? openKey : createKey);
+    requestClosePage(documentKey);
+  }, [id, onNavigate, documentKey, openKey, openParam, createKey]);
+  return <div className="panel page-loading" role="status">{noun} eski kartta açılıyor…</div>;
 }

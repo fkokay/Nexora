@@ -76,7 +76,7 @@ public sealed class TenantCustomPageDetailToggleSchemaTests
     [
         "foreign-trade", "hr-leave-requests",
         "manufacturing-orders", "sales-purchase-delivery-notes", "sales-purchase-invoice-drafts", "sales-purchase-invoices",
-        "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-quotes", "sales-requests",
+        "sales-purchase-quotes", "sales-purchase-receipts", "sales-purchase-returns", "sales-purchasing", "sales-requests",
     ];
 
     private static JsonElement Definition(string screenKey) =>

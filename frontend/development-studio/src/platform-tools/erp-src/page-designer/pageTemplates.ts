@@ -24,17 +24,25 @@ export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : undefined;
 }
 
-/** Şimdilik tek belge modeli: satış siparişi. */
-export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }] as const;
+/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış siparişi ve satış teklifi. */
+export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" }] as const;
+
+/** Modelin yeni sayfadaki varsayılan başlık alanları ve satır kolonları (sunucu kodları modele göre denetler). */
+const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[] }> = {
+  "satis.siparis": { fields: ["code", "customerId", "orderDate", "requestedDeliveryDate"],
+    columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] },
+  "satis.teklif": { fields: ["code", "customerId", "quoteDate", "validUntil"],
+    columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal"] },
+};
 
 /**
  * Yeni belge sayfası: modelin zorunlu alan ve kolonları ile taslak 08'in varsayılan seçimi. Sunucu kodları modele göre denetler.
  */
 export function newBelgeTemplateDefinition(document = "satis.siparis"): TemplatedDefinition {
+  const defaults = BELGE_DEFAULTS[document] ?? BELGE_DEFAULTS["satis.siparis"];
   return { schemaVersion: 2, template: { name: "belge", document }, queries: [], components: [
-    { id: "baslik", type: "documentFields", props: { slot: "fields", fields: ["code", "customerId", "orderDate", "requestedDeliveryDate"], labels: {} } },
-    { id: "satirlar", type: "documentLines", props: { slot: "lines", labels: {}, density: "normal",
-      columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] } },
+    { id: "baslik", type: "documentFields", props: { slot: "fields", fields: [...defaults.fields], labels: {} } },
+    { id: "satirlar", type: "documentLines", props: { slot: "lines", labels: {}, density: "normal", columns: [...defaults.columns] } },
     { id: "toplamlar", type: "documentSummary", props: { slot: "summary", vatBreakdown: true, activity: true } }] };
 }
 

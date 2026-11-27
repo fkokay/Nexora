@@ -267,6 +267,8 @@ satis.siparis.rezervasyonBirak
 satis.siparis.sil
 satis.siparis.stokAyir
 satis.siparis.teslimTarihiKaydet
+satis.teklif.belge
+satis.teklif.doldur
 satis.teklif.getir
 satis.teklif.guncelle
 satis.teklif.hesapla

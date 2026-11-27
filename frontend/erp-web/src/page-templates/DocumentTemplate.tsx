@@ -8,23 +8,23 @@ import { emptyGridState, gridReducer, type GridAction, type GridColumn, type Gri
 import { PageShell, type ShellAction } from "./PageShell";
 import { approveSalesOrder, decideSalesOrder, warningsText } from "../sales/orderApproval";
 import {
-  fillLine, loadCustomFieldDefinitions, loadDocumentModel, loadSalesOrderDocument, loadSampleDocument, lookupLabel, runTransition, saveOrder,
-  searchOptions, type CustomFieldDefinition, type DocumentModel, type OrderPreview, type PreviewLineRequest, type SalesOrderDocument,
+  bindingOf, DOCUMENT_BINDINGS, fillLine, loadCustomFieldDefinitions, loadDocument, loadDocumentModel, loadSampleDocument, lookupLabel, runTransition,
+  saveDocument, searchOptions, type BelgeDocument, type CustomFieldDefinition, type DocumentBinding, type DocumentModel, type OrderPreview,
+  type PreviewLineRequest,
 } from "./documentApi";
 import { fieldEditable, isEditable, visibleColumns, type BelgeComponent, type BelgeLayout } from "./documentTemplateModel";
 import { useDocumentCalculation } from "./useDocumentCalculation";
 import "./page-templates.css";
 
 export const PREVIEW_WRITE_BLOCKED = "Önizlemede belge kaydedilmez ve durumu değişmez.";
-const MAX_LINES = 200;
-const GRID_OPTIONS = { mode: "list" as const, maxRows: MAX_LINES };
 
 type Header = {
-  code: string; customerId: string; customerLabel: string; orderDate: string; requestedDeliveryDate: string;
-  salespersonEmployeeId: string; salespersonLabel: string; currencyCode: string; customFields: Record<string, string>;
+  code: string; customerId: string; customerLabel: string; prospectCustomerName: string;
+  salespersonEmployeeId: string; salespersonLabel: string; currencyCode: string;
+  /** Tarih ve metin başlık alanları (modelin alan koduyla; bağın `dateFields` ve `textFields` kodları). */
+  values: Record<string, string>; customFields: Record<string, string>;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
 const money = (value: number | undefined, currency: string) =>
   value === undefined ? "—" : `${value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency === "TRY" ? "₺" : currency}`;
 const num = (value: string | boolean | undefined) => {
@@ -32,28 +32,30 @@ const num = (value: string | boolean | undefined) => {
   return Number.isFinite(parsed) ? parsed : NaN;
 };
 
-function headerOf(document: SalesOrderDocument | null): Header {
-  const order = document?.order;
+function headerOf(binding: DocumentBinding, document: BelgeDocument | null): Header {
+  const doc = document?.doc;
   return {
-    code: order?.code ?? "", customerId: order?.customerId ?? "", customerLabel: order?.customerName ?? "", orderDate: order?.orderDate ?? today(),
-    requestedDeliveryDate: order?.requestedDeliveryDate ?? "", salespersonEmployeeId: order?.salespersonEmployeeId ?? "", salespersonLabel: "",
-    currencyCode: order?.currencyCode ?? "",
-    customFields: Object.fromEntries((order?.customFields ?? []).map((f) => [f.code, f.value ?? ""])),
+    code: doc?.code ?? "", customerId: doc?.customerId ?? "", customerLabel: doc?.customerName ?? "", prospectCustomerName: doc?.prospectCustomerName ?? "",
+    salespersonEmployeeId: doc?.salespersonEmployeeId ?? "", salespersonLabel: "", currencyCode: doc?.currencyCode ?? "",
+    values: doc?.values ?? binding.newValues(),
+    customFields: Object.fromEntries((doc?.customFields ?? []).map((f) => [f.code, f.value ?? ""])),
   };
 }
 
-function rowsOf(document: SalesOrderDocument | null): GridState {
+function rowsOf(document: BelgeDocument | null): GridState {
   const state = emptyGridState();
-  const rows: GridDraft[] = (document?.order.lines ?? []).map((line) => ({
+  const currency = document?.doc.currencyCode ?? "";
+  const rows: GridDraft[] = (document?.doc.lines ?? []).map((line) => ({
     key: `satir-${line.lineNumber}`,
     cells: {
       stockItemId: line.stockItemId, quantity: String(line.quantity), unitCode: line.enteredUnitCode ?? line.unitCode,
-      unitPrice: String(line.enteredUnitPrice ?? line.unitPrice), currencyCode: line.enteredCurrencyCode ?? document!.order.currencyCode,
+      unitPrice: String(line.enteredUnitPrice ?? line.unitPrice), currencyCode: line.enteredCurrencyCode ?? currency,
       discountPercent: String(line.discountPercent), vatPercent: String(line.vatPercent), isVatIncluded: !!line.isVatIncluded,
-      deliveredQuantity: `${line.deliveredQuantity} / ${line.quantity}`,
+      ...(line.deliveredQuantity !== undefined ? { deliveredQuantity: `${line.deliveredQuantity} / ${line.quantity}` } : {}),
       // Dövizli satırın kayıtlı kuru (hücre olarak çizilmez); stok ya da döviz değişince silinir.
-      ...((line.enteredCurrencyCode ?? document!.order.currencyCode) !== document!.order.currencyCode && line.exchangeRateToOrderCurrency
-        ? { exchangeRate: String(line.exchangeRateToOrderCurrency) } : {}),
+      ...((line.enteredCurrencyCode ?? currency) !== currency && line.exchangeRate ? { exchangeRate: String(line.exchangeRate) } : {}),
+      // Satış talebi bağı (hücre olarak çizilmez): teklif kaydı satır bağını korur.
+      ...(line.salesRequestLineNumber ? { salesRequestLineNumber: String(line.salesRequestLineNumber) } : {}),
     },
     labels: { stockItemId: `${line.stockCode} · ${line.stockName}` },
   }));
@@ -72,6 +74,7 @@ function lineRequest(draft: GridDraft): PreviewLineRequest | null {
     currencyCode: draft.cells.currencyCode ? String(draft.cells.currencyCode) : undefined,
     isVatIncluded: draft.cells.isVatIncluded === true,
     ...(num(draft.cells.exchangeRate) > 0 ? { exchangeRateToQuoteCurrency: num(draft.cells.exchangeRate) } : {}),
+    ...(num(draft.cells.salesRequestLineNumber) > 0 ? { salesRequestLineNumber: num(draft.cells.salesRequestLineNumber) } : {}),
   };
 }
 
@@ -101,7 +104,12 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   title: string; onSaved?: (id: string) => void; renderExtra?: (components: C[]) => ReactNode;
 }) {
   const [model, setModel] = useState<DocumentModel | null>(null);
-  const [doc, setDoc] = useState<SalesOrderDocument | null>(null);
+  const known = bindingOf(documentCode);
+  // Bilinmeyen model yükleme hatasıyla biter; sipariş bağı yalnız kancaların boş kalmaması için tutulur.
+  const binding = known ?? DOCUMENT_BINDINGS["satis.siparis"];
+  const maxLines = binding.maxLines;
+  const gridOptions = useMemo(() => ({ mode: "list" as const, maxRows: maxLines }), [maxLines]);
+  const [doc, setDoc] = useState<BelgeDocument | null>(null);
   const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([]);
   // Özel alan tanımları okunamadıysa kayıt engellenir: sunucu gönderilmeyen değerleri siler.
   const [definitionsFailed, setDefinitionsFailed] = useState(false);
@@ -111,7 +119,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const [dirty, setDirty] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [header, setHeader] = useState<Header>(() => headerOf(null));
+  const [header, setHeader] = useState<Header>(() => headerOf(binding, null));
   const [grid, setGrid] = useState<GridState>(() => emptyGridState());
   const [available, setAvailable] = useState<Record<string, string>>({});
   const [pickers, setPickers] = useState<Record<string, Picker>>({});
@@ -122,18 +130,19 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
 
   useEffect(() => {
     let alive = true;
+    if (!known) { setLoadError(`Bilinmeyen belge modeli: ${documentCode}`); setLoading(false); return () => { alive = false; }; }
     setLoading(true); setLoadError("");
-    const documentLoad = sample ? loadSampleDocument(documentCode, previewState!, token)
-      : orderId ? loadSalesOrderDocument(orderId, token) : Promise.resolve(null);
+    const documentLoad = sample ? loadSampleDocument(binding, previewState!, token)
+      : orderId ? loadDocument(binding, orderId, token) : Promise.resolve(null);
     let failedDefinitions = false;
     const definitionsLoad = sample ? Promise.resolve([] as CustomFieldDefinition[])
-      : loadCustomFieldDefinitions(token).catch(() => { failedDefinitions = true; return [] as CustomFieldDefinition[]; });
+      : loadCustomFieldDefinitions(binding, token).catch(() => { failedDefinitions = true; return [] as CustomFieldDefinition[]; });
     Promise.all([loadDocumentModel(documentCode, token), documentLoad, definitionsLoad])
       .then(([loadedModel, loadedDoc, loadedDefinitions]) => {
         if (!alive) return;
         setDefinitionsFailed(failedDefinitions); setDirty(false); fillFor.current = {};
         setModel(loadedModel); setDoc(loadedDoc); setDefinitions(loadedDefinitions.filter((d) => d.isActive !== false));
-        setHeader(headerOf(loadedDoc)); setGrid(rowsOf(loadedDoc)); setAvailable({});
+        setHeader(headerOf(binding, loadedDoc)); setGrid(rowsOf(loadedDoc)); setAvailable({});
       })
       .catch((failure: unknown) => {
         if (!alive) return;
@@ -142,18 +151,17 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [documentCode, orderId, previewState, sample, token, reload]);
+  }, [binding, documentCode, known, orderId, previewState, sample, token, reload]);
 
-  const status = doc?.order.status ?? "Draft";
+  const status = doc?.doc.status ?? "Draft";
   const editable = isEditable(status) && !loading && !busy;
-  const dispatch = useCallback((action: GridAction) => setGrid((state) => gridReducer(state, action, GRID_OPTIONS)), []);
+  const dispatch = useCallback((action: GridAction) => setGrid((state) => gridReducer(state, action, gridOptions)), [gridOptions]);
 
   const lines = useMemo(() => grid.rows.map(lineRequest), [grid.rows]);
-  const calculationInput = header.customerId && lines.some(Boolean)
-    ? { customerId: header.customerId, orderDate: header.orderDate, currencyCode: header.currencyCode || undefined,
-      lines: lines.filter((x): x is PreviewLineRequest => !!x) }
-    : null;
-  const calculation = useDocumentCalculation(calculationInput, token, editable && dirty && !sample);
+  const headerValues = { code: header.code, customerId: header.customerId, salespersonEmployeeId: header.salespersonEmployeeId,
+    currencyCode: header.currencyCode, values: header.values, prospectCustomerName: header.prospectCustomerName };
+  const calculationInput = lines.some(Boolean) ? binding.previewBody(headerValues, lines.filter((x): x is PreviewLineRequest => !!x)) : null;
+  const calculation = useDocumentCalculation(binding, calculationInput, token, editable && dirty && !sample);
   const preview: OrderPreview | null = dirty ? calculation.result : null;
   // Değişiklik yoksa tutarlar kayıttan, değişiklik varsa yalnız sunucu hesabından gelir (hesap gelene kadar "—").
   const lineAmounts = useMemo(() => {
@@ -161,7 +169,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     if (dirty) {
       for (const line of preview?.lines ?? []) if (line.rowKey) map[line.rowKey] = line as unknown as Record<string, number>;
     } else {
-      for (const line of doc?.order.lines ?? []) map[`satir-${line.lineNumber}`] = line as unknown as Record<string, number>;
+      for (const line of doc?.doc.lines ?? []) map[`satir-${line.lineNumber}`] = line as unknown as Record<string, number>;
     }
     return map;
   }, [dirty, preview, doc]);
@@ -229,19 +237,16 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const save = async () => {
     if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
     const sent = lines.filter((x): x is PreviewLineRequest => !!x);
-    if (!header.customerId) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
-    if (sent.length === 0) { setMessage({ tone: "error", text: "Sipariş 1–200 stok satırı içermelidir." }); return; }
+    if (!header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
+    if (sent.length === 0) { setMessage({ tone: "error", text: `${binding.noun[0].toLocaleUpperCase("tr-TR")}${binding.noun.slice(1)} 1–${binding.maxLines} stok satırı içermelidir.` }); return; }
     if (definitionsFailed) { setMessage({ tone: "error", text: "Özel alanlar okunamadı; değerleri silinmesin diye kaydedilmedi. Sayfayı yenileyip yeniden deneyin." }); return; }
     setBusy(true); setMessage(null);
     try {
-      const saved = await saveOrder(doc?.order.id ?? null, {
-        code: header.code, customerId: header.customerId, orderDate: header.orderDate, requestedDeliveryDate: header.requestedDeliveryDate || null,
-        currencyCode: header.currencyCode || currency, salespersonEmployeeId: header.salespersonEmployeeId || null,
+      const saved = await saveDocument(binding, doc?.doc.id ?? null, binding.writeBody({ ...headerValues, currencyCode: header.currencyCode || currency },
+        sent.map(({ rowKey: _rowKey, ...line }) => line),
         // Tanımı pasif olsa da kayıtlı değer korunur: sunucu gönderilmeyen değeri siler.
-        customFields: Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.order.customFields ?? []).map((f) => f.code)])]
-          .map((code) => [code, header.customFields[code] || null])),
-        lines: sent.map(({ rowKey: _rowKey, ...line }) => line),
-      }, token);
+        Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.doc.customFields ?? []).map((f) => f.code)])]
+          .map((code) => [code, header.customFields[code] || null]))), token);
       setDirty(false);
       setMessage({ tone: "info", text: "Taslak kaydedildi." });
       if (!doc && saved?.id) onSaved?.(saved.id); else setReload((n) => n + 1);
@@ -257,17 +262,17 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     if (dirty && !(await confirmDialog({ title: "Kaydedilmemiş değişiklikler var", message: "Önce Kaydet'e basın; yoksa değişiklikler bu işleme girmez.", confirmLabel: "Yine de devam et" }))) return;
     let reason: string | null = null;
     if (definition.requiresReason) {
-      reason = await promptDialog({ title: `${doc.order.code}: ${definition.label}`, label: "Sebep", required: true, maxLength: 500, tone: "danger", confirmLabel: definition.label });
+      reason = await promptDialog({ title: `${doc.doc.code}: ${definition.label}`, label: "Sebep", required: true, maxLength: 500, tone: "danger", confirmLabel: definition.label });
       if (reason === null) return;
     }
     setBusy(true); setMessage(null);
     try {
       if (code === "onayla") {
-        const outcome = await approveSalesOrder(doc.order.id, token, (warnings) => confirmDialog({
+        const outcome = await approveSalesOrder(doc.doc.id, token, (warnings) => confirmDialog({
           title: "Kurallar uyarı veriyor", message: warningsText(warnings), tone: "warning", confirmLabel: "Yine de onayla" }));
         if (!outcome) return;
         if (outcome.status === "PendingApproval") setMessage({ tone: "info", text: "Sipariş onay bekliyor; kuraldaki kişilerden biri karar verecek." });
-      } else await runTransition(doc.order.id, code, reason, token);
+      } else await runTransition(binding, doc.doc.id, code, reason, token);
       setDirty(false);
       setReload((n) => n + 1);
     } catch (failure) {
@@ -282,7 +287,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     if (!doc || !approval) return;
     let comment: string | null = null;
     if (decision === "Rejected") {
-      comment = await promptDialog({ title: `${doc.order.code}: Reddet`, label: "Gerekçe", required: true, maxLength: 500, tone: "danger", confirmLabel: "Reddet" });
+      comment = await promptDialog({ title: `${doc.doc.code}: Reddet`, label: "Gerekçe", required: true, maxLength: 500, tone: "danger", confirmLabel: "Reddet" });
       if (comment === null) return;
     }
     setBusy(true); setMessage(null);
@@ -314,7 +319,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const at = chain.findIndex((s) => s.code === status);
 
   const head = <div className="belge-head">
-    <div className="belge-title"><h2>{doc ? doc.order.code : "Yeni sipariş"}</h2>
+    <div className="belge-title"><h2>{doc ? doc.doc.code : binding.newTitle}</h2>
       <span className={`belge-badge is-${status}`} data-testid="belge-durum">{stateLabel(status)}</span></div>
     <ol className="belge-chain" aria-label="Durum">
       {chain.map((s, i) => <li key={s.code} className={i < at ? "is-done" : i === at ? "is-current" : ""} aria-current={i === at ? "step" : undefined}>{s.label}</li>)}
@@ -334,8 +339,11 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     let control: ReactNode;
     if (code === "code") control = <input id={id} value={header.code || (doc ? "" : "Kayıtta verilir")} readOnly />;
     else if (definition.type === "date") {
-      const key = code as "orderDate" | "requestedDeliveryDate";
-      control = <input id={id} type="date" value={header[key]} disabled={!canEdit} onChange={(e) => set({ [key]: e.target.value } as Partial<Header>)} />;
+      control = <input id={id} type="date" value={header.values[code] ?? ""} disabled={!canEdit}
+        onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })} />;
+    } else if (definition.type === "text" && binding.textFields.includes(code)) {
+      control = <input id={id} maxLength={1000} value={header.values[code] ?? ""} disabled={!canEdit}
+        onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })} />;
     } else if (definition.type === "lookup" && definition.optionsOperation) {
       const isCustomer = code === "customerId";
       const value = isCustomer ? header.customerId : header.salespersonEmployeeId;
@@ -369,12 +377,12 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
       <Mark id={layout.ids.lines} />
       <EditableGrid id="belge-satirlar" title="Satırlar" mode="list" columns={gridColumns} state={grid} sourceRows={[]} rowKey="lineNumber"
         dispatch={(action) => { if (action.type !== "add") setDirty(true); dispatch(action); }} errors={{}} fixedRowLabel="" addLabel="Satır ekle"
-        maxRows={editable ? MAX_LINES : grid.rows.length} disabled={!editable} disabledReason={isEditable(status) ? "" : `${stateLabel(status)} belgenin satırları değişmez.`}
+        maxRows={editable ? maxLines : grid.rows.length} disabled={!editable} disabledReason={isEditable(status) ? "" : `${stateLabel(status)} belgenin satırları değişmez.`}
         loading={false} error={calculation.error || undefined} style={{}} pickerFor={pickerFor}
         pickerLabel={(column, value, draft) => draft?.labels?.[column.code] ?? value} calcText={calcText} />
       <div className="belge-bottom">
         {layout.activity && <section className="belge-activity" aria-label="İşlem günlüğü"><h3>İşlem günlüğü</h3>
-          {doc?.activityStartedLate && <p className="belge-note">Bu sipariş günlük tutulmaya başlamadan önce oluşturuldu.</p>}
+          {doc?.activityStartedLate && <p className="belge-note">Bu {binding.noun} günlük tutulmaya başlamadan önce oluşturuldu.</p>}
           {(doc?.activity ?? []).length === 0 && !doc?.activityStartedLate && <p className="belge-note">Henüz işlem yok.</p>}
           <ul>{(doc?.activity ?? []).map((a, i) => <li key={i}><strong>{a.step}</strong>{a.message ? <span> — {a.message}</span> : null}
             <time>{new Date(a.createdAt).toLocaleString("tr-TR")}</time></li>)}</ul>

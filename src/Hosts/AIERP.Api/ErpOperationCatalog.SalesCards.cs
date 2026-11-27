@@ -62,6 +62,10 @@ internal static partial class ErpOperationCatalog
         yield return SalesPreview("satis.teklif.hesaplaVergileri", "Satış teklifi hesabı (KDV dökümü)", quotesRoute + "/preview", quotePreview, taxes: true);
         var rates = List(Columns<SalesExchangeRateView>(), "rates") with { MetaPaths = ["baseCurrencyCode"] };
         yield return Read(SalesModule, "satis.kurlar", "Satış belgesi kurları", quotesRoute + "/exchange-rates", [Query("rateDate", "date")], rates);
+        // Belge modeli: the quote as a document (quote, amounts, allowed transitions, işlem günlüğü) and "alan değişince" fills.
+        yield return Read(SalesModule, "satis.teklif.belge", "Satış teklifi belgesi", quoteRoute + "/document", [id], Record(Columns<SalesQuoteView>()));
+        yield return new ErpOperation("satis.teklif.doldur", "Satış teklifi alanı değişince dolanlar", SalesModule, "read", "read", "POST",
+            "/api/document-models/satis.teklif/fill", BodyParameters<AIERP.Api.DocumentModels.DocumentFillRequest>(sourceBacked: false), None, null, null, Since);
         var quoteValues = Columns<SalesQuoteCustomFieldValueView>();
         yield return Read(SalesModule, "satis.teklif.ozelAlanTanimlari", "Satış teklifi özel alan tanımları", quotesRoute + "/custom-fields", [],
             List(Columns<SalesQuoteCustomFieldDefinitionView>(), null));
