@@ -9,7 +9,7 @@ Branch `claude/standart-tasima-1`; not merged. No migration.
 
 Verified (InMemory): integration filter PageTemplate|SystemPage|Sales|Inventory|TemplatedStandards 1015 passed, 7 skipped (SQL acceptance), 0 failed; erp-web standard tests for the four + sales-quotes/deliveries + legacyUnchanged 43/43, `npm run build`; development-studio standard/dialog tests touching these keys 46/46, `npm run build`.
 
-Not verified: full unit/integration/frontend suites (CI); browser pass; live. Firm copies (ScreenKey rows) of these standards are **not** migrated: the runner's system-page skip is unchanged (user decision pending: reset copies to standard). Templateless copies get no "Yeni" offers from these templated standards (`SystemPageMerge.NewItems` template guard).
+Not verified: full unit/integration/frontend suites (CI); browser pass; live. Firm copies (ScreenKey rows) of these standards are **not** migrated: the runner's system-page skip is unchanged (user decision pending: reset copies to standard).
 
 ### 2026-11-27 5b-2 adım 2 — Pencere ve grup
 
