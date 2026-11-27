@@ -49,12 +49,26 @@ export function commandsBar(def: ModelDefinition): ModelComponent | null {
   return def.components.find((component) => component.type === "actionBar" && slotOf(component) === COMMANDS_SLOT) ?? null;
 }
 
-/** Çubuk yoksa boş bir Komutlar çubuğu ekler (kimlik `komutlar`, alınmışsa `komutlar2`…); varsa tanım aynen döner. */
+/** Sayfanın Komutlar satırları: Kayıt kartı ve Serbest kendi satırları, öteki (tanınmayan kalıp dahil) Liste'ninkiler. */
+const rowsOf = (def: ModelDefinition): CommandRow[] => {
+  const name = readPageTemplate(def.template)?.name;
+  return name === "record" || name === "free" ? TEMPLATE_COMMAND_ROWS[name] : TEMPLATE_COMMAND_ROWS.list;
+};
+
+/**
+ * Çubuk yoksa bir Komutlar çubuğu ekler (kimlik `komutlar`, alınmışsa `komutlar2`…); varsa tanım aynen döner. Çubuksuz kalıplı
+ * sayfa ERP'de komut göstermez (I5): yeni çubukta kalıbın bütün komutları gizli başlar, böylece çubuğu kuran hiçbir ayar
+ * (başlıkta kayıt sayısı, odak alanı…) ERP'ye komut getirmez. Kaydet ve yeni `saveAndNew` olmadan zaten gizlidir; Görüntüle
+ * Düzenle'yi izler; "⋯ Diğer" menüsü boşken çizilmez.
+ */
 export function ensureCommandsBar<D extends ModelDefinition>(def: D): { def: D; barId: string } {
   const bar = commandsBar(def);
   if (bar) return { def, barId: bar.id };
   const id = freeId(def, COMMANDS_ID);
-  return { def: { ...def, components: [...def.components, { id, type: "actionBar", props: { slot: COMMANDS_SLOT } }] }, barId: id };
+  let hidden: string[] | undefined;
+  for (const row of rowsOf(def)) if (row.id !== "saveNew") hidden = setCommandHidden(hidden, row.id as BarCommandId, true);
+  const props: Record<string, PropValue> = { slot: COMMANDS_SLOT, ...(hidden ? { hiddenCommands: hidden } : {}) };
+  return { def: { ...def, components: [...def.components, { id, type: "actionBar", props }] }, barId: id };
 }
 
 const barProps = (def: ModelDefinition): Record<string, PropValue> => commandsBar(def)?.props ?? {};
@@ -72,10 +86,25 @@ function patchExistingBar<D extends ModelDefinition>(def: D, patch: Patch): D {
 
 // ---------- göz ve "ne zaman" ----------
 
-/** Komut çubukta gösteriliyor mu: `hiddenCommands`'ta değil; Kaydet ve yeni için `saveAndNew: true`. Çubuksuz sayfa boş çubuk sayılır. */
+/**
+ * Kayıt kartında Kaydet (Sil) kartın kendi düğmesindeyse (Karar 7, sahip `button`): ERP o düğmeyi `hiddenCommands` ile
+ * gizlemez, bu yüzden Komutlar'da her zaman görünür sayılır ve gözü bir şey yapmaz.
+ */
+export function cardOwnedCommand(def: ModelDefinition, id: TemplateCommandId): boolean {
+  if (id === "save") return saveOwner(def)?.owner === "button";
+  if (id === "delete") return deleteCommand(def).owner === "button";
+  return false;
+}
+
+/**
+ * Komut çubukta gösteriliyor mu: `hiddenCommands`'ta değil; Kaydet ve yeni için `saveAndNew: true`. Çubuksuz sayfada hiçbiri;
+ * kartın kendi Kaydet ve Sil düğmeleri her zaman (`cardOwnedCommand`).
+ */
 export function commandShown(def: ModelDefinition, id: TemplateCommandId): boolean {
-  const props = barProps(def);
-  return id === "saveNew" ? props.saveAndNew === true : !isCommandHidden(props.hiddenCommands, id);
+  if (cardOwnedCommand(def, id)) return true;
+  const bar = commandsBar(def);
+  if (!bar) return false;
+  return id === "saveNew" ? bar.props.saveAndNew === true : !isCommandHidden(bar.props.hiddenCommands, id);
 }
 
 /**
@@ -88,13 +117,16 @@ export function saveNewPossible(def: ModelDefinition): boolean {
 }
 
 /**
- * Gözü çevirir. Gizlenen komutun ayarları (sorgu, hedef, onay metni…) korunur; göz açılınca geri gelir. Kaydet ve yeni,
+ * Gözü çevirir (çubuksuz sayfada çubuğu yalnız bu komut görünür kurar; kartın kendi Kaydet/Sil düğmesinde tanım değişmez). Gizlenen komutun ayarları (sorgu, hedef, onay metni…) korunur; göz açılınca geri gelir. Kaydet ve yeni,
  * çubukta Kaydet ya da Yeni komutu yokken açılmaz (sunucunun `saveAndNew` kuralı); tanım değişmez.
  */
 export function toggleCommand<D extends ModelDefinition>(def: D, id: TemplateCommandId): D {
+  if (cardOwnedCommand(def, id)) return def;
   const shown = commandShown(def, id);
   if (id === "saveNew") return shown ? patchExistingBar(def, { saveAndNew: undefined }) : saveNewPossible(def) ? patchBar(def, { saveAndNew: true }) : def;
-  return patchBar(def, { hiddenCommands: setCommandHidden(barProps(def).hiddenCommands, id as BarCommandId, shown) });
+  // Çubuksuz sayfada önce (bütün komutları gizli) çubuk kurulur; göz yalnız bu komutu açar.
+  const { def: withBar, barId } = ensureCommandsBar(def);
+  return patchBarCommands(withBar, barId, { hiddenCommands: setCommandHidden(barProps(withBar).hiddenCommands, id as BarCommandId, shown) });
 }
 
 export type WhenChoice = "always" | "new" | "edit" | "cond";

@@ -4,7 +4,7 @@ import type { ActiveCatalog, CatalogAction, CatalogDataSource } from "../catalog
 import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { PageQuery } from "../QueriesPanel";
 import {
-  addSaveStep, afterSaveChoice, COMMANDS_ID, commandShown, commandsBar, commandWhenChoice, deleteCommand, ensureCommandsBar, moreButtons, newCommand,
+  addSaveStep, afterSaveChoice, cardOwnedCommand, COMMANDS_ID, commandShown, commandsBar, commandWhenChoice, deleteCommand, ensureCommandsBar, moreButtons, newCommand,
   openCommand, removeSaveStep, saveSteps, setAfterSave, setCommandWhen, setDeleteCommand, setDeleteConfirmText, setExportTable, setFocusInput,
   setMoreButtons, setNewCommand, setOpenCommand, setStopOnError, setTitleCount, TEMPLATE_COMMAND_ROWS, titleCountOn, toggleCommand,
 } from "./commandsModel";
@@ -47,6 +47,8 @@ const convertedRecord = () => {
     components: [...base.components.filter((component) => !buttons.has(component.id)), bar] }) as ModelDefinition;
 };
 const barOf = (def: ModelDefinition) => commandsBar(def)!;
+/** Liste (ve Serbest) kalıbının çubuksuz sayfada gizli başlayan komutları. */
+const LIST_ALL = ["new", "open", "save", "delete", "refresh", "filter", "print", "export"];
 
 const listPage = () => deepFreeze({ ...(newListTemplateDefinition() as unknown as ModelDefinition),
   queries: [{ id: "kaynak", name: "cariler", kind: "read", dataSource: "cariListe", parameters: [], runOn: "load" } as PageQuery],
@@ -66,7 +68,8 @@ describe("commands model", () => {
     expect(commandsBar(def)).toBeNull();
     const first = ensureCommandsBar(def);
     expect(first.barId).toBe(COMMANDS_ID);
-    expect(first.def.components.at(-1)).toEqual({ id: "komutlar", type: "actionBar", props: { slot: "commands" } });
+    // Çubuksuz sayfada komut gösterilmez: kurulan çubukta kalıbın bütün komutları gizli başlar.
+    expect(first.def.components.at(-1)).toEqual({ id: "komutlar", type: "actionBar", props: { slot: "commands", hiddenCommands: LIST_ALL } });
     const second = ensureCommandsBar(first.def);
     expect(second.def).toBe(first.def);
     expect(second.barId).toBe("komutlar");
@@ -91,9 +94,56 @@ describe("commands model", () => {
     expect(barOf(saveNew).props.hiddenCommands).toBeUndefined();
     expect(barCommandProblem(barOf(saveNew).props)).toBeNull();
     expect(barOf(toggleCommand(saveNew, "saveNew")).props).toEqual(barOf(def).props);
-    // Çubuksuz sayfada göz çubuğu kurar.
+    // Çubuksuz sayfada göz çubuğu kurar; yalnız o komut görünür.
     const list = toggleCommand(listPage(), "print");
-    expect(barOf(list).props).toEqual({ slot: "commands", hiddenCommands: ["print"] });
+    expect(barOf(list).props).toEqual({ slot: "commands", hiddenCommands: LIST_ALL.filter((id) => id !== "print") });
+    expect(commandShown(list, "print")).toBe(true);
+  });
+
+  it("the card's own Kaydet and Sil buttons are always shown and their eye does nothing", () => {
+    const studio = studioRecord();
+    expect(commandsBar(studio)).toBeNull();
+    expect(cardOwnedCommand(studio, "save")).toBe(true);
+    expect(cardOwnedCommand(studio, "delete")).toBe(true);
+    expect(cardOwnedCommand(studio, "new")).toBe(false);
+    expect(commandShown(studio, "save")).toBe(true);
+    expect(commandShown(studio, "delete")).toBe(true);
+    expect(commandShown(studio, "new")).toBe(false);
+    expect(toggleCommand(studio, "save")).toBe(studio);
+    expect(toggleCommand(studio, "delete")).toBe(studio);
+    // Çubuk kurulup Kaydet/Sil gizli yazılsa da kartın düğmeleri görünür kalır.
+    const withBar = toggleCommand(studio, "refresh");
+    expect(barOf(withBar).props.hiddenCommands).toEqual(["new", "save", "delete", "print"]);
+    expect(commandShown(withBar, "save")).toBe(true);
+    expect(commandShown(withBar, "delete")).toBe(true);
+    // Kaydet ve Sil çubuktaysa göz çalışır.
+    const converted = convertedRecord();
+    expect(cardOwnedCommand(converted, "save")).toBe(false);
+    expect(cardOwnedCommand(converted, "delete")).toBe(false);
+    expect(commandShown(toggleCommand(converted, "save"), "save")).toBe(false);
+  });
+
+  it("a templated page without a commands bar shows no command", () => {
+    const list = listPage();
+    for (const row of TEMPLATE_COMMAND_ROWS.list) expect(commandShown(list, row.id), row.id).toBe(false);
+    // Çubuğu kuran her ayar komutları gizli kurar.
+    const counted = setTitleCount(list, true);
+    expect(barOf(counted).props).toEqual({ slot: "commands", hiddenCommands: LIST_ALL, titleCount: "{{cariler.meta.totalCount}}" });
+    for (const row of TEMPLATE_COMMAND_ROWS.list) expect(commandShown(counted, row.id), row.id).toBe(false);
+    expect(barOf(setFocusInput(list, "ara")).props.hiddenCommands).toEqual(LIST_ALL);
+    // Kayıt kartında kartın komutları; Görüntüle Düzenle'yi izler, ⋯ Diğer gizlenmez.
+    const record = deepFreeze(newRecordTemplateDefinition() as unknown as ModelDefinition);
+    for (const row of TEMPLATE_COMMAND_ROWS.record) expect(commandShown(record, row.id), row.id).toBe(false);
+    expect(barOf(ensureCommandsBar(record).def).props.hiddenCommands).toEqual(["new", "save", "delete", "refresh", "print"]);
+    const free = deepFreeze(newFreeTemplateDefinition() as unknown as ModelDefinition);
+    expect(barOf(ensureCommandsBar(free).def).props.hiddenCommands).toEqual(LIST_ALL);
+    // Kalıbı tanınmayan tanımda liste kalıbının komutları gizlenir.
+    const unknown = deepFreeze({ ...listPage(), template: undefined }) as ModelDefinition;
+    expect(barOf(ensureCommandsBar(unknown).def).props.hiddenCommands).toEqual(LIST_ALL);
+    // Çubuk varsa gizli liste değişmez.
+    const converted = convertedRecord();
+    expect(commandShown(converted, "refresh")).toBe(true);
+    expect(barOf(setFocusInput(converted, "unvan")).props.hiddenCommands).toBeUndefined();
   });
 
   it("setCommandWhen new writes the record-key condition", () => {
@@ -254,9 +304,9 @@ describe("commands model", () => {
     expect(barOf(moved).props.openButton).toBeUndefined();
     expect(moved.components.some((component) => component.id === "ac")).toBe(false);
     const set = setMoreButtons(setExportTable(setFocusInput(list, "ara"), "liste"), ["b1", "b2"]);
-    expect(barOf(set).props).toEqual({ slot: "commands", focusInput: "ara", exportTable: "liste", moreButtons: ["b1", "b2"] });
+    expect(barOf(set).props).toEqual({ slot: "commands", hiddenCommands: LIST_ALL, focusInput: "ara", exportTable: "liste", moreButtons: ["b1", "b2"] });
     expect(moreButtons(set)).toEqual(["b1", "b2"]);
-    expect(barOf(setMoreButtons(setExportTable(setFocusInput(set, null), null), [])).props).toEqual({ slot: "commands" });
+    expect(barOf(setMoreButtons(setExportTable(setFocusInput(set, null), null), [])).props).toEqual({ slot: "commands", hiddenCommands: LIST_ALL });
     expect(setFocusInput(list, null)).toBe(list);
   });
 
@@ -351,7 +401,7 @@ describe("commands model", () => {
     const on = setTitleCount(list, true);
     expect(barOf(on).props.titleCount).toBe("{{cariler.meta.totalCount}}");
     expect(titleCountOn(on)).toBe(true);
-    expect(barOf(setTitleCount(on, false)).props).toEqual({ slot: "commands" });
+    expect(barOf(setTitleCount(on, false)).props).toEqual({ slot: "commands", hiddenCommands: LIST_ALL });
     const record = studioRecord();
     expect(setTitleCount(record, true)).toBe(record);
     const free = deepFreeze(newFreeTemplateDefinition() as unknown as ModelDefinition);

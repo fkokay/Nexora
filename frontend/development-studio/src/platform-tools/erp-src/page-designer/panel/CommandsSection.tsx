@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Eye, EyeOff, MoreHorizontal, X } from "lucid
 import type { ActiveCatalog, CatalogAction } from "../catalogClient";
 import { ConditionBuilder, type ConditionPath } from "../ConditionBuilder";
 import {
-  addSaveStep, afterSaveChoice, commandsBar, commandShown, commandWhenChoice, deleteCommand, moreButtons, newCommand, openCommand, removeSaveStep,
+  addSaveStep, afterSaveChoice, cardOwnedCommand, commandsBar, commandShown, commandWhenChoice, deleteCommand, moreButtons, newCommand, openCommand, removeSaveStep,
   saveNewPossible, saveSteps, setAfterSave, setCommandWhen, setDeleteCommand, setDeleteConfirmText, setExportTable, setFocusInput, setNewCommand,
   setOpenCommand, setStopOnError, setTitleCount, TEMPLATE_COMMAND_ROWS, titleCountOn, toggleCommand, type TemplateCommandId, type WhenChoice,
 } from "./commandsModel";
@@ -36,7 +36,9 @@ export const COMMANDS_HIDDEN_DETAIL = "Gizli komutun ayarları korunur; göz aç
 export const COMMANDS_FOOT_NOTE = "Komutların yeri kabuk kuralıyla belirlenir: ana düğme solda, Sil en sağda. Danışman sırayı değiştirmez.";
 export const COMMANDS_SAVE_NEW_BAR_ONLY = "Kaydet ve yeni yalnız Komutlar'daki Kaydet ile kullanılır.";
 export const COMMANDS_CARD_RULE = "Var olan kayıt yeniden yüklenir, kartta kalınır. Yeni kayıtta kart, kartı açan sekmeye döner; açan yoksa form temizlenir.";
-export const COMMANDS_NO_BAR = "Bu sayfada henüz komut çubuğu yok; bir komutu değiştirince çubuk eklenir.";
+export const COMMANDS_NO_BAR = "Bu sayfada komut gösterilmiyor; bir komutun gözünü açınca yalnız o komut çubuğa gelir.";
+export const COMMANDS_CARD_SAVE = "Kartın Kaydet düğmesi; Komutlar'da gizlenmez.";
+export const COMMANDS_CARD_DELETE = "Kartın Sil düğmesi; Komutlar'da gizlenmez.";
 const MORE_EMPTY = "Boş · menü çizilmez";
 const MISSING = "Listede yok";
 const CATALOG_MISSING = "Katalogda yok";
@@ -306,15 +308,18 @@ export function CommandsSection(props: CommandsSectionProps) {
     const { choice } = commandWhenChoice(def, id);
     const chip = choice === "new" ? "yeni kayıtta" : choice === "edit" ? "var olan kayıtta" : choice === "cond" ? "koşul" : null;
     const eyeBlocked = id === "saveNew" && !shown && !saveNewPossible(def);
+    // Kartın kendi Kaydet/Sil düğmesi: ERP onu Komutlar'dan gizlemez; göz açık ve kilitli, nedeni satırda yazılır.
+    const cardNote = cardOwnedCommand(def, id) ? (id === "save" ? COMMANDS_CARD_SAVE : COMMANDS_CARD_DELETE) : null;
     return <div key={id} role="listitem" className={`pd-cmd-row${shown ? "" : " is-hidden"}${open ? " is-open" : ""}`}>
       <div className="pd-cmd-row-head">
-        <button type="button" className="pd-cmd-eye" aria-label={shown ? "Gizle" : "Göster"} aria-pressed={!shown}
-          title={eyeBlocked ? (saveNewHint ? COMMANDS_SAVE_NEW_BAR_ONLY : "Kaydet ve Yeni gerekli.") : shown ? `${label} çubukta gizlensin` : `${label} çubukta gösterilsin`}
-          disabled={disabled || eyeBlocked} onClick={() => change(toggleCommand(def, id))}>{shown ? <Eye size={15}/> : <EyeOff size={15}/>}</button>
+        <button type="button" className="pd-cmd-eye" aria-label={cardNote ?? (shown ? "Gizle" : "Göster")} aria-pressed={!shown}
+          title={cardNote ?? (eyeBlocked ? (saveNewHint ? COMMANDS_SAVE_NEW_BAR_ONLY : "Kaydet ve Yeni gerekli.") : shown ? `${label} çubukta gizlensin` : `${label} çubukta gösterilsin`)}
+          disabled={disabled || eyeBlocked || cardNote !== null} onClick={() => change(toggleCommand(def, id))}>{shown ? <Eye size={15}/> : <EyeOff size={15}/>}</button>
         <button type="button" className="pd-cmd-row-main" aria-expanded={open} onClick={() => setOpenId(open ? null : id)}>
           <span className="pd-cmd-row-title"><b className="pd-cmd-name">{label}</b><span className="pd-action-key">{key}</span>
             {shown && chip && <span className="pd-cmd-chip">{chip}</span>}</span>
           <small className="pd-cmd-summary">{shown || (id === "saveNew" && saveNewHint) ? summary(id) : COMMANDS_HIDDEN_SUMMARY}</small>
+          {cardNote && <small className="pd-cmd-summary" data-part="card-button">{cardNote}</small>}
           <span className="pd-cmd-chevron" aria-hidden="true">{open ? <ChevronDown size={15}/> : <ChevronRight size={15}/>}</span>
         </button>
       </div>

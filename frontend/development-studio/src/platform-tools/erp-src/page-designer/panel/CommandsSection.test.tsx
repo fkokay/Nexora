@@ -7,7 +7,8 @@ import type { ActiveCatalog, CatalogAction, CatalogColumn, CatalogDataSource } f
 import { newFreeTemplateDefinition, newListTemplateDefinition, newRecordTemplateDefinition } from "../pageTemplates";
 import type { PageQuery } from "../QueriesPanel";
 import {
-  COMMANDS_FOOT_NOTE, COMMANDS_HIDDEN_DETAIL, COMMANDS_HIDDEN_SUMMARY, COMMANDS_SAVE_NEW_BAR_ONLY, CommandsSection, type CommandsPage,
+  COMMANDS_CARD_DELETE, COMMANDS_CARD_SAVE, COMMANDS_FOOT_NOTE, COMMANDS_HIDDEN_DETAIL, COMMANDS_HIDDEN_SUMMARY, COMMANDS_NO_BAR, COMMANDS_SAVE_NEW_BAR_ONLY,
+  CommandsSection, type CommandsPage,
 } from "./CommandsSection";
 import { commandShown, commandsBar, commandWhenChoice, deleteCommand, saveSteps, toggleCommand } from "./commandsModel";
 import { fieldTokens } from "./consultantText";
@@ -108,7 +109,7 @@ describe("CommandsSection", () => {
     expect(section).not.toContain(">Filtre<");
 
     // Aynı anda bir satır açıktır.
-    const { host, spy } = mount(built);
+    const { host, spy } = mount(converted);
     expect(spy).not.toHaveBeenCalled();
     openRow(host, "Yeni");
     expect(host.textContent).toContain("Ne yapsın?");
@@ -118,6 +119,55 @@ describe("CommandsSection", () => {
     expect(host.querySelectorAll(".pd-cmd-row.is-open")).toHaveLength(1);
     openRow(host, "Sil");
     expect(host.querySelectorAll(".pd-cmd-row.is-open")).toHaveLength(0);
+  });
+
+  it("a page without a commands bar shows every eye off; the first eye brings only that command", () => {
+    const barless: ModelDefinition = { ...listPage, components: listPage.components.filter((component) => component.type !== "actionBar") };
+    const { host, spy, last } = mount(barless, "list");
+    expect(COMMANDS_NO_BAR).toBe("Bu sayfada komut gösterilmiyor; bir komutun gözünü açınca yalnız o komut çubuğa gelir.");
+    expect(host.textContent).toContain(COMMANDS_NO_BAR);
+    for (const label of ["Yeni", "Düzenle · Görüntüle", "Kaydet", "Sil", "Yenile", "Filtre", "Yazdır", "Excel"]) {
+      expect(eyeOf(host, label).getAttribute("aria-label"), label).toBe("Göster");
+      expect(rowOf(host, label).textContent, label).toContain(COMMANDS_HIDDEN_SUMMARY);
+    }
+    expect(spy).not.toHaveBeenCalled();
+    act(() => eyeOf(host, "Yenile").click());
+    expect(commandShown(last(), "refresh")).toBe(true);
+    expect(commandsBar(last())!.props.hiddenCommands).toEqual(["new", "open", "save", "delete", "filter", "print", "export"]);
+    expect(eyeOf(host, "Yenile").getAttribute("aria-label")).toBe("Gizle");
+    expect(eyeOf(host, "Yazdır").getAttribute("aria-label")).toBe("Göster");
+    expect(host.textContent).not.toContain(COMMANDS_NO_BAR);
+    // Başlıkta kayıt sayısı çubuğu kurar ama komut getirmez.
+    const count = mount(barless, "list");
+    act(() => count.host.querySelector<HTMLInputElement>('input[aria-label="Başlıkta kayıt sayısı"]')!.click());
+    expect(commandsBar(count.last())!.props.titleCount).toBe("{{cariler.meta.totalCount}}");
+    for (const id of ["new", "open", "save", "delete", "refresh", "filter", "print", "export"] as const) expect(commandShown(count.last(), id), id).toBe(false);
+  });
+
+  it("on a Studio card Kaydet and Sil are the card's buttons: eye on and locked, other eyes off", () => {
+    const { host, spy } = mount(built);
+    expect(commandsBar(built)).toBeNull();
+    expect(COMMANDS_CARD_SAVE).toBe("Kartın Kaydet düğmesi; Komutlar'da gizlenmez.");
+    expect(COMMANDS_CARD_DELETE).toBe("Kartın Sil düğmesi; Komutlar'da gizlenmez.");
+    for (const [label, note] of [["Kaydet", COMMANDS_CARD_SAVE], ["Sil", COMMANDS_CARD_DELETE]] as const) {
+      const eye = eyeOf(host, label);
+      expect(eye.disabled, label).toBe(true);
+      expect(eye.getAttribute("aria-pressed"), label).toBe("false");
+      expect(eye.getAttribute("aria-label"), label).toBe(note);
+      expect(rowOf(host, label).textContent, label).toContain(note);
+      expect(rowOf(host, label).classList.contains("is-hidden"), label).toBe(false);
+      act(() => eye.click());
+    }
+    expect(spy).not.toHaveBeenCalled();
+    for (const label of ["Yeni", "Kaydet ve yeni", "Yenile", "Yazdır"]) expect(eyeOf(host, label).getAttribute("aria-label"), label).toBe("Göster");
+    openRow(host, "Kaydet");
+    expect(rowOf(host, "Kaydet").textContent).toContain("Kaydetme sırası");
+    // Kaydet çubuktaysa (dönüştürülmüş kart) göz serbesttir, kart notu yoktur.
+    const conv = mount(converted);
+    expect(eyeOf(conv.host, "Kaydet").disabled).toBe(false);
+    expect(eyeOf(conv.host, "Sil").disabled).toBe(false);
+    expect(conv.host.textContent).not.toContain(COMMANDS_CARD_SAVE);
+    expect(conv.host.textContent).not.toContain(COMMANDS_CARD_DELETE);
   });
 
   it("eye hides a command and the summary reads \"Çubukta gizli · kısayolu çalışmaz\"", () => {
@@ -185,7 +235,7 @@ describe("CommandsSection", () => {
 
   it("Kaydet düğmesi section has no Sil row; Komutlar › Sil edits the delete action and confirm text", () => {
     const html = renderToString(<RecordPanel def={built} catalog={catalog} selection={{ kind: "page" }} pages={pages} onChange={() => {}} onSelect={() => {}}/>);
-    expect(html).not.toContain("Sil düğmesi");
+    expect(html).not.toContain(">Sil düğmesi");
     const { host, last } = mount(built);
     openRow(host, "Sil");
     const row = rowOf(host, "Sil");
@@ -194,6 +244,11 @@ describe("CommandsSection", () => {
     expect(select.value).toBe("cariSil");
     setValue(select, "");
     expect(deleteCommand(last()).owner).toBeNull();
+    // Kartın Sil düğmesi kalkınca çubuksuz sayfada Sil gizli olur; göz açılınca yalnız Sil gelir ve yeniden seçilebilir.
+    expect(eyeOf(host, "Sil").getAttribute("aria-label")).toBe("Göster");
+    act(() => eyeOf(host, "Sil").click());
+    expect(commandShown(last(), "delete")).toBe(true);
+    expect(commandShown(last(), "refresh")).toBe(false);
     setValue(rowOf(host, "Sil").querySelector<HTMLSelectElement>('select[aria-label="Silme eylemi"]')!, "cariSil");
     expect(deleteCommand(last())).toMatchObject({ owner: "button", actionCode: "cariSil" });
     const confirm = rowOf(host, "Sil").querySelector<HTMLInputElement>('input[aria-label="Onay metni"]')!;
