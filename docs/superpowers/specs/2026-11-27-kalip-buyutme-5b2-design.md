@@ -1,6 +1,6 @@
 # 5b-2: Kalıpları büyütme ve standartları dalga dalga taşıma (tasarım)
 
-Durum: adım 1 planı yazıldı (2026-11-27, `docs/superpowers/plans/2026-11-27-komutlar-kayit-karti-5b2a.md`); uygulama `claude/kalip-buyutme-5b2` dalında, testleri yeşil, henüz birleşmedi (PR açılmadı). Taşınan standart yok; Kayıt kartına taşıma (run) henüz açık değil.
+Durum: adım 1 planı yazıldı (2026-11-27, `docs/superpowers/plans/2026-11-27-komutlar-kayit-karti-5b2a.md`); uygulama sürüyor (`claude/kalip-buyutme-5b2` dalı). Taşınan standart yok; Kayıt kartına taşıma (run) henüz açık değil.
 
 Tarih: 2026-11-27. Üst belge: `2026-11-25-nexora-studio-sadelestirme-design.md` §7 madde 5b. Önceki parça: 5b-1 (PR #189, sınıflandırıcı + rapor + geri alınabilir taşıma; canlıda).
 
