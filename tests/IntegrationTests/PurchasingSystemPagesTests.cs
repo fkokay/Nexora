@@ -34,7 +34,7 @@ public sealed class PurchasingSystemPagesTests
     /// <summary>Current version per standard: Faz 2 (line-document writes) moved requests, orders and delivery notes to v2.</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 1, ["sales-purchasing"] = 2, ["sales-purchase-delivery-notes"] = 2,
+        ["sales-requests"] = 2, ["sales-purchase-quotes"] = 2, ["sales-purchasing"] = 2, ["sales-purchase-delivery-notes"] = 2,
     };
 
     /// <summary>Non-purchasing reads a purchasing standard may bind (pickers of the Faz 2 line forms).</summary>
@@ -69,9 +69,9 @@ public sealed class PurchasingSystemPagesTests
         },
         ["sales-purchase-quotes"] = new()
         {
-            ["acDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
+            // Liste template (satın alma 1. dalga): "Talepsiz teklif" is gone; the request opens from the row action and the panel.
+            ["talebiAcDugmesi"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
             ["detayAc"] = ("sales-requests", ["requestId={{liste.seciliSatir.purchaseRequestId}}"]),
-            ["talepsizTeklifDugmesi"] = ("sales-purchase-quotes", []),
         },
         // Faz 2: Yeni sipariş opens sales-purchase-order-create and Mal kabul oluştur is the receipt dialog; lot/serial
         // tracked receipts stay on the legacy screen (K2).

@@ -2,6 +2,18 @@
 
 Durum: tasarım taslağı, kod yok. Çizim: `docs/design-proposals/studio-sadelestirme/18-satinalma.html`.
 
+## Kullanıcı kararı (2026-11-28)
+
+- "Talepsiz teklif" kalkar; iş akışı talepten başlar.
+- "Siparişsiz mal kabul" ve lot/seri izlemeli mal kabul eski sayfada bırakılmaz; pencere satır tablosu özelliği (`claude/kalip-ozellikleri`) gelince kalıpla yapılır. 1. dalgada mal kabul ekranı bu iki akış olmadan çıkar.
+
+## 1. dalga uygulama notu (2026-11-28)
+
+- Yapıldı: `sales-purchase-quotes`, `sales-purchase-receipts`, `sales-purchase-invoices`.
+- Atlandı: `sales-purchase-returns` ve `sales-purchase-delivery-notes`. Yeni iade ve yeni irsaliye pencereleri, pencerede düzenlenebilir satır tablosu (editableGrid) ister; kalıp penceresi bunu içermez (pencere bileşen türleri sınırlı). Özellik gelince yapılacak; o zamana dek mevcut standartlar kalır.
+- Faturalar ekranında "İade oluştur", iade penceresi yerine İade ekranına gider (tasarımdaki eksik #5 yedeği); "Mal kabulsüz fatura" `satinalma.fatura` belgesi gelene dek kalır.
+- Mal kabullerde "Fatura bekleyen" göstergesi ve "Faturalanmamış" süzgeci yok: sayfalı liste satırında fatura bilgisi bulunmuyor.
+
 ## Çerçeve
 
 - Canlıdaki formlar deneme verisidir (karar 2026-11-27). Kalan sistem standartları doğrudan kalıplara çizilir; davranış eski ekranla birebir olmak zorunda değildir, ama iş akışı (talep, onay, teklif, sipariş, mal kabul, fatura, ödeme, iade, iptal) yapılabilir kalır.
