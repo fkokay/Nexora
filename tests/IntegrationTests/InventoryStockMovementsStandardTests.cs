@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 /// <summary>
-/// "Stok Hareketleri" standard (inventory-stock-movements) on one screen. The stock lookup <c>stokSecimi</c> (options from
+/// "Stok Hareketleri" standard (inventory-stock-movements, Liste kalıbı). The stock filter <c>stockItemId</c> (options from
 /// stok.bakiye.sayfa, searched on the server and filtered by warehouse) sits in the filter row: empty shows a hint, a value
 /// shows a record header over stok.bakiye.kart and the movement list read through stok.hareket.gecmisi. The movement list
 /// follows the "Görünümü düzenle" view <c>inventory-movement-history</c>.
@@ -22,92 +22,84 @@ public sealed class InventoryStockMovementsStandardTests
     private static readonly string[] ViewFields = ["entryDate", "direction", "quantity", "warehouse", "storageLocation", "tracking", "description", "unitCostBase"];
 
     [Fact]
-    public void Header_is_preview_version_1_on_the_standard_menu()
+    public void Header_is_preview_version_2_list_template_on_the_standard_menu()
     {
         var standard = SystemPageStandards.All[Key];
-        Assert.Equal((1, "preview"), (standard.Version, standard.Stage));
+        Assert.Equal((2, "preview"), (standard.Version, standard.Stage));
         Assert.Equal("Stok Hareketleri", standard.Title);
         Assert.Equal("Stoku seçin; o stokun depo hareket geçmişi hemen listelenir.", standard.Description);
         Assert.Equal("Stok & Depo", standard.Module);
+        Assert.Equal("list", (string)Definition()["template"]!["name"]!);
         Assert.Contains(Key, StandardMenuEndpoints.PageKeys);
         Assert.True(TenantCustomPageSchema.Validate(standard.DefinitionJson, out var error), error);
         Assert.All(standard.Items, x => Assert.True(x.Since == 1 && x.Label.Length is > 0 and <= 80, x.Key));
     }
 
     [Fact]
-    public void Queries_use_existing_operations_only()
+    public void Queries_use_existing_operations_and_the_only_write_is_the_reversal()
     {
-        var operations = Definition()["queries"]!.AsArray().OfType<JsonObject>().Select(x => (string)x["operation"]!).ToArray();
-        Assert.Equal(new[] { "depo.listele", "stok.bakiye.sayfa", "stok.bakiye.kart", "stok.hareket.gecmisi" }, operations);
-        Assert.All(operations, name => Assert.True(ErpOperationCatalog.TryGet(name, out var op) && op.Kind == "read" && !op.Deprecated, name));
-        // Read-only screen: no write query, no write command.
-        Assert.All(Definition()["queries"]!.AsArray().OfType<JsonObject>(), x => Assert.Equal(("read", "load"), ((string)x["kind"]!, (string)x["runOn"]!)));
+        var queries = Definition()["queries"]!.AsArray().OfType<JsonObject>().ToArray();
+        var operations = queries.Select(x => (string)x["operation"]!).ToArray();
+        Assert.Equal(new[] { "depo.listele", "stok.bakiye.sayfa", "stok.bakiye.kart", "stok.hareket.gecmisi", "stok.hareket.tersKayit" }, operations);
+        Assert.All(operations, name => Assert.True(ErpOperationCatalog.TryGet(name, out var op) && !op.Deprecated, name));
+        // Reads load with the page; the reversal is the one manual write.
+        Assert.All(queries.Where(x => (string)x["id"]! != "tersKayit"), x => Assert.Equal(("read", "load"), ((string)x["kind"]!, (string)x["runOn"]!)));
+        Assert.Equal(("insert", "manual"), ((string)Query("tersKayit")["kind"]!, (string)Query("tersKayit")["runOn"]!));
         var bar = Props("komutlar");
-        Assert.Equal(new[] { "exportTable", "hiddenCommands", "titleCount" }, bar.Select(x => x.Key).Order(StringComparer.Ordinal));
-        // Yalnız okunan ekran: çubukta Yenile ve Excel kalır.
-        Assert.Equal(new[] { "new", "open", "save", "delete", "filter", "print" }, bar["hiddenCommands"]!.AsArray().Select(x => (string)x!));
-        Assert.Equal(("liste", "{{gecmis.meta.totalCount}}"), ((string)bar["exportTable"]!, (string)bar["titleCount"]!));
+        // Read-mostly screen: the bar keeps Yenile and Excel only; new / save / delete stay hidden.
+        Assert.Equal(new[] { "new", "open", "save", "delete", "print" }, bar["hiddenCommands"]!.AsArray().Select(x => (string)x!));
+        Assert.Equal(("liste", "{{gecmis.meta.totalCount}}", "commands"), ((string)bar["exportTable"]!, (string)bar["titleCount"]!, (string)bar["slot"]!));
     }
 
     [Fact]
-    public void Stock_lookup_shows_the_movements_directly()
+    public void Stock_filter_shows_the_movements_directly()
     {
-        var selection = Props("stokSecimi");
-        Assert.Equal(("input", "lookup", "Stok", "stokBakiyeleri"), ((string)Component("stokSecimi")["type"]!, (string)selection["inputType"]!,
-            (string)selection["label"]!, (string)selection["optionsQuery"]!));
-        Assert.Equal(("balance.stockItemId", "balance.name", "balance.code"), ((string)selection["optionValueColumn"]!,
-            (string)selection["optionLabelColumn"]!, (string)selection["optionDescriptionColumn"]!));
-        Assert.False(selection.ContainsKey("hidden"));
-        // A page opened with ?stockItemId= shows the movements at once.
-        Assert.Equal("{{sayfa.parametre.stockItemId}}", (string)selection["defaultValue"]!);
-
-        // No wizard: no steps, stock list, row button or "change" button.
-        foreach (var id in new[] { "adimlar", "stokArama", "stoklar", "hareketleriGor", "stokDegistir" })
-            Assert.DoesNotContain(Definition()["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! == id);
-        Assert.Equal("stokSecimi.value == null", (string)Props("secimIpucu")["visibleWhen"]!);
-        foreach (var id in new[] { "secilenStok", "liste" }) Assert.Equal("stokSecimi.value != null", (string)Props(id)["visibleWhen"]!);
-
-        // The options are searched on the server; every option column is a flattened column of the operation.
+        var bar = Props("suzgec");
+        Assert.Equal(("filterBar", "liste", "filters"), ((string)Component("suzgec")["type"]!, (string)bar["table"]!, (string)bar["slot"]!));
+        // The stock select takes its options from stok.bakiye.sayfa (first page) and fills from the stockItemId page parameter.
+        Assert.Equal(new[]
+        {
+            "stockItemId|select|row|stockItemId|Stok|stokBakiyeleri:balance.stockItemId:balance.name:balance.code|searchable",
+            "warehouseId|select|row|warehouseId|Depo|depolar:id:name:code|searchable"
+        }, Strings(bar["filters"]));
         Assert.Equal("stok.bakiye.sayfa", (string)Query("stokBakiyeleri")["operation"]!);
-        Assert.Equal(2, Query("stokBakiyeleri")["parameters"]!.AsArray().Count);
-        Assert.Equal("{{stokSecimi.search}}", Binding("stokBakiyeleri", "q"));
         Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.sayfa", out var op));
         foreach (var column in new[] { "balance.stockItemId", "balance.name", "balance.code" }) Assert.Contains(op.Result.Columns, x => x.Code == column);
+
+        // No stock yet: a hint above, no list and no indicators.
+        Assert.Equal(("alert", "suzgec.stockItemId == null", "above"),
+            ((string)Component("secimIpucu")["type"]!, (string)Props("secimIpucu")["visibleWhen"]!, (string)Props("secimIpucu")["slot"]!));
+        Assert.Equal("suzgec.stockItemId != null", (string)Props("liste")["visibleWhen"]!);
+        foreach (var id in new[] { "mevcutGostergesi", "degerGostergesi" })
+            Assert.Equal(("suzgec.stockItemId != null", "indicators"), ((string)Props(id)["visibleWhen"]!, (string)Props(id)["slot"]!));
+        // No wizard leftovers.
+        foreach (var id in new[] { "adimlar", "stokArama", "stoklar", "hareketleriGor", "stokDegistir", "stokSecimi", "depoSecimi", "suzgecKarti", "secilenStok" })
+            Assert.DoesNotContain(Definition()["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! == id);
     }
 
     [Fact]
-    public void Warehouse_filter_applies_to_options_summary_and_movements()
+    public void Warehouse_filter_applies_to_summary_and_movements()
     {
-        var card = Props("suzgecKarti");
-        Assert.Equal(("formCard", "inline"), ((string)Component("suzgecKarti")["type"]!, (string)card["layout"]!));
-        Assert.Equal(new[] { "stokSecimi", "depoSecimi" }, Strings(card["inputs"]));
-        var warehouse = Props("depoSecimi");
-        Assert.Equal(("lookup", "Depo", "depolar", "id"), ((string)warehouse["inputType"]!, (string)warehouse["label"]!,
-            (string)warehouse["optionsQuery"]!, (string)warehouse["optionValueColumn"]!));
-        // "Tüm depolar" is the empty value: the all-warehouses route.
-        Assert.Equal(new[] { "=Tüm depolar" }, Strings(warehouse["staticOptions"]));
-        foreach (var query in new[] { "stokBakiyeleri", "stokOzeti", "gecmis" }) Assert.Equal("{{depoSecimi.value}}", Binding(query, "warehouseId"));
+        foreach (var query in new[] { "stokOzeti", "gecmis" }) Assert.Equal("{{suzgec.warehouseId}}", Binding(query, "warehouseId"));
+        foreach (var query in new[] { "stokOzeti", "gecmis" }) Assert.Equal("{{suzgec.stockItemId}}", Binding(query, "stockItemId"));
+        Assert.Empty(Query("stokBakiyeleri")["parameters"]!.AsArray());
     }
 
     [Fact]
-    public void Header_summarises_the_selected_stock()
+    public void Indicators_summarise_the_selected_stock()
     {
         Assert.Equal("stok.bakiye.kart", (string)Query("stokOzeti")["operation"]!);
         Assert.Equal(2, Query("stokOzeti")["parameters"]!.AsArray().Count);
-        Assert.Equal("{{stokSecimi.value}}", Binding("stokOzeti", "stockItemId"));
-
-        var header = Props("secilenStok");
-        Assert.Equal(("recordHeader", "box"), ((string)Component("secilenStok")["type"]!, (string)header["icon"]!));
-        Assert.Equal("{{stokOzeti.rows[0].balance.code}}", (string)header["title"]!);
-        Assert.Equal(new[] { "Mevcut=number", "Stok değeri=money" }, Strings(header["fieldFormats"]));
-        Assert.False(header.ContainsKey("buttons"));
+        var current = Props("mevcutGostergesi");
+        Assert.Equal(("metric", "number", "Mevcut"), ((string)Component("mevcutGostergesi")["type"]!, (string)current["format"]!, (string)current["title"]!));
+        var value = Props("degerGostergesi");
+        Assert.Equal(("money", "Stok değeri"), ((string)value["format"]!, (string)value["title"]!));
 
         // Every bound balance column exists in the operation's result.
         Assert.True(ErpOperationCatalog.TryGet("stok.bakiye.kart", out var op));
-        var templates = new[] { (string)header["title"]!, (string)header["subtitle"]! }
-            .Concat(Strings(header["fields"])).Concat(Strings(header["fieldUnits"]));
+        var templates = new[] { current["value"]!, current["description"]!, value["value"]!, value["description"]! }.Select(x => (string)x!);
         var columns = templates.SelectMany(x => System.Text.RegularExpressions.Regex.Matches(x, @"stokOzeti\.rows\[0\]\.([A-Za-z.]+)").Select(m => m.Groups[1].Value)).ToArray();
-        Assert.NotEmpty(columns);
+        Assert.Equal(4, columns.Length);
         Assert.All(columns, column => Assert.Contains(op.Result.Columns, x => x.Code == column));
     }
 
@@ -115,17 +107,15 @@ public sealed class InventoryStockMovementsStandardTests
     public void List_is_server_paged_movement_history()
     {
         var props = Props("liste");
-        Assert.Equal(("gecmis", "server", 50), ((string)props["query"]!, (string)props["paging"]!, (int)props["pageSize"]!));
+        Assert.Equal(("gecmis", "server", 50, "list"), ((string)props["query"]!, (string)props["paging"]!, (int)props["pageSize"]!, (string)props["slot"]!));
         Assert.Equal("stok.hareket.gecmisi", (string)Query("gecmis")["operation"]!);
         var expected = new Dictionary<string, string>
         {
-            ["stockItemId"] = "{{stokSecimi.value}}", ["warehouseId"] = "{{depoSecimi.value}}",
+            ["stockItemId"] = "{{suzgec.stockItemId}}", ["warehouseId"] = "{{suzgec.warehouseId}}",
             ["page"] = "{{liste.sayfa}}", ["pageSize"] = "{{liste.sayfaBoyutu}}"
         };
         Assert.Equal(expected.Count, Query("gecmis")["parameters"]!.AsArray().Count);
         foreach (var (parameter, binding) in expected) Assert.Equal(binding, Binding("gecmis", parameter));
-
-        Assert.Equal("stokSecimi.value != null", (string)props["visibleWhen"]!);
         Assert.Equal("Seçili stok ve depoda hareket bulunmuyor.", (string)props["emptyText"]!);
 
         // Legacy tones: Giriş ok (success), Çıkış info; a reversal shows "İade".
@@ -133,6 +123,30 @@ public sealed class InventoryStockMovementsStandardTests
         Assert.Equal(new[] { "Giriş=success", "Çıkış=info" }, Strings(props["toneMap"]));
         Assert.Equal(new[] { "displayQuantity=displayUnitCode", "warehouseCode=warehouseName", "storageLocationCode=storageLocationName" },
             Strings(props["columnUnits"]));
+        Assert.Equal(new[] { "tersKayitDugmesi" }, Strings(props["rowActions"]));
+    }
+
+    [Fact]
+    public void Reversal_row_action_asks_for_a_reason_and_skips_reversed_rows()
+    {
+        var button = Props("tersKayitDugmesi");
+        Assert.Equal(("button", "Ters kayıt", "query", "tersKayit"), ((string)Component("tersKayitDugmesi")["type"]!, (string)button["text"]!,
+            (string)button["actionType"]!, (string)button["queryId"]!));
+        Assert.Equal(("Ters kayıt gerekçesi", true, "rowActions"), ((string)button["promptLabel"]!, (bool)button["promptRequired"]!, (string)button["slot"]!));
+        Assert.Equal("liste.seciliSatir.hasReversal == true || liste.seciliSatir.isReversal == true", (string)button["disabledWhen"]!);
+        Assert.Equal("Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.", (string)button["disabledReason"]!);
+        Assert.Equal(new[] { "gecmis", "stokOzeti" }, Strings(button["refreshQueries"]));
+
+        // The reversal runs in the picked row's warehouse, so it also works on the all-warehouses view.
+        var reversal = new Dictionary<string, string>
+        {
+            ["warehouseId"] = "{{liste.seciliSatir.warehouseId}}", ["stockItemId"] = "{{suzgec.stockItemId}}",
+            ["entryId"] = "{{liste.seciliSatir.id}}", ["reason"] = "{{tersKayitDugmesi.yanit}}"
+        };
+        Assert.True(ErpOperationCatalog.TryGet("stok.hareket.tersKayit", out var operation));
+        Assert.Equal(operation.Parameters.Select(x => x.Name).Order(StringComparer.Ordinal), reversal.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(reversal.Count, Query("tersKayit")["parameters"]!.AsArray().Count);
+        foreach (var (parameter, binding) in reversal) Assert.Equal(binding, Binding("tersKayit", parameter));
     }
 
     [Fact]

@@ -12,7 +12,8 @@ import TenantCustomPage from '../TenantCustomPage';
 import catalog from './inventoryStockMovementsOperations.fixture.json';
 
 // Stok Hareketleri standart tanımı (inventory-stock-movements.json) gerçek çalışma zamanıyla çizilir; API sahte yanıtlar döner.
-// Tek ekran: üstte stok seçici (seçenekler stok.bakiye.sayfa); seçilince özet (stok.bakiye.kart) ve hareketler (stok.hareket.gecmisi).
+// Liste kalıbı: süzgeç alanında stok ve depo seçimi (seçenekler stok.bakiye.sayfa / depo.listele); seçilince göstergeler
+// (stok.bakiye.kart), hareketler (stok.hareket.gecmisi) ve satır eylemi Ters kayıt (stok.hareket.tersKayit).
 // `inventoryStockMovementsOperations.fixture.json`, ErpOperationCatalog'un bu sayfanın kullandığı işlemlerinin anlık
 // görüntüsüdür (allowed: true); InventoryStockMovementsStandardTests.Frontend_fixture_matches_catalog canlı katalogla karşılaştırır.
 
@@ -29,6 +30,7 @@ const KEY = 'inventory-stock-movements';
 const W = 'aaaaaaaa-0000-0000-0000-000000000001';
 const S1 = '11111111-0000-0000-0000-000000000001';
 const S2 = '11111111-0000-0000-0000-000000000002';
+const E1 = 'eeeeeeee-0000-0000-0000-000000000001';
 const BALANCES = '/api/warehouses/balances/page';
 const WAREHOUSE_BALANCES = `/api/warehouses/${W}/balances/page`;
 
@@ -52,7 +54,7 @@ const movement = (id: string, extra: Record<string, unknown> = {}) => ({
   baseUnitCode: 'ADET', displayQuantity: 2, displayUnitCode: 'KOLI', trackingText: 'LOT-1 (24)', ...extra,
 });
 
-type Call = { url: string; method: string };
+type Call = { url: string; method: string; body?: string };
 let calls: Call[] = [];
 let movementRows: unknown[] = [];
 
@@ -60,13 +62,12 @@ const query = (url: string) => new URLSearchParams(url.split('?')[1] ?? '');
 
 function respond(url: string, method: string): unknown {
   const [path] = url.split('?');
+  if (method === 'POST' && /\/transactions\/[^/]+\/reverse$/.test(path)) return movement('eeeeeeee-0000-0000-0000-0000000000fe', { isReversal: true });
   if (method !== 'GET') throw new Error(`unexpected ${method} ${url}`);
   if (path === BALANCES || path === WAREHOUSE_BALANCES) {
-    // stok.bakiye.kart: stockItemId süzgeci tek kartı döndürür; stok.bakiye.sayfa: arama metniyle süzülen liste.
+    // stok.bakiye.kart: stockItemId süzgeci tek kartı döndürür; stok.bakiye.sayfa: tüm liste.
     const stockItemId = query(url).get('stockItemId');
-    const q = (query(url).get('q') ?? '').toLocaleLowerCase('tr');
-    const items = balanceItems.filter((item) => (stockItemId ? item.balance.stockItemId === stockItemId
-      : !q || item.balance.name.toLocaleLowerCase('tr').includes(q) || item.balance.code.toLocaleLowerCase('tr').includes(q)));
+    const items = balanceItems.filter((item) => !stockItemId || item.balance.stockItemId === stockItemId);
     return { items, page: 1, pageSize: 25, totalCount: items.length, belowMinimumCount: 0, pageValuationAmountBase: 0, pageAvailableQuantity: 0,
       pageUnitCode: 'ADET', pageAvailableCount: items.length, pageUnvaluedCount: 0, baseCurrencyCode: 'TRY' };
   }
@@ -84,13 +85,13 @@ function setup(params: Record<string, string> = {}, role = 'TenantAdmin') {
     if (endpoint === '/api/system-pages/inventory-stock-movements/published') {
       return {
         id: 'sp', code: '@inventory-stock-movements', name: standard.title, description: null, revision: 1, forms: [],
-        rights: { view: true, insert: false, update: false, delete: false }, screenKey: KEY, source: 'standard', standardVersion: 1,
+        rights: { view: true, insert: true, update: false, delete: false }, screenKey: KEY, source: 'standard', standardVersion: 2,
         definitionJson: JSON.stringify(standard.definition),
       };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return { operations: catalog.operations };
     const method = init?.method ?? 'GET';
-    calls.push({ url: endpoint, method });
+    calls.push({ url: endpoint, method, body: typeof init?.body === 'string' ? init.body : undefined });
     return respond(endpoint, method);
   });
   return render(
@@ -106,95 +107,77 @@ function setup(params: Record<string, string> = {}, role = 'TenantAdmin') {
 
 const T = { timeout: 10000 };
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
-/** Liste istekleri (stok.bakiye.sayfa) ve özet istekleri (stok.bakiye.kart) aynı yolu kullanır: stockItemId ayırır. */
-const listCalls = (path = BALANCES) => gets(path).filter((call) => !query(call.url).has('stockItemId'));
 const summaryCalls = (path = BALANCES) => gets(path).filter((call) => query(call.url).has('stockItemId'));
 const transactionCalls = () => calls.filter((call) => call.url.includes('/transactions'));
-const combo = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
-const choose = async (id: string, option: string) => {
-  fireEvent.click(combo(id));
-  fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${option}`) }, T));
+const filters = () => screen.getByRole('region', { name: 'Süzgeçler' });
+const combo = (name: string) => within(filters()).getByRole('combobox', { name }) as HTMLInputElement;
+const choose = async (name: string, option: RegExp) => {
+  fireEvent.click(combo(name));
+  fireEvent.click(await screen.findByRole('option', { name: option }, T));
 };
 const grid = () => document.querySelector('.tenant-page-data-grid') as HTMLElement | null;
-const header = () => document.querySelector('.tenant-page-record-header') as HTMLElement | null;
+const metricValue = (label: string) => screen.getByText(label, { selector: '.tenant-metric-label' }).closest('article')!.textContent ?? '';
 const HINT = 'Hareketleri görmek için yukarıdan bir stok seçin.';
-/** Stok seçicisinden bir stok seçer ve özetin gelmesini bekler. */
-const openMovements = async (code = 'KLM') => {
-  await waitFor(() => expect(combo('stokSecimi')).not.toBeNull(), T);
-  await choose('stokSecimi', code === 'KLM' ? 'Kalem' : 'Defter');
-  await waitFor(() => expect(header()).not.toBeNull(), T);
-};
+const writes = () => calls.filter((call) => call.method !== 'GET');
+const CELL = { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' };
+const readRow = (text: string) => within(grid()!).getByText(text, CELL).closest('tr') as HTMLElement;
 
 beforeEach(() => {
-  calls = []; movementRows = [movement('eeeeeeee-0000-0000-0000-000000000001')]; api.mockReset();
+  calls = []; movementRows = [movement(E1)]; api.mockReset();
   localStorage.clear();
 });
 afterEach(() => { cleanup(); setPageParams(KEY, {}); });
 
 describe('Stok Hareketleri standart tanımı', { timeout: 30000 }, () => {
-  it('uses only operations from the catalog fixture', () => {
+  it('uses only operations from the catalog fixture; the only write is the reversal', () => {
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
+    expect(catalog.operations.filter((operation) => operation.kind !== 'read').map((operation) => operation.name)).toEqual(['stok.hareket.tersKayit']);
   });
 
-  it('opens with the stock lookup and a hint: no steps, no stock list, no summary or movements read, no Excel', async () => {
+  it('opens with a hint and the stock / depot filters: no summary or movement read, no list', async () => {
     setup();
     expect(await screen.findByText(HINT, {}, T)).toBeTruthy();
-    expect(screen.queryByRole('list', { name: 'Adımlar' })).toBeNull();
+    await waitFor(() => expect(combo('Stok')).not.toBeNull(), T);
+    expect(combo('Depo')).not.toBeNull();
     expect(grid()).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Hareketleri gör ›' })).toBeNull();
-    expect(combo('stokSecimi').placeholder).toBe('Stok kodu veya adıyla ara');
-    expect(combo('depoSecimi').value).toBe('Tüm depolar');
-    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0), T);
     expect(summaryCalls()).toEqual([]);
     expect(transactionCalls()).toEqual([]);
-    expect(header()).toBeNull();
-    expect(screen.queryByRole('button', { name: /Excel/ })).toBeNull();
+    expect(screen.queryByText('Mevcut', { selector: '.tenant-metric-label' })).toBeNull();
   });
 
-  it('choosing a stock shows its summary header and movements at once', async () => {
+  it('choosing a stock shows its indicators and movements at once', async () => {
     setup();
-    await openMovements();
+    await screen.findByText(HINT, {}, T);
+    await choose('Stok', /Kalem/);
     await waitFor(() => expect(gets(`/api/stock/items/${S1}/transactions`)).toHaveLength(1), T);
     const first = gets(`/api/stock/items/${S1}/transactions`)[0];
     expect(query(first.url).get('page')).toBe('1');
     expect(query(first.url).get('pageSize')).toBe('50');
     await waitFor(() => expect(summaryCalls().map((call) => query(call.url).get('stockItemId'))).toEqual([S1]), T);
-
-    await waitFor(() => expect(header()!.textContent).toContain('KLM'), T);
-    expect(header()!.textContent).toContain('Kalem · ana birim ADET');
-    const fields = within(header()!).getAllByRole('definition').map((field) => field.textContent);
-    expect(within(header()!).getAllByRole('term').map((term) => term.textContent)).toEqual(['Mevcut', 'Stok değeri']);
-    expect(fields).toEqual(['1.100 ADET', '5.500,00 TRY']);
-    expect(within(header()!).queryByRole('button', { name: '‹ Stok değiştir' })).toBeNull();
-
-    await screen.findByText('Hareket 1', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
+    await waitFor(() => expect(metricValue('Mevcut')).toContain('1.100'), T);
+    expect(metricValue('Mevcut')).toContain('ADET');
+    expect(metricValue('Stok değeri')).toContain('5.500,00');
+    await screen.findByText('Hareket 1', CELL, T);
     expect(screen.queryByText(HINT)).toBeNull();
     expect(await screen.findByRole('button', { name: /Excel/ }, T)).toBeTruthy();
   });
 
-  it('the lookup searches stocks on the server and the depot carries over to summary and movements', async () => {
+  it('the depot filter carries over to the summary and the movements', async () => {
     setup();
-    await waitFor(() => expect(listCalls().length).toBeGreaterThan(0), T);
-    fireEvent.change(combo('stokSecimi'), { target: { value: 'kal' } });
-    await waitFor(() => expect(listCalls().some((call) => query(call.url).get('q') === 'kal')).toBe(true), T);
-    await choose('depoSecimi', 'Merkez');
-    await waitFor(() => expect(listCalls(WAREHOUSE_BALANCES).length).toBeGreaterThan(0), T);
-
-    await openMovements('KLM');
+    await screen.findByText(HINT, {}, T);
+    await choose('Depo', /MRK/);
+    await choose('Stok', /Kalem/);
     await waitFor(() => expect(gets(`/api/warehouses/${W}/stock/${S1}/transactions`)).toHaveLength(1), T);
     await waitFor(() => expect(summaryCalls(WAREHOUSE_BALANCES)).toHaveLength(1), T);
-    await waitFor(() => expect(document.querySelector('.list-v2-count')).not.toBeNull(), T);
   });
 
   it('opens straight on the movements with the stockItemId page parameter', async () => {
     setup({ stockItemId: S1 });
-    await waitFor(() => expect(header()!.textContent).toContain('KLM'), T);
     await waitFor(() => expect(gets(`/api/stock/items/${S1}/transactions`)).toHaveLength(1), T);
-    expect(summaryCalls().map((call) => query(call.url).get('stockItemId'))).toEqual([S1]);
+    await waitFor(() => expect(summaryCalls().map((call) => query(call.url).get('stockItemId'))).toEqual([S1]), T);
     expect(screen.queryByText(HINT)).toBeNull();
-    // The lookup shows the chosen stock's name.
-    await waitFor(() => expect(combo('stokSecimi').value).toContain('Kalem'), T);
+    await screen.findByText('Hareket 1', CELL, T);
   });
 
   it('an empty movement history shows the empty text', async () => {
@@ -203,16 +186,16 @@ describe('Stok Hareketleri standart tanımı', { timeout: 30000 }, () => {
     await screen.findByText('Seçili stok ve depoda hareket bulunmuyor.', undefined, T);
   });
 
-  it('draws the legacy movement columns: date, direction tag, reversal, entered quantity with unit, warehouse, lot / serial', async () => {
+  it('draws the movement columns: date, direction tag, reversal, entered quantity with unit, warehouse, lot / serial', async () => {
     movementRows = [
-      movement('eeeeeeee-0000-0000-0000-000000000001'),
+      movement(E1),
       movement('eeeeeeee-0000-0000-0000-000000000002', {
-        direction: 'Issue', isReversal: true, reversalOfId: 'eeeeeeee-0000-0000-0000-000000000001', enteredQuantity: null, enteredUnitCode: null,
+        direction: 'Issue', isReversal: true, reversalOfId: E1, enteredQuantity: null, enteredUnitCode: null,
         quantity: 1.5, displayQuantity: 1.5, displayUnitCode: 'ADET', tracking: null, trackingText: null, storageLocationCode: 'A-01', storageLocationName: 'Raf 1',
       }),
     ];
     setup({ stockItemId: S1 });
-    await screen.findByText('Hareket 1', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
+    await screen.findByText('Hareket 1', CELL, T);
     const headers = within(grid()!).getAllByRole('columnheader').map((cell) => cell.textContent?.trim());
     expect(headers).toEqual(expect.arrayContaining(['Tarih', 'Yön', 'Ters kayıt', 'Miktar', 'Depo', 'Konum', 'Lot / seri', 'Açıklama']));
     expect(headers).not.toContain('Birim maliyet');
@@ -230,5 +213,32 @@ describe('Stok Hareketleri standart tanımı', { timeout: 30000 }, () => {
     expect(reversal).toContain('A-01 Raf 1');
     expect(within(rows[0]).getByText('Giriş').className).toContain('tone-success');
     expect(within(rows[1]).getByText('Çıkış').className).toContain('tone-info');
+  });
+
+  it('Ters kayıt asks for a reason and posts the reversal of the picked row; reversed rows are disabled with a reason', async () => {
+    movementRows = [movement(E1), movement('eeeeeeee-0000-0000-0000-000000000002', { hasReversal: true })];
+    setup({ stockItemId: S1 });
+    await screen.findByText('Hareket 1', CELL, T);
+    const reverseButton = (text: string) => within(readRow(text)).getByRole('button', { name: 'Ters kayıt' });
+    expect(reverseButton('Hareket 2').hasAttribute('disabled')).toBe(true);
+    expect(reverseButton('Hareket 2').getAttribute('title')).toBe('Bu hareket zaten ters kayıtla düzeltilmiş ya da kendisi bir ters kayıt.');
+    fireEvent.click(reverseButton('Hareket 1'));
+    const prompt = await screen.findByRole('alertdialog');
+    expect(within(prompt).getByText('Ters kayıt gerekçesi')).toBeTruthy();
+    fireEvent.change(within(prompt).getByRole('textbox'), { target: { value: 'Yanlış miktar' } });
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Ters kayıt' }));
+    await waitFor(() => expect(writes()).toHaveLength(1), T);
+    expect(writes()[0]).toEqual({ url: `/api/warehouses/${W}/stock/${S1}/transactions/${E1}/reverse`, method: 'POST', body: '{"reason":"Yanlış miktar"}' });
+    // Ters kayıttan sonra geçmiş yeniden okunur.
+    await waitFor(() => expect(gets(`/api/stock/items/${S1}/transactions`).length).toBeGreaterThan(1), T);
+  });
+
+  it('the command bar has no new, save or delete', async () => {
+    setup({ stockItemId: S1 });
+    await screen.findByText('Hareket 1', CELL, T);
+    const bar = screen.getByRole('toolbar', { name: 'İşlemler' });
+    const enabled = Array.from(bar.querySelectorAll<HTMLElement>('[data-command]'))
+      .filter((item) => item.getAttribute('aria-disabled') !== 'true').map((item) => item.dataset.command);
+    for (const write of ['new', 'save', 'delete']) expect(enabled).not.toContain(write);
   });
 });

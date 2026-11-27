@@ -1,4 +1,16 @@
 # Master Prompt Phase Status
+### 2026-11-28 Stok & Depo dalga 1: 4 standart Liste kalıbına elle çizildi
+
+Branch `claude/stok-dalga1` (design: `docs/superpowers/specs/2026-11-28-stok-depo-yeniden-tasarim-design.md`, mockup 14); not merged. No migration, no new template feature, no new belge modeli.
+
+- `inventory-stock-movements` (v2), `inventory-warehouses` (v3), `inventory-locations` (v2), `inventory-stock` (v2): `definition` rewritten by hand as List template; ids that survive keep their `items` / `screenViews`, dropped components lost their `items`. All items stay `since: 1` (restricted versions validate on their own). Firm copies are not migrated here.
+- Movements: stock + depot are filter-bar selects (stock options = first page of `stok.bakiye.sayfa`; the `stockItemId` page parameter fills the filter, so "Hareketler ›" from the stock screen works for any card); indicators Mevcut / Stok değeri; row action **Ters kayıt** (reason prompt, runs in the row's warehouse). Date range filter not built (the operation has no date parameters; a template date filter would only filter the loaded page).
+- Warehouses: Yeni depo / Düzenle are two separate windows (one window cannot tell New from Edit: inputs default from the selected row); row actions Konumlar › / Pasife al / Etkinleştir; location count is a card metric (no count column on `WarehouseView`). Depot custom fields are gone (template windows have no custom-field block) — `depo.ozelAlanKaydet` etc. no longer used by the page.
+- Locations: depot filter first (default first depot, page parameter wins), indicators (konum, aktif, konumsuz kalan kart), Yeni konum / Düzenle windows (TenantAdmin), Pasife al row action, Bakiyeler and Konumlandırma denetimi as table windows. "Üst konum" column left out (view has only the parent id).
+- Stock: four indicators, one filter bar (arama, depo, pasifler, minimum altı toggle), card group on the right (no toggle, no depot distribution / last movements tables), conditional negative-stock notes, **Hareket gir** window (entry only) and **Hareketler ›** to the movements screen. Known loss: lot / serial tracked cards cannot be entered in the window (a list parameter binds only to an editable grid, which template windows do not have); the window shows a note.
+- Tests: new `InventoryWarehousesStandardTests` / `InventoryLocationsStandardTests`, adapted stock + movements C# tests, `SystemPageStandardsTests`, detail-toggle and filter-bar tests; ERP vitest for all four screens and the Studio movements test (template `slot` is not a managed key). Operations fixture of the movements screen gained `stok.hareket.tersKayit`.
+- **Verified (InMemory / jsdom):** see the PR for the counts of the run. **Not verified:** a real browser pass, SQL Server acceptance, firm copies on live (they keep the old layout until reset).
+
 ### 2026-11-27 5b-2 dalga 1: 4 standart kalıba taşındı
 
 Branch `claude/standart-tasima-1`; not merged. No migration.
