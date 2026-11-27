@@ -99,6 +99,14 @@ internal static class SystemPageStandards
                 removedIds.Add(IdOf(obj));
                 queries.Remove(query);
             }
+        // A map / list parameter bound to a block or grid added in a later version (create carries the custom field values) leaves the older query.
+        if (removedIds.Count > 0 && definition["queries"] is JsonArray keptQueries)
+            foreach (var query in keptQueries.OfType<JsonObject>())
+                if (query["parameters"] is JsonArray parameters)
+                    foreach (var parameter in parameters.OfType<JsonObject>().ToArray())
+                        if (parameter["binding"] is JsonValue binding && binding.TryGetValue<string>(out var text)
+                            && System.Text.RegularExpressions.Regex.Match(text.Trim(), @"^\{\{([A-Za-z_][A-Za-z0-9_]*)\.(degerler|satirlar)\}\}$") is { Success: true } match
+                            && removedIds.Contains(match.Groups[1].Value)) parameters.Remove(parameter);
         if (removedIds.Count > 0 && definition["components"] is JsonArray remaining)
             foreach (var component in remaining.OfType<JsonObject>()) StripReferences(component, removedIds);
         return definition.ToJsonString();

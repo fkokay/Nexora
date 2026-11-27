@@ -48,14 +48,20 @@ public sealed class SalesCariWave1StandardTests
         Assert.Equal("customFields", (string)block["props"]!["slot"]!);
         var tabs = definition["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == "kartSekmeleri")["props"]!["tabs"]!.AsArray();
         Assert.Contains(tabs, x => (string)x! == "Özel alanlar=ozelAlanlar");
-        var saves = definition["queries"]!.AsArray().OfType<JsonObject>().Where(x => (string?)x["operation"] == "cari.ozelAlanKaydet").ToArray();
-        Assert.Equal(2, saves.Length);
-        Assert.All(saves, x => Assert.Contains(x["parameters"]!.AsArray().OfType<JsonObject>(), p => (string)p["binding"]! == "{{ozelAlanlar.degerler}}" && (string)p["type"]! == "map"));
-        // Eski sürümlerde blok, sorguları ve kayıt adımları birlikte düşer.
+        var queries = definition["queries"]!.AsArray().OfType<JsonObject>().ToArray();
+        // Var olan kartta ozelKaydet, yeni kartta olustur'un customFields parametresi yazar (eski ekranla aynı).
+        var save = Assert.Single(queries, x => (string?)x["operation"] == "cari.ozelAlanKaydet");
+        Assert.Contains(save["parameters"]!.AsArray().OfType<JsonObject>(), p => (string)p["binding"]! == "{{ozelAlanlar.degerler}}" && (string)p["type"]! == "map");
+        var create = queries.Single(x => (string)x["id"]! == "olustur");
+        Assert.Contains(create["parameters"]!.AsArray().OfType<JsonObject>(), p => (string)p["name"]! == "customFields" && (string)p["binding"]! == "{{ozelAlanlar.degerler}}");
+        // Eski sürümlerde blok, sorguları, kayıt adımı, create'in parametresi ve boşalan sekme birlikte düşer.
         var v2 = JsonNode.Parse(SystemPageStandards.Restrict(standard, 2))!.AsObject();
         Assert.DoesNotContain(v2["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! == "ozelAlanlar");
+        var v2Tabs = v2["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == "kartSekmeleri")["props"]!["tabs"]!.AsArray().Select(x => (string)x!);
+        Assert.Equal(["Genel=kimlikKarti,vergiKarti,eFaturaUyarisi,zorunluNotu", "İletişim ve adres=iletisimKarti,adresKarti", "Finans ve vergi=finansKarti,muhasebeKarti", "Adresler=adresTablosu"], v2Tabs);
         var bar = v2["components"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == "komutlar")["props"]!;
         Assert.Equal(["olustur", "guncelle"], bar["saveSequence"]!.AsArray().Select(x => (string)x!));
+        Assert.DoesNotContain(v2["queries"]!.AsArray().OfType<JsonObject>().Single(x => (string)x["id"]! == "olustur")["parameters"]!.AsArray().OfType<JsonObject>(), p => (string)p["name"]! == "customFields");
     }
 
     [Theory]

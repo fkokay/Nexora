@@ -57,7 +57,7 @@ describe('kalıplı sayfada özel alan bloğu ve satır tablosu', () => {
       { id: 'liste_t', type: 'dataTable', name: 'liste', props: { slot: 'list', query: 'liste', title: 'Liste', columns: ['x'] } },
       { id: 'ac', type: 'button', props: { slot: 'actions', text: 'Hareket', actionType: 'openDialog', dialogId: 'pencere' } },
       { id: 'pencere', type: 'dialog', props: { slot: 'dialogs', presentation: 'dialog', size: 'lg', title: 'Hareket', contains: ['izleme', 'ozel'], saveQuery: 'kaydet' } },
-      { id: 'izleme', type: 'editableGrid', name: 'izleme', props: { slot: 'dialog', gridMode: 'list', title: 'Lot / seri satırları', maxRows: 200,
+      { id: 'izleme', type: 'editableGrid', name: 'izleme', props: { slot: 'dialog', gridMode: 'list', title: 'Lot / seri satırları', description: 'Seri numaralarında miktar 1 olmalıdır.', maxRows: 200,
         gridColumns: ['trackingCode|Lot / seri kodu|text|required,unique', 'quantity|Miktar|number|required,min:0.0001'] } },
       { id: 'ozel', type: 'customFieldsBlock', name: 'ozel', props: { slot: 'dialog', title: 'Özel alanlar', definitionsQuery: 'tanim' } },
     ] };
@@ -65,6 +65,7 @@ describe('kalıplı sayfada özel alan bloğu ve satır tablosu', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Hareket' }, T));
     const dialog = await screen.findByRole('dialog', undefined, T);
     expect(await screen.findByText('Lot / seri satırları', undefined, T)).toBeTruthy();
+    expect(screen.getByText('Seri numaralarında miktar 1 olmalıdır.')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Satır ekle' }));
     expect(await screen.findByLabelText(/Lot \/ seri kodu \(satır 1\)/, undefined, T)).toBeTruthy();
     expect(await screen.findByLabelText(/Renk kodu/, undefined, T)).toBeTruthy();
