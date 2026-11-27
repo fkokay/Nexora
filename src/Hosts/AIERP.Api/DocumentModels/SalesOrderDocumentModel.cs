@@ -19,22 +19,8 @@ internal static class SalesOrderDocumentModel
             new("requestedDeliveryDate", "İstenen teslim tarihi", "date", false, null),
             new("salespersonEmployeeId", "Plasiyer", "lookup", false, "ik.personel.listele")
         ],
-        [
-            new("stockItemId", "Stok", "lookup", true, false, "stok.kart.listele"),
-            new("quantity", "Miktar", "number", true, false, null),
-            new("unitCode", "Birim", "lookup", false, false, "stok.kart.birimleri"),
-            new("unitPrice", "Birim fiyat", "number", true, false, null),
-            new("currencyCode", "Döviz", "text", false, false, null),
-            new("discountPercent", "İsk. %", "number", false, false, null),
-            new("vatPercent", "KDV %", "number", false, false, null),
-            new("isVatIncluded", "KDV dâhil", "checkbox", false, false, null),
-            new("availableQuantity", "Kullanılabilir", "number", false, true, null),
-            new("lineSubtotal", "Ara toplam", "money", false, true, null),
-            new("discountAmount", "İskonto", "money", false, true, null),
-            new("taxAmount", "KDV", "money", false, true, null),
-            new("lineTotal", "Tutar", "money", false, true, null),
-            new("deliveredQuantity", "Sevk edilen", "number", false, true, null, VisibleFrom: nameof(SalesOrderStatus.Open))
-        ],
+        [.. SalesDocumentModelParts.LineColumns(),
+            new("deliveredQuantity", "Sevk edilen", "number", false, true, null, VisibleFrom: nameof(SalesOrderStatus.Open))],
         [State(SalesOrderStatus.Draft), State(SalesOrderStatus.PendingApproval), State(SalesOrderStatus.Open), State(SalesOrderStatus.Fulfilled),
             State(SalesOrderStatus.Invoiced), State(SalesOrderStatus.Cancelled, terminal: true)],
         [
@@ -43,10 +29,7 @@ internal static class SalesOrderDocumentModel
             new(SalesOrderTransitionEndpoints.Cancel, "İptal et", ["Draft", "PendingApproval", "Open"], "Cancelled", "satis.siparis.iptal", true)
         ],
         "satis.siparis.belge", "satis.siparis.hesapla", "satis.siparis.doldur",
-        new Dictionary<string, IReadOnlyList<string>>
-        {
-            ["stockItemId"] = ["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"]
-        },
+        SalesDocumentModelParts.StockFills(),
         "satis.siparis.olustur", "satis.siparis.guncelle");
 
     /// <summary>

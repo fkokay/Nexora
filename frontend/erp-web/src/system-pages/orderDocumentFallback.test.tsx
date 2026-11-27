@@ -11,12 +11,13 @@ const { api } = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('../erpApi', () => ({ api }));
 
 const KEY = 'sales-order-document';
+const QUOTE_KEY = 'sales-quote-document';
 const tenant = { id: 't1', name: 'Firma', role: 'TenantAdmin' } as unknown as AppTypes.Tenant;
 const noop = () => {};
 
-function show(onNavigate: (page: string) => void) {
+function show(onNavigate: (page: string) => void, page = KEY) {
   return render(<Suspense fallback={null}>
-    <WorkspacePageRouter page={KEY} token="tok" tenant={tenant} locale="tr" platformStatus="" selectedModuleMenu={null}
+    <WorkspacePageRouter page={page} token="tok" tenant={tenant} locale="tr" platformStatus="" selectedModuleMenu={null}
       pendingCustomerInvoiceId={null} initialCustomerSearch="" onOpenSalesInvoice={noop} onOpenPurchaseInvoices={noop}
       onInitialInvoiceOpened={noop} pendingPurchaseSupplier={null} onInitialSupplierOpened={noop} onNavigate={onNavigate}
       onLocaleChange={noop} onThemeChange={noop} requestApi={api as never} onOpenStudio={noop} onDevelopModuleStarter={noop}
@@ -24,7 +25,7 @@ function show(onNavigate: (page: string) => void) {
   </Suspense>);
 }
 
-afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); });
+afterEach(() => { cleanup(); setPageParams(KEY, {}); setPageParams('sales-orders', {}); setPageParams(QUOTE_KEY, {}); setPageParams('sales-quote-create', {}); });
 
 describe('Belge sipariş kartı açık değilse', () => {
   it('kimlikli sipariş eski listede o siparişin ayrıntısıyla açılır ve bu sekme kapanır', async () => {
@@ -45,5 +46,28 @@ describe('Belge sipariş kartı açık değilse', () => {
     const onNavigate = vi.fn();
     show(onNavigate);
     await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-order-create'));
+  });
+});
+
+describe('Belge teklif kartı açık değilse', () => {
+  it('kimlikli teklif eski teklif kartında quoteId ile açılır, bu sekme kapanır ve Belge sayfasına dönülmez', async () => {
+    const closed: string[] = [];
+    const onClose = (event: Event) => closed.push((event as CustomEvent<{ page: string }>).detail.page);
+    window.addEventListener(CLOSE_PAGE_EVENT, onClose);
+    try {
+      setPageParams(QUOTE_KEY, { id: 'q1' });
+      const onNavigate = vi.fn();
+      show(onNavigate, QUOTE_KEY);
+      await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-quote-create'));
+      expect(pageParamsOf('sales-quote-create')).toEqual({ quoteId: 'q1' });
+      expect(closed).toContain(QUOTE_KEY);
+      expect(onNavigate).not.toHaveBeenCalledWith(QUOTE_KEY);
+    } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
+  });
+
+  it('kimliksiz istek eski Yeni teklif ekranını açar', async () => {
+    const onNavigate = vi.fn();
+    show(onNavigate, QUOTE_KEY);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-quote-create'));
   });
 });

@@ -3582,34 +3582,10 @@ salesQuotes.MapGet("/{id:guid}/revisions", async (Guid id, ClaimsPrincipal princ
         .ToListAsync();
     return Results.Ok(revisions);
 });
-salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db) =>
+salesQuotes.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, CancellationToken ct) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var quote = await db.SalesQuotes.AsNoTracking().Include(x => x.Customer).Include(x => x.Lines).Include(x => x.Order).Include(x => x.SourceSalesRequest)
-        .SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
-    if (quote is null) return Results.NotFound();
-    var lines = quote.Lines.OrderBy(x => x.LineNumber).Select(x => new SalesQuoteLineView(x.LineNumber, x.StockItemId,
-        x.StockCode, x.StockName, x.UnitCode, x.Quantity, x.UnitPrice, x.DiscountPercent, x.VatPercent,
-        x.LineSubtotal, x.DiscountAmount, x.TaxAmount, x.LineTotal, x.EnteredCurrencyCode, x.EnteredUnitPrice,
-        x.EnteredUnitCode, x.ExchangeRateToQuoteCurrency, x.IsVatIncluded, x.SourceSalesRequestLineNumber)).ToList();
-    var customFields = await (from definition in db.SalesQuoteCustomFieldDefinitions.AsNoTracking().Where(x => x.TenantId == tenantId && x.IsActive)
-        join value in db.SalesQuoteCustomFieldValues.AsNoTracking().Where(x => x.TenantId == tenantId && x.QuoteId == id) on new { definition.TenantId, DefinitionId = definition.Id } equals new { value.TenantId, value.DefinitionId } into grouped
-        from value in grouped.DefaultIfEmpty() orderby definition.Label select new SalesQuoteCustomFieldValueView(definition.Id, definition.Code, definition.Label, definition.DataType, definition.MaxLength, definition.Version, definition.IsRequired, value == null ? "" : value.Value)).ToListAsync();
-    return Results.Ok(new SalesQuoteView(quote.Id, quote.Code, quote.CustomerId, quote.Customer?.Name ?? quote.ProspectCustomerName ?? "Teklif alıcısı", quote.QuoteDate,
-        quote.ValidUntil, quote.CurrencyCode, quote.Status, quote.Notes, quote.Subtotal, quote.DiscountTotal,
-        quote.TaxTotal, quote.GrandTotal, quote.CreatedAt, lines, quote.Order is not null, customFields,
-        quote.RevisionGroupId, quote.RevisionNumber, quote.DeliveryTerms, quote.SalespersonEmployeeId, quote.Customer?.Code,
-        quote.SourceSalesRequestId, quote.SourceSalesRequest?.Code)
-    {
-        // Same display values as the list row (system page detail; the legacy screen takes them from the row).
-        SalespersonName = quote.SalespersonEmployeeId is { } salespersonId
-            ? await db.EmployeeRecords.AsNoTracking().Where(employee => employee.TenantId == tenantId && employee.Id == salespersonId)
-                .Select(employee => employee.PersonnelCode + " · " + employee.FullName).FirstOrDefaultAsync()
-            : null,
-        SalesOrderId = quote.Order?.Id,
-        SalesOrderCode = quote.Order?.Code,
-        ProspectCustomerName = quote.CustomerId is null ? quote.ProspectCustomerName : null
-    });
+    return await SalesQuoteReads.ViewAsync(db, tenantId, id, ct) is { } quote ? Results.Ok(quote) : Results.NotFound();
 });
 salesQuotes.MapPost("/", async (SalesQuoteWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
@@ -3838,12 +3814,15 @@ salesQuotes.MapPost("/{id:guid}/send", async (Guid id, ClaimsPrincipal principal
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    var quote = await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    var quote = db.Database.IsRelational()
+        ? await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync()
+        : await db.SalesQuotes.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (quote is null) return Results.NotFound();
     if (quote.Status != SalesQuoteStatus.Draft) return Results.Conflict(new { error = "Yalnızca taslak teklif iletildi durumuna alınabilir." });
     if (quote.ValidUntil < DateOnly.FromDateTime(DateTime.UtcNow)) return Results.Conflict(new { error = "Geçerlilik tarihi geçmiş teklif iletilemez." });
     quote.Status = SalesQuoteStatus.Sent;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "sales-quote.sent", Resource = quote.Code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesQuote, quote.Id, "ilet", "Müşteriye iletildi", "core", "done", null, GetUserId(principal));
     await db.SaveChangesAsync(); await transaction.CommitAsync();
     var customerName = quote.CustomerId is { } sentCustomerId
         ? await db.CustomerAccounts.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == sentCustomerId).Select(x => x.Name).SingleAsync()
@@ -9019,7 +8998,9 @@ static async Task<IResult> UpdateSalesQuoteStatusAsync(Guid id, SalesQuoteStatus
     var actorUserId = GetUserId(principal);
     if (target == SalesQuoteStatus.Accepted && actorUserId is null) return Results.Forbid();
     await using var transaction = await db.Database.BeginTransactionAsync();
-    var quote = await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync();
+    var quote = db.Database.IsRelational()
+        ? await db.SalesQuotes.FromSqlInterpolated($"SELECT * FROM [dbo].[SalesQuotes] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {id}").SingleOrDefaultAsync()
+        : await db.SalesQuotes.SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == id);
     if (quote is null) return Results.NotFound();
     if (!SalesQuoteWorkflow.CanTransition(quote.Status, target)) return Results.Conflict(new { error = "Teklif durumu bu işlem için uygun değil." });
     if (target == SalesQuoteStatus.Accepted && quote.ValidUntil < DateOnly.FromDateTime(DateTime.UtcNow))
@@ -9043,6 +9024,9 @@ static async Task<IResult> UpdateSalesQuoteStatusAsync(Guid id, SalesQuoteStatus
     }
     quote.Status = target;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = actorUserId, Action = target == SalesQuoteStatus.Accepted ? "sales-quote.accepted" : "sales-quote.rejected", Resource = quote.Code });
+    // İşlem günlüğü of the quote's Belge page (satis.teklif): one row per status change, saved with it.
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesQuote, quote.Id, target == SalesQuoteStatus.Accepted ? "kabulEt" : "reddet",
+        target == SalesQuoteStatus.Accepted ? "Kabul edildi" : "Reddedildi", "core", "done", null, actorUserId);
     if (target == SalesQuoteStatus.Accepted)
         await BusinessRuleEndpoints.ApplySalesQuoteAcceptedRulesAsync(db, quote, actorUserId!.Value, ct);
     await db.SaveChangesAsync(); await transaction.CommitAsync();

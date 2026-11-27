@@ -1,0 +1,77 @@
+{
+  "screenKey": "sales-quote-document",
+  "title": "Satış teklifi (belge)",
+  "description": "Belge kalıbıyla satış teklifi (id): durum zinciri, Kaydet ve geçişler (İlet, Kabul et, Reddet), başlık alanları, stok seçince dolan satırlar, sunucu hesabından tutarlar, KDV dökümü ve işlem günlüğü. Hesap ve durumlar modülden gelir; ayar yoktur.",
+  "module": "Satış & cari",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık alanları (teklif no, cari, tarihler, plasiyer, koşullar, notlar)"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Satırlar (stok, miktar, birim, fiyat, iskonto, KDV, kullanılabilir, tutar)"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Toplamlar, KDV dökümü ve işlem günlüğü"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "satis.teklif"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "customerId",
+            "quoteDate",
+            "validUntil",
+            "salespersonEmployeeId",
+            "deliveryTerms",
+            "notes"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "stockItemId",
+            "quantity",
+            "unitCode",
+            "unitPrice",
+            "discountPercent",
+            "vatPercent",
+            "availableQuantity",
+            "lineTotal"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": true,
+          "activity": true
+        }
+      }
+    ]
+  }
+}
