@@ -72,14 +72,14 @@
       ]
     },
     "component:hesapBasligi": {
-      "since": 1,
+      "since": 2,
       "label": "Seçili hesap özeti (2. adım)",
       "requires": [
         "query:ekstre"
       ]
     },
     "component:hareketler": {
-      "since": 1,
+      "since": 2,
       "label": "Hesap hareketleri (ekstre)",
       "requires": [
         "component:hareketIptalDugmesi",
@@ -89,7 +89,7 @@
       ]
     },
     "component:hareketIptalDugmesi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareketi iptal et (satır)",
       "requires": [
         "component:hareketler",
@@ -100,7 +100,7 @@
       ]
     },
     "component:transferIptalDugmesi": {
-      "since": 1,
+      "since": 2,
       "label": "Transferi iptal et (satır)",
       "requires": [
         "component:hareketler",
@@ -111,7 +111,7 @@
       ]
     },
     "component:nakitAkisiDugmesi": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı sınıfı (satır)",
       "requires": [
         "component:hareketler",
@@ -119,7 +119,7 @@
       ]
     },
     "component:manuelHareketPenceresi": {
-      "since": 1,
+      "since": 2,
       "label": "Manuel hareket penceresi",
       "requires": [
         "component:hareketKarti",
@@ -132,7 +132,7 @@
       ]
     },
     "component:hareketKarti": {
-      "since": 1,
+      "since": 2,
       "label": "Manuel hareket formu",
       "requires": [
         "component:hareketYonu",
@@ -144,42 +144,42 @@
       ]
     },
     "component:hareketYonu": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Yön"
     },
     "component:hareketTarihi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Tarih"
     },
     "component:hareketTutari": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Tutar",
       "requires": [
         "query:ekstre"
       ]
     },
     "component:hareketReferansi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Referans"
     },
     "component:hareketAciklamasi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Açıklama"
     },
     "component:hareketNakitAkisi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket alanı: Nakit akışı sınıfı"
     },
     "component:hareketIstekKimligi": {
-      "since": 1,
+      "since": 2,
       "label": "Hareket tekrar deneme kimliği (gizli)"
     },
     "component:hareketNotu": {
-      "since": 1,
+      "since": 2,
       "label": "Manuel hareket notu"
     },
     "component:transferPenceresi": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer / döviz penceresi",
       "requires": [
         "component:transferKarti",
@@ -192,7 +192,7 @@
       ]
     },
     "component:transferKarti": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer formu",
       "requires": [
         "component:hedefHesap",
@@ -203,44 +203,44 @@
       ]
     },
     "component:hedefHesap": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer alanı: Hedef hesap",
       "requires": [
         "query:tumHesaplar"
       ]
     },
     "component:transferTarihi": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer alanı: Tarih"
     },
     "component:transferReferansi": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer alanı: Referans"
     },
     "component:transferTutari": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer alanı: Kaynak tutarı",
       "requires": [
         "query:ekstre"
       ]
     },
     "component:transferKuru": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer alanı: Kur"
     },
     "component:transferIstekKimligi": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer tekrar deneme kimliği (gizli)"
     },
     "component:transferNotu": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer notu",
       "requires": [
         "query:hesaplar"
       ]
     },
     "component:nakitAkisiPenceresi": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı sınıfı penceresi",
       "requires": [
         "component:hareketler",
@@ -251,21 +251,21 @@
       ]
     },
     "component:nakitAkisiKarti": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı formu",
       "requires": [
         "component:nakitAkisiSecimi"
       ]
     },
     "component:nakitAkisiSecimi": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı alanı",
       "requires": [
         "component:hareketler"
       ]
     },
     "component:nakitAkisiNotu": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı notu"
     },
     "query:hesaplar": {
@@ -287,7 +287,7 @@
       "label": "Transfer hedefleri (kasa ve banka)"
     },
     "query:ekstre": {
-      "since": 1,
+      "since": 2,
       "label": "Seçili hesabın ekstresi",
       "requires": [
         "component:hareketler"
@@ -315,7 +315,7 @@
       ]
     },
     "query:hareketEkle": {
-      "since": 1,
+      "since": 2,
       "label": "Manuel hareket ekle",
       "requires": [
         "component:hareketYonu",
@@ -328,21 +328,21 @@
       ]
     },
     "query:hareketIptal": {
-      "since": 1,
+      "since": 2,
       "label": "Hareketi ters kayıtla iptal et",
       "requires": [
         "component:hareketler"
       ]
     },
     "query:transferIptal": {
-      "since": 1,
+      "since": 2,
       "label": "Transferi ters kayıtla iptal et",
       "requires": [
         "component:hareketler"
       ]
     },
     "query:nakitAkisiDegistir": {
-      "since": 1,
+      "since": 2,
       "label": "Nakit akışı sınıfını değiştir",
       "requires": [
         "component:hareketler",
@@ -350,7 +350,7 @@
       ]
     },
     "query:transferOlustur": {
-      "since": 1,
+      "since": 2,
       "label": "Transfer oluştur",
       "requires": [
         "component:hedefHesap",
