@@ -53,14 +53,14 @@ public sealed class DocumentRuleEndpointsTests
         Assert.Equal(1, view.GetProperty("published").GetProperty("version").GetInt32());
         Assert.Equal(1, view.GetProperty("published").GetProperty("rules").GetArrayLength());
         Assert.Equal(2, view.GetProperty("draft").GetProperty("version").GetInt32());
-        Assert.Equal(["Draft", "Published"], view.GetProperty("history").EnumerateArray().Select(x => x.GetProperty("status").GetString()));
+        Assert.Equal<IEnumerable<string?>>(["Draft", "Published"], view.GetProperty("history").EnumerateArray().Select(x => x.GetProperty("status").GetString()));
         Assert.Equal(11, view.GetProperty("fields").GetArrayLength());
 
         using (var publish = await client.PostAsJsonAsync(Route + "/publish", new { })) Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
         var after = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync(Route));
         Assert.Equal(2, after.GetProperty("published").GetProperty("version").GetInt32());
         Assert.Equal(JsonValueKind.Null, after.GetProperty("draft").ValueKind);
-        Assert.Equal(["Published", "Archived"], after.GetProperty("history").EnumerateArray().Select(x => x.GetProperty("status").GetString()));
+        Assert.Equal<IEnumerable<string?>>(["Published", "Archived"], after.GetProperty("history").EnumerateArray().Select(x => x.GetProperty("status").GetString()));
         using var nothing = await client.PostAsJsonAsync(Route + "/publish", new { });
         Assert.Equal(HttpStatusCode.Conflict, nothing.StatusCode);
     }

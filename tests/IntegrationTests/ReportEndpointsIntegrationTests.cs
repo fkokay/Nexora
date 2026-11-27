@@ -156,7 +156,7 @@ public sealed class ReportEndpointsIntegrationTests
         using var restoredJson = JsonDocument.Parse(await restore.Content.ReadAsStringAsync());
         Assert.Equal(3, restoredJson.RootElement.GetProperty("definitionRevision").GetInt32());
         Assert.Equal("Customers", restoredJson.RootElement.GetProperty("name").GetString());
-        Assert.Equal(new[] { "code", "name" }, restoredJson.RootElement.GetProperty("definition").GetProperty("columns").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "name" }, restoredJson.RootElement.GetProperty("definition").GetProperty("columns").EnumerateArray().Select(x => x.GetString()));
         var restoredHistory = await client.GetFromJsonAsync<JsonElement[]>($"/api/reports/{reportId}/history");
         Assert.Equal(new[] { 3, 2, 1 }, restoredHistory!.Select(x => x.GetProperty("revision").GetInt32()));
 

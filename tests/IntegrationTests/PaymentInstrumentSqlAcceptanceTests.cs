@@ -312,7 +312,7 @@ public sealed class PaymentInstrumentSqlAcceptanceTests
             using var eventsResponse = await client.GetAsync($"/api/finance/payment-instruments/{instrumentId}/events");
             Assert.Equal(HttpStatusCode.OK, eventsResponse.StatusCode);
             using var eventsJson = JsonDocument.Parse(await eventsResponse.Content.ReadAsStringAsync());
-            Assert.Equal(new[] { "Created", "Collected", "Bounced" }, eventsJson.RootElement.EnumerateArray()
+            Assert.Equal<IEnumerable<string?>>(new[] { "Created", "Collected", "Bounced" }, eventsJson.RootElement.EnumerateArray()
                 .Select(item => item.GetProperty("eventType").GetString()).ToArray());
 
             await using var assertDb = new TenantDbContext(options);

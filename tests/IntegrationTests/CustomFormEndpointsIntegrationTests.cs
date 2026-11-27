@@ -148,7 +148,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "customer-details");
-        Assert.Equal(new[] { "groupName", "taxNumber", "identityNumber", "taxOffice", "currencyCode", "paymentTermDays", "riskLimit" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "groupName", "taxNumber", "identityNumber", "taxOffice", "currencyCode", "paymentTermDays", "riskLimit" },
             catalog.GetProperty("fields").EnumerateArray().Select(field => field.GetProperty("key").GetString()).ToArray());
 
         var created = await client.PostAsJsonAsync("/api/screen-views/customer-details/draft", new { name = "Cari yan paneli" });
@@ -338,7 +338,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var quotes = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "purchase-supplier-quotes");
         var catalogKeys = quotes.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray();
-        Assert.Equal(["code", "requestCode", "supplierName", "quoteDate", "validUntil", "status", "grandTotal", "lineCount", "createdAt"], catalogKeys);
+        Assert.Equal<IEnumerable<string?>>(["code", "requestCode", "supplierName", "quoteDate", "validUntil", "status", "grandTotal", "lineCount", "createdAt"], catalogKeys);
 
         var standard = await client.GetFromJsonAsync<JsonElement>("/api/screen-views/purchase-supplier-quotes/active");
         Assert.False(standard.GetProperty("isPublished").GetBoolean());
@@ -381,7 +381,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var centers = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "manufacturing-work-centers");
-        Assert.Equal(["code", "name", "capacityMinutesPerDay", "laborCostPerHourBase", "overheadCostPerHourBase", "status", "shift"],
+        Assert.Equal<IEnumerable<string?>>(["code", "name", "capacityMinutesPerDay", "laborCostPerHourBase", "overheadCostPerHourBase", "status", "shift"],
             centers.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/manufacturing-work-centers/draft", new { name = "Kapasite görünümü" })).Content.ReadAsStringAsync());
@@ -417,7 +417,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var ledger = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "customer-ledger-entries");
-        Assert.Equal(["entryDate", "source", "description", "direction", "debit", "credit", "balance", "currencyCode"],
+        Assert.Equal<IEnumerable<string?>>(["entryDate", "source", "description", "direction", "debit", "credit", "balance", "currencyCode"],
             ledger.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/customer-ledger-entries/draft", new { name = "Ekstre görünümü" })).Content.ReadAsStringAsync());
@@ -455,7 +455,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var transfers = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-transfers");
-        Assert.Equal(["code", "transferDate", "fromWarehouseName", "toWarehouseName", "lineCount", "status", "createdAt", "actions"],
+        Assert.Equal<IEnumerable<string?>>(["code", "transferDate", "fromWarehouseName", "toWarehouseName", "lineCount", "status", "createdAt", "actions"],
             transfers.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-transfers/draft", new { name = "Transfer görünümü" })).Content.ReadAsStringAsync());
@@ -494,7 +494,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var warehouses = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-warehouses");
-        Assert.Equal(["code", "name", "status", "availability"],
+        Assert.Equal<IEnumerable<string?>>(["code", "name", "status", "availability"],
             warehouses.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-warehouses/draft", new { name = "Depo görünümü" })).Content.ReadAsStringAsync());
@@ -533,7 +533,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var history = Assert.Single(catalog!, x => x.GetProperty("key").GetString() == "inventory-movement-history");
-        Assert.Equal(["entryDate", "direction", "quantity", "warehouse", "storageLocation", "tracking", "description", "unitCostBase"],
+        Assert.Equal<IEnumerable<string?>>(["entryDate", "direction", "quantity", "warehouse", "storageLocation", "tracking", "description", "unitCostBase"],
             history.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/inventory-movement-history/draft", new { name = "Maliyetli hareketler" })).Content.ReadAsStringAsync());
@@ -736,7 +736,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var stockCatalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "inventory-stock");
         var catalogFields = stockCatalog.GetProperty("fields").EnumerateArray().ToArray();
         var expectedKeys = new[] { "code", "name", "category", "quantityOnHand", "reservedQuantity", "availableQuantity", "minimumStock", "valuationAmountBase", "unvaluedQuantity", "status", "actions" };
-        Assert.Equal(expectedKeys, catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(expectedKeys, catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         var action = catalogFields[^1];
         Assert.True(action.GetProperty("fixed").GetBoolean());
         Assert.True(action.GetProperty("defaultVisible").GetBoolean());
@@ -791,7 +791,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "inventory-stock-movements");
         var fields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "entryDate", "direction", "description", "quantity", "unitCostBase", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "entryDate", "direction", "description", "quantity", "unitCostBase", "actions" },
             fields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(fields[^1].GetProperty("fixed").GetBoolean());
 
@@ -836,7 +836,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "exchange-rates");
         var fields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "rateDate", "currencyCode", "rate", "revision", "source" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "rateDate", "currencyCode", "rate", "revision", "source" },
             fields.Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/exchange-rates/draft", new { name = "Kur listesi" });
@@ -881,7 +881,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "warehouse-location-balances");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "stockItemCode", "stockItemName", "quantity", "unitCode" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "stockItemCode", "stockItemName", "quantity", "unitCode" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/warehouse-location-balances/draft", new { name = "Raf bakiyeleri" });
@@ -936,7 +936,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "inventory-trace-balances");
-        Assert.Equal(new[] { "trackingCode", "trackingMode", "stockItem", "warehouse", "quantityOnHand", "expiryDate", "lastMovementDate" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "trackingCode", "trackingMode", "stockItem", "warehouse", "quantityOnHand", "expiryDate", "lastMovementDate" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/inventory-trace-balances/draft", new { name = "Lot bakiyeleri" });
@@ -981,7 +981,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-journals");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "entryDate", "sourceType", "description", "totalDebit", "totalCredit" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "entryDate", "sourceType", "description", "totalDebit", "totalCredit" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[0].GetProperty("fixed").GetBoolean());
 
@@ -1032,7 +1032,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-transfer-sources");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "source", "entryDate", "description", "amount", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "source", "entryDate", "description", "amount", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1080,7 +1080,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "sales-orders");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "quoteCode", "customerName", "orderDate", "lineCount", "grandTotal", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "quoteCode", "customerName", "orderDate", "lineCount", "grandTotal", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1143,7 +1143,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "sales-order-lines");
-        Assert.Equal(new[] { "stockCode", "stockName", "quantity", "deliveredQuantity", "remainingQuantity", "reservedQuantity", "unitPrice", "lineTotal" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "stockCode", "stockName", "quantity", "deliveredQuantity", "remainingQuantity", "reservedQuantity", "unitPrice", "lineTotal" },
             catalog.GetProperty("fields").EnumerateArray().Select(field => field.GetProperty("key").GetString()).ToArray());
 
         using var created = JsonDocument.Parse(await (await client.PostAsJsonAsync("/api/screen-views/sales-order-lines/draft", new { name = "Sipariş satırları" })).Content.ReadAsStringAsync());
@@ -1298,7 +1298,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-invoices");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "supplierName", "receiptCode", "purchaseOrderCode", "invoiceDate", "dueDate", "currencyCode", "grandTotal", "paidAmount", "outstandingAmount", "lineCount", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "supplierName", "receiptCode", "purchaseOrderCode", "invoiceDate", "dueDate", "currencyCode", "grandTotal", "paidAmount", "outstandingAmount", "lineCount", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1345,7 +1345,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-invoice-receipt-selection");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "receipt", "supplier", "receiptDate", "warehouse", "lineCount", "purchaseOrderTotal", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "receipt", "supplier", "receiptDate", "warehouse", "lineCount", "purchaseOrderTotal", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1385,7 +1385,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "purchase-orders");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "supplierName", "orderDate", "expectedReceiptDate", "targetWarehouseCode", "lineCount", "grandTotal", "currencyCode", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "supplierName", "orderDate", "expectedReceiptDate", "targetWarehouseCode", "lineCount", "grandTotal", "currencyCode", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1431,7 +1431,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "sales-deliveries");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "orderCode", "deliveryDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "invoiceStatus", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "orderCode", "deliveryDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "invoiceStatus", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1479,7 +1479,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "sales-returns");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "returnDate", "warehouseName", "lineCount", "grandTotal", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "returnDate", "warehouseName", "lineCount", "grandTotal", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1533,7 +1533,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "fixed-assets");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "assetCode", "name", "category", "acquisitionDate", "inServiceDate", "acquisitionCostBase", "residualValueBase", "usefulLifeMonths", "accumulatedDepreciationBase", "remainingBookValueBase", "vukTaxYear", "vukDepreciationLowerLimitTry", "vukCommuniqueNumber", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "assetCode", "name", "category", "acquisitionDate", "inServiceDate", "acquisitionCostBase", "residualValueBase", "usefulLifeMonths", "accumulatedDepreciationBase", "remainingBookValueBase", "vukTaxYear", "vukDepreciationLowerLimitTry", "vukCommuniqueNumber", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1618,11 +1618,11 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var depreciation = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "fixed-asset-depreciation");
-        Assert.Equal(new[] { "periodStart", "amountBase", "isPosted", "journalEntryId" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "periodStart", "amountBase", "isPosted", "journalEntryId" },
             depreciation.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
         var assignments = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "fixed-asset-assignments");
         var assignmentFields = assignments.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "employee", "assignedDate", "returnedDate", "location", "actions" }, assignmentFields.Select(x => x.GetProperty("key").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "employee", "assignedDate", "returnedDate", "location", "actions" }, assignmentFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(assignmentFields[^1].GetProperty("fixed").GetBoolean());
 
         foreach (var (key, firstKey, label) in new[]
@@ -1674,7 +1674,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "payment-instruments");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "instrumentNumber", "code", "type", "direction", "counterpartyName", "bankName", "dueDate", "amount", "currencyCode", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "instrumentNumber", "code", "type", "direction", "counterpartyName", "bankName", "dueDate", "amount", "currencyCode", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1734,7 +1734,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "commercial-contracts");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "type", "counterpartyName", "effectiveFrom", "effectiveThrough", "currencyCode", "status", "revision", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "type", "counterpartyName", "effectiveFrom", "effectiveThrough", "currencyCode", "status", "revision", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1778,7 +1778,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "hr-employees");
         var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "personnelCode", "fullName", "department", "jobTitle", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "personnelCode", "fullName", "department", "jobTitle", "status", "actions" },
             allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1882,7 +1882,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "hr-leave-requests");
         var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "employee", "leaveType", "startDate", "endDate", "requestedDays", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "employee", "leaveType", "startDate", "endDate", "requestedDays", "status", "actions" },
             allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -1952,7 +1952,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "hr-attendance");
         var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "employee", "workDate", "workedMinutes", "overtimeMinutes", "note", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "employee", "workDate", "workedMinutes", "overtimeMinutes", "note", "actions" },
             allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2020,7 +2020,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "direct-cash-budgets");
         var allowedFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "name", "fiscalYear", "currencyCode", "status", "lineCount", "revision", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "name", "fiscalYear", "currencyCode", "status", "lineCount", "revision", "actions" },
             allowedFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(allowedFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2099,7 +2099,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "operational-projects");
         var fields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "name", "status", "startDate", "endDate", "budgetAmount", "currencyCode", "taskCount", "completedTaskCount", "overdueTaskCount", "actualHours", "nextTaskDate", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "name", "status", "startDate", "endDate", "budgetAmount", "currencyCode", "taskCount", "completedTaskCount", "overdueTaskCount", "actualHours", "nextTaskDate", "actions" },
             fields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(fields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2177,7 +2177,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         {
             var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == expected.Key);
             var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-            Assert.Equal(expected.Keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+            Assert.Equal<IEnumerable<string?>>(expected.Keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
             if (expected.Key == "operational-project-tasks")
                 Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2248,7 +2248,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         {
             var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == expected.Key);
             var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-            Assert.Equal(expected.Keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
+            Assert.Equal<IEnumerable<string?>>(expected.Keys, catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
             if (expected.FixedKey is not null)
                 Assert.True(catalogFields.Single(field => field.GetProperty("key").GetString() == expected.FixedKey).GetProperty("fixed").GetBoolean());
 
@@ -2303,7 +2303,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "standalone-invoice-drafts");
         var fields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "invoiceNumber", "supplierName", "invoiceDate", "dueDate", "currencyCode", "grandTotal", "lineCount", "createdAt", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "invoiceNumber", "supplierName", "invoiceDate", "dueDate", "currencyCode", "grandTotal", "lineCount", "createdAt", "status", "actions" },
             fields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(fields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2369,7 +2369,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "purchase-receipts");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "purchaseOrderCode", "receiptDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "purchaseOrderCode", "receiptDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2432,7 +2432,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "sales-quotes");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "customerName", "salesperson", "salesOrderCode", "quoteDate", "validUntil", "lineCount", "grandTotal", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "customerName", "salesperson", "salesOrderCode", "quoteDate", "validUntil", "lineCount", "grandTotal", "status", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2495,7 +2495,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "sales-promotions");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "name", "discountPercent", "effectiveFrom", "effectiveThrough", "status", "applicationCount" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "name", "discountPercent", "effectiveFrom", "effectiveThrough", "status", "applicationCount" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
 
         var created = await client.PostAsJsonAsync("/api/screen-views/sales-promotions/draft", new { name = "Kampanyalarım" });
@@ -2544,7 +2544,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "sales-campaign-performance");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "campaign", "applications", "appliedQuotes", "discountTotals", "linkedOrders", "linkedOrderTotals" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "campaign", "applications", "appliedQuotes", "discountTotals", "linkedOrders", "linkedOrderTotals" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
 
         var created = await client.PostAsJsonAsync("/api/screen-views/sales-campaign-performance/draft", new { name = "Kampanya raporum" });
@@ -2593,7 +2593,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "purchase-delivery-notes");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "documentNumber", "documentDate", "purchaseOrderCode", "supplierName", "lineCount", "pricedGrandTotal", "pricingState", "purchaseReceiptCode", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "documentNumber", "documentDate", "purchaseOrderCode", "supplierName", "lineCount", "pricedGrandTotal", "pricingState", "purchaseReceiptCode", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2657,7 +2657,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var screen = Assert.Single(catalog!, item => item.GetProperty("key").GetString() == "manufacturing-orders");
         var catalogFields = screen.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "plannedDate", "billOfMaterialName", "warehouseName", "plannedQuantity", "components", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "plannedDate", "billOfMaterialName", "warehouseName", "plannedQuantity", "components", "status", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2729,7 +2729,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-statements");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "account", "period", "openingBalance", "closingBalance", "matching", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "account", "period", "openingBalance", "closingBalance", "matching", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2780,7 +2780,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-statement-lines");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "lineNumber", "transactionDate", "direction", "description", "externalId", "reference", "amount", "matchStatus", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "lineNumber", "transactionDate", "direction", "description", "externalId", "reference", "amount", "matchStatus", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -2825,7 +2825,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-statement-unmatched-book");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "date", "source", "description", "amount" }, catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
+        Assert.Equal<IEnumerable<string?>>(new[] { "date", "source", "description", "amount" }, catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.All(catalogFields, x => Assert.False(x.GetProperty("fixed").GetBoolean()));
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-statement-unmatched-book/draft", new { name = "Eşleşmeyen hareketlerim" });
@@ -2866,7 +2866,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-fx-exposure");
-        Assert.Equal(new[] { "invoice", "counterparty", "direction", "invoiceDate", "currencyCode", "outstandingAmount", "invoiceDateRate", "currentRate", "estimatedChangeBase" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "invoice", "counterparty", "direction", "invoiceDate", "currencyCode", "outstandingAmount", "invoiceDateRate", "currentRate", "estimatedChangeBase" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-fx-exposure/draft", new { name = "Döviz riskim" });
@@ -2908,7 +2908,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-maturity-aging");
-        Assert.Equal(new[] { "direction", "currencyCode", "invoiceCount", "outstandingAmount", "notDue", "days1To30", "days31To60", "days61To90", "over90Days" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "direction", "currencyCode", "invoiceCount", "outstandingAmount", "notDue", "days1To30", "days31To60", "days61To90", "over90Days" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-maturity-aging/draft", new { name = "Vade dağılımım" });
@@ -2950,7 +2950,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-maturities");
-        Assert.Equal(new[] { "invoice", "counterparty", "direction", "invoiceDate", "dueDate", "outstandingAmount", "status" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "invoice", "counterparty", "direction", "invoiceDate", "dueDate", "outstandingAmount", "status" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-maturities/draft", new { name = "Vade listem" });
@@ -2992,7 +2992,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-cash-flow-forecast");
-        Assert.Equal(new[] { "periodStart", "openingBalance", "receivables", "payables", "instrumentReceivables", "instrumentPayables", "creditFacilityPayments", "directCashBudgetInflows", "directCashBudgetOutflows", "postedMovements", "netChange", "closingBalance", "overdueTotal" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "periodStart", "openingBalance", "receivables", "payables", "instrumentReceivables", "instrumentPayables", "creditFacilityPayments", "directCashBudgetInflows", "directCashBudgetOutflows", "postedMovements", "netChange", "closingBalance", "overdueTotal" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-cash-flow-forecast/draft", new { name = "Nakit tahminim" });
@@ -3035,7 +3035,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-income-statement");
-        Assert.Equal(new[] { "account", "section", "debit", "credit", "balance" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "account", "section", "debit", "credit", "balance" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-income-statement/draft", new { name = "Gelir raporum" });
@@ -3078,7 +3078,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-ledger-accounts");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "code", "name", "statementSection", "status", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "code", "name", "statementSection", "status", "actions" },
             catalogFields.Select(x => x.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -3122,7 +3122,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-ledger-mappings");
-        Assert.Equal(new[] { "sourceAccount", "tenantAccount", "status" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "sourceAccount", "tenantAccount", "status" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-ledger-mappings/draft", new { name = "Hesap eşleştirmeleri" });
@@ -3163,7 +3163,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-balance-sheet");
-        Assert.Equal(new[] { "account", "section", "debit", "credit", "balance" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "account", "section", "debit", "credit", "balance" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-balance-sheet/draft", new { name = "Bilanço düzenim" });
@@ -3254,7 +3254,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-cash-flow-report");
-        Assert.Equal(new[] { "currencyCode", "openingBalance", "operating", "investing", "financing", "internalTransfers", "unclassified", "openingAdjustments", "netChange", "closingBalance", "reconciles" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "currencyCode", "openingBalance", "operating", "investing", "financing", "internalTransfers", "unclassified", "openingAdjustments", "netChange", "closingBalance", "reconciles" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-cash-flow-report/draft", new { name = "Gerçekleşen nakit raporum" });
@@ -3295,7 +3295,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-trial-balance");
-        Assert.Equal(new[] { "account", "openingDebit", "openingCredit", "debit", "credit", "balanceDebit", "balanceCredit" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "account", "openingDebit", "openingCredit", "debit", "credit", "balanceDebit", "balanceCredit" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-trial-balance/draft", new { name = "Aylık mizan" });
@@ -3336,7 +3336,7 @@ public sealed class CustomFormEndpointsIntegrationTests
 
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, x => x.GetProperty("key").GetString() == "finance-budget-scenarios");
-        Assert.Equal(new[] { "periodStart", "account", "section", "plannedAmount", "actualAmount", "variance", "notes" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "periodStart", "account", "section", "plannedAmount", "actualAmount", "variance", "notes" },
             catalog.GetProperty("fields").EnumerateArray().Select(x => x.GetProperty("key").GetString()).ToArray());
 
         var create = await client.PostAsJsonAsync("/api/screen-views/finance-budget-scenarios/draft", new { name = "Bütçe gerçekleşen görünümü" });
@@ -3427,7 +3427,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "finance-account-transactions");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "transactionDate", "source", "description", "cashFlowCategory", "reference", "inflow", "outflow", "actions" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "transactionDate", "source", "description", "cashFlowCategory", "reference", "inflow", "outflow", "actions" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
         Assert.True(catalogFields[^1].GetProperty("fixed").GetBoolean());
 
@@ -3481,7 +3481,7 @@ public sealed class CustomFormEndpointsIntegrationTests
         var catalogs = await client.GetFromJsonAsync<JsonElement[]>("/api/screen-views/catalog");
         var catalog = Assert.Single(catalogs!, item => item.GetProperty("key").GetString() == "sales-distribution-plan");
         var catalogFields = catalog.GetProperty("fields").EnumerateArray().ToArray();
-        Assert.Equal(new[] { "stock", "openDemand", "onHand", "activeReserved", "available", "uncovered", "openOrderCount" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "stock", "openDemand", "onHand", "activeReserved", "available", "uncovered", "openOrderCount" },
             catalogFields.Select(field => field.GetProperty("key").GetString()).ToArray());
 
         var created = await client.PostAsJsonAsync("/api/screen-views/sales-distribution-plan/draft", new { name = "Depo ihtiyaç görünümü" });
