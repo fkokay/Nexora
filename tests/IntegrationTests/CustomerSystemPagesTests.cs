@@ -518,13 +518,13 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(new[] { "yeniTeklif", "yeniSiparis", "yeniIrsaliye", "yeniFatura", "pasifeAlDugmesi", "etkinlestirDugmesi", "hareketlerDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Equal(("list", "detail", "rowActions"), ((string)props["slot"]!, (string)Props("customers", "detayKarti")["slot"]!, (string)Props("customers", "acDugmesi")["slot"]!));
         Assert.DoesNotContain(Definition("customers")["components"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "faturalarDugmesi" or "adreslerDugmesi" or "detayPaneli");
-        foreach (var (button, page) in new[] { ("yeniTeklif", "sales-quote-create"), ("yeniSiparis", "sales-order-create"),
+        foreach (var (button, page) in new[] { ("yeniTeklif", "sales-quote-create"), ("yeniSiparis", "sales-order-document"),
                      ("yeniIrsaliye", "sales-delivery-create"), ("yeniFatura", "sales-invoice-create") })
         {
             var p = Props("customers", button);
             Assert.Equal(("erpPage", page), ((string)p["actionType"]!, (string)p["pageKey"]!));
-            Assert.Equal(button == "yeniSiparis" ? new[] { "customerId={{liste.seciliSatir.id}}", "orderDate={{bugun}}" }
-                : new[] { "customerId={{liste.seciliSatir.id}}" }, Strings(p["params"]));
+            if (button == "yeniSiparis") Assert.False(p.ContainsKey("params"));
+            else Assert.Equal(new[] { "customerId={{liste.seciliSatir.id}}" }, Strings(p["params"]));
         }
         Assert.True((bool)Props("customers", "pasifeAlDugmesi")["confirmEnabled"]!);
         Assert.Equal("{{kart.rows[0].id}}", Binding("customers", "pasifeAl", "id"));

@@ -263,7 +263,7 @@ describe('Satış Siparişleri', () => {
     expect(duplicates()).toEqual([]);
     expect(openMenu()).toEqual(['Sipariş alanları', 'CSV olarak dışa aktar']);
     fireEvent.keyDown(window, { key: 'F2' });
-    expect(onNavigate).toHaveBeenCalledWith('sales-order-create');
+    expect(onNavigate).toHaveBeenCalledWith('sales-order-document');
   });
 
   it('an open order holds the bar with its own actions, and gives it back when closed', async () => {

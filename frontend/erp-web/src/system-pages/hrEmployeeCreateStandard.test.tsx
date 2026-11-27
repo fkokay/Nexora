@@ -27,7 +27,8 @@ const respond = (path: string, method: string) => {
 const today = () => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; };
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
-const title = () => document.querySelector('.tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
+const goTo = (name: string) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }));
+const title = () => document.querySelector('.page-shell-sr-title, .tenant-custom-page-header h1, .list-v2-title h1')?.textContent;
 const posts = () => h.writes().filter((call) => call.method === 'POST' && call.url === '/api/hr/employees');
 const puts = () => h.writes().filter((call) => call.method === 'PUT');
 
@@ -50,7 +51,8 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
   it('new: title, hire date today, linked user GUID input, no termination date and no card read', async () => {
     await openNew();
     expect(title()).toBe('Yeni personel');
-    expect(input('iseGirisYeni').value).toBe(today());
+    goTo('Çalışma');
+    expect(input('iseGiris').value).toBe(today());
     expect(input('istenCikis')).toBeNull();
     expect(input('bagliKullanici')).toBeTruthy();
     expect(h.state.calls.filter((call) => call.url.startsWith('/api/hr/employees'))).toEqual([]);
@@ -61,6 +63,7 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     type('kod', 'p-0003');
     type('ad', 'Zeynep Demir');
     type('departman', 'Muhasebe');
+    goTo('Çalışma');
     type('isEpostasi', 'zeynep@firma.com.tr');
     type('bagliKullanici', U1);
     fireEvent.click(h.command('save'));
@@ -86,10 +89,14 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
 
   it('every input has an accessible name from its label', async () => {
     await openNew();
-    for (const name of ['Personel kodu', 'Ad soyad', 'Departman', 'Görev', 'Çalışan kategorisi', 'İş e-postası', 'Bağlı kullanıcı kimliği']) {
+    for (const name of ['Personel kodu', 'Ad soyad', 'Departman', 'Görev', 'Çalışan kategorisi']) {
       expect(screen.getByRole('textbox', { name: new RegExp(`^${name}`) })).toBeTruthy();
     }
-    expect(screen.getByLabelText(/^İşe giriş/)).toBe(input('iseGirisYeni'));
+    goTo('Çalışma');
+    for (const name of ['İş e-postası', 'Bağlı kullanıcı kimliği']) {
+      expect(screen.getByRole('textbox', { name: new RegExp(`^${name}`) })).toBeTruthy();
+    }
+    expect(screen.getByLabelText(/^İşe giriş/)).toBe(input('iseGiris'));
   });
 
   it('new: required fields block the save', async () => {
@@ -105,7 +112,7 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     type('kod', 'P-A');
     type('ad', 'Birinci');
     // Kaydet ve yeni is a bar button next to Kaydet.
-    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
+    fireEvent.click(await waitFor(() => { const button = screen.getByRole('toolbar', { name: 'İşlemler' }).querySelector<HTMLElement>('[data-command="save-and-new"]'); expect(button).not.toBeNull(); return button!; }));
     await waitFor(() => expect(posts()).toHaveLength(1), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     expect(h.state.navigations.filter((request) => request.page === 'hr-employees')).toEqual([]);
@@ -115,13 +122,16 @@ describe('Personel kartı standart tanımı', { timeout: 30000 }, () => {
     await openCard();
     await waitFor(() => expect(title()).toBe('Ayşe Yılmaz'), T);
     expect(input('kod').value).toBe('P-0001');
+    goTo('Çalışma');
     expect(input('iseGiris').value).toBe('2024-03-01');
     expect(input('istenCikis')).toBeTruthy();
     expect(input('istenCikis').placeholder).toContain("Doluysa kayıt 'Ayrıldı' olur");
     expect(input('bagliKullanici')).toBeNull();
     expect(document.body.textContent).toContain(U1);
     await h.ready('save');
+    goTo('Kimlik ve görev');
     type('gorev', 'Vardiya amiri');
+    goTo('Çalışma');
     type('istenCikis', '2026-12-31');
     fireEvent.click(h.command('save'));
     await waitFor(() => expect(puts()).toHaveLength(1), T);

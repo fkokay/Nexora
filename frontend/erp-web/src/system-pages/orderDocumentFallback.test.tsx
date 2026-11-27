@@ -42,10 +42,10 @@ describe('Belge sipariş kartı açık değilse', () => {
     } finally { window.removeEventListener(CLOSE_PAGE_EVENT, onClose); }
   });
 
-  it('kimliksiz istek eski Yeni sipariş ekranını açar', async () => {
+  it('kimliksiz istek sipariş listesini açar', async () => {
     const onNavigate = vi.fn();
     show(onNavigate);
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-order-create'));
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('sales-orders'));
   });
 });
 

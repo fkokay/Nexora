@@ -241,7 +241,7 @@ public sealed class FixedAssetSystemPagesTests
     [Theory]
     [InlineData("fixed-assets", "Duran Varlıklar", 2, "list")]
     [InlineData("fixed-asset-create", "Yeni edinim", 2, "record")]
-    [InlineData("fixed-asset-card", "Kıymet kartı", 1, null)]
+    [InlineData("fixed-asset-card", "Kıymet kartı", 2, "record")]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version, string? template)
     {
         var standard = SystemPageStandards.All[key];
@@ -314,7 +314,7 @@ public sealed class FixedAssetSystemPagesTests
             (Binding(key, "iadeAl", "assignmentId"), Binding(key, "iadeAl", "rowVersion"), Binding(key, "iadeAl", "returnedDate")));
         Assert.False(Props(key, "iadeDugmesi").ContainsKey("confirmEnabled"));
         Assert.Equal("{{karsiHesap.value}}", Binding(key, "yevmiyele", "offsetAccountId"));
-        foreach (var button in new[] { "vergiKaydiDugmesi", "edinimDugmesi" })
+        foreach (var button in new[] { "vergiKaydiDugmesi", "edinimKaydet" })
             Assert.Equal((true, "Bu kayıt yevmiyeye yazılır ve arayüzden geri alınamaz."),
                 ((bool)Props(key, button)["confirmEnabled"]!, (string)Props(key, button)["confirmText"]!));
         AssertWrites(key, "{{kiymet.rows[0].id}}");

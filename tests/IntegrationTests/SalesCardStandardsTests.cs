@@ -66,34 +66,6 @@ public sealed class SalesCardStandardsTests
         Assert.True((bool)yeni["legacyScreen"]!);
     }
 
-    // ---- Order card ----
-
-    [Fact]
-    public void Order_card_edits_from_the_order_and_previews_its_amounts()
-    {
-        var definition = Definition("sales-order-create");
-        Valid(definition);
-        var grid = Props(definition, "kalemler");
-        Assert.Equal("kalemKaynak", (string)grid["fillQuery"]!);
-        Assert.Equal(("satis.siparis.kalemleri", "{{sayfa.parametre.orderId}}"), ((string)Query(definition, "kalemKaynak")["operation"]!,
-            (string)Query(definition, "kalemKaynak")["parameters"]![0]!["binding"]!));
-        Assert.Equal("enteredUnitPrice", (string)grid["fillColumns"]!["unitPrice"]!);
-        Assert.Equal("stockCode", (string)grid["fillColumns"]!["stockItemId@label"]!);
-        Assert.Equal(4, grid["gridColumns"]!.AsArray().Count(x => ((string)x!).Contains("|calc:onizleme:", StringComparison.Ordinal)));
-        Assert.Equal(["olustur", "guncelle"], Props(definition, "komutlar")["saveSequence"]!.AsArray().Select(x => (string)x!));
-        Assert.Equal("{{musteriKarti.rows[0].currencyCode}}", (string)Query(definition, "olustur")["parameters"]!.AsArray().OfType<JsonObject>()
-            .Single(x => (string)x["name"]! == "currencyCode")["binding"]!);
-        // The preview takes the customer's currency itself; it does not wait for the customer read.
-        Assert.False(Op("satis.siparis.hesapla").Parameters.Single(x => x.Name == "currencyCode").Required);
-        Assert.DoesNotContain(Query(definition, "onizleme")["parameters"]!.AsArray().OfType<JsonObject>(), x => (string)x["name"]! == "currencyCode");
-        // The list sends what the card's header defaults read (the engine has no "from the record, else" default).
-        var orders = Definition("sales-orders");
-        Assert.Contains("orderDate={{bugun}}", Props(orders, "yeniDugmesi")["params"]!.AsArray().Select(x => (string)x!));
-        Assert.Equal(["orderId={{liste.seciliSatir.id}}", "customerId={{liste.seciliSatir.customerId}}", "orderDate={{liste.seciliSatir.orderDate}}"],
-            Props(orders, "duzenleDugmesi")["params"]!.AsArray().Select(x => (string)x!));
-        Assert.True(SystemPageStandards.TryGet("sales-order-create", out var standard));
-        Assert.Equal((2, "preview"), (standard.Version, standard.Stage));
-    }
 
     [Fact]
     public void Card_operations_follow_their_endpoints()

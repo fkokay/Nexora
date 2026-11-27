@@ -2030,7 +2030,7 @@ export function SalesPage({
             {item.status === "Draft" && (
               <button role="menuitem" className="sales-row-menu-item" onClick={() => {
                 sessionStorage.setItem("nexora.sales-order.edit-id", item.id);
-                onNavigate("sales-order-create");
+                onNavigate("sales-order-document");
               }}>Düzenle</button>
             )}
             {role === "TenantAdmin" && (
@@ -2104,7 +2104,7 @@ export function SalesPage({
         : quoteListScreen
           ? { primary: !detail, run: () => openQuoteCreatePage() }
           : orderListScreen
-            ? { primary: true, run: () => onNavigate("sales-order-create") }
+            ? { primary: true, run: () => onNavigate("sales-order-document") }
             : undefined;
   const salesCommands: PageCommands = {};
   if (salesNewCommand) salesCommands.new = salesNewCommand;

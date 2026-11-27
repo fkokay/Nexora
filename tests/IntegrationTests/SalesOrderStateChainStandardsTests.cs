@@ -45,14 +45,4 @@ public sealed class SalesOrderStateChainStandardsTests
         Assert.Contains("query:iptal", offered);
     }
 
-    [Fact]
-    public void Order_card_saves_only_drafts()
-    {
-        Assert.True(SystemPageStandards.TryGet("sales-order-create", out var standard));
-
-        Assert.True(standard.Version >= 2);
-        Assert.Contains("status == 'Draft'", Prop(Component(standard, "komutlar"), "commandWhen"));
-        Assert.Contains("status != 'Draft'", Prop(Component(standard, "kalemler"), "disabledWhen"));
-        Assert.Contains("status != 'Draft'", Prop(Component(standard, "duzenlemeUyarisi"), "visibleWhen"));
-    }
 }
