@@ -47,7 +47,7 @@ public sealed class AgendaIntegrationTests
         Assert.False(created.RootElement.GetProperty("isCompleted").GetBoolean());
 
         var list = await client.GetFromJsonAsync<JsonElement>($"/api/agenda/{Range}");
-        Assert.Equal(new[] { "Tedarikçiyi ara", "Haftalık toplantı" },
+        Assert.Equal<IEnumerable<string?>>(new[] { "Tedarikçiyi ara", "Haftalık toplantı" },
             list.EnumerateArray().Select(x => x.GetProperty("title").GetString() ?? "").ToArray());
 
         var complete = await client.PatchAsJsonAsync($"/api/agenda/{id}/completion", new { isCompleted = true });

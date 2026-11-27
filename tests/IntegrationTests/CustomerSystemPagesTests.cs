@@ -261,7 +261,7 @@ public sealed class CustomerSystemPagesTests
         }
 
         var byId = await Districts("?provinceId=9001");
-        Assert.Equal(new[] { "Ayrık", "Merkez" }, byId.Select(x => x.GetProperty("name").GetString()));
+        Assert.Equal<IEnumerable<string?>>(new[] { "Ayrık", "Merkez" }, byId.Select(x => x.GetProperty("name").GetString()));
         var byName = await Districts($"?provinceName={Uri.EscapeDataString(" Deneme İli ")}");
         Assert.Equal(new[] { 90012, 90011 }, byName.Select(x => x.GetProperty("id").GetInt32()));
         Assert.Equal(new[] { "id", "provinceId", "name", "isActive" }, byName[0].EnumerateObject().Select(x => x.Name));
