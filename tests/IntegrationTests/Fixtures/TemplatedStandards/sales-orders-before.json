@@ -27,8 +27,7 @@
         "hiddenCommands": [
           "save",
           "print"
-        ],
-        "slot": "commands"
+        ]
       }
     },
     {
@@ -43,8 +42,7 @@
         "params": [
           "customerId={{sayfa.parametre.customerId}}",
           "orderDate={{bugun}}"
-        ],
-        "slot": "actions"
+        ]
       }
     },
     {
@@ -57,8 +55,7 @@
         "actionType": "openDialog",
         "dialogId": "siparisPenceresi",
         "disabledWhen": "liste.seciliSatir.id == null",
-        "disabledReason": "Önce bir kayıt seçin",
-        "slot": "rowActions"
+        "disabledReason": "Önce bir kayıt seçin"
       }
     },
     {
@@ -73,8 +70,7 @@
         "params": [
           "id={{liste.seciliSatir.id}}"
         ],
-        "visibleWhen": "liste.seciliSatir.id != null",
-        "slot": "actions"
+        "visibleWhen": "liste.seciliSatir.id != null"
       }
     },
     {
@@ -91,8 +87,7 @@
           "customerId={{liste.seciliSatir.customerId}}",
           "orderDate={{liste.seciliSatir.orderDate}}"
         ],
-        "visibleWhen": "liste.seciliSatir.status == 'Draft'",
-        "slot": "actions"
+        "visibleWhen": "liste.seciliSatir.status == 'Draft'"
       }
     },
     {
@@ -108,8 +103,7 @@
         "refreshQueries": [
           "siparisler",
           "siparis"
-        ],
-        "slot": "actions"
+        ]
       }
     },
     {
@@ -125,8 +119,7 @@
         "refreshQueries": [
           "siparisler",
           "siparis"
-        ],
-        "slot": "actions"
+        ]
       }
     },
     {
@@ -146,8 +139,7 @@
         "refreshQueries": [
           "siparisler",
           "siparis"
-        ],
-        "slot": "actions"
+        ]
       }
     },
     {
@@ -163,8 +155,7 @@
         "params": [
           "orderId={{liste.seciliSatir.id}}"
         ],
-        "visibleWhen": "liste.seciliSatir.status == 'Open'",
-        "slot": "actions"
+        "visibleWhen": "liste.seciliSatir.status == 'Open'"
       }
     },
     {
@@ -175,10 +166,10 @@
         "title": "Sipariş tutarı",
         "value": "{{siparisler.meta.pageGrandTotal}}",
         "format": "money",
+        "width": 3,
         "icon": "wallet",
         "description": "bu sayfa · iptaller hariç · {{siparisler.meta.pageCurrencyCode}}",
-        "visibleWhen": "siparisler.meta.pageMixedCurrencies != true",
-        "slot": "indicators"
+        "visibleWhen": "siparisler.meta.pageMixedCurrencies != true"
       }
     },
     {
@@ -188,10 +179,10 @@
       "props": {
         "title": "Sipariş tutarı",
         "value": "—",
+        "width": 3,
         "icon": "wallet",
         "description": "bu sayfa · iptaller hariç · birden çok para birimi",
-        "visibleWhen": "siparisler.meta.pageMixedCurrencies == true",
-        "slot": "indicators"
+        "visibleWhen": "siparisler.meta.pageMixedCurrencies == true"
       }
     },
     {
@@ -203,10 +194,10 @@
         "query": "siparisler",
         "countWhen": "siparisler.satir.status == 'Open'",
         "format": "number",
+        "width": 3,
         "icon": "truck",
         "variant": "warning",
-        "description": "bu sayfa",
-        "slot": "indicators"
+        "description": "bu sayfa"
       }
     },
     {
@@ -215,10 +206,10 @@
       "name": "suzgec",
       "props": {
         "table": "liste",
+        "width": 10,
         "search": true,
         "searchPlaceholder": "Sipariş no veya müşteriyle ara",
-        "searchParam": "q",
-        "slot": "filters"
+        "searchParam": "q"
       }
     },
     {
@@ -230,6 +221,7 @@
         "query": "siparisler",
         "paging": "server",
         "pageSize": 25,
+        "width": 12,
         "columns": [
           "code",
           "quoteCode",
@@ -281,8 +273,7 @@
         ],
         "rowOpenAction": "acDugmesi",
         "openParam": "orderId",
-        "emptyText": "Aramanızla eşleşen sipariş yok.",
-        "slot": "list"
+        "emptyText": "Aramanızla eşleşen sipariş yok."
       }
     },
     {
@@ -298,8 +289,7 @@
           "siparisDurumu",
           "siparisIslemleri",
           "siparisSekmeleri"
-        ],
-        "slot": "dialogs"
+        ]
       }
     },
     {
@@ -328,8 +318,7 @@
           "Ara toplam={{siparis.rows[0].currencyCode}}",
           "İskonto={{siparis.rows[0].currencyCode}}",
           "KDV={{siparis.rows[0].currencyCode}}"
-        ],
-        "slot": "dialog"
+        ]
       }
     },
     {
@@ -337,7 +326,7 @@
       "type": "section",
       "name": "siparisDurumu",
       "props": {
-        "slot": "dialog"
+        "width": 12
       },
       "children": [
         {
@@ -415,7 +404,7 @@
       "type": "section",
       "name": "siparisIslemleri",
       "props": {
-        "slot": "dialog"
+        "width": 12
       },
       "children": [
         {
@@ -512,8 +501,7 @@
         "tabs": [
           "Sipariş Bilgileri=kalemTablosu,teslimBolumu,rezervasyonBolumu",
           "İrsaliye Geçmişi {{sevkler.satirSayisi}}=irsaliyeTablosu"
-        ],
-        "slot": "dialog"
+        ]
       }
     },
     {
@@ -523,6 +511,7 @@
       "props": {
         "title": "Sipariş satırları",
         "query": "kalemler",
+        "width": 12,
         "showGridSearch": false,
         "showColumnFilters": false,
         "showColumnChooser": false,
@@ -575,8 +564,7 @@
         "totals": [
           "lineTotal"
         ],
-        "emptyText": "Sipariş satırı yok. Miktarlar temel birimdedir.",
-        "slot": "dialog"
+        "emptyText": "Sipariş satırı yok. Miktarlar temel birimdedir."
       }
     },
     {
@@ -584,10 +572,10 @@
       "type": "section",
       "name": "teslimBolumu",
       "props": {
+        "width": 12,
         "title": "Teslim tarihi",
         "description": "MRP, onaylı sipariş talebini bu tarihte karşılamaya çalışır.",
-        "visibleWhen": "siparis.rows[0].status == 'Draft' || siparis.rows[0].status == 'Open'",
-        "slot": "dialog"
+        "visibleWhen": "siparis.rows[0].status == 'Draft' || siparis.rows[0].status == 'Open'"
       },
       "children": [
         {
@@ -625,8 +613,7 @@
       "props": {
         "inputType": "date",
         "label": "İstenen teslim tarihi",
-        "defaultValue": "{{siparis.rows[0].requestedDeliveryDate}}",
-        "slot": "dialog"
+        "defaultValue": "{{siparis.rows[0].requestedDeliveryDate}}"
       }
     },
     {
@@ -634,10 +621,10 @@
       "type": "section",
       "name": "rezervasyonBolumu",
       "props": {
+        "width": 12,
         "title": "Stok ayır",
         "description": "Siparişin teslim edilmemiş ürün miktarları seçilen depoda rezerve edilir. Bu işlem stok hareketi oluşturmaz.",
-        "visibleWhen": "siparis.rows[0].status == 'Open' && kalemler.rows[0].reservationId == null",
-        "slot": "dialog"
+        "visibleWhen": "siparis.rows[0].status == 'Open' && kalemler.rows[0].reservationId == null"
       },
       "children": [
         {
@@ -685,8 +672,7 @@
         "optionDescriptionColumn": "code",
         "minChars": 0,
         "defaultFirst": true,
-        "optionsWhen": "satir.isActive == true",
-        "slot": "dialog"
+        "optionsWhen": "satir.isActive == true"
       }
     },
     {
@@ -697,8 +683,7 @@
         "inputType": "text",
         "label": "Tekrar deneme kimliği",
         "hidden": true,
-        "autoId": true,
-        "slot": "dialog"
+        "autoId": true
       }
     },
     {
@@ -708,6 +693,7 @@
       "props": {
         "title": "İrsaliyeler",
         "query": "sevkler",
+        "width": 12,
         "showGridSearch": false,
         "showColumnFilters": false,
         "showColumnChooser": false,
@@ -753,8 +739,7 @@
         "rowActions": [
           "irsaliyeFaturaAc"
         ],
-        "emptyText": "Henüz irsaliye oluşturulmadı.",
-        "slot": "dialog"
+        "emptyText": "Henüz irsaliye oluşturulmadı."
       }
     },
     {
@@ -765,8 +750,7 @@
         "inputType": "number",
         "label": "İrsaliye geçmişi sayfa boyutu",
         "hidden": true,
-        "defaultValue": "100",
-        "slot": "above"
+        "defaultValue": "100"
       }
     },
     {
@@ -781,8 +765,7 @@
         "params": [
           "invoiceId={{irsaliyeTablosu.seciliSatir.invoiceId}}"
         ],
-        "visibleWhen": "irsaliyeTablosu.seciliSatir.invoiceId != null",
-        "slot": "rowActions"
+        "visibleWhen": "irsaliyeTablosu.seciliSatir.invoiceId != null"
       }
     }
   ],
@@ -1003,8 +986,5 @@
         }
       ]
     }
-  ],
-  "template": {
-    "name": "list"
-  }
+  ]
 }

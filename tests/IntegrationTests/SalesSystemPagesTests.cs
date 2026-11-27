@@ -264,9 +264,9 @@ public sealed class SalesSystemPagesTests
     // Aşama B bumps sales-orders (the order card's Yeni / Düzenle params) and sales-invoices (Yeni stays legacy, P3) to version 2;
     // their buttons changed in place, so every item stays since 1.
     [InlineData("sales-quotes", "Satış Teklifleri", 1)]
-    [InlineData("sales-orders", "Satış Siparişleri", 5)]
+    [InlineData("sales-orders", "Satış Siparişleri", 6)]
     [InlineData("sales-deliveries", "Satış İrsaliyeleri", 1)]
-    [InlineData("sales-invoices", "Satış Faturaları", 2)]
+    [InlineData("sales-invoices", "Satış Faturaları", 3)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];

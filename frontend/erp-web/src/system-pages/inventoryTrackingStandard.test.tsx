@@ -143,7 +143,8 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
     const { container } = setup();
     await ready();
     const list = container.querySelector('.tenant-page-data-grid') as HTMLElement;
-    expect(list.style.gridColumn).toBe('span 8');
+    // Liste kalıbı (5b-2 dalga 1): eski 8/4 kolonluk yerleşim yerine liste 'list', detay 'detail' yerinde yan yana.
+    expect(list.closest('.list-template-list')).not.toBeNull();
     expect(Array.from(list.querySelectorAll('th:not(.advanced-grid-select-cell)')).map((th) => th.textContent)).toEqual([
       'Lot / seri', 'İz türü', 'Stok', 'Stok kodu', 'Depo kodu', 'Depo', 'Mevcut miktar', 'Son kullanma', 'Son hareket',
     ]);
@@ -160,7 +161,8 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
   it('detail panel: empty state until a row is picked, then the selected lot / serial', async () => {
     setup();
     await ready();
-    expect(detail().style.gridColumn).toBe('span 4');
+    expect(detail().closest('.list-template-detail')).not.toBeNull();
+    expect(detail().closest('.list-template-main')?.classList.contains('has-detail')).toBe(true);
     expect(within(detail()).getByText('Bir lot veya seri seçin; ayrıntıları burada görün.')).toBeTruthy();
     expect(detail().querySelector('h3')).toBeNull();
     await pick('SN-1');
@@ -195,7 +197,8 @@ describe('Lot / Seri İzleme standart tanımı', { timeout: 30000 }, () => {
   it('action bar offers only read commands: no new, save or delete', async () => {
     setup();
     await ready();
-    const bar = screen.getByRole('toolbar', { name: 'İşlemler çubuğu' });
+    // Kalıplı sayfada komutlar kabuğun "İşlemler" çubuğundadır (ortak çubuk çizilmez).
+    const bar = screen.getByRole('toolbar', { name: 'İşlemler' });
     await waitFor(() => expect(bar.querySelector('[data-command="export"]')?.getAttribute('aria-disabled')).not.toBe('true'), T);
     const enabled = Array.from(bar.querySelectorAll<HTMLElement>('[data-command]'))
       .filter((item) => item.getAttribute('aria-disabled') !== 'true').map((item) => item.dataset.command);

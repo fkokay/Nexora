@@ -1,6 +1,6 @@
 /// <reference types="node" />
 // Kalıplı sayfadaki pencere ve grup Studio modelinden (yükle → güvenlik ağı → uzlaştır → kaydet) değişmeden geçmeli.
-// Sunucu fikstürü: dönüştürücünün `sales-orders` çıktısı (PageTemplateMigration; tests/IntegrationTests/Fixtures/TemplateDialogs).
+// Gömülü kalıplı `sales-orders` standardı (src/Hosts/AIERP.Api/SystemPages/Standards).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { newListTemplateDefinition } from "../pageTemplates";
@@ -9,7 +9,7 @@ import { dialogOwners } from "./dialogsModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { ensureTemplateSlots } from "./templateGuards";
 
-const fixture = new URL("../../../../../../../tests/IntegrationTests/Fixtures/TemplateDialogs/sales-orders-converted.json", import.meta.url);
+const fixture = new URL("../../../../../../../src/Hosts/AIERP.Api/SystemPages/Standards/sales-orders.json", import.meta.url);
 // Sunucunun `sales-orders` için verdiği ERP işlem kataloğu (erp-web sistem sayfası fikstürü): sayfalı liste yalnız işlemi sayfalamayı
 // destekliyorsa korunur; boş ama hazır bir katalog "işlem yok" demektir ve uzlaştırma sayfalamayı haklı olarak siler.
 const operationsFixture = new URL("../../../../../../erp-web/src/system-pages/salesOrdersOperations.fixture.json", import.meta.url);
@@ -55,8 +55,7 @@ describe("Dialogs and groups through the designer", { timeout: 30_000 }, () => {
     expect(await roundTrip(def)).toEqual(JSON.parse(JSON.stringify(def)));
   });
 
-  // Fikstürü sunucu tarafı (dönüştürücü, PageTemplateMigration) üretir.
-  it("the converted sales-orders fixture comes back unchanged", async () => {
+  it("the templated sales-orders standard comes back unchanged", async () => {
     const raw = JSON.parse(readFileSync(fixture, "utf8")) as { definition?: ModelDefinition } & ModelDefinition;
     const def = raw.definition ?? raw;
     expect(def.template).toBeTruthy();

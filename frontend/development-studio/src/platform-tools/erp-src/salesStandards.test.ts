@@ -10,7 +10,7 @@ import invoicesJson from "../../../../../src/Hosts/AIERP.Api/SystemPages/Standar
 // Satış standartları (src/Hosts/AIERP.Api/SystemPages/Standards/sales-*.json: teklif, sipariş, irsaliye, fatura): tasarımcıda tanınmayan tür/özellik
 // olmadan açılmalı, uzlaştırmadan özellik kaybetmeden geçmeli ve koşulları tasarımcının denetimine takılmamalıdır.
 type Component = { id: string; type: string; name?: string; props: Record<string, unknown>; children?: Component[] };
-type Standard = { definition: { queries: { id: string; name: string }[]; components: Component[] } };
+type Standard = { definition: { template?: { name: string }; queries: { id: string; name: string }[]; components: Component[] } };
 const { reconcileDefinition, managedKeys, contentFields, palette } = designerInternals;
 const standards: [string, Standard][] = [["sales-quotes", JSON.parse(quotesJson)], ["sales-orders", JSON.parse(ordersJson)], ["sales-deliveries", JSON.parse(deliveriesJson)], ["sales-invoices", JSON.parse(invoicesJson)]];
 const flatten = (list: Component[]): Component[] => list.flatMap((component) => [component, ...flatten(component.children ?? [])]);
@@ -25,7 +25,8 @@ for (const [key, standard] of standards) describe(`${key} standardı tasarımcı
     for (const component of all) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop), `${component.id}.${prop}`).toBe(true);
+      // Kalıplı standartta 'slot' kalıp yerleşimidir (kalıp panelleri yönetir), ham alan değildir.
+      for (const prop of Object.keys(component.props)) expect(managedKeys.has(prop) || (!!standard.definition.template && prop === "slot"), `${component.id}.${prop}`).toBe(true);
     }
   });
   for (const queryEditable of [false, true]) it(`uzlaştırma özellik silmez ve değiştirmez (sorgu düzenleme: ${queryEditable})`, () => {
