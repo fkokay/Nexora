@@ -547,6 +547,10 @@ export function setSaveActions<D extends ModelDefinition>(def: D, insert: Catalo
   if (update && (update.kind !== "update" || !recordActionUsable(def, update).usable)) return def;
   const old = saveButtonOf(def);
   // Ana ekle/güncelle dışındaki adımlar (Komutlar › Kaydet'te eklenenler) koşulları ve "hata olursa dur"la korunur.
+  // Sınır: ana adımlar ile eklenen adımlar biçimde işaretli değildir, yalnız sırayla ayrılır: dizideki ilk *ekle* türü adım ana
+  // ekle, ilk *güncelle* türü adım ana güncelle sayılır. Örneğin `setSaveActions(def, ekle, null)` sonrası eklenmiş bir güncelle
+  // adımı ana güncelle olarak okunur ("Var olan kayıtta" seçimine geçer) ve o seçim değişince yerine yenisi yazılır. Ayırmak
+  // biçimde bir işaret gerektirir.
   const oldQueries = old ? buttonQueryIds(old).map((id) => queryById(def, id)) : [];
   const mainIds = new Set([oldQueries.find((query) => query?.kind === "insert")?.id, oldQueries.find((query) => query?.kind === "update")?.id]);
   const chosen = new Set([insert?.code, update?.code].filter((code): code is string => !!code));
