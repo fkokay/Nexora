@@ -97,14 +97,14 @@ public sealed class ApplicationServiceImpactTests
             Assert.Contains($"COPY {relative} {directory}\n", prefixText, StringComparison.Ordinal);
             if (HostServices.ContainsKey(directory))
             {
-                Assert.Contains(relative, Regex.Match(prefixText, "(?m)^RUN for project in .*dotnet restore.*$").Value, StringComparison.Ordinal);
+                Assert.Contains(relative, Regex.Match(prefixText, "(?m)^RUN (?:--mount=\S+ )?for project in .*dotnet restore.*$").Value, StringComparison.Ordinal);
                 Assert.DoesNotContain(copiedDirectories, copied => directory.StartsWith(copied, StringComparison.OrdinalIgnoreCase));
             }
             else
             {
                 // Libraries are compiled in the shared layer, so their whole directory must be copied first.
                 Assert.Contains(copiedDirectories, copied => directory.StartsWith(copied, StringComparison.OrdinalIgnoreCase));
-                Assert.Contains(relative, Regex.Match(prefixText, "(?m)^RUN for project in .*dotnet build.*$").Value, StringComparison.Ordinal);
+                Assert.Contains(relative, Regex.Match(prefixText, "(?m)^RUN (?:--mount=\S+ )?for project in .*dotnet build.*$").Value, StringComparison.Ordinal);
             }
         }
     }

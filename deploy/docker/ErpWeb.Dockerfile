@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM node:22-alpine AS build
 WORKDIR /workspace/frontend/erp-web
 COPY frontend/erp-web/package.json frontend/erp-web/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/erp-web/ ./
 ARG VITE_STUDIO_URL=http://localhost:5174/
 ENV VITE_STUDIO_URL=${VITE_STUDIO_URL}
