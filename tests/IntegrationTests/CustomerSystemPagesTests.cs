@@ -475,7 +475,7 @@ public sealed class CustomerSystemPagesTests
     [Theory]
     // Satış & cari 1. dalga: customers v3 (Liste), customer-create v2 (Kayıt kartı), customer-ledger v3 (Liste) kalıplarına çizildi.
     [InlineData("customers", "Cari Hesaplar", 3)]
-    [InlineData("customer-create", "Cari kart", 2)]
+    [InlineData("customer-create", "Cari kart", 3)]
     [InlineData("customer-ledger", "Cari Hesap Hareketleri", 3)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
@@ -538,9 +538,9 @@ public sealed class CustomerSystemPagesTests
         Assert.Equal(new[] { new SystemPageAlias("customer-edit", "customerId") }, standard.Aliases);
         Assert.Equal("{{sayfa.parametre.customerId}}", Binding("customer-create", "kart", "id"));
         var bar = Props("customer-create", "komutlar");
-        // Kayıt kartı kalıbı: özel alanlar sekmesi kalıpta karşılıksız (özel alan bloğu yok), kayıt dizisi yalnız kart.
+        // Kayıt kartı kalıbı: özel alanlar kendi sekmesinde (özel alan bloğu), kayıt dizisi yalnız kart.
         Assert.Equal("record", (string)Definition("customer-create")["template"]!["name"]!);
-        Assert.Equal(new[] { "olustur", "guncelle" }, Strings(bar["saveSequence"]));
+        Assert.Equal(new[] { "olustur", "guncelle", "ozelKaydet" }, Strings(bar["saveSequence"]));
         Assert.True((bool)bar["saveAndNew"]!);
         Assert.Equal(new[] { "saveNew=kart.rows[0].id == null" }, Strings(bar["commandWhen"]));
         Assert.Equal(("page", "@customer-create", "@customers"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!, (string)bar["afterSavePageCode"]!));
@@ -551,11 +551,13 @@ public sealed class CustomerSystemPagesTests
             Assert.Equal("{{ulke.value}}", Binding("customer-create", query, "address.countryCode"));
             // Harita enlem/boylam alanları kalktı.
             Assert.Null(Binding("customer-create", query, "address.latitude"));
-            Assert.Null(Binding("customer-create", query, "customFields"));
         }
-        Assert.DoesNotContain(Definition("customer-create")["queries"]!.AsArray().Select(x => (string)x!["id"]!), x => x is "ozelKaydet" or "ozelTanimlar" or "ozelDegerler");
+        // Özel alanlar (v3): yeni kartta olustur, var olan kartta ozelKaydet yazar; ikisi de bloğun değerlerini bağlar.
+        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("customer-create", "olustur", "customFields"));
+        Assert.Null(Binding("customer-create", "guncelle", "customFields"));
+        Assert.Equal("{{ozelAlanlar.degerler}}", Binding("customer-create", "ozelKaydet", "values"));
         Assert.Equal(new[] { "Genel=kimlikKarti,vergiKarti,eFaturaUyarisi,zorunluNotu", "İletişim ve adres=iletisimKarti,adresKarti",
-            "Finans ve vergi=finansKarti,muhasebeKarti", "Adresler=adresTablosu" }, Strings(Props("customer-create", "kartSekmeleri")["tabs"]));
+            "Finans ve vergi=finansKarti,muhasebeKarti", "Özel alanlar=ozelAlanlar", "Adresler=adresTablosu" }, Strings(Props("customer-create", "kartSekmeleri")["tabs"]));
         Assert.Equal(("lines", "dialogs"), ((string)Props("customer-create", "adresTablosu")["slot"]!, (string)Props("customer-create", "yeniAdresPenceresi")["slot"]!));
         Assert.Equal(new[] { "adresPasifeAl", "adresAktifEt" }, Strings(Props("customer-create", "adresTablosu")["rowActions"]));
         Assert.Equal("{{adresTablosu.seciliSatir.id}}", Binding("customer-create", "adresPasifeAlSorgusu", "addressId"));

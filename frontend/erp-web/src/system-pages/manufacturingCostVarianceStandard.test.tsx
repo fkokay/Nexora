@@ -114,7 +114,10 @@ describe('Üretim maliyet analizi standart tanımı', { timeout: 30000 }, () => 
     expect(within(rowOf('URE-001')).getByText('Tamamlandı')).toBeTruthy();
     expect(within(rowOf('URE-002')).getByText('Planlandı')).toBeTruthy();
     expect(within(rowOf('URE-002')).getAllByText('—').length).toBeGreaterThan(0);
-    expect(rowOf('URE-001').textContent).toContain('1.785,00');
+    // Tam döküm (fiilî toplam dahil) seçili emrin kart grubundadır; tablo yedi sütunla sınırlıdır.
+    expect(rowOf('URE-001').textContent).not.toContain('1.785,00');
+    fireEvent.click(rowOf('URE-001').querySelector('td:not(.advanced-grid-select-cell)') as HTMLElement);
+    await waitFor(() => expect(document.querySelector('.tenant-page-detail')?.textContent).toContain('1.785,00'), T);
   });
 
   it('a changed date range reloads the report', async () => {

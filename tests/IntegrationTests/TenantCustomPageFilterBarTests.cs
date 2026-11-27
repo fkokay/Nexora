@@ -90,7 +90,7 @@ public sealed class TenantCustomPageFilterBarTests
         var components = definition["components"]!.AsArray();
         // Yalnız sayfada uygulanan süzgeçler: standardın sorgusuna dokunulmaz.
         components.Add(JsonNode.Parse("""
-            { "id": "stokSuzgec", "type": "filterBar", "name": "stokSuzgec", "props": { "table": "liste", "search": true,
+            { "id": "stokSuzgec", "type": "filterBar", "name": "stokSuzgec", "props": { "slot": "filters", "table": "liste", "search": true,
               "searchPlaceholder": "Kod veya stok adıyla ara", "searchColumns": ["balance.code", "balance.name"],
               "filters": ["stockItem.category|select|more", "balance.quantityOnHand|range|more||Depo bakiyesi", "status|auto|row"] } }
             """));
@@ -100,7 +100,7 @@ public sealed class TenantCustomPageFilterBarTests
         // Sunucuya giden süzgeçler: Stok Kartları'nın kendi süzgeç alanı (suzgec) arama, depo ve pasifler parametrelerini taşır.
         var serverParams = standard.DefinitionJson;
         var query = definition["queries"]!.AsArray().Single(x => (string)x!["id"]! == "bakiye")!;
-        foreach (var name in new[] { "q", "warehouseId", "includeInactive" })
+        foreach (var name in new[] { "q", "warehouseId", "includeInactive", "belowMinimumOnly" })
             Assert.Equal($"{{{{suzgec.{name}}}}}", (string)query["parameters"]!.AsArray().Single(x => (string)x!["name"]! == name)!["binding"]!);
         var bar = components.Single(x => (string)x!["id"]! == "suzgec")!["props"]!.AsObject();
 

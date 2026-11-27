@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İK, Üretim ve Dış Ticaret — kalıplarla yeniden tasarım (taslak 16)</title>
+<style>
+  :root{--accent:#5b3fd6;--accent-soft:#efeafe;--line:#e6e4ee;--muted:#6b6880;--bg:#f6f5fa;--text:#1d1b2a;--ok:#15803d;--ok-soft:#e8f6ec;--warn:#b45309;--warn-soft:#fdf3e2;--dan:#b42318;--dan-soft:#fdecea;--info:#1d4ed8;--info-soft:#e8efff;--sug:#9a3412;--sug-soft:#ffedd5}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,"Segoe UI",system-ui,sans-serif;color:var(--text);background:var(--bg);font-size:13px}
+  .note{background:#fff8e6;border-bottom:1px solid #f1dfae;padding:8px 16px;color:#6b5310;line-height:1.5}
+  .views{display:flex;gap:10px;align-items:center;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .views .lbl{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg button{border:0;background:none;padding:5px 10px;font:inherit;cursor:pointer;color:var(--muted)}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .view{display:none;padding:20px 16px 40px}.view.on{display:block}
+  .expl{max-width:1040px;margin:12px auto 0;color:#3b3850;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .expl ul{margin:4px 0 0;padding-left:18px}.expl b{color:var(--text)}
+  .code{font-family:Consolas,monospace;font-size:11.5px;background:#f1effa;border-radius:4px;padding:0 4px;color:#4c3fa0}
+  .sug{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--sug-soft);color:var(--sug);text-transform:uppercase;vertical-align:middle}
+  /* ERP sayfa + pencere */
+  .stage{position:relative;max-width:1040px;margin:0 auto;min-height:600px}
+  .erp{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .dim:after{content:"";position:absolute;inset:0;background:rgba(29,27,42,.38);border-radius:12px}
+  .crumb{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .ttl{font-size:19px;font-weight:700;margin-bottom:10px}.ttl span{color:var(--muted);font-size:13px;font-weight:400}
+  .bar{display:flex;gap:6px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:12px}
+  .b{border:1px solid var(--line);border-radius:7px;padding:5px 10px;background:#fff;white-space:nowrap;font:inherit;color:inherit}
+  .b.pri{background:var(--accent);color:#fff;border-color:var(--accent)}.b.dan{color:var(--dan)}.b.sm{padding:3px 8px;font-size:12px}
+  .tbl{border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .tbl table{width:100%;border-collapse:collapse;min-width:480px}
+  .tbl th,.tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;white-space:nowrap}
+  .tbl th{background:#faf9fd;color:var(--muted)}.tbl .n{text-align:right}.tbl tr.sel td{background:var(--accent-soft)}
+  .metrics{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+  .metric{flex:1 1 140px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.metric span{color:var(--muted);font-size:11.5px;display:block}.metric b{font-size:17px}
+  .win{position:absolute;left:50%;top:28px;transform:translateX(-50%);background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(20,10,60,.28);z-index:3;display:flex;flex-direction:column;max-height:calc(100% - 40px);width:calc(100% - 32px)}
+  .win.xl{max-width:920px}.win.md{max-width:560px}
+  .wh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .wh b{font-size:15px}.wh .x{margin-left:auto;color:var(--muted);font-size:18px;cursor:pointer}.wh .size{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 7px}
+  .wb{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+  .wb>*{flex:none}
+  .wf{display:flex;gap:6px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);background:#fcfbfe;border-radius:0 0 14px 14px}
+  .wf .r{margin-left:auto;display:flex;gap:6px}
+  .rh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .av{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+  .rh .t{font-size:16px;font-weight:700}.rh .s{color:var(--muted);font-size:12px}
+  .kv{margin-left:auto;display:flex;gap:18px}.kv span{display:block;color:var(--muted);font-size:11.5px}.kv b{font-size:14px}
+  .grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;position:relative}
+  .grp h4{margin:0 0 2px;font-size:13px}.grp .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .grp .badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  .grp .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .grp.cond{border-style:dashed}
+  .when{position:absolute;right:10px;top:8px;font-size:10.5px;color:var(--muted);background:#f6f5fa;border-radius:99px;padding:1px 7px}
+  .bd{display:inline-block;font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px}
+  .bd.info{background:var(--info-soft);color:var(--info)}.bd.warn{background:var(--warn-soft);color:var(--warn)}.bd.ok{background:var(--ok-soft);color:var(--ok)}.bd.dan{background:var(--dan-soft);color:var(--dan)}
+  .chain{color:var(--muted);font-size:12px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+  .tab{padding:7px 12px;color:var(--muted);border-bottom:2px solid transparent}.tab.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  .inline{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+  .f label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .f .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;min-height:30px;min-width:150px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+  .txt{color:#4b4862;font-size:12px;line-height:1.5;background:#faf9fd;border-radius:8px;padding:8px 10px}
+  .split{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:14px}
+  .side{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fcfbfe}
+  .side h4{margin:0;font-size:14px}.side .d{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .kvs div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0;font-size:12px}.kvs span{color:var(--muted)}
+  /* Studio */
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;max-width:1100px;margin:0 auto}
+  .canvas{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:520px;position:relative}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .sec h5{margin:0 0 6px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:6px}
+  .row.on{border-color:var(--accent);background:var(--accent-soft)}
+  .row .m{color:var(--muted);font-size:11.5px}.row .sp{flex:1}
+  .fld{margin-bottom:8px}.fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fld .in{border:1px solid var(--line);border-radius:7px;padding:6px 9px;min-height:30px}
+  .chk{display:flex;gap:6px;align-items:center;margin:4px 0}
+  .chips span{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin:2px 4px 2px 0;font-size:12px}
+  .add{color:var(--accent);font-size:12px;cursor:pointer}
+  .seg2{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg2 span{flex:1;text-align:center;padding:4px 0;font-size:12px;color:var(--muted)}.seg2 span.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .ph{border:1px dashed #cfc8ef;border-radius:8px;padding:8px;color:var(--muted);font-size:12px;margin-bottom:8px;background:#fbfaff}
+  @media (max-width:760px){.split,.studio{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.kv{margin-left:52px}}
+</style>
+<style>
+  .chips2{display:flex;gap:6px;flex-wrap:wrap}
+  .step{border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:12px;color:var(--muted)}.step.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}.step.done{background:var(--ok-soft);color:var(--ok);border-color:#bfe3c9}
+  .tot{margin-left:auto;max-width:300px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .tot div{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}.tot .g{border-top:1px solid var(--line);margin-top:4px;padding-top:6px;font-size:14px;font-weight:700}
+  .page{max-width:1040px;margin:0 auto}
+  .sec-t{max-width:1040px;margin:18px auto 6px;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .stage.tight{min-height:560px}
+  .in.ph2{color:#9a98ab}
+  .tbl td.c{text-align:center}
+  .menu{display:inline-flex;gap:6px;flex-wrap:wrap}
+  @media (max-width:760px){.tot{max-width:none;margin-left:0}.win.xl{top:8px}.erp{padding:12px}}
+</style>
+</head>
+<style>
+  .grpv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grpv .gl{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em}
+  .views{flex-direction:column;align-items:flex-start}
+  .ic{display:inline-block;color:var(--muted);font-size:11.5px}
+</style>
+<body>
+<div class="note"><b>Taslak 16 — İnsan Kaynakları, Üretim ve Dış Ticaret, kalıplarla yeniden tasarım.</b> 11 sistem standardı doğrudan Liste / Kayıt kartı / Belge kalıbına çizildi; ekranlar bugünkünün birebir kopyası değildir, iş akışı (onayla, reddet, çizelgele, serbest bırak, üretimi bildir, aşama ilerlet, iptal) korunur. Örnek veriler uydurmadır. Kalıba yeni eklenen ya da yeni belge modeli isteyen metinler <span class="sug">yeni</span> ile işaretli. Ayrıntı: <span class="code">docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md</span></div>
+<div class="views">
+  <div class="grpv"><span class="gl">İnsan Kaynakları</span>
+    <div class="seg" id="seg1"><button class="on" data-v="v1">hr-employees</button><button data-v="v2">hr-employee-create</button><button data-v="v3">hr-attendance</button><button data-v="v4">hr-leave-requests</button><button data-v="v5">hr-period-summary</button></div></div>
+  <div class="grpv"><span class="gl">Üretim</span>
+    <div class="seg" id="seg2"><button data-v="v6">manufacturing-orders</button><button data-v="v7">manufacturing-order-create</button><button data-v="v8">manufacturing-recipes</button><button data-v="v9">manufacturing-cost-variance</button></div></div>
+  <div class="grpv"><span class="gl">Dış Ticaret</span>
+    <div class="seg" id="seg3"><button data-v="v10">foreign-trade</button><button data-v="v11">foreign-trade-case</button></div></div>
+</div>
+
+<!-- 1 hr-employees : Liste -->
+<section class="view on" id="v1"><div class="page">
+  <div class="erp">
+    <div class="crumb">İnsan Kaynakları › Personel</div>
+    <div class="ttl">Personel <span>· 148 kayıt · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni personel</button><button class="b">Aç</button><button class="b">Yenile</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in">Yılmaz</div></div><div class="f"><label>Durum</label><div class="in">Aktif</div></div><div class="f"><label>Departman</label><div class="in">Üretim</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Ad soyad</th><th>Departman</th><th>Görev</th><th>Kategori</th><th>Durum</th></tr>
+        <tr class="sel"><td>P-0021</td><td>Ayşe Yılmaz</td><td>Üretim</td><td>Vardiya sorumlusu</td><td>Beyaz yaka</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>P-0034</td><td>Mehmet Yılmaz</td><td>Depo</td><td>Depo operatörü</td><td>Mavi yaka</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>P-0047</td><td>Selin Kaya</td><td>Muhasebe</td><td>Uzman</td><td>Beyaz yaka</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>P-0012</td><td>Hasan Demir</td><td>Üretim</td><td>Operatör</td><td>Mavi yaka</td><td><span class="bd dan">Ayrıldı</span></td></tr></table></div>
+      <div class="side"><h4>Ayşe Yılmaz</h4><div class="d">P-0021 · Üretim</div>
+        <div class="kvs"><div><span>Görev</span>Vardiya sorumlusu</div><div><span>Kategori</span>Beyaz yaka</div><div><span>İşe giriş</span>03.02.2021</div><div><span>Durum</span>Aktif</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm">İzin talepleri ›</button><button class="b sm">Puantaj ›</button></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>hr-employees → Liste</b>
+    <ul>
+      <li><b>Kalır:</b> arama, durum, departman süzgeci, tablo, Yeni personel (yalnız TenantAdmin) / Aç / Excel, seçili personelin izin ve puantaj ekranına bağlantılar.</li>
+      <li><b>Sadeleşir:</b> "Eski ekranda aç" düğmesi, "Detay paneli" kutusu ve süzgeç çipleri kalkar; kart grubu hep sağda, dar ekranda altta. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 2 hr-employee-create : Kayıt kartı -->
+<section class="view" id="v2"><div class="page">
+  <div class="erp">
+    <div class="crumb">İnsan Kaynakları › Personel › Personel kartı</div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Yeni</button><button class="b">Listeye dön</button></div>
+    <div class="rh"><div class="av">AY</div><div><div class="t">Ayşe Yılmaz</div><div class="s">P-0021 · Üretim</div></div><span class="bd ok">Aktif</span></div>
+    <div class="tabs" style="margin:12px 0"><div class="tab on">Kimlik ve görev</div><div class="tab">Çalışma</div></div>
+    <div class="grp"><h4>Kimlik</h4><div class="d">* işaretli alanlar zorunludur.</div><div class="grid2"><div class="f"><label>Personel kodu *</label><div class="in">P-0021</div></div><div class="f"><label>Ad soyad *</label><div class="in">Ayşe Yılmaz</div></div></div></div>
+    <div class="grp" style="margin-top:10px"><h4>Görev</h4><div class="grid2"><div class="f"><label>Departman</label><div class="in">Üretim</div></div><div class="f"><label>Görev</label><div class="in">Vardiya sorumlusu</div></div><div class="f"><label>Çalışan kategorisi</label><div class="in">Beyaz yaka</div></div></div></div>
+    <div class="sec-t" style="margin:14px 0 6px">Çalışma sekmesi</div>
+    <div class="grp"><h4>Çalışma</h4><div class="grid2"><div class="f"><label>İşe giriş * <span class="sug">yeni</span> tek alan</label><div class="in">03.02.2021</div></div><div class="f"><label>İşten çıkış</label><div class="in"></div></div><div class="f"><label>İş e-postası</label><div class="in">ayse.yilmaz@firma.example</div></div><div class="f"><label>Bağlı kullanıcı</label><div class="in">kullanıcı-7f3a… (yalnız yeni kayıtta girilir)</div></div></div></div>
+    <div class="txt" style="margin-top:10px">Personel kaydı yalnız iş bilgisi tutar; T.C. kimlik no, IBAN, adres, telefon ve sağlık bilgisi girilmez.</div>
+  </div>
+  <div class="expl"><b>hr-employee-create → Kayıt kartı</b>
+    <ul>
+      <li><b>Kalır:</b> kod, ad, departman, görev, kategori, işe giriş / çıkış, iş e-postası, yeni kayıtta bağlı kullanıcı, KVKK notu, kayıttan sonra listeye dönüş.</li>
+      <li><b>Sadeleşir:</b> yeni ve kayıtlı için iki ayrı "işe giriş" alanı tek alan olur; "bağlı kullanıcı yok" notu kalkar; üç bölüm iki sekmeye toplanır. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 3 hr-attendance : Liste + pencere -->
+<section class="view" id="v3"><div class="page">
+  <div class="erp">
+    <div class="crumb">İnsan Kaynakları › Puantaj</div>
+    <div class="ttl">Puantaj <span>· Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Puantaj kaydı</button><button class="b">Düzelt</button><button class="b">Onayla</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">27.11.2026</div></div><div class="f"><label>Personel</label><div class="in">Tümü</div></div><div class="f"><label>Onay durumu</label><div class="in">Onay bekliyor</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Personel</th><th>İş günü</th><th class="n">Çalışılan dk</th><th class="n">Fazla mesai dk</th><th>Onay</th></tr>
+        <tr class="sel"><td>Ayşe Yılmaz</td><td>26.11.2026</td><td class="n">480</td><td class="n">60</td><td><span class="bd warn">Onay bekliyor</span></td></tr>
+        <tr><td>Mehmet Yılmaz</td><td>26.11.2026</td><td class="n">450</td><td class="n">0</td><td><span class="bd ok">Onaylı</span></td></tr>
+        <tr><td>Selin Kaya</td><td>25.11.2026</td><td class="n">480</td><td class="n">120</td><td><span class="bd warn">Onay bekliyor</span></td></tr></table></div>
+      <div class="side"><h4>Ayşe Yılmaz · 26.11.2026</h4><div class="d">Puantaj kaydı</div>
+        <div class="kvs"><div><span>Çalışılan</span>480 dk</div><div><span>Fazla mesai</span>60 dk</div><div><span>Onay</span>Onay bekliyor</div><div><span>Not</span>Sevkiyat yoğunluğu</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm">Düzelt…</button><button class="b sm">Onayla</button></div>
+        <div class="ic" style="margin-top:6px">Kendi kaydını onaylayamayan kullanıcıda Onayla kapalı; nedeni yazılı. <span class="sug">yeni</span></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>hr-attendance → Liste</b> (pencere: Puantaj kaydı, Puantajı düzelt)
+    <ul>
+      <li><b>Kalır:</b> tarih, personel, onay süzgeci; liste; Puantaj kaydı ve Düzelt pencereleri; yalnız onay bekleyen satırda Onayla; 1440 dk sınırı, günde tek kayıt, düzeltmede yeniden onay.</li>
+      <li><b>Sadeleşir:</b> "pencere kayıttan sonra açık kalır" kalkar (Kaydet kapatır); personel seçici sayfa boyutu girdisi kalkar. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+  <div class="sec-t">Puantaj kaydı penceresi</div>
+  <div class="stage tight" style="min-height:380px"><div class="erp dim" style="min-height:380px"></div>
+    <div class="win md"><div class="wh"><b>Puantaj kaydı</b><span class="size">orta</span><span class="x">×</span></div>
+      <div class="wb"><div class="grid2"><div class="f"><label>Personel</label><div class="in">Ayşe Yılmaz</div></div><div class="f"><label>İş günü</label><div class="in">27.11.2026</div></div><div class="f"><label>Çalışılan dakika</label><div class="in">480</div></div><div class="f"><label>Fazla mesai dakika</label><div class="in">0</div></div></div>
+        <div class="f"><label>Not</label><div class="in"></div></div>
+        <div class="txt">Çalışılan + fazla mesai en çok 1440 dk. Aynı personele aynı gün ikinci kayıt girilemez.</div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Kaydet</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 4 hr-leave-requests -->
+<section class="view" id="v4"><div class="page">
+  <div class="erp">
+    <div class="crumb">İnsan Kaynakları › İzin talepleri</div>
+    <div class="ttl">İzin talepleri <span>· Bekliyor süzgeciyle açılır · Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">İzin talebi</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Durum</label><div class="in">Bekliyor</div></div><div class="f"><label>Tür</label><div class="in">Tümü</div></div><div class="f"><label>Personel</label><div class="in">Tümü</div></div><div class="f"><label>Başlangıç</label><div class="in"></div></div><div class="f"><label>Bitiş</label><div class="in"></div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Personel</th><th>Departman</th><th>Tür</th><th>Başlangıç</th><th>Bitiş</th><th class="n">Gün</th><th>Durum</th></tr>
+        <tr class="sel"><td>Selin Kaya</td><td>Muhasebe</td><td>Yıllık izin</td><td>14.12.2026</td><td>18.12.2026</td><td class="n">5</td><td><span class="bd warn">Bekliyor</span></td></tr>
+        <tr><td>Mehmet Yılmaz</td><td>Depo</td><td>Mazeret</td><td>02.12.2026</td><td>02.12.2026</td><td class="n">1</td><td><span class="bd warn">Bekliyor</span></td></tr></table></div>
+      <div class="side"><h4>Selin Kaya</h4><div class="d">Yıllık izin · 5 gün</div>
+        <div class="kvs"><div><span>Not</span>Aile ziyareti</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm pri">Onayla</button><button class="b sm">Reddet…</button><button class="b sm dan">İptal et</button></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>hr-leave-requests → Liste</b> (pencere: İzin talebi, Red)
+    <ul>
+      <li><b>Kalır:</b> beş süzgeç, liste, not, Onayla / Reddet / İptal et (yetkiye göre), İzin talebi penceresi (personel, tür, tarih, gün, not; çakışma kuralı).</li>
+      <li><b>Sadeleşir:</b> panel ve komut çubuğundaki yinelenen Onayla/Reddet düğmeleri tek olur; personel seçici durum ve sayfa boyutu girdileri kalkar. <span class="sug">yeni</span> Red penceresi gerekçe sorar (bugün iki ayrı sorgu aynı işi yapıyor).</li>
+    </ul></div>
+  <div class="sec-t">Red penceresi <span class="sug">yeni</span></div>
+  <div class="stage tight" style="min-height:300px"><div class="erp dim" style="min-height:300px"></div>
+    <div class="win md"><div class="wh"><b>İzin talebini reddet · Selin Kaya</b><span class="size">küçük</span><span class="x">×</span></div>
+      <div class="wb"><div class="f"><label>Red gerekçesi *</label><div class="in" style="min-height:60px">Aralık sonu kapanış dönemi, ekipte yeterli kişi yok.</div></div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Reddet</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 5 hr-period-summary -->
+<section class="view" id="v5"><div class="page">
+  <div class="erp">
+    <div class="crumb">İnsan Kaynakları › Dönem özeti</div>
+    <div class="ttl">Dönem özeti <span>· yalnız firma yöneticisi · Liste kalıbı (rapor)</span></div>
+    <div class="bar"><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">27.11.2026</div></div><button class="b pri">Çalıştır <span class="sug">yeni</span></button></div>
+    <div class="txt" style="margin-bottom:10px">Her çalıştırma denetim kaydına yazılır. Dönem en çok 366 takvim günü olabilir.</div>
+    <div class="metrics"><div class="metric"><span>Dönem sonu personel</span><b>148</b></div><div class="metric"><span>Puantajı olan personel</span><b>132</b></div><div class="metric"><span>Çalışılan (dk)</span><b>58.240</b></div><div class="metric"><span>Fazla mesai (dk)</span><b>3.180</b></div><div class="metric"><span>İzin talebi</span><b>17</b></div><div class="metric"><span>Talep edilen gün</span><b>46</b></div></div>
+    <div class="tbl"><table><tr><th>İzin durumu</th><th class="n">Talep</th><th class="n">Gün</th></tr>
+      <tr><td><span class="bd ok">Onaylandı</span></td><td class="n">11</td><td class="n">32</td></tr><tr><td><span class="bd warn">Bekliyor</span></td><td class="n">4</td><td class="n">11</td></tr><tr><td><span class="bd dan">Reddedildi</span></td><td class="n">1</td><td class="n">2</td></tr><tr><td><span class="bd info">İptal</span></td><td class="n">1</td><td class="n">1</td></tr></table></div>
+    <div class="txt" style="margin-top:10px">Çalıştırılmadıysa gösterge ve tablo yerine: "Tarih aralığını seçip Çalıştır'a basın; özet sayfa açılınca kendiliğinden çalışmaz."</div>
+  </div>
+  <div class="expl"><b>hr-period-summary → Liste (rapor)</b>
+    <ul>
+      <li><b>Kalır:</b> dönem (ayın 1'i - bugün), elle Çalıştır, göstergeler, izin durumu kırılımı, Excel, denetim ve 366 gün notları.</li>
+      <li><b>Sadeleşir:</b> yedi gösterge altıya iner ("Puantaj kaydı" sayısı kalkar). <span class="sug">yeni</span> Liste süzgecinde açılışta çalışmayan "Çalıştır" eylemi (doğrulanacak). Yeni belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 6 manufacturing-orders -->
+<section class="view" id="v6"><div class="page">
+  <div class="erp">
+    <div class="crumb">Üretim › Üretim emirleri</div>
+    <div class="ttl">Üretim emirleri <span>· Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni emir</button><button class="b">Kapasiteye çizelgele</button><button class="b">Serbest bırak</button><button class="b">Üretimi bildir…</button><button class="b">Rota…</button><button class="b">Bileşenler…</button><button class="b dan">İptal et</button><button class="b">Excel</button></div>
+    <div class="metrics"><div class="metric"><span>Açık emir</span><b>14</b></div><div class="metric"><span>Planlanan maliyet</span><b>612.400,00 ₺</b></div><div class="metric"><span>Çizelgelenmemiş</span><b style="color:var(--warn)">3</b></div><div class="metric"><span>Tamamlanan</span><b>41</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Durum</label><div class="in">Serbest bırakıldı</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Emir</th><th>Plan tarihi</th><th>Mamul</th><th>Reçete</th><th>Depo</th><th class="n">Miktar</th><th>Durum</th></tr>
+        <tr class="sel"><td>UE-0112</td><td>30.11.2026</td><td>Zeytinyağı 5 lt</td><td>RC-0101</td><td>Merkez</td><td class="n">500</td><td><span class="bd info">Serbest bırakıldı</span></td></tr>
+        <tr><td>UE-0113</td><td>02.12.2026</td><td>Zeytinyağı 1 lt</td><td>RC-0102</td><td>Merkez</td><td class="n">2.400</td><td><span class="bd warn">Planlandı</span></td></tr>
+        <tr><td>UE-0109</td><td>24.11.2026</td><td>Koli 12'li</td><td>RC-0307</td><td>Merkez</td><td class="n">300</td><td><span class="bd ok">Tamamlandı</span></td></tr></table></div>
+      <div class="side"><h4>UE-0112 · Zeytinyağı 5 lt</h4><div class="d">Stoka üretim · Merkez Depo</div>
+        <div class="kvs"><div><span>Reçete</span>RC-0101</div><div><span>Rota</span>Dolum → Etiket → Paket</div><div><span>Bileşenler</span>ZY-HAM, CAM-5L, KAPAK</div><div><span>Planlanan maliyet</span>142.800,00 ₺</div><div><span>Başlamış operasyon</span>1 / 3</div></div>
+        <div class="ic" style="margin-top:6px">Tutarlar firma baz para birimindedir.</div></div>
+    </div>
+  </div>
+  <div class="expl"><b>manufacturing-orders → Liste</b> (pencere: Rota, Bileşenler, Operasyonu tamamla, Üretimi bildir)
+    <ul>
+      <li><b>Kalır:</b> dört gösterge, durum süzgeci, Çizelgele / Serbest bırak / Üretimi bildir / İptal (duruma göre görünür), sıralı operasyon yürütme, FEFO düşüm, geri alınamaz tamamlama.</li>
+      <li><b>Sadeleşir:</b> tablo on sütundan yediye iner (kaynak, bileşen kodları, rota özeti kart grubuna); Rota ve Bileşenler sayfaya yığılmaz, tablo penceresinde açılır; iki "İptal et" düğmesi tek (başlamış operasyon varsa uyarı metni); "Aç" kalkar.</li>
+      <li><span class="sug">yeni</span> Pencere tablosunda satır eylemi (Başlat / Tamamla) ve pencerede lot/seri satırı kalıpta eksik (ayrıntı belgede).</li>
+    </ul></div>
+  <div class="sec-t">Rota penceresi · UE-0112</div>
+  <div class="stage tight" style="min-height:330px"><div class="erp dim" style="min-height:330px"></div>
+    <div class="win xl"><div class="wh"><b>Rota · UE-0112</b><span class="size">geniş</span><span class="x">×</span></div>
+      <div class="wb"><div class="txt">Operasyonlar sırayla, serbest bırakılmış emirde ve planlanan başlangıç gününden itibaren başlatılır.</div>
+        <div class="tbl"><table><tr><th>Sıra</th><th>İş merkezi</th><th>Durum</th><th class="n">Kurulum dk</th><th class="n">Çalışma dk</th><th>Başlangıç</th><th>Operatör</th><th></th></tr>
+          <tr><td>10</td><td>DOL-01 Dolum</td><td><span class="bd ok">Tamamlandı</span></td><td class="n">30 / 35</td><td class="n">240 / 228</td><td>30.11.2026</td><td>H. Demir</td><td></td></tr>
+          <tr><td>20</td><td>ETK-02 Etiketleme</td><td><span class="bd info">Sürüyor</span></td><td class="n">15 / –</td><td class="n">120 / –</td><td>30.11.2026</td><td>–</td><td><button class="b sm">Tamamla…</button></td></tr>
+          <tr><td>30</td><td>PKT-01 Paketleme</td><td><span class="bd warn">Planlandı</span></td><td class="n">10 / –</td><td class="n">90 / –</td><td>01.12.2026</td><td>–</td><td><button class="b sm" disabled>Başlat</button></td></tr></table></div></div>
+      <div class="wf"><div class="r"><button class="b">Kapat</button></div></div></div>
+  </div>
+  <div class="sec-t">Üretimi bildir penceresi · UE-0112</div>
+  <div class="stage tight" style="min-height:430px"><div class="erp dim" style="min-height:430px"></div>
+    <div class="win md"><div class="wh"><b>Üretimi bildir · UE-0112</b><span class="size">orta</span><span class="x">×</span></div>
+      <div class="wb"><div class="txt">Zeytinyağı 5 lt · Merkez Depo</div>
+        <div class="grid2"><div class="f"><label>İyi ürün miktarı</label><div class="in">492</div></div><div class="f"><label>Fire miktarı</label><div class="in">8</div></div><div class="f"><label>Fire nedeni</label><div class="in">Dolum kaçağı</div></div></div>
+        <div class="txt">Planlanan 500 · Bildirilen 492 + 8 (iyi + fire planlanan miktara eşit olmalıdır)</div>
+        <div class="grp"><h4>Lot / seri <span class="sug">yeni</span></h4><div class="d">Lotlu mamulde tek lot ve son kullanma tarihi; çoklu satır sonraki aşama.</div><div class="grid2"><div class="f"><label>Lot no</label><div class="in">L-2611-05</div></div><div class="f"><label>SKT</label><div class="in">30.11.2028</div></div></div></div>
+        <div class="grp" style="background:var(--warn-soft)"><h4>Stok hareketi</h4><div class="d" style="margin:0">Bileşenler Merkez Depo'dan son kullanma tarihi en yakın lottan (FEFO) otomatik düşülür. Hareket tarihi bugündür; muhasebe fişi yazılmaz. Tamamlanan üretim geri alınamaz.</div></div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Üretimi tamamla</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 7 manufacturing-order-create -->
+<section class="view" id="v7"><div class="page">
+  <div class="erp">
+    <div class="crumb">Üretim › Üretim emirleri › Yeni üretim emri</div>
+    <div class="bar"><button class="b pri">Planla</button><button class="b">Vazgeç</button></div>
+    <div class="rh"><div class="av">ÜE</div><div><div class="t">Yeni üretim emri</div><div class="s">Emir Planlandı durumunda açılır; çizelgeleme listeden yapılır.</div></div><span class="bd warn">Planlandı</span></div>
+    <div class="tabs" style="margin:12px 0"><div class="tab on">Emir</div><div class="tab">Reçete içeriği</div></div>
+    <div class="grp"><h4>Emir</h4><div class="d">* işaretli alanlar zorunludur. Emir kodu elle girilir.</div><div class="grid2"><div class="f"><label>Emir kodu *</label><div class="in">UE-0114</div></div><div class="f"><label>Plan tarihi *</label><div class="in">03.12.2026</div></div><div class="f"><label>Üretim deposu *</label><div class="in">Merkez Depo</div></div><div class="f"><label>Reçete *</label><div class="in">RC-0101 · Zeytinyağı 5 lt</div></div><div class="f"><label>Planlanan miktar *</label><div class="in">800</div></div><div class="f"><label>Üretim türü</label><div class="in">Satış siparişi</div></div></div></div>
+    <div class="grp cond" style="margin-top:10px"><span class="when">üretim türü = Satış siparişi</span><h4>Satış siparişi</h4><div class="grid2"><div class="f"><label>Satış siparişi</label><div class="in">SS-2026-0412 · Karadeniz Gıda</div></div><div class="f"><label>Sipariş satırı <span class="sug">yeni</span> siparişe bağlı</label><div class="in">2 · Zeytinyağı 5 lt · 800</div></div></div><div class="d" style="margin:8px 0 0">Sunucu satırın mamulle eşleştiğini denetler.</div></div>
+    <div class="sec-t" style="margin:14px 0 6px">Reçete içeriği sekmesi <span class="sug">yeni</span> seçime göre dolan tablo</div>
+    <div class="tbl"><table><tr><th>Bileşen</th><th class="n">Birim miktar</th><th class="n">Fire %</th><th class="n">Standart maliyet</th></tr>
+      <tr><td>Natürel zeytinyağı (lt)</td><td class="n">5,00</td><td class="n">1,5</td><td class="n">210,00</td></tr><tr><td>Teneke 5 lt</td><td class="n">1,00</td><td class="n">0,5</td><td class="n">18,40</td></tr><tr><td>Kapak</td><td class="n">1,00</td><td class="n">0,5</td><td class="n">1,20</td></tr></table></div>
+    <div class="txt" style="margin-top:8px">Gereken miktar = miktar × (1 + fire) × planlanan ÷ çıktı. Kesin rakamlar kayıttan sonra emrin Bileşenler penceresinde.</div>
+  </div>
+  <div class="expl"><b>manufacturing-order-create → Kayıt kartı</b>
+    <ul>
+      <li><b>Kalır:</b> emir kodu, plan tarihi, depo, reçete, miktar, stok ya da satış siparişi kaynağı, reçete önizlemesi, Planla / Vazgeç.</li>
+      <li><b>Sadeleşir:</b> reçete özeti kartı ve içerik tablosu tek sekmede; "reçete seçici durumu" girdisi kalkar; iki açıklama notu birleşir. Düzenlenebilir satır olmadığından belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 8 manufacturing-recipes -->
+<section class="view" id="v8"><div class="page">
+  <div class="erp">
+    <div class="crumb">Üretim › Tanımlı reçeteler</div>
+    <div class="ttl">Tanımlı reçeteler <span>· Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">Yeni reçete</button><button class="b">Aç</button><button class="b">Pasife al</button><button class="b dan">Sil</button><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in"></div></div><div class="f"><label>Durum</label><div class="in">Aktif</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Kod</th><th>Ad</th><th>Mamul</th><th class="n">Çıktı</th><th class="n">Bileşen</th><th class="n">Operasyon</th><th class="n">Emir</th><th>Durum</th></tr>
+        <tr class="sel"><td>RC-0101</td><td>5 lt dolum</td><td>Zeytinyağı 5 lt</td><td class="n">1</td><td class="n">3</td><td class="n">3</td><td class="n">12</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>RC-0102</td><td>1 lt dolum</td><td>Zeytinyağı 1 lt</td><td class="n">1</td><td class="n">3</td><td class="n">2</td><td class="n">0</td><td><span class="bd ok">Aktif</span></td></tr>
+        <tr><td>RC-0090</td><td>Eski 2 lt</td><td>Zeytinyağı 2 lt</td><td class="n">1</td><td class="n">2</td><td class="n">2</td><td class="n">4</td><td><span class="bd warn">Pasif</span></td></tr></table></div>
+      <div class="side"><h4>RC-0101 · 5 lt dolum</h4><div class="d">Zeytinyağı 5 lt · çıktı 1 adet</div><div class="kvs"><div><span>Bileşen</span>3</div><div><span>Operasyon</span>3</div><div><span>Bağlı emir</span>12 (silinemez)</div></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>manufacturing-recipes → Liste</b> ve <span class="sug">yeni</span> Belge modeli <span class="code">uretim.recete</span>
+    <ul>
+      <li><b>Kalır:</b> liste, durum süzgeci, Pasife al / Etkinleştir, Sil (emri yoksa). Yeni reçete ve Aç artık eski ekrana değil aşağıdaki belgeye gider.</li>
+      <li><b>Sadeleşir:</b> eski "Reçete oluştur" ekranı kalkar; "kayıttan sonra aynı sayfada kal" seçeneği kalkar. İlk aşamada yalnız Liste yeniden yazılır, Yeni/Aç eski ekranda kalabilir.</li>
+    </ul></div>
+  <div class="sec-t">B · Reçete belgesi <span class="sug">yeni</span> Belge modeli <span class="code">uretim.recete</span></div>
+  <div class="erp">
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Pasife al</button><button class="b">Listeye dön</button></div>
+    <div class="rh"><div class="av">RC</div><div><div class="t">RC-0101 · 5 lt dolum</div><div class="s">Zeytinyağı 5 lt · çıktı 1 adet</div></div><span class="bd ok">Aktif</span>
+      <div class="kv"><div><span>Bileşen</span><b>3</b></div><div><span>Operasyon</span><b>3</b></div><div><span>Std. maliyet</span><b>229,60 ₺</b></div></div></div>
+    <div class="grp" style="margin-top:12px"><h4>Reçete</h4><div class="grid2"><div class="f"><label>Reçete kodu *</label><div class="in">RC-0101</div></div><div class="f"><label>Reçete adı *</label><div class="in">5 lt dolum</div></div><div class="f"><label>Mamul *</label><div class="in">STK-0101 · Zeytinyağı 5 lt</div></div><div class="f"><label>Çıktı miktarı *</label><div class="in">1</div></div></div></div>
+    <div class="grp" style="margin-top:10px"><h4>Bileşenler</h4><div class="tbl"><table><tr><th>Stok</th><th class="n">Miktar</th><th class="n">Fire %</th><th class="n">Std. birim maliyet</th></tr>
+      <tr><td>Natürel zeytinyağı</td><td class="n">5,00</td><td class="n">1,5</td><td class="n">42,00</td></tr><tr><td>Teneke 5 lt</td><td class="n">1,00</td><td class="n">0,5</td><td class="n">18,40</td></tr><tr><td>Kapak</td><td class="n">1,00</td><td class="n">0,5</td><td class="n">1,20</td></tr></table></div><div class="add" style="margin-top:6px">+ Bileşen ekle</div></div>
+    <div class="grp" style="margin-top:10px"><h4>Rota <span class="sug">yeni</span> ikinci satır grubu</h4><div class="d">En çok 50 operasyon; sıra tablo sırasıdır.</div><div class="tbl"><table><tr><th>İş merkezi</th><th class="n">Kurulum dk</th><th class="n">Çalışma dk / birim</th><th class="n">Bekleme gün</th><th>Kurulum ailesi</th><th class="n">kWh / birim</th><th>Alternatif</th></tr>
+      <tr><td>DOL-01</td><td class="n">30</td><td class="n">0,48</td><td class="n">0</td><td>ZY-A</td><td class="n">0,12</td><td>DOL-02</td></tr><tr><td>ETK-02</td><td class="n">15</td><td class="n">0,24</td><td class="n">0</td><td>–</td><td class="n">0,03</td><td>–</td></tr><tr><td>PKT-01</td><td class="n">10</td><td class="n">0,18</td><td class="n">1</td><td>–</td><td class="n">0,02</td><td>PKT-02</td></tr></table></div><div class="add" style="margin-top:6px">+ Operasyon ekle (3/50)</div></div>
+  </div>
+  <div class="expl"><b>Belge geçişleri:</b> Kaydet, Pasife al, Etkinleştir; eşzamanlılık (rowversion) modelden. <b>Kalır:</b> bileşen, fire, rota, enerji, alternatif iş merkezi. Eksik olan: Belge'de ikinci satır grubu.</div>
+</div></section>
+
+<!-- 9 manufacturing-cost-variance -->
+<section class="view" id="v9"><div class="page">
+  <div class="erp">
+    <div class="crumb">Üretim › Üretim maliyet analizi</div>
+    <div class="ttl">Üretim maliyet analizi <span>· Liste kalıbı (rapor)</span></div>
+    <div class="bar"><button class="b">Excel</button></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Plan tarihi başlangıç</label><div class="in">01.11.2026</div></div><div class="f"><label>Bitiş</label><div class="in">30.11.2026</div></div></div>
+    <div class="metrics"><div class="metric"><span>Planlanan malzeme</span><b>498.200,00 ₺</b></div><div class="metric"><span>Planlanan dönüşüm</span><b>96.750,00 ₺</b></div><div class="metric"><span>Fiilî malzeme</span><b>507.940,00 ₺</b></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Emir</th><th>Plan tarihi</th><th>Durum</th><th class="n">Miktar</th><th class="n">Fiilî malzeme</th><th class="n">Dönüşüm farkı</th><th class="n">Toplam fark</th></tr>
+        <tr class="sel"><td>UE-0109</td><td>24.11.2026</td><td><span class="bd ok">Tamamlandı</span></td><td class="n">300</td><td class="n">41.820,00</td><td class="n" style="color:var(--dan)">+1.140,00</td><td class="n" style="color:var(--dan)">+2.210,00</td></tr>
+        <tr><td>UE-0104</td><td>12.11.2026</td><td><span class="bd ok">Tamamlandı</span></td><td class="n">1.200</td><td class="n">96.300,00</td><td class="n" style="color:var(--ok)">−620,00</td><td class="n" style="color:var(--ok)">−1.480,00</td></tr></table></div>
+      <div class="side"><h4>UE-0109 · döküm <span class="sug">yeni</span></h4><div class="d">Tablodan kart grubuna taşınan sütunlar</div>
+        <div class="kvs"><div><span>Planlanan malzeme</span>40.610,00</div><div><span>Fiilî malzeme</span>41.820,00</div><div><span>Planlanan dönüşüm</span>9.200,00</div><div><span>Fiilî dönüşüm</span>10.340,00</div><div><span>Fiilî toplam maliyet</span>52.160,00</div><div><span>Operasyon</span>3</div></div></div>
+    </div>
+    <div class="alert txt" style="margin-top:10px;background:var(--warn-soft);color:var(--warn)">Rapor kapsamı: yalnız tamamlanan emirlerin fiilî maliyeti hesaplanır. (koşullu uyarı)</div>
+  </div>
+  <div class="expl"><b>manufacturing-cost-variance → Liste (rapor)</b>
+    <ul>
+      <li><b>Kalır:</b> tarih aralığı, üç gösterge, emir tablosu, kapsam uyarısı, Excel; sayılar aynı.</li>
+      <li><b>Sadeleşir:</b> tablo on iki sütundan yediye iner; planlanan/fiilî dönüşüm, fiilî toplam ve operasyon sayısı seçili emrin kart grubunda. Dar ekranda yatay kaydırma gerekmez. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+</div></section>
+
+<!-- 10 foreign-trade -->
+<section class="view" id="v10"><div class="page">
+  <div class="erp">
+    <div class="crumb">Dış Ticaret › Dosyalar</div>
+    <div class="ttl">Dış ticaret dosyaları <span>· Liste kalıbı</span></div>
+    <div class="bar"><button class="b pri">İthalat dosyası</button><button class="b pri">İhracat dosyası</button><button class="b">Aç</button><button class="b">Sevkte'ye geçir…</button><button class="b">Stok belgesi bağla…</button><button class="b dan">İptal et</button></div>
+    <div class="metrics"><div class="metric"><span>Toplam dosya</span><b>38</b></div><div class="metric"><span>Açık</span><b>12</b></div><div class="metric"><span>Ulaştı (kapatılacak)</span><b style="color:var(--warn)">3</b></div><div class="metric"><span>Kapandı</span><b>21</b></div></div>
+    <div class="inline" style="margin-bottom:10px"><div class="f"><label>Ara</label><div class="in"></div></div><div class="f"><label>Yön</label><div class="in">Tümü</div></div><div class="f"><label>Aşama</label><div class="in">Planlandı</div></div></div>
+    <div class="split">
+      <div class="tbl"><table><tr><th>Referans</th><th>Yön</th><th>Sipariş</th><th>Karşı taraf</th><th>Güzergâh</th><th>Incoterms</th><th>Sevk</th><th>Varış</th><th>Aşama</th></tr>
+        <tr class="sel"><td>DT-2026-031</td><td>İhracat</td><td>SS-0412</td><td>Müller GmbH</td><td>TR → DE</td><td>FOB</td><td>08.12.2026</td><td>20.12.2026</td><td><span class="bd info">Planlandı</span></td></tr>
+        <tr><td>DT-2026-029</td><td>İthalat</td><td>SA-0187</td><td>Tunisie Olive SARL</td><td>TN → TR</td><td>CIF</td><td>01.12.2026</td><td>10.12.2026</td><td><span class="bd warn">Sevkte</span></td></tr>
+        <tr><td>DT-2026-027</td><td>İthalat</td><td>SA-0179</td><td>Iberia Pack S.L.</td><td>ES → TR</td><td>DAP</td><td>14.11.2026</td><td>25.11.2026</td><td><span class="bd ok">Ulaştı</span></td></tr></table></div>
+      <div class="side"><h4>DT-2026-031</h4><div class="d">İhracat · SS-0412 · Müller GmbH</div>
+        <div class="kvs"><div><span>Beyan değeri</span>48.600,00 EUR</div><div><span>Planlanan sevk</span>08.12.2026</div><div><span>Planlanan varış</span>20.12.2026</div><div><span>Taşıyıcı</span>–</div><div><span>Gümrük ref.</span>–</div><div><span>Stok belgesi</span>bağlı değil</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="b sm pri">Sevkte'ye geçir…</button><button class="b sm">Stok belgesi bağla…</button></div>
+        <div class="ic" style="margin-top:6px">Sevk için planlanan tarih, beyan değeri ve Incoterms gerekir; eksikse neden yazılı. <span class="sug">yeni</span></div></div>
+    </div>
+  </div>
+  <div class="expl"><b>foreign-trade → Liste</b> (pencere: Sevk, Gümrük, Varış, Stok belgesi)
+    <ul>
+      <li><b>Kalır:</b> yön ve aşama süzgeci, tablo, ithalat/ihracat dosyası açma, Aç (yalnız Taslak ve Planlandı), tüm aşama geçişleri, stok belgesi bağlama, iptal ve koşulları.</li>
+      <li><b>Sadeleşir:</b> yedi aşama düğmesi aşamaya göre tek ilerletme düğmesine iner; tek satırlık özet metin dört göstergeye bölünür; "Eski ekran" ve "Detay paneli" kalkar. Yeni belge modeli gerekmez.</li>
+    </ul></div>
+  <div class="sec-t">Sevkte aşamasına geçir penceresi</div>
+  <div class="stage tight" style="min-height:330px"><div class="erp dim" style="min-height:330px"></div>
+    <div class="win md"><div class="wh"><b>Sevkte aşamasına geçir · DT-2026-031</b><span class="size">orta</span><span class="x">×</span></div>
+      <div class="wb"><div class="grid2"><div class="f"><label>Gerçek tarih</label><div class="in">08.12.2026</div></div><div class="f"><label>Taşıyıcı / takip referansı</label><div class="in">MSC-4471920</div></div></div>
+        <div class="txt">Gerçek tarih boş bırakılırsa bugün yazılır. Geçmiş tarih girilebilir; gelecek tarih reddedilir.</div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Sevkte'ye geçir</button></div></div></div>
+  </div>
+  <div class="sec-t">Stok belgesi bağla penceresi</div>
+  <div class="stage tight" style="min-height:330px"><div class="erp dim" style="min-height:330px"></div>
+    <div class="win xl"><div class="wh"><b>Stok belgesi seç · DT-2026-027</b><span class="size">geniş</span><span class="x">×</span></div>
+      <div class="wb"><div class="txt">Mal kabul. Bu dosyanın satın alma siparişine ait kayıtlı mal kabul belgeleri. Bu adım yalnızca mevcut belgeyi bağlar; stok ikinci kez işlenmez.</div>
+        <div class="tbl"><table><tr><th>Kod</th><th>Tarih</th><th>Depo</th><th class="n">Satır</th></tr><tr class="sel"><td>MK-0233</td><td>25.11.2026</td><td>Merkez Depo</td><td class="n">4</td></tr></table></div></div>
+      <div class="wf"><div class="r"><button class="b">Vazgeç</button><button class="b pri">Bağla</button></div></div></div>
+  </div>
+</div></section>
+
+<!-- 11 foreign-trade-case -->
+<section class="view" id="v11"><div class="page">
+  <div class="erp">
+    <div class="crumb">Dış Ticaret › Dosyalar › İhracat dosyası</div>
+    <div class="bar"><button class="b pri">Kaydet</button><button class="b">Yeni</button><button class="b">Listeye dön</button></div>
+    <div class="rh"><div class="av">DT</div><div><div class="t">İhracat dosyası · DT-2026-031</div><div class="s">SS-0412 · Müller GmbH (bağlı sipariş değiştirilemez)</div></div><span class="bd info">Planlandı</span></div>
+    <div class="grp cond" style="margin:10px 0"><span class="when">Sevkte ve sonrası</span><h4>Düzenlenemez</h4><div class="d" style="margin:0">Sevkiyat başladıktan sonra temel dosya bilgileri değiştirilemez.</div></div>
+    <div class="tabs" style="margin:12px 0"><div class="tab on">Dosya</div><div class="tab">Değer ve planlama</div><div class="tab">Referanslar ve not</div></div>
+    <div class="grp"><h4>Dosya kimliği</h4><div class="d">* işaretli alanlar zorunludur.</div><div class="grid2"><div class="f"><label>Yön</label><div class="in">İhracat</div></div><div class="f"><label>Bağlı satış siparişi *</label><div class="in">SS-0412 · Müller GmbH</div></div><div class="f"><label>Dış ticaret referansı</label><div class="in">DT-2026-031</div></div></div></div>
+    <div class="grp" style="margin-top:10px"><h4>Güzergâh ve teslim</h4><div class="grid2"><div class="f"><label>Çıkış ülkesi</label><div class="in">TR</div></div><div class="f"><label>Varış ülkesi</label><div class="in">DE</div></div><div class="f"><label>Incoterms 2020</label><div class="in">FOB</div></div><div class="f"><label>HS kodu</label><div class="in">1509.10</div></div><div class="f"><label>Taşıma</label><div class="in">Deniz</div></div></div><div class="d" style="margin:8px 0 0">Ülke kodları 2 harflidir (ISO 3166-1), çıkış ve varış farklı olmalıdır.</div></div>
+    <div class="sec-t" style="margin:14px 0 6px">Diğer iki sekme</div>
+    <div class="grid2"><div class="grp"><h4>Değer ve planlama</h4><div class="f"><label>Beyan değeri</label><div class="in">48.600,00 (boşsa sipariş toplamı; para birimi siparişten)</div></div><div class="f" style="margin-top:6px"><label>Planlanan sevkiyat</label><div class="in">08.12.2026</div></div><div class="f" style="margin-top:6px"><label>Planlanan varış</label><div class="in">20.12.2026</div></div></div>
+      <div class="grp"><h4>Referanslar ve not</h4><div class="f"><label>Taşıyıcı / takip referansı</label><div class="in"></div></div><div class="f" style="margin-top:6px"><label>Gümrük referansı</label><div class="in"></div></div><div class="f" style="margin-top:6px"><label>Operasyon notu</label><div class="in"></div></div></div></div>
+  </div>
+  <div class="expl"><b>foreign-trade-case → Kayıt kartı</b>
+    <ul>
+      <li><b>Kalır:</b> yön (sonradan değişmez), bağlı sipariş, referans, güzergâh, Incoterms, HS, taşıma, değer ve planlama, referanslar, kilit uyarısı, koşullu "sipariş bulunamadı" uyarısı.</li>
+      <li><b>Sadeleşir:</b> dört ayrı başlık ve yedi ayrı durum rozeti tek özet olur; dört form kartı üç sekmeye toplanır; iki "sipariş yok" uyarısı yöne göre tek koşullu uyarı. Satırı olmadığından belge modeli gerekmez (dosya, sipariş belgesine bağlı kayıttır).</li>
+    </ul></div>
+</div></section>
+<script>
+  var all=document.querySelectorAll('.seg button');
+  all.forEach(function(b){
+    b.addEventListener('click',function(){
+      all.forEach(function(x){x.classList.toggle('on',x===b)});
+      document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('on',v.id===b.dataset.v)});
+      window.scrollTo(0,0);
+    });
+  });
+</script>
+</body>
+</html>

@@ -27,7 +27,8 @@ describe("Stok Hareketleri standardı tasarımcıda", () => {
     for (const component of components) {
       expect(contentFields, component.type).toHaveProperty(component.type);
       expect(palette.some((item) => item.type === component.type), component.type).toBe(true);
-      for (const key of Object.keys(component.props)) expect(managedKeys.has(key), `${component.id}.${key}`).toBe(true);
+      // Kalıplı standartta 'slot' kalıp yerleşimidir (kalıp panelleri yönetir), ham alan değildir.
+      for (const key of Object.keys(component.props)) expect(managedKeys.has(key) || (!!standard.definition.template && key === "slot"), `${component.id}.${key}`).toBe(true);
     }
     expect(MAIN_TAB_LABEL.steps).toBe("Adımlar");
     expect(MAIN_TAB_LABEL.recordHeader).toBe("Kayıt özeti");

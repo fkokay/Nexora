@@ -9,7 +9,7 @@ import { freeId, type ModelComponent, type ModelDefinition } from "./listPanelMo
 export const DIALOGS_SLOT = "dialogs";
 export const DIALOG_SLOT = "dialog";
 /** Pencere içinde izinli türler (sunucu: DialogPartTypes). */
-export const DIALOG_PART_TYPES: ReadonlySet<string> = new Set(["recordHeader", "section", "card", "formCard", "input", "text", "alert", "metric", "button", "dataTable", "tabs"]);
+export const DIALOG_PART_TYPES: ReadonlySet<string> = new Set(["recordHeader", "section", "card", "formCard", "input", "text", "alert", "metric", "button", "dataTable", "tabs", "customFieldsBlock", "editableGrid"]);
 /** Grubun içine konabilen türler (sunucu: GroupChildTypes). */
 export const GROUP_CHILD_TYPES: ReadonlySet<string> = new Set(["badge", "heading", "text", "metric", "alert", "button", "formCard", "dataTable", "contextPanel", "tabs"]);
 

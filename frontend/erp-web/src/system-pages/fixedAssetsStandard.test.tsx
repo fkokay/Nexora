@@ -101,24 +101,20 @@ function setup(role = 'TenantAdmin') {
 }
 
 const T = { timeout: 10000 };
-const command = (id: string) => screen.getByRole('toolbar', { name: 'İşlemler çubuğu' }).querySelector<HTMLElement>(`[data-command="${id}"]`)!;
+// Liste kalıbı: komutlar kabuğun "İşlemler" çubuğundadır.
+const command = (id: string) => {
+  const shell = screen.getByRole('toolbar', { name: 'İşlemler' });
+  return (id === 'more' ? within(shell).getByRole('button', { name: 'Diğer işlemler' }) : shell.querySelector<HTMLElement>(`[data-command="${id}"]`))!;
+};
+const filters = () => screen.getByRole('region', { name: 'Süzgeçler' });
+const detail = () => document.querySelector('.list-template-detail') as HTMLElement;
+const detailButton = (name: string) => within(detail()).queryByRole('button', { name });
 const ready = (id: string) => waitFor(() => expect(command(id).getAttribute('aria-disabled')).not.toBe('true'), T);
 const gets = (path: string) => calls.filter((call) => call.method === 'GET' && call.url.split('?')[0] === path);
 const writes = () => calls.filter((call) => call.method !== 'GET');
 const input = (id: string) => document.getElementById(`page-input-${id}`) as HTMLInputElement;
 const cell = (text: string) => screen.findByText(text, { selector: '.tenant-page-data-grid td' }, T);
 const rowOf = (text: string) => screen.getByText(text, { selector: '.tenant-page-data-grid td' }).closest('tr')!;
-const menuItem = async (name: RegExp) => {
-  fireEvent.click(command('more'));
-  return screen.findByRole('menuitem', { name }, T);
-};
-const menuNames = async () => {
-  fireEvent.click(command('more'));
-  await screen.findAllByRole('menuitem', {}, T);
-  const names = screen.queryAllByRole('menuitem').map((item) => item.textContent?.trim() ?? '');
-  fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-  return names;
-};
 const select = async (name: string) => {
   fireEvent.click(await cell(name));
   await waitFor(() => expect(rowOf(name).classList.contains('is-selected') || rowOf(name).getAttribute('aria-selected') === 'true').toBe(true), T);
@@ -141,8 +137,8 @@ afterEach(() => {
 });
 
 describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
-  it('is a version 1 preview of the Duran Varlık module and uses only operations from the catalog fixture', () => {
-    expect(standard.version).toBe(1);
+  it('is a version 2 preview (Liste kalıbı) of the Duran Varlık module and uses only operations from the catalog fixture', () => {
+    expect(standard.version).toBe(2);
     expect(standard.stage).toBe('preview');
     expect(standard.module).toBe('Duran Varlık');
     const names = new Set(catalog.operations.map((operation) => operation.name));
@@ -173,7 +169,7 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
     await cell('CNC tezgâhı');
     await waitFor(() => expect(gets('/api/fixed-assets/summary').length).toBeGreaterThan(0), T);
     const before = gets('/api/fixed-assets').length;
-    fireEvent.change(input('durumSecimi'), { target: { value: 'Disposed' } });
+    fireEvent.change(within(filters()).getByLabelText('Durum'), { target: { value: 'Disposed' } });
     await waitFor(() => expect(gets('/api/fixed-assets').length).toBeGreaterThan(before), T);
     expect(query(gets('/api/fixed-assets').at(-1)!.url).get('status')).toBe('Disposed');
     for (const call of gets('/api/fixed-assets/summary')) expect(query(call.url).has('status')).toBe(false);
@@ -195,26 +191,24 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
     expect(navigations[2]).toMatchObject({ page: 'fixed-asset-card', params: { assetId: A2 } });
   });
 
-  it('İşlemler: Sil is always disabled; depreciation, disposal and Zimmetle only for an active asset', async () => {
+  it('kart grubu: Sil ve Eski ekranda aç yok; amortisman, elden çıkarma ve Zimmetle yalnız etkin kıymette', async () => {
     setup();
     await select('CNC tezgâhı');
-    const sil = await menuItem(/^Sil/);
-    expect(sil.getAttribute('aria-disabled')).toBe('true');
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-    let names = await menuNames();
-    for (const name of ['Amortismanı kaydet', 'Elden çıkar', 'Zimmetle (eski ekranda)', 'Eski ekranda aç']) expect(names.some((item) => item.includes(name))).toBe(true);
+    for (const name of ['Kıymet kartını aç', 'Amortismanı kaydet', 'Elden çıkar', 'Zimmetle']) await waitFor(() => expect(detailButton(name)).not.toBeNull(), T);
+    expect(screen.queryByRole('button', { name: /^Sil/ })).toBeNull();
+    expect(screen.queryByText('Eski ekranda aç')).toBeNull();
     await select('Eski forklift');
-    names = await menuNames();
-    expect(names.some((item) => item.includes('Amortismanı kaydet'))).toBe(false);
-    expect(names.some((item) => item.includes('Elden çıkar'))).toBe(false);
-    expect(names.some((item) => item.includes('Zimmetle'))).toBe(false);
-    expect(names.some((item) => item.includes('Eski ekranda aç'))).toBe(true);
+    await waitFor(() => expect(detailButton('Amortismanı kaydet')).toBeNull(), T);
+    expect(detailButton('Elden çıkar')).toBeNull();
+    expect(detailButton('Zimmetle')).toBeNull();
+    expect(detailButton('Kıymet kartını aç')).not.toBeNull();
   });
 
   it('Zimmetle opens the legacy fixed asset screen (no assignment write in v1)', async () => {
     setup();
     await select('CNC tezgâhı');
-    fireEvent.click(await menuItem(/Zimmetle/));
+    await waitFor(() => expect(detailButton('Zimmetle')).not.toBeNull(), T);
+    fireEvent.click(detailButton('Zimmetle')!);
     await waitFor(() => expect(navigations).toHaveLength(1), T);
     expect(navigations[0]).toMatchObject({ page: 'fixed-assets', legacy: true });
     expect(writes()).toEqual([]);
@@ -224,7 +218,8 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
     setup();
     await select('CNC tezgâhı');
     await waitFor(() => expect(gets(`/api/fixed-assets/${A1}/depreciation-schedule`).length).toBeGreaterThan(0), T);
-    fireEvent.click(await menuItem(/Amortismanı kaydet/));
+    await waitFor(() => expect(detailButton('Amortismanı kaydet')).not.toBeNull(), T);
+    fireEvent.click(detailButton('Amortismanı kaydet')!);
     const dialog = await screen.findByRole('dialog', { name: /Amortismanı kaydet/ }, T);
     await waitFor(() => expect(dialog.textContent).toContain('01.11.2026'), T);
     expect(dialog.textContent).toContain('2.000,00');
@@ -244,7 +239,8 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
   it('Elden çıkar defaults today and 0, asks first and posts the disposal with an idempotency key', async () => {
     setup();
     await select('CNC tezgâhı');
-    fireEvent.click(await menuItem(/^Elden çıkar/));
+    await waitFor(() => expect(detailButton('Elden çıkar')).not.toBeNull(), T);
+    fireEvent.click(detailButton('Elden çıkar')!);
     const dialog = await screen.findByRole('dialog', { name: /Elden çıkarma kaydı/ }, T);
     expect(input('cikarmaTarihi').value).toBe(today());
     expect(input('cikarmaTahsilati').value).toBe('0');
@@ -258,15 +254,13 @@ describe('Duran Varlıklar standart tanımı', { timeout: 30000 }, () => {
     expect(JSON.parse(writes()[0].body!)).toEqual({ disposalDate: today(), proceedsBase: 50000, reason: 'Satış', idempotencyKey: expect.stringMatching(GUID) });
   });
 
-  it('detail panel: progress, monthly depreciation, current assignee and linked invoice of the selected asset', async () => {
+  it('kart grubu: empty state, then monthly depreciation, current assignee and linked invoice of the selected asset', async () => {
     setup();
+    await cell('CNC tezgâhı');
+    expect(within(detail()).getByText('Bir kıymet seçin; ayrıntıları burada görün.')).toBeTruthy();
     await select('CNC tezgâhı');
-    // Detay paneli tablonun araç çubuğundaki düğmedir (taslak 21; filtre satırında değil).
-    const panel = screen.getByRole('button', { name: 'Detay paneli' });
-    if (panel.getAttribute('aria-pressed') !== 'true') fireEvent.click(panel);
     const text = () => document.body.textContent ?? '';
     await waitFor(() => expect(text()).toContain('P-001 · Ayşe Yılmaz'), T);
-    expect(text()).toContain('9 / 60 ay');
     expect(text()).toContain('Aylık amortisman');
     expect(text()).toContain('AF-2026-0007');
   });
