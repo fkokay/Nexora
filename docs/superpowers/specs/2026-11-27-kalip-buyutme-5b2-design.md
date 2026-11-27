@@ -1,5 +1,7 @@
 # 5b-2: Kalıpları büyütme ve standartları dalga dalga taşıma (tasarım)
 
+Durum: adım 1 planı yazıldı (2026-11-27, `docs/superpowers/plans/2026-11-27-komutlar-kayit-karti-5b2a.md`); uygulama `claude/kalip-buyutme-5b2` dalında, testleri yeşil, henüz birleşmedi (PR açılmadı). Taşınan standart yok; Kayıt kartına taşıma (run) henüz açık değil.
+
 Tarih: 2026-11-27. Üst belge: `2026-11-25-nexora-studio-sadelestirme-design.md` §7 madde 5b. Önceki parça: 5b-1 (PR #189, sınıflandırıcı + rapor + geri alınabilir taşıma; canlıda).
 
 ## 1. Amaç ve neden
@@ -93,7 +95,9 @@ Adım 1 kalıplara bu komutların karşılığını ekler: **hangi yerleşik kom
   - **Düğme sırası sabittir:** Yeni · Düzenle · Görüntüle · Kaydet ve yeni · Yenile · Filtre · Yazdır · Excel (ana düğme solda, Sil en sağda); danışman sıralayamaz.
   - Standartlarda hiç kullanılmayan eski çubuk ayarları (`barLook`, `formDialog`, `printEnabled`, `exportCsv`) yeni biçimde karşılık bulmaz; bunları kullanan firma sayfası gerekçesiyle taşınmaz kalır.
   - `afterSaveRefresh`, yalnız "kayıttan sonra ekran aç" seçiliyken geçerli "açılan sayfayı yenile" seçeneğidir.
-- **Kayıt kartı:** bugünkü sabit Kaydet / Sil / kayıt sonrası kuralları (`recordDoneFor`, `recordSequenceGate`, `afterRecordSave`) sayfada ayar yoksa varsayılandır; `saveQuery`, `saveSequence`/`sequenceWhen`/`stopOnError`, `afterSave*`, `deleteQuery`/`deleteConfirmText`, `saveAndNew`, `newInputs` karşılıkları bu kurallara takılır.
+- **Biçimin yeri (adım 1 planı, Karar 1):** kalıplı sayfada (Liste, Kayıt kartı, Serbest) en çok bir üst düzey `actionBar`, `props.slot: "commands"`; ayarlar eski çubuğun ayarlarıyla aynı ad ve değerdedir. Çubuğun çalıştırdığı düğmeler `actions` yerindedir (Liste'de satır düğmesiyse `rowActions` da olabilir). `printEnabled` kalıpta yoktur: kalıpta görünen Yazdır yazdırır; dönüştürücü Yazdır görünürken `printEnabled: true` ya da Yazdır gizliyken bu ayarı siler, görünür ama bağlı olmayan Yazdır'lı sayfayı taşımaz.
+- **Belge kalıbında komutlar yok (adım 1 planı, Karar 6):** Belge `actionBar` taşımaz (`BelgeKomut` hatası); Kaydet / Onayla belge modelinden gelir. Belge modelleriyle (adım 5) birlikte ele alınır.
+- **Kayıt kartı:** bugünkü sabit Kaydet / Sil / kayıt sonrası kuralları (`recordDoneFor`, `recordSequenceGate`, `afterRecordSave`) sayfada ayar yoksa varsayılandır; `saveQuery`, `saveSequence`/`sequenceWhen`/`stopOnError`, `afterSave*`, `deleteQuery`/`deleteConfirmText`, `saveAndNew`, `newInputs` karşılıkları bu kurallara takılır. Dönüştürücü (ve bağımsız olarak eşdeğerlik denetimi) bu kuralların eski sayfanın davranışını değiştireceği sayfayı Kayıt kartına taşımaz: çubukta Kaydet (`saveQuery`/`saveSequence`) `afterSaveAction: "page"` olmadan, çubukta Sil (`deleteQuery`), ya da çubuğun çalıştırmadığı kayıt dizisi ya da silme sorgulu düğme ("Kayıt kartının kayıt/silme sonrası kuralı eski sayfadaki davranışı değiştirir.").
 
 ### 5.3 Davranış eşdeğerliği nasıl sınanır (karar)
 
