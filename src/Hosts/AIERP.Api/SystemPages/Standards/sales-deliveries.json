@@ -592,7 +592,17 @@
             "irsaliyeDurumu",
             "irsaliyeSekmeleri"
           ],
-          "slot": "dialogs"
+          "slot": "dialogs",
+          "saveQuery": "faturalastir",
+          "saveLabel": "Faturalaştır",
+          "closeOnSave": false,
+          "confirmEnabled": true,
+          "confirmText": "“{{irsaliye.rows[0].code}}” için satış faturası ve cari borç kaydı oluşturulsun mu?",
+          "successMessage": "Satış faturası oluşturuldu.",
+          "refreshQueries": [
+            "irsaliye",
+            "irsaliyeler"
+          ]
         }
       },
       {
@@ -866,24 +876,6 @@
                 "faturaNotu"
               ],
               "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false"
-            }
-          },
-          {
-            "id": "faturalastirDugmesi",
-            "type": "button",
-            "name": "faturalastirDugmesi",
-            "props": {
-              "text": "Faturalaştır",
-              "actionType": "query",
-              "queryId": "faturalastir",
-              "confirmEnabled": true,
-              "confirmText": "“{{irsaliye.rows[0].code}}” için satış faturası ve cari borç kaydı oluşturulsun mu?",
-              "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false",
-              "successMessage": "Satış faturası oluşturuldu.",
-              "refreshQueries": [
-                "irsaliye",
-                "irsaliyeler"
-              ]
             }
           }
         ]
