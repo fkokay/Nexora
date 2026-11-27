@@ -218,6 +218,8 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         Assert.NotNull(BehaviorEquivalence.Check(before, Edited(root => ((JsonArray)FindNode(root, "faturaPenceresi")["props"]!["contains"]!).RemoveAt(0))));
         Assert.NotNull(BehaviorEquivalence.Check(before, Edited(root => FindNode(root, "tahsilatFormu")["props"]!["visibleWhen"] = "true")));
         Assert.NotNull(BehaviorEquivalence.Check(before, Edited(root => FindNode(root, "faturaPenceresi")["props"]!["size"] = "md")));
+        // A group's own condition (added) and the detail card group's condition (inventory-tracking, below) are behavior.
+        Assert.NotNull(BehaviorEquivalence.Check(before, Edited(root => FindNode(root, "tahsilatBolumu")["props"]!["visibleWhen"] = "false")));
         Assert.NotNull(BehaviorEquivalence.Check(before, Edited(root => FindNode(root, "faturaSekmeleri")["props"]!["tabs"]![1] = "Tahsilatlar=iadeTablosu")));
         // A group with a condition: inventory-tracking's detail card children.
         var tracking = Standard("inventory-tracking");
@@ -225,6 +227,9 @@ public sealed class PageTemplateMigrationDialogTests(ITestOutputHelper output)
         var changed = JsonNode.Parse(trackingAfter)!;
         FindNode(changed, "detayLot")["props"]!["visibleWhen"] = "true";
         Assert.NotNull(BehaviorEquivalence.Check(tracking, changed.ToJsonString()));
+        var cardCondition = JsonNode.Parse(trackingAfter)!;
+        FindNode(cardCondition, "detayKarti")["props"]!["visibleWhen"] = "liste.seciliSatir.id != null";
+        Assert.NotNull(BehaviorEquivalence.Check(tracking, cardCondition.ToJsonString()));
         var moved = JsonNode.Parse(trackingAfter)!;
         ((JsonArray)FindNode(moved, "detayKarti")["children"]!).RemoveAt(0);
         Assert.NotNull(BehaviorEquivalence.Check(tracking, moved.ToJsonString()));
