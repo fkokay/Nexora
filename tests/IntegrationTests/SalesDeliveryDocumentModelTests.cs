@@ -36,7 +36,7 @@ public sealed class SalesDeliveryDocumentModelTests
         factory.WithTenantDbAsync(async db =>
         {
             var item = await db.StockItems.SingleAsync(x => x.Id == seed.StockItemId);
-            var order = new SalesOrder { TenantId = seed.TenantId, CustomerId = seed.CustomerId, Code = "SO-D", OrderDate = new DateOnly(2026, 11, 1), CurrencyCode = "TRY", Status = SalesOrderStatus.Approved };
+            var order = new SalesOrder { TenantId = seed.TenantId, CustomerId = seed.CustomerId, Code = "SO-D", OrderDate = new DateOnly(2026, 11, 1), CurrencyCode = "TRY", Status = SalesOrderStatus.Open };
             var delivery = new SalesDelivery
             {
                 TenantId = seed.TenantId, RequestId = Guid.NewGuid(), Order = order, WarehouseId = seed.WarehouseId, Code = "IRS-ORD", DeliveryDate = new DateOnly(2026, 11, 2),
