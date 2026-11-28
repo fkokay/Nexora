@@ -42,7 +42,7 @@ public sealed class FinanceSystemPagesTests
     public void Catalog_declares_the_finance_operations_in_the_finans_module()
     {
         var finance = ErpOperationCatalog.All.Where(x => x.Name.StartsWith("finans.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(30, finance.Length);
+        Assert.Equal(31, finance.Length);
         Assert.All(finance, op =>
         {
             Assert.Equal(("Finans", false), (op.Module, op.Deprecated));

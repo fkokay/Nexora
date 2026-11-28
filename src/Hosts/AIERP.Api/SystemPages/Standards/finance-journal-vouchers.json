@@ -124,13 +124,6 @@
             "filter",
             "print",
             "export"
-          ],
-          "openAction": "page",
-          "openPageCode": "@finance-journal-voucher-document",
-          "openTarget": "sameTab",
-          "openTable": "liste",
-          "openParams": [
-            "id={{liste.seciliSatir.id}}"
           ]
         }
       },
@@ -336,27 +329,6 @@
         },
         {
           "component": "komutlar",
-          "prop": "openAction",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openPageCode",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openParams",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
           "prop": "newAction",
           "from": [
             null
@@ -364,49 +336,7 @@
         },
         {
           "component": "komutlar",
-          "prop": "newPageCode",
-          "from": [
-            "@finance-journal-vouchers"
-          ]
-        },
-        {
-          "component": "komutlar",
           "prop": "newTarget",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openAction",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openPageCode",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openTarget",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openTable",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openParams",
           "from": [
             null
           ]

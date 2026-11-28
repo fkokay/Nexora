@@ -203,14 +203,7 @@
             "filter",
             "print"
           ],
-          "slot": "commands",
-          "openAction": "page",
-          "openPageCode": "@finance-journal-voucher-document",
-          "openTarget": "sameTab",
-          "openTable": "liste",
-          "openParams": [
-            "id={{liste.seciliSatir.id}}"
-          ]
+          "slot": "commands"
         }
       },
       {
@@ -667,48 +660,6 @@
         {
           "component": "acDugmesi",
           "prop": "target",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "acDugmesi",
-          "prop": "openParams",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openAction",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openPageCode",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openTarget",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openTable",
-          "from": [
-            null
-          ]
-        },
-        {
-          "component": "komutlar",
-          "prop": "openParams",
           "from": [
             null
           ]
