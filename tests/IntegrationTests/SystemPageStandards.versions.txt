@@ -37,7 +37,6 @@ sales-delivery-document=1
 sales-invoice-create=1
 sales-invoice-document=1
 sales-invoices=4
-sales-order-create=2
 sales-order-document=1
 sales-orders=7
 sales-purchase-delivery-notes=2
