@@ -55,7 +55,7 @@ export type BarLook = {
 /** BarLook keys in a fixed order (stable signatures). */
 export const BAR_LOOK_KEYS = ['align', 'density', 'sticky', 'separators', 'size', 'style', 'content', 'unbound', 'hints', 'border', 'radius', 'title', 'accent', 'background'] as const satisfies readonly (keyof BarLook)[];
 
-export type MenuCommand = { id: string; label: string; shortcut?: string; run?: () => void | Promise<void>; disabledReason?: string };
+export type MenuCommand = { id: string; label: string; shortcut?: string; run?: () => void | Promise<void>; disabledReason?: string; danger?: boolean };
 
 /**
  * `besideList` (a form registration): the form sits on a list screen (under or beside the list), so the bar stays a
@@ -63,6 +63,8 @@ export type MenuCommand = { id: string; label: string; shortcut?: string; run?: 
  */
 export type PageCommands = Partial<Record<StandardCommandId, CommandSpec>> & {
   more?: MenuCommand[];
+  /** Visible selected-row actions sourced from a page's existing moreButtons; drawn beside Yeni. */
+  inlineMore?: MenuCommand[];
   /**
    * Page buttons drawn on the bar right after the record commands (Yeni, Aç, Kaydet, Sil), e.g. "Kaydet ve yeni". The bar
    * does not bind their `shortcut`; the page handles its own keys. An open form's items come first, as in `more`.

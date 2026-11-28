@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { ActionBarSlot, useSlotBreadcrumb } from "../action-bar/ActionBarSlot";
 import { tooltipText, useActionTooltip } from "../action-bar/ActionTooltip";
 import { useOptionalCommandRegistry, ViewKeyContext } from "../commands/CommandProvider";
@@ -8,7 +8,7 @@ import { ListPageHeader } from "../list-page/ListPageHeader";
 import "./page-templates.css";
 
 /** "⋯" menüsünün `Diğer` kısmındaki bir öğe (eski çubuğun İşlemler menüsü: `moreButtons`, CSV). */
-export type ShellMenuItem = { id: string; label: string; shortcut?: string; disabledReason?: string; run: () => void };
+export type ShellMenuItem = { id: string; label: string; shortcut?: string; disabledReason?: string; danger?: boolean; run: () => void };
 
 export type ShellAction = {
   /** Kabuktaki kimlik (React anahtarı, genişlik bölüşümü); komut düğmelerinde ad alanlıdır (`cmd:save`). */
@@ -19,6 +19,9 @@ export type ShellAction = {
   kind: "primary" | "normal" | "danger";
   disabled?: boolean;
   disabledReason?: string;
+  /** Destructive page action rendered inline beside Yeni. */
+  destructive?: boolean;
+  separatorBefore?: boolean;
   /**
    * Komutun kısayolu (ör. "Ctrl+S"): düğmede rozet yoktur; üzerine gelince ya da odakta "<Etiket> · <Kısayol>", pasifken
    * "<Neden> · <Kısayol>" ipucu çıkar. Kısayollu pasif düğme `aria-disabled`'dır ki ipucu fareyle de görünsün.
@@ -75,14 +78,14 @@ const actionClass = (action: ShellAction) => `page-shell-action page-shell-actio
 
 function ActionButton({ action }: { action: ShellAction }) {
   if (action.shortcut) return <CommandButton action={action} shortcut={action.shortcut} />;
-  return <>{action.anchor}<button type="button" className={actionClass(action)}
+  return <>{action.anchor}{action.separatorBefore && <span className="page-shell-action-separator" aria-hidden="true" />}<button type="button" className={`${actionClass(action)}${action.destructive ? " page-shell-action--destructive" : ""}`}
     disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} onClick={(event) => action.run(event.currentTarget)}>{action.label}</button></>;
 }
 
 /** Kısayollu (komut) düğme: ipucu ortak çubuktaki gibidir; pasifken `aria-disabled` (fare ve odak ipucunu yine gösterir). */
 function CommandButton({ action, shortcut }: { action: ShellAction; shortcut: string }) {
   const tip = useActionTooltip<HTMLButtonElement>(tooltipText(action.label, formatShortcut(shortcut, "tr"), action.disabled ? action.disabledReason : undefined));
-  return <>{action.anchor}<button ref={tip.anchorRef} type="button" className={actionClass(action)} data-command={action.command ?? action.id}
+  return <>{action.anchor}{action.separatorBefore && <span className="page-shell-action-separator" aria-hidden="true" />}<button ref={tip.anchorRef} type="button" className={`${actionClass(action)}${action.destructive ? " page-shell-action--destructive" : ""}`} data-command={action.command ?? action.id}
     aria-keyshortcuts={shortcut} aria-disabled={action.disabled ? "true" : undefined} aria-describedby={tip.describedBy} {...tip.handlers}
     onClick={(event) => { if (!action.disabled) action.run(event.currentTarget); }}>{action.label}</button>{tip.tooltip}</>;
 }
@@ -204,17 +207,23 @@ export function PageShell({ title, crumbs, count, actions, search, head, footer,
         {hasMore && <div className="page-shell-more" ref={moreRef}>
           <MoreButton buttonRef={moreButtonRef} open={menuOpen} claimed={claimed} onToggle={() => setMenuOpen((open) => !open)} />
           {menuOpen && <div className="page-shell-menu" role="menu" ref={menuRef} onKeyDown={onMenuKeyDown}>
-            {overflow.map((action) => <button key={action.id} type="button" role="menuitem" className={`page-shell-menu-item page-shell-menu-item--${action.kind}`}
-              disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} aria-keyshortcuts={action.shortcut}
-              onClick={() => closeAndRun(() => action.run(moreButtonRef.current ?? undefined))}>
-              {action.shortcut ? <><span>{action.label}</span><kbd>{formatShortcut(action.shortcut, "tr")}</kbd></> : action.label}
-            </button>)}
+            {overflow.map((action, index) => <Fragment key={action.id}>
+              {action.destructive && (index === 0 || !overflow[index - 1].destructive) && <div role="separator" className="page-shell-menu-separator" />}
+              <button type="button" role="menuitem" className={`page-shell-menu-item page-shell-menu-item--${action.kind}${action.destructive ? " page-shell-menu-item--destructive" : ""}`}
+                disabled={action.disabled} title={action.disabled ? action.disabledReason : undefined} aria-keyshortcuts={action.shortcut}
+                onClick={() => closeAndRun(() => action.run(moreButtonRef.current ?? undefined))}>
+                {action.shortcut ? <><span>{action.label}</span><kbd>{formatShortcut(action.shortcut, "tr")}</kbd></> : action.label}
+              </button>
+            </Fragment>)}
             {overflow.length > 0 && others.length > 0 && <div role="separator" className="page-shell-menu-separator" />}
             {others.length > 0 && <div role="presentation" className="page-shell-menu-heading">Diğer</div>}
-            {others.map((item) => <button key={`more:${item.id}`} type="button" role="menuitem" className="page-shell-menu-item"
-              disabled={item.disabledReason !== undefined} title={item.disabledReason} aria-keyshortcuts={item.shortcut} onClick={() => closeAndRun(item.run)}>
-              {item.shortcut ? <><span>{item.label}</span><kbd>{formatShortcut(item.shortcut, "tr")}</kbd></> : item.label}
-            </button>)}
+            {others.map((item, index) => <Fragment key={`more:${item.id}`}>
+              {item.danger && (index === 0 || !others[index - 1].danger) && <div role="separator" className="page-shell-menu-separator" />}
+              <button type="button" role="menuitem" className={`page-shell-menu-item${item.danger ? " page-shell-menu-item--destructive" : ""}`}
+                disabled={item.disabledReason !== undefined} title={item.disabledReason} aria-keyshortcuts={item.shortcut} onClick={() => closeAndRun(item.run)}>
+                {item.shortcut ? <><span>{item.label}</span><kbd>{formatShortcut(item.shortcut, "tr")}</kbd></> : item.label}
+              </button>
+            </Fragment>)}
           </div>}
         </div>}
         {shownRight.map((action) => <ActionButton key={action.id} action={action} />)}

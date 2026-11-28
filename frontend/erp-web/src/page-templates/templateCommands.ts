@@ -34,7 +34,7 @@ function commandAction(id: StandardCommandId, spec: CommandSpec, kind: ShellActi
 function itemAction(item: MenuCommand): ShellAction {
   const { enabled, reason } = stateOf(item);
   return {
-    id: commandActionId(item.id), command: item.id, label: item.label, kind: "normal", ...(item.shortcut ? { shortcut: item.shortcut } : {}),
+    id: commandActionId(item.id), command: item.id, label: item.label, kind: "normal", ...(item.danger ? { destructive: true } : {}), ...(item.shortcut ? { shortcut: item.shortcut } : {}),
     ...(enabled ? {} : { disabled: true, disabledReason: reason }),
     run: () => { if (enabled) void item.run?.(); },
   };
@@ -45,6 +45,7 @@ function menuItem(item: MenuCommand): ShellMenuItem {
   return {
     id: item.id, label: item.label, ...(item.shortcut ? { shortcut: item.shortcut } : {}),
     ...(enabled ? {} : { disabledReason: reason }),
+    ...(item.danger ? { danger: true } : {}),
     run: () => { if (enabled) void item.run?.(); },
   };
 }
@@ -75,6 +76,13 @@ export function shellCommandActions(commands: PageCommands | undefined, pageButt
     if (!drawable(commands, id)) continue;
     const spec = commands[id]!;
     actions.push(commandAction(id, spec, !saveShown && !keepPagePrimary && spec.primary ? "primary" : "normal"));
+    if (id === "new") {
+      (commands.inlineMore ?? []).forEach((item, index, items) => {
+        const action = itemAction(item);
+        action.separatorBefore = !!item.danger && (index === 0 || !items[index - 1].danger);
+        actions.push(action);
+      });
+    }
   }
   // Eski çubuktaki gibi: öteki çubuk düğmeleri (ör. kayıt formunun Temizle'si) ve Geri al da çizilir; sabit sırada yerleri
   // olmadığından Excel'den sonra, sayfa düğmelerinden önce gelirler.

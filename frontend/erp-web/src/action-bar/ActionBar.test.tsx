@@ -55,7 +55,7 @@ describe('ActionBar', () => {
   it('renders the standard buttons in fixed order plus the actions menu', () => {
     setup(all());
     expect(commandIds()).toEqual([...ACTION_BAR_ORDER, 'more']);
-    expect(layout()).toEqual(['new', 'open', 'view', 'save', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', 'save', '|', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
     expect(button('view').textContent).toBe('Görüntüle');
   });
 
@@ -78,12 +78,35 @@ describe('ActionBar', () => {
     const { save: _save, ...list } = all();
     setup({ ...list, open: { run: open }, delete: { disabledReason: 'Önce bir kayıt seçin' } });
     expect(button('save')).toBeNull();
-    expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
+    expect(layout()).toEqual(['new', 'open', 'view', '|', 'delete', '|', 'refresh', 'filter', '|', 'print', 'export']);
     expect(isDisabled(button('delete'))).toBe(true);
     const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true });
     document.body.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('puts visible selected-row actions directly after Yeni', () => {
+    setup({
+      new: { run: vi.fn() },
+      open: { run: vi.fn() },
+      inlineMore: [{ id: 'release', label: 'Serbest bırak', run: vi.fn() }],
+      more: [{ id: 'csv', label: 'CSV', run: vi.fn() }],
+    });
+    expect(layout().slice(0, 3)).toEqual(['new', 'release', 'open']);
+    expect(bar().querySelector('[data-item="release"]')).toBeNull();
+  });
+
+  it('marks destructive bar and menu actions as danger and separates the menu group', () => {
+    setup({ delete: { run: vi.fn() }, more: [
+      { id: 'route', label: 'Rota', run: vi.fn() },
+      { id: 'cancel', label: 'İptal et', run: vi.fn(), danger: true },
+    ] });
+    expect(button('delete').getAttribute('data-danger')).toBe('true');
+    fireEvent.click(button('more'));
+    const cancel = screen.getByRole('menuitem', { name: 'İptal et' });
+    expect(cancel.getAttribute('data-danger')).toBe('true');
+    expect(cancel.previousElementSibling?.getAttribute('role')).toBe('separator');
   });
 
   it('drops a separator whose group has no button left', () => {
@@ -103,7 +126,7 @@ describe('ActionBar', () => {
         </KeepAliveViews>
       </CommandProvider>,
     );
-    expect(layout()).toEqual(['new', 'save', 'delete', '|', 'refresh', '|', 'print']);
+    expect(layout()).toEqual(['new', 'save', '|', 'delete', '|', 'refresh', '|', 'print']);
     expect(button('save').getAttribute('data-primary')).toBe('true');
     fireEvent.keyDown(document.body, { key: 'f', ctrlKey: true });
     fireEvent.keyDown(document.body, { key: 'e', ctrlKey: true });
@@ -382,7 +405,7 @@ describe('ActionBar compaction (narrow bar)', () => {
       expect(button('save')).toBeNull();
       expect(button('export')).toBeNull();
       expect(button('refresh')).toBeNull();
-      expect(layout()).toEqual(['new', 'open', 'view', 'delete', '|', 'filter', '|', 'print']);
+      expect(layout()).toEqual(['new', 'open', 'view', '|', 'delete', '|', 'filter', '|', 'print']);
       const event = new KeyboardEvent('keydown', { key: 'F5', bubbles: true, cancelable: true });
       document.body.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(true);

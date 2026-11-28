@@ -128,6 +128,7 @@ function CommandButton({ id, spec, locale, hints = true }: { id: StandardCommand
         type="button"
         className="nx-action-bar__button"
         data-command={id}
+        data-danger={id === 'delete' ? 'true' : undefined}
         data-primary={spec?.primary ? 'true' : undefined}
         aria-label={label}
         aria-keyshortcuts={STANDARD_SHORTCUTS[id]}
@@ -158,6 +159,7 @@ function BarItemButton({ item, locale, hints = true }: { item: MenuCommand; loca
         type="button"
         className="nx-action-bar__button"
         data-command={item.id}
+        data-danger={item.danger ? 'true' : undefined}
         aria-label={item.label}
         aria-keyshortcuts={item.shortcut}
         aria-disabled={enabled ? undefined : 'true'}
@@ -245,26 +247,29 @@ function ActionsMenu({ items, locale, open, onOpenChange, hints = true }: { item
       {tip.tooltip}
       {open && (
         <div ref={menuRef} className="nx-action-bar__menu" role="menu" aria-label="İşlemler" style={position} onKeyDown={onMenuKeyDown}>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const { enabled, reason } = stateOf(item);
             return (
-              <button
-                key={item.id}
-                type="button"
-                role="menuitem"
-                className="nx-action-bar__menu-item"
-                data-item={item.id}
-                aria-disabled={enabled ? undefined : 'true'}
-                title={enabled ? undefined : reason}
-                onClick={() => {
-                  if (!enabled) return;
-                  close(true);
-                  void item.run?.();
-                }}
-              >
-                <span>{item.label}</span>
-                {item.shortcut && <kbd>{formatShortcut(item.shortcut, locale)}</kbd>}
-              </button>
+              <Fragment key={item.id}>
+                {item.danger && index > 0 && !items[index - 1].danger && <span className="nx-action-bar__menu-sep" role="separator" />}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="nx-action-bar__menu-item"
+                  data-item={item.id}
+                  data-danger={item.danger ? 'true' : undefined}
+                  aria-disabled={enabled ? undefined : 'true'}
+                  title={enabled ? undefined : reason}
+                  onClick={() => {
+                    if (!enabled) return;
+                    close(true);
+                    void item.run?.();
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {item.shortcut && <kbd>{formatShortcut(item.shortcut, locale)}</kbd>}
+                </button>
+              </Fragment>
             );
           })}
         </div>
@@ -317,10 +322,23 @@ export function ActionBar({ locale }: { locale: Locale }) {
       {...lookAttributes(look)} style={lookStyle(look)}>
       {/* The standard buttons compact, then scroll; İşlemler stays pinned at the right. */}
       <div ref={commandsRef} className="nx-action-bar__commands">
+        {offersCommand(commands, 'new') && <CommandButton key="new" id="new" spec={commands?.new} locale={locale} iconOnly={iconOnly} hints={hints} />}
+        {commands?.inlineMore?.map((item, index, items) => (
+          <Fragment key={item.id}>
+            {item.danger && (index === 0 || !items[index - 1].danger) && <span className="nx-action-bar__sep" aria-hidden="true" />}
+            <BarItemButton item={item} locale={locale} hints={hints} />
+          </Fragment>
+        ))}
         {visibleGroups(commands).map((group, index) => (
           <Fragment key={group[0]}>
             {index > 0 && <span className="nx-action-bar__sep" aria-hidden="true" />}
-            {group.map((id) => <CommandButton key={id} id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} hints={hints} />)}
+            {group.filter((id) => id !== 'new').map((id, itemIndex) => (
+              <Fragment key={id}>
+                {id === 'delete' && (itemIndex > 0 || offersCommand(commands, 'new') || !!commands?.inlineMore?.length)
+                  && <span className="nx-action-bar__sep" aria-hidden="true" />}
+                <CommandButton id={id} spec={commands?.[id]} locale={locale} iconOnly={iconOnly} hints={hints} />
+              </Fragment>
+            ))}
             {/* Page buttons (Kaydet ve yeni) follow the record commands, before the first separator. */}
             {index === 0 && commands?.barItems?.map((item) => <BarItemButton key={item.id} item={item} locale={locale} hints={hints} />)}
           </Fragment>

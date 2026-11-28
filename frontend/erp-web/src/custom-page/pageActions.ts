@@ -169,6 +169,10 @@ export type PageActionDeps = {
   /** Aktarım tablosu sayfada görünüyor mu (`visibleWhen`, sahipleri dahil); false ise Excel ve CSV komutları gizlenir. */
   tableVisible?: (tableId: string) => boolean;
   buttonLabel: (id: string) => string | undefined;
+  /** Existing moreButtons whose visibleWhen references a selected row; they are drawn inline beside Yeni. */
+  inlineButtonIds?: ReadonlySet<string>;
+  /** Whether a page button represents a destructive operation. */
+  buttonDanger?: (id: string) => boolean;
   /** moreButtons düğmesinin koşul durumu: `visibleWhen` yanlışsa gizli (menüye girmez), `disabledWhen` doğruysa nedenli pasif. */
   buttonGate?: (id: string) => { hidden?: boolean; disabled?: boolean; disabledReason?: string } | undefined;
   /** Silme sorgusu, seçimi olmayan bir tablonun `seciliSatir` alanına bağlıysa true. */
@@ -280,13 +284,17 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
   const viewCommand: CommandSpec = viewPage ? pageCommand(viewPage, plan.open.table) : { hidden: true };
 
   const barItems: MenuCommand[] = [];
-  const more = idList(props.moreButtons, 10).flatMap((id): MenuCommand[] => {
+  const more: MenuCommand[] = [];
+  const inlineMore: MenuCommand[] = [];
+  idList(props.moreButtons, 10).forEach((id) => {
     const label = deps.buttonLabel(id);
-    if (!label) return [];
+    if (!label) return;
     const gate = deps.buttonGate?.(id);
-    if (gate?.hidden) return [];
-    if (gate?.disabled) return [{ id, label, disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE }];
-    return [{ id, label, run: () => deps.run.button(id) }];
+    if (gate?.hidden) return;
+    const target = deps.inlineButtonIds?.has(id) ? inlineMore : more;
+    const danger = deps.buttonDanger?.(id) || undefined;
+    if (gate?.disabled) target.push({ id, label, disabledReason: gate.disabledReason || BUTTON_UNAVAILABLE, ...(danger ? { danger } : {}) });
+    else target.push({ id, label, run: () => deps.run.button(id), ...(danger ? { danger } : {}) });
   });
   // Eski listeler gibi: Excel çubuğun komutu, CSV'si İşlemler menüsünde (`exportCsv: false` kapatır).
   const exportCommand = !exportState ? unbound
@@ -326,6 +334,7 @@ export function buildPageCommands(props: Record<string, unknown>, deps: PageActi
     print: props.printEnabled === true ? { run: () => deps.run.print() } : unbound,
     export: exportHidden ? { hidden: true } : exportCommand,
     ...(more.length > 0 ? { more } : {}),
+    ...(inlineMore.length > 0 ? { inlineMore } : {}),
     ...(barItems.length > 0 ? { barItems } : {}),
   };
   // Görüntüleme kipi: kayıt salt okunurdur; yazan ve başka kayıt açan komutlar çubukta yoktur.

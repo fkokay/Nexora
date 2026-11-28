@@ -66,7 +66,7 @@ export function useCommandRegistry(): CommandRegistry {
 }
 
 function moreSignature(more: MenuCommand[] | undefined) {
-  return more?.map((item) => [item.id, item.label, item.shortcut ?? '', item.disabledReason ?? '', typeof item.run === 'function']);
+  return more?.map((item) => [item.id, item.label, item.shortcut ?? '', item.disabledReason ?? '', Boolean(item.danger), typeof item.run === 'function']);
 }
 
 function structureSignature(commands: PageCommands): string {
@@ -75,7 +75,7 @@ function structureSignature(commands: PageCommands): string {
     return spec ? [[id, typeof spec.run === 'function', spec.disabledReason ?? '', Boolean(spec.primary), Boolean(spec.hidden), spec.label ?? '']] : [];
   });
   const look = commands.look ? BAR_LOOK_KEYS.map((key) => commands.look![key] ?? null) : null;
-  return JSON.stringify([specs, moreSignature(commands.more), moreSignature(commands.barItems), Boolean(commands.besideList), Boolean(commands.moreHidden), look, Boolean(commands.shell)]);
+  return JSON.stringify([specs, moreSignature(commands.more), moreSignature(commands.inlineMore), moreSignature(commands.barItems), Boolean(commands.besideList), Boolean(commands.moreHidden), look, Boolean(commands.shell)]);
 }
 
 // The registered `run` functions are stable wrappers that call through `ref`, so handlers may change every render.
@@ -99,7 +99,18 @@ function buildStable(ref: { current: PageCommands }): PageCommands {
       label: item.label,
       shortcut: item.shortcut,
       disabledReason: item.disabledReason,
+      danger: item.danger,
       run: item.run ? () => ref.current.more?.find((candidate) => candidate.id === item.id)?.run?.() : undefined,
+    }));
+  }
+  if (latest.inlineMore) {
+    built.inlineMore = latest.inlineMore.map((item) => ({
+      id: item.id,
+      label: item.label,
+      shortcut: item.shortcut,
+      disabledReason: item.disabledReason,
+      danger: item.danger,
+      run: item.run ? () => ref.current.inlineMore?.find((candidate) => candidate.id === item.id)?.run?.() : undefined,
     }));
   }
   if (latest.barItems) {
