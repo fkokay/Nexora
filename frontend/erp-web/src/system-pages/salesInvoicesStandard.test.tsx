@@ -56,28 +56,29 @@ const h = salesHarness(KEY, api, catalog, respond);
 beforeEach(() => { api.mockReset(); localStorage.clear(); h.listen(); });
 afterEach(() => { h.reset(); cleanup(); setPageParams(KEY, {}); });
 
+// Aç and Yeni go to the Belge page; the collections / returns window opens from the row's "Tahsilat ve iadeler" button.
 const openInvoice = async (code: string) => {
+  const rowOf = () => screen.getAllByRole('row').find((item) => within(item).queryByText(code))!;
   await h.selectRow(code);
-  await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
-  fireEvent.click(h.command('open'));
+  fireEvent.click(within(rowOf()).getByRole('button', { name: 'Tahsilat ve iadeler' }));
   return h.dialog(new RegExp(`Satış faturası · ${code}`));
 };
 
 describe('Satış Faturaları standart tanımı', { timeout: 30000 }, () => {
-  it('is a v3 preview standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
+  it('is a v4 preview standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 4, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
   });
 
-  it('the customerId page param filters the list and invoiceId opens that invoice', async () => {
+  it('the customerId page param filters the list and invoiceId opens that invoice on the Belge page', async () => {
     setPageParams(KEY, { customerId: C1, invoiceId: I1 });
     h.setup();
-    const opened = await h.dialog(/Satış faturası · F-1/);
+    await waitFor(() => expect(h.state.navigations.some((item) => item.page === 'sales-invoice-document')).toBe(true), T);
+    expect(h.state.navigations.find((item) => item.page === 'sales-invoice-document')).toMatchObject({ params: { id: I1 } });
     expect(query(h.gets('/api/sales/invoices')[0].url).get('customerId')).toBe(C1);
     expect(query(h.gets('/api/sales/invoices')[0].url).get('pageSize')).toBe('25');
     expect(screen.getByText('Seçili carinin faturaları gösteriliyor.')).toBeTruthy();
-    await waitFor(() => expect(opened.textContent).toContain('STK-1'), T);
   });
 
   it('shows the page total of posted invoices and the cancelled counter', async () => {
@@ -126,13 +127,17 @@ describe('Satış Faturaları standart tanımı', { timeout: 30000 }, () => {
     expect(h.writes()[2]).toMatchObject({ method: 'POST', url: `/api/sales/invoices/${I1}/void` });
   });
 
-  it('Yeni keeps opening the legacy invoice card (G-SI6 gate) with the customer filter', async () => {
-    setPageParams(KEY, { customerId: C1 });
+  it('Yeni and Aç open the Belge page', async () => {
     h.setup();
     await screen.findByText('F-1', { selector: '.tenant-page-data-grid td, .tenant-page-data-grid td *' }, T);
     fireEvent.click(h.command('new'));
     await waitFor(() => expect(h.state.navigations).toHaveLength(1), T);
-    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-invoice-create', params: { customerId: C1 }, legacy: true });
+    expect(h.state.navigations[0]).toMatchObject({ page: 'sales-invoice-document', params: {} });
+    await h.selectRow('F-1');
+    await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
+    fireEvent.click(h.command('open'));
+    await waitFor(() => expect(h.state.navigations).toHaveLength(2), T);
+    expect(h.state.navigations[1]).toMatchObject({ page: 'sales-invoice-document', params: { id: I1 } });
   });
 
   it('İade ekle opens the legacy invoice screen; a TenantUser cannot cancel the invoice', async () => {

@@ -1,0 +1,80 @@
+{
+  "screenKey": "sales-invoice-document",
+  "title": "Satış faturası (belge)",
+  "description": "Belge kalıbıyla satış faturası (id): durum zinciri (Taslak, Kesildi), Faturayı kes ve İptal et, başlık alanları, stok seçince dolan satırlar, sunucu hesabından tutarlar, KDV dökümü ve işlem günlüğü. Yeni belgede Faturayı kes faturayı ve irsaliyesini keser; kesilmiş fatura değişmez.",
+  "module": "Satış & cari",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık alanları (fatura no, cari, tarih, depo, tür, vergi profili, e-belge, not)"
+    },
+    "component:satirlar": {
+      "since": 1,
+      "label": "Satırlar (stok, miktar, birim, fiyat, iskonto, KDV, kullanılabilir, tutar)"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Toplamlar, KDV dökümü ve işlem günlüğü"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "satis.fatura"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "customerId",
+            "invoiceDate",
+            "warehouseId",
+            "invoiceType",
+            "accountingProfileCode",
+            "eDocumentScenario",
+            "eDocumentTypeCode",
+            "eDocumentRecipientAlias",
+            "notes"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "satirlar",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "stockItemId",
+            "quantity",
+            "unitCode",
+            "unitPrice",
+            "discountPercent",
+            "vatPercent",
+            "availableQuantity",
+            "lineTotal"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": true,
+          "activity": true
+        }
+      }
+    ]
+  }
+}
