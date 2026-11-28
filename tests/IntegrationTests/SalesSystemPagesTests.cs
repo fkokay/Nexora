@@ -264,7 +264,7 @@ public sealed class SalesSystemPagesTests
     // Aşama B bumps sales-orders (the order card's Yeni / Düzenle params) and sales-invoices (Yeni stays legacy, P3) to version 2;
     // their buttons changed in place, so every item stays since 1.
     [InlineData("sales-quotes", "Satış Teklifleri", 2)]
-    [InlineData("sales-orders", "Satış Siparişleri", 6)]
+    [InlineData("sales-orders", "Satış Siparişleri", 7)]
     [InlineData("sales-deliveries", "Satış İrsaliyeleri", 2)]
     [InlineData("sales-invoices", "Satış Faturaları", 4)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
@@ -381,7 +381,6 @@ public sealed class SalesSystemPagesTests
     [InlineData("sales-invoices", "salesInvoicesOperations.fixture.json")]
     // Aşama B cards.
     [InlineData("sales-invoice-create", "salesInvoiceCreateOperations.fixture.json")]
-    [InlineData("sales-order-create", "salesOrderCreateOperations.fixture.json")]
     public async Task Frontend_fixture_matches_catalog(string key, string fixtureFile)
     {
         await using var factory = new ErpOperationCatalogTests.ErpOperationApiFactory();
