@@ -135,18 +135,16 @@ describe('Yevmiye Defterleri standart tanımı', { timeout: 30000 }, () => {
     await waitFor(() => expect(document.querySelector('.list-v2-title')?.textContent ?? '').toContain('3'), T);
     fireEvent.click(command('new'));
     await waitFor(() => expect(navigations).toHaveLength(1), T);
-    expect(navigations[0]).toMatchObject({ page: 'finance-journal-vouchers' });
+    expect(navigations[0]).toMatchObject({ page: 'finance-journal-voucher-document' });
   });
 
-  it('Aç opens the voucher dialog with its lines', async () => {
+  it('A opens the read-only voucher Belge screen', async () => {
     setup();
     await select('YF-0001', J1);
     await ready('open');
     fireEvent.click(command('open'));
-    const dialog = await screen.findByRole('dialog', { name: /YF-0001 · Manuel fiş/ }, T);
-    await within(dialog).findByText('Genel yönetim giderleri', {}, T);
-    expect(dialog.textContent).toContain('Satıcılar');
-    expect(dialog.textContent).toContain('Kira tahakkuku');
+    await waitFor(() => expect(navigations).toHaveLength(1), T);
+    expect(navigations[0]).toMatchObject({ page: 'finance-journal-voucher-document', params: { id: J1 } });
   });
 
   it('a manual voucher reverses with a required reason, today as the date and no source warning', async () => {
