@@ -7,10 +7,10 @@ export const shellText: Record<Locale, Record<string, string>> = {
 }
 
 export const inventoryPageTitles: Record<InventoryPageKey, string> = {
-  'inventory-stock':'Stok Kartları', 'inventory-stock-create':'Yeni stok kartı', 'inventory-stock-movements':'Stok Hareketleri', 'inventory-cost':'Stok Değerleme', 'inventory-warehouses':'Depo Yönetimi', 'inventory-transfers':'Depolar arası transferler', 'inventory-locations':'Raf ve Konumlar', 'inventory-tracking':'Lot / Seri İzleme'
+  'inventory-stock':'Stok Kartları', 'inventory-stock-create':'Yeni stok kartı', 'inventory-stock-movements':'Stok Hareketleri', 'inventory-cost':'Stok Değerleme', 'inventory-warehouses':'Depo Yönetimi', 'inventory-transfers':'Depolar arası transferler', 'inventory-transfer-document':'Depo transferi belgesi', 'inventory-locations':'Raf ve Konumlar', 'inventory-tracking':'Lot / Seri İzleme'
 }
 const inventoryPageTitlesEn: Record<InventoryPageKey, string> = {
-  'inventory-stock':'Stock items', 'inventory-stock-create':'Create stock item', 'inventory-stock-movements':'Stock movements', 'inventory-cost':'Stock valuation', 'inventory-warehouses':'Warehouses', 'inventory-transfers':'Inter-warehouse transfers', 'inventory-locations':'Locations', 'inventory-tracking':'Lot / serial tracking'
+  'inventory-stock':'Stock items', 'inventory-stock-create':'Create stock item', 'inventory-stock-movements':'Stock movements', 'inventory-cost':'Stock valuation', 'inventory-warehouses':'Warehouses', 'inventory-transfers':'Inter-warehouse transfers', 'inventory-transfer-document':'Warehouse transfer document', 'inventory-locations':'Locations', 'inventory-tracking':'Lot / serial tracking'
 }
 
 export const manufacturingPageTitles: Record<ManufacturingPageKey, string> = {
