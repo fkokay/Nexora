@@ -49,13 +49,18 @@ function rowsOf(document: BelgeDocument | null): GridState {
     key: `satir-${line.lineNumber}`,
     cells: {
       stockItemId: line.stockItemId, quantity: String(line.quantity), unitCode: line.enteredUnitCode ?? line.unitCode,
-      unitPrice: String(line.enteredUnitPrice ?? line.unitPrice), currencyCode: line.enteredCurrencyCode ?? currency,
-      discountPercent: String(line.discountPercent), vatPercent: String(line.vatPercent), isVatIncluded: !!line.isVatIncluded,
+      unitPrice: String(line.enteredUnitPrice ?? line.unitPrice ?? ""), currencyCode: line.enteredCurrencyCode ?? currency,
+      discountPercent: String(line.discountPercent ?? ""), vatPercent: String(line.vatPercent ?? ""), isVatIncluded: !!line.isVatIncluded,
       ...(line.deliveredQuantity !== undefined ? { deliveredQuantity: `${line.deliveredQuantity} / ${line.quantity}` } : {}),
       // Dövizli satırın kayıtlı kuru (hücre olarak çizilmez); stok ya da döviz değişince silinir.
       ...((line.enteredCurrencyCode ?? currency) !== currency && line.exchangeRate ? { exchangeRate: String(line.exchangeRate) } : {}),
       // Satış talebi bağı (hücre olarak çizilmez): teklif kaydı satır bağını korur.
       ...(line.salesRequestLineNumber ? { salesRequestLineNumber: String(line.salesRequestLineNumber) } : {}),
+      // İrsaliye satırı: bedelsiz işareti, izleme ve raf bilgisi Belge'de görünmez; kayıt PUT'u bunları silmesin diye geri gönderilir.
+      ...(line.isFreeOfCharge ? { isFreeOfCharge: true } : {}),
+      ...(line.trackingCode ? { trackingCode: line.trackingCode } : {}),
+      ...(line.expiryDate ? { expiryDate: line.expiryDate } : {}),
+      ...(line.storageLocationId ? { storageLocationId: line.storageLocationId } : {}),
     },
     labels: { stockItemId: `${line.stockCode} · ${line.stockName}` },
   }));
@@ -63,13 +68,21 @@ function rowsOf(document: BelgeDocument | null): GridState {
 }
 
 /** Satırın sunucuya gidecek hâli; stok ya da miktar eksikse null (hesaba ve kayda girmez). */
-function lineRequest(draft: GridDraft): PreviewLineRequest | null {
+function lineRequest(draft: GridDraft, unpriced = false): PreviewLineRequest | null {
   const quantity = num(draft.cells.quantity), price = num(draft.cells.unitPrice);
-  if (!draft.cells.stockItemId || !(quantity > 0) || !(price >= 0)) return null;
+  const free = draft.cells.isFreeOfCharge === true;
+  // İrsaliyede fiyat isteğe bağlıdır: bedelsiz ya da fiyatsız satır fiyat alanları boş gider.
+  const noPrice = unpriced && (free || !(price >= 0));
+  if (!draft.cells.stockItemId || !(quantity > 0) || (!noPrice && !(price >= 0))) return null;
   const discount = num(draft.cells.discountPercent), vat = num(draft.cells.vatPercent);
   return {
-    rowKey: draft.key, stockItemId: String(draft.cells.stockItemId), quantity, unitPrice: price,
-    discountPercent: Number.isFinite(discount) ? discount : 0, vatPercent: Number.isFinite(vat) ? vat : 20,
+    rowKey: draft.key, stockItemId: String(draft.cells.stockItemId), quantity, unitPrice: noPrice ? (null as unknown as number) : price,
+    discountPercent: noPrice ? (null as unknown as number) : Number.isFinite(discount) ? discount : 0,
+    vatPercent: noPrice ? (null as unknown as number) : Number.isFinite(vat) ? vat : 20,
+    ...(unpriced ? { isFreeOfCharge: free,
+      ...(draft.cells.trackingCode ? { trackingCode: String(draft.cells.trackingCode) } : {}),
+      ...(draft.cells.expiryDate ? { expiryDate: String(draft.cells.expiryDate) } : {}),
+      ...(draft.cells.storageLocationId ? { storageLocationId: String(draft.cells.storageLocationId) } : {}) } : {}),
     unitCode: draft.cells.unitCode ? String(draft.cells.unitCode) : undefined,
     currencyCode: draft.cells.currencyCode ? String(draft.cells.currencyCode) : undefined,
     isVatIncluded: draft.cells.isVatIncluded === true,
@@ -128,6 +141,8 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const [message, setMessage] = useState<{ tone: "error" | "info"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
+  // Tek yazmayla kesilen belgede (fatura) isteğin tekrar deneme anahtarı: içerik değişince yenilenir, yoksa sunucu "farklı içerik" diye reddeder.
+  const requestId = useRef(crypto.randomUUID());
   const sample = previewState != null;
 
   useEffect(() => {
@@ -159,9 +174,10 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const editable = isEditable(status) && !loading && !busy;
   const dispatch = useCallback((action: GridAction) => setGrid((state) => gridReducer(state, action, gridOptions)), [gridOptions]);
 
-  const lines = useMemo(() => grid.rows.map(lineRequest), [grid.rows]);
+  const unpricedLines = binding.unpricedLines === true;
+  const lines = useMemo(() => grid.rows.map((row) => lineRequest(row, unpricedLines)), [grid.rows, unpricedLines]);
   const headerValues = { code: header.code, customerId: header.customerId, salespersonEmployeeId: header.salespersonEmployeeId,
-    currencyCode: header.currencyCode, values: header.values, prospectCustomerName: header.prospectCustomerName };
+    currencyCode: header.currencyCode, values: header.values, prospectCustomerName: header.prospectCustomerName, requestId: requestId.current };
   const calculationInput = lines.some(Boolean) ? binding.previewBody(headerValues, lines.filter((x): x is PreviewLineRequest => !!x)) : null;
   const calculation = useDocumentCalculation(binding, calculationInput, token, editable && dirty && !sample);
   const preview: OrderPreview | null = dirty ? calculation.result : null;
@@ -182,7 +198,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
       vat: preview.taxes.filter((t) => t.code === "VAT").sort((a, b) => a.rate - b.rate).map((t) => ({ rate: t.rate, taxableAmount: t.taxableAmount, amount: t.amount })) }
     : dirty ? null : doc?.amounts ?? null;
 
-  const edit = (key: string, code: string, value: string | boolean, label?: string) => { setDirty(true); dispatch({ type: "edit", key, code, value, label }); };
+  const edit = (key: string, code: string, value: string | boolean, label?: string) => { setDirty(true); requestId.current = crypto.randomUUID(); dispatch({ type: "edit", key, code, value, label }); };
 
   const search = (id: string, operation: string, text: string) => {
     setPickers((p) => ({ ...p, [id]: { ...(p[id] ?? { options: [] }), loading: true, error: undefined } }));
@@ -240,6 +256,9 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
     const sent = lines.filter((x): x is PreviewLineRequest => !!x);
     if (!header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
+    for (const required of model?.fields.filter((f) => f.required && f.type === "lookup" && f.code !== "customerId") ?? []) {
+      if (!header.values[required.code]) { setMessage({ tone: "error", text: `${layout.fieldLabels[required.code] ?? required.label} seçin.` }); return; }
+    }
     if (sent.length === 0) { setMessage({ tone: "error", text: `${binding.noun[0].toLocaleUpperCase("tr-TR")}${binding.noun.slice(1)} 1–${binding.maxLines} stok satırı içermelidir.` }); return; }
     if (definitionsFailed) { setMessage({ tone: "error", text: "Özel alanlar okunamadı; değerleri silinmesin diye kaydedilmedi. Sayfayı yenileyip yeniden deneyin." }); return; }
     setBusy(true); setMessage(null);
@@ -250,7 +269,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.doc.customFields ?? []).map((f) => f.code)])]
           .map((code) => [code, header.customFields[code] || null]))), token);
       setDirty(false);
-      setMessage({ tone: "info", text: "Taslak kaydedildi." });
+      setMessage({ tone: "info", text: binding.savedMessage ?? "Taslak kaydedildi." });
       if (!doc && saved?.id) onSaved?.(saved.id); else setReload((n) => n + 1);
     } catch (failure) {
       setMessage({ tone: "error", text: failure instanceof Error ? failure.message : "Belge kaydedilemedi." });
@@ -324,7 +343,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
 
   const stateLabel = (code: string) => model.states.find((s) => s.code === code)?.label ?? code;
   const actions: ShellAction[] = [];
-  if (isEditable(status)) actions.push({ id: "kaydet", label: "Kaydet", kind: "primary", disabled: busy, run: () => void save() });
+  if (isEditable(status)) actions.push({ id: "kaydet", label: !doc && binding.saveLabel ? binding.saveLabel : "Kaydet", kind: "primary", disabled: busy, run: () => void save() });
   if (doc?.approval?.canDecide) {
     actions.push({ id: "karar-onayla", label: "Onayla", kind: "primary", disabled: busy, run: () => void decide("Approved") });
     actions.push({ id: "karar-reddet", label: "Reddet", kind: "normal", disabled: busy, run: () => void decide("Rejected") });
@@ -360,26 +379,34 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     const label = layout.fieldLabels[code] ?? definition.label;
     const canEdit = fieldEditable(model, code, status) && !busy;
     const id = `belge-alan-${code}`;
-    const set = (patch: Partial<Header>) => { setDirty(true); setHeader((h) => ({ ...h, ...patch })); };
+    const set = (patch: Partial<Header>) => { setDirty(true); requestId.current = crypto.randomUUID(); setHeader((h) => ({ ...h, ...patch })); };
     let control: ReactNode;
-    if (code === "code") control = <input id={id} value={header.code || (doc ? "" : "Kayıtta verilir")} readOnly />;
+    if (code === "code" && definition.readOnly) control = <input id={id} value={header.code || (doc ? "" : "Kayıtta verilir")} readOnly />;
     else if (definition.type === "date") {
       control = <input id={id} type="date" value={header.values[code] ?? ""} disabled={!canEdit}
         onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })} />;
     } else if (definition.type === "text" && binding.textFields.includes(code)) {
       control = <input id={id} maxLength={1000} value={header.values[code] ?? ""} disabled={!canEdit}
         onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })} />;
+    } else if (definition.type === "select") {
+      control = <select id={id} value={header.values[code] ?? ""} disabled={!canEdit}
+        onChange={(e) => set({ values: { ...header.values, [code]: e.target.value } })}>
+        {(definition.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>;
     } else if (definition.type === "lookup" && definition.optionsOperation) {
       const isCustomer = code === "customerId";
-      const value = isCustomer ? header.customerId : header.salespersonEmployeeId;
-      const shown = isCustomer ? header.customerLabel : header.salespersonLabel;
+      // Müşteri ve plasiyer başlığın kendi alanlarında; diğer seçimler (depo, vergi profili) `values[kod]` ve `values[kod + "Label"]` içinde.
+      const own = isCustomer || code === "salespersonEmployeeId";
+      const value = isCustomer ? header.customerId : own ? header.salespersonEmployeeId : header.values[code] ?? "";
+      const shown = isCustomer ? header.customerLabel : own ? header.salespersonLabel : header.values[`${code}Label`] ?? "";
       const picker = pickers[code] ?? { options: [], loading: false };
       control = <LookupInput inputId={id} label={label} raw={value} options={picker.options} loading={picker.loading} error={picker.error}
         allowClear={!definition.required} disabled={!canEdit} placeholder="Ara…" selected={value ? { value, label: shown || value } : null}
         onSearch={(text) => search(code, definition.optionsOperation!, text)}
         onChange={(next, row, nextLabel) => set(isCustomer
           ? { customerId: next, customerLabel: nextLabel, currencyCode: typeof row?.currencyCode === "string" ? row.currencyCode : "" }
-          : { salespersonEmployeeId: next, salespersonLabel: nextLabel })} />;
+          : own ? { salespersonEmployeeId: next, salespersonLabel: nextLabel }
+            : { values: { ...header.values, [code]: next, [`${code}Label`]: nextLabel } })} />;
     } else control = <input id={id} value={String((header as unknown as Record<string, unknown>)[code] ?? "")} disabled={!canEdit} readOnly />;
     return <div className="belge-field" key={code}><label htmlFor={id}>{label}{definition.required && canEdit ? " *" : ""}</label>{control}</div>;
   };
@@ -396,12 +423,12 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
           return <div className="belge-field" key={d.code}><label htmlFor={id}>{d.label}{d.isRequired ? " *" : ""}</label>
             <input id={id} maxLength={d.maxLength || undefined} value={header.customFields[d.code] ?? ""} disabled={!isEditable(status) || busy}
               type={d.dataType === "Date" ? "date" : d.dataType === "Number" || d.dataType === "Decimal" ? "number" : "text"}
-              onChange={(e) => { setDirty(true); const value = e.target.value; setHeader((h) => ({ ...h, customFields: { ...h.customFields, [d.code]: value } })); }} /></div>;
+              onChange={(e) => { setDirty(true); requestId.current = crypto.randomUUID(); const value = e.target.value; setHeader((h) => ({ ...h, customFields: { ...h.customFields, [d.code]: value } })); }} /></div>;
         })}
       </section>}
       <Mark id={layout.ids.lines} />
       <EditableGrid id="belge-satirlar" title="Satırlar" mode="list" columns={gridColumns} state={grid} sourceRows={[]} rowKey="lineNumber"
-        dispatch={(action) => { if (action.type !== "add") setDirty(true); dispatch(action); }} errors={{}} fixedRowLabel="" addLabel="Satır ekle"
+        dispatch={(action) => { if (action.type !== "add") { setDirty(true); requestId.current = crypto.randomUUID(); } dispatch(action); }} errors={{}} fixedRowLabel="" addLabel="Satır ekle"
         maxRows={editable ? maxLines : grid.rows.length} disabled={!editable} disabledReason={isEditable(status) ? "" : `${stateLabel(status)} belgenin satırları değişmez.`}
         loading={false} error={calculation.error || undefined} style={{}} pickerFor={pickerFor}
         pickerLabel={(column, value, draft) => draft?.labels?.[column.code] ?? value} calcText={calcText} />

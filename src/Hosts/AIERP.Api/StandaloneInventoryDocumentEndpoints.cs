@@ -309,6 +309,7 @@ public static class StandaloneInventoryDocumentEndpoints
             EntryDate = invoice.InvoiceDate, Direction = CustomerLedgerDirection.Debit, Amount = totals.GrandTotal,
             CurrencyCode = invoice.CurrencyCode, Description = $"Satış faturası {code}" });
         db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = UserId(user), Action = "sales.standalone-delivery.invoiced", Resource = $"{delivery.Code}:{code}" });
+        DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesInvoice, invoice.Id, "kes", "Fatura kesildi (irsaliyeden)", "core", "done", null, UserId(user));
         await db.SaveChangesAsync(ct);
         SalesInvoiceCustomFieldSupport.AddValues(db, tenantId, invoice.Id, customFields.Values, UserId(user));
         if (customFields.Values.Count > 0) await db.SaveChangesAsync(ct);
@@ -430,6 +431,7 @@ public static class StandaloneInventoryDocumentEndpoints
             if (posted is not null) return posted;
             doc.Status = StandaloneInventoryDocumentStatus.Posted;
             db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = UserId(user), Action = "sales.standalone-delivery.posted", Resource = doc.Code });
+            DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.SalesDelivery, doc.Id, "sevket", "İrsaliye sevk edildi", "core", "done", null, UserId(user));
         }
         else
         {
@@ -671,5 +673,7 @@ public sealed record StandalonePurchaseReceiptLineWrite(Guid StockItemId, decima
 {
     public DeliveryLinePriceInput Price => new(UnitPrice, DiscountPercent, VatPercent, IsFreeOfCharge);
 }
+/// <summary>The answer of the standalone sales delivery draft writes (create / update).</summary>
+public sealed record StandaloneSalesDeliveryDraftResult(Guid Id, string Code, string Status);
 public sealed record StandalonePostRequest(List<StandaloneTrackingAllocation>? Tracking);
 public sealed record StandaloneTrackingAllocation(Guid LineId, string TrackingCode, decimal Quantity, DateOnly? ExpiryDate);

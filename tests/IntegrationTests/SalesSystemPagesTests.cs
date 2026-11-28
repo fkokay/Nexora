@@ -265,8 +265,8 @@ public sealed class SalesSystemPagesTests
     // their buttons changed in place, so every item stays since 1.
     [InlineData("sales-quotes", "Satış Teklifleri", 2)]
     [InlineData("sales-orders", "Satış Siparişleri", 6)]
-    [InlineData("sales-deliveries", "Satış İrsaliyeleri", 1)]
-    [InlineData("sales-invoices", "Satış Faturaları", 3)]
+    [InlineData("sales-deliveries", "Satış İrsaliyeleri", 2)]
+    [InlineData("sales-invoices", "Satış Faturaları", 4)]
     public void Standard_is_preview_and_uses_catalog_operations(string key, string title, int version)
     {
         var standard = SystemPageStandards.All[key];
@@ -307,7 +307,7 @@ public sealed class SalesSystemPagesTests
         Assert.Contains("isStandalone != true", (string)Props("sales-deliveries", "iptalMenu")["visibleWhen"]!);
         Assert.Contains("kullanici.rol == 'TenantAdmin'", (string)Props("sales-deliveries", "iptalMenu")["visibleWhen"]!);
         Assert.Contains("kind == 'Order'", (string)Props("sales-deliveries", "faturalastirMenu")["visibleWhen"]!);
-        Assert.Contains("isStandalone == true", (string)Props("sales-deliveries", "eskiEkranDugmesi")["visibleWhen"]!);
+        Assert.DoesNotContain(Definition("sales-deliveries")["components"]!.AsArray().OfType<JsonObject>(), x => (string)x["id"]! is "eskiEkranDugmesi" or "yeniDugmesi");
         var metric = Props("sales-deliveries", "faturalanmamisGostergesi");
         Assert.Equal(("faturaSecimi", "true"), ((string)metric["filterInput"]!, (string)metric["filterValue"]!));
         Assert.Equal("{{faturaSecimi.value}}", Binding("sales-deliveries", "irsaliyeler", "unbilledOnly"));

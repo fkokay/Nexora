@@ -619,7 +619,8 @@ public sealed class ErpOperationCatalogTests
         // finishedGoodsTracking (ManufacturingSystemPagesTests); Satış Aşama B adds 19 on the quote / order / invoice cards
         // (SalesCardOperationsTests); + 14 Satınalma Faz 2 lines and customFields (PurchasingErpOperationCatalogTests);
         // + the optional invoice line prices of satis.irsaliye.faturalastir and satinalma.malKabul.faturala.
-        Assert.Equal(47, collections.Length);
+        // + the standalone delivery draft writes of satis.irsaliye (olustur, guncelle lines).
+        Assert.Equal(49, collections.Length);
         foreach (var (op, parameter) in collections)
         {
             Assert.Equal("body", parameter.In);

@@ -124,12 +124,18 @@ describe("sayfa kalıpları", () => {
 
 describe("belge modelleri", () => {
   it("satış siparişi ve satış teklifi seçilebilir; yeni teklif sayfası teklifin alanlarıyla başlar", () => {
-    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif"]);
+    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif", "satis.fatura", "satis.irsaliye"]);
     const quote = newBelgeTemplateDefinition("satis.teklif");
     expect(quote.template).toEqual({ name: "belge", document: "satis.teklif" });
     const parts = quote.components as { type: string; props: { fields?: string[]; columns?: string[] } }[];
     expect(parts.find((c) => c.type === "documentFields")!.props.fields).toEqual(["code", "customerId", "quoteDate", "validUntil"]);
     expect(parts.find((c) => c.type === "documentLines")!.props.columns).not.toContain("deliveredQuantity");
+    const invoice = newBelgeTemplateDefinition("satis.fatura");
+    expect(invoice.template).toEqual({ name: "belge", document: "satis.fatura" });
+    expect((invoice.components as { type: string; props: { fields?: string[] } }[]).find((c) => c.type === "documentFields")!.props.fields)
+      .toEqual(["code", "customerId", "invoiceDate", "warehouseId", "invoiceType"]);
+    expect((newBelgeTemplateDefinition("satis.irsaliye").components as { type: string; props: { fields?: string[] } }[]).find((c) => c.type === "documentFields")!.props.fields)
+      .toEqual(["code", "customerId", "deliveryDate", "warehouseId"]);
     expect((newBelgeTemplateDefinition().components as { props: { fields?: string[] } }[])[0].props.fields).toContain("orderDate");
   });
 });

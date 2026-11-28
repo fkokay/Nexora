@@ -1,89 +1,364 @@
 {
-  "screenKey": "sales-deliveries", "title": "Satış İrsaliyeleri",
-  "description": "Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin.", "module": "Satış & cari",
-  "version": 1, "stage": "preview",
+  "screenKey": "sales-deliveries",
+  "title": "Satış İrsaliyeleri",
+  "description": "Sevk edilen sipariş satırlarını, depoları ve bağlı faturaları izleyin.",
+  "module": "Satış & cari",
+  "version": 2,
+  "stage": "preview",
   "items": {
-    "component:komutlar": {"since": 1, "label": "İşlem çubuğu", "requires": ["component:acDugmesi", "component:eskiEkranDugmesi", "component:faturaAcMenu", "component:faturalastirMenu", "component:iptalMenu", "component:liste", "component:suzgec", "component:yeniDugmesi", "query:irsaliyeSil", "query:irsaliyeler"]},
-    "component:yeniDugmesi": {"since": 1, "label": "Yeni irsaliye komutu (eski ekran)"},
-    "component:acDugmesi": {"since": 1, "label": "İrsaliyeyi aç komutu", "requires": ["component:irsaliyePenceresi", "component:liste"]},
-    "component:faturalastirMenu": {"since": 1, "label": "Faturalaştır komutu", "requires": ["component:irsaliyePenceresi", "component:liste"]},
-    "component:faturaAcMenu": {"since": 1, "label": "Faturayı aç komutu", "requires": ["component:liste"]},
-    "component:iptalMenu": {"since": 1, "label": "İptal et komutu", "requires": ["component:liste", "query:irsaliye", "query:irsaliyeIptal", "query:irsaliyeler"]},
-    "component:eskiEkranDugmesi": {"since": 1, "label": "Satış irsaliyesini eski ekranda aç", "requires": ["component:liste"]},
-    "component:faturalanmamisGostergesi": {"since": 1, "label": "Faturalanmamış göstergesi", "requires": ["component:faturaSecimi", "query:irsaliyeler"]},
-    "component:iptalGostergesi": {"since": 1, "label": "İptal göstergesi", "requires": ["query:irsaliyeler"]},
-    "component:suzgec": {"since": 1, "label": "Süzgeç alanı (arama)", "requires": ["component:liste"]},
-    "component:secimCipleri": {"since": 1, "label": "Durum ve fatura seçimi", "requires": ["component:durumSecimi", "component:faturaSecimi"]},
-    "component:suzgecSecimleri": {"since": 1, "label": "Süzgeç seçimleri kartı", "requires": ["component:durumSecimi", "component:faturaSecimi"]},
-    "component:durumSecimi": {"since": 1, "label": "Durum seçimi"},
-    "component:faturaSecimi": {"since": 1, "label": "Faturalanmamış seçimi"},
-    "component:liste": {"since": 1, "label": "Satış irsaliyeleri listesi (birleşik)", "requires": ["component:acDugmesi", "component:faturaAcSatir", "query:irsaliyeler"]},
-    "component:faturaAcSatir": {"since": 1, "label": "Satırdaki faturayı aç", "requires": ["component:liste"]},
-    "component:irsaliyePenceresi": {"since": 1, "label": "İrsaliye detayı penceresi", "requires": ["component:irsaliyeBasligi", "component:irsaliyeDurumu", "component:irsaliyeSekmeleri", "query:irsaliye"]},
-    "component:irsaliyeBasligi": {"since": 1, "label": "İrsaliye detayı başlığı", "requires": ["query:irsaliye", "query:kalemler"]},
-    "component:irsaliyeDurumu": {"since": 1, "label": "İrsaliye durumu ve işlemleri", "requires": ["query:irsaliye", "query:irsaliyeIptal", "query:irsaliyeler"]},
-    "component:irsaliyeSekmeleri": {"since": 1, "label": "İrsaliye detayı sekmeleri", "requires": ["component:faturaBolumu", "component:kalemTablosu"]},
-    "component:kalemTablosu": {"since": 1, "label": "İrsaliye kalemleri", "requires": ["query:kalemler"]},
-    "component:faturaBolumu": {"since": 1, "label": "Faturalaştırma formu", "requires": ["component:aliciEtiketi", "component:eBelgeSenaryosu", "component:eBelgeTuru", "component:faturaNotu", "component:faturaTuru", "query:faturaAlanTanimlari", "query:faturalastir", "query:irsaliye", "query:irsaliyeler"]},
-    "component:faturaTuru": {"since": 1, "label": "Fatura türü"},
-    "component:eBelgeSenaryosu": {"since": 1, "label": "E-belge senaryosu"},
-    "component:eBelgeTuru": {"since": 1, "label": "E-belge tür kodu"},
-    "component:aliciEtiketi": {"since": 1, "label": "Alıcı e-Fatura etiketi"},
-    "component:faturaNotu": {"since": 1, "label": "Fatura notu"},
-    "query:irsaliyeler": {"since": 1, "label": "Satış irsaliyelerini listele (siparişten irsaliyeler dahil)", "requires": ["component:durumSecimi", "component:faturaSecimi", "component:liste", "component:suzgec"]},
-    "query:irsaliye": {"since": 1, "label": "Seçili irsaliye", "requires": ["component:liste"]},
-    "query:kalemler": {"since": 1, "label": "Seçili irsaliyenin kalemleri", "requires": ["component:liste"]},
-    "query:faturaAlanTanimlari": {"since": 1, "label": "Fatura özel alan tanımları"},
-    "query:irsaliyeIptal": {"since": 1, "label": "İrsaliyeyi iptal et", "requires": ["component:liste"]},
-    "query:irsaliyeSil": {"since": 1, "label": "İrsaliyeyi sil", "requires": ["component:liste"]},
-    "query:faturalastir": {"since": 1, "label": "İrsaliyeyi faturalaştır", "requires": ["component:aliciEtiketi", "component:eBelgeSenaryosu", "component:eBelgeTuru", "component:faturaBolumu", "component:faturaNotu", "component:faturaTuru", "component:liste"]}
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu",
+      "requires": [
+        "component:acDugmesi",
+        "component:faturaAcMenu",
+        "component:faturalastirMenu",
+        "component:iptalMenu",
+        "component:liste",
+        "component:suzgec",
+        "query:irsaliyeSil",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:acDugmesi": {
+      "since": 1,
+      "label": "İrsaliyeyi aç komutu (Belge sayfası)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:faturalastirMenu": {
+      "since": 1,
+      "label": "Faturalaştır komutu",
+      "requires": [
+        "component:irsaliyePenceresi",
+        "component:liste"
+      ]
+    },
+    "component:faturaAcMenu": {
+      "since": 1,
+      "label": "Faturayı aç komutu",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:iptalMenu": {
+      "since": 1,
+      "label": "İptal et komutu",
+      "requires": [
+        "component:liste",
+        "query:irsaliye",
+        "query:irsaliyeIptal",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:faturalanmamisGostergesi": {
+      "since": 1,
+      "label": "Faturalanmamış göstergesi",
+      "requires": [
+        "component:faturaSecimi",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:iptalGostergesi": {
+      "since": 1,
+      "label": "İptal göstergesi",
+      "requires": [
+        "query:irsaliyeler"
+      ]
+    },
+    "component:suzgec": {
+      "since": 1,
+      "label": "Süzgeç alanı (arama)",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:secimCipleri": {
+      "since": 1,
+      "label": "Durum ve fatura seçimi",
+      "requires": [
+        "component:durumSecimi",
+        "component:faturaSecimi"
+      ]
+    },
+    "component:suzgecSecimleri": {
+      "since": 1,
+      "label": "Süzgeç seçimleri kartı",
+      "requires": [
+        "component:durumSecimi",
+        "component:faturaSecimi"
+      ]
+    },
+    "component:durumSecimi": {
+      "since": 1,
+      "label": "Durum seçimi"
+    },
+    "component:faturaSecimi": {
+      "since": 1,
+      "label": "Faturalanmamış seçimi"
+    },
+    "component:liste": {
+      "since": 1,
+      "label": "Satış irsaliyeleri listesi (birleşik)",
+      "requires": [
+        "component:acDugmesi",
+        "component:faturaAcSatir",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:faturaAcSatir": {
+      "since": 1,
+      "label": "Satırdaki faturayı aç",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "component:irsaliyePenceresi": {
+      "since": 1,
+      "label": "İrsaliye detayı penceresi",
+      "requires": [
+        "component:irsaliyeBasligi",
+        "component:irsaliyeDurumu",
+        "component:irsaliyeSekmeleri",
+        "query:irsaliye"
+      ]
+    },
+    "component:irsaliyeBasligi": {
+      "since": 1,
+      "label": "İrsaliye detayı başlığı",
+      "requires": [
+        "query:irsaliye",
+        "query:kalemler"
+      ]
+    },
+    "component:irsaliyeDurumu": {
+      "since": 1,
+      "label": "İrsaliye durumu ve işlemleri",
+      "requires": [
+        "query:irsaliye",
+        "query:irsaliyeIptal",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:irsaliyeSekmeleri": {
+      "since": 1,
+      "label": "İrsaliye detayı sekmeleri",
+      "requires": [
+        "component:faturaBolumu",
+        "component:kalemTablosu"
+      ]
+    },
+    "component:kalemTablosu": {
+      "since": 1,
+      "label": "İrsaliye kalemleri",
+      "requires": [
+        "query:kalemler"
+      ]
+    },
+    "component:faturaBolumu": {
+      "since": 1,
+      "label": "Faturalaştırma formu",
+      "requires": [
+        "component:aliciEtiketi",
+        "component:eBelgeSenaryosu",
+        "component:eBelgeTuru",
+        "component:faturaAlanlari",
+        "component:faturaNotu",
+        "component:faturaTuru",
+        "query:faturaAlanTanimlari",
+        "query:faturalastir",
+        "query:irsaliye",
+        "query:irsaliyeler"
+      ]
+    },
+    "component:faturaTuru": {
+      "since": 1,
+      "label": "Fatura türü"
+    },
+    "component:eBelgeSenaryosu": {
+      "since": 1,
+      "label": "E-belge senaryosu"
+    },
+    "component:eBelgeTuru": {
+      "since": 1,
+      "label": "E-belge tür kodu"
+    },
+    "component:aliciEtiketi": {
+      "since": 1,
+      "label": "Alıcı e-Fatura etiketi"
+    },
+    "component:faturaNotu": {
+      "since": 1,
+      "label": "Fatura notu"
+    },
+    "query:irsaliyeler": {
+      "since": 1,
+      "label": "Satış irsaliyelerini listele (siparişten irsaliyeler dahil)",
+      "requires": [
+        "component:durumSecimi",
+        "component:faturaSecimi",
+        "component:liste",
+        "component:suzgec"
+      ]
+    },
+    "query:irsaliye": {
+      "since": 1,
+      "label": "Seçili irsaliye",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:kalemler": {
+      "since": 1,
+      "label": "Seçili irsaliyenin kalemleri",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:faturaAlanTanimlari": {
+      "since": 1,
+      "label": "Fatura özel alan tanımları"
+    },
+    "query:irsaliyeIptal": {
+      "since": 1,
+      "label": "İrsaliyeyi iptal et",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:irsaliyeSil": {
+      "since": 1,
+      "label": "İrsaliyeyi sil",
+      "requires": [
+        "component:liste"
+      ]
+    },
+    "query:faturalastir": {
+      "since": 1,
+      "label": "İrsaliyeyi faturalaştır",
+      "requires": [
+        "component:aliciEtiketi",
+        "component:eBelgeSenaryosu",
+        "component:eBelgeTuru",
+        "component:faturaBolumu",
+        "component:faturaNotu",
+        "component:faturaTuru",
+        "component:liste"
+      ]
+    },
+    "component:faturaAlanlari": {
+      "since": 1,
+      "label": "Fatura özel alanları",
+      "requires": [
+        "query:faturaAlanTanimlari"
+      ]
+    }
   },
   "screenViews": [
-    {"key": "sales-deliveries", "component": "liste", "fields": {"code": "code", "orderCode": "orderCode", "deliveryDate": "deliveryDate", "warehouseName": "warehouseName", "lineCount": "lineCount", "pricedGrandTotal": "pricedGrandTotal", "pricingState": "pricingState", "status": "status", "invoiceStatus": "invoiceStatus"}}
+    {
+      "key": "sales-deliveries",
+      "component": "liste",
+      "fields": {
+        "code": "code",
+        "orderCode": "orderCode",
+        "deliveryDate": "deliveryDate",
+        "warehouseName": "warehouseName",
+        "lineCount": "lineCount",
+        "pricedGrandTotal": "pricedGrandTotal",
+        "pricingState": "pricingState",
+        "status": "status",
+        "invoiceStatus": "invoiceStatus"
+      }
+    }
   ],
   "definition": {
     "schemaVersion": 2,
     "components": [
-      { "id": "komutlar", "type": "actionBar", "name": "komutlar",
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
         "props": {
-          "newButton": "yeniDugmesi",
-          "openButton": "acDugmesi",
-          "deleteQuery": "irsaliyeSil", "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} irsaliyesi silinsin mi?",
+          "deleteQuery": "irsaliyeSil",
+          "deleteConfirmText": "{{liste.seciliSatir.code}} · {{liste.seciliSatir.customerName}} irsaliyesi silinsin mi?",
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{irsaliyeler.meta.totalCount}}",
-          "moreButtons": ["faturalastirMenu", "faturaAcMenu", "iptalMenu", "eskiEkranDugmesi"],
-          "commandWhen": ["delete=kullanici.rol == 'TenantAdmin' && liste.seciliSatir.status == 'Voided' && liste.seciliSatir.isStandalone != true"],
-          "hiddenCommands": ["save", "print"] } },
-      { "id": "yeniDugmesi", "type": "button", "name": "yeniDugmesi",
-        "props": {
-          "text": "Yeni irsaliye",
-          "actionType": "erpPage",
-          "pageKey": "sales-delivery-create",
-          "target": "newTab" } },
-      { "id": "acDugmesi", "type": "button", "name": "acDugmesi",
+          "moreButtons": [
+            "faturalastirMenu",
+            "faturaAcMenu",
+            "iptalMenu"
+          ],
+          "commandWhen": [
+            "delete=kullanici.rol == 'TenantAdmin' && liste.seciliSatir.status == 'Voided' && liste.seciliSatir.isStandalone != true"
+          ],
+          "hiddenCommands": [
+            "save",
+            "print"
+          ],
+          "slot": "commands",
+          "newAction": "page",
+          "newPageCode": "@sales-delivery-document",
+          "newTarget": "newTab",
+          "openAction": "page",
+          "openPageCode": "@sales-delivery-document",
+          "openTarget": "newTab",
+          "openTable": "liste",
+          "openParams": [
+            "id={{liste.seciliSatir.id}}"
+          ]
+        }
+      },
+      {
+        "id": "acDugmesi",
+        "type": "button",
+        "name": "acDugmesi",
         "props": {
           "text": "Aç",
           "icon": "open",
-          "actionType": "openDialog",
-          "dialogId": "irsaliyePenceresi",
-          "disabledWhen": "liste.seciliSatir.salesDeliveryId == null",
-          "disabledReason": "Önce bir kayıt seçin. Bu satış irsaliyesi eski ekranda açılır: İşlemler › Eski ekranda aç." } },
-      { "id": "faturalastirMenu", "type": "button", "name": "faturalastirMenu",
+          "actionType": "page",
+          "pageCode": "@sales-delivery-document",
+          "target": "newTab",
+          "params": [
+            "id={{liste.seciliSatir.id}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.id != null",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "faturalastirMenu",
+        "type": "button",
+        "name": "faturalastirMenu",
         "props": {
           "text": "Faturalaştır",
           "actionType": "openDialog",
           "dialogId": "irsaliyePenceresi",
-          "visibleWhen": "liste.seciliSatir.kind == 'Order' && liste.seciliSatir.status == 'Posted' && liste.seciliSatir.hasSalesInvoice == false" } },
-      { "id": "faturaAcMenu", "type": "button", "name": "faturaAcMenu",
+          "visibleWhen": "liste.seciliSatir.kind == 'Order' && liste.seciliSatir.status == 'Posted' && liste.seciliSatir.hasSalesInvoice == false",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "faturaAcMenu",
+        "type": "button",
+        "name": "faturaAcMenu",
         "props": {
           "text": "Faturayı aç",
           "actionType": "erpPage",
           "pageKey": "sales-invoices",
           "target": "newTab",
-          "params": ["invoiceId={{liste.seciliSatir.invoiceId}}"],
-          "visibleWhen": "liste.seciliSatir.invoiceId != null" } },
-      { "id": "iptalMenu", "type": "button", "name": "iptalMenu",
+          "params": [
+            "invoiceId={{liste.seciliSatir.invoiceId}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.invoiceId != null",
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "iptalMenu",
+        "type": "button",
+        "name": "iptalMenu",
         "props": {
           "text": "İptal et",
           "actionType": "query",
@@ -94,131 +369,332 @@
           "disabledWhen": "liste.seciliSatir.invoiceStatus == 'Posted' || irsaliye.rows[0].id != liste.seciliSatir.salesDeliveryId",
           "disabledReason": "Önce bağlı satış faturasını iptal edin.",
           "successMessage": "İrsaliye iptal edildi; stok çıkışı ters hareketle geri alındı.",
-          "refreshQueries": ["irsaliyeler", "irsaliye"] } },
-      { "id": "eskiEkranDugmesi", "type": "button", "name": "eskiEkranDugmesi",
-        "props": {
-          "text": "Eski ekranda aç (satış irsaliyesi)",
-          "actionType": "erpPage",
-          "pageKey": "sales-delivery-create",
-          "target": "newTab",
-          "params": ["customerId={{liste.seciliSatir.customerId}}"],
-          "visibleWhen": "liste.seciliSatir.isStandalone == true" } },
-      { "id": "faturalanmamisGostergesi", "type": "metric", "name": "faturalanmamisGostergesi",
+          "refreshQueries": [
+            "irsaliyeler",
+            "irsaliye"
+          ],
+          "slot": "actions"
+        }
+      },
+      {
+        "id": "faturalanmamisGostergesi",
+        "type": "metric",
+        "name": "faturalanmamisGostergesi",
         "props": {
           "title": "Faturalanmamış",
           "query": "irsaliyeler",
           "countWhen": "irsaliyeler.satir.status == 'Posted' && irsaliyeler.satir.hasSalesInvoice == false",
           "format": "number",
-          "width": 3,
           "icon": "alert",
           "variant": "warning",
           "description": "bu sayfa · tıklayınca süzer",
           "filterInput": "faturaSecimi",
-          "filterValue": "true" } },
-      { "id": "iptalGostergesi", "type": "metric", "name": "iptalGostergesi",
+          "filterValue": "true",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "iptalGostergesi",
+        "type": "metric",
+        "name": "iptalGostergesi",
         "props": {
           "title": "İptal",
           "query": "irsaliyeler",
           "countWhen": "irsaliyeler.satir.status == 'Voided'",
           "format": "number",
-          "width": 3,
           "icon": "ban",
-          "description": "bu sayfa" } },
-      { "id": "suzgec", "type": "filterBar", "name": "suzgec",
+          "description": "bu sayfa",
+          "slot": "indicators"
+        }
+      },
+      {
+        "id": "suzgec",
+        "type": "filterBar",
+        "name": "suzgec",
         "props": {
           "table": "liste",
-          "width": 4,
           "search": true,
           "searchPlaceholder": "İrsaliye, sipariş veya müşteri ara",
-          "searchParam": "q" } },
-      { "id": "suzgecSecimleri", "type": "formCard", "name": "suzgecSecimleri",
-        "props": { "title": "Süzgeçler", "layout": "inline", "width": 8, "inputs": ["durumSecimi", "faturaSecimi"] } },
-      { "id": "durumSecimi", "type": "input", "name": "durumSecimi",
+          "searchParam": "q",
+          "slot": "filters"
+        }
+      },
+      {
+        "id": "suzgecSecimleri",
+        "type": "formCard",
+        "name": "suzgecSecimleri",
+        "props": {
+          "title": "Süzgeçler",
+          "layout": "inline",
+          "inputs": [
+            "durumSecimi",
+            "faturaSecimi"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "durumSecimi",
+        "type": "input",
+        "name": "durumSecimi",
         "props": {
           "inputType": "select",
           "label": "Durum",
-          "staticOptions": ["=Tümü", "Posted=Sevk edildi", "Draft=Taslak", "Voided=İptal"] } },
-      { "id": "faturaSecimi", "type": "input", "name": "faturaSecimi",
+          "staticOptions": [
+            "=Tümü",
+            "Posted=Sevk edildi",
+            "Draft=Taslak",
+            "Voided=İptal"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "faturaSecimi",
+        "type": "input",
+        "name": "faturaSecimi",
         "props": {
           "inputType": "select",
           "label": "Fatura",
-          "staticOptions": ["=Tümü", "true=Faturalanmamış"] } },
-      { "id": "secimCipleri", "type": "filterChips", "name": "secimCipleri",
+          "staticOptions": [
+            "=Tümü",
+            "true=Faturalanmamış"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "secimCipleri",
+        "type": "filterChips",
+        "name": "secimCipleri",
         "props": {
-          "width": 12,
-          "inputs": ["durumSecimi", "faturaSecimi"] } },
-      { "id": "liste", "type": "dataTable", "name": "liste",
+          "inputs": [
+            "durumSecimi",
+            "faturaSecimi"
+          ],
+          "slot": "above"
+        }
+      },
+      {
+        "id": "liste",
+        "type": "dataTable",
+        "name": "liste",
         "props": {
           "title": "Satış irsaliyeleri",
           "query": "irsaliyeler",
           "paging": "server",
           "pageSize": 25,
-          "width": 12,
-          "columns": ["code", "kind", "orderCode", "customerName", "deliveryDate", "warehouseName", "lineCount", "pricedGrandTotal", "pricingState", "status", "invoiceCode", "invoiceStatus"],
-          "columnLabels": ["code=İrsaliye no", "kind=Tür", "orderCode=Sipariş no", "customerName=Müşteri", "deliveryDate=Sevk tarihi", "warehouseName=Depo", "lineCount=Satır", "pricedGrandTotal=Tutar", "pricingState=Fiyat", "status=Durum", "invoiceCode=Fatura no", "invoiceStatus=Fatura", "createdAt=Oluşturulma"],
-          "columnFormats": ["code=code", "kind=status", "deliveryDate=date", "lineCount=number", "pricedGrandTotal=money", "pricingState=status", "status=status", "invoiceCode=code", "invoiceStatus=status", "createdAt=date"],
-          "columnUnits": ["pricedGrandTotal=currencyCode"],
-          "valueLabels": ["kind:Order=Siparişten irsaliye", "kind:Invoice=Satış irsaliyesi", "kind:Standalone=Satış irsaliyesi", "status:Posted=Sevk edildi", "status:Voided=İptal", "status:Draft=Taslak", "invoiceStatus:Posted=Kesildi", "invoiceStatus:Voided=İptal", "invoiceStatus:=Yok", "pricingState:Priced=—", "pricingState:PartlyFree=Kısmen bedelsiz", "pricingState:Free=Bedelsiz", "pricingState:Unpriced=Fiyatsız", "pricingState:PartlyUnpriced=Kısmen fiyatsız"],
-          "toneMap": ["Satış irsaliyesi=warning", "Sevk edildi=success", "Kesildi=success", "Taslak=info", "İptal=info", "Bedelsiz=info", "Kısmen bedelsiz=info", "Fiyatsız=warning", "Kısmen fiyatsız=warning"],
-          "rowActions": ["faturaAcSatir"],
+          "columns": [
+            "code",
+            "kind",
+            "orderCode",
+            "customerName",
+            "deliveryDate",
+            "warehouseName",
+            "lineCount",
+            "pricedGrandTotal",
+            "pricingState",
+            "status",
+            "invoiceCode",
+            "invoiceStatus"
+          ],
+          "columnLabels": [
+            "code=İrsaliye no",
+            "kind=Tür",
+            "orderCode=Sipariş no",
+            "customerName=Müşteri",
+            "deliveryDate=Sevk tarihi",
+            "warehouseName=Depo",
+            "lineCount=Satır",
+            "pricedGrandTotal=Tutar",
+            "pricingState=Fiyat",
+            "status=Durum",
+            "invoiceCode=Fatura no",
+            "invoiceStatus=Fatura",
+            "createdAt=Oluşturulma"
+          ],
+          "columnFormats": [
+            "code=code",
+            "kind=status",
+            "deliveryDate=date",
+            "lineCount=number",
+            "pricedGrandTotal=money",
+            "pricingState=status",
+            "status=status",
+            "invoiceCode=code",
+            "invoiceStatus=status",
+            "createdAt=date"
+          ],
+          "columnUnits": [
+            "pricedGrandTotal=currencyCode"
+          ],
+          "valueLabels": [
+            "kind:Order=Siparişten irsaliye",
+            "kind:Invoice=Satış irsaliyesi",
+            "kind:Standalone=Satış irsaliyesi",
+            "status:Posted=Sevk edildi",
+            "status:Voided=İptal",
+            "status:Draft=Taslak",
+            "invoiceStatus:Posted=Kesildi",
+            "invoiceStatus:Voided=İptal",
+            "invoiceStatus:=Yok",
+            "pricingState:Priced=—",
+            "pricingState:PartlyFree=Kısmen bedelsiz",
+            "pricingState:Free=Bedelsiz",
+            "pricingState:Unpriced=Fiyatsız",
+            "pricingState:PartlyUnpriced=Kısmen fiyatsız"
+          ],
+          "toneMap": [
+            "Satış irsaliyesi=warning",
+            "Sevk edildi=success",
+            "Kesildi=success",
+            "Taslak=info",
+            "İptal=info",
+            "Bedelsiz=info",
+            "Kısmen bedelsiz=info",
+            "Fiyatsız=warning",
+            "Kısmen fiyatsız=warning"
+          ],
+          "rowActions": [
+            "faturaAcSatir"
+          ],
           "rowOpenAction": "acDugmesi",
-          "emptyText": "Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur." } },
-      { "id": "faturaAcSatir", "type": "button", "name": "faturaAcSatir",
+          "emptyText": "Henüz satış irsaliyesi yok. İrsaliye, açık sipariş ayrıntısından oluşturulur.",
+          "slot": "list"
+        }
+      },
+      {
+        "id": "faturaAcSatir",
+        "type": "button",
+        "name": "faturaAcSatir",
         "props": {
           "text": "Faturayı aç",
           "actionType": "erpPage",
           "pageKey": "sales-invoices",
           "target": "newTab",
-          "params": ["invoiceId={{liste.seciliSatir.invoiceId}}"],
-          "visibleWhen": "liste.seciliSatir.invoiceId != null" } },
-      { "id": "irsaliyePenceresi", "type": "dialog", "name": "irsaliyePenceresi",
+          "params": [
+            "invoiceId={{liste.seciliSatir.invoiceId}}"
+          ],
+          "visibleWhen": "liste.seciliSatir.invoiceId != null",
+          "slot": "rowActions"
+        }
+      },
+      {
+        "id": "irsaliyePenceresi",
+        "type": "dialog",
+        "name": "irsaliyePenceresi",
         "props": {
           "presentation": "dialog",
           "size": "xl",
           "title": "Satış irsaliyesi · {{irsaliye.rows[0].code}}",
-          "contains": ["irsaliyeBasligi", "irsaliyeDurumu", "irsaliyeSekmeleri"] } },
-      { "id": "irsaliyeBasligi", "type": "recordHeader", "name": "irsaliyeBasligi",
+          "contains": [
+            "irsaliyeBasligi",
+            "irsaliyeDurumu",
+            "irsaliyeSekmeleri"
+          ],
+          "slot": "dialogs",
+          "saveQuery": "faturalastir",
+          "saveLabel": "Faturalaştır",
+          "closeOnSave": false,
+          "refreshQueries": [
+            "irsaliye",
+            "irsaliyeler"
+          ]
+        }
+      },
+      {
+        "id": "irsaliyeBasligi",
+        "type": "recordHeader",
+        "name": "irsaliyeBasligi",
         "props": {
           "icon": "truck",
           "title": "{{irsaliye.rows[0].code}}",
           "subtitle": "{{irsaliye.rows[0].warehouseName}} · sevk {{irsaliye.rows[0].deliveryDate}}",
-          "fields": ["Bağlı sipariş={{irsaliye.rows[0].orderCode}}", "Sevk deposu={{irsaliye.rows[0].warehouseName}}", "Sevk tarihi={{irsaliye.rows[0].deliveryDate}}", "Satır={{kalemler.satirSayisi}}"],
-          "fieldFormats": ["Sevk tarihi=date", "Satır=number"] } },
-      { "id": "irsaliyeDurumu", "type": "section", "name": "irsaliyeDurumu",
+          "fields": [
+            "Bağlı sipariş={{irsaliye.rows[0].orderCode}}",
+            "Sevk deposu={{irsaliye.rows[0].warehouseName}}",
+            "Sevk tarihi={{irsaliye.rows[0].deliveryDate}}",
+            "Satır={{kalemler.satirSayisi}}"
+          ],
+          "fieldFormats": [
+            "Sevk tarihi=date",
+            "Satır=number"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "irsaliyeDurumu",
+        "type": "section",
+        "name": "irsaliyeDurumu",
         "props": {
-          "width": 12 },
+          "slot": "dialog"
+        },
         "children": [
-          { "id": "rozetSevk", "type": "badge", "name": "rozetSevk",
+          {
+            "id": "rozetSevk",
+            "type": "badge",
+            "name": "rozetSevk",
             "props": {
               "text": "Sevk edildi",
               "variant": "success",
-              "visibleWhen": "irsaliye.rows[0].status == 'Posted'" } },
-          { "id": "rozetIptal", "type": "badge", "name": "rozetIptal",
+              "visibleWhen": "irsaliye.rows[0].status == 'Posted'"
+            }
+          },
+          {
+            "id": "rozetIptal",
+            "type": "badge",
+            "name": "rozetIptal",
             "props": {
               "text": "İptal",
               "variant": "info",
-              "visibleWhen": "irsaliye.rows[0].status == 'Voided'" } },
-          { "id": "rozetSiparissiz", "type": "badge", "name": "rozetSiparissiz",
+              "visibleWhen": "irsaliye.rows[0].status == 'Voided'"
+            }
+          },
+          {
+            "id": "rozetSiparissiz",
+            "type": "badge",
+            "name": "rozetSiparissiz",
             "props": {
               "text": "Satış irsaliyesi",
               "variant": "warning",
-              "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null" } },
-          { "id": "rozetFaturali", "type": "badge", "name": "rozetFaturali",
+              "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null"
+            }
+          },
+          {
+            "id": "rozetFaturali",
+            "type": "badge",
+            "name": "rozetFaturali",
             "props": {
               "text": "Faturası kesildi",
               "variant": "success",
-              "visibleWhen": "irsaliye.rows[0].invoiceStatus == 'Posted'" } },
-          { "id": "rozetFaturaIptal", "type": "badge", "name": "rozetFaturaIptal",
+              "visibleWhen": "irsaliye.rows[0].invoiceStatus == 'Posted'"
+            }
+          },
+          {
+            "id": "rozetFaturaIptal",
+            "type": "badge",
+            "name": "rozetFaturaIptal",
             "props": {
               "text": "Fatura iptal edildi",
               "variant": "info",
-              "visibleWhen": "irsaliye.rows[0].invoiceStatus == 'Voided'" } },
-          { "id": "rozetFaturaBekliyor", "type": "badge", "name": "rozetFaturaBekliyor",
+              "visibleWhen": "irsaliye.rows[0].invoiceStatus == 'Voided'"
+            }
+          },
+          {
+            "id": "rozetFaturaBekliyor",
+            "type": "badge",
+            "name": "rozetFaturaBekliyor",
             "props": {
               "text": "Fatura bekliyor",
               "variant": "warning",
-              "visibleWhen": "irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false" } },
-          { "id": "detayIptal", "type": "button", "name": "detayIptal",
+              "visibleWhen": "irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false"
+            }
+          },
+          {
+            "id": "detayIptal",
+            "type": "button",
+            "name": "detayIptal",
             "props": {
               "text": "İptal et",
               "actionType": "query",
@@ -229,32 +705,63 @@
               "disabledWhen": "irsaliye.rows[0].invoiceStatus == 'Posted'",
               "disabledReason": "Önce bağlı satış faturasını iptal edin.",
               "successMessage": "İrsaliye iptal edildi; stok çıkışı ters hareketle geri alındı.",
-              "refreshQueries": ["irsaliyeler", "irsaliye"] } },
-          { "id": "detayFaturaAc", "type": "button", "name": "detayFaturaAc",
+              "refreshQueries": [
+                "irsaliyeler",
+                "irsaliye"
+              ]
+            }
+          },
+          {
+            "id": "detayFaturaAc",
+            "type": "button",
+            "name": "detayFaturaAc",
             "props": {
               "text": "Faturayı aç ›",
               "actionType": "erpPage",
               "pageKey": "sales-invoices",
               "target": "newTab",
-              "params": ["invoiceId={{irsaliye.rows[0].invoiceId}}"],
-              "visibleWhen": "irsaliye.rows[0].invoiceId != null" } },
-          { "id": "detaySiparisAc", "type": "button", "name": "detaySiparisAc",
+              "params": [
+                "invoiceId={{irsaliye.rows[0].invoiceId}}"
+              ],
+              "visibleWhen": "irsaliye.rows[0].invoiceId != null"
+            }
+          },
+          {
+            "id": "detaySiparisAc",
+            "type": "button",
+            "name": "detaySiparisAc",
             "props": {
               "text": "Siparişi aç ›",
               "actionType": "erpPage",
               "pageKey": "sales-orders",
               "target": "newTab",
-              "params": ["orderId={{irsaliye.rows[0].orderId}}"],
-              "visibleWhen": "irsaliye.rows[0].orderId != null" } }
-        ] },
-      { "id": "irsaliyeSekmeleri", "type": "tabs", "name": "irsaliyeSekmeleri",
+              "params": [
+                "orderId={{irsaliye.rows[0].orderId}}"
+              ],
+              "visibleWhen": "irsaliye.rows[0].orderId != null"
+            }
+          }
+        ]
+      },
+      {
+        "id": "irsaliyeSekmeleri",
+        "type": "tabs",
+        "name": "irsaliyeSekmeleri",
         "props": {
-          "tabs": ["İrsaliye Bilgileri=kalemTablosu", "Fatura İşlemleri=faturaBolumu"] } },
-      { "id": "kalemTablosu", "type": "dataTable", "name": "kalemTablosu",
+          "tabs": [
+            "İrsaliye Bilgileri=kalemTablosu",
+            "Fatura İşlemleri=faturaBolumu,faturaAlanlari"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "kalemTablosu",
+        "type": "dataTable",
+        "name": "kalemTablosu",
         "props": {
           "title": "İrsaliye kalemleri",
           "query": "kalemler",
-          "width": 12,
           "showGridSearch": false,
           "showColumnFilters": false,
           "showColumnChooser": false,
@@ -262,90 +769,355 @@
           "showPivot": false,
           "showCsv": false,
           "showSelectedExport": false,
-          "columns": ["orderLineNumber", "stockCode", "stockName", "quantity", "isFreeOfCharge", "unitPrice", "discountPercent", "vatPercent", "lineNetAmount", "lineTotal"],
-          "columnLabels": ["orderLineNumber=Sipariş satırı", "stockCode=Stok kodu", "stockName=Stok adı", "quantity=Sevk miktarı", "isFreeOfCharge=Bedelsiz", "unitPrice=Birim fiyat", "discountPercent=İsk. %", "vatPercent=KDV %", "lineNetAmount=Tutar", "lineTotal=KDV dahil"],
-          "columnFormats": ["stockCode=code", "orderLineNumber=number", "quantity=number", "isFreeOfCharge=status", "unitPrice=money", "discountPercent=number", "vatPercent=number", "lineNetAmount=money", "lineTotal=money"],
-          "columnUnits": ["quantity=unitCode", "unitPrice=currencyCode", "lineNetAmount=currencyCode", "lineTotal=currencyCode"],
-          "valueLabels": ["isFreeOfCharge:true=Bedelsiz", "isFreeOfCharge:false=—"],
-          "toneMap": ["Bedelsiz=info"],
-          "emptyText": "İrsaliye kalemi bulunamadı." } },
-      { "id": "faturaBolumu", "type": "section", "name": "faturaBolumu",
+          "columns": [
+            "orderLineNumber",
+            "stockCode",
+            "stockName",
+            "quantity",
+            "isFreeOfCharge",
+            "unitPrice",
+            "discountPercent",
+            "vatPercent",
+            "lineNetAmount",
+            "lineTotal"
+          ],
+          "columnLabels": [
+            "orderLineNumber=Sipariş satırı",
+            "stockCode=Stok kodu",
+            "stockName=Stok adı",
+            "quantity=Sevk miktarı",
+            "isFreeOfCharge=Bedelsiz",
+            "unitPrice=Birim fiyat",
+            "discountPercent=İsk. %",
+            "vatPercent=KDV %",
+            "lineNetAmount=Tutar",
+            "lineTotal=KDV dahil"
+          ],
+          "columnFormats": [
+            "stockCode=code",
+            "orderLineNumber=number",
+            "quantity=number",
+            "isFreeOfCharge=status",
+            "unitPrice=money",
+            "discountPercent=number",
+            "vatPercent=number",
+            "lineNetAmount=money",
+            "lineTotal=money"
+          ],
+          "columnUnits": [
+            "quantity=unitCode",
+            "unitPrice=currencyCode",
+            "lineNetAmount=currencyCode",
+            "lineTotal=currencyCode"
+          ],
+          "valueLabels": [
+            "isFreeOfCharge:true=Bedelsiz",
+            "isFreeOfCharge:false=—"
+          ],
+          "toneMap": [
+            "Bedelsiz=info"
+          ],
+          "emptyText": "İrsaliye kalemi bulunamadı.",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "faturaBolumu",
+        "type": "section",
+        "name": "faturaBolumu",
         "props": {
-          "width": 12,
           "title": "Fatura",
-          "description": "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun. Fatura fiyatları irsaliye satırlarından (fiyatı olmayan eski satırlarda sipariş satırlarından) alınır; zorunlu fatura özel alanlarını tamamlayın." },
+          "description": "Bu irsaliyeyi faturalaştırarak satış faturasını ve cari borç kaydını oluşturun. Fatura fiyatları irsaliye satırlarından (fiyatı olmayan eski satırlarda sipariş satırlarından) alınır; zorunlu fatura özel alanlarını tamamlayın.",
+          "slot": "dialog"
+        },
         "children": [
-          { "id": "faturaVarNotu", "type": "text", "name": "faturaVarNotu",
+          {
+            "id": "faturaVarNotu",
+            "type": "text",
+            "name": "faturaVarNotu",
             "props": {
               "text": "Fatura oluşturulmuş. Faturayı yukarıdaki “Faturayı aç” ile açabilirsiniz.",
-              "visibleWhen": "irsaliye.rows[0].hasSalesInvoice == true" } },
-          { "id": "siparissizNotu", "type": "text", "name": "siparissizNotu",
+              "visibleWhen": "irsaliye.rows[0].hasSalesInvoice == true"
+            }
+          },
+          {
+            "id": "siparissizNotu",
+            "type": "text",
+            "name": "siparissizNotu",
             "props": {
               "text": "Siparişe bağlı olmayan irsaliyenin faturası birlikte kesilmiştir.",
-              "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null && irsaliye.rows[0].hasSalesInvoice != true" } },
-          { "id": "bedelsizFaturaNotu", "type": "text", "name": "bedelsizFaturaNotu",
+              "visibleWhen": "irsaliye.rows[0].id != null && irsaliye.rows[0].orderId == null && irsaliye.rows[0].hasSalesInvoice != true"
+            }
+          },
+          {
+            "id": "bedelsizFaturaNotu",
+            "type": "text",
+            "name": "bedelsizFaturaNotu",
             "props": {
               "text": "Bu irsaliyede {{irsaliye.rows[0].freeLineCount}} bedelsiz ve {{irsaliye.rows[0].unpricedLineCount}} fiyatsız satır var. Bu satırların fatura tutarını girmeden faturalaştırma “Bedelsiz/fiyatsız satırların tutarını girin.” uyarısıyla durur; tutarları satış irsaliyesi ekranındaki fatura formunda girin (0 girilebilir).",
-              "visibleWhen": "irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false && (irsaliye.rows[0].freeLineCount > 0 || irsaliye.rows[0].unpricedLineCount > 0)" } },
-          { "id": "faturaFormu", "type": "formCard", "name": "faturaFormu",
+              "visibleWhen": "irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false && (irsaliye.rows[0].freeLineCount > 0 || irsaliye.rows[0].unpricedLineCount > 0)"
+            }
+          },
+          {
+            "id": "faturaFormu",
+            "type": "formCard",
+            "name": "faturaFormu",
             "props": {
               "title": "Fatura bilgileri",
               "columns": 3,
-              "inputs": ["faturaTuru", "eBelgeSenaryosu", "eBelgeTuru", "aliciEtiketi", "faturaNotu"],
-              "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false" } },
-          { "id": "faturaAlanlari", "type": "customFieldsBlock", "name": "faturaAlanlari",
-            "props": {
-              "title": "Fatura özel alanları",
-              "definitionsQuery": "faturaAlanTanimlari",
-              "columns": 2,
-              "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false" } },
-          { "id": "faturalastirDugmesi", "type": "button", "name": "faturalastirDugmesi",
-            "props": {
-              "text": "Faturalaştır",
-              "actionType": "query",
-              "queryId": "faturalastir",
-              "confirmEnabled": true,
-              "confirmText": "“{{irsaliye.rows[0].code}}” için satış faturası ve cari borç kaydı oluşturulsun mu?",
-              "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false",
-              "successMessage": "Satış faturası oluşturuldu.",
-              "refreshQueries": ["irsaliye", "irsaliyeler"] } }
-        ] },
-      { "id": "faturaTuru", "type": "input", "name": "faturaTuru",
+              "inputs": [
+                "faturaTuru",
+                "eBelgeSenaryosu",
+                "eBelgeTuru",
+                "aliciEtiketi",
+                "faturaNotu"
+              ],
+              "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false"
+            }
+          }
+        ]
+      },
+      {
+        "id": "faturaAlanlari",
+        "type": "customFieldsBlock",
+        "name": "faturaAlanlari",
+        "props": {
+          "title": "Fatura özel alanları",
+          "definitionsQuery": "faturaAlanTanimlari",
+          "columns": 2,
+          "visibleWhen": "irsaliye.rows[0].orderId != null && irsaliye.rows[0].status == 'Posted' && irsaliye.rows[0].hasSalesInvoice == false",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "faturaTuru",
+        "type": "input",
+        "name": "faturaTuru",
         "props": {
           "inputType": "select",
           "label": "Fatura türü",
           "defaultValue": "Wholesale",
-          "staticOptions": ["Wholesale=Toptan satış · KDV hariç", "Retail=Perakende satış · KDV dâhil"] } },
-      { "id": "eBelgeSenaryosu", "type": "input", "name": "eBelgeSenaryosu",
+          "staticOptions": [
+            "Wholesale=Toptan satış · KDV hariç",
+            "Retail=Perakende satış · KDV dâhil"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "eBelgeSenaryosu",
+        "type": "input",
+        "name": "eBelgeSenaryosu",
         "props": {
           "inputType": "select",
           "label": "Belge senaryosu",
-          "staticOptions": ["=Seçilmedi", "TEMELFATURA=TEMELFATURA", "TICARIFATURA=TICARIFATURA", "EARSIVFATURA=EARSIVFATURA", "IHRACAT=IHRACAT", "YOLCUBERABERFATURA=YOLCUBERABERFATURA", "KAMU=KAMU", "HKS=HKS", "ENERJI=ENERJI", "ILAC_TIBBICIHAZ=ILAC_TIBBICIHAZ"] } },
-      { "id": "eBelgeTuru", "type": "input", "name": "eBelgeTuru",
+          "staticOptions": [
+            "=Seçilmedi",
+            "TEMELFATURA=TEMELFATURA",
+            "TICARIFATURA=TICARIFATURA",
+            "EARSIVFATURA=EARSIVFATURA",
+            "IHRACAT=IHRACAT",
+            "YOLCUBERABERFATURA=YOLCUBERABERFATURA",
+            "KAMU=KAMU",
+            "HKS=HKS",
+            "ENERJI=ENERJI",
+            "ILAC_TIBBICIHAZ=ILAC_TIBBICIHAZ"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "eBelgeTuru",
+        "type": "input",
+        "name": "eBelgeTuru",
         "props": {
           "inputType": "select",
           "label": "Belge tür kodu",
-          "staticOptions": ["=Seçilmedi", "SATIS=SATIS", "IADE=IADE", "TEVKIFAT=TEVKIFAT", "ISTISNA=ISTISNA", "OZELMATRAH=OZELMATRAH", "IHRACKAYITLI=IHRACKAYITLI", "TEVKIFATIADE=TEVKIFATIADE", "HKSSATIS=HKSSATIS", "HKSKOMISYONCU=HKSKOMISYONCU"] } },
-      { "id": "aliciEtiketi", "type": "input", "name": "aliciEtiketi",
+          "staticOptions": [
+            "=Seçilmedi",
+            "SATIS=SATIS",
+            "IADE=IADE",
+            "TEVKIFAT=TEVKIFAT",
+            "ISTISNA=ISTISNA",
+            "OZELMATRAH=OZELMATRAH",
+            "IHRACKAYITLI=IHRACKAYITLI",
+            "TEVKIFATIADE=TEVKIFATIADE",
+            "HKSSATIS=HKSSATIS",
+            "HKSKOMISYONCU=HKSKOMISYONCU"
+          ],
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "aliciEtiketi",
+        "type": "input",
+        "name": "aliciEtiketi",
         "props": {
           "inputType": "text",
           "label": "Alıcı e-Fatura etiketi",
           "maxLength": 255,
-          "placeholder": "urn:mail:…" } },
-      { "id": "faturaNotu", "type": "input", "name": "faturaNotu",
+          "placeholder": "urn:mail:…",
+          "slot": "dialog"
+        }
+      },
+      {
+        "id": "faturaNotu",
+        "type": "input",
+        "name": "faturaNotu",
         "props": {
           "inputType": "text",
           "label": "Fatura notu",
-          "maxLength": 1000 } }
+          "maxLength": 1000,
+          "slot": "dialog"
+        }
+      }
     ],
     "queries": [
-      {"id": "irsaliyeler", "name": "irsaliyeler", "kind": "read", "operation": "satis.irsaliye.listele", "runOn": "load", "parameters": [{"name": "q", "binding": "{{suzgec.q}}", "type": "text"}, {"name": "status", "binding": "{{durumSecimi.value}}", "type": "text"}, {"name": "unbilledOnly", "binding": "{{faturaSecimi.value}}", "type": "bool"}, {"name": "page", "binding": "{{liste.sayfa}}", "type": "int"}, {"name": "pageSize", "binding": "{{liste.sayfaBoyutu}}", "type": "int"}]},
-      {"id": "irsaliye", "name": "irsaliye", "kind": "read", "operation": "satis.irsaliye.getir", "runOn": "load", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.salesDeliveryId}}", "type": "guid"}]},
-      {"id": "kalemler", "name": "kalemler", "kind": "read", "operation": "satis.irsaliye.kalemleri", "runOn": "load", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.salesDeliveryId}}", "type": "guid"}]},
-      {"id": "faturaAlanTanimlari", "name": "faturaAlanTanimlari", "kind": "read", "operation": "satis.fatura.ozelAlanTanimlari", "runOn": "load", "parameters": []},
-      {"id": "irsaliyeIptal", "name": "irsaliyeIptal", "kind": "update", "operation": "satis.irsaliye.iptal", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.salesDeliveryId}}", "type": "guid"}]},
-      {"id": "irsaliyeSil", "name": "irsaliyeSil", "kind": "delete", "operation": "satis.irsaliye.sil", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.salesDeliveryId}}", "type": "guid"}]},
-      {"id": "faturalastir", "name": "faturalastir", "kind": "insert", "operation": "satis.irsaliye.faturalastir", "runOn": "manual", "parameters": [{"name": "id", "binding": "{{liste.seciliSatir.salesDeliveryId}}", "type": "guid"}, {"name": "invoiceType", "binding": "{{faturaTuru.value}}", "type": "text"}, {"name": "notes", "binding": "{{faturaNotu.value}}", "type": "text"}, {"name": "customFields", "binding": "{{faturaAlanlari.degerler}}", "type": "map"}, {"name": "eDocument.scenario", "binding": "{{eBelgeSenaryosu.value}}", "type": "text"}, {"name": "eDocument.typeCode", "binding": "{{eBelgeTuru.value}}", "type": "text"}, {"name": "eDocument.recipientAlias", "binding": "{{aliciEtiketi.value}}", "type": "text"}]}
-    ]
+      {
+        "id": "irsaliyeler",
+        "name": "irsaliyeler",
+        "kind": "read",
+        "operation": "satis.irsaliye.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{suzgec.q}}",
+            "type": "text"
+          },
+          {
+            "name": "status",
+            "binding": "{{durumSecimi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "unbilledOnly",
+            "binding": "{{faturaSecimi.value}}",
+            "type": "bool"
+          },
+          {
+            "name": "page",
+            "binding": "{{liste.sayfa}}",
+            "type": "int"
+          },
+          {
+            "name": "pageSize",
+            "binding": "{{liste.sayfaBoyutu}}",
+            "type": "int"
+          }
+        ]
+      },
+      {
+        "id": "irsaliye",
+        "name": "irsaliye",
+        "kind": "read",
+        "operation": "satis.irsaliye.getir",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.salesDeliveryId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "kalemler",
+        "name": "kalemler",
+        "kind": "read",
+        "operation": "satis.irsaliye.kalemleri",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.salesDeliveryId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "faturaAlanTanimlari",
+        "name": "faturaAlanTanimlari",
+        "kind": "read",
+        "operation": "satis.fatura.ozelAlanTanimlari",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "irsaliyeIptal",
+        "name": "irsaliyeIptal",
+        "kind": "update",
+        "operation": "satis.irsaliye.iptal",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.salesDeliveryId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "irsaliyeSil",
+        "name": "irsaliyeSil",
+        "kind": "delete",
+        "operation": "satis.irsaliye.sil",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.salesDeliveryId}}",
+            "type": "guid"
+          }
+        ]
+      },
+      {
+        "id": "faturalastir",
+        "name": "faturalastir",
+        "kind": "insert",
+        "operation": "satis.irsaliye.faturalastir",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "id",
+            "binding": "{{liste.seciliSatir.salesDeliveryId}}",
+            "type": "guid"
+          },
+          {
+            "name": "invoiceType",
+            "binding": "{{faturaTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "notes",
+            "binding": "{{faturaNotu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "customFields",
+            "binding": "{{faturaAlanlari.degerler}}",
+            "type": "map"
+          },
+          {
+            "name": "eDocument.scenario",
+            "binding": "{{eBelgeSenaryosu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.typeCode",
+            "binding": "{{eBelgeTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.recipientAlias",
+            "binding": "{{aliciEtiketi.value}}",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "template": {
+      "name": "list"
+    }
   }
 }
