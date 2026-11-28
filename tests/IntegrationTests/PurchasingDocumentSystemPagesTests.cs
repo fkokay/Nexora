@@ -40,7 +40,7 @@ public sealed class PurchasingDocumentSystemPagesTests
     /// <summary>Versions: receipts and returns are v3 Liste-template standards (Satın Alma 2. dalga).</summary>
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 3, ["sales-purchase-returns"] = 3,
+        ["sales-purchase-receipts"] = 3, ["sales-purchase-invoice-entry"] = 1, ["sales-purchase-invoices"] = 4, ["sales-purchase-returns"] = 3,
     };
 
     /// <summary>The page params each legacy purchasing screen reads (K7 readers); a legacy command sends only these.</summary>
@@ -285,7 +285,7 @@ public sealed class PurchasingDocumentSystemPagesTests
         Assert.Equal(("{{sayfa.parametre.supplierId}}", "{{suzgec.q}}"), (Binding(key, "faturalar", "supplierId"), Binding(key, "faturalar", "q")));
         Assert.Equal("sayfa.parametre.supplierId != null", (string)Props(key, "tedarikciNotu")["visibleWhen"]!);
         var bar = Props(key, "komutlar");
-        Assert.Equal(("page", "@sales-purchase-invoice-entry"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
+        Assert.Equal(("page", "@purchase-invoice-document"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
 
         // The document reads lines, payments and returns of the selected invoice.
         foreach (var (query, operation) in new[] { ("fatura", "satinalma.fatura.getir"), ("faturaSatirlari", "satinalma.fatura.satirlari"),

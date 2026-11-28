@@ -1,5 +1,11 @@
 # Master Prompt Phase Status
 
+### 2026-11-28 Satınalma belge modelleri
+
+- `satinalma.siparis` ve `satinalma.fatura` eklendi. Sipariş taslağı mevcut POST ile oluşturulur ve kayıtlı sipariş salt okunur açılır; standalone fatura taslağı POST/PUT ile düzenlenir, mal kabul faturaları salt okunur açılır. Liste standartlarının Yeni/Aç komutları Belge sayfalarına yönlendirildi; veri yazmayan hesap uçları eklendi.
+- Desteklenmeyen eylemler atlandı: sipariş için mevcut iptal/onay geçişi yok; mal kabulden gelen faturalar salt okunur olduğundan iptal bağlanmadı. Mal kabul satırını taslağa bağlama UI akışı eklenmedi.
+- ERP Belge vitest (1/1), Studio vitest (15/15) ve iki `npm run build` geçti. `dotnet build AIERP.slnx --no-restore`, .NET SDK workload resolver bileşenleri bulunamadığı için derleme başlamadan başarısız oldu (0 hata/uyarı raporlandı); `dotnet test` talimat gereği çalıştırılmadı.
+
 ### 2026-11-28 Belge modeli `stok.transfer`
 
 - **Ne değişti:** `stok.transfer` modeli ve `inventory-transfer-document` Belge standardı eklendi. Depo transferleri Liste standardı v2 oldu; Yeni ve Aç artık Belge sayfasını hedefliyor. Yeni belge tarayıcıda taslak kalır ve mevcut transfer POST ucuyla kaydedilir; kayıtlı transfer salt okunur açılır, iptal mevcut `/void` işlemine gider. POST ve iptal işlem günlüğü yazar; POST mevcut transaction ve idempotency anahtarını kullanır.
@@ -17,6 +23,7 @@
 Verified: ERP finance Vitest files (26 tests), Development Studio finance standard test (32 tests), and Development Studio `npm run build`.
 `dotnet build tests/IntegrationTests` was attempted twice; both attempts failed during the Restore target with 0 warnings and 0 errors, before compilation. ERP `npm run build` did not complete: `tsc -b` produced no further output and the local Node process was absent, so the stalled build session was stopped.
 Not run: `dotnet test` (the shared test lock is managed by another process), full frontend suites, browser/live behavior, and SQL Server acceptance.
+
 ### 2026-11-28 Stok & Depo dalga 1: 4 standart Liste kalıbına elle çizildi
 
 Branch `claude/stok-dalga1` (design: `docs/superpowers/specs/2026-11-28-stok-depo-yeniden-tasarim-design.md`, mockup 14); not merged. No migration, no new template feature, no new belge modeli.

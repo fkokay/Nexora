@@ -22,6 +22,8 @@ export const SUBROUTE_PARENTS: Record<string, string> = {
   "sales-order-document": "sales-orders",
   "finance-journal-voucher-document": "finance-journal-ledger",
   "sales-quote-document": "sales-quotes",
+  'purchase-order-document': 'sales-purchasing',
+  'purchase-invoice-document': 'sales-purchase-invoices',
   "inventory-transfer-document": "inventory-transfers",
   "sales-invoice-document": "sales-invoices",
   "sales-delivery-document": "sales-deliveries",

@@ -20,7 +20,7 @@ public sealed class PurchasingFaz2SystemPagesTests
     private static readonly string[] Keys = ["sales-purchase-order-create", "sales-requests", "sales-purchasing"];
     private static readonly Dictionary<string, int> Versions = new(StringComparer.Ordinal)
     {
-        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 3,
+        ["sales-purchase-order-create"] = 1, ["sales-requests"] = 3, ["sales-purchasing"] = 4,
     };
 
     /// <summary>Every line grid of these pages: grid → (page, write query, fill query or null).</summary>
@@ -236,9 +236,6 @@ public sealed class PurchasingFaz2SystemPagesTests
         Assert.Equal(("openDialog", "malKabulPenceresi"), ((string)Props(key, "malKabulDugmesi")["actionType"]!, (string)Props(key, "malKabulDugmesi")["dialogId"]!));
         // The current receipt endpoint is order-bound and the list grid cannot serialize nested tracking allocations.
         Assert.Contains("izlemeliKabulDugmesi", Strings(dialog["contains"]));
-        var create = Props(key, "yeniSiparisDugmesi");
-        Assert.Equal(("erpPage", "sales-purchase-order-create"), ((string)create["actionType"]!, (string)create["pageKey"]!));
-        Assert.Null(create["legacyScreen"]);
     }
 
     // ---- sales-requests v3 ----
@@ -366,7 +363,7 @@ public sealed class PurchasingFaz2SystemPagesTests
             "gecikmisSabit", "sayacSayfaBoyutu", "suzgec", "secimCipleri", "suzgecSecimleri", "durumSecimi", "gecikmisSecimi", "detayPaneli",
             "liste", "acDugmesi", "detayKarti", "ozetPaneli", "belgeBasligi", "belgeMalKabulDugmesi", "listeyeDonDugmesi", "durumAdimlari", "kapaliUyarisi",
             "toplamGostergesi", "teslimGostergesi", "faturaGostergesi", "gecikmeGostergesi", "belgeSekmeleri", "satirTablosu", "kabulTablosu", "kabulAcDugmesi",
-            "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "yeniSiparisDugmesi", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),
+            "faturalaDugmesi", "belgeZinciri", "siparisNotu", "alanTablosu", "malKabulDugmesi", "eskiEkranDugmesi" }.Select(x => "component:" + x),
             .. new[] { "siparisler", "sayAcik", "sayKismen", "sayGecikmis", "siparis", "satirlar", "malKabuller", "ozelDegerler" }.Select(x => "query:" + x)],
     };
 

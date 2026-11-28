@@ -208,6 +208,14 @@ internal static partial class ErpOperationCatalog
                     .Select(x => new ErpOperationParameterItem(x.Name, Label(x.Name), x.Type, x.Required)).ToArray()
             };
 
+        yield return Read(PurchasingModule, "satinalma.siparis.belge", "Satınalma sipariş belgesi", order + "/document", [id], Record(Columns<PurchaseOrderView>()));
+        yield return new("satinalma.siparis.doldur", "Satınalma sipariş alanlarını doldur", PurchasingModule, "read", "read", "POST", "/api/document-models/satinalma.siparis/fill", [], Record([]), null, null, Since);
+        yield return new("satinalma.siparis.hesapla", "Satınalma siparişini hesapla", PurchasingModule, "read", "read", "POST", "/api/document-models/satinalma.siparis/calculate", [], Record([]), null, null, Since);
+        yield return Read(PurchasingModule, "satinalma.fatura.belge", "Satınalma faturası taslağı belgesi", draft + "/document", [id], Record(Columns<StandaloneSupplierInvoiceDraftDetail>()));
+        yield return Read(PurchasingModule, "satinalma.fatura.kayitBelgesi", "Satınalma faturası belgesi", invoice + "/document", [id], Record(Columns<PurchaseInvoiceView>()));
+        yield return new("satinalma.fatura.doldur", "Satınalma fatura alanlarını doldur", PurchasingModule, "read", "read", "POST", "/api/document-models/satinalma.fatura/fill", [], Record([]), null, null, Since);
+        yield return new("satinalma.fatura.hesapla", "Satınalma faturasını hesapla", PurchasingModule, "read", "read", "POST", "/api/document-models/satinalma.fatura/calculate", [], Record([]), null, null, Since);
+
         // ---- Satınalma talebi oluştur ----
         // A blank code is numbered by the server, so the code is optional; there is no request key, so a double submit of a
         // blank-code request writes two requests (the page's busy lock is the only guard).

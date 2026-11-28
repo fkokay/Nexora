@@ -50,17 +50,10 @@ function respond(url: string, method: string): unknown {
 const h = salesHarness(KEY, api, catalog, respond);
 beforeEach(() => { api.mockReset(); localStorage.clear(); h.listen(); });
 afterEach(() => { h.reset(); cleanup(); setPageParams(KEY, {}); });
-const openDocument = async () => {
-  await h.selectRow('AF-0001');
-  await waitFor(() => expect(h.gets(`/api/purchasing/invoices/${I1}`).length).toBeGreaterThan(0), T);
-  await waitFor(() => expect(h.command('open').getAttribute('aria-disabled')).not.toBe('true'), T);
-  fireEvent.click(h.command('open'));
-  return screen.findByRole('dialog', { name: /Alış faturası · AF-0001/ }, T);
-};
 
 describe('Alış faturaları standart tanımı', { timeout: 60000 }, () => {
-  it('is a v3 preview Liste standard that uses only operations from the catalog fixture', () => {
-    expect(h.standard).toMatchObject({ screenKey: KEY, version: 3, stage: 'preview' });
+  it('is a v4 preview Liste standard that uses only operations from the catalog fixture', () => {
+    expect(h.standard).toMatchObject({ screenKey: KEY, version: 4, stage: 'preview' });
     const names = new Set(catalog.operations.map((operation) => operation.name));
     expect(h.standard.definition.queries.filter((item) => !names.has(item.operation))).toEqual([]);
     expect((h.standard.definition as unknown as { template: unknown }).template).toEqual({ name: 'list' });
@@ -104,17 +97,6 @@ describe('Alış faturaları standart tanımı', { timeout: 60000 }, () => {
     await pay('100', 'DK-2');
     expect(posts()).toHaveLength(2);
     expect(bodyOf(posts()[1]).requestId).not.toBe(body.requestId);
-  });
-
-  it('a payment row of the document is cancelled after a confirm', async () => {
-    h.setup();
-    const dialog = await openDocument();
-    fireEvent.click(within(dialog).getByRole('tab', { name: /Ödemeler/ }));
-    fireEvent.click(await within(dialog).findByText('OD-0001', { selector: 'td, td *' }, T));
-    fireEvent.click(await within(dialog).findByRole('button', { name: 'Ödemeyi iptal et' }, T));
-    await h.confirm('OD-0001 ödemesi iptal edilsin mi?');
-    await h.waitWrites(1);
-    expect(h.writes()[0]).toMatchObject({ method: 'POST', url: `/api/purchasing/payments/${PAY}/void` });
   });
 
   it('İptal et asks first and voids an unpaid invoice', async () => {

@@ -51,6 +51,8 @@ function rowsOf(document: BelgeDocument | null): GridState {
       stockItemId: line.stockItemId, quantity: String(line.quantity), unitCode: line.enteredUnitCode ?? line.unitCode,
       unitPrice: String(line.enteredUnitPrice ?? line.unitPrice ?? ""), currencyCode: line.enteredCurrencyCode ?? currency,
       discountPercent: String(line.discountPercent ?? ""), vatPercent: String(line.vatPercent ?? ""), isVatIncluded: !!line.isVatIncluded,
+      description: line.description ?? "", expenseAccountId: line.expenseAccountId ?? "", vatRate: String(line.vatRate ?? line.vatPercent ?? 0),
+      isFreeOfCharge: !!line.isFreeOfCharge, trackingCode: line.trackingCode ?? "", expiryDate: line.expiryDate ?? "", storageLocationId: line.storageLocationId ?? "",
       ...(line.deliveredQuantity !== undefined ? { deliveredQuantity: `${line.deliveredQuantity} / ${line.quantity}` } : {}),
       // Dövizli satırın kayıtlı kuru (hücre olarak çizilmez); stok ya da döviz değişince silinir.
       ...((line.enteredCurrencyCode ?? currency) !== currency && line.exchangeRate ? { exchangeRate: String(line.exchangeRate) } : {}),
@@ -62,16 +64,24 @@ function rowsOf(document: BelgeDocument | null): GridState {
       ...(line.expiryDate ? { expiryDate: line.expiryDate } : {}),
       ...(line.storageLocationId ? { storageLocationId: line.storageLocationId } : {}),
     },
-    labels: { stockItemId: `${line.stockCode} · ${line.stockName}` },
+    labels: { stockItemId: `${line.stockCode} · ${line.stockName}`, description: line.description ?? "" },
   }));
   return { ...state, rows, nextKey: rows.length + 1 };
 }
 
 /** Satırın sunucuya gidecek hâli; stok ya da miktar eksikse null (hesaba ve kayda girmez). */
-function lineRequest(draft: GridDraft, unpriced = false): PreviewLineRequest | null {
+function lineRequest(draft: GridDraft, binding: DocumentBinding): PreviewLineRequest | null {
   const quantity = num(draft.cells.quantity), price = num(draft.cells.unitPrice);
+  if (binding.invoiceDraft) {
+    if (!String(draft.cells.description ?? "").trim() || !draft.cells.expenseAccountId || !(quantity > 0) || !(price >= 0)) return null;
+    const vatRate = num(draft.cells.vatRate);
+    return { rowKey: draft.key, description: String(draft.cells.description), expenseAccountId: String(draft.cells.expenseAccountId ?? "") || undefined,
+      quantity, unitPrice: price, discountPercent: 0, vatPercent: Number.isFinite(vatRate) ? vatRate : 0,
+      unitCode: String(draft.cells.unitCode ?? "") || undefined };
+  }
+  const unpriced = binding.unpricedLines === true;
   const free = draft.cells.isFreeOfCharge === true;
-  // İrsaliyede fiyat isteğe bağlıdır: bedelsiz ya da fiyatsız satır fiyat alanları boş gider.
+  // Delivery lines may omit price; free or unpriced lines send empty price fields.
   const noPrice = unpriced && (free || !(price >= 0));
   if (!draft.cells.stockItemId || !(quantity > 0) || (!noPrice && !(price >= 0))) return null;
   const discount = num(draft.cells.discountPercent), vat = num(draft.cells.vatPercent);
@@ -179,7 +189,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const dispatch = useCallback((action: GridAction) => setGrid((state) => gridReducer(state, action, gridOptions)), [gridOptions]);
 
   const unpricedLines = binding.unpricedLines === true;
-  const lines = useMemo(() => grid.rows.map((row) => lineRequest(row, unpricedLines)), [grid.rows, unpricedLines]);
+  const lines = useMemo(() => grid.rows.map((row) => lineRequest(row, binding)), [grid.rows, binding, unpricedLines]);
   const headerValues = { code: header.code, customerId: header.customerId, salespersonEmployeeId: header.salespersonEmployeeId,
     currencyCode: header.currencyCode, values: header.values, prospectCustomerName: header.prospectCustomerName, requestId: requestId.current };
   const calculationInput = lines.some(Boolean) ? binding.previewBody(headerValues, lines.filter((x): x is PreviewLineRequest => !!x)) : null;
@@ -259,11 +269,12 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
   const save = async () => {
     if (isPreview) { setMessage({ tone: "info", text: PREVIEW_WRITE_BLOCKED }); return; }
     const sent = lines.filter((x): x is PreviewLineRequest => !!x);
-    if (binding.kind !== "inventory-transfer" && !header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: "Müşteri seçin." }); return; }
+    if (binding.kind !== "inventory-transfer" && !header.customerId && !header.prospectCustomerName) { setMessage({ tone: "error", text: binding.code.startsWith("satinalma.") ? "Tedarikçi seçin." : "Müşteri seçin." }); return; }
+    if (binding.invoiceDraft && sent.length !== grid.rows.length) { setMessage({ tone: "error", text: "Her fatura satırında açıklama, pozitif miktar, fiyat ve gider hesabı girin." }); return; }
     if (binding.kind === "inventory-transfer" && (!header.values.fromWarehouseId || !header.values.toWarehouseId || header.values.fromWarehouseId === header.values.toWarehouseId)) {
       setMessage({ tone: "error", text: "Farklı bir kaynak ve hedef depo seçin." }); return;
     }
-    for (const required of model?.fields.filter((f) => f.required && f.type === "lookup" && f.code !== "customerId") ?? []) {
+    for (const required of model?.fields.filter((f) => f.required && f.type === "lookup" && f.code !== "customerId" && f.code !== "supplierId") ?? []) {
       if (!header.values[required.code]) { setMessage({ tone: "error", text: `${layout.fieldLabels[required.code] ?? required.label} seçin.` }); return; }
     }
     if (sent.length === 0) { setMessage({ tone: "error", text: `${binding.noun[0].toLocaleUpperCase("tr-TR")}${binding.noun.slice(1)} 1–${binding.maxLines} stok satırı içermelidir.` }); return; }
@@ -274,7 +285,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         sent.map(({ rowKey: _rowKey, ...line }) => line),
         // Tanımı pasif olsa da kayıtlı değer korunur: sunucu gönderilmeyen değeri siler.
         Object.fromEntries([...new Set([...definitions.map((d) => d.code), ...(doc?.doc.customFields ?? []).map((f) => f.code)])]
-          .map((code) => [code, header.customFields[code] || null]))), token);
+          .map((code) => [code, header.customFields[code] || null])), doc ? doc.doc as unknown as Record<string, unknown> : undefined), token);
       setDirty(false);
       setMessage({ tone: "info", text: binding.savedMessage ?? "Taslak kaydedildi." });
       if (!doc && saved?.id) onSaved?.(saved.id); else setReload((n) => n + 1);
@@ -288,6 +299,8 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
     const definition = model?.transitions.find((t) => t.code === code);
     if (!doc || !definition) return;
     if (dirty && !(await confirmDialog({ title: "Kaydedilmemiş değişiklikler var", message: "Önce Kaydet'e basın; yoksa değişiklikler bu işleme girmez.", confirmLabel: "Yine de devam et" }))) return;
+    if (binding.invoiceDraft && code === "iptal" && !(await confirmDialog({ title: `${doc.doc.code}: Faturayı iptal et`,
+      message: "Fatura iptal edilecek. Bağlı ödeme veya iade varsa işlem reddedilebilir.", tone: "danger", confirmLabel: "Faturayı iptal et" }))) return;
     let reason: string | null = null;
     if (definition.requiresReason) {
       reason = await promptDialog({ title: `${doc.doc.code}: ${definition.label}`, label: "Sebep", required: true, maxLength: 500, tone: "danger", confirmLabel: definition.label });
@@ -401,11 +414,11 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
         {(definition.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>;
     } else if (definition.type === "lookup" && definition.optionsOperation) {
-      const isCustomer = code === "customerId";
-      // Müşteri ve plasiyer başlığın kendi alanlarında; diğer seçimler (depo, vergi profili) `values[kod]` ve `values[kod + "Label"]` içinde.
-      const own = isCustomer || code === "salespersonEmployeeId";
-      const value = isCustomer ? header.customerId : own ? header.salespersonEmployeeId : header.values[code] ?? "";
-      const shown = isCustomer ? header.customerLabel : own ? header.salespersonLabel : header.values[`${code}Label`] ?? "";
+      const isCustomer = code === "customerId" || code === "supplierId";
+      const isSalesperson = code === "salespersonEmployeeId";
+      const own = isCustomer || isSalesperson;
+      const value = isCustomer ? header.customerId : isSalesperson ? header.salespersonEmployeeId : header.values[code] ?? "";
+      const shown = isCustomer ? header.customerLabel : isSalesperson ? header.salespersonLabel : header.values[`${code}Label`] ?? "";
       const picker = pickers[code] ?? { options: [], loading: false };
       control = <LookupInput inputId={id} label={label} raw={value} options={picker.options} loading={picker.loading} error={picker.error}
         allowClear={!definition.required} disabled={!canEdit} placeholder="Ara…" selected={value ? { value, label: shown || value } : null}
@@ -414,7 +427,7 @@ export function DocumentTemplate<C extends BelgeComponent>({ document: documentC
           ? { customerId: next, customerLabel: nextLabel, currencyCode: typeof row?.currencyCode === "string" ? row.currencyCode : "" }
           : own ? { salespersonEmployeeId: next, salespersonLabel: nextLabel }
             : { values: { ...header.values, [code]: next, [`${code}Label`]: nextLabel } })} />;
-    } else control = <input id={id} value={String((header as unknown as Record<string, unknown>)[code] ?? "")} disabled={!canEdit} readOnly />;
+    } else control = <input id={id} value={String(header.values[code] ?? (header as unknown as Record<string, unknown>)[code] ?? "")} disabled={!canEdit} readOnly />;
     return <div className="belge-field" key={code}><label htmlFor={id}>{label}{definition.required && canEdit ? " *" : ""}</label>{control}</div>;
   };
 

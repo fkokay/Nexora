@@ -3,7 +3,7 @@
   "title": "Satınalma siparişleri",
   "description": "Tedarikçi siparişlerini, teslim alınan miktarları ve mal kabul ile fatura zincirini izleyin.",
   "module": "Satın Alma",
-  "version": 3,
+  "version": 4,
   "stage": "preview",
   "items": {
     "component:suzgec": {
@@ -54,7 +54,6 @@
       "requires": [
         "component:liste",
         "component:suzgec",
-        "component:yeniSiparisDugmesi",
         "query:siparisler"
       ]
     },
@@ -110,10 +109,6 @@
       "requires": [
         "component:liste"
       ]
-    },
-    "component:yeniSiparisDugmesi": {
-      "since": 1,
-      "label": "Yeni sipariş komutu"
     },
     "component:siparisDetayBasligi": {
       "since": 3,
@@ -354,12 +349,20 @@
         "type": "actionBar",
         "name": "komutlar",
         "props": {
-          "newButton": "yeniSiparisDugmesi",
+          "newAction": "page",
+          "newPageCode": "@purchase-order-document",
+          "newTarget": "newTab",
+          "openAction": "page",
+          "openPageCode": "@purchase-order-document",
+          "openTarget": "newTab",
+          "openTable": "liste",
+          "openParams": [
+            "id={{liste.seciliSatir.id}}"
+          ],
           "focusInput": "suzgec",
           "exportTable": "liste",
           "titleCount": "{{siparisler.meta.totalCount}}",
           "hiddenCommands": [
-            "open",
             "save",
             "delete",
             "print"
@@ -555,17 +558,6 @@
             }
           }
         ]
-      },
-      {
-        "id": "yeniSiparisDugmesi",
-        "type": "button",
-        "name": "yeniSiparisDugmesi",
-        "props": {
-          "text": "Yeni sipariş",
-          "actionType": "erpPage",
-          "pageKey": "sales-purchase-order-create",
-          "slot": "actions"
-        }
       },
       {
         "id": "izlemeliKabulDugmesi",
@@ -1202,5 +1194,24 @@
     "template": {
       "name": "list"
     }
-  }
+  },
+  "updates": [
+    {
+      "id": "belge",
+      "label": "Yeni ve Aç komutları satınalma siparişi Belge sayfasına gider",
+      "below": 4,
+      "set": [
+        {"component": "komutlar", "prop": "hiddenCommands", "from": [["open", "save", "delete", "print"]]},
+        {"component": "komutlar", "prop": "newAction", "from": [null]},
+        {"component": "komutlar", "prop": "newButton", "from": ["yeniSiparisDugmesi"]},
+        {"component": "komutlar", "prop": "newPageCode", "from": [null]},
+        {"component": "komutlar", "prop": "newTarget", "from": [null]},
+        {"component": "komutlar", "prop": "openAction", "from": [null]},
+        {"component": "komutlar", "prop": "openPageCode", "from": [null]},
+        {"component": "komutlar", "prop": "openParams", "from": [null]},
+        {"component": "komutlar", "prop": "openTable", "from": [null]},
+        {"component": "komutlar", "prop": "openTarget", "from": [null]}
+      ]
+    }
+  ]
 }

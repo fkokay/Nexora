@@ -90,6 +90,11 @@ public sealed record SalesDeliveryDocumentRecord(Guid Id, string Code, Guid? Cus
 public sealed record SalesDeliveryDocumentView(SalesDeliveryDocumentRecord Delivery, DocumentAmounts Amounts,
     IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
 
+public sealed record PurchaseOrderDocumentView(object Order, DocumentAmounts Amounts,
+    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
+public sealed record PurchaseInvoiceDocumentView(object Invoice, DocumentAmounts Amounts,
+    IReadOnlyList<string> AllowedTransitions, IReadOnlyList<AIERP.Platform.Application.DocumentActivityView> Activity, bool ActivityStartedLate);
+
 /// <summary>A held order's pending approval (belge kuralı Onay iste): the current step's deciders and whether this user may decide.</summary>
 public sealed record DocumentApprovalView(Guid InstanceId, string Step, IReadOnlyList<string> Approvers, bool CanDecide);
 
