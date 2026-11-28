@@ -140,6 +140,8 @@
           "actionType": "query",
           "queryId": "muhasebelestir",
           "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
+          "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
           "refreshQueries": [
             "taslaklar"
           ],
@@ -157,6 +159,8 @@
           "actionType": "query",
           "queryId": "muhasebelestir",
           "confirmEnabled": true,
+          "confirmText": "{{liste.seciliSatir.invoiceNumber}} taslağı muhasebeleştirilsin mi? Yevmiye fişi ve tedarikçi borcu oluşur; muhasebeleşen taslak düzenlenemez.",
+          "successMessage": "Fatura taslağı muhasebeleştirildi; yevmiye fişi ve cari hareket oluşturuldu.",
           "refreshQueries": [
             "taslaklar"
           ],

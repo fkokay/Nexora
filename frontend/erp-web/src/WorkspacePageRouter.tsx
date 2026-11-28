@@ -690,10 +690,10 @@ function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
   const params = usePageParams(sourceKey);
   const id = params.id ?? params.invoiceId ?? "";
   useEffect(() => {
-    setPageParams(targetKey, id ? { id } : {});
+    setPageParams(targetKey, id ? { ...params, id } : params);
     onNavigate(targetKey);
     requestClosePage(sourceKey);
-  }, [id, onNavigate, sourceKey, targetKey]);
+  }, [id, onNavigate, sourceKey, targetKey, JSON.stringify(params)]);
   return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
 }
 
@@ -706,19 +706,6 @@ function SalesOrderCreateRedirect({ onNavigate }: { onNavigate: (page: string, l
     requestClosePage("sales-order-create");
   }, [orderId, onNavigate]);
   return <div className="panel page-loading" role="status">Sipariş belgesi açılıyor…</div>;
-}
-
-/** Old purchasing entry links now open the replacement document page and carry any preselected source parameters. */
-function LegacyCreateRedirect({ sourceKey, targetKey, noun, onNavigate }: {
-  sourceKey: string; targetKey: string; noun: string; onNavigate: (page: string, label?: string) => void;
-}) {
-  const params = usePageParams(sourceKey);
-  useEffect(() => {
-    setPageParams(targetKey, params);
-    onNavigate(targetKey);
-    requestClosePage(sourceKey);
-  }, [sourceKey, targetKey, onNavigate, JSON.stringify(params)]);
-  return <div className="panel page-loading" role="status">{noun} belgesi açılıyor…</div>;
 }
 
 /**

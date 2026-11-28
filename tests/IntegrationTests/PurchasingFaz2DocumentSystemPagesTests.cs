@@ -160,8 +160,8 @@ public sealed class PurchasingFaz2DocumentSystemPagesTests
         var writes = KeyList().SelectMany(x => Queries(Definition(x.Key))).Where(x => (string)x["kind"]! != "read")
             .Where(x => x["parameters"]!.AsArray().OfType<JsonObject>().Any(p => (string)p["name"]! == "requestId"))
             .Select(x => (string)x["operation"]!).Distinct().Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.faturaTaslagi.olustur", "satinalma.iade.olustur" }, writes);
-        // No body key: delivery note create (duplicate document number → 409) and the draft update (expectedRowVersion → 409).
+        Assert.Equal(new[] { "satinalma.fatura.odemeEkle", "satinalma.iade.olustur" }, writes);
+        // Draft creation moved to the purchase-invoice-document page (Belge). No body key: delivery note create (duplicate document number → 409) and the draft update (expectedRowVersion → 409).
         Assert.DoesNotContain(Op("satinalma.irsaliye.olustur").Parameters, x => x.Name == "requestId");
         Assert.DoesNotContain(Op("satinalma.faturaTaslagi.guncelle").Parameters, x => x.Name == "requestId");
     }
