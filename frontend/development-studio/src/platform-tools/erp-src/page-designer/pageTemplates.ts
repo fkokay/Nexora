@@ -24,14 +24,14 @@ export function readPageTemplate(raw: unknown): PageTemplate | undefined {
   return name === "list" ? { name: "list" } : name === "record" ? { name: "record" } : name === "free" ? { name: "free" } : undefined;
 }
 
-/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış, satınalma ve depo belge modelleri. */
+/** Belge modelleri (sunucudaki `DocumentModelRegistry`): satış, satınalma, depo ve üretim belge modelleri. */
 export const BELGE_DOCUMENTS = [{ code: "satis.siparis", label: "Satış siparişi" }, { code: "satis.teklif", label: "Satış teklifi" },
   { code: "satis.fatura", label: "Satış faturası" }, { code: "satis.irsaliye", label: "Satış irsaliyesi" },
   { code: "satinalma.siparis", label: "Satınalma siparişi" }, { code: "satinalma.fatura", label: "Satınalma faturası" },
-  { code: "stok.transfer", label: "Depo transferi" }] as const;
+  { code: "stok.transfer", label: "Depo transferi" }, { code: "uretim.recete", label: "Üretim reçetesi" }] as const;
 
 /** Modelin yeni sayfadaki varsayılan başlık alanları ve satır kolonları (sunucu kodları modele göre denetler). */
-const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[] }> = {
+const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[]; groups?: { code: string; columns: string[] }[] }> = {
   "satis.siparis": { fields: ["code", "customerId", "orderDate", "requestedDeliveryDate"],
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal", "deliveredQuantity"] },
   "satis.teklif": { fields: ["code", "customerId", "quoteDate", "validUntil"],
@@ -44,6 +44,9 @@ const BELGE_DEFAULTS: Record<string, { fields: string[]; columns: string[] }> = 
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "lineTotal"] },
   "satis.fatura": { fields: ["code", "customerId", "invoiceDate", "warehouseId", "invoiceType"],
     columns: ["stockItemId", "quantity", "unitCode", "unitPrice", "discountPercent", "vatPercent", "availableQuantity", "lineTotal"] },
+  "uretim.recete": { fields: ["code", "name", "productStockItemId", "outputQuantity"],
+    columns: ["componentStockItemId", "quantity", "scrapPercent", "standardUnitCostBase"],
+    groups: [{ code: "rota", columns: ["workCenterId", "setupMinutes", "runMinutesPerOutputUnit", "minimumWaitDaysAfterPrevious", "setupFamilyCode", "plannedEnergyKwhPerOutput", "plannedEnergyCostPerKwhBase", "eligibleWorkCenterIds"] }] },
 };
 
 /**
@@ -54,6 +57,7 @@ export function newBelgeTemplateDefinition(document = "satis.siparis"): Template
   return { schemaVersion: 2, template: { name: "belge", document }, queries: [], components: [
     { id: "baslik", type: "documentFields", props: { slot: "fields", fields: [...defaults.fields], labels: {} } },
     { id: "satirlar", type: "documentLines", props: { slot: "lines", labels: {}, density: "normal", columns: [...defaults.columns] } },
+    ...(defaults.groups ?? []).map(group => ({ id: group.code, type: "documentLines", props: { slot: group.code, labels: {}, density: "normal", columns: [...group.columns] } })),
     { id: "toplamlar", type: "documentSummary", props: { slot: "summary", vatBreakdown: true, activity: true } }] };
 }
 

@@ -25,6 +25,7 @@ internal static partial class ErpOperationCatalog
         const string operation = order + "/operations/{operationId}";
         const string boms = "/api/manufacturing/boms";
         const string bom = boms + "/{id}";
+        const string workCenters = "/api/manufacturing/work-centers";
         var id = Route("id");
         var operationId = Route("operationId");
         static ErpOperationColumn Col(string code, string type) => new(code, Label(code), type);
@@ -76,11 +77,18 @@ internal static partial class ErpOperationCatalog
         // ---- Reçeteler ----
         yield return Read(ManufacturingModule, "uretim.recete.tumunuListele", "Ürün reçetelerini listele", boms,
             [Query("productStockItemId", "guid"), Query("isActive", "bool")], List(bomColumns, null));
+        yield return Read(ManufacturingModule, "uretim.isMerkezi.tumunuListele", "İş merkezlerini listele", workCenters,
+            [], List(Cols("id:guid", "code:text", "name:text", "isActive:bool"), null));
         yield return Read(ManufacturingModule, "uretim.recete.getir", "Ürün reçetesi getir", bom, [id], Record(bomColumns));
+        yield return Read(ManufacturingModule, "uretim.recete.belge", "Üretim reçetesi Belgesi", bom + "/document", [id], Record(bomColumns));
         yield return Read(ManufacturingModule, "uretim.recete.bilesenleri", "Ürün reçetesinin bileşenleri", bom, [id],
             List(Columns<BomLineView>(), "lines"));
         // Only a recipe no order used; otherwise 409 and Pasife al.
         yield return Write(ManufacturingModule, "uretim.recete.sil", "Ürün reçetesini sil", "delete", "DELETE", bom, [id], None, null, null);
+        yield return Write(ManufacturingModule, "uretim.recete.olustur", "Üretim reçetesi oluştur", "insert", "POST", boms,
+            BodyParameters<BomWriteRequest>(sourceBacked: false), Record(bomColumns), null, null);
+        yield return Write(ManufacturingModule, "uretim.recete.guncelle", "Üretim reçetesini güncelle", "update", "PUT", bom,
+            [id, .. BodyParameters<BomUpdateRequest>(sourceBacked: false)], Record(bomColumns), null, null);
         yield return Write(ManufacturingModule, "uretim.recete.etkinlestir", "Ürün reçetesini etkinleştir", "update", "POST", bom + "/activate",
             [id], None, null, null);
         yield return Write(ManufacturingModule, "uretim.recete.pasifeAl", "Ürün reçetesini pasife al", "update", "POST", bom + "/deactivate",

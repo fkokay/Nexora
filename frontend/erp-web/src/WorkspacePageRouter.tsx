@@ -359,6 +359,8 @@ function LegacyPageRouter({
     return <ManufacturingRecipesPage {...manufacturingPageProps} />;
   if (page === "manufacturing-recipe-create")
     return <ManufacturingRecipeCreatePage {...manufacturingPageProps} />;
+  if (page === "manufacturing-recipe-document")
+    return <LegacyDocumentCard onNavigate={onNavigate} documentKey="manufacturing-recipe-document" noun="Reçete" openKey="manufacturing-recipes" openParam="id" createKey="manufacturing-recipe-document" />;
   if (page === "manufacturing-work-centers")
     return <ManufacturingWorkCentersPage {...manufacturingPageProps} />;
   if (page === "manufacturing-work-center-create")

@@ -10,13 +10,14 @@ export type DocumentField = {
 export type DocumentLineColumn = {
   code: string; label: string; type: string; required: boolean; calculated: boolean; optionsOperation: string | null; visibleFrom: string | null;
 };
+export type DocumentLineGroup = { code: string; label: string; columns: DocumentLineColumn[]; maxRows: number };
 export type DocumentState = { code: string; label: string; terminal: boolean };
 export type DocumentTransition = { code: string; label: string; from: string[]; to: string; operation: string; requiresReason: boolean };
 /** "Belgeden belge": sonraki belgeyi bu belgeden yaratıp açan eylem (durum geçişi değildir). `target`: yaratılan belgenin modeli. */
 export type DocumentCreation = { code: string; label: string; from: string[]; operation: string; target: string };
 export type DocumentModel = {
   code: string; label: string; fields: DocumentField[]; lineColumns: DocumentLineColumn[]; states: DocumentState[];
-  transitions: DocumentTransition[]; fills: Record<string, string[]>; creations?: DocumentCreation[] | null;
+  transitions: DocumentTransition[]; fills: Record<string, string[]>; creations?: DocumentCreation[] | null; lineGroups?: DocumentLineGroup[] | null;
 };
 
 export type OrderLine = {

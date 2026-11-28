@@ -29,13 +29,13 @@ public sealed class ManufacturingSystemPagesTests
     private static readonly Guid SalesOrder = Guid.Parse("b0000000-0000-0000-0000-000000000008");
     private static readonly Guid Customer = Guid.Parse("b0000000-0000-0000-0000-000000000009");
 
-    /// <summary>Every uretim.* operation this work adds (uretim.recete.listele, the stock card standard's read, is older).</summary>
+    /// <summary>Every manufacturing operation added for the recipe document and manufacturing pages.</summary>
     internal static readonly string[] NewOperations =
     [
         "uretim.emir.listele", "uretim.emir.getir", "uretim.emir.operasyonlari", "uretim.emir.bilesenleri", "uretim.emir.olustur",
         "uretim.emir.cizelgele", "uretim.emir.serbestBirak", "uretim.emir.operasyonBaslat", "uretim.emir.operasyonTamamla", "uretim.emir.tamamla",
-        "uretim.emir.iptal", "uretim.operatorler", "uretim.recete.tumunuListele", "uretim.recete.getir", "uretim.recete.bilesenleri",
-        "uretim.recete.sil", "uretim.recete.etkinlestir", "uretim.recete.pasifeAl", "uretim.maliyetAnalizi"
+        "uretim.emir.iptal", "uretim.operatorler", "uretim.isMerkezi.tumunuListele", "uretim.recete.belge", "uretim.recete.tumunuListele", "uretim.recete.getir", "uretim.recete.bilesenleri",
+        "uretim.recete.sil", "uretim.recete.etkinlestir", "uretim.recete.pasifeAl", "uretim.recete.guncelle", "uretim.recete.olustur", "uretim.maliyetAnalizi"
     ];
 
     internal static bool IsNewOperation(string name) => NewOperations.Contains(name, StringComparer.Ordinal);
@@ -43,7 +43,7 @@ public sealed class ManufacturingSystemPagesTests
     private static readonly string[] ReadOperations =
     [
         "uretim.emir.listele", "uretim.emir.getir", "uretim.emir.operasyonlari", "uretim.emir.bilesenleri", "uretim.operatorler",
-        "uretim.recete.tumunuListele", "uretim.recete.getir", "uretim.recete.bilesenleri"
+        "uretim.recete.tumunuListele", "uretim.recete.getir", "uretim.recete.belge", "uretim.recete.bilesenleri", "uretim.isMerkezi.tumunuListele"
     ];
 
     // ---- Catalog ----
@@ -51,7 +51,7 @@ public sealed class ManufacturingSystemPagesTests
     [Fact]
     public void Catalog_declares_every_manufacturing_operation_in_the_manufacturing_module()
     {
-        Assert.Equal(19, NewOperations.Length);
+        Assert.Equal(23, NewOperations.Length);
         Assert.Equal(NewOperations.Append("uretim.recete.listele").Order(StringComparer.Ordinal),
             ErpOperationCatalog.All.Where(x => x.Name.StartsWith("uretim.", StringComparison.Ordinal)).Select(x => x.Name).Order(StringComparer.Ordinal));
         foreach (var name in NewOperations)
