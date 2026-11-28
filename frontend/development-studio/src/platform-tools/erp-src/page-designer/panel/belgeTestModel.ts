@@ -25,6 +25,6 @@ export const belgeTestModel = {
     { code: "deliveredQuantity", label: "Sevk edilen", type: "number", required: false, calculated: true, visibleFrom: "Open" },
   ],
   states: [{ code: "Draft", label: "Taslak", terminal: false }, { code: "Open", label: "Onaylı", terminal: false }, { code: "Cancelled", label: "İptal", terminal: true }],
-  transitions: [{ code: "onayla", label: "Onayla" }, { code: "onayiGeriAl", label: "Onayı geri al" }, { code: "iptal", label: "İptal et" }],
+  creations: [], transitions: [{ code: "onayla", label: "Onayla" }, { code: "onayiGeriAl", label: "Onayı geri al" }, { code: "iptal", label: "İptal et" }],
   fills: { stockItemId: ["unitCode", "unitPrice", "vatPercent", "discountPercent", "currencyCode", "availableQuantity"] },
 };
