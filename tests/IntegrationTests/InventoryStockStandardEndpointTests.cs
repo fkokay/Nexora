@@ -75,7 +75,7 @@ public sealed class InventoryStockStandardEndpointTests
             Assert.Equal("@" + ScreenKey, page.GetProperty("code").GetString());
             Assert.Equal("Stok Kartları", page.GetProperty("name").GetString());
             Assert.Equal("standard", page.GetProperty("source").GetString());
-            Assert.Equal(2, page.GetProperty("standardVersion").GetInt32());
+            Assert.Equal(3, page.GetProperty("standardVersion").GetInt32());
             var definitionJson = page.GetProperty("definitionJson").GetString()!;
             Assert.True(JsonNode.DeepEquals(JsonNode.Parse(SystemPageStandards.All[ScreenKey].DefinitionJson), JsonNode.Parse(definitionJson)));
             Assert.DoesNotContain("\"sql\"", definitionJson);
