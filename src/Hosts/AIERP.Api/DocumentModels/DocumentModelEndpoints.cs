@@ -20,6 +20,9 @@ internal static class DocumentModelEndpoints
         // One literal route per model (the ERP operation catalog matches routes literally).
         models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesOrderStatus.Draft, SalesOrderDocumentModel.Sample));
         models.MapGet("/" + SalesQuoteDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesQuoteStatus.Draft, SalesQuoteDocumentModel.Sample));
+        models.MapGet("/" + InventoryTransferDocumentModel.Code + "/sample",
+            (string? state) => Sample(state, InventoryTransferStatus.Posted, InventoryTransferDocumentModel.Sample));
+        models.MapPost("/" + InventoryTransferDocumentModel.Code + "/fill", InventoryTransferDocumentModel.FillAsync);
         models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
 
@@ -39,6 +42,18 @@ internal static class DocumentModelEndpoints
                 return Results.Ok(new SalesQuoteDocumentView(quote,
                     new DocumentAmounts(quote.CurrencyCode, quote.Subtotal, quote.DiscountTotal, quote.TaxTotal, quote.GrandTotal, vat.OrderBy(x => x.Rate).ToList()),
                     allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft));
+            });
+
+        app.MapGroup("/api/warehouses/transfers").WithTags("Depo Transferleri").RequireAuthorization()
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await InventoryTransferReads.ViewAsync(db, tenantId, id, ct) is not { } detail) return Results.NotFound();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, InventoryTransferDocumentModel.Code, id, ct);
+                var allowed = await DocumentModelPermissions.ExecutableAsync(authorizer, principal, tenantId, "erp.inventory-transfers", id,
+                    detail.Transfer.Status.ToString(), null, InventoryTransferDocumentModel.Candidates(detail.Transfer.Status), ct);
+                return Results.Ok(InventoryTransferDocumentModel.View(detail, allowed, activity));
             });
 
         app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()

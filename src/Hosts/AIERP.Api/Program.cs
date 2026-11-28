@@ -2741,38 +2741,14 @@ warehouses.MapGet("/transfers", async (ClaimsPrincipal principal, TenantDbContex
 warehouses.MapGet("/transfers/{transferId:guid}", async (Guid transferId, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
-    var transferRecord = await db.InventoryTransfers.AsNoTracking().SingleOrDefaultAsync(x => x.TenantId == tenantId && x.Id == transferId);
-    if (transferRecord is null) return Results.NotFound();
-    var fromName = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == transferRecord.FromWarehouseId).Select(x => x.Name).SingleAsync();
-    var toName = await db.Warehouses.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == transferRecord.ToWarehouseId).Select(x => x.Name).SingleAsync();
-    var lineCount = await db.InventoryTransactions.CountAsync(x => x.TenantId == tenantId && x.InventoryTransferId == transferRecord.Id && x.WarehouseId == transferRecord.FromWarehouseId);
-    var summary = new InventoryTransferSummary(transferRecord.Id, transferRecord.Code, transferRecord.FromWarehouseId, fromName,
-        transferRecord.ToWarehouseId, toName, transferRecord.TransferDate, transferRecord.Status, lineCount, transferRecord.CreatedAt);
-    var sourceLines = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.InventoryTransferId == transferRecord.Id && x.WarehouseId == transferRecord.FromWarehouseId)
-        .OrderBy(x => x.StockItem.Code).Select(x => new { x.StockItemId, x.StockItem.Code, x.StockItem.Name, x.StockItem.UnitCode, x.Quantity,
-            x.EnteredQuantity, x.EnteredUnitCode, x.StorageLocationId }).ToListAsync();
-    var targetLocations = await db.InventoryTransactions.AsNoTracking().Where(x => x.TenantId == tenantId && x.InventoryTransferId == transferRecord.Id && x.WarehouseId == transferRecord.ToWarehouseId)
-        .Select(x => new { x.StockItemId, x.StorageLocationId }).ToDictionaryAsync(x => x.StockItemId, x => x.StorageLocationId);
-    var locationIds = sourceLines.Where(x => x.StorageLocationId.HasValue).Select(x => x.StorageLocationId!.Value)
-        .Concat(targetLocations.Values.Where(x => x.HasValue).Select(x => x!.Value)).Distinct().ToArray();
-    var locations = await db.WarehouseLocations.AsNoTracking().Where(x => x.TenantId == tenantId && locationIds.Contains(x.Id))
-        .ToDictionaryAsync(x => x.Id);
-    var lines = sourceLines.Select(x =>
-    {
-        var targetLocationId = targetLocations.GetValueOrDefault(x.StockItemId);
-        locations.TryGetValue(x.StorageLocationId ?? Guid.Empty, out var fromLocation);
-        locations.TryGetValue(targetLocationId ?? Guid.Empty, out var toLocation);
-        return new InventoryTransferLineView(x.StockItemId, x.Code, x.Name, x.UnitCode, x.Quantity, x.EnteredQuantity, x.EnteredUnitCode,
-            x.StorageLocationId, fromLocation?.Code, fromLocation?.Name, targetLocationId, toLocation?.Code, toLocation?.Name);
-    }).ToList();
-    return Results.Ok(new InventoryTransferDetailView(summary, lines));
+    return await InventoryTransferReads.ViewAsync(db, tenantId, transferId) is { } detail ? Results.Ok(detail) : Results.NotFound();
 });
 warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, ClaimsPrincipal principal, TenantDbContext db) =>
 {
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
-    await using var transaction = await db.Database.BeginTransactionAsync();
+    await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
     if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var closedTransferPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, request.TransferDate);
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedTransferPeriod, "depo transferi") is { } transferConflict)
@@ -2780,7 +2756,7 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
     var stockItems = new Dictionary<Guid, StockItem>();
     foreach (var stockItemId in request.Lines.Select(x => x.StockItemId).Order())
     {
-        var stockItem = await db.StockItems.FromSqlInterpolated($"SELECT * FROM [dbo].[StockItems] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {stockItemId}").SingleOrDefaultAsync();
+        var stockItem = await InventoryTransferLocks.StockItem(db, tenantId, stockItemId).SingleOrDefaultAsync();
         if (stockItem is null || !stockItem.IsActive) return Results.Conflict(new { error = "Transfer satırlarından en az birinin stok kartı bulunamadı veya pasif." });
         stockItems.Add(stockItemId, stockItem);
     }
@@ -2822,7 +2798,7 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
     var lockedWarehouses = new Dictionary<Guid, Warehouse>();
     foreach (var warehouseId in warehouseIds)
     {
-        var locked = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
+        var locked = await InventoryTransferLocks.Warehouse(db, tenantId, warehouseId).SingleOrDefaultAsync();
         if (locked is null) return Results.NotFound();
         lockedWarehouses.Add(warehouseId, locked);
     }
@@ -2876,9 +2852,10 @@ warehouses.MapPost("/transfers", async (InventoryTransferWriteRequest request, C
             outgoing, incoming);
     }
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transfer.posted", Resource = code });
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.InventoryTransfer, transferRecord.Id, "kaydet", "Transfer kaydedildi", "core", "done", null, GetUserId(principal), request.RequestId);
     try { await db.SaveChangesAsync(); }
     catch (DbUpdateException ex) when (IsUniqueViolation(ex)) { return Results.Conflict(new { error = "Bu requestId ile bir transfer zaten kaydedilmiş; listeyi yenileyin." }); }
-    await transaction.CommitAsync();
+    if (transaction is not null) await transaction.CommitAsync();
     return Results.Created($"/api/warehouses/transfers/{transferRecord.Id}", new InventoryTransferSummary(transferRecord.Id, code, fromWarehouse.Id,
         fromWarehouse.Name, toWarehouse.Id, toWarehouse.Name, transferRecord.TransferDate, transferRecord.Status, request.Lines.Count, transferRecord.CreatedAt));
 });
@@ -2887,19 +2864,19 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     if (!TryGetTenantId(principal, out var tenantId)) return Results.Forbid();
     var errors = InventoryValidation.Validate(request);
     if (errors is not null) return Results.ValidationProblem(errors);
-    await using var transaction = await db.Database.BeginTransactionAsync();
+    await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
     if (!await FiscalYearCloseEndpoints.LockTenantForPostingAsync(db, tenantId)) return Results.NotFound();
     var reversalDate = DateOnly.FromDateTime(DateTime.UtcNow);
     var closedReversalPeriod = await FiscalYearCloseEndpoints.FindClosedPeriodAsync(db, tenantId, reversalDate);
     if (FiscalYearCloseEndpoints.CreateClosedPeriodConflict(closedReversalPeriod, "depo transferi iptali") is { } transferVoidConflict)
         return transferVoidConflict;
-    var transferRecord = await db.InventoryTransfers.FromSqlInterpolated($"SELECT * FROM [dbo].[InventoryTransfers] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {transferId}").SingleOrDefaultAsync();
+    var transferRecord = await InventoryTransferLocks.Transfer(db, tenantId, transferId).SingleOrDefaultAsync();
     if (transferRecord is null) return Results.NotFound();
     if (transferRecord.Status != InventoryTransferStatus.Posted) return Results.Conflict(new { error = "Depo transferi daha önce iptal edilmiş." });
     var lockedWarehouses = new Dictionary<Guid, Warehouse>();
     foreach (var warehouseId in new[] { transferRecord.FromWarehouseId, transferRecord.ToWarehouseId }.Order())
     {
-        var warehouse = await db.Warehouses.FromSqlInterpolated($"SELECT * FROM [dbo].[Warehouses] WITH (UPDLOCK, HOLDLOCK) WHERE [TenantId] = {tenantId} AND [Id] = {warehouseId}").SingleOrDefaultAsync();
+        var warehouse = await InventoryTransferLocks.Warehouse(db, tenantId, warehouseId).SingleOrDefaultAsync();
         if (warehouse is null) return Results.Conflict(new { error = "Transfer deposu artık bulunamadı." });
         lockedWarehouses.Add(warehouseId, warehouse);
     }
@@ -2937,7 +2914,8 @@ warehouses.MapPost("/transfers/{transferId:guid}/void", async (Guid transferId, 
     }
     transferRecord.Status = InventoryTransferStatus.Voided;
     db.AuditEvents.Add(new AuditEvent { TenantId = tenantId, UserId = GetUserId(principal), Action = "inventory-transfer.voided", Resource = transferRecord.Code });
-    await db.SaveChangesAsync(); await transaction.CommitAsync();
+    DocumentActivityLog.Add(db, tenantId, DocumentActivityLog.InventoryTransfer, transferRecord.Id, "iptal", "Transfer iptal edildi", "core", "done", request.Reason, GetUserId(principal));
+    await db.SaveChangesAsync(); if (transaction is not null) await transaction.CommitAsync();
     return Results.Ok(new { transferRecord.Id, transferRecord.Code, transferRecord.Status });
 });
 warehouses.MapGet("/balances/page", async (string? q, ClaimsPrincipal principal, TenantDbContext db, bool belowMinimumOnly = false, int page = 1, int pageSize = 25, bool includeInactive = false, Guid? stockItemId = null) =>
