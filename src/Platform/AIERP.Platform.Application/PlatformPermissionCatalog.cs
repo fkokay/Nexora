@@ -324,9 +324,14 @@ public static class PlatformPermissionCatalog
             // permission: the model code in the path names its own purchasing/sales resource.
             // A new model adds its code here.
             var modelPath = path["/api/document-models/".Length..];
-            resource = Resources.First(x => modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
+            var resourceType = modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
+                : modelPath.StartsWith("satis.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.sales-invoices"
+                : modelPath.StartsWith("satis.irsaliye", StringComparison.OrdinalIgnoreCase) ? "erp.sales-deliveries"
+                : modelPath.StartsWith("satinalma.siparis", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-orders"
                 : modelPath.StartsWith("satinalma.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-invoices"
-                : modelPath.StartsWith("satinalma.siparis", StringComparison.OrdinalIgnoreCase) ? "erp.purchase-orders" : "erp.sales-orders");
+                : modelPath.StartsWith("stok.transfer", StringComparison.OrdinalIgnoreCase) ? "erp.inventory-transfers"
+                : "erp.sales-orders";
+            resource = Resources.First(x => x.ResourceType == resourceType);
             explicitReadAction = true;
         }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)

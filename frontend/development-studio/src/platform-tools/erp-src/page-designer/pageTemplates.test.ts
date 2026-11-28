@@ -124,16 +124,22 @@ describe("sayfa kalıpları", () => {
 
 describe("belge modelleri", () => {
   it("satış siparişi ve satış teklifi seçilebilir; yeni teklif sayfası teklifin alanlarıyla başlar", () => {
-    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif", "satinalma.siparis", "satinalma.fatura"]);
+    expect(BELGE_DOCUMENTS.map((d) => d.code)).toEqual(["satis.siparis", "satis.teklif", "satis.fatura", "satis.irsaliye", "satinalma.siparis", "satinalma.fatura"]);
     const quote = newBelgeTemplateDefinition("satis.teklif");
     expect(quote.template).toEqual({ name: "belge", document: "satis.teklif" });
     const parts = quote.components as { type: string; props: { fields?: string[]; columns?: string[] } }[];
     expect(parts.find((c) => c.type === "documentFields")!.props.fields).toEqual(["code", "customerId", "quoteDate", "validUntil"]);
     expect(parts.find((c) => c.type === "documentLines")!.props.columns).not.toContain("deliveredQuantity");
+    const invoice = newBelgeTemplateDefinition("satis.fatura");
+    expect(invoice.template).toEqual({ name: "belge", document: "satis.fatura" });
+    expect((invoice.components as { type: string; props: { fields?: string[] } }[]).find((c) => c.type === "documentFields")!.props.fields)
+      .toEqual(["code", "customerId", "invoiceDate", "warehouseId", "invoiceType"]);
+    expect((newBelgeTemplateDefinition("satis.irsaliye").components as { type: string; props: { fields?: string[] } }[]).find((c) => c.type === "documentFields")!.props.fields)
+      .toEqual(["code", "customerId", "deliveryDate", "warehouseId"]);
     expect((newBelgeTemplateDefinition().components as { props: { fields?: string[] } }[])[0].props.fields).toContain("orderDate");
-    const invoice = newBelgeTemplateDefinition("satinalma.fatura");
-    expect((invoice.components as { props: { fields?: string[]; columns?: string[] } }[])[0].props.fields).toContain("supplierId");
-    expect((invoice.components as { props: { fields?: string[]; columns?: string[] } }[])[1].props.columns).toContain("expenseAccountId");
+    const purchaseInvoice = newBelgeTemplateDefinition("satinalma.fatura");
+    expect((purchaseInvoice.components as { props: { fields?: string[]; columns?: string[] } }[])[0].props.fields).toContain("supplierId");
+    expect((purchaseInvoice.components as { props: { fields?: string[]; columns?: string[] } }[])[1].props.columns).toContain("expenseAccountId");
   });
 });
 

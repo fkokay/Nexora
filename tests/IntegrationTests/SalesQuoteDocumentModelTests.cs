@@ -81,6 +81,25 @@ public sealed class SalesQuoteDocumentModelTests
         Assert.Equal(orderModel.GetProperty("fills").GetRawText(), model.GetProperty("fills").GetRawText());
     }
 
+    [Theory]
+    [InlineData(SalesQuoteStatus.Draft, false, new string[0])]
+    [InlineData(SalesQuoteStatus.Accepted, false, new[] { "siparisOlustur" })]
+    [InlineData(SalesQuoteStatus.Accepted, true, new string[0])]
+    public async Task Belgeden_belge_creation_is_offered_only_for_an_accepted_quote_without_an_order(SalesQuoteStatus status, bool withOrder, string[] expected)
+    {
+        await using var factory = new SalesOrderApiFactory();
+        var seed = await factory.SeedAsync();
+        var quoteId = await SeedQuoteAsync(factory, seed, status, withOrder: withOrder);
+        using var client = factory.Client(seed);
+
+        var model = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync("/api/document-models/satis.teklif"));
+        var creation = model.GetProperty("creations")[0];
+        Assert.Equal(("siparisOlustur", "satis.teklif.siparisOlustur", "satis.siparis"),
+            (creation.GetProperty("code").GetString(), creation.GetProperty("operation").GetString(), creation.GetProperty("target").GetString()));
+        var document = await SalesOrderApiFactory.ReadJsonAsync(await client.GetAsync($"/api/sales/quotes/{quoteId}/document"));
+        Assert.Equal<IEnumerable<string?>>(expected, document.GetProperty("allowedCreations").EnumerateArray().Select(x => x.GetString()).ToArray());
+    }
+
     [Fact]
     public async Task Document_returns_lines_amounts_vat_and_what_the_write_would_otherwise_erase()
     {

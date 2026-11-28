@@ -20,6 +20,10 @@ internal static class DocumentModelEndpoints
         // One literal route per model (the ERP operation catalog matches routes literally).
         models.MapGet("/" + SalesOrderDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesOrderStatus.Draft, SalesOrderDocumentModel.Sample));
         models.MapGet("/" + SalesQuoteDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesQuoteStatus.Draft, SalesQuoteDocumentModel.Sample));
+        models.MapGet("/" + SalesInvoiceDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesInvoiceDocumentState.Draft, SalesInvoiceDocumentModel.Sample));
+        models.MapPost("/" + SalesInvoiceDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
+        models.MapGet("/" + SalesDeliveryDocumentModel.Code + "/sample", (string? state) => Sample(state, SalesDeliveryDocumentState.Draft, SalesDeliveryDocumentModel.Sample));
+        models.MapPost("/" + SalesDeliveryDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapPost("/" + SalesOrderDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapPost("/" + SalesQuoteDocumentModel.Code + "/fill", SalesDocumentModelParts.FillAsync);
         models.MapGet("/" + PurchaseOrderDocumentModel.Code + "/sample", () => Results.Ok(new { order = new { code = "", supplierName = "Örnek Tedarikçi", targetWarehouseId = (Guid?)null, currencyCode = "TRY", status = "Draft", lines = Array.Empty<object>() }, amounts = new DocumentAmounts("TRY", 0, 0, 0, 0, []) }));
@@ -42,9 +46,50 @@ internal static class DocumentModelEndpoints
                 var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesQuoteDocumentModel.Code, id, ct);
                 var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
                     quote.CustomerId, SalesQuoteDocumentModel.Candidates(quote.Status, quote.HasSalesOrder), ct);
+                var creations = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-quotes", id, quote.Status.ToString(),
+                    quote.CustomerId, SalesQuoteDocumentModel.CreationCandidates(quote.Status, quote.HasSalesOrder), ct);
                 return Results.Ok(new SalesQuoteDocumentView(quote,
                     new DocumentAmounts(quote.CurrencyCode, quote.Subtotal, quote.DiscountTotal, quote.TaxTotal, quote.GrandTotal, vat.OrderBy(x => x.Rate).ToList()),
-                    allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft));
+                    allowed, activity, activity.Count == 0 && quote.Status != SalesQuoteStatus.Draft, creations));
+            });
+
+        app.MapGroup("/api/sales/invoices").WithTags("Satış Faturaları").RequireAuthorization()
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await SalesInvoiceReads.DocumentAsync(db, tenantId, id, ct) is not { } invoice) return Results.NotFound();
+                var totals = await db.SalesInvoices.AsNoTracking().Where(x => x.TenantId == tenantId && x.Id == id)
+                    .Select(x => new { x.Subtotal, x.DiscountTotal, x.TaxTotal, x.GrandTotal }).SingleAsync(ct);
+                var vat = invoice.Lines.GroupBy(x => x.VatPercent)
+                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).OrderBy(x => x.Rate).ToList();
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesInvoiceDocumentModel.Code, id, ct);
+                var status = invoice.Status == SalesInvoiceDocumentState.Voided ? SalesInvoiceStatus.Voided : SalesInvoiceStatus.Posted;
+                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-invoices", id, status.ToString(),
+                    invoice.CustomerId, SalesInvoiceDocumentModel.Candidates(status), ct);
+                return Results.Ok(new SalesInvoiceDocumentView(invoice,
+                    new DocumentAmounts(invoice.CurrencyCode, totals.Subtotal, totals.DiscountTotal, totals.TaxTotal, totals.GrandTotal, vat),
+                    allowed, activity, activity.Count == 0));
+            });
+
+        app.MapGroup("/api/sales/deliveries").WithTags("Satış İrsaliyeleri").RequireAuthorization()
+            .MapGet("/{id:guid}/document", async (Guid id, ClaimsPrincipal principal, TenantDbContext db, IPlatformPermissionAuthorizer authorizer,
+                CancellationToken ct) =>
+            {
+                if (!Guid.TryParse(principal.FindFirstValue("tenant_id"), out var tenantId)) return Results.Forbid();
+                if (await SalesDeliveryReads.DocumentAsync(db, tenantId, id, ct) is not { } read) return Results.NotFound();
+                var delivery = read.Record;
+                var vat = delivery.Lines.Where(x => x.UnitPrice is not null).GroupBy(x => x.VatPercent ?? 0m)
+                    .Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).OrderBy(x => x.Rate).ToList();
+                var subtotal = delivery.Lines.Sum(x => x.LineSubtotal);
+                var discount = delivery.Lines.Sum(x => x.DiscountAmount);
+                var tax = delivery.Lines.Sum(x => x.TaxAmount);
+                var activity = await DocumentActivityLog.ReadAsync(db, tenantId, SalesDeliveryDocumentModel.Code, id, ct);
+                var allowed = await SalesDocumentModelParts.ExecutableAsync(authorizer, principal, tenantId, "erp.sales-deliveries", id, read.StatusName,
+                    delivery.CustomerId, SalesDeliveryDocumentModel.Candidates(delivery.Status, delivery.IsStandalone, read.HasInvoice), ct);
+                return Results.Ok(new SalesDeliveryDocumentView(delivery,
+                    new DocumentAmounts(delivery.CurrencyCode, subtotal, discount, tax, subtotal - discount + tax, vat), allowed, activity,
+                    activity.Count == 0 && delivery.Status != SalesDeliveryDocumentState.Draft));
             });
 
         app.MapGroup("/api/sales/orders").WithTags("Satış Siparişleri").RequireAuthorization()
@@ -110,7 +155,7 @@ internal static class DocumentModelEndpoints
             var value = new { id = invoice.Id, code = invoice.Code, invoiceNumber = invoice.Code, supplierId = invoice.SupplierId, supplierName = invoice.Supplier.Name,
                 currencyCode = invoice.CurrencyCode, status = invoice.Status.ToString(), invoiceDate = invoice.InvoiceDate, dueDate = invoice.DueDate,
                 receiptCode = invoice.PurchaseReceipt.Code,
-                lines = invoice.Lines.OrderBy(x => x.LineNumber).Select(x => new { x.LineNumber, Description = x.StockName, x.Quantity, x.UnitCode, x.UnitPrice,
+                lines = invoice.Lines.OrderBy(x => x.OrderLineNumber).Select(x => new { LineNumber = x.OrderLineNumber, Description = x.StockName, x.Quantity, x.UnitCode, x.UnitPrice,
                     Subtotal = x.LineSubtotal, x.DiscountAmount, x.TaxAmount, Total = x.LineTotal, ExpenseAccountId = (Guid?)null, VatRate = (decimal?)x.VatPercent }).ToArray() };
             var vat = invoice.Lines.GroupBy(x => x.VatPercent).Select(g => new DocumentVatRow(g.Key, g.Sum(x => x.LineSubtotal - x.DiscountAmount), g.Sum(x => x.TaxAmount))).ToArray();
             return Results.Ok(new { invoice = value, amounts = new DocumentAmounts(invoice.CurrencyCode, invoice.Subtotal, invoice.DiscountTotal, invoice.TaxTotal, invoice.GrandTotal, vat),

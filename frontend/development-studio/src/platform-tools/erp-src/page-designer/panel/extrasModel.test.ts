@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  addGridColumn, addWindowCustomFields, addWindowGrid, bindToSave, customFieldsOf, gridColumnsOf, parseGridColumn, saveBinding, setGridColumns, setWindowGridProps,
+  addGridColumn, addWindowCustomFields, addWindowGrid, bindToSave, customFieldsOf, formatGridColumn, gridColumnsOf, parseGridColumn, saveBinding, setGridColumns, setWindowGridProps,
 } from "./extrasModel";
 import type { ModelComponent, ModelDefinition } from "./listPanelModel";
 import { addCustomFields } from "./recordModel";
@@ -64,7 +64,15 @@ describe("extrasModel", () => {
   it("grid settings: columns round-trip, limits and minRows <= maxRows", () => {
     const { def, gridId } = addWindowGrid(listDef(), "pencere");
     expect(parseGridColumn("a|Kod|text|required,unique,maxLength:80")).toEqual({ code: "a", label: "Kod", type: "text", required: true, unique: true, maxLength: 80 });
-    expect(parseGridColumn("a|Kod|lookup:q:v:l")).toBeNull();
+    expect(parseGridColumn("a|Stok|lookup:q:v:l|required,readOnly")).toEqual({ code: "a", label: "Stok", type: "lookup", required: true, unique: false, readOnly: true, lookup: { query: "q", value: "v", label: "l" } });
+    expect(formatGridColumn(parseGridColumn("a|Stok|lookup:q:v:l|required,readOnly")!)).toBe("a|Stok|lookup:q:v:l|required,readOnly");
+    expect(parseGridColumn("a|Stok|lookup:q:v:l|maxLength:5")).toBeNull();
+    expect(parseGridColumn("a|Hesap|calc:q:f")).toBeNull();
+    expect(parseGridColumn("a|Kod|text|readOnly")).toMatchObject({ readOnly: true });
+    const filled = setWindowGridProps(def, gridId, { fillQuery: "liste" });
+    expect(filled.components.find((item) => item.id === gridId)!.props.fillQuery).toBe("liste");
+    expect(setWindowGridProps(filled, gridId, { fillQuery: null }).components.find((item) => item.id === gridId)!.props.fillQuery).toBeUndefined();
+    expect(setGridColumns(def, gridId, [{ code: "s", label: "Stok", type: "lookup", required: false, unique: false }])).toBe(def);
     const more = addGridColumn(def, gridId);
     expect(gridColumnsOf(more.components.find((item) => item.id === gridId)!).map((column) => column.code)).toEqual(["kod", "sutun2"]);
     expect(setGridColumns(def, gridId, [])).toBe(def);

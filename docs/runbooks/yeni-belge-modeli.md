@@ -106,3 +106,14 @@ Not: eski geçiş uçlarındaki satır kilidi (`FromSqlInterpolated … UPDLOCK`
 ## Teklifte bilerek bırakılanlar (yeni model için karşılaştırın)
 
 Yeni revizyon (yeni kayıt açar), Sipariş oluştur (belgeden belge), Yazdır/PDF (dosya), iptal (teklif API'sinde iptal işlemi yok), onay ve Kurallar (yalnız sipariş). Bunlar için kalıpta "belgeden belge", "ek pencere/yazdırma" ve "özel alan bloğu" yetenekleri gerekir (`docs/superpowers/specs/2026-11-28-satis-cari-yeniden-tasarim-design.md`, "Kalıplarda eksik").
+
+## Fatura ve irsaliyeden öğrenilenler (üçüncü ve dördüncü model)
+
+- **Kayıt tek yazmaysa** (fatura: taslak yok, PUT yok): yeni belge Taslak açılır, kaydet düğmesi geçişin kendisidir (`DocumentBinding.saveLabel`, `savedMessage`), kesilmiş kayıt değişmez. Taslak yalnız kaydedilmemiş belgedir: model durumları kendi `enum`ını (`SalesInvoiceDocumentState`) kullanır, varlığın durumunu değil; örnek (`Sample`) bu enum'la çalışır.
+- **Tekrar deneme anahtarı** (`requestId`): `HeaderValues.requestId` şablonda tutulur ve her düzenlemede yenilenir; aynı anahtarla farklı içerik sunucuda 409 verir.
+- **Başlıkta yeni alan türleri:** `select` (sabit seçenekler `DocumentFieldView.Options`), `lookup`un teklif/sipariş dışındaki hâli (`values[kod]` ve `values[kod + "Label"]`; depo, vergi profili). `code` yalnız `readOnly` ise salt okunur çizilir (irsaliye numarası kullanıcıdan gelir). Seçim ucu `OPTION_ROUTES` ve gerekirse `searchOptions`ta eşlenir.
+- **Bağın ek ayarları:** `writeBase` (kayıt ucu okuma ucundan farklıysa), `transitionBases`, `customFields: false` (özel alan ucu yoksa kayıt engellenmesin), `unpricedLines` (fiyat isteğe bağlı; bedelsiz/fiyatsız satır boş fiyatla gider; izleme, son kullanma ve raf gizli hücre olarak geri gider), `previewBody` her zaman `null` ise hesap yok (tutarlar kayıttan).
+- **Okuma iki tabloya bakabilir** (`SalesDeliveryReads`: siparişli/faturalı irsaliye ve siparişsiz irsaliye aynı `/document` ucundan açılır; kimlikler tablolar arasında benzersiz).
+- **Geçiş uçları gövde alırsa** (`DocumentTransitionBody`: `requestId`, `reason`), eski uca isteğe bağlı gövde ekleyip gerekçeyi işlem günlüğüne yazın; gövdesiz eski çağıranlar bozulmaz.
+- **İşlem günlüğü** fatura/irsaliye gibi birden çok yoldan doğan kayıtlarda her yazma yoluna eklenmelidir (fatura için üç yol), yoksa her kayıt "günlük sonradan başladı" sayılır.
+- **Listeye taşınan eski standart** (`sales-deliveries`): her bileşene yuva (slot) verilir; özel alan bloğu gruptan çıkarılıp üst düzey pencere parçası olur ve sekmede listelenir; süzgeç girişleri `above` yuvasına; eski ekran düğmeleri silinir ve `items` ile `requires` listesinden çıkarılır. Belge'ye dönen eski karta düşüş döngü kurmasın diye `openParam` listenin kullanmadığı bir ad olur (`belgeFaturaId`, `belgeIrsaliyeId`).

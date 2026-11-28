@@ -9,7 +9,7 @@ namespace AIERP.Api.IntegrationTests;
 /// </summary>
 public sealed class TemplatedStandardsTests
 {
-    public static TheoryData<string> Keys => new() { "sales-orders", "sales-invoices", "inventory-cost", "inventory-tracking" };
+    public static TheoryData<string> Keys => new() { "sales-orders", "sales-invoices", "sales-deliveries", "inventory-cost", "inventory-tracking" };
 
     [Theory]
     [MemberData(nameof(Keys))]
@@ -25,7 +25,8 @@ public sealed class TemplatedStandardsTests
 
     [Theory]
     [InlineData("sales-orders", 6)]
-    [InlineData("sales-invoices", 3)]
+    [InlineData("sales-invoices", 4)]
+    [InlineData("sales-deliveries", 2)]
     [InlineData("inventory-cost", 2)]
     [InlineData("inventory-tracking", 2)]
     public void Templated_standard_version_was_bumped(string key, int version) =>

@@ -2,15 +2,21 @@
 // Belge modeline özgü her şey (uç kökü, kayıt anahtarı, başlık alanları, gövdeler) `DocumentBinding` kayıtlarındadır.
 import { api } from "../erpApi";
 
-export type DocumentField = { code: string; label: string; type: string; required: boolean; optionsOperation: string | null; readOnly: boolean };
+export type DocumentField = {
+  code: string; label: string; type: string; required: boolean; optionsOperation: string | null; readOnly: boolean;
+  /** `select` alanının sabit seçenekleri. */
+  options?: { value: string; label: string }[] | null;
+};
 export type DocumentLineColumn = {
   code: string; label: string; type: string; required: boolean; calculated: boolean; optionsOperation: string | null; visibleFrom: string | null;
 };
 export type DocumentState = { code: string; label: string; terminal: boolean };
 export type DocumentTransition = { code: string; label: string; from: string[]; to: string; operation: string; requiresReason: boolean };
+/** "Belgeden belge": sonraki belgeyi bu belgeden yaratıp açan eylem (durum geçişi değildir). `target`: yaratılan belgenin modeli. */
+export type DocumentCreation = { code: string; label: string; from: string[]; operation: string; target: string };
 export type DocumentModel = {
   code: string; label: string; fields: DocumentField[]; lineColumns: DocumentLineColumn[]; states: DocumentState[];
-  transitions: DocumentTransition[]; fills: Record<string, string[]>;
+  transitions: DocumentTransition[]; fills: Record<string, string[]>; creations?: DocumentCreation[] | null;
 };
 
 export type OrderLine = {
@@ -38,14 +44,18 @@ export type SalesOrderDocument = {
 /** Sunucunun belge yanıtı: kayıt `order` ya da `quote` anahtarında gelir (modele göre); {@link normalizeDocument} ortak biçime çevirir. */
 export type RawDocument = {
   amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean; approval?: DocumentApproval | null;
+  allowedCreations?: string[] | null;
 } & Record<string, unknown>;
 
 /** Belgenin modelden bağımsız satırı (sipariş ya da teklif satırı). */
 export type DocLine = {
   lineNumber: number; stockItemId: string; stockCode: string; stockName: string; unitCode: string; quantity: number; unitPrice: number;
-  discountPercent: number; vatPercent: number; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
+  discountPercent: number | null; vatPercent: number | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number;
   deliveredQuantity?: number; enteredCurrencyCode?: string | null; enteredUnitPrice?: number | null; enteredUnitCode?: string | null;
-  isVatIncluded?: boolean; exchangeRate?: number; salesRequestLineNumber?: number | null; description?: string; expenseAccountId?: string | null; vatRate?: number | null;
+  isVatIncluded?: boolean; exchangeRate?: number; salesRequestLineNumber?: number | null;
+  description?: string; expenseAccountId?: string | null; vatRate?: number | null;
+  /** Delivery line metadata is retained on read and sent back on save. */
+  isFreeOfCharge?: boolean; trackingCode?: string | null; expiryDate?: string | null; storageLocationId?: string | null;
 };
 /** Belgenin modelden bağımsız kaydı. `values`: tarih ve metin başlık alanları (modelin alan koduyla). */
 export type DocView = {
@@ -55,6 +65,8 @@ export type DocView = {
 };
 export type BelgeDocument = {
   doc: DocView; amounts: DocumentAmounts; allowedTransitions: string[]; activity: ActivityRow[]; activityStartedLate: boolean; approval: DocumentApproval | null;
+  /** Bu belgeden şimdi yaratılabilen sonraki belgeler (modelin `creations` kodları). */
+  allowedCreations: string[];
 };
 
 export type PreviewLine = { rowKey: string | null; lineSubtotal: number; discountAmount: number; taxAmount: number; lineTotal: number };
@@ -65,6 +77,8 @@ export type OrderPreview = {
 export type PreviewLineRequest = {
   rowKey: string; stockItemId?: string; description?: string; expenseAccountId?: string; quantity: number; unitPrice: number; discountPercent: number; vatPercent: number;
   unitCode?: string; currencyCode?: string; isVatIncluded?: boolean;
+  /** İrsaliye satırı: bedelsiz işareti ve geri gönderilen izleme / raf bilgisi. */
+  isFreeOfCharge?: boolean; trackingCode?: string; expiryDate?: string; storageLocationId?: string;
   /** Dövizli satırın kayıtlı kuru: kayıt ve hesap bugünkü kuru yeniden aramasın diye geri gönderilir. */
   exchangeRateToQuoteCurrency?: number;
   /** Satış talebinden gelen teklif satırının talep satırı numarası (hücre olarak çizilmez; kayıtta geri gönderilir). */
@@ -77,6 +91,8 @@ export type LookupRow = { id: string; code?: string; name?: string; fullName?: s
 /** Başlıktan bağın gövdelerine giden değerler. */
 export type HeaderValues = {
   code: string; customerId: string; salespersonEmployeeId: string; currencyCode: string; values: Record<string, string>; prospectCustomerName: string;
+  /** Kayıt isteğinin tekrar deneme anahtarı (yalnız tek yazmayla kesilen belgeler kullanır). */
+  requestId: string;
 };
 
 /**
@@ -85,8 +101,18 @@ export type HeaderValues = {
  */
 export type DocumentBinding = {
   code: string; noun: string; newTitle: string;
+  /** Yeni belgede kaydetme düğmesinin adı (varsayılan "Kaydet") ve kayıttan sonraki ileti: tek yazmayla kesilen belgelerde (fatura) kayıt taslak değil belgenin kendisidir. */
+  saveLabel?: string; savedMessage?: string;
+  /** Kaydın yazıldığı uç kökü (varsayılan `base`): irsaliye belgesi `/api/sales/deliveries` okur, `/api/sales/standalone-deliveries` yazar. */
+  writeBase?: string;
+  /** Geçişin uç kökü (varsayılan `base`). */
+  transitionBases?: Record<string, string>;
+  /** false ise belgenin özel alanı yoktur (`{base}/custom-fields` okunmaz). */
+  customFields?: boolean;
+  /** Satırda fiyat isteğe bağlıdır (bedelsiz ya da fiyatsız satır gönderilir). */
+  unpricedLines?: boolean;
   /** Sunucu yanıtındaki kayıt anahtarı. */
-  entity: "order" | "quote" | "purchaseOrder" | "invoice";
+  entity: "order" | "quote" | "purchaseOrder" | "invoice" | "delivery";
   /** Belgenin uç kökü: `{base}/{id}/document`, `{base}/preview`, `{base}/custom-fields`, kayıt `POST/PUT {base}`. */
   base: string;
   documentRoute?: (id: string) => string;
@@ -94,6 +120,10 @@ export type DocumentBinding = {
   customFieldRoute?: string | null;
   invoiceDraft?: boolean;
   transitionRoutes: Record<string, string>;
+  /** "Belgeden belge" eylemlerinin uçları: `{base}/{id}/{route}` (POST); yanıt yaratılan belgenin kaydıdır (`id`). */
+  creationRoutes: Record<string, string>;
+  /** Belgeyi gösteren sistem sayfasının anahtarı (belgeden belge yeni belgeyi bu sayfada açar). */
+  pageKey: string;
   maxLines: number;
   /** Başlıkta düzenlenen tarih ve metin alanlarının kodları. */
   dateFields: string[]; textFields: string[];
@@ -105,7 +135,7 @@ export type DocumentBinding = {
 };
 
 const PURCHASE_ORDER_BINDING: DocumentBinding = {
-  code: "satinalma.siparis", noun: "sipariş", newTitle: "Yeni satınalma siparişi", entity: "purchaseOrder",
+  code: "satinalma.siparis", noun: "sipariş", newTitle: "Yeni satınalma siparişi", entity: "purchaseOrder", creationRoutes: {}, pageKey: "purchase-order-document",
   base: "/api/purchasing/orders", documentRoute: (id) => `/api/purchasing/orders/${encodeURIComponent(id)}/document`,
   calculateRoute: "/api/document-models/satinalma.siparis/calculate", customFieldRoute: "/api/purchasing/orders/custom-fields", maxLines: 200,
   transitionRoutes: {}, dateFields: ["orderDate", "expectedReceiptDate"], textFields: ["notes"],
@@ -118,7 +148,7 @@ const PURCHASE_ORDER_BINDING: DocumentBinding = {
 };
 
 const PURCHASE_INVOICE_BINDING: DocumentBinding = {
-  code: "satinalma.fatura", noun: "fatura taslağı", newTitle: "Yeni satınalma faturası", entity: "invoice", invoiceDraft: true,
+  code: "satinalma.fatura", noun: "fatura taslağı", newTitle: "Yeni satınalma faturası", entity: "invoice", invoiceDraft: true, creationRoutes: {}, pageKey: "purchase-invoice-document",
   base: "/api/purchasing/standalone-invoices", documentRoute: (id) => `/api/purchasing/standalone-invoices/${encodeURIComponent(id)}/document`,
   calculateRoute: "/api/document-models/satinalma.fatura/calculate", customFieldRoute: null, maxLines: 200,
   transitionRoutes: { muhasebelestir: "post" }, dateFields: ["invoiceDate", "dueDate"], textFields: ["invoiceNumber", "notes"],
@@ -141,7 +171,7 @@ const str = (value: unknown) => (typeof value === "string" ? value : "");
 
 const ORDER_BINDING: DocumentBinding = {
   code: "satis.siparis", noun: "sipariş", newTitle: "Yeni sipariş", entity: "order", base: "/api/sales/orders",
-  transitionRoutes: { onayla: "approve", onayiGeriAl: "unapprove", iptal: "cancel" }, maxLines: 200,
+  transitionRoutes: { onayla: "approve", onayiGeriAl: "unapprove", iptal: "cancel" }, creationRoutes: {}, pageKey: "sales-order-document", maxLines: 200,
   dateFields: ["orderDate", "requestedDeliveryDate"], textFields: [],
   newValues: () => ({ orderDate: today(), requestedDeliveryDate: "" }),
   valuesOf: (e) => ({ orderDate: str(e.orderDate) || today(), requestedDeliveryDate: str(e.requestedDeliveryDate) }),
@@ -154,7 +184,8 @@ const ORDER_BINDING: DocumentBinding = {
 
 const QUOTE_BINDING: DocumentBinding = {
   code: "satis.teklif", noun: "teklif", newTitle: "Yeni teklif", entity: "quote", base: "/api/sales/quotes",
-  transitionRoutes: { ilet: "send", kabulEt: "accept", reddet: "reject" }, maxLines: 100,
+  transitionRoutes: { ilet: "send", kabulEt: "accept", reddet: "reject" }, creationRoutes: { siparisOlustur: "convert-to-order" },
+  pageKey: "sales-quote-document", maxLines: 100,
   dateFields: ["quoteDate", "validUntil"], textFields: ["deliveryTerms", "notes"],
   newValues: () => ({ quoteDate: today(), validUntil: inDays(30), deliveryTerms: "", notes: "" }),
   valuesOf: (e) => ({ quoteDate: str(e.quoteDate) || today(), validUntil: str(e.validUntil) || inDays(30), deliveryTerms: str(e.deliveryTerms), notes: str(e.notes) }),
@@ -170,9 +201,46 @@ const QUOTE_BINDING: DocumentBinding = {
     salespersonEmployeeId: h.salespersonEmployeeId || null, customFields, lines }),
 };
 
+const INVOICE_BINDING: DocumentBinding = {
+  code: "satis.fatura", noun: "fatura", newTitle: "Yeni fatura", entity: "invoice", base: "/api/sales/invoices",
+  saveLabel: "Faturayı kes", savedMessage: "Fatura kesildi.",
+  transitionRoutes: { iptal: "void" }, creationRoutes: {}, pageKey: "sales-invoice-document", maxLines: 200,
+  dateFields: ["invoiceDate"], textFields: ["eDocumentScenario", "eDocumentTypeCode", "eDocumentRecipientAlias", "notes", "invoiceType", "accountingProfileCode", "warehouseId"],
+  newValues: () => ({ invoiceDate: today(), warehouseId: "", warehouseIdLabel: "", invoiceType: "Wholesale", accountingProfileCode: "", accountingProfileCodeLabel: "",
+    eDocumentScenario: "", eDocumentTypeCode: "", eDocumentRecipientAlias: "", notes: "" }),
+  valuesOf: (e) => ({ invoiceDate: str(e.invoiceDate) || today(), warehouseId: str(e.warehouseId), warehouseIdLabel: str(e.warehouseName),
+    invoiceType: str(e.invoiceType) || "Wholesale", accountingProfileCode: str(e.accountingProfileCode), accountingProfileCodeLabel: str(e.accountingProfileCode),
+    eDocumentScenario: str(e.eDocumentScenario), eDocumentTypeCode: str(e.eDocumentTypeCode), eDocumentRecipientAlias: str(e.eDocumentRecipientAlias), notes: str(e.notes) }),
+  previewBody: (h, lines) => h.customerId
+    ? { customerId: h.customerId, invoiceDate: h.values.invoiceDate, warehouseId: h.values.warehouseId || undefined,
+      accountingProfileCode: h.values.accountingProfileCode || undefined, invoiceType: h.values.invoiceType || "Wholesale", lines } : null,
+  // Fatura kesilince değişmez; kayıt tek yazmadır (fatura + irsaliye). e-Arşiv ayrıntıları Belge'de yoktur, gönderilmez.
+  writeBody: (h, lines, customFields) => {
+    const eDocument = { scenario: h.values.eDocumentScenario || null, typeCode: h.values.eDocumentTypeCode || null, recipientAlias: h.values.eDocumentRecipientAlias || null };
+    return {
+      requestId: h.requestId, customerId: h.customerId, warehouseId: h.values.warehouseId, invoiceDate: h.values.invoiceDate,
+      invoiceType: h.values.invoiceType || "Wholesale", accountingProfileCode: h.values.accountingProfileCode || null,
+      eDocument: Object.values(eDocument).some(Boolean) ? eDocument : null, notes: h.values.notes || null, customFields, lines };
+  },
+};
+
+const DELIVERY_BINDING: DocumentBinding = {
+  code: "satis.irsaliye", noun: "irsaliye", newTitle: "Yeni irsaliye", entity: "delivery", base: "/api/sales/deliveries", writeBase: "/api/sales/standalone-deliveries",
+  transitionRoutes: { sevket: "post", iptal: "void" }, creationRoutes: {}, pageKey: "sales-delivery-document", transitionBases: { sevket: "/api/sales/standalone-deliveries" },
+  customFields: false, unpricedLines: true, maxLines: 200,
+  dateFields: ["deliveryDate"], textFields: ["code"],
+  newValues: () => ({ code: `IRS-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${new Date().toISOString().slice(11, 16).replace(":", "")}`, deliveryDate: today(),
+    warehouseId: "", warehouseIdLabel: "" }),
+  valuesOf: (e) => ({ code: str(e.code), deliveryDate: str(e.deliveryDate) || today(), warehouseId: str(e.warehouseId), warehouseIdLabel: str(e.warehouseName) }),
+  // İrsaliyenin hesap ucu yoktur: tutarlar kaydedilmiş fiyatlardan gelir, düzenlerken kayıttan sonra yenilenir.
+  previewBody: () => null,
+  writeBody: (h, lines) => ({ requestId: h.requestId, code: h.values.code, customerId: h.customerId, warehouseId: h.values.warehouseId, deliveryDate: h.values.deliveryDate, lines }),
+};
+
 /** Bağı olan belge modelleri; bilinmeyen kod için null döner (çağıran hata gösterir, sipariş bağına düşmez). */
 export const DOCUMENT_BINDINGS: Record<string, DocumentBinding> = { [ORDER_BINDING.code]: ORDER_BINDING, [QUOTE_BINDING.code]: QUOTE_BINDING,
-  [PURCHASE_ORDER_BINDING.code]: PURCHASE_ORDER_BINDING, [PURCHASE_INVOICE_BINDING.code]: PURCHASE_INVOICE_BINDING };
+  [PURCHASE_ORDER_BINDING.code]: PURCHASE_ORDER_BINDING, [PURCHASE_INVOICE_BINDING.code]: PURCHASE_INVOICE_BINDING,
+  [INVOICE_BINDING.code]: INVOICE_BINDING, [DELIVERY_BINDING.code]: DELIVERY_BINDING };
 export const bindingOf = (code: string): DocumentBinding | null => DOCUMENT_BINDINGS[code] ?? null;
 
 type RawLine = Record<string, unknown> & { lineNumber: number };
@@ -194,9 +262,11 @@ export function normalizeDocument(binding: DocumentBinding, raw: RawDocument): B
       rowVersion: str(entity.rowVersion) || undefined,
     },
     amounts: raw.amounts, allowedTransitions: raw.allowedTransitions, activity: raw.activity, activityStartedLate: raw.activityStartedLate,
-    approval: raw.approval ?? null,
+    approval: raw.approval ?? null, allowedCreations: raw.allowedCreations ?? [],
   };
 }
+
+const PROFILE_OPERATION = "satinalma.faturaGirisi.mevzuatProfilleri";
 
 /** Seçim alanlarının liste uçları (modelin `optionsOperation` kodları). */
 export const OPTION_ROUTES: Record<string, string> = {
@@ -206,6 +276,7 @@ export const OPTION_ROUTES: Record<string, string> = {
   "satinalma.faturaTaslagi.tedarikciler": "/api/purchasing/standalone-invoices/suppliers",
   "satinalma.faturaTaslagi.giderHesaplari": "/api/finance/general-ledger/accounts?statementSection=Expense&activeOnly=true",
   "depo.listele": "/api/warehouses",
+  "satinalma.faturaGirisi.mevzuatProfilleri": "/api/finance/general-ledger/rule-profiles",
 };
 
 export const loadDocumentModel = (code: string, token?: string) => api<DocumentModel>(`/api/document-models/${encodeURIComponent(code)}`, token);
@@ -221,7 +292,7 @@ export const loadDocument = async (binding: DocumentBinding, id: string, token?:
 };
 export const loadSampleDocument = async (binding: DocumentBinding, state: string, token?: string) =>
   normalizeDocument(binding, await api<RawDocument>(`/api/document-models/${encodeURIComponent(binding.code)}/sample?state=${encodeURIComponent(state)}`, token));
-export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) => binding.customFieldRoute === null ? Promise.resolve([] as CustomFieldDefinition[])
+export const loadCustomFieldDefinitions = (binding: DocumentBinding, token?: string) => binding.customFieldRoute === null || binding.customFields === false ? Promise.resolve([] as CustomFieldDefinition[])
   : api<CustomFieldDefinition[]>(binding.customFieldRoute ?? `${binding.base}/custom-fields`, token);
 
 export const fillLine = (code: string, field: string, value: string, token?: string) =>
@@ -235,22 +306,31 @@ export const previewDocument = async (binding: DocumentBinding, body: Record<str
 };
 
 export const saveDocument = (binding: DocumentBinding, id: string | null, body: Record<string, unknown>, token?: string) =>
-  api<{ id: string }>(id ? `${binding.base}/${encodeURIComponent(id)}` : binding.base, token,
+  api<{ id: string }>(id ? `${binding.writeBase ?? binding.base}/${encodeURIComponent(id)}` : binding.writeBase ?? binding.base, token,
     { method: id ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export const runTransition = (binding: DocumentBinding, id: string, code: string, reason: string | null, token?: string) => {
-  const route = binding.invoiceDraft && code === "iptal"
-    ? `/api/purchasing/invoices/${encodeURIComponent(id)}/void`
-    : `${binding.base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`;
-  return api<unknown>(route, token,
+  const base = binding.invoiceDraft && code === "iptal" ? "/api/purchasing/invoices" : (binding.transitionBases?.[code] ?? binding.base);
+  return api<unknown>(`${base}/${encodeURIComponent(id)}/${binding.transitionRoutes[code] ?? code}`, token,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), reason }) });
 };
+/** Belgeden belge: modelin eylemini çağırır (var olan ERP işlemi); yaratılan belgenin kimliğini döner. */
+export const runCreation = (binding: DocumentBinding, id: string, code: string, token?: string) =>
+  api<{ id: string }>(`${binding.base}/${encodeURIComponent(id)}/${binding.creationRoutes[code] ?? code}`, token,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID() }) });
 
 export async function searchOptions(operation: string, text: string, token?: string): Promise<LookupRow[]> {
   const route = OPTION_ROUTES[operation];
   if (!route) return [];
   const result = await api<{ items?: LookupRow[] } | LookupRow[]>(`${route}${route.includes("?") ? "&" : "?"}q=${encodeURIComponent(text)}&page=1&pageSize=20`, token);
-  return Array.isArray(result) ? result : result.items ?? [];
+  const rows = Array.isArray(result) ? result : result.items ?? [];
+  // Tax profiles are selected by code; filter the unsearched server list locally.
+  if (operation === PROFILE_OPERATION) {
+    const needle = text.trim().toLocaleLowerCase("tr-TR");
+    return (rows as unknown as { profileCode: string; name: string }[]).filter((r) => !needle || `${r.profileCode} ${r.name}`.toLocaleLowerCase("tr-TR").includes(needle))
+      .map((r) => ({ id: r.profileCode, code: r.profileCode, name: r.name }));
+  }
+  return rows;
 }
 
 export const lookupLabel = (row: LookupRow) => [row.code, row.name ?? row.fullName].filter(Boolean).join(" · ");

@@ -1,9 +1,20 @@
 # Master Prompt Phase Status
+
 ### 2026-11-28 Satınalma belge modelleri
 
 - `satinalma.siparis` ve `satinalma.fatura` eklendi. Sipariş taslağı mevcut POST ile oluşturulur ve kayıtlı sipariş salt okunur açılır; standalone fatura taslağı POST/PUT ile düzenlenir, mal kabul faturaları salt okunur açılır. Liste standartlarının Yeni/Aç komutları Belge sayfalarına yönlendirildi; veri yazmayan hesap uçları eklendi.
 - Desteklenmeyen eylemler atlandı: sipariş için mevcut iptal/onay geçişi yok; mal kabulden gelen faturalar salt okunur olduğundan iptal bağlanmadı. Mal kabul satırını taslağa bağlama UI akışı eklenmedi.
 - ERP Belge vitest (1/1), Studio vitest (15/15) ve iki `npm run build` geçti. `dotnet build AIERP.slnx --no-restore`, .NET SDK workload resolver bileşenleri bulunamadığı için derleme başlamadan başarısız oldu (0 hata/uyarı raporlandı); `dotnet test` talimat gereği çalıştırılmadı.
+
+
+### 2026-11-27 Finance wave 1 - four standards moved to List templates
+
+- `finance-accounts`, `finance-banks`, `finance-journal-ledger`, and `finance-trial-balance` are v2 List-template pages. Cash/bank use a selected-account summary card and statement dialog; the hidden account selector, step bar, and page-only statement totals were removed. Journal reversal actions moved to the selected row and voucher details open in a dialog; the page-only reversal metric and separate filter card were removed. Trial-balance parameters sit above the list and Muavin opens in a dialog; quick date buttons and the invalid-range alert were removed.
+- No new template feature or document model was added. Account custom fields were not required by this design.
+
+Verified: ERP finance Vitest files (26 tests), Development Studio finance standard test (32 tests), and Development Studio `npm run build`.
+`dotnet build tests/IntegrationTests` was attempted twice; both attempts failed during the Restore target with 0 warnings and 0 errors, before compilation. ERP `npm run build` did not complete: `tsc -b` produced no further output and the local Node process was absent, so the stalled build session was stopped.
+Not run: `dotnet test` (the shared test lock is managed by another process), full frontend suites, browser/live behavior, and SQL Server acceptance.
 
 ### 2026-11-28 Stok & Depo dalga 1: 4 standart Liste kalıbına elle çizildi
 
@@ -1746,6 +1757,11 @@ Plan `docs/superpowers/plans/2026-11-26-belge-kurallari-3-kurallar.md`; onaylı 
 - **Doğrulanan (yerel):** Beş standart yüklenir, şemadan ve her sürüm kısıtlamasından geçer; ilgili .NET testleri (etkilenen sınıflar), tam ERP ve Studio vitest paketleri ve iki arayüzün `npm run build`'i geçti (Studio paketinde `tests/*.mjs` dosyalarının vitest'te toplanması ve yük altında zaman aşımına uğrayan bir pencere testi bu işten bağımsızdır). `legacyUnchanged` anlık görüntüleri artık cari standartlarının eski (dondurulmuş) kopyalarından çizilir.
 - **Doğrulanmayan:** Ekranların canlıda gerçek firma kopyasıyla ve tarayıcıda görsel olarak denenmesi; eski firma kopyalarının standarda sıfırlanması bu işte yok.
 
+### 2026-11-28 belge modelleri `satis.fatura` ve `satis.irsaliye`; Faturalar ve İrsaliyeler listeleri
+
+- **Ne değişti:** Üçüncü ve dördüncü belge modeli. `satis.fatura`: yeni belge Taslak açılır, "Faturayı kes" mevcut `POST /api/sales/invoices` yazmasıdır (fatura + irsaliye + stok çıkışı tek yazma; tekrar deneme anahtarı içerik değişince yenilenir), kesilmiş fatura değişmez, tek geçiş İptal et (`/void`, gerekçe işlem günlüğüne yazılır). Alanlar: fatura no, müşteri, tarih, depo, fatura türü (yeni `select` alan türü), vergi profili, e-belge senaryosu/tür kodu/alıcı etiketi, not; özel alanlar Belge'nin genel bölümünde. `satis.irsaliye`: siparişsiz irsaliye taslağı standalone uçlarla kaydedilir (PUT dahil; bedelsiz satır, izleme kodu, son kullanma ve raf geri gönderilir), Sevk et mevcut `/post`; siparişli ve faturalı irsaliyeler salt okunur açılır, siparişli ve faturasız olan İptal edilebilir. `sales-invoices` (v4) ve `sales-deliveries` (v2, Liste kalıbına taşındı) Yeni/Aç düğmelerini Belge'ye yönlendirir; fatura penceresi satır eylemi "Tahsilat ve iadeler", irsaliye penceresi Faturalaştır olarak kalır (özel alan bloğu pencere parçası olarak sekmede). Fatura ve irsaliye işlem günlüğü fatura kesme/iptal ve sevk/iptal adımlarında yazılır. Şema değişikliği yok.
+- **Kalıpta karşılığı olmayıp bırakılanlar:** e-Arşiv ayrıntıları (ödeme aracısı, aracı firma, taşıyıcı; yeni faturada gönderilmez, eski ekranda kalır), tevkifat satırları (toplamda görünür, ayrı satır yok), e-belge gönderildi durumu (API'de yok), yazdır/PDF, tahsilat ve iade (liste penceresi), irsaliyede lot/seri tahsisi (izlemeli stok Sevk et'te sunucu hatası verir), irsaliyede hesap ucu (tutarlar kayıttan sonra görünür), siparişten irsaliye oluşturma ve irsaliyeden faturalaştırma (belgeden belge), siparişsiz irsaliyenin iptali (API'de yok), sipariş müşteri/depo ön dolumu ve cariden "Yeni fatura" (hâlâ `sales-invoice-create`).
+- **Doğrulanmayan:** Gerçek SQL Server'a karşı fatura kesme/iptal ve irsaliye PUT/post akışı (kilitli sorgular InMemory'de çalışmaz; yalnız okuma, yetki ve örnek uçları sınandı); tarayıcıda görsel deneme; Studio tuvali.
 ## İK ve Dış Ticaret: 2. dalga, üç standart kalıba çizildi
 
 - **Ne değişti:** `hr-leave-requests`, `foreign-trade` (Liste) ve `foreign-trade-case` (Kayıt kartı) sürüm 2 olarak elle kalıba yazıldı; kalıba yeni özellik eklenmedi. Tasarım: `docs/superpowers/specs/2026-11-28-ik-uretim-dis-ticaret-yeniden-tasarim-design.md`.

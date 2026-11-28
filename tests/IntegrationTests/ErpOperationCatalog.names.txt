@@ -232,6 +232,8 @@ satinalma.teklif.getir
 satinalma.teklif.kalemleri
 satinalma.teklif.listele
 satinalma.teklif.ozelAlanTanimlari
+satis.fatura.belge
+satis.fatura.doldur
 satis.fatura.getir
 satis.fatura.iadeIptal
 satis.fatura.iadeleri
@@ -246,11 +248,16 @@ satis.fatura.sil
 satis.fatura.tahsilatEkle
 satis.fatura.tahsilatIptal
 satis.fatura.tahsilatlari
+satis.irsaliye.belge
+satis.irsaliye.doldur
 satis.irsaliye.faturalastir
 satis.irsaliye.getir
+satis.irsaliye.guncelle
 satis.irsaliye.iptal
 satis.irsaliye.kalemleri
 satis.irsaliye.listele
+satis.irsaliye.olustur
+satis.irsaliye.sevket
 satis.irsaliye.sil
 satis.kurlar
 satis.siparis.belge

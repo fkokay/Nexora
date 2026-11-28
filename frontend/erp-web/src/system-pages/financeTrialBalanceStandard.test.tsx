@@ -18,7 +18,7 @@ vi.mock('../erpApi', () => ({ api }));
 
 type Definition = { schemaVersion: number; components: { id: string; type: string; props?: Record<string, unknown> }[]; queries: { id: string; operation: string }[] };
 const KEY = 'finance-trial-balance';
-const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; definition: Definition };
+const standard = JSON.parse(readFileSync(resolve(process.cwd(), `../../src/Hosts/AIERP.Api/SystemPages/Standards/${KEY}.json`), 'utf8')) as { title: string; version: number; definition: Definition };
 
 const A1 = 'cccccccc-0000-0000-0000-000000000001';
 const A2 = 'cccccccc-0000-0000-0000-000000000002';
@@ -69,7 +69,7 @@ function setup() {
   api.mockImplementation(async (endpoint: string, _token: string, init?: RequestInit) => {
     if (endpoint === `/api/system-pages/${KEY}/published`) {
       return { id: 'sp', code: `@${KEY}`, name: standard.title, description: null, revision: 1, forms: [], rights: { view: true, insert: false, update: false, delete: false },
-        screenKey: KEY, source: 'standard', standardVersion: 1, definitionJson: JSON.stringify(standard.definition) };
+        screenKey: KEY, source: 'standard', standardVersion: standard.version, definitionJson: JSON.stringify(standard.definition) };
     }
     if (endpoint === '/api/custom-pages/erp-operations') return catalog;
     const method = init?.method ?? 'GET';
@@ -159,8 +159,8 @@ describe('Mizan standart tanımı', { timeout: 30000 }, () => {
     setup();
     await cell('Merkez kasa');
     await waitFor(() => expect(document.body.textContent).toContain('Dengede değil'), T);
-    fireEvent.click(screen.getByRole('button', { name: 'Bu ay' }));
-    await waitFor(() => expect([last().get('from'), last().get('to')]).toEqual([pageDateScope().ayBasi, today()]), T);
+fireEvent.change(input('baslangic'), { target: { value: `${today().slice(0, 8)}01` } });
+await waitFor(() => expect([last().get('from'), last().get('to')]).toEqual([`${today().slice(0, 8)}01`, today()]), T);
   });
 
   it('a row opens the ledger statement (muavin) of that account for the same period at TDHP sub level', async () => {
