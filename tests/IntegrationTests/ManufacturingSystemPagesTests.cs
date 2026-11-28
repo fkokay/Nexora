@@ -315,7 +315,7 @@ public sealed class ManufacturingSystemPagesTests
         Assert.Equal(new[] { "billOfMaterialName", "code", "plannedDate", "plannedQuantity", "status", "warehouseName" }, view.Fields.Keys.Order(StringComparer.Ordinal));
         var bar = Props(key, "komutlar");
         Assert.Equal(("{{emirler.meta.totalCount}}", "yeniDugmesi"), ((string)bar["titleCount"]!, (string)bar["newButton"]!));
-        Assert.Equal(new[] { "cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi" }, Strings(bar["moreButtons"]));
+        Assert.Equal(new[] { "cizelgeleDugmesi", "serbestBirakDugmesi", "tamamlaDugmesi", "iptalDugmesi", "rotaDugmesi", "bilesenDugmesi" }, Strings(bar["moreButtons"]));
         Assert.Contains("delete", Strings(bar["hiddenCommands"]));
         foreach (var (metric, meta) in new[] { ("acikGostergesi", "openOrderCount"), ("maliyetGostergesi", "openPlannedCostBase"),
                      ("cizelgesizGostergesi", "unscheduledOrderCount"), ("tamamlananGostergesi", "completedOrderCount") })

@@ -30,6 +30,7 @@
       "label": "Rota operasyonları penceresi",
       "requires": [
         "component:operasyonTablosu",
+        "component:rotaNotu",
         "query:operasyonlar"
       ]
     },
