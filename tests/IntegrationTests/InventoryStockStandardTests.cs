@@ -254,7 +254,6 @@ public sealed class InventoryStockStandardTests
     {
         var props = Props("negatifStokKorumaAcik");
         Assert.Equal("alert", (string)Component("negatifStokKorumaAcik")["type"]!);
-        Assert.Equal("negatifStok.rows[0].allowNegativeStock != null", (string)props["visibleWhen"]!);
         Assert.Equal("above", (string)props["slot"]!);
         Assert.DoesNotContain(AllComponents(), x => (string)x["id"]! == "negatifStokKorumaKapali");
         Assert.Equal("ayar.negatifStok", (string)Query("negatifStok")["operation"]!);

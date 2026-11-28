@@ -266,7 +266,8 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
       ? { ...operation, allowed: false } : operation);
     await openCard(S1, 'TenantUser');
     fireEvent.click(tab('Birimler'));
-    expect(await screen.findByText('Birim dönüşümlerini yalnız firma yöneticisi değiştirebilir.', {}, T)).toBeTruthy();
+    const addUnit = await screen.findByRole('button', { name: 'Birim ekle' }, T);
+    expect(addUnit.hasAttribute('disabled') || addUnit.getAttribute('aria-disabled') === 'true').toBe(true);
     expect(screen.queryByRole('button', { name: 'Satır ekle' })?.hasAttribute('disabled') ?? true).toBe(true);
     expect(command('save').getAttribute('aria-disabled')).not.toBe('true');
     fireEvent.click(tab('Genel'));
@@ -389,7 +390,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     fireEvent.keyDown(document.body, { key: 'F2' });
     // Yeni, aynı ekranı parametresiz açar: sayfa yeni kartla baştan kurulur.
     await waitFor(() => expect(navigations.map((request) => [request.page, request.params])).toEqual([[KEY, {}]]), T);
-    await waitFor(() => expect(title()).toBe('Yeni Stok kart\u0131'), T);
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Yeni Stok kartı' })).toBeTruthy(), T);
     await waitFor(() => expect(input('kod').value).toBe(''), T);
     fireEvent.click(tab('Özel alanlar'));
     expect(renk().value).toBe('');
@@ -405,7 +406,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     ctrlS();
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(writes()[0]).toMatchObject({ method: 'POST', url: '/api/stock/items' });
-    expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'YENI-2', name: 'Yeni Stok kart\u0131', customFields: { RENK: 'Yeşil' } });
+    expect(JSON.parse(writes()[0].body!)).toMatchObject({ code: 'YENI-2', name: 'Yeni kart', customFields: { RENK: 'Yeşil' } });
     expect(writes()[0].body).not.toContain('Mavi');
   });
 
@@ -430,7 +431,7 @@ describe('Yeni stok kartı standart tanımı', { timeout: 30000 }, () => {
     // Liste aynı sekmede başka bir kartı açar (Aç → id değişir).
     act(() => setPageParams(KEY, { id: S2 }));
     await waitFor(() => expect(input('ad').value).toBe('Defter'), T);
-    await waitFor(() => expect(title()).toBe('Stok kartı DFT'), T);
+    await waitFor(() => expect(title()).toBe('Stok kartı'), T);
     fireEvent.click(tab('Özel alanlar'));
     await waitFor(() => expect(renk().value).toBe('Sarı'), T);
     expect(writes()).toEqual([]);

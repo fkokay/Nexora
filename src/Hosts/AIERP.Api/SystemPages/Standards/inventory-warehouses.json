@@ -29,9 +29,9 @@
     "query:guncelle": {"since": 1,"label": "Depo güncelle","requires": ["component:depoListesi","component:depoKodu","component:depoAdi","component:depoOzelAlanlar","query:ozelKaydet","query:ozelTanimlar","query:ozelDegerler"]},
     "query:pasifeAl": {"since": 1,"label": "Depoyu pasife al","requires": ["component:depoListesi"]},
     "query:aktifEt": {"since": 1,"label": "Depoyu etkinleştir","requires": ["component:depoListesi"]},
-    "query:ozelTanimlar": {"since": 4,"label": "Depo ?zel alan tan?mlar?"},
-    "query:ozelDegerler": {"since": 4,"label": "Se?ili deponun ?zel alan de?erleri"},
-    "query:ozelKaydet": {"since": 4,"label": "Depo Özel alanlar?n? kaydet"},
+    "query:ozelTanimlar": {"since": 4,"label": "Depo özel alan tanımları"},
+    "query:ozelDegerler": {"since": 4,"label": "Seçili deponun özel alan değerleri"},
+    "query:ozelKaydet": {"since": 4,"label": "Depo özel alanlarını kaydet"},
     "component:depoOzelAlanlar": {"since": 4,"label": "Depo Özel alanlar?"}
   },
   "screenViews": [{"key": "inventory-warehouses","component": "depoListesi","fields": {"code": "code","name": "name","status": "isActive"}}],

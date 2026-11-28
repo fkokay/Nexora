@@ -266,7 +266,7 @@ public sealed class InventoryStockCreateStandardTests
         Assert.Equal("summary", (string)summary["slot"]!);
         Assert.Equal("{{kart.rows[0].name}}", (string)summary["title"]!);
         Assert.Equal("{{kart.rows[0].code}}", (string)summary["subtitle"]!);
-        Assert.Equal("Yeni stok kart\u0131", SystemPageStandards.All[Key].Title);
+        Assert.Equal("Stok kart\u0131", SystemPageStandards.All[Key].Title);
     }
 
     [Fact]

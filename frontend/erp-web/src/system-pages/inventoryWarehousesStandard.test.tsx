@@ -196,8 +196,11 @@ describe('Depo Yönetimi standart tanımı', { timeout: 30000 }, () => {
     expect(input('depoKodu').value).toBe('MRK');
     expect(input('depoAdi').value).toBe('Merkez');
     type('depoAdi', 'Merkez depo');
+    await waitFor(() => expect(calls.some((call) => call.method === 'GET' && call.url === `/api/warehouses/${W1}/custom-fields`)).toBe(true), T);
+    await new Promise((done) => setTimeout(done, 150));
     await save();
-    await waitFor(() => expect(writes().length).toBe(1), T);
+    await waitFor(() => expect(writes().length).toBe(2), T);
+    expect(writes()[1]).toMatchObject({ method: 'PUT', url: `/api/warehouses/${W1}/custom-fields` });
     expect(writes()[0]).toMatchObject({ method: 'PUT', url: `/api/warehouses/${W1}` });
     expect(JSON.parse(writes()[0].body!)).toEqual({ code: 'MRK', name: 'Merkez depo', rowVersion: 'rv-MRK' });
     await waitFor(() => expect(gets('/api/warehouses').length).toBeGreaterThan(1), T);

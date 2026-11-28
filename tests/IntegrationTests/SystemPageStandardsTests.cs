@@ -12,7 +12,7 @@ public sealed class SystemPageStandardsTests
         Assert.Empty(SystemPageStandards.Validate(SystemPageStandards.EmbeddedFiles()));
         var standard = SystemPageStandards.All[Key];
         // Version 3 is the Liste kalıbı layout; the version 1 items keep their ids and since.
-        Assert.Equal(3, standard.Version);
+        Assert.Equal(4, standard.Version);
         Assert.Equal("preview", standard.Stage);
         Assert.Equal("Depo Yönetimi", standard.Title);
         Assert.Equal("Stok & Depo", standard.Module);

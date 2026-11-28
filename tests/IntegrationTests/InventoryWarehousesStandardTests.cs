@@ -76,7 +76,8 @@ public sealed class InventoryWarehousesStandardTests
         Assert.Null(Props("yeniDepoKodu")["defaultValue"]);
 
         var edited = Props("duzenlePenceresi");
-        Assert.Equal(("Depo \u00b7 {{depoListesi.seciliSatir.code}}", new[] { "guncelle", "ozelKaydet" }), ((string)edited["title"]!, Strings(edited["saveSequence"])));
+        Assert.Equal("Depo · {{depoListesi.seciliSatir.code}}", (string)edited["title"]!);
+        Assert.Equal(new[] { "guncelle", "ozelKaydet" }, Strings(edited["saveSequence"]));
         Assert.Equal(new[] { "depoKodu", "depoAdi" }, Strings(Props("duzenleFormu")["inputs"]));
         Assert.Equal("{{depoListesi.seciliSatir.code}}", (string)Props("depoKodu")["defaultValue"]!);
         Assert.Equal("{{depoListesi.seciliSatir.name}}", (string)Props("depoAdi")["defaultValue"]!);

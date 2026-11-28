@@ -427,9 +427,11 @@ describe('Stok Kartları standart tanımı', { timeout: 30000 }, () => {
     await selectCard('Defter', S2);
     fireEvent.click(await menuItem(/Hareket gir/));
     const dialog = await screen.findByRole('dialog', { name: 'Stok hareketi · DFT · Merkez' }, T);
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Sat?r ekle' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Satır ekle' }));
     fireEvent.change(document.getElementById('page-grid-hareketTakipIzgarasi-yeni-1-trackingCode')!, { target: { value: 'LOT-01' } });
     fireEvent.change(document.getElementById('page-grid-hareketTakipIzgarasi-yeni-1-quantity')!, { target: { value: '2' } });
+    type('hareketMiktari', '2');
+    type('hareketAciklamasi', 'Lot girişi');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Kaydet' }));
     await waitFor(() => expect(writes()).toHaveLength(1), T);
     expect(JSON.parse(writes()[0].body!)).toMatchObject({ direction: 'Receipt', tracking: [{ trackingCode: 'LOT-01', quantity: 2 }] });
