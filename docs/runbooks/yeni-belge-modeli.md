@@ -92,6 +92,10 @@ Not: eski geçiş uçlarındaki satır kilidi (`FromSqlInterpolated … UPDLOCK`
 2. `docs/phase-status.md`: ne yapıldı, neyin doğrulanmadığı (gerçek SQL'de PUT akışı, tarayıcıda görsel deneme), geçiş olmayıp kalanlar.
 3. Sipariş davranışının korunduğunun kanıtı: `SalesOrderDocumentModelTests`, `DocumentTemplate.test.tsx` ve Studio Belge testleri **değiştirilmeden** geçer.
 
+### İkinci satır grubu
+
+Modelde isteğe bağlı `LineGroups` tanımlanabilir. Her grup benzersiz bir `Code`, etiket, kendi kolon listesi ve satır sınırı taşır; ERP standardında ek `documentLines` bileşeni `slot` değerini bu koda (ör. `rota`) ayarlar. Modelde grup yoksa tek `lines` tablosunun eski davranışı değişmez. Okuma normalizasyonu ve yazma gövdesi her grubu açıkça taşımalı; geçerli satır gruplarını kısmen kaydetmekten kaçının. `PageTemplateRules` grup bileşeninin varlığını, kolonlarını ve gerekli kolonlarını doğrular.
+
 ## Teklifte bilerek bırakılanlar (yeni model için karşılaştırın)
 
 Yeni revizyon (yeni kayıt açar), Sipariş oluştur (belgeden belge), Yazdır/PDF (dosya), iptal (teklif API'sinde iptal işlemi yok), onay ve Kurallar (yalnız sipariş). Bunlar için kalıpta "belgeden belge", "ek pencere/yazdırma" ve "özel alan bloğu" yetenekleri gerekir (`docs/superpowers/specs/2026-11-28-satis-cari-yeniden-tasarim-design.md`, "Kalıplarda eksik").

@@ -1,0 +1,93 @@
+{
+  "screenKey": "manufacturing-recipe-document",
+  "title": "Üretim reçetesi",
+  "description": "Reçete bileşenleri ve rota operasyonlarını düzenleyin.",
+  "module": "Üretim",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:baslik": {
+      "since": 1,
+      "label": "Reçete alanları"
+    },
+    "component:bilesenler": {
+      "since": 1,
+      "label": "Bileşenler"
+    },
+    "component:rota": {
+      "since": 1,
+      "label": "Rota"
+    },
+    "component:toplamlar": {
+      "since": 1,
+      "label": "Özet ve işlem günlüğü"
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "template": {
+      "name": "belge",
+      "document": "uretim.recete"
+    },
+    "queries": [],
+    "components": [
+      {
+        "id": "baslik",
+        "type": "documentFields",
+        "props": {
+          "slot": "fields",
+          "fields": [
+            "code",
+            "name",
+            "productStockItemId",
+            "outputQuantity"
+          ],
+          "labels": {}
+        }
+      },
+      {
+        "id": "bilesenler",
+        "type": "documentLines",
+        "props": {
+          "slot": "lines",
+          "columns": [
+            "componentStockItemId",
+            "quantity",
+            "scrapPercent",
+            "standardUnitCostBase"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "rota",
+        "type": "documentLines",
+        "props": {
+          "slot": "rota",
+          "columns": [
+            "workCenterId",
+            "setupMinutes",
+            "runMinutesPerOutputUnit",
+            "minimumWaitDaysAfterPrevious",
+            "setupFamilyCode",
+            "plannedEnergyKwhPerOutput",
+            "plannedEnergyCostPerKwhBase",
+            "eligibleWorkCenterIds"
+          ],
+          "labels": {},
+          "density": "normal"
+        }
+      },
+      {
+        "id": "toplamlar",
+        "type": "documentSummary",
+        "props": {
+          "slot": "summary",
+          "vatBreakdown": false,
+          "activity": true
+        }
+      }
+    ]
+  }
+}

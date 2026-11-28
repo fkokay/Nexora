@@ -331,12 +331,16 @@ uretim.emir.operasyonTamamla
 uretim.emir.operasyonlari
 uretim.emir.serbestBirak
 uretim.emir.tamamla
+uretim.isMerkezi.tumunuListele
 uretim.maliyetAnalizi
 uretim.operatorler
+uretim.recete.belge
 uretim.recete.bilesenleri
 uretim.recete.etkinlestir
 uretim.recete.getir
+uretim.recete.guncelle
 uretim.recete.listele
+uretim.recete.olustur
 uretim.recete.pasifeAl
 uretim.recete.sil
 uretim.recete.tumunuListele

@@ -16,6 +16,7 @@ internal static class DocumentActivityLog
     internal const string JournalVoucher = "muhasebe.fis";
     internal const string SalesInvoice = "satis.fatura";
     internal const string SalesDelivery = "satis.irsaliye";
+    internal const string ManufacturingRecipe = "uretim.recete";
 
     internal static void Add(TenantDbContext db, Guid tenantId, string documentType, Guid documentId, string transition, string step,
         string source, string outcome, string? message, Guid? actorUserId, Guid? requestId = null) =>

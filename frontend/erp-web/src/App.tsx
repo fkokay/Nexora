@@ -677,6 +677,7 @@ function AppContent() {
       "fixed-assets": "Sabit Kıymetler",
       "fixed-asset-create": "Yeni edinim",
       "fixed-asset-card": "Kıymet kartı",
+      "manufacturing-recipe-document": "Üretim Reçetesi",
       "manufacturing-recipes": "Tanımlı Reçeteler",
       "manufacturing-recipe-create": "Reçete Oluştur",
       "manufacturing-work-centers": "İş Merkezleri",

@@ -32,6 +32,7 @@ inventory-warehouses=3
 manufacturing-cost-variance=1
 manufacturing-order-create=1
 manufacturing-orders=1
+manufacturing-recipe-document=1
 manufacturing-recipes=1
 sales-deliveries=2
 sales-delivery-document=1

@@ -8,7 +8,10 @@ public sealed record DocumentModelView(string Code, string Label, IReadOnlyList<
     IReadOnlyList<DocumentLineColumnView> LineColumns, IReadOnlyList<DocumentStateView> States, IReadOnlyList<DocumentTransitionView> Transitions,
     string LoadOperation, string CalculateOperation, string FillOperation,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Fills, string CreateOperation, string UpdateOperation,
-    IReadOnlyList<DocumentCreationView>? Creations = null);
+    IReadOnlyList<DocumentCreationView>? Creations = null, IReadOnlyList<DocumentLineGroupView>? LineGroups = null);
+
+/// <summary>An optional named, independently editable second line table (for example, a recipe route).</summary>
+public sealed record DocumentLineGroupView(string Code, string Label, IReadOnlyList<DocumentLineColumnView> Columns, int MaxRows);
 
 /// <summary>A header field. <see cref="ReadOnly"/> fields (the document number) are shown but never entered.</summary>
 public sealed record DocumentFieldView(string Code, string Label, string Type, bool Required, string? OptionsOperation, bool ReadOnly = false,

@@ -1,6 +1,7 @@
 import { createElement, Fragment, useCallback, useContext, type ComponentProps, type CSSProperties, type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readPageTemplate, type PageTemplate } from "./page-templates/pageTemplate";
 import { DocumentTemplate } from "./page-templates/DocumentTemplate";
+import { ManufacturingRecipeDocument } from "./page-templates/ManufacturingRecipeDocument";
 import { JournalVoucherTemplate } from "./page-templates/JournalVoucherTemplate";
 import { BELGE_PARTS, layoutDocumentTemplate } from "./page-templates/documentTemplateModel";
 import { commandsBarOf, hasListSlot, layoutListTemplate } from "./page-templates/listTemplateModel";
@@ -4112,6 +4113,9 @@ export default function TenantCustomPage({ code, previewId, token, systemScreenK
       <JournalVoucherTemplate key={`${page.id}:${page.revision}`} document={pageTemplate.document} layout={belgeLayout} token={token} orderId={orderId}
         isPreview={!!previewId} previewState={belgePreviewState} title={titleOverride || page.name} tabKey={tabKey}
         renderExtra={(part) => extra(part.filter((c) => !(BELGE_PARTS as readonly string[]).includes(c.type)))} />
+    </main>;
+    if (pageTemplate.document === "uretim.recete") return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
+      <ManufacturingRecipeDocument id={orderId} token={token} onSaved={(id) => { if (tabKey) setPageParams(tabKey, { ...pageParams, id }); }} />
     </main>;
     return <main className={`tenant-custom-page${previewId ? " is-preview" : ""}`}>
       {previewId && !belgePreviewState && <div className="tenant-custom-page-preview-banner" role="status"><strong>Studio taslak önizlemesi</strong><span>Bu taslak henüz yayımlanmadı; ERP kullanıcılarının aktif sayfasını değiştirmez.</span></div>}

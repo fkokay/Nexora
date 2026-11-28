@@ -263,6 +263,10 @@ const manufacturingSections: Record<
     description:
       "Tanımlı ürün reçetelerini arayın, düzenleyin ve durumlarını yönetin.",
   },
+  "manufacturing-recipe-document": {
+    title: "Reçete",
+    description: "Reçetenin bileşenlerini ve rotasını belge olarak düzenleyin.",
+  },
   "manufacturing-recipe-create": {
     title: "Reçete oluştur",
     description:

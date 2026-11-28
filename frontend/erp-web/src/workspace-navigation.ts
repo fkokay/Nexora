@@ -14,10 +14,10 @@ const inventoryPageTitlesEn: Record<InventoryPageKey, string> = {
 }
 
 export const manufacturingPageTitles: Record<ManufacturingPageKey, string> = {
-  'manufacturing-recipes':'Tanımlı reçeteler', 'manufacturing-recipe-create':'Reçete oluştur', 'manufacturing-work-centers':'İş merkezleri', 'manufacturing-work-center-create':'İş merkezi tanımla', 'manufacturing-orders':'Üretim emirleri', 'manufacturing-order-create':'Yeni üretim emri', 'manufacturing-mrp':'Malzeme planlama', 'manufacturing-cost-variance':'Maliyet analizi'
+  'manufacturing-recipe-document':'Üretim reçetesi','manufacturing-recipes':'Tanımlı reçeteler', 'manufacturing-recipe-create':'Reçete oluştur', 'manufacturing-work-centers':'İş merkezleri', 'manufacturing-work-center-create':'İş merkezi tanımla', 'manufacturing-orders':'Üretim emirleri', 'manufacturing-order-create':'Yeni üretim emri', 'manufacturing-mrp':'Malzeme planlama', 'manufacturing-cost-variance':'Maliyet analizi'
 }
 const manufacturingPageTitlesEn: Record<ManufacturingPageKey, string> = {
-  'manufacturing-recipes':'Defined recipes', 'manufacturing-recipe-create':'Create recipe', 'manufacturing-work-centers':'Work centers', 'manufacturing-work-center-create':'Define work center', 'manufacturing-orders':'Production orders', 'manufacturing-order-create':'New production order', 'manufacturing-mrp':'Material planning', 'manufacturing-cost-variance':'Cost analysis'
+  'manufacturing-recipe-document':'Production recipe','manufacturing-recipes':'Defined recipes', 'manufacturing-recipe-create':'Create recipe', 'manufacturing-work-centers':'Work centers', 'manufacturing-work-center-create':'Define work center', 'manufacturing-orders':'Production orders', 'manufacturing-order-create':'New production order', 'manufacturing-mrp':'Material planning', 'manufacturing-cost-variance':'Cost analysis'
 }
 
 const salesPageTitles: Record<SalesPageKey, string> = {

@@ -10,6 +10,7 @@ internal static class DocumentModelRegistry
         JournalVoucherDocumentModel.Code => JournalVoucherDocumentModel.Model,
         SalesInvoiceDocumentModel.Code => SalesInvoiceDocumentModel.Model,
         SalesDeliveryDocumentModel.Code => SalesDeliveryDocumentModel.Model,
+        ManufacturingRecipeDocumentModel.Code => ManufacturingRecipeDocumentModel.Model,
         _ => null
     };
 }

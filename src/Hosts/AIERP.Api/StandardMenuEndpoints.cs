@@ -31,7 +31,7 @@ public static class StandardMenuEndpoints
     /// navigation (the sales document entry screens a customer card starts).
     /// </summary>
     internal static IReadOnlySet<string> NavigablePageKeys { get; } =
-        PageKeys.Concat(["sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-delivery-create", "finance-journal-voucher-document"]).ToHashSet(StringComparer.Ordinal);
+        PageKeys.Concat(["sales-quote-create", "sales-order-create", "sales-order-document", "sales-quote-document", "sales-invoice-document", "sales-delivery-document", "sales-delivery-create", "finance-journal-voucher-document", "manufacturing-recipe-document"]).ToHashSet(StringComparer.Ordinal);
     public static void MapStandardMenuEndpoints(this WebApplication app)
     {
         var menus = app.MapGroup("/api/custom-menus/standard").RequireAuthorization();

@@ -327,7 +327,8 @@ public static class PlatformPermissionCatalog
             resource = Resources.First(x => x.ResourceType == (modelPath.StartsWith("satis.teklif", StringComparison.OrdinalIgnoreCase) ? "erp.sales-quotes"
                 : modelPath.StartsWith("satis.fatura", StringComparison.OrdinalIgnoreCase) ? "erp.sales-invoices"
                 : modelPath.StartsWith("satis.irsaliye", StringComparison.OrdinalIgnoreCase) ? "erp.sales-deliveries"
-                : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger" : "erp.sales-orders"));
+                : modelPath.StartsWith("muhasebe.", StringComparison.OrdinalIgnoreCase) ? "erp.general-ledger"
+                : modelPath.StartsWith("uretim.recete", StringComparison.OrdinalIgnoreCase) ? "erp.manufacturing" : "erp.sales-orders"));
             explicitReadAction = true;
         }
         resource ??= Resources.Where(x => path.Equals(x.RoutePrefix, StringComparison.OrdinalIgnoreCase)
