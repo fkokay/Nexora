@@ -232,9 +232,7 @@
     "component:operator": {
       "since": 2,
       "label": "Alan: Operatör",
-      "requires": [
-        "query:operatorler"
-      ]
+      "requires": ["query:operatorler", "component:opTamamlaPenceresi"]
     },
     "component:tamamlaBilgisi": {
       "since": 1,
