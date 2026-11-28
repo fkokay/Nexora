@@ -11,13 +11,21 @@ namespace AIERP.Api.IntegrationTests;
 /// </summary>
 public sealed class SalesCardStandardsTests
 {
+    // Kaldırılan eski oluşturma standartları (Belge ekranlarına taşındı) ızgara kurallarının örneği olarak
+    // Fixtures/RemovedStandards altında durur; kurallar aynı tanım üzerinde sınanmaya devam eder.
     private static JsonObject Definition(string key)
     {
+        var fixture = Path.Combine(RepositoryRoot(), "tests", "IntegrationTests", "Fixtures", "RemovedStandards", key + ".json");
+        if (File.Exists(fixture)) return JsonNode.Parse(File.ReadAllText(fixture).Replace("@sales-invoice-create", "@sales-invoice-document").Replace("@sales-purchase-order-create", "@purchase-order-document"))!["definition"]!.AsObject();
         Assert.True(SystemPageStandards.TryGet(key, out var standard), key);
-        var definition = JsonNode.Parse(standard.DefinitionJson)!.AsObject();
-        if (key == "sales-purchase-order-create")
-            definition["queries"]!.AsArray().Add(JsonNode.Parse("""{"id":"onizleme","name":"onizleme","kind":"read","operation":"satis.teklif.hesapla","runOn":["kalemler"],"parameters":[{"name":"quoteDate","binding":"2026-11-28"},{"name":"validUntil","binding":"2026-12-28"},{"name":"currencyCode","binding":"TRY"},{"name":"lines","binding":"{{kalemler.satirlar}}","type":"list"}]}"""));
-        return definition;
+        return JsonNode.Parse(standard.DefinitionJson)!.AsObject();
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+            if (File.Exists(Path.Combine(directory.FullName, "AIERP.slnx"))) return directory.FullName;
+        throw new InvalidOperationException("AIERP.slnx bulunamadı.");
     }
 
     private static JsonObject Component(JsonObject definition, string id) =>
@@ -43,6 +51,32 @@ public sealed class SalesCardStandardsTests
 
     private static ErpOperation Op(string name) =>
         ErpOperationCatalog.TryGet(name, out var op) ? op : throw new Xunit.Sdk.XunitException($"İşlem yok: {name}");
+
+    // ---- Invoice card ----
+
+    [Fact]
+    public void Invoice_card_uses_the_engine_additions()
+    {
+        var definition = Definition("sales-invoice-create");
+        Valid(definition);
+        var grid = Props(definition, "kalemler");
+        Assert.Contains("lineTotal|Tutar|calc:onizleme:lineTotal", grid["gridColumns"]!.AsArray().Select(x => (string)x!));
+        Assert.Equal("salesListPrice", (string)grid["lookupFills"]!["stockItemId"]!["unitPrice"]!);
+        Assert.Equal(200, (int)grid["maxRows"]!);
+        var preview = Query(definition, "onizleme");
+        Assert.Equal(("read", "satis.fatura.onizle"), ((string)preview["kind"]!, (string)preview["operation"]!));
+        Assert.Contains("kalemler", preview["runOn"]!.AsArray().Select(x => (string)x!));
+        // The header warehouse is the first line's warehouse (G-SI6: the server issues stock from the header warehouse).
+        Assert.Equal("{{kalemler.satirlar[0].warehouseId}}", (string)Query(definition, "faturaKes")["parameters"]!.AsArray()
+            .OfType<JsonObject>().Single(x => (string)x["name"]! == "warehouseId")["binding"]!);
+        // The save body is the user's inputs: the write's line items have no rowKey, so the runtime never sends it there.
+        Assert.DoesNotContain(Op("satis.fatura.olustur").Parameters.Single(x => x.Name == "lines").Items!, x => x.Code == "rowKey");
+        Assert.Contains(Op("satis.fatura.onizle").Parameters.Single(x => x.Name == "lines").Items!, x => x.Code == "rowKey");
+        // Belge satis.fatura: the list's Yeni goes to the Belge page (the legacy card stays for the customer's "Yeni fatura").
+        var bar = Props(Definition("sales-invoices"), "komutlar");
+        Assert.Equal(("page", "@sales-invoice-document"), ((string)bar["newAction"]!, (string)bar["newPageCode"]!));
+    }
+
 
     [Fact]
     public void Card_operations_follow_their_endpoints()
@@ -84,7 +118,7 @@ public sealed class SalesCardStandardsTests
     {
         JsonObject Page(Action<JsonObject, JsonObject> change)
         {
-            var definition = Definition("sales-purchase-order-create");
+            var definition = Definition("sales-invoice-create");
             definition["queries"]!.AsArray().Add(JsonNode.Parse("""{"id":"kaynak","name":"kaynak","kind":"read","operation":"satis.teklif.satirlari","runOn":"load","parameters":[{"name":"id","binding":"{{sayfa.parametre.quoteId}}","type":"guid"}]}"""));
             change(definition, Props(definition, "kalemler"));
             return definition;
@@ -95,7 +129,7 @@ public sealed class SalesCardStandardsTests
         Valid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"stockItemId@label":"stockName"}"""); }));
         Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"quantity@label":"stockName"}"""); }), "@label");
         Invalid(Page((_, grid) => { grid["fillQuery"] = "kaynak"; grid["fillColumns"] = Map("""{"stockItemId@label":"yokAlan"}"""); }), "sonucunda yok");
-        Invalid(Page((_, grid) => grid["fillQuery"] = "olmayanSorgu"), "'fillQuery' sayfadaki bir okuma sorgusu");
+        Invalid(Page((_, grid) => grid["fillQuery"] = "faturaKes"), "'fillQuery' sayfadaki bir okuma sorgusu");
         Invalid(Page((_, grid) => grid["fillQuery"] = "yok"), "'fillQuery' sayfadaki bir okuma sorgusu");
         Invalid(Page((definition, grid) =>
         {
@@ -135,11 +169,11 @@ public sealed class SalesCardStandardsTests
     {
         JsonObject Page(string fills)
         {
-            var definition = Definition("sales-purchase-order-create");
+            var definition = Definition("sales-invoice-create");
             Props(definition, "kalemler")["lookupFills"] = JsonNode.Parse(fills);
             return definition;
         }
-        Valid(Page("""{"stockItemId":{"unitCode":"unitCode"}}"""));
+        Valid(Page("""{"stockItemId":{"unitCode":"unitCode"},"warehouseId":{"unitCode":"code"}}"""));
         Invalid(Page("""{"quantity":{"unitCode":"unitCode"}}"""), "seçim (lookup) sütunu");
         Invalid(Page("""{"stockItemId":{"stockItemId":"id"}}"""), "hedefi");
         Invalid(Page("""{"stockItemId":{"lineTotal":"salesListPrice"}}"""), "hedefi");
@@ -153,7 +187,7 @@ public sealed class SalesCardStandardsTests
     [Fact]
     public void Run_on_lists_and_debounce_are_checked()
     {
-        var definition = Definition("sales-purchase-order-create");
+        var definition = Definition("sales-invoice-create");
         Query(definition, "onizleme")["runDebounceMs"] = 400;
         Valid(definition);
         Query(definition, "onizleme")["runDebounceMs"] = 100;
@@ -161,11 +195,11 @@ public sealed class SalesCardStandardsTests
         Query(definition, "onizleme")["runDebounceMs"] = 3001;
         Invalid(definition, "runDebounceMs");
 
-        definition = Definition("sales-purchase-order-create");
-        Query(definition, "depolar")["runDebounceMs"] = 400;
+        definition = Definition("sales-invoice-create");
+        Query(definition, "profiller")["runDebounceMs"] = 400;
         Invalid(definition, "runDebounceMs yalnız runOn dizisiyle");
 
-        definition = Definition("sales-purchase-order-create");
+        definition = Definition("sales-invoice-create");
         Query(definition, "onizleme")["runOn"] = Strings("yokBilesen");
         Invalid(definition, "runOn dizisindeki 'yokBilesen'");
         Query(definition, "onizleme")["runOn"] = Strings("belgeKarti");
@@ -175,10 +209,10 @@ public sealed class SalesCardStandardsTests
         Query(definition, "onizleme")["runOn"] = new JsonArray();
         Invalid(definition, "runOn dizisi");
 
-        definition = Definition("sales-purchase-order-create");
-        Query(definition, "olustur")["runOn"] = Strings("musteri");
+        definition = Definition("sales-invoice-create");
+        Query(definition, "faturaKes")["runOn"] = Strings("musteri");
         Invalid(definition, "yalnız elle (manual)");
-        definition = Definition("sales-purchase-order-create");
+        definition = Definition("sales-invoice-create");
         Query(definition, "onizleme")["runOn"] = "sometimes";
         Invalid(definition, "runOn load, manual ya da bileşen adları dizisi");
     }
@@ -188,7 +222,7 @@ public sealed class SalesCardStandardsTests
     {
         JsonObject Page(string column, Action<JsonObject>? change = null)
         {
-            var definition = Definition("sales-purchase-order-create");
+            var definition = Definition("sales-invoice-create");
             var columns = Props(definition, "kalemler")["gridColumns"]!.AsArray();
             columns[^1] = column;
             change?.Invoke(definition);

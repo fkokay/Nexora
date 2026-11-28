@@ -1,0 +1,1268 @@
+{
+  "screenKey": "sales-invoice-create",
+  "title": "Yeni satış faturası",
+  "description": "Satış faturası ve irsaliyesi: belge bilgileri, e-belge alanları, stok seçince dolan satırlar, sunucu önizlemesinden satır tutarları, KDV dökümü, tevkifat ve genel toplam.",
+  "module": "Satış & cari",
+  "version": 1,
+  "stage": "preview",
+  "items": {
+    "component:komutlar": {
+      "since": 1,
+      "label": "İşlem çubuğu (Faturayı kes = Kaydet, Ctrl+S)",
+      "requires": [
+        "query:faturaKes"
+      ]
+    },
+    "component:baslik": {
+      "since": 1,
+      "label": "Başlık"
+    },
+    "component:durumNotu": {
+      "since": 1,
+      "label": "Durum satırı"
+    },
+    "component:istekKimligi": {
+      "since": 1,
+      "label": "Tekrar deneme kimliği"
+    },
+    "component:belgeKarti": {
+      "since": 1,
+      "label": "Belge bilgileri",
+      "requires": [
+        "component:faturaTarihi",
+        "component:faturaTuru",
+        "component:musteri"
+      ]
+    },
+    "component:faturaTarihi": {
+      "since": 1,
+      "label": "Alan: Fatura tarihi"
+    },
+    "component:musteri": {
+      "since": 1,
+      "label": "Alan: Müşteri",
+      "requires": [
+        "query:musteriler"
+      ]
+    },
+    "component:faturaTuru": {
+      "since": 1,
+      "label": "Alan: Fatura türü"
+    },
+    "component:eBelgeKarti": {
+      "since": 1,
+      "label": "E-belge",
+      "requires": [
+        "component:eAliciEtiketi",
+        "component:eSenaryo",
+        "component:eTurKodu"
+      ]
+    },
+    "component:eSenaryo": {
+      "since": 1,
+      "label": "Alan: Belge senaryosu"
+    },
+    "component:eTurKodu": {
+      "since": 1,
+      "label": "Alan: Belge tür kodu"
+    },
+    "component:eAliciEtiketi": {
+      "since": 1,
+      "label": "Alan: Alıcı e-Fatura etiketi"
+    },
+    "component:eArsivKarti": {
+      "since": 1,
+      "label": "e-Arşiv ödeme bilgileri",
+      "requires": [
+        "component:eOdemeAracisi",
+        "component:eOdemeEtiketi",
+        "component:eOdemeNotu",
+        "component:eOdemeTarihi",
+        "component:eOdemeTuru",
+        "component:eOdemeUnvan",
+        "component:eOdemeVkn",
+        "component:eOdemeYontemi",
+        "component:eSatinAlmaAdresi",
+        "component:eSonOdemeTarihi"
+      ]
+    },
+    "component:eSatinAlmaAdresi": {
+      "since": 1,
+      "label": "Alan: Satın alma adresi (URL)"
+    },
+    "component:eOdemeVkn": {
+      "since": 1,
+      "label": "Alan: Ödeme aracısı VKN / TCKN"
+    },
+    "component:eOdemeUnvan": {
+      "since": 1,
+      "label": "Alan: Ödeme aracısı unvanı"
+    },
+    "component:eOdemeEtiketi": {
+      "since": 1,
+      "label": "Alan: Ödeme aracısı etiketi"
+    },
+    "component:eOdemeAracisi": {
+      "since": 1,
+      "label": "Alan: Ödeme aracısı"
+    },
+    "component:eOdemeTuru": {
+      "since": 1,
+      "label": "Alan: Ödeme türü"
+    },
+    "component:eOdemeYontemi": {
+      "since": 1,
+      "label": "Alan: Ödeme yöntemi"
+    },
+    "component:eOdemeTarihi": {
+      "since": 1,
+      "label": "Alan: Ödeme tarihi"
+    },
+    "component:eSonOdemeTarihi": {
+      "since": 1,
+      "label": "Alan: Son ödeme tarihi"
+    },
+    "component:eOdemeNotu": {
+      "since": 1,
+      "label": "Alan: Ödeme notu"
+    },
+    "component:araciKarti": {
+      "since": 1,
+      "label": "e-Arşiv aracı firma",
+      "requires": [
+        "component:eAraciIl",
+        "component:eAraciIlce",
+        "component:eAraciUlke",
+        "component:eAraciUlkeKodu"
+      ]
+    },
+    "component:eAraciUlke": {
+      "since": 1,
+      "label": "Alan: Aracı firma ülkesi"
+    },
+    "component:eAraciUlkeKodu": {
+      "since": 1,
+      "label": "Alan: Aracı firma ülke kodu"
+    },
+    "component:eAraciIl": {
+      "since": 1,
+      "label": "Alan: Aracı firma ili"
+    },
+    "component:eAraciIlce": {
+      "since": 1,
+      "label": "Alan: Aracı firma ilçesi"
+    },
+    "component:tasiyiciKarti": {
+      "since": 1,
+      "label": "Taşıyıcı",
+      "requires": [
+        "component:eSevkTarihi",
+        "component:eTasiyiciAdi",
+        "component:eTasiyiciSoyadi",
+        "component:eTasiyiciVkn"
+      ]
+    },
+    "component:eTasiyiciVkn": {
+      "since": 1,
+      "label": "Alan: Taşıyıcı VKN / TCKN"
+    },
+    "component:eTasiyiciAdi": {
+      "since": 1,
+      "label": "Alan: Taşıyıcı adı / unvanı"
+    },
+    "component:eTasiyiciSoyadi": {
+      "since": 1,
+      "label": "Alan: Taşıyıcı soyadı"
+    },
+    "component:eSevkTarihi": {
+      "since": 1,
+      "label": "Alan: Sevk tarihi"
+    },
+    "component:kalemler": {
+      "since": 1,
+      "label": "Fatura satırları",
+      "requires": [
+        "query:depolar",
+        "query:onizleme",
+        "query:stoklar"
+      ]
+    },
+    "component:satirNotu": {
+      "since": 1,
+      "label": "Satır notu"
+    },
+    "component:vergiKarti": {
+      "since": 1,
+      "label": "Vergi mevzuatı profili",
+      "requires": [
+        "component:vergiProfili"
+      ]
+    },
+    "component:vergiProfili": {
+      "since": 1,
+      "label": "Alan: Hesap profili",
+      "requires": [
+        "query:profiller"
+      ]
+    },
+    "component:notKarti": {
+      "since": 1,
+      "label": "Not",
+      "requires": [
+        "component:faturaNotu"
+      ]
+    },
+    "component:faturaNotu": {
+      "since": 1,
+      "label": "Alan: Fatura notu"
+    },
+    "component:ozelAlanlar": {
+      "since": 1,
+      "label": "Fatura özel alanları",
+      "requires": [
+        "query:ozelTanimlar"
+      ]
+    },
+    "component:araToplam": {
+      "since": 1,
+      "label": "Toplam: Ara toplam"
+    },
+    "component:kdvToplami": {
+      "since": 1,
+      "label": "Toplam: KDV ve vergiler"
+    },
+    "component:tevkifatToplami": {
+      "since": 1,
+      "label": "Toplam: Tevkifat"
+    },
+    "component:genelToplam": {
+      "since": 1,
+      "label": "Toplam: Genel toplam"
+    },
+    "component:vergiDokumu": {
+      "since": 1,
+      "label": "KDV ve vergi dökümü",
+      "requires": [
+        "query:vergiler"
+      ]
+    },
+    "component:hesapNotu": {
+      "since": 1,
+      "label": "Hesap notu"
+    },
+    "query:musteriler": {
+      "since": 1,
+      "label": "Müşteriler (müşteri seçici)",
+      "requires": [
+        "component:musteri"
+      ]
+    },
+    "query:stoklar": {
+      "since": 1,
+      "label": "Stok kartları (stok seçici)",
+      "requires": [
+        "component:kalemler"
+      ]
+    },
+    "query:depolar": {
+      "since": 1,
+      "label": "Depolar (depo seçici)"
+    },
+    "query:profiller": {
+      "since": 1,
+      "label": "Vergi mevzuatı profilleri"
+    },
+    "query:ozelTanimlar": {
+      "since": 1,
+      "label": "Fatura özel alan tanımları"
+    },
+    "query:onizleme": {
+      "since": 1,
+      "label": "Fatura önizlemesi (satır tutarları ve toplamlar)",
+      "requires": [
+        "component:faturaTarihi",
+        "component:faturaTuru",
+        "component:kalemler",
+        "component:musteri",
+        "component:vergiProfili"
+      ]
+    },
+    "query:vergiler": {
+      "since": 1,
+      "label": "Fatura önizlemesi (vergi dökümü)",
+      "requires": [
+        "component:faturaTarihi",
+        "component:faturaTuru",
+        "component:kalemler",
+        "component:musteri",
+        "component:vergiProfili"
+      ]
+    },
+    "query:faturaKes": {
+      "since": 1,
+      "label": "Faturayı kes",
+      "requires": [
+        "component:eAliciEtiketi",
+        "component:eAraciIl",
+        "component:eAraciIlce",
+        "component:eAraciUlke",
+        "component:eAraciUlkeKodu",
+        "component:eOdemeAracisi",
+        "component:eOdemeEtiketi",
+        "component:eOdemeNotu",
+        "component:eOdemeTarihi",
+        "component:eOdemeTuru",
+        "component:eOdemeUnvan",
+        "component:eOdemeVkn",
+        "component:eOdemeYontemi",
+        "component:eSatinAlmaAdresi",
+        "component:eSenaryo",
+        "component:eSevkTarihi",
+        "component:eSonOdemeTarihi",
+        "component:eTasiyiciAdi",
+        "component:eTasiyiciSoyadi",
+        "component:eTasiyiciVkn",
+        "component:eTurKodu",
+        "component:faturaNotu",
+        "component:faturaTarihi",
+        "component:faturaTuru",
+        "component:istekKimligi",
+        "component:kalemler",
+        "component:musteri",
+        "component:ozelAlanlar",
+        "component:vergiProfili"
+      ]
+    }
+  },
+  "definition": {
+    "schemaVersion": 2,
+    "components": [
+      {
+        "id": "komutlar",
+        "type": "actionBar",
+        "name": "komutlar",
+        "props": {
+          "saveQuery": "faturaKes",
+          "newAction": "page",
+          "newPageCode": "@sales-invoice-create",
+          "newTarget": "sameTab",
+          "afterSaveAction": "page",
+          "afterSavePageCode": "@sales-invoices",
+          "afterSaveTarget": "sameTab",
+          "afterSaveRefresh": true,
+          "hiddenCommands": [
+            "open",
+            "delete",
+            "print",
+            "export",
+            "filter"
+          ]
+        }
+      },
+      {
+        "id": "baslik",
+        "type": "heading",
+        "name": "baslik",
+        "props": {
+          "text": "Yeni satış faturası",
+          "pageTitle": true
+        }
+      },
+      {
+        "id": "durumNotu",
+        "type": "text",
+        "name": "durumNotu",
+        "props": {
+          "text": "Sipariş seçmeden fatura oluşturun. Satırın deposundan stok çıkışı ve faturaya bağlı irsaliye otomatik kaydedilir; çıkış ilk satırın deposundan yapılır."
+        }
+      },
+      {
+        "id": "istekKimligi",
+        "type": "input",
+        "name": "istekKimligi",
+        "props": {
+          "inputType": "text",
+          "label": "Tekrar deneme kimliği",
+          "hidden": true,
+          "autoId": true
+        }
+      },
+      {
+        "id": "belgeKarti",
+        "type": "formCard",
+        "name": "belgeKarti",
+        "props": {
+          "title": "Belge bilgileri",
+          "columns": 3,
+          "inputs": [
+            "faturaTarihi",
+            "musteri",
+            "faturaTuru"
+          ],
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "faturaTarihi",
+        "type": "input",
+        "name": "faturaTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Fatura tarihi",
+          "required": true,
+          "defaultValue": "{{bugun}}"
+        }
+      },
+      {
+        "id": "musteri",
+        "type": "input",
+        "name": "musteri",
+        "props": {
+          "inputType": "lookup",
+          "label": "Müşteri",
+          "required": true,
+          "optionsQuery": "musteriler",
+          "optionValueColumn": "id",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "code",
+          "minChars": 0,
+          "optionsWhen": "satir.isActive == true && satir.type != 'Supplier' && satir.type != 'Employee'",
+          "defaultValue": "{{sayfa.parametre.customerId}}"
+        }
+      },
+      {
+        "id": "faturaTuru",
+        "type": "input",
+        "name": "faturaTuru",
+        "props": {
+          "inputType": "select",
+          "label": "Fatura türü",
+          "defaultValue": "Wholesale",
+          "staticOptions": [
+            "Wholesale=Toptan (KDV hariç)",
+            "Retail=Perakende (KDV dâhil)"
+          ]
+        }
+      },
+      {
+        "id": "eBelgeKarti",
+        "type": "formCard",
+        "name": "eBelgeKarti",
+        "props": {
+          "title": "E-belge",
+          "columns": 3,
+          "inputs": [
+            "eSenaryo",
+            "eTurKodu",
+            "eAliciEtiketi"
+          ],
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "eSenaryo",
+        "type": "input",
+        "name": "eSenaryo",
+        "props": {
+          "inputType": "select",
+          "label": "Belge senaryosu",
+          "staticOptions": [
+            "=Seçilmedi (iç seri)",
+            "TEMELFATURA=Temel fatura",
+            "TICARIFATURA=Ticari fatura",
+            "EARSIVFATURA=e-Arşiv fatura",
+            "IHRACAT=İhracat",
+            "YOLCUBERABERFATURA=Yolcu beraber",
+            "KAMU=Kamu",
+            "HKS=HKS",
+            "ENERJI=Enerji",
+            "ILAC_TIBBICIHAZ=İlaç / tıbbi cihaz"
+          ],
+          "description": "Numara serisini belirler: e-Arşiv, e-Fatura ya da iç seri."
+        }
+      },
+      {
+        "id": "eTurKodu",
+        "type": "input",
+        "name": "eTurKodu",
+        "props": {
+          "inputType": "select",
+          "label": "Belge tür kodu",
+          "defaultValue": "SATIS",
+          "staticOptions": [
+            "SATIS=Satış",
+            "IADE=İade",
+            "TEVKIFAT=Tevkifat",
+            "ISTISNA=İstisna",
+            "OZELMATRAH=Özel matrah",
+            "IHRACKAYITLI=İhraç kayıtlı",
+            "TEVKIFATIADE=Tevkifat iade",
+            "HKSSATIS=HKS satış",
+            "HKSKOMISYONCU=HKS komisyoncu"
+          ]
+        }
+      },
+      {
+        "id": "eAliciEtiketi",
+        "type": "input",
+        "name": "eAliciEtiketi",
+        "props": {
+          "inputType": "text",
+          "label": "Alıcı e-Fatura etiketi",
+          "maxLength": 255,
+          "placeholder": "urn:mail:…",
+          "visibleWhen": "eSenaryo.value == 'TEMELFATURA' || eSenaryo.value == 'TICARIFATURA' || eSenaryo.value == 'KAMU'"
+        }
+      },
+      {
+        "id": "eArsivKarti",
+        "type": "formCard",
+        "name": "eArsivKarti",
+        "props": {
+          "title": "e-Arşiv · e-ticaret ödeme bilgileri",
+          "columns": 3,
+          "inputs": [
+            "eSatinAlmaAdresi",
+            "eOdemeVkn",
+            "eOdemeUnvan",
+            "eOdemeEtiketi",
+            "eOdemeAracisi",
+            "eOdemeTuru",
+            "eOdemeYontemi",
+            "eOdemeTarihi",
+            "eSonOdemeTarihi",
+            "eOdemeNotu"
+          ],
+          "visibleWhen": "eSenaryo.value == 'EARSIVFATURA'",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "eSatinAlmaAdresi",
+        "type": "input",
+        "name": "eSatinAlmaAdresi",
+        "props": {
+          "inputType": "text",
+          "label": "Satın alma adresi (URL)",
+          "maxLength": 500
+        }
+      },
+      {
+        "id": "eOdemeVkn",
+        "type": "input",
+        "name": "eOdemeVkn",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme aracısı VKN / TCKN",
+          "maxLength": 11,
+          "pattern": "^[0-9]{10,11}$",
+          "patternMessage": "VKN 10, TCKN 11 rakam olmalıdır."
+        }
+      },
+      {
+        "id": "eOdemeUnvan",
+        "type": "input",
+        "name": "eOdemeUnvan",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme aracısı unvanı",
+          "maxLength": 250
+        }
+      },
+      {
+        "id": "eOdemeEtiketi",
+        "type": "input",
+        "name": "eOdemeEtiketi",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme aracısı etiketi",
+          "maxLength": 255
+        }
+      },
+      {
+        "id": "eOdemeAracisi",
+        "type": "input",
+        "name": "eOdemeAracisi",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme aracısı",
+          "maxLength": 250
+        }
+      },
+      {
+        "id": "eOdemeTuru",
+        "type": "input",
+        "name": "eOdemeTuru",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme türü",
+          "maxLength": 100
+        }
+      },
+      {
+        "id": "eOdemeYontemi",
+        "type": "input",
+        "name": "eOdemeYontemi",
+        "props": {
+          "inputType": "select",
+          "label": "Ödeme yöntemi",
+          "staticOptions": [
+            "=Seçilmedi",
+            "CREDIT_CARD=Kredi kartı",
+            "EFT=EFT / havale",
+            "ON_DELIVERY=Kapıda ödeme",
+            "MEDIATOR=Aracı",
+            "OTHER=Diğer"
+          ]
+        }
+      },
+      {
+        "id": "eOdemeTarihi",
+        "type": "input",
+        "name": "eOdemeTarihi",
+        "props": {
+          "inputType": "datetime",
+          "label": "Ödeme tarihi"
+        }
+      },
+      {
+        "id": "eSonOdemeTarihi",
+        "type": "input",
+        "name": "eSonOdemeTarihi",
+        "props": {
+          "inputType": "datetime",
+          "label": "Son ödeme tarihi"
+        }
+      },
+      {
+        "id": "eOdemeNotu",
+        "type": "input",
+        "name": "eOdemeNotu",
+        "props": {
+          "inputType": "text",
+          "label": "Ödeme notu",
+          "maxLength": 500
+        }
+      },
+      {
+        "id": "araciKarti",
+        "type": "formCard",
+        "name": "araciKarti",
+        "props": {
+          "title": "e-Arşiv · aracı firma",
+          "columns": 2,
+          "inputs": [
+            "eAraciUlke",
+            "eAraciUlkeKodu",
+            "eAraciIl",
+            "eAraciIlce"
+          ],
+          "visibleWhen": "eSenaryo.value == 'EARSIVFATURA'",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "eAraciUlke",
+        "type": "input",
+        "name": "eAraciUlke",
+        "props": {
+          "inputType": "text",
+          "label": "Aracı firma ülkesi",
+          "maxLength": 100
+        }
+      },
+      {
+        "id": "eAraciUlkeKodu",
+        "type": "input",
+        "name": "eAraciUlkeKodu",
+        "props": {
+          "inputType": "text",
+          "label": "Aracı firma ülke kodu",
+          "maxLength": 2,
+          "upperCase": true
+        }
+      },
+      {
+        "id": "eAraciIl",
+        "type": "input",
+        "name": "eAraciIl",
+        "props": {
+          "inputType": "text",
+          "label": "Aracı firma ili",
+          "maxLength": 100
+        }
+      },
+      {
+        "id": "eAraciIlce",
+        "type": "input",
+        "name": "eAraciIlce",
+        "props": {
+          "inputType": "text",
+          "label": "Aracı firma ilçesi",
+          "maxLength": 100
+        }
+      },
+      {
+        "id": "tasiyiciKarti",
+        "type": "formCard",
+        "name": "tasiyiciKarti",
+        "props": {
+          "title": "Taşıyıcı",
+          "columns": 2,
+          "inputs": [
+            "eTasiyiciVkn",
+            "eTasiyiciAdi",
+            "eTasiyiciSoyadi",
+            "eSevkTarihi"
+          ],
+          "visibleWhen": "eSenaryo.value != null",
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "eTasiyiciVkn",
+        "type": "input",
+        "name": "eTasiyiciVkn",
+        "props": {
+          "inputType": "text",
+          "label": "Taşıyıcı VKN / TCKN",
+          "maxLength": 11,
+          "pattern": "^[0-9]{10,11}$",
+          "patternMessage": "VKN 10, TCKN 11 rakam olmalıdır."
+        }
+      },
+      {
+        "id": "eTasiyiciAdi",
+        "type": "input",
+        "name": "eTasiyiciAdi",
+        "props": {
+          "inputType": "text",
+          "label": "Taşıyıcı adı / unvanı",
+          "maxLength": 250
+        }
+      },
+      {
+        "id": "eTasiyiciSoyadi",
+        "type": "input",
+        "name": "eTasiyiciSoyadi",
+        "props": {
+          "inputType": "text",
+          "label": "Taşıyıcı soyadı",
+          "maxLength": 100
+        }
+      },
+      {
+        "id": "eSevkTarihi",
+        "type": "input",
+        "name": "eSevkTarihi",
+        "props": {
+          "inputType": "date",
+          "label": "Sevk tarihi"
+        }
+      },
+      {
+        "id": "kalemler",
+        "type": "editableGrid",
+        "name": "kalemler",
+        "props": {
+          "gridMode": "list",
+          "title": "Fatura satırları",
+          "addLabel": "Satır ekle",
+          "maxRows": 200,
+          "minRows": 1,
+          "gridColumns": [
+            "stockItemId|Stok|lookup:stoklar:id:code:name|required",
+            "warehouseId|Depo|lookup:depolar:id:code:name|required",
+            "quantity|Miktar|number|required,min:0.0001,step:0.0001",
+            "unitCode|Birim|text|readOnly",
+            "unitPrice|Birim fiyat|number|required,min:0,step:0.0001",
+            "discountPercent|İsk. %|number|min:0,max:100,step:0.01",
+            "vatPercent|KDV %|number|min:0,max:100,step:0.01",
+            "lineTotal|Tutar|calc:onizleme:lineTotal"
+          ],
+          "columnOptionsWhen": [
+            "stockItemId=satir.isActive == true",
+            "warehouseId=satir.isActive == true"
+          ],
+          "lookupFills": {
+            "stockItemId": {
+              "unitCode": "unitCode",
+              "unitPrice": "salesListPrice",
+              "vatPercent": "salesVatPercent",
+              "discountPercent": "salesDiscountPercent"
+            }
+          }
+        }
+      },
+      {
+        "id": "satirNotu",
+        "type": "text",
+        "name": "satirNotu",
+        "props": {
+          "text": "Stok seçilince birim, liste fiyatı, iskonto ve KDV oranı dolar (yazdığınız değer korunur). Fiyatlar {{onizleme.meta.currencyCode}} cinsindendir; Perakende türde fiyat KDV dâhildir. Tutarlar sunucu önizlemesinden gelir."
+        }
+      },
+      {
+        "id": "vergiKarti",
+        "type": "formCard",
+        "name": "vergiKarti",
+        "props": {
+          "title": "Vergi mevzuatı profili",
+          "columns": 2,
+          "inputs": [
+            "vergiProfili"
+          ],
+          "visibleWhen": "profiller.rows[0].id != null"
+        }
+      },
+      {
+        "id": "vergiProfili",
+        "type": "input",
+        "name": "vergiProfili",
+        "props": {
+          "inputType": "select",
+          "label": "Hesap profili",
+          "optionsQuery": "profiller",
+          "optionValueColumn": "profileCode",
+          "optionLabelColumn": "name",
+          "optionDescriptionColumn": "profileCode",
+          "placeholder": "Belgelerde varsayılan profil",
+          "optionsWhen": "satir.isActive == true && satir.hasTaxRules == true"
+        }
+      },
+      {
+        "id": "notKarti",
+        "type": "formCard",
+        "name": "notKarti",
+        "props": {
+          "title": "Not",
+          "columns": 1,
+          "inputs": [
+            "faturaNotu"
+          ],
+          "trackChanges": true
+        }
+      },
+      {
+        "id": "faturaNotu",
+        "type": "input",
+        "name": "faturaNotu",
+        "props": {
+          "inputType": "text",
+          "label": "Fatura notu",
+          "maxLength": 1000
+        }
+      },
+      {
+        "id": "ozelAlanlar",
+        "type": "customFieldsBlock",
+        "name": "ozelAlanlar",
+        "props": {
+          "title": "Fatura özel alanları",
+          "definitionsQuery": "ozelTanimlar",
+          "columns": 2
+        }
+      },
+      {
+        "id": "araToplam",
+        "type": "metric",
+        "name": "araToplam",
+        "props": {
+          "title": "Ara toplam",
+          "value": "{{onizleme.meta.subtotal}}",
+          "format": "money",
+          "width": 3,
+          "icon": "calculator",
+          "description": "İskonto {{onizleme.meta.discountTotal}}"
+        }
+      },
+      {
+        "id": "kdvToplami",
+        "type": "metric",
+        "name": "kdvToplami",
+        "props": {
+          "title": "KDV ve vergiler",
+          "value": "{{onizleme.meta.taxTotal}}",
+          "format": "money",
+          "width": 3,
+          "icon": "percent",
+          "description": "matrah {{onizleme.meta.taxableTotal}}",
+          "descriptionFormat": "money"
+        }
+      },
+      {
+        "id": "tevkifatToplami",
+        "type": "metric",
+        "name": "tevkifatToplami",
+        "props": {
+          "title": "Tevkifat",
+          "value": "{{onizleme.meta.withholdingTotal}}",
+          "format": "money",
+          "width": 3,
+          "icon": "receipt",
+          "description": "vergi profilinden",
+          "visibleWhen": "onizleme.meta.withholdingTotal > 0"
+        }
+      },
+      {
+        "id": "genelToplam",
+        "type": "metric",
+        "name": "genelToplam",
+        "props": {
+          "title": "Genel toplam",
+          "value": "{{onizleme.meta.grandTotal}}",
+          "format": "money",
+          "width": 3,
+          "icon": "banknote",
+          "description": "{{onizleme.meta.currencyCode}}"
+        }
+      },
+      {
+        "id": "vergiDokumu",
+        "type": "dataTable",
+        "name": "vergiDokumu",
+        "props": {
+          "title": "KDV ve vergi dökümü",
+          "query": "vergiler",
+          "width": 12,
+          "columns": [
+            "name",
+            "rate",
+            "taxableAmount",
+            "amount"
+          ],
+          "columnLabels": [
+            "name=Vergi",
+            "rate=Oran %",
+            "taxableAmount=Matrah",
+            "amount=Tutar"
+          ],
+          "columnFormats": [
+            "rate=number",
+            "taxableAmount=money",
+            "amount=money"
+          ],
+          "emptyText": "Satır girildikçe vergi dökümü burada görünür.",
+          "showGridSearch": false,
+          "showColumnFilters": false,
+          "showColumnChooser": false,
+          "showExport": false,
+          "showPivot": false,
+          "showCsv": false,
+          "showSelectedExport": false
+        }
+      },
+      {
+        "id": "hesapNotu",
+        "type": "text",
+        "name": "hesapNotu",
+        "props": {
+          "text": "Tevkifat ve vergi profili hesapları sunucuda yapılır; ekranda formül tekrarlanmaz. Önizleme güncel değilse tutar \"—\" görünür, kayıt yine yapılabilir."
+        }
+      }
+    ],
+    "queries": [
+      {
+        "id": "musteriler",
+        "name": "musteriler",
+        "kind": "read",
+        "operation": "cari.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{musteri.search}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "stoklar",
+        "name": "stoklar",
+        "kind": "read",
+        "operation": "stok.kart.listele",
+        "runOn": "load",
+        "parameters": [
+          {
+            "name": "q",
+            "binding": "{{kalemler.arama}}",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "depolar",
+        "name": "depolar",
+        "kind": "read",
+        "operation": "depo.listele",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "profiller",
+        "name": "profiller",
+        "kind": "read",
+        "operation": "satinalma.faturaGirisi.mevzuatProfilleri",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "ozelTanimlar",
+        "name": "ozelTanimlar",
+        "kind": "read",
+        "operation": "satis.fatura.ozelAlanTanimlari",
+        "runOn": "load",
+        "parameters": []
+      },
+      {
+        "id": "onizleme",
+        "name": "onizleme",
+        "kind": "read",
+        "operation": "satis.fatura.onizle",
+        "runOn": [
+          "musteri",
+          "faturaTarihi",
+          "faturaTuru",
+          "vergiProfili",
+          "kalemler"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "binding": "{{musteri.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "invoiceDate",
+            "binding": "{{faturaTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{kalemler.satirlar[0].warehouseId}}",
+            "type": "guid"
+          },
+          {
+            "name": "accountingProfileCode",
+            "binding": "{{vergiProfili.value}}",
+            "type": "text"
+          },
+          {
+            "name": "invoiceType",
+            "binding": "{{faturaTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "lines",
+            "binding": "{{kalemler.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "vergiler",
+        "name": "vergiler",
+        "kind": "read",
+        "operation": "satis.fatura.onizleVergileri",
+        "runOn": [
+          "musteri",
+          "faturaTarihi",
+          "faturaTuru",
+          "vergiProfili",
+          "kalemler"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "binding": "{{musteri.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "invoiceDate",
+            "binding": "{{faturaTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{kalemler.satirlar[0].warehouseId}}",
+            "type": "guid"
+          },
+          {
+            "name": "accountingProfileCode",
+            "binding": "{{vergiProfili.value}}",
+            "type": "text"
+          },
+          {
+            "name": "invoiceType",
+            "binding": "{{faturaTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "lines",
+            "binding": "{{kalemler.satirlar}}",
+            "type": "list"
+          }
+        ]
+      },
+      {
+        "id": "faturaKes",
+        "name": "faturaKes",
+        "kind": "insert",
+        "operation": "satis.fatura.olustur",
+        "runOn": "manual",
+        "parameters": [
+          {
+            "name": "requestId",
+            "binding": "{{istekKimligi.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "customerId",
+            "binding": "{{musteri.value}}",
+            "type": "guid"
+          },
+          {
+            "name": "warehouseId",
+            "binding": "{{kalemler.satirlar[0].warehouseId}}",
+            "type": "guid"
+          },
+          {
+            "name": "invoiceDate",
+            "binding": "{{faturaTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "accountingProfileCode",
+            "binding": "{{vergiProfili.value}}",
+            "type": "text"
+          },
+          {
+            "name": "invoiceType",
+            "binding": "{{faturaTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "notes",
+            "binding": "{{faturaNotu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "customFields",
+            "binding": "{{ozelAlanlar.degerler}}",
+            "type": "map"
+          },
+          {
+            "name": "eDocument.scenario",
+            "binding": "{{eSenaryo.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.typeCode",
+            "binding": "{{eTurKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.recipientAlias",
+            "binding": "{{eAliciEtiketi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.purchaseUrl",
+            "binding": "{{eSatinAlmaAdresi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentTaxId",
+            "binding": "{{eOdemeVkn.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentTitle",
+            "binding": "{{eOdemeUnvan.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentAlias",
+            "binding": "{{eOdemeEtiketi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentAgentName",
+            "binding": "{{eOdemeAracisi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentType",
+            "binding": "{{eOdemeTuru.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentMeans",
+            "binding": "{{eOdemeYontemi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.paymentDate",
+            "binding": "{{eOdemeTarihi.value}}",
+            "type": "datetime"
+          },
+          {
+            "name": "eDocument.paymentDueDate",
+            "binding": "{{eSonOdemeTarihi.value}}",
+            "type": "datetime"
+          },
+          {
+            "name": "eDocument.paymentInstructionNote",
+            "binding": "{{eOdemeNotu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.intermediaryCountry",
+            "binding": "{{eAraciUlke.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.intermediaryCountryCode",
+            "binding": "{{eAraciUlkeKodu.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.intermediaryCity",
+            "binding": "{{eAraciIl.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.intermediaryDistrict",
+            "binding": "{{eAraciIlce.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.carrierTaxId",
+            "binding": "{{eTasiyiciVkn.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.carrierName",
+            "binding": "{{eTasiyiciAdi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.carrierSurname",
+            "binding": "{{eTasiyiciSoyadi.value}}",
+            "type": "text"
+          },
+          {
+            "name": "eDocument.sentAt",
+            "binding": "{{eSevkTarihi.value}}",
+            "type": "date"
+          },
+          {
+            "name": "lines",
+            "binding": "{{kalemler.satirlar}}",
+            "type": "list"
+          }
+        ]
+      }
+    ]
+  }
+}
